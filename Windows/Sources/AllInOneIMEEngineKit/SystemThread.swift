@@ -16,6 +16,8 @@ public final class SystemThread: SystemQueue, @unchecked Sendable {
     /// Set when there is work.
     private let wake: HANDLE
     public private(set) var threadId: DWORD = 0
+    /// The thread's message-only window: the clipboard's owner while what the engine copied is on it.
+    public private(set) var window: HWND?
 
     public init() {
         wake = CreateEventW(nil, false, false, nil)
@@ -47,6 +49,11 @@ public final class SystemThread: SystemQueue, @unchecked Sendable {
         return result!
     }
 
+    /// `sync`, for work that throws: its error comes back with it.
+    public func syncThrowing<T>(_ work: @escaping () throws -> T) throws -> T {
+        try sync { Result { try work() } }.get()
+    }
+
     /// Whether the caller is this thread.
     public var isCurrent: Bool { GetCurrentThreadId() == threadId }
 
@@ -56,6 +63,7 @@ public final class SystemThread: SystemQueue, @unchecked Sendable {
         var message = MSG()
         // The thread's message queue, before anything is sent to it.
         _ = PeekMessageW(&message, nil, UINT(WM_USER), UINT(WM_USER), UINT(PM_NOREMOVE))
+        window = Self.makeWindow()
         ready.signal()
         var handles: [HANDLE?] = [wake]
         while true {
@@ -67,6 +75,21 @@ public final class SystemThread: SystemQueue, @unchecked Sendable {
                 TranslateMessage(&message)
                 DispatchMessageW(&message)
             }
+        }
+    }
+
+    /// A message-only window (`HWND_MESSAGE`) of a class of its own, whose messages are the default's.
+    private static func makeWindow() -> HWND? {
+        let instance = GetModuleHandleW(nil)
+        return "AllInOneIME.SystemThread".withCString(encodedAs: UTF16.self) { name in
+            var windowClass = WNDCLASSEXW()
+            windowClass.cbSize = UINT(MemoryLayout<WNDCLASSEXW>.size)
+            windowClass.lpfnWndProc = { DefWindowProcW($0, $1, $2, $3) }
+            windowClass.hInstance = instance
+            windowClass.lpszClassName = name
+            _ = RegisterClassExW(&windowClass)  // fails harmlessly for a second thread: the class is there
+            // HWND_MESSAGE, (HWND)-3: a macro Swift doesn't import.
+            return CreateWindowExW(0, name, name, 0, 0, 0, 0, 0, HWND(bitPattern: -3), nil, instance, nil)
         }
     }
 

@@ -174,7 +174,8 @@ func runEngine(_ options: EngineOptions) -> Never {
     }
 
     let clock: WireClock = options.test && !options.systemClock ? ManualClock() : SystemClock()
-    var hostOptions = EngineHost.Options(system: WindowsSystem(), systemQueue: SystemThread())
+    let systemThread = SystemThread()
+    var hostOptions = EngineHost.Options(system: WindowsSystem(thread: systemThread), systemQueue: systemThread)
     hostOptions.testMode = options.test
     hostOptions.foreground = { peer in peer.pid != nil && Win32.foregroundProcess() == peer.pid }
     hostOptions.settings = EngineSettings(url: options.config.map { URL(fileURLWithPath: $0) } ?? Config.userURL)

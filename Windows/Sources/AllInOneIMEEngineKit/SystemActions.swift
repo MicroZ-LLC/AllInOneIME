@@ -43,44 +43,81 @@ public struct SystemActionError: Error, LocalizedError, Equatable {
 
 #if os(Windows)
 
-/// Windows' clipboard (CF_UNICODETEXT), ShellExecuteW, a console window for a terminal command, and `@open`'s search
-/// over the Start menu and the user's own folders.
+/// Windows' clipboard (CF_UNICODETEXT), ShellExecuteExW, a console window for a terminal command, and `@open`'s search
+/// over the Start menu and the user's own folders. All but the search run on the engine's system thread (`thread`),
+/// whoever calls them: the shell wants its COM apartment, and the clipboard is the thread's message-only window's
+/// (`SystemThread.window`).
 public struct WindowsSystem: SystemActions {
-    public init() {}
+    public let thread: SystemThread
+    /// Marks what is copied as not for the clipboard's history and the cloud clipboard
+    /// ("ExcludeClipboardContentFromMonitorProcessing"): for the tests, which put the user's clipboard back after.
+    var excludedFromHistory = false
 
+    public init(thread: SystemThread) {
+        self.thread = thread
+    }
+
+    /// The clipboard's owner is the system thread's window: `SetClipboardData` fails on a clipboard opened without one
+    /// (`OpenClipboard(NULL)`, then `EmptyClipboard`: the owner is NULL), and another program emptying it sends the
+    /// owner `WM_DESTROYCLIPBOARD`, which that thread's message loop answers.
     public func copy(_ text: String) -> Bool {
-        guard openClipboard() else { return false }
-        defer { CloseClipboard() }
-        EmptyClipboard()
-        let units = Array(text.utf16) + [0]
-        guard let memory = GlobalAlloc(UINT(GMEM_MOVEABLE), SIZE_T(units.count * 2)) else { return false }
-        guard let pointer = GlobalLock(memory) else { GlobalFree(memory); return false }
-        units.withUnsafeBytes { pointer.copyMemory(from: $0.baseAddress!, byteCount: $0.count) }
-        GlobalUnlock(memory)
-        guard SetClipboardData(UINT(CF_UNICODETEXT), memory) != nil else { GlobalFree(memory); return false }
-        return true
+        thread.sync { [excludedFromHistory] in
+            guard let window = thread.window, Self.openClipboard(window) else { return false }
+            defer { CloseClipboard() }
+            guard EmptyClipboard(), Self.set(UINT(CF_UNICODETEXT), Data(bytes: Array(text.utf16) + [0], count: (text.utf16.count + 1) * 2)) else {
+                return false
+            }
+            if excludedFromHistory { Self.excludeFromHistory() }
+            return true
+        }
     }
 
     public func readClipboard() -> String? {
-        guard IsClipboardFormatAvailable(UINT(CF_UNICODETEXT)), openClipboard() else { return nil }
-        defer { CloseClipboard() }
-        guard let memory = GetClipboardData(UINT(CF_UNICODETEXT)), let pointer = GlobalLock(memory) else { return nil }
-        defer { GlobalUnlock(memory) }
-        let text = String(decodingCString: pointer.assumingMemoryBound(to: UInt16.self), as: UTF16.self)
-        return text.isEmpty ? nil : text
+        thread.sync {
+            guard IsClipboardFormatAvailable(UINT(CF_UNICODETEXT)), let window = thread.window, Self.openClipboard(window) else {
+                return nil
+            }
+            defer { CloseClipboard() }
+            guard let memory = GetClipboardData(UINT(CF_UNICODETEXT)), let pointer = GlobalLock(memory) else { return nil }
+            defer { GlobalUnlock(memory) }
+            let text = String(decodingCString: pointer.assumingMemoryBound(to: UInt16.self), as: UTF16.self)
+            return text.isEmpty ? nil : text
+        }
     }
 
     /// The clipboard is one at a time across the system: tried for a moment while another program has it open.
-    private func openClipboard() -> Bool {
+    static func openClipboard(_ owner: HWND) -> Bool {
         for _ in 0..<10 {
-            if OpenClipboard(nil) { return true }
+            if OpenClipboard(owner) { return true }
             Sleep(20)
         }
         return false
     }
 
+    /// `data` on the open clipboard as `format`.
+    static func set(_ format: UINT, _ data: Data) -> Bool {
+        guard let memory = GlobalAlloc(UINT(GMEM_MOVEABLE), SIZE_T(max(data.count, 1))) else { return false }
+        guard let pointer = GlobalLock(memory) else {
+            GlobalFree(memory)
+            return false
+        }
+        data.withUnsafeBytes { if let base = $0.baseAddress { pointer.copyMemory(from: base, byteCount: $0.count) } }
+        GlobalUnlock(memory)
+        guard SetClipboardData(format, memory) != nil else {
+            GlobalFree(memory)
+            return false
+        }
+        return true
+    }
+
+    /// On the open clipboard: kept out of the clipboard's history and the cloud clipboard.
+    static func excludeFromHistory() {
+        let format = "ExcludeClipboardContentFromMonitorProcessing".withCString(encodedAs: UTF16.self) { RegisterClipboardFormatW($0) }
+        if format != 0 { _ = set(format, Data([0, 0, 0, 0])) }
+    }
+
     public func open(_ target: String) throws {
-        try Self.shellOpen(target)
+        _ = try thread.syncThrowing { try Self.shellOpen(target) }
     }
 
     /// `ShellExecuteExW`'s "open", as Explorer opens what is double-clicked. The client gave the engine the right to
@@ -114,13 +151,15 @@ public struct WindowsSystem: SystemActions {
     /// line in a file), in the user's home folder. Started suspended: the right to take the foreground the client gave
     /// the engine (`allowForeground`) goes to that one process, then it runs.
     public func launchInTerminal(_ argv: [String], prompt: String?) throws {
-        let path = WindowsPrograms.variable("PATH", in: ProcessInfo.processInfo.environment)
-        let command = try ConsoleCommand.make(argv, prompt: prompt, path: path, promptFolder: ConsoleCommand.defaultPromptFolder)
-        do {
-            try Self.start(command, flags: DWORD(CREATE_NEW_CONSOLE))
-        } catch {
-            if let file = command.promptFile { try? FileManager.default.removeItem(at: file) }
-            throw error
+        try thread.syncThrowing {
+            let path = WindowsPrograms.variable("PATH", in: ProcessInfo.processInfo.environment)
+            let command = try ConsoleCommand.make(argv, prompt: prompt, path: path, promptFolder: ConsoleCommand.defaultPromptFolder)
+            do {
+                try Self.start(command, flags: DWORD(CREATE_NEW_CONSOLE))
+            } catch {
+                if let file = command.promptFile { try? FileManager.default.removeItem(at: file) }
+                throw error
+            }
         }
     }
 
