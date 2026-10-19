@@ -99,6 +99,46 @@ struct PanelPresenterTests {
         #expect(english.status == .hint("Space twice → polish / rewrite"))
     }
 
+    /// On Windows the keys have Windows' names (`PlatformTerms`); the Mac's text stays as it was.
+    @Test func theKeysAsThePlatformNamesThem() throws {
+        let c = composer()
+        c.setInputMode(.english)
+        improveDraft(c)
+        let windows = PanelPresenter(config: .default, language: "en", terms: .windows)
+        #expect(windows.model(for: c).footer == "Ctrl+V paste · ⌫ delete · Esc clear")
+        #expect(windows.model(for: c).status == .hint("Write something, or Ctrl+V to paste"))
+        #expect(PanelPresenter(config: .default, language: "zh-Hans", terms: .windows).model(for: c).footer == "Ctrl+V 粘贴 · ⌫ 删字 · Esc 清除")
+        #expect(PanelPresenter(config: .default, language: "en", terms: .mac).model(for: c).footer == "⌃V paste · ⌫ delete · Esc clear")
+        // Results: copied with Ctrl+C.
+        let sent = translating()
+        _ = sent.receive(result, isFinal: true, id: 1)
+        try #require(sent.phase == .choosing)
+        #expect(windows.model(for: sent).footer == "Type, ⇧⏎ refine · Space / ⏎ insert · digits pick · 0 original · Ctrl+C copy · Esc back")
+        #expect(en.model(for: sent).footer == "Type, ⇧⏎ refine · Space / ⏎ insert · digits pick · 0 original · ⌘C copy · Esc back")
+        // The action key a tap of Ctrl, in the palette's footer and a draft's hint.
+        let tap = composer(key: .optionTap)
+        tap.setInputMode(.english)
+        improveDraft(tap)
+        type("hello", tap)
+        #expect(windows.model(for: tap).status == .hint("Tap Ctrl → polish / rewrite"))
+        #expect(en.model(for: tap).status == .hint("Tap ⌥ → polish / rewrite"))
+    }
+
+    @Test func appsAndThisDeviceAsThePlatformCallsThem() {
+        let word = SearchResult(name: "Word", path: #"C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Word.lnk"#)
+        #expect(SessionText.openRow(word, language: "en", terms: .windows).comment == "app")
+        #expect(SessionText.openRow(word, language: "en", terms: .mac).comment != "app")
+        let c = composer()
+        c.attachment = .screenshot(.ready(ScreenText(transcript: ChatTranscript(messages: [.init(speaker: .them, text: "hi"),
+                                                                                           .init(speaker: .me, text: "hey")],
+                                                                                labelled: true))))
+        #expect(SessionText.attachmentHeader(c, language: "en", terms: .mac)
+                == "Screenshot · 2 lines (read on this Mac)\nThe image stays on this Mac; only its text is sent")
+        #expect(SessionText.attachmentHeader(c, language: "en", terms: .windows)
+                == "Screenshot · 2 lines (read on this PC)\nThe image stays on this PC; only its text is sent")
+        #expect(SessionText.attachmentHeader(c, language: "zh-Hans", terms: .windows) == "截图 · 2 行（本机识别）\n图片不会离开这台电脑，只发送认出的文字")
+    }
+
     // MARK: - Results
 
     /// "@improve 你好" sent (Space picks 你好, Space again sends it): request 1 in flight.

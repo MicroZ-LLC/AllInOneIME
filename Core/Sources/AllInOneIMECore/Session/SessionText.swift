@@ -21,13 +21,14 @@ public enum SessionText {
     }
 
     /// An `@open` result's row, as you type and after ⏎: its name in the interface language (计算器 in a
-    /// Chinese one), and where it is: 「应用」, or its folder (a folder's ends in "/"), after 「内容 · 」 when it
-    /// was found by what is in it. A web address says it opens in the browser.
-    public static func openRow(_ result: SearchResult, language: String) -> (text: String, comment: String) {
+    /// Chinese one), and where it is: 「应用」 (an app, as `terms` tells them), or its folder (a folder's ends in "/"),
+    /// after 「内容 · 」 when it was found by what is in it. A web address says it opens in the browser.
+    public static func openRow(_ result: SearchResult, language: String,
+                               terms: PlatformTerms = Platform.current.terms) -> (text: String, comment: String) {
         let t = InterfaceWords(language: language)
         if result.webURL != nil { return (result.name, t.tr("在浏览器中打开", "open in the browser", key: "openRow.inBrowser")) }
         let folder = abbreviatingHome((result.path as NSString).deletingLastPathComponent)
-        let place = result.path.hasSuffix(".app") ? t.tr("应用", "app")
+        let place = terms.isApp(result.path) ? t.tr("应用", "app")
             : result.isFolder && !folder.hasSuffix("/") ? folder + "/" : folder
         // The Chinese name is the simplified one: Traditional Chinese has Finder's name, as the other languages.
         return (InterfaceLanguage.isSimplifiedChinese(language) ? result.chineseName ?? result.name : result.name,
@@ -73,13 +74,15 @@ public enum SessionText {
 
     // MARK: - The panel's lines
 
-    /// The hint under a pending draft: "单按 ⌥ → 翻译成英文 / 改写", "Tap ⌥ → translate to English / rewrite" …
-    public static func draftHint(_ composer: Composer, config: Config, language: String) -> String {
+    /// The hint under a pending draft: "单按 ⌥ → 翻译成英文 / 改写", "Tap ⌥ → translate to English / rewrite" …, with the
+    /// keys as `terms` name them.
+    public static func draftHint(_ composer: Composer, config: Config, language: String,
+                                 terms: PlatformTerms = Platform.current.terms) -> String {
         guard let command = composer.draftCommand else { return "" }  // a draft always starts with one
         let t = InterfaceWords(language: language)
-        let key = composer.actionKey
-        let how = key != .space ? t.name(key)
-            : composer.spaceActs ? t.name(ActionKey.space) : t.tr("连按两次空格", "Space twice")
+        let key = composer.actionKey, paste = terms.paste
+        let how = key != .space ? t.name(key, terms: terms)
+            : composer.spaceActs ? t.name(ActionKey.space, terms: terms) : t.tr("连按两次空格", "Space twice")
         // A snippet: what it will insert, with the blanks typed so far.
         if let preview = composer.snippetPreview { return "\(how) → “" + selectionPreview(preview, limit: 80) + "”" }
         // On the selection: what the action key does with it; `@improve` / `@translate` with something typed rewrite it as asked.
@@ -88,20 +91,21 @@ public enum SessionText {
                 return "\(how) → " + t.tr("按你写的要求改选中的文字", "rewrite the selection as you asked")
             }
             let text = composer.sentText.isEmpty ? selected : composer.sentText
-            return "\(how) → " + t.action(command, input: config.language(of: text), config: config, draft: composer.draft)
+            return "\(how) → " + t.action(command, input: config.language(of: text), config: config, draft: composer.draft, terms: terms)
         }
         // @reply with nothing to reply to yet: what it takes.
         if command == .reply, composer.sentText.isEmpty, composer.attachment == nil {
-            return t.tr("回复对方：⌃V 粘贴消息或截图", "Reply: ⌃V their message or a screenshot")
+            return t.tr("回复对方：\(paste) 粘贴消息或截图", "Reply: \(paste) their message or a screenshot")
         }
         // A screenshot being read: the action key waits for it.
         if composer.readingScreenshot { return composer.messages.reply.reading }
         // A command with nothing after it yet: what to do (the action key alone only hints); with a screenshot or a
         // message attached, what the action key does with it.
         if composer.sentText.isEmpty, composer.attachment == nil {
-            return t.tr("写点内容，或按 ⌃V 粘贴", "Write something, or ⌃V to paste")
+            return t.tr("写点内容，或按 \(paste) 粘贴", "Write something, or \(paste) to paste")
         }
-        return "\(how) → " + t.action(command, input: config.language(of: composer.sentText), config: config, draft: composer.draft)
+        return "\(how) → " + t.action(command, input: config.language(of: composer.sentText), config: config, draft: composer.draft,
+                                       terms: terms)
     }
 
     /// The instructions the results shown were refined with, oldest first ("Refined: shorter · more formal"); Esc goes
@@ -114,16 +118,23 @@ public enum SessionText {
     }
 
     /// The line about what the draft has attached (`Composer.attachment`): a screenshot being read or read (on this
-    /// device: only its text is sent), or the message copied into `@reply`.
-    public static func attachmentHeader(_ composer: Composer, language: String) -> String? {
+    /// device, as `terms` call it: only its text is sent), or the message copied into `@reply`.
+    public static func attachmentHeader(_ composer: Composer, language: String,
+                                        terms: PlatformTerms = Platform.current.terms) -> String? {
         let t = InterfaceWords(language: language)
         switch composer.attachment {
         case .screenshot(.recognizing)?:
             return composer.messages.reply.reading
         case let .screenshot(.ready(text))?:
             let lines = text.lineCount
-            return t.tr("截图 · \(lines) 行（本机识别）", "Screenshot · \(lines) lines (read on this Mac)") + "\n"
-                + t.tr("图片不会离开这台 Mac，只发送认出的文字", "The image stays on this Mac; only its text is sent")
+            switch terms.device {
+            case .mac:
+                return t.tr("截图 · \(lines) 行（本机识别）", "Screenshot · \(lines) lines (read on this Mac)") + "\n"
+                    + t.tr("图片不会离开这台 Mac，只发送认出的文字", "The image stays on this Mac; only its text is sent")
+            case .pc:
+                return t.tr("截图 · \(lines) 行（本机识别）", "Screenshot · \(lines) lines (read on this PC)") + "\n"
+                    + t.tr("图片不会离开这台电脑，只发送认出的文字", "The image stays on this PC; only its text is sent")
+            }
         case let .copiedText(message)?:
             let count = message.count
             return t.tr("复制的消息 · \(count) 字", "Copied message · \(count) characters")

@@ -296,12 +296,16 @@ extension Composer {
             return t.tr("你自己的 @\(old) 改名为 @\(new)：@\(old) 现在是内置命令", "Your own @\(old) is now @\(new): @\(old) is built in")
         }
 
-        public static func make(language: String) -> ReplyMessages {
+        /// What `@reply` says in `language`, with the keys and the device as `terms` name them.
+        public static func make(language: String, terms: PlatformTerms = Platform.current.terms) -> ReplyMessages {
             let t = InterfaceWords(language: language)
+            let paste = terms.paste
             return ReplyMessages(
-                hint: t.tr("先选中或复制对方的消息，或截图后按 ⌃V；也可以直接写要回什么",
-                           "Select or copy their message, or take a screenshot and press ⌃V; or write what to reply"),
-                reading: t.tr("正在本机识别截图（第一次较慢）…", "Reading the screenshot on this Mac (slower the first time)…"),
+                hint: t.tr("先选中或复制对方的消息，或截图后按 \(paste)；也可以直接写要回什么",
+                           "Select or copy their message, or take a screenshot and press \(paste); or write what to reply"),
+                reading: terms.device == .mac
+                    ? t.tr("正在本机识别截图（第一次较慢）…", "Reading the screenshot on this Mac (slower the first time)…")
+                    : t.tr("正在本机识别截图（第一次较慢）…", "Reading the screenshot on this PC (slower the first time)…"),
                 noText: t.tr("截图里没有认出文字", "No text found in the screenshot"),
                 unsupported: t.tr("这台设备不能识别图片里的文字", "This device can't read text in images"),
                 imageTooLarge: t.tr("图片太大：最多 30 MB", "The image is too large: 30 MB at most"),

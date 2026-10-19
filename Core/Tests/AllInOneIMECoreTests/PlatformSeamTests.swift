@@ -101,3 +101,57 @@ struct PlatformSeamTests {
         #expect(elsewhere == start && manager.now() == start)
     }
 }
+
+/// What the interface calls the keys and places (`PlatformTerms`, `Platform.terms`): the Mac's symbols, Windows' names.
+struct PlatformTermsTests {
+    @Test func theMacsSymbols() {
+        let mac = PlatformTerms.mac
+        #expect([mac.copy, mac.paste, mac.again, mac.pick(2), mac.picks(1), mac.picks(3)] == ["⌘C", "⌃V", "⌘R", "⌘2", "⌘1", "⌘1–⌘3"])
+        #expect(mac.voiceKey == "⌥" && mac.actionTap == "⌥" && mac.shortcut(.option, "Space") == "⌥Space")
+        #expect(mac.isApp("/Applications/Calculator.app") && !mac.isApp("/Users/a/Calculator.app.zip") && !mac.isApp("C:/x/Word.lnk"))
+    }
+
+    @Test func windowsNames() {
+        let windows = PlatformTerms.windows
+        #expect([windows.copy, windows.paste, windows.again, windows.pick(2), windows.picks(1), windows.picks(3)]
+                == ["Ctrl+C", "Ctrl+V", "Ctrl+R", "Ctrl+2", "Ctrl+1", "Ctrl+1–3"])
+        // The keys follow the roles: the right Ctrl dictates, a tap of Ctrl is the action key.
+        #expect(windows.voiceKey == "Ctrl" && windows.actionTap == "Ctrl" && windows.shortcut(.command, "D") == "Win+D")
+        #expect(windows.isApp(#"C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Word.lnk"#) && windows.isApp("C:/Tools/x.EXE"))
+        #expect(!windows.isApp("/Applications/Calculator.app"))
+    }
+
+    @Test func theSystemsOwnByDefault() {
+        #if os(Windows)
+        #expect(Platform.systemTerms == .windows)
+        #else
+        #expect(Platform.systemTerms == .mac)
+        #endif
+    }
+
+    /// The action key and the composer's own messages name the keys and places as the terms do.
+    @Test func theActionKeyAndTheMessages() {
+        let (en, zh) = (InterfaceWords(language: "en"), InterfaceWords(language: "zh-Hans"))
+        #expect([en.name(.optionTap, terms: .mac), en.name(.optionSpace, terms: .mac)] == ["Tap ⌥", "⌥Space"])
+        #expect([zh.name(.optionTap, terms: .mac), zh.name(.optionSpace, terms: .mac)] == ["单按 ⌥", "⌥空格"])
+        #expect([en.name(.optionTap, terms: .windows), en.name(.optionSpace, terms: .windows)] == ["Tap Ctrl", "Ctrl+Space"])
+        #expect([zh.name(.optionTap, terms: .windows), zh.name(.optionSpace, terms: .windows)] == ["单按 Ctrl", "Ctrl+空格"])
+        #expect(en.name(.enter, terms: .windows) == "⏎" && en.name(.space, terms: .windows) == "Space")
+        let mac = Composer.Messages.make(language: "en", terms: .mac), windows = Composer.Messages.make(language: "en", terms: .windows)
+        #expect(mac.holdToTalk == "Hold right ⌥ to talk" && windows.holdToTalk == "Hold right Ctrl to talk")
+        #expect(mac.openedTerminal == "Opened Claude Code in Terminal" && windows.openedTerminal == "Opened Claude Code in a terminal")
+        #expect(windows.ranInTerminal == "Running in a terminal" && windows.openedAgent == "Opened {agent} in a terminal")
+        #expect(mac.reply.reading == "Reading the screenshot on this Mac (slower the first time)…")
+        #expect(windows.reply.reading == "Reading the screenshot on this PC (slower the first time)…")
+        #expect(windows.reply.hint == "Select or copy their message, or take a screenshot and press Ctrl+V; or write what to reply")
+        #expect(Composer.Messages.make(language: "zh-Hans", terms: .windows).holdToTalk == "按住右 Ctrl 说话")
+        // A command's summary and what the action key does with it.
+        #expect(en.summary(.reply, terms: .windows) == "Reply: Ctrl+V their message or a screenshot")
+        let terminal = CustomCommand(name: "top", type: .terminal, argv: ["/usr/bin/top"])
+        #expect(en.customKind(terminal, terms: .mac) == "Run in Terminal: top" && en.customKind(terminal, terms: .windows) == "Run in a terminal: top")
+        var config = Config.default
+        config.claudeInBackground = false
+        #expect(en.action(.agent, input: .english, config: config, terms: .windows) == "open Claude Code in a terminal")
+        #expect(en.action(.agent, input: .english, config: config, terms: .mac) == "open Claude Code in Terminal")
+    }
+}

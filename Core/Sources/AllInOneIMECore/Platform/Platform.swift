@@ -34,13 +34,16 @@ public struct Platform: Sendable {
     public var defaults: any KeyValueStore
     /// The time of day (`Date()`, unless a shell or a test gives another).
     public var clock: any WallClock
+    /// What the interface calls the keys and places (⌘C or Ctrl+C, "this Mac" or "this PC" …).
+    public var terms: PlatformTerms
 
     public init(secrets: SecretStore = Platform.systemSecrets, scripts: any ScriptEngine = Platform.systemScripts,
                 onDeviceModel: any OnDeviceModel = Platform.systemOnDeviceModel,
                 languages: any LanguageIdentifier = Platform.systemLanguages, dates: any DateDetector = Platform.systemDates,
                 pdf: any PDFTextExtractor = Platform.systemPDF, text: any TextRecognizer = Platform.systemText,
                 processes: any ProcessLauncher = Platform.systemProcesses, files: any FileOps = SystemFileOps(),
-                defaults: any KeyValueStore = Platform.systemDefaults, clock: any WallClock = SystemWallClock()) {
+                defaults: any KeyValueStore = Platform.systemDefaults, clock: any WallClock = SystemWallClock(),
+                terms: PlatformTerms = Platform.systemTerms) {
         self.secrets = secrets
         self.scripts = scripts
         self.onDeviceModel = onDeviceModel
@@ -52,6 +55,7 @@ public struct Platform: Sendable {
         self.files = files
         self.defaults = defaults
         self.clock = clock
+        self.terms = terms
     }
 
     /// The platform in use: the task's `override` if it has one, else the installed one. Set (installed) at launch,
@@ -152,6 +156,15 @@ extension Platform {
         return UserDefaultsStore()
         #else
         return MemoryKeyValueStore()
+        #endif
+    }
+
+    /// Windows' names on Windows; elsewhere the Mac's symbols, until the shell installs its own (Android's).
+    public static var systemTerms: PlatformTerms {
+        #if os(Windows)
+        return .windows
+        #else
+        return .mac
         #endif
     }
 

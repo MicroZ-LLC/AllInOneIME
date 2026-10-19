@@ -306,12 +306,14 @@ public final class Composer {
             }
         }
 
-        /// What the composer says in the interface language `language` (`InterfaceLanguage`).
-        public static func make(language: String) -> Messages {
+        /// What the composer says in the interface language `language` (`InterfaceLanguage`), with the keys and places
+        /// as `terms` name them.
+        public static func make(language: String, terms: PlatformTerms = Platform.current.terms) -> Messages {
             let t = InterfaceWords(language: language)
+            let app = terms.terminal == .terminalApp
             return Messages(
                 notReady: t.tr("词库准备中，稍候可用", "Loading the dictionaries, one moment"),
-                holdToTalk: t.tr("按住右 ⌥ 说话", "Hold right ⌥ to talk"),
+                holdToTalk: t.tr("按住右 \(terms.voiceKey) 说话", "Hold right \(terms.voiceKey) to talk"),
                 didNotHear: t.tr("没听清，再说一次", "Didn't catch that, try again"),
                 chineseMode: t.tr("中", "Chinese"),
                 englishMode: t.tr("英", "English"),
@@ -319,9 +321,10 @@ public final class Composer {
                 typeAfterCommand: t.tr("在命令后面写上内容", "Type something after the command"),
                 nothingFound: t.tr("没有找到", "Nothing found"),
                 copied: t.tr("已复制", "Copied"),
-                openedTerminal: t.tr("已在终端打开 Claude Code", "Opened Claude Code in Terminal"),
+                openedTerminal: app ? t.tr("已在终端打开 Claude Code", "Opened Claude Code in Terminal")
+                    : t.tr("已在终端打开 Claude Code", "Opened Claude Code in a terminal"),
                 secureInputTerminal: t.tr("系统安全输入已开启（密码框或锁屏），没有打开 Claude Code", "Secure input is on (a password field or the lock screen): Claude Code was not opened"),
-                ranInTerminal: t.tr("已在终端运行", "Running in Terminal"),
+                ranInTerminal: app ? t.tr("已在终端运行", "Running in Terminal") : t.tr("已在终端运行", "Running in a terminal"),
                 startedInBackground: t.tr("已在后台开始，做完会通知你；@tasks 查看", "Started in the background; you'll be notified when it's done (@tasks)"),
                 secureInputCommand: t.tr("系统安全输入已开启（密码框或锁屏），没有运行命令", "Secure input is on (a password field or the lock screen): the command was not run"),
                 pasteTooLong: t.tr("剪贴板里的文字太长：最多 \(Composer.maxPasteLength) 字", "The clipboard text is too long: \(Composer.maxPasteLength) characters at most"),
@@ -342,9 +345,10 @@ public final class Composer {
                 scriptRan: t.tr("已运行：", "Ran "),
                 scriptStarted: t.tr("在后台运行，完成后通知你：", "Running in the background, you'll be notified: "),
                 cantOpen: t.tr("打不开：", "Can't open: "),
-                openedAgent: t.tr("已在终端打开 {agent}", "Opened {agent} in Terminal"),
+                openedAgent: app ? t.tr("已在终端打开 {agent}", "Opened {agent} in Terminal")
+                    : t.tr("已在终端打开 {agent}", "Opened {agent} in a terminal"),
                 secureInputNote: t.tr("系统安全输入已开启，没有存到 Notion", "Secure input is on: not saved to Notion"),
-                reply: .make(language: language),
+                reply: .make(language: language, terms: terms),
                 snippetTooLong: t.tr("要插入的文字太长：最多 \(Composer.maxNoteLength) 字", "The text to insert is too long: \(Composer.maxNoteLength) characters at most"),
                 snippetSelectionTooLong: t.tr("选中的文字太长：最多 \(Composer.maxSelectionLength) 字", "The selected text is too long: \(Composer.maxSelectionLength) characters at most"),
                 language: language)

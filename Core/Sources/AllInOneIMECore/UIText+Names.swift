@@ -10,12 +10,15 @@ extension InterfaceWords {
     /// The language as Chinese or English: what script plugins are told (`run(input, {language})`, "zh" or "en").
     public var pluginLanguage: Language { chinese ? .chinese : .english }
 
-    /// "单按 ⌥" / "Tap ⌥", …
-    public func name(_ key: ActionKey) -> String {
+    /// "单按 ⌥" / "Tap ⌥", "⌥Space" …; on Windows "Tap Ctrl", "Ctrl+Space" (`terms`).
+    public func name(_ key: ActionKey, terms: PlatformTerms = Platform.current.terms) -> String {
         switch key {
         case .enter: return "⏎"
-        case .optionTap: return tr("单按 ⌥", "Tap ⌥")
-        case .optionSpace: return tr("⌥空格", "⌥Space")
+        case .optionTap: return tr("单按 \(terms.actionTap)", "Tap \(terms.actionTap)")
+        case .optionSpace:
+            // The Mac's own way to write it in each language (「⌥空格」, "⌥-Leertaste"); elsewhere the key's name and
+            // Space's ("Ctrl+Leertaste").
+            return terms.keyStyle == .symbols ? tr("⌥空格", "⌥Space") : terms.shortcut(terms.roles.actionTap, tr("空格", "Space"))
         case .space: return tr("空格", "Space")
         case let .shortcut(key): return key.name
         }
@@ -54,21 +57,21 @@ extension InterfaceWords {
     }
 
     /// What a command does, in the palette: "提问，答案可以直接上屏" / "Ask a question; insert the answer".
-    public func summary(_ command: Command) -> String {
+    public func summary(_ command: Command, terms: PlatformTerms = Platform.current.terms) -> String {
         if let plugin = command.plugin {
             return plugin.manifest.summary?.text(chinese: chinese) ?? tr("插件", "Plugin")
         }
         if let row = command.snippetRowText {
             return command.bundle.map { row + " · " + tr("来自 \($0)", "From \($0)") } ?? row
         }
-        if let custom = command.custom { return custom.summary ?? customKind(custom) }
+        if let custom = command.custom { return custom.summary ?? customKind(custom, terms: terms) }
         if let script = command.script { return summary(script) }
-        let agentName = UIText.agentName
+        let agentName = UIText.agentName, paste = terms.paste
         switch command {
         case .improve: return tr("润色，再给几种改写（不翻译）", "Polish in the same language, plus rewrites")
         case .translate: return tr("翻译成你加的语言；和 @improve 一起写就翻译加改写", "Translate into your languages; with @improve, both")
         case .question: return tr("提问，答案可以直接上屏", "Ask a question; insert the answer")
-        case .reply: return tr("回复对方：⌃V 粘贴消息或截图", "Reply: ⌃V their message or a screenshot")
+        case .reply: return tr("回复对方：\(paste) 粘贴消息或截图", "Reply: \(paste) their message or a screenshot")
         case .agent: return tr("交给 \(agentName) 去做", "Hand it to \(agentName)")
         case .open: return tr("找文件、文件夹或 App 并打开", "Find a file, folder or app and open it")
         case .read: return tr("读网页正文，可放在句中给 AI 当上下文", "Read a web page; inside a sentence, context for the AI")
@@ -94,8 +97,8 @@ extension InterfaceWords {
     }
 
     /// `summary(_ command:)`, with a script extension's status line.
-    public func summary(_ command: Command, status: String?) -> String {
-        command.script.map { summary($0, status: status) } ?? summary(command)
+    public func summary(_ command: Command, status: String?, terms: PlatformTerms = Platform.current.terms) -> String {
+        command.script.map { summary($0, status: status) } ?? summary(command, terms: terms)
     }
 
     /// What a script's text should hold: its arguments' placeholders, with commas between ("from city, to city").
@@ -106,11 +109,14 @@ extension InterfaceWords {
     }
 
     /// A custom command without a summary of its own, by what it does.
-    public func customKind(_ custom: CustomCommand) -> String {
+    public func customKind(_ custom: CustomCommand, terms: PlatformTerms = Platform.current.terms) -> String {
+        let program = custom.argv?.first.map { ($0 as NSString).lastPathComponent } ?? ""
         switch custom.type {
         case .prompt: return tr("自定义 AI 指令", "Your own AI instruction")
-        case .run: return tr("运行 ", "Run ") + (custom.argv?.first.map { ($0 as NSString).lastPathComponent } ?? "")
-        case .terminal: return tr("在终端运行 ", "Run in Terminal: ") + (custom.argv?.first.map { ($0 as NSString).lastPathComponent } ?? "")
+        case .run: return tr("运行 ", "Run ") + program
+        case .terminal:
+            return (terms.terminal == .terminalApp ? tr("在终端运行 ", "Run in Terminal: ") : tr("在终端运行 ", "Run in a terminal: "))
+                + program
         case .link: return tr("在浏览器打开 ", "Open in the browser: ") + (LinkTemplate.host(custom.url) ?? "")
         case .snippet: return tr("插入文字", "Insert text")
         }
@@ -118,7 +124,8 @@ extension InterfaceWords {
 
     /// What the action key does with a command draft, after "⏎ →".
     /// `draft`: the text typed, so `@translate @improve …` reads as both.
-    public func action(_ command: Command, input: Language, config: Config, draft: String = "") -> String {
+    public func action(_ command: Command, input: Language, config: Config, draft: String = "",
+                       terms: PlatformTerms = Platform.current.terms) -> String {
         if command.plugin != nil, command.kind == .run { return tr("运行插件", "run the plugin") }
         if let script = command.script {
             if script.output == .list { return tr("选中这一项", "pick") }
@@ -129,7 +136,7 @@ extension InterfaceWords {
         switch command.custom?.type {
         case .prompt?: return tr("AI 生成", "generate")
         case .run?: return tr("运行", "run")
-        case .terminal?: return tr("在终端运行", "run in Terminal")
+        case .terminal?: return terms.terminal == .terminalApp ? tr("在终端运行", "run in Terminal") : tr("在终端运行", "run in a terminal")
         case .snippet?: return tr("插入文字", "Insert text")
         case .link?, nil: break
         }
@@ -140,9 +147,11 @@ extension InterfaceWords {
         case .reply: return tr("写三条回复", "write three replies")
         case .agent:
             let agent = config.agent.displayName(custom: config.agentCommand)
-            return config.claudeInBackground && config.agent.supportsBackground
-                ? tr("交给 \(agent) 在后台做", "hand it to \(agent) in the background")
-                : tr("在终端打开 \(agent)", "open \(agent) in Terminal")
+            if config.claudeInBackground && config.agent.supportsBackground {
+                return tr("交给 \(agent) 在后台做", "hand it to \(agent) in the background")
+            }
+            return terms.terminal == .terminalApp ? tr("在终端打开 \(agent)", "open \(agent) in Terminal")
+                : tr("在终端打开 \(agent)", "open \(agent) in a terminal")
         case .open: return tr("搜索并打开", "search and open")
         case .read: return tr("读网页", "read the page")
         case .tasks: return tr("查看后台任务", "show the background tasks")

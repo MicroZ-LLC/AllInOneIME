@@ -10,6 +10,8 @@ public struct PanelPresenter {
     public var config: Config
     /// The interface language's code (`InterfaceLanguage`): "zh-Hans", "en", …
     public var language: String
+    /// What the keys and places are called where it is drawn (⌘C or Ctrl+C …).
+    public var terms: PlatformTerms
     /// The app the text field is in (its per-app settings, for the draft's hint).
     public var app: String?
     /// The notice up now ("已复制" …): on the footer's right, over what is there.
@@ -31,12 +33,14 @@ public struct PanelPresenter {
     /// Translate as You Type's chip in this field, if it's shown here.
     public var chip: () -> TranslateMode.Chip?
 
-    public init(config: Config, language: String, app: String? = nil, notice: String? = nil, elapsed: TimeInterval? = nil,
-                fromCache: Bool = false, hidden: Int = 0, shortened: Bool = false, agent: AgentKind = .claude,
-                agentCommand: [String] = [], jargon: @escaping () -> [JargonEntry] = { [] },
-                scriptStatus: @escaping (ScriptCommand) -> String? = { _ in nil }, chip: @escaping () -> TranslateMode.Chip? = { nil }) {
+    public init(config: Config, language: String, terms: PlatformTerms = Platform.current.terms, app: String? = nil,
+                notice: String? = nil, elapsed: TimeInterval? = nil, fromCache: Bool = false, hidden: Int = 0,
+                shortened: Bool = false, agent: AgentKind = .claude, agentCommand: [String] = [],
+                jargon: @escaping () -> [JargonEntry] = { [] }, scriptStatus: @escaping (ScriptCommand) -> String? = { _ in nil },
+                chip: @escaping () -> TranslateMode.Chip? = { nil }) {
         self.config = config
         self.language = language
+        self.terms = terms
         self.app = app
         self.notice = notice
         self.elapsed = elapsed
@@ -58,6 +62,9 @@ public struct PanelPresenter {
     /// The interface text in `language`.
     private var t: InterfaceWords { InterfaceWords(language: language) }
 
+    /// The action key, as `terms` call it.
+    private func name(_ key: ActionKey) -> String { t.name(key, terms: terms) }
+
     /// The time the last result took ("1.2s"), or that it was cached.
     private var time: String? { fromCache ? t.tr("缓存", "cached") : elapsed.map { String(format: "%.1fs", $0) } }
 
@@ -68,6 +75,7 @@ public struct PanelPresenter {
         typealias Row = PanelModel.Row
         var model = PanelModel()
         let config = config
+        let copy = terms.copy, paste = terms.paste
         // An @question conversation: its questions and answers, the next question's line.
         if composer.isQuestionChat, !composer.refineIsComposing { return chatModel(for: composer) }
         if composer.refineIsComposing {
@@ -137,8 +145,8 @@ public struct PanelPresenter {
                                icon: composer.activeCommand.map(IconToken.command))
                 case let .file(path):
                     // A file, folder, app or web address: drawn as when typing.
-                    let row = SessionText.openRow(composer.searchResults.first { $0.path == path } ?? SearchResult(name: choice.text, path: path),
-                                                 language: language)
+                    let result = composer.searchResults.first { $0.path == path } ?? SearchResult(name: choice.text, path: path)
+                    let row = SessionText.openRow(result, language: language, terms: terms)
                     return Row(label: choice.label, text: row.text, comment: row.comment, kind: .candidate)
                 case let .reminder(reminder):
                     // To confirm: what to be reminded of, and when as read from the text (「明天 15:00」).
@@ -177,7 +185,8 @@ public struct PanelPresenter {
                 model.footer = command == .open ? t.tr("搜索中… · Esc 返回", "Searching… · Esc back")
                     : command?.kind == .link ? t.tr("完成后在浏览器打开 · Esc 返回", "Opens in the browser when done · Esc back")
                     : command?.script?.output == .show
-                    ? t.tr("运行中… · ⌘C 复制 · Esc 停止 · 离开输入框后在后台继续", "Running… · ⌘C copy · Esc stop · goes on in the background if you leave")
+                    ? t.tr("运行中… · \(copy) 复制 · Esc 停止 · 离开输入框后在后台继续",
+                           "Running… · \(copy) copy · Esc stop · goes on in the background if you leave")
                     : command?.script != nil ? t.tr("运行中… · Esc 停止", "Running… · Esc stop")
                     : composer.isRefining ? t.tr("修改中… · 可以接着打下一步要求 · Esc 回到上一版",
                                                "Refining… · type the next step meanwhile · Esc previous results")
@@ -194,36 +203,39 @@ public struct PanelPresenter {
                 model.footer = t.tr("⏎ 在浏览器打开，在 GitHub 上点提交 · Esc 返回", "⏎ open in the browser, submit it on GitHub · Esc back")
             case .choosing where composer.offersMoreReplies && composer.refineLine == nil && composer.refineError == nil:
                 // @reply's three: ⌘R three more; a letter starts an instruction for them, as for any AI's results.
-                model.footer = t.tr("⌘R 再写三条 · 打字后 ⇧⏎ 修改 · 空格 / ⏎ 上屏 · 数字选择 · Esc 返回",
-                                  "⌘R three more · Type, ⇧⏎ refine · Space / ⏎ insert · digits pick · Esc back")
+                model.footer = t.tr("\(terms.again) 再写三条 · 打字后 ⇧⏎ 修改 · 空格 / ⏎ 上屏 · 数字选择 · Esc 返回",
+                                    "\(terms.again) three more · Type, ⇧⏎ refine · Space / ⏎ insert · digits pick · Esc back")
                 model.detail = time
             case .choosing where command == .tasks:
-                model.footer = t.tr("⏎ 在终端打开 · 数字选择 · ⌘C 复制回复 · Esc 返回",
-                                  "⏎ open in Terminal · digits pick · ⌘C copy the reply · Esc back")
+                model.footer = terms.terminal == .terminalApp
+                    ? t.tr("⏎ 在终端打开 · 数字选择 · \(copy) 复制回复 · Esc 返回",
+                           "⏎ open in Terminal · digits pick · \(copy) copy the reply · Esc back")
+                    : t.tr("⏎ 在终端打开 · 数字选择 · \(copy) 复制回复 · Esc 返回",
+                           "⏎ open in a terminal · digits pick · \(copy) copy the reply · Esc back")
             case .choosing where command?.script != nil:
                 let picks = composer.choices.contains { if case .item = $0.kind { return true } else { return false } }
                 model.footer = command?.script?.output == .show && !picks
-                    ? t.tr("⏎ 关闭 · ⌘C 复制全部 · Esc 返回", "⏎ close · ⌘C copy all · Esc back")
-                    : picks ? t.tr("⏎ 选中这一项 · 数字选择 · ⌘C 复制 · Esc 返回", "⏎ pick · digits pick · ⌘C copy · Esc back")
-                    : t.tr("空格 / ⏎ 上屏 · 数字选择 · ⌘C 复制 · Esc 返回", "Space / ⏎ insert · digits pick · ⌘C copy · Esc back")
+                    ? t.tr("⏎ 关闭 · \(copy) 复制全部 · Esc 返回", "⏎ close · \(copy) copy all · Esc back")
+                    : picks ? t.tr("⏎ 选中这一项 · 数字选择 · \(copy) 复制 · Esc 返回", "⏎ pick · digits pick · \(copy) copy · Esc back")
+                    : t.tr("空格 / ⏎ 上屏 · 数字选择 · \(copy) 复制 · Esc 返回", "Space / ⏎ insert · digits pick · \(copy) copy · Esc back")
                 model.detail = elapsed.map { String(format: "%.1fs", $0) }
             case .choosing:
                 model.footer = command == .open
-                    ? t.tr("空格 / ⏎ 打开 · 数字选择 · ⌘C 复制路径 · Esc 返回", "Space / ⏎ open · digits pick · ⌘C copy path · Esc back")
+                    ? t.tr("空格 / ⏎ 打开 · 数字选择 · \(copy) 复制路径 · Esc 返回", "Space / ⏎ open · digits pick · \(copy) copy path · Esc back")
                     : command == .reminder
-                    ? t.tr("⏎ / 空格 加到提醒事项 · Esc 返回修改 · ⌘C 复制", "⏎ / Space add to Reminders · Esc back to edit · ⌘C copy")
+                    ? t.tr("⏎ / 空格 加到提醒事项 · Esc 返回修改 · \(copy) 复制", "⏎ / Space add to Reminders · Esc back to edit · \(copy) copy")
                     : composer.refineLine != nil
                     ? t.tr("⇧⏎ 修改 · ⏎ 上屏 · ⌫ 删字 · Esc 清除 · ↑↓ 选择", "⇧⏎ refine · ⏎ insert · ⌫ delete · Esc clear · ↑↓ choose")
                     : composer.canRefine
                     // AI results: a letter starts a follow-up instruction (`Composer.refineText`), ⇧⏎ sends it; 0 still
                     // picks the original.
                     ? (composer.refineHistory.isEmpty
-                        ? t.tr("打字后 ⇧⏎ 修改 · 空格 / ⏎ 上屏 · 数字选择 · 0 原文 · ⌘C 复制 · Esc 返回",
-                             "Type, ⇧⏎ refine · Space / ⏎ insert · digits pick · 0 original · ⌘C copy · Esc back")
+                        ? t.tr("打字后 ⇧⏎ 修改 · 空格 / ⏎ 上屏 · 数字选择 · 0 原文 · \(copy) 复制 · Esc 返回",
+                               "Type, ⇧⏎ refine · Space / ⏎ insert · digits pick · 0 original · \(copy) copy · Esc back")
                         : t.tr("打字后 ⇧⏎ 再改 · 空格 / ⏎ 上屏 · 数字选择 · 0 原文 · Esc 上一版",
                              "Type, ⇧⏎ refine · Space / ⏎ insert · digits pick · 0 original · Esc previous"))
-                    : t.tr("空格 / ⏎ 上屏 · 数字选择 · 0 原文 · ⌘C 复制 · Esc 返回",
-                         "Space / ⏎ insert · digits pick · 0 original · ⌘C copy · Esc back")
+                    : t.tr("空格 / ⏎ 上屏 · 数字选择 · 0 原文 · \(copy) 复制 · Esc 返回",
+                           "Space / ⏎ insert · digits pick · 0 original · \(copy) copy · Esc back")
                 // A refine that failed: the results before it stay, its instruction back in the line.
                 if let error = composer.refineError { model.status = .error(error) }
                 if command != .open && command != .reminder {
@@ -248,13 +260,14 @@ public struct PanelPresenter {
             let heard = composer.voice.text
             if case .listening = composer.voice {
                 model.status = .hint("🎙 " + (heard.isEmpty ? t.tr("正在听…", "Listening…") : heard))
-                // The action key while right ⌥ is still held (⌥Return, or Space = ⌥Space): stop and run it.
-                let key = composer.actionKey
+                // The action key while the right voice key (⌥) is still held (⌥Return, or Space = ⌥Space): stop and run it.
+                let key = composer.actionKey, voice = terms.voiceKey
                 let runs = composer.draftCommand != nil
                 model.footer = runs && (key == .optionSpace || key == .enter)
-                    ? (key == .enter ? t.tr("松开右 ⌥ 结束 · ⏎ 直接执行 · Esc 取消", "Release right ⌥ to stop · ⏎ run now · Esc cancel")
-                                     : t.tr("松开右 ⌥ 结束 · 空格 直接执行 · Esc 取消", "Release right ⌥ to stop · Space run now · Esc cancel"))
-                    : t.tr("松开右 ⌥ 结束 · Esc 取消", "Release right ⌥ to stop · Esc cancel")
+                    ? (key == .enter ? t.tr("松开右 \(voice) 结束 · ⏎ 直接执行 · Esc 取消", "Release right \(voice) to stop · ⏎ run now · Esc cancel")
+                                     : t.tr("松开右 \(voice) 结束 · 空格 直接执行 · Esc 取消",
+                                            "Release right \(voice) to stop · Space run now · Esc cancel"))
+                    : t.tr("松开右 \(voice) 结束 · Esc 取消", "Release right \(voice) to stop · Esc cancel")
             } else {
                 model.status = .hint("🎙 " + (heard.isEmpty ? t.tr("识别中…", "Recognizing…") : heard))
                 model.footer = composer.actsAfterVoice
@@ -274,8 +287,9 @@ public struct PanelPresenter {
             let key = composer.actionKey
             if let command = composer.draftCommand {
                 // Pinyin (or Hindi) in an @ command: the action key converts it and runs the command.
-                let action = t.action(command, input: composer.textLanguage(config: config), config: config, draft: composer.draft)
-                model.footer = t.tr("空格 选词 · \(t.name(key)) \(action)", "Space picks · \(t.name(key)) to \(action)")
+                let action = t.action(command, input: composer.textLanguage(config: config), config: config, draft: composer.draft,
+                                      terms: terms)
+                model.footer = t.tr("空格 选词 · \(name(key)) \(action)", "Space picks · \(name(key)) to \(action)")
             } else {
                 model.footer = SessionText.translateModeFooter(composer, language: language) ?? t.tr("空格 选词 · 开头打 @ 用命令", "Space picks · type @ first for commands")
             }
@@ -288,13 +302,13 @@ public struct PanelPresenter {
             let first = composer.paletteFirstVisible, total = composer.paletteMatches.count
             model.rows = composer.paletteVisible.enumerated().map {
                 Row(label: String($0.offset + 1), text: "@" + $0.element.name,
-                    comment: t.summary($0.element, status: $0.element.script.flatMap(scriptStatus)),
+                    comment: t.summary($0.element, status: $0.element.script.flatMap(scriptStatus), terms: terms),
                     kind: .candidate, icon: IconToken.command($0.element))
             }
             model.highlighted = composer.paletteHighlighted - first
             if total > Composer.paletteRows { model.detail = "\(first + 1)–\(first + model.rows.count) / \(total)" }
             // A script extension that takes no input: the action key runs it, Tab and Space only pick it.
-            let matches = composer.paletteMatches, key = t.name(composer.actionKey)
+            let matches = composer.paletteMatches, key = name(composer.actionKey)
             model.footer = matches.indices.contains(composer.paletteHighlighted)
                 && matches[composer.paletteHighlighted].script?.input == ScriptCommand.Input.none
                 ? t.tr("\(key) 运行 · Tab / 空格 选择 · Esc 取消", "\(key) run · Tab / Space choose · Esc cancel")
@@ -308,21 +322,22 @@ public struct PanelPresenter {
             }
             model.highlighted = composer.listItem == nil ? nil : composer.listHighlight
             if list.items.isEmpty { model.status = .hint(t.tr("没有结果", "No results")) }
-            model.footer = t.tr("\(t.name(composer.actionKey)) 选中这一项 · ↑↓ 选择 · Tab 补全 · ⌘C 复制 · Esc 取消",
-                              "\(t.name(composer.actionKey)) pick · ↑↓ choose · Tab complete · ⌘C copy · Esc cancel")
+            let key = name(composer.actionKey)
+            model.footer = t.tr("\(key) 选中这一项 · ↑↓ 选择 · Tab 补全 · \(copy) 复制 · Esc 取消",
+                                "\(key) pick · ↑↓ choose · Tab complete · \(copy) copy · Esc cancel")
         } else if !composer.currentLiveResults.isEmpty {
             // "@open …" as you type: what matches now.
             model.rows = composer.currentLiveResults.map { result in
-                let row = SessionText.openRow(result, language: language)
+                let row = SessionText.openRow(result, language: language, terms: terms)
                 return Row(label: result.isFolder ? "›" : "", text: row.text, comment: row.comment, kind: .candidate)
             }
             model.highlighted = composer.liveHighlight
             // Only content matches: ⏎ lists them to pick from rather than open the first (`opensLiveResult`).
             model.footer = composer.opensLiveResult
-                ? t.tr("⏎ 打开 · Tab 补全路径 · ↑↓ 选择 · ⌘C 复制路径 · Esc 取消",
-                     "⏎ open · Tab complete path · ↑↓ choose · ⌘C copy path · Esc cancel")
-                : t.tr("⏎ 列出来选 · Tab 补全路径 · ↑↓ 选择 · ⌘C 复制路径 · Esc 取消",
-                     "⏎ pick from a list · Tab complete path · ↑↓ choose · ⌘C copy path · Esc cancel")
+                ? t.tr("⏎ 打开 · Tab 补全路径 · ↑↓ 选择 · \(copy) 复制路径 · Esc 取消",
+                       "⏎ open · Tab complete path · ↑↓ choose · \(copy) copy path · Esc cancel")
+                : t.tr("⏎ 列出来选 · Tab 补全路径 · ↑↓ 选择 · \(copy) 复制路径 · Esc 取消",
+                       "⏎ pick from a list · Tab complete path · ↑↓ choose · \(copy) copy path · Esc cancel")
         } else if composer.recipientQuery != nil {
             // "@imessage zs": the contacts that match, to pick the recipient.
             let found = composer.currentRecipients
@@ -337,7 +352,7 @@ public struct PanelPresenter {
         } else if !composer.questionMatches.isEmpty {
             // "@question " and nothing (or a few words) after it: the recent questions with them, newest first; one picked
             // shows its saved answer.
-            let digits = composer.questionDigitsPick, key = t.name(composer.actionKey)
+            let digits = composer.questionDigitsPick, key = name(composer.actionKey)
             model.rows = composer.questionMatches.enumerated().map { index, entry in
                 Row(label: digits ? String(index + 1) : "", text: SessionText.preview(entry.question.replacingOccurrences(of: "\n", with: " ")),
                     comment: t.ago(entry.date), kind: .candidate)
@@ -345,23 +360,24 @@ public struct PanelPresenter {
             model.highlighted = composer.questionHighlight
             model.status = .hint(composer.sentText.isEmpty
                                  ? t.tr("最近问过的：选一个看当时的答案，或者写新问题", "Recently asked: pick one to see its answer again, or write a new question")
-                                 : SessionText.draftHint(composer, config: config.applying(app: app), language: language))
+                                 : SessionText.draftHint(composer, config: config.applying(app: app), language: language, terms: terms))
             model.footer = composer.questionHighlight != nil
                 ? t.tr("\(key) 看保存的答案 · ↑↓ 选择 · Esc 清除", "\(key) show the saved answer · ↑↓ choose · Esc clear")
-                : digits ? t.tr("数字 / ↑↓ 选一个看答案 · ⌃V 粘贴 · Esc 清除", "Digits / ↑↓ pick one to see its answer · ⌃V paste · Esc clear")
+                : digits ? t.tr("数字 / ↑↓ 选一个看答案 · \(paste) 粘贴 · Esc 清除", "Digits / ↑↓ pick one to see its answer · \(paste) paste · Esc clear")
                 : t.tr("\(key) 问这个新问题 · ↑↓ 选一个看答案 · Esc 清除", "\(key) ask it · ↑↓ pick one to see its answer · Esc clear")
         } else if !composer.draft.isEmpty {
             // An @ command with what follows it (a command being typed is the palette, above).
-            model.status = .hint(SessionText.draftHint(composer, config: config.applying(app: app), language: language))
+            model.status = .hint(SessionText.draftHint(composer, config: config.applying(app: app), language: language, terms: terms))
             model.footer = composer.selection != nil
-                ? t.tr("⌃V 粘贴 · ⌫ 删字 · Esc 取消，选中的文字不变", "⌃V paste · ⌫ delete · Esc cancel, the selection stays")
-                : t.tr("⌃V 粘贴 · ⌫ 删字 · Esc 清除", "⌃V paste · ⌫ delete · Esc clear")
+                ? t.tr("\(paste) 粘贴 · ⌫ 删字 · Esc 取消，选中的文字不变", "\(paste) paste · ⌫ delete · Esc cancel, the selection stays")
+                : t.tr("\(paste) 粘贴 · ⌫ 删字 · Esc 清除", "\(paste) paste · ⌫ delete · Esc clear")
         }
         // The refine instruction being typed, as a line of input with its caret, in place of the command's.
         // (An @question conversation's next question while its pinyin is typed.)
         let line = composer.isQuestionChat ? t.tr("追问 › ", "question › ") : t.tr("修改 › ", "refine › ")
         model.input = composer.refineLine.map { line + $0 + "▏" } ?? SessionText.panelInput(composer)
-        let headers = [SessionText.selectionHeader(composer, language: language), SessionText.attachmentHeader(composer, language: language),
+        let headers = [SessionText.selectionHeader(composer, language: language),
+                       SessionText.attachmentHeader(composer, language: language, terms: terms),
                        SessionText.refineHeader(composer, language: language)].compactMap { $0 }
         model.header = headers.isEmpty ? nil : headers.joined(separator: "\n")
         if let notice { model.detail = notice }
@@ -415,7 +431,7 @@ public struct PanelPresenter {
         if composer.showsHandoff {
             // Up to 4 on a line; more (the agents installed, the web …), 3 a line, so the panel stays as wide.
             let labels = composer.handoffChoices.enumerated().map {
-                "⌘\($0.offset + 1) " + SessionText.shortName($0.element, picked: agent, custom: agentCommand, language: language)
+                terms.pick($0.offset + 1) + " " + SessionText.shortName($0.element, picked: agent, custom: agentCommand, language: language)
             }
             let perLine = labels.count <= 4 ? 4 : 3
             let choices = stride(from: 0, to: labels.count, by: perLine)
@@ -433,23 +449,24 @@ public struct PanelPresenter {
         if let error = composer.refineError { model.status = .error(error) }
         if answering, rounds.last?.answer.isEmpty ?? true { model.status = .loading(t.tr("AI 回答中…", "Answering…")) }
         let count = composer.handoffChoices.count
+        let copy = terms.copy, again = terms.again
         // The digits that pick an answer: up to the round limit, 9 at most (no digit after it).
         let pick = "1–\(min(QuestionChat.rounds(composer.questionRounds), 9))"
         if answering {
             model.footer = composer.refinements.isEmpty ? t.tr("回答中… · Esc 返回", "Answering… · Esc back")
                 : t.tr("回答中… · 可以接着打下一个问题 · Esc 回到上一轮", "Answering… · type the next question meanwhile · Esc previous round")
         } else if composer.showsHandoff {
-            model.footer = (count > 1 ? "⌘1–⌘\(count) " : "⌘1 ") + t.tr("接着聊", "continue")
+            model.footer = terms.picks(count) + " " + t.tr("接着聊", "continue")
                 + (composer.refineLine == nil ? "" : t.tr("，打的字一起带过去", ", with what you typed"))
-                + t.tr(" · ⏎ 上屏 · \(pick) 选 · ⌘C 复制 · Esc 返回", " · ⏎ insert · \(pick) pick · ⌘C copy · Esc back")
+                + t.tr(" · ⏎ 上屏 · \(pick) 选 · \(copy) 复制 · Esc 返回", " · ⏎ insert · \(pick) pick · \(copy) copy · Esc back")
         } else if composer.showsSavedAnswer, composer.refineLine == nil {
             // A saved answer: ⌘R asks it again for a fresh one (a conversation's latest question).
             model.footer = composer.refinements.isEmpty
-                ? t.tr("⇧⏎ 追问 · ⏎ 上屏 · ⌘R 重新问 · ⌘C 复制 · Esc 返回", "⇧⏎ ask · ⏎ insert · ⌘R re-ask · ⌘C copy · Esc back")
-                : t.tr("⇧⏎ 追问 · ⏎ 上屏 · \(pick) 选 · ⌘R 重新问 · ⌘C 复制 · Esc 返回",
-                     "⇧⏎ ask · ⏎ insert · \(pick) pick · ⌘R re-ask · ⌘C copy · Esc back")
+                ? t.tr("⇧⏎ 追问 · ⏎ 上屏 · \(again) 重新问 · \(copy) 复制 · Esc 返回", "⇧⏎ ask · ⏎ insert · \(again) re-ask · \(copy) copy · Esc back")
+                : t.tr("⇧⏎ 追问 · ⏎ 上屏 · \(pick) 选 · \(again) 重新问 · \(copy) 复制 · Esc 返回",
+                       "⇧⏎ ask · ⏎ insert · \(pick) pick · \(again) re-ask · \(copy) copy · Esc back")
         } else {
-            model.footer = t.tr("⇧⏎ 追问 · ⏎ 上屏 · \(pick) 选 · ⌘C 复制 · Esc 返回", "⇧⏎ ask · ⏎ insert · \(pick) pick · ⌘C copy · Esc back")
+            model.footer = t.tr("⇧⏎ 追问 · ⏎ 上屏 · \(pick) 选 · \(copy) 复制 · Esc 返回", "⇧⏎ ask · ⏎ insert · \(pick) pick · \(copy) copy · Esc back")
         }
         // When it was saved, or how long the answer took; that earlier rounds were shortened to fit the model.
         var details: [String] = []
