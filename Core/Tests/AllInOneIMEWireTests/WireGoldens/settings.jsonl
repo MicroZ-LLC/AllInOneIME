@@ -20,25 +20,42 @@
 # Null is a value: the base URL unset, the default applies (as it did: nothing changed, nobody told)
 > {"id":6,"type":"settingsSet","field":"anthropic.baseURL","value":null}
 < {"id":7,"re":6,"type":"settings","revision":2,"document":"$any"}
-# A key goes once, to the secret store; the document says only that it is saved, and its last 4
-> {"id":7,"type":"settingsAction","key":"sk-test-golden-0000-a1b2","field":"anthropic.key","action":"setKey"}
-< {"id":8,"re":7,"type":"settings","revision":3,"document":"$any"}
-< {"id":9,"type":"settingsChanged","revision":3}
-> {"id":8,"type":"settingsAction","field":"anthropic.key","action":"removeKey"}
-< {"id":10,"re":8,"type":"settings","revision":4,"document":"$any"}
-< {"id":11,"type":"settingsChanged","revision":4}
-# A custom command, with the editor's rules: saved, a name taken refused, deleted
-> {"id":9,"type":"settingsAction","field":"commands.custom","action":"save","value":{"type":"prompt","name":"polite","prompt":"Make it polite"}}
-< {"id":12,"re":9,"type":"settings","revision":5,"document":"$any"}
-< {"id":13,"type":"settingsChanged","revision":5}
-> {"id":10,"type":"settingsAction","field":"commands.custom","action":"save","value":{"type":"prompt","name":"improve","prompt":"Mine"}}
-< {"id":14,"re":10,"type":"settings","revision":5,"problem":{"field":"commands.custom","code":"badValue","message":"$any"},"document":"$any"}
-> {"id":11,"type":"settingsAction","field":"commands.custom","action":"delete","item":"polite"}
+# Made on the document of an older revision (the settings changed since): stale, nothing changes
+> {"id":7,"type":"settingsSet","field":"maxTokens","value":2000,"revision":1}
+< {"id":8,"re":7,"type":"settings","revision":2,"problem":{"field":"maxTokens","code":"stale","message":"$any"},"document":"$any"}
+# On the revision now: taken
+> {"id":8,"type":"settingsSet","field":"maxTokens","value":2000,"revision":2}
+< {"id":9,"re":8,"type":"settings","revision":3,"document":"$any"}
+< {"id":10,"type":"settingsChanged","revision":3}
+# A list as an edit of the one the window showed: "Elsewhere" (added since, as if by another window) stays
+> {"id":9,"type":"settingsSet","field":"redaction.enabled","value":true}
+< {"id":11,"re":9,"type":"settings","revision":4,"document":"$any"}
+< {"id":12,"type":"settingsChanged","revision":4}
+> {"id":10,"type":"settingsSet","field":"redaction.customWords","value":["Acme","Elsewhere"]}
+< {"id":13,"re":10,"type":"settings","revision":5,"document":"$any"}
+< {"id":14,"type":"settingsChanged","revision":5}
+> {"id":11,"type":"settingsSet","shown":["Acme"],"field":"redaction.customWords","value":["Acme","Mine"]}
 < {"id":15,"re":11,"type":"settings","revision":6,"document":"$any"}
 < {"id":16,"type":"settingsChanged","revision":6}
+# A key goes once, to the secret store; the document says only that it is saved, and its last 4
+> {"id":12,"type":"settingsAction","key":"sk-test-golden-0000-a1b2","field":"anthropic.key","action":"setKey"}
+< {"id":17,"re":12,"type":"settings","revision":7,"document":"$any"}
+< {"id":18,"type":"settingsChanged","revision":7}
+> {"id":13,"type":"settingsAction","field":"anthropic.key","action":"removeKey"}
+< {"id":19,"re":13,"type":"settings","revision":8,"document":"$any"}
+< {"id":20,"type":"settingsChanged","revision":8}
+# A custom command, with the editor's rules: saved, a name taken refused, deleted
+> {"id":14,"type":"settingsAction","field":"commands.custom","action":"save","value":{"type":"prompt","name":"polite","prompt":"Make it polite"}}
+< {"id":21,"re":14,"type":"settings","revision":9,"document":"$any"}
+< {"id":22,"type":"settingsChanged","revision":9}
+> {"id":15,"type":"settingsAction","field":"commands.custom","action":"save","value":{"type":"prompt","name":"improve","prompt":"Mine"}}
+< {"id":23,"re":15,"type":"settings","revision":9,"problem":{"field":"commands.custom","code":"badValue","message":"$any"},"document":"$any"}
+> {"id":16,"type":"settingsAction","field":"commands.custom","action":"delete","item":"polite"}
+< {"id":24,"re":16,"type":"settings","revision":10,"document":"$any"}
+< {"id":25,"type":"settingsChanged","revision":10}
 # A change without its value is no change: badMessage
-> {"id":12,"type":"settingsSet","field":"maxTokens"}
-< {"id":17,"re":12,"type":"error","code":"badMessage","message":"missing value"}
+> {"id":17,"type":"settingsSet","field":"maxTokens"}
+< {"id":26,"re":17,"type":"error","code":"badMessage","message":"missing value"}
 # A client that didn't ask for the settings (a text service's) doesn't have them
 #! connect
 > {"v":1,"id":1,"type":"hello","versions":[1],"client":"$any","platform":"win","arch":"x64","pid":"$any","tid":"$any","capabilities":["allowForeground"]}

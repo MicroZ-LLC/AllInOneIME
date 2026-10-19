@@ -53,6 +53,16 @@ struct WireSettingsTests {
         #expect(try read(#"{"v":1,"id":3,"type":"settingsSet","field":"uiLanguage","value":null}"#)
                 == .settingsSet(field: "uiLanguage", value: .null))
         #expect(throws: DecodingError.self) { try read(#"{"v":1,"id":3,"type":"settingsSet","field":"maxTokens"}"#) }
+        // Made on a revision, or as an edit of the list shown (§12.4).
+        #expect(try read(#"{"v":1,"id":3,"type":"settingsSet","field":"maxTokens","value":1500,"revision":7}"#)
+                == .settingsSet(field: "maxTokens", value: .number(1500), revision: 7))
+        #expect(try read(#"{"v":1,"id":3,"type":"settingsSet","field":"redaction.customWords","value":["Acme","Mine"],"shown":["Acme"]}"#)
+                == .settingsSet(field: "redaction.customWords", value: .array([.string("Acme"), .string("Mine")]),
+                                shown: .array([.string("Acme")])))
+        let edit = ClientFrame(id: 3, .settingsSet(field: "inputLanguages", value: .array([.string("zh")]), revision: 2,
+                                                   shown: .array([.string("en")])))
+        #expect(try json(edit) == #"{"field":"inputLanguages","id":3,"revision":2,"shown":["en"],"type":"settingsSet","v":1,"value":["zh"]}"#)
+        #expect(try WireJSON.decode(ClientFrame.self, from: WireJSON.encode(edit)) == edit)
         #expect(try read(#"{"v":1,"id":4,"type":"settingsAction","field":"openai.key","action":"setKey","key":"sk-test-1"}"#)
                 == .settingsAction(SettingsAction(field: "openai.key", name: "setKey", key: "sk-test-1")))
         #expect(try read(#"{"v":1,"id":5,"type":"settingsAction","field":"commands.custom","action":"delete","item":"polite"}"#)

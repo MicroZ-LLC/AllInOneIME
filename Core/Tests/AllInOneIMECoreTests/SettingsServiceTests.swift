@@ -19,6 +19,12 @@ struct SettingsServiceTests {
         return (SettingsService(store: SettingsStore(configURL: url), platform: platform, library: library), url)
     }
 
+    /// A change elsewhere (the command line, an editor), dated later than the file was: what the service must read again.
+    func writeElsewhere(_ text: String, to url: URL) throws {
+        try Data(text.utf8).write(to: url)
+        try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(60)], ofItemAtPath: url.path)
+    }
+
     func ids(_ document: SettingsDocument) -> Set<String> { Set(document.sections.flatMap { $0.fields.map(\.id) }) }
 
     // MARK: The document
@@ -165,6 +171,61 @@ struct SettingsServiceTests {
         // The Cloud's sign-in and Apple's model aren't Windows' choices.
         let providers = service.document().field("provider")?.choices?.compactMap(\.value.string) ?? []
         #expect(!providers.contains("apple") && !providers.contains("hosted") && providers.contains("anthropic"))
+    }
+
+    /// A list changed in the file meanwhile (the command line added a word): a change made on the document of an older
+    /// `revision` is `stale`, and nothing changes; one made as an edit of the list `shown` is merged with the list as it
+    /// is now (what was added elsewhere stays, what was deleted elsewhere stays deleted); one with neither replaces the
+    /// list, as before.
+    @Test func staleLists() throws {
+        let (service, url) = try service(#"{"redaction": {"enabled": true, "customWords": ["Acme"]}, "outputLanguages": ["en", "zh"]}"#)
+        func strings(_ values: String...) -> AIConfig.JSONValue { .array(values.map(AIConfig.JSONValue.string)) }
+        func problem(_ id: String, _ value: AIConfig.JSONValue, revision: UInt64? = nil,
+                     shown: AIConfig.JSONValue? = nil) -> SettingsProblem.Code? {
+            if case let .failure(problem) = service.set(id, to: value, revision: revision, shown: shown) { return problem.code }
+            return nil
+        }
+        func words() throws -> [String] { try Config.load(from: url).redaction.customWords }
+        let revision = service.revision
+        #expect(service.document().field("redaction.customWords")?.value == strings("Acme"))
+        try writeElsewhere(#"{"redaction": {"enabled": true, "customWords": ["Acme", "AddedByCLI"]}, "outputLanguages": ["en", "zh", "fr"]}"#, to: url)
+        // On the revision the window had: stale, and the file as it is.
+        #expect(problem("redaction.customWords", strings("Acme", "Mine"), revision: revision) == .stale)
+        #expect(try words() == ["Acme", "AddedByCLI"] && service.revision > revision)
+        // As an edit of what it showed: merged.
+        #expect(problem("redaction.customWords", strings("Acme", "Mine"), shown: strings("Acme")) == nil)
+        #expect(try words() == ["Acme", "AddedByCLI", "Mine"])
+        // On the revision now: taken.
+        #expect(problem("redaction.customWords", strings("Acme", "AddedByCLI", "Mine", "Zeta"), revision: service.revision) == nil)
+        #expect(try words() == ["Acme", "AddedByCLI", "Mine", "Zeta"])
+        // Deleted elsewhere, still shown: stays deleted; taken out in the window: goes.
+        try writeElsewhere(#"{"redaction": {"enabled": true, "customWords": ["Acme", "AddedByCLI", "Zeta"]}, "outputLanguages": ["en", "zh", "fr"]}"#, to: url)
+        #expect(problem("redaction.customWords", strings("AddedByCLI", "Mine", "Zeta", "Omega"),
+                        shown: strings("Acme", "AddedByCLI", "Mine", "Zeta")) == nil)
+        #expect(try words() == ["AddedByCLI", "Zeta", "Omega"])
+        // A list of choices: the window's order of what it showed; the language added elsewhere after the one before it.
+        #expect(problem("outputLanguages", strings("zh", "en"), shown: strings("en", "zh")) == nil)
+        #expect(try Config.load(from: url).outputLanguages.map(\.code) == ["zh", "fr", "en"])
+        // Neither: the window's list, as it is (what a client of before sends).
+        #expect(problem("redaction.customWords", strings("Mine")) == nil)
+        #expect(try words() == ["Mine"])
+        // `shown` is for lists only.
+        #expect(problem("maxTokens", .number(1500), shown: strings("1000")) == .badValue)
+    }
+
+    /// A command's arguments aren't merged: their order is their meaning. Changed since the window showed them: stale.
+    @Test func aCommandsArgumentsAreNotMerged() throws {
+        let (service, url) = try service(#"{"agent": "custom", "agentCommand": ["muse", "--"]}"#)
+        func strings(_ values: String...) -> AIConfig.JSONValue { .array(values.map(AIConfig.JSONValue.string)) }
+        #expect(service.document().field("agentCommand")?.ordered == true)
+        #expect((try? service.set("agentCommand", to: strings("muse", "-q", "--"), shown: strings("muse", "--")).get()) != nil)
+        try writeElsewhere(#"{"agent": "custom", "agentCommand": ["muse", "--verbose", "--"]}"#, to: url)
+        if case let .failure(problem) = service.set("agentCommand", to: strings("muse", "--"), shown: strings("muse", "-q", "--")) {
+            #expect(problem.code == .stale)
+        } else {
+            Issue.record("a command changed elsewhere was merged")
+        }
+        #expect(try Config.load(from: url).agentCommand == ["muse", "--verbose", "--"])
     }
 
     /// A value the choices don't have (a language only the file names, a later version's style, a thinking level of the

@@ -375,10 +375,10 @@ public final class WireServer: @unchecked Sendable {
         switch message {
         case .settingsGet:
             return [answer()]
-        case let .settingsSet(field, value):
+        case let .settingsSet(field, value, revision, shown):
             guard field.utf16.count <= FieldLimits.app else { return [connection.error(re: id, .badMessage, "field over its limit")] }
             environment.log("connection \(connection.id): settingsSet \(field.prefix(64))")
-            if case let .failure(problem) = service.set(field, to: value) { return [answer(problem)] }
+            if case let .failure(problem) = service.set(field, to: value, revision: revision, shown: shown) { return [answer(problem)] }
             return [answer()]
         case let .settingsAction(action):
             guard action.field.utf16.count <= FieldLimits.app, action.name.utf16.count <= FieldLimits.app else {

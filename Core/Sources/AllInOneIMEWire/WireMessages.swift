@@ -417,8 +417,9 @@ public enum ClientMessage: Equatable, Sendable {
     case applied(re: UInt32, ok: Bool, reason: String?, ctx: FieldContext?)
     /// The settings as a document (§12).
     case settingsGet
-    /// One setting changed (§12): the field's id and its new value (null is one).
-    case settingsSet(field: String, value: AIConfig.JSONValue)
+    /// One setting changed (§12.4): the field's id and its new value (null is one); made on the document of `revision`
+    /// (else `stale`), or for a list, as an edit of the list `shown` (made on the list as it is now).
+    case settingsSet(field: String, value: AIConfig.JSONValue, revision: UInt64? = nil, shown: AIConfig.JSONValue? = nil)
     /// One of a field's actions (§12): a key saved (`key`, sent once), a test, a plugin installed, a command saved….
     case settingsAction(SettingsAction)
     /// A type this version doesn't know.
@@ -481,7 +482,7 @@ public struct ClientFrame: Equatable, Sendable {
 
 extension ClientFrame: Codable {
     enum CodingKeys: String, CodingKey {
-        case v, id, type, sid, re, field, focus, t, key, ctx, reason, rect, hwnd, exact, ok, value, action, item
+        case v, id, type, sid, re, field, focus, t, key, ctx, reason, rect, hwnd, exact, ok, value, action, item, revision, shown
     }
 
     public init(from decoder: Decoder) throws {
@@ -527,7 +528,9 @@ extension ClientFrame: Codable {
                 throw DecodingError.keyNotFound(CodingKeys.value, .init(codingPath: c.codingPath, debugDescription: "no value"))
             }
             let value = try c.decodeNil(forKey: .value) ? AIConfig.JSONValue.null : try c.decode(AIConfig.JSONValue.self, forKey: .value)
-            message = .settingsSet(field: try c.decode(String.self, forKey: .field), value: value)
+            message = .settingsSet(field: try c.decode(String.self, forKey: .field), value: value,
+                                   revision: try c.decodeIfPresent(UInt64.self, forKey: .revision),
+                                   shown: try c.decodeIfPresent(AIConfig.JSONValue.self, forKey: .shown))
         case "settingsAction":
             message = .settingsAction(SettingsAction(
                 field: try c.decode(String.self, forKey: .field), name: try c.decode(String.self, forKey: .action),
@@ -568,9 +571,11 @@ extension ClientFrame: Codable {
             try c.encode(ok, forKey: .ok)
             try c.encodeIfPresent(reason, forKey: .reason)
             try c.encodeIfPresent(ctx, forKey: .ctx)
-        case let .settingsSet(field, value):
+        case let .settingsSet(field, value, revision, shown):
             try c.encode(field, forKey: .field)
             try c.encode(value, forKey: .value)
+            try c.encodeIfPresent(revision, forKey: .revision)
+            try c.encodeIfPresent(shown, forKey: .shown)
         case let .settingsAction(action):
             try c.encode(action.field, forKey: .field)
             try c.encode(action.name, forKey: .action)

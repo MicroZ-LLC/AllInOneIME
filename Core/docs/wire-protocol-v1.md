@@ -498,7 +498,7 @@ given and sends back what the user did. It opens no sessions.
 | Client → engine (request) | Fields | Engine → client |
 |---|---|---|
 | `settingsGet` | — | `settings` |
-| `settingsSet` | `field`, `value` | `settings` |
+| `settingsSet` | `field`, `value`; optional: `revision`, `shown` (§12.4) | `settings` |
 | `settingsAction` | `field`, `action`, and as the action takes: `item`, `value`, `key` | `settings` |
 
 | Engine → client (notification) | Fields |
@@ -515,13 +515,17 @@ given and sends back what the user did. It opens no sessions.
 {"v":1,"id":5,"re":4,"type":"settings","revision":2,"problem":{"code":"badValue","field":"maxTokens","message":"Between 200 and 4000"},"document":{…}}
 {"v":1,"id":5,"type":"settingsAction","field":"anthropic.key","action":"setKey","key":"sk-ant-…"}
 {"v":1,"id":6,"re":5,"type":"settings","revision":3,"document":{…}}
+{"v":1,"id":6,"type":"settingsSet","field":"maxTokens","value":2000,"revision":2}
+{"v":1,"id":7,"re":6,"type":"settings","revision":3,"problem":{"code":"stale","field":"maxTokens","message":"The settings changed meanwhile: …"},"document":{…}}
+{"v":1,"id":7,"type":"settingsSet","field":"redaction.customWords","value":["Acme","Mine"],"shown":["Acme"]}
+{"v":1,"id":8,"re":7,"type":"settings","revision":4,"document":{…"value":["Acme","Elsewhere","Mine"]…}}
 ```
 
 **`settings`**, the answer to all three:
 
 | Field | Meaning |
 |---|---|
-| `revision` | moves with each change of the settings or the keys (u64); the document's |
+| `revision` | moves with each change of the settings or the keys (u64); the document's. Counted from 1 by each engine process: after a reconnect (a new `welcome`) fetch the document again |
 | `document` | the settings as they are now (§12.3): after the change, or as they were when it was refused |
 | `problem` | a change or action refused: `{code, field, message}` (§12.4) |
 | `message` | what an action that worked says: a test's outcome, "✓ 1.2 s: …" |
@@ -565,7 +569,7 @@ given and sends back what the user did. It opens no sessions.
 | `text` | string or null | a string; null when `optional`. `choices`, if any, are suggestions |
 | `choice` | one of `choices`' values | one of them, not `disabled` unless it is the value now (null when a choice's value is null) |
 | `choices` | an array of `choices`' values | each once, `minCount`…`maxCount` of them; `ordered`: the order matters (the first is the default); a `disabled` one only if the value has it |
-| `words` | an array of strings | an array of strings |
+| `words` | an array of strings | an array of strings; `ordered`: the order is its meaning (a command's arguments) |
 | `secret` | — (never) | — : `status`, `isSet`; changed with `setKey` / `removeKey` |
 | `items` | — | — : each item's `actions`, and the field's |
 | `info` | text to show | — |
@@ -608,6 +612,23 @@ given and sends back what the user did. It opens no sessions.
   through the core's rules (the first input language is the default, a provider field emptied is unset …), then
   saved: only the keys that changed are written into `config.json`, the rest of the file as it was (keys a later version
   wrote too). Something else may have changed the file meanwhile: it is read again first.
+- **Made on what the window showed** (both optional; a client may send either, both, or neither):
+  - `revision`: the revision of the document the change was made on. When the settings have changed since (any change:
+    another client's, the file's, a key), nothing changes and the answer is `problem.code` `stale`, with the document as
+    it is now: draw it, and let the user make the change again. The revision moves with any change, so a client that
+    sends it must keep its document current (`settingsChanged`).
+  - `shown`, for a list (`words`, `choices`): the list as the window showed it; `value` is then the window's edit of
+    it, made on the list as it is now. What the window took out goes, what it added is added, and what was added
+    elsewhere meanwhile (another window, `allinoneime-cli`, sync) stays; what was taken out elsewhere stays out.
+    `words` follow the Mac's rule (`RedactionSettings.edited`: the words added go at the end); `choices` keep the
+    window's order of what it showed, and an item added elsewhere goes back after the one it came after. A `words`
+    list whose order is its meaning (`ordered`: `agentCommand`, a command's arguments) isn't merged: changed since it
+    was shown, it is `stale`. `shown` on any other field is `badValue`.
+  - **Neither** (what a client of before sends): `value` is the field's new value, whatever changed since. A list
+    then replaces the list as it is, additions made elsewhere since included: send `shown` (or `revision`) to keep them.
+- **Revisions and restarts:** the revision is the engine process's own count, from 1. After the engine restarts (`bye`,
+  a lost pipe) the numbers start again and say nothing about the document a client kept: fetch it again (`settingsGet`)
+  before making changes on a revision.
 - **Refused:** `problem.code`:
 
 | Code | Meaning |
@@ -616,7 +637,8 @@ given and sends back what the user did. It opens no sessions.
 | `badValue` | not a value the field takes (`message` says why: "Between 200 and 4000") |
 | `notChangeable` | not changed this way: read-only, or an action the field doesn't have |
 | `configBroken` | the config file can't be read; nothing is changed until it is fixed |
-| `failed` | taken, but not done: the file couldn't be written, the secret store refused, a test failed |
+| `failed` | taken, but not done: the file couldn't be written (the settings are then as the file has them, `saveError` says why), the secret store refused, a test failed |
+| `stale` | made on a `revision` the settings have moved on from, or on a `shown` list that can't be merged (`ordered` words changed since): nothing changed |
 
 ### 12.5 Actions (`settingsAction`)
 

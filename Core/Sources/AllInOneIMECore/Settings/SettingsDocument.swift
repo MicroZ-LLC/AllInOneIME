@@ -73,7 +73,7 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
         /// Some of `choices`' values, each once, between `minCount` and `maxCount` of them; `ordered`: in the order
         /// given, which matters (the first is the default).
         case choices
-        /// A list of strings of one's own.
+        /// A list of strings of one's own; `ordered`: their order is their meaning (a command's arguments).
         case words
         /// A key, token or password: no value ever, only `status` ("✓ Saved · ends in a1b2") and `isSet`; changed
         /// with its `actions` (`setKey`, which sends it once, and `removeKey`).
@@ -182,6 +182,9 @@ public struct SettingsProblem: Error, Codable, Equatable, Sendable {
         case configBroken
         /// It was taken, but couldn't be done (a save, the secret store).
         case failed
+        /// The settings changed since the revision the change was made on (`set`'s `revision`), or the list it was
+        /// made on (`shown`) can't be merged with the one now: nothing changed; the document is the settings now.
+        case stale
     }
 
     public var code: Code

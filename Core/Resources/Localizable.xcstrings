@@ -30047,6 +30047,53 @@
         }
       }
     },
+    "The settings changed meanwhile: nothing was changed, and here they are now" : {
+      "comment" : "设置刚在别处改过，没有改动；这里是现在的设置 — Sources/AllInOneIMECore/Settings/SettingsService.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Einstellungen wurden inzwischen geändert: Es wurde nichts geändert, hier sind sie, wie sie jetzt sind"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los ajustes cambiaron mientras tanto: no se cambió nada; aquí están como son ahora"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les réglages ont changé entre-temps : rien n’a été modifié, les voici tels qu’ils sont maintenant"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定がその間に変更されました。何も変更していません。現在の設定を表示しています"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "그사이 설정이 바뀌었습니다. 아무것도 바꾸지 않았으며, 지금의 설정을 보여 드립니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Os ajustes mudaram nesse meio-tempo: nada foi alterado; aqui estão eles como estão agora"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定剛在別處改過，沒有改動；這裡是現在的設定"
+          }
+        }
+      }
+    },
     "The text to insert is too long: %@ characters at most" : {
       "comment" : "要插入的文字太长：最多 %@ 字 — Sources/AllInOneIMECore/Composer.swift",
       "localizations" : {

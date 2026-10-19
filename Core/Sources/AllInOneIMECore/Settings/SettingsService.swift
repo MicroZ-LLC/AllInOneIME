@@ -61,18 +61,33 @@ public final class SettingsService: @unchecked Sendable {
     }
 
     /// Changes one setting (`Field.id`) to `value`, checked against what the field takes, and saves it.
-    public func set(_ id: String, to value: AIConfig.JSONValue) -> Result<Void, SettingsProblem> {
-        scoped { setting(id, to: value) }
+    ///
+    /// Made on the settings as a window showed them, it may say which: `revision` (the document's), and the change is
+    /// refused (`stale`) when the settings changed since; or, for a list, `shown` (the list the window showed), and
+    /// `value` is taken as the window's edit of it, made on the list as it is now (`edited`): what was added elsewhere
+    /// meanwhile stays. With neither, `value` is the field's new value, whatever happened since.
+    public func set(_ id: String, to value: AIConfig.JSONValue, revision: UInt64? = nil,
+                    shown: AIConfig.JSONValue? = nil) -> Result<Void, SettingsProblem> {
+        scoped { setting(id, to: value, revision: revision, shown: shown) }
     }
 
-    private func setting(_ id: String, to value: AIConfig.JSONValue) -> Result<Void, SettingsProblem> {
+    private func setting(_ id: String, to value: AIConfig.JSONValue, revision: UInt64?,
+                         shown: AIConfig.JSONValue?) -> Result<Void, SettingsProblem> {
         changing { () -> Result<Void, SettingsProblem> in
             store.reloadIfChanged()
+            if let revision, revision != revisionValue { return .failure(Self.stale(id)) }
             let built = build()
             guard let field = built.document.field(id) else { return .failure(Self.unknown(id)) }
             if let problem = built.document.loadError.map({ Self.broken($0, id) }) { return .failure(problem) }
             guard field.readOnly != true, let setter = built.setters[id] else {
                 return .failure(SettingsProblem(.notChangeable, field: id, message: Self.notChangeable))
+            }
+            var value = value
+            if let shown {
+                switch Self.edited(value, shown: shown, of: field) {
+                case let .success(edited): value = edited
+                case let .failure(problem): return .failure(problem)
+                }
             }
             if let problem = Self.check(value, for: field) { return .failure(problem) }
             return saving(id) {
@@ -323,6 +338,11 @@ public final class SettingsService: @unchecked Sendable {
     static var notChangeable: String { tr("这个设置不能这样改", "This setting isn't changed this way") }
     static var badValue: String { tr("这个设置不接受这个值", "This setting doesn't take that value") }
 
+    static func stale(_ id: String?) -> SettingsProblem {
+        SettingsProblem(.stale, field: id, message: tr("设置刚在别处改过，没有改动；这里是现在的设置",
+                                                       "The settings changed meanwhile: nothing was changed, and here they are now"))
+    }
+
     static func unknown(_ id: String) -> SettingsProblem {
         SettingsProblem(.unknownField, field: id, message: tr("这里没有这个设置", "There's no such setting here"))
     }
@@ -378,6 +398,41 @@ public final class SettingsService: @unchecked Sendable {
         case .secret, .items, .info, .button:
             return SettingsProblem(.notChangeable, field: field.id, message: notChangeable)
         }
+    }
+
+    // MARK: Lists edited elsewhere meanwhile
+
+    /// A list field's new value, `value`, as a window edited it from `shown` (the list it showed), made an edit of the
+    /// list as it is now (`field.value`): what the window took out goes, what it added is added, and what was added
+    /// elsewhere meanwhile stays (taken out elsewhere, it stays out). Words (`redaction.customWords`) by the Mac's rule
+    /// (`RedactionSettings.edited`); a list of choices keeps the window's order of what it showed (`merged`). A list
+    /// whose order is its meaning (`agentCommand`, a command's arguments) isn't merged: changed since, it is `stale`.
+    static func edited(_ value: AIConfig.JSONValue, shown: AIConfig.JSONValue,
+                       of field: SettingsDocument.Field) -> Result<AIConfig.JSONValue, SettingsProblem> {
+        let now = field.value?.strings ?? []
+        guard [.words, .choices].contains(field.kind), let list = value.strings, let shown = shown.strings else {
+            return .failure(SettingsProblem(.badValue, field: field.id, message: badValue))
+        }
+        switch field.kind {
+        case .words where field.ordered == true:
+            return now == shown ? .success(value) : .failure(stale(field.id))
+        case .words:
+            return .success(.array(RedactionSettings.edited(now, to: list, shown: shown).map(AIConfig.JSONValue.string)))
+        default:
+            return .success(.array(merged(now, shown: shown, edited: list).map(AIConfig.JSONValue.string)))
+        }
+    }
+
+    /// `now` after a window's edit of the list from `shown` to `edited`, in the window's order: what it shows that was
+    /// taken out elsewhere meanwhile stays out, and what was added elsewhere (in `now`, never shown) goes back in after
+    /// the item it came after in `now` (first, when none did).
+    static func merged(_ now: [String], shown: [String], edited: [String]) -> [String] {
+        var result = edited.filter { !shown.contains($0) || now.contains($0) }
+        for (index, item) in now.enumerated() where !shown.contains(item) && !result.contains(item) {
+            let after = now[..<index].last(where: result.contains).flatMap { result.firstIndex(of: $0) }
+            result.insert(item, at: after.map { $0 + 1 } ?? 0)
+        }
+        return result
     }
 
     /// A bound as a person writes it: 200, 0.5.

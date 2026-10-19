@@ -415,6 +415,7 @@ struct SettingsSchema {
                                 help: tr("你打的字加在最后，作为最后一个参数。", "What you typed is added as its last argument."),
                                 value: .array(config.agentCommand.map(JSON.string)))
             command.placeholder = tr("例如 ", "e.g. ") + "muse --"
+            command.ordered = true  // a command's arguments, in order
             add(command, to: &fields) { store.config.agentCommand = Self.strings($0) }
         }
         if config.agent == .claude {
