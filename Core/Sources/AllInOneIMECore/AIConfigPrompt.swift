@@ -18,8 +18,9 @@ public enum AIConfigPrompt {
         /// The AWS profile in use may be named (false for a cloud provider when the sentence isn't about AWS or Bedrock:
         /// `mentionsAWS`).
         public var showsAWSProfile: Bool
-        /// Bedrock's model in use may be shown when it names the AWS account (an ARN, an account ID: `namesAWSAccount`);
-        /// false when the request goes to a provider other than Amazon Bedrock (`AIConfigService` sees to it).
+        /// Bedrock's model in use may be shown when it names the AWS account (an ARN, an account ID: `namesAWSAccount`),
+        /// and the AWS profiles' names with the account IDs in them; false when the request goes to a provider other than
+        /// Amazon Bedrock (`AIConfigService` sees to it).
         public var showsAWSAccount = true
         /// The apps on this Mac and their names, never sent: which apps with settings of their own the sentence names, for
         /// the on-device model's small context (`AIConfigFit`).
@@ -36,6 +37,11 @@ public enum AIConfigPrompt {
             self.installedPacks = installedPacks
             self.showsAWSProfile = showsAWSProfile
             self.apps = apps
+        }
+
+        /// The account IDs hidden in the AWS profiles' names (`AIConfig.AWSAccounts`): none when `showsAWSAccount`.
+        public var hiddenAWSAccounts: AIConfig.AWSAccounts {
+            AIConfig.AWSAccounts(showsAWSAccount ? [] : awsProfiles + [config.awsProfile])
         }
     }
 
@@ -196,10 +202,13 @@ public enum AIConfigPrompt {
         let providers = context.offeredProviders.map(\.rawValue)
         lines.append((.provider, line("provider", "where AI requests go (a provider with a key gets the key in Settings, never here)",
                                       providers.map { "\"\($0)\"" }.joined(separator: ", "), json(config.provider.rawValue))))
-        lines.append((.aws, line("awsProfile", "the AWS profile for Amazon Bedrock",
+        let accounts = context.hiddenAWSAccounts
+        let accountsHidden = context.showsAWSProfile && !accounts.ids.isEmpty
+            ? " (an account ID in a name is hidden as [account N]: write the name as shown)" : ""
+        lines.append((.aws, line("awsProfile", "the AWS profile for Amazon Bedrock" + accountsHidden,
                                  !context.showsAWSProfile ? "names not shown" : context.awsProfiles.isEmpty ? "none found in ~/.aws"
-                                     : context.awsProfiles.map { "\"\($0)\"" }.joined(separator: ", "),
-                                 context.showsAWSProfile ? json(config.awsProfile) : "(not shown)")))
+                                     : context.awsProfiles.map { "\"\(accounts.hiding($0))\"" }.joined(separator: ", "),
+                                 context.showsAWSProfile ? json(accounts.hiding(config.awsProfile)) : "(not shown)")))
         lines.append((.aws, line("region", "the AWS region for Amazon Bedrock, or null for the profile's own", "an AWS region code such as us-east-1",
                                  json(config.region))))
         for provider in [Provider.bedrock, .anthropic, .gemini, .openai] {

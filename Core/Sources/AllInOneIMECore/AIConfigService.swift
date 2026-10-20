@@ -159,11 +159,13 @@ public final class AIConfigService: Sendable {
     }
 
     /// The configured provider's answer, with every setting in the instructions; `instead` of the on-device model, the
-    /// request being too long for it. A Bedrock model that names the AWS account goes to Bedrock only.
+    /// request being too long for it. A Bedrock model that names the AWS account, and the account IDs in the AWS
+    /// profiles' names, go to Bedrock only: an answer that names a profile without its ID gets it back.
     private func askProvider(_ sentence: String, turns: [Refinement.Turn], context: AIConfigPrompt.Context, hiding: Hiding,
                              instead: Bool) async throws -> Answer {
         var context = context
         if context.config.provider != .bedrock { context.showsAWSAccount = false }
+        let accounts = context.hiddenAWSAccounts
         let config = context.config
         let request = AIConfigPrompt.request(sentence, context: context, turns: turns)
         let key = "@config|\(AIConfigPrompt.version)|\(config.activeModel)|\(request.system.map(\.text).joined())|\(sentence)"
@@ -173,7 +175,8 @@ public final class AIConfigService: Sendable {
             return Answer(text: text, fromCache: true, onDevice: false, hidden: hiding.count, instead: provider)
         }
         let text = try await collect(client.stream(hiding.protect(request), config: config, loadCredentials: loadCredentials, loadKey: loadKey))
-        return keep(hiding.restore(text), key: key, Answer(text: "", fromCache: false, onDevice: false, hidden: hiding.count, instead: provider))
+        return keep(accounts.restoring(hiding.restore(text)), key: key,
+                    Answer(text: "", fromCache: false, onDevice: false, hidden: hiding.count, instead: provider))
     }
 
     /// `answer` with `text`, kept under `key` unless it is empty.

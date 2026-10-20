@@ -71,6 +71,55 @@ extension AIConfig {
         modelId.lowercased().hasPrefix("arn:") || modelId.range(of: #"(?<![0-9])[0-9]{12}(?![0-9])"#, options: .regularExpression) != nil
     }
 
+    /// The account IDs in AWS profiles' names (an SSO profile is "AdministratorAccess-123456789012" by default), hidden from
+    /// a provider other than Amazon Bedrock as "[account 1]", "[account 2]" (the same account, the same number), the rest
+    /// of the name kept (`AIConfigPrompt.Context.showsAWSAccount`); an answer that names a profile so has its IDs put back.
+    public struct AWSAccounts: Equatable, Sendable {
+        /// The IDs in the names' order: the first is "[account 1]".
+        public private(set) var ids: [String] = []
+
+        public init(_ names: [String]) {
+            for name in names {
+                for id in Self.ids(in: name) where !ids.contains(id) { ids.append(id) }
+            }
+        }
+
+        /// `name` with each account ID in it as "[account N]".
+        public func hiding(_ name: String) -> String {
+            var shown = ""
+            for (run, isID) in Self.runs(name) {
+                shown += isID ? ids.firstIndex(of: run).map { "[account \($0 + 1)]" } ?? run : run
+            }
+            return shown
+        }
+
+        /// `text` (an answer) with each "[account N]" as its ID again.
+        public func restoring(_ text: String) -> String {
+            ids.enumerated().reduce(text) { $0.replacingOccurrences(of: "[account \($1.offset + 1)]", with: $1.element) }
+        }
+
+        /// The account IDs in `name`: twelve digits, no more and no fewer (as `namesAWSAccount` finds them).
+        static func ids(in name: String) -> [String] { runs(name).filter(\.isID).map(\.text) }
+
+        /// `name` cut into runs of ASCII digits and the rest, each run with whether it is an account ID.
+        private static func runs(_ name: String) -> [(text: String, isID: Bool)] {
+            var runs: [(text: String, isID: Bool)] = []
+            var current = "", digits = false
+            func flush() {
+                if !current.isEmpty { runs.append((current, digits && current.count == 12)) }
+                current = ""
+            }
+            for character in name {
+                let digit = character.isASCII && character.isNumber
+                if digit != digits { flush() }
+                digits = digit
+                current.append(character)
+            }
+            flush()
+            return runs
+        }
+    }
+
     /// Whether `text` is about AWS or Bedrock, by its words (not letters inside others: "draws", "laws"): only then are
     /// the profiles' names sent to a cloud provider.
     public static func mentionsAWS(_ text: String) -> Bool {

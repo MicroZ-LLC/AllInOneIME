@@ -543,6 +543,50 @@ struct AIConfigContextTests {
         #expect(!AIConfig.namesAWSAccount("us.anthropic.claude-haiku-4-5-20251001-v1:0") && !AIConfig.namesAWSAccount("us.amazon.nova-2-lite-v1:0"))
     }
 
+    /// An account ID in an AWS profile's name (an SSO profile's "AdministratorAccess-123456789012") goes to no provider but
+    /// Amazon Bedrock either: the user's provider asked instead of the on-device model, or without Apple Intelligence, gets
+    /// the rest of the name with "[account 1]" for the ID (the same account, the same number), and an answer that names a
+    /// profile so is read with its real name; the on-device model has the names as they are.
+    @Test func anAccountIDInAProfilesNameGoesToNoOtherProvider() async throws {
+        let profiles = ["default", "AdministratorAccess-123456789012", "ReadOnly-123456789012", "AdministratorAccess-210987654321"]
+        let answer = #"{"changes": [{"key": "awsProfile", "value": "AdministratorAccess-[account 2]"}]}"#
+        let sentence = "use the AWS profile AdministratorAccess of the other account"
+        func context(_ config: Config) -> AIConfigPrompt.Context {
+            var context = Self.context(config)
+            context.awsProfiles = profiles
+            return context
+        }
+        for onDevice in [true, false] {
+            let host = "assistant-sso-\(onDevice).test"
+            let (_, chosen) = try Self.openAIService(ContextLimitedModel(overflows: true), host: host, answer: answer)
+            var config = chosen
+            config.awsProfile = "ReadOnly-123456789012"
+            // Too long for the on-device model, or no Apple Intelligence: the user's provider either way.
+            let apple: any AppleModelBackend = onDevice ? ContextLimitedModel(overflows: true) : AIConfigTests.GuidedStub(.deviceNotEligible, answer: "")
+            let service = AIConfigService(client: ChatClient(bedrock: BedrockClient(session: StubURLProtocol.session()), apple: apple),
+                                          loadCredentials: { _ in throw AWSConfigError.profileNotFound("none") },
+                                          loadKey: { provider, keyHost in provider == .openai && keyHost == host ? "sk-test" : nil })
+            let got = try await service.ask(sentence, context: context(config), tools: Self.tools)
+            let body = RedactionTests.body(StubURLProtocol.lastRequest(host: host))
+            #expect(!body.contains("123456789012") && !body.contains("210987654321"), "\(body.prefix(200))")
+            #expect(["AdministratorAccess-[account 1]", "ReadOnly-[account 1]", "AdministratorAccess-[account 2]"].allSatisfy(body.contains)
+                    && body.contains("now \\\"ReadOnly-[account 1]\\\"") && body.contains("default"), "\(onDevice)")
+            #expect(try AIConfig.parse(got.text).changes == [.init(key: .setting(.awsProfile), value: .string("AdministratorAccess-210987654321"))])
+        }
+        // On the device: the names as they are.
+        let model = ContextLimitedModel(contextSize: 8192)
+        var small = Config.default
+        small.provider = .anthropic
+        small.awsProfile = "ReadOnly-123456789012"
+        _ = try await Self.service(model).ask(sentence, context: context(small), tools: Self.tools)
+        let sent = try #require(model.sent.last)
+        #expect(sent.request.instructions.contains(#"now "ReadOnly-123456789012""#)
+                && profiles.allSatisfy(ContextLimitedModel.json(sent.schema).contains) && !sent.request.instructions.contains("[account"))
+        // A name without one, or with a number of another length, as it is.
+        let accounts = AIConfig.AWSAccounts(["dev-1234567890123", "prod-12345678901", "x123456789012y"])
+        #expect(accounts.hiding("dev-1234567890123") == "dev-1234567890123" && accounts.hiding("x123456789012y") == "x[account 1]y")
+    }
+
     /// With the on-device model as the provider chosen there is nothing else to ask: the line says what to do, in the
     /// interface language; never the model's own error.
     @Test func tooLongWithoutAProviderSaysWhatToDo() async throws {
