@@ -251,15 +251,17 @@ struct AIConfigTests {
                 "\(shown.rows.map { $0.text(chinese: false) })")
         #expect(try preview("改用Bedrock", gemini, chinese: true).get().rows.map { $0.text(chinese: true) }
             .contains("✕ AI 服务：你要的是 Amazon Bedrock，不是 Gemini API"))
-        // The provider in use, chosen again: not "already set", the same row.
-        let same = #"{"changes": [{"key": "provider", "value": "anthropic"}]}"#
-        #expect(try preview("use Bedrock", same) == .failure(.notAllowed))
+        // The only change: the one line says why.
         var bedrock = env()
         bedrock.typedText = "use Bedrock"
-        #expect(AIConfig.failureLine(.notAllowed, proposal: try AIConfig.parse(same), config: config, environment: bedrock)
-            == "✕ AI provider: you asked for Amazon Bedrock, not Claude API")
-        for (sentence, answer) in [("switch to Gemini", "openai"), ("改用谷歌的模型", "anthropic"), ("用 Claude", "bedrock"), ("use DeepSeek", "gemini"),
-                                   ("AWS로 바꿔 줘", "openai"), ("use Nova Pro", "anthropic")] {
+        let onlyGemini = #"{"changes": [{"key": "provider", "value": "gemini"}]}"#
+        #expect(AIConfig.failureLine(.notAllowed, proposal: try AIConfig.parse(onlyGemini), config: config, environment: bedrock)
+            == "✕ AI provider: you asked for Amazon Bedrock, not Gemini API")
+        // The provider in use, in the answer unchanged: nothing refused, nothing changed (already so).
+        let same = #"{"changes": [{"key": "provider", "value": "anthropic"}]}"#
+        #expect(try preview("use Bedrock", same) == .failure(.alreadySet))
+        for (sentence, answer) in [("switch to Gemini", "openai"), ("改用谷歌的模型", "bedrock"), ("用 Claude", "bedrock"), ("use DeepSeek", "gemini"),
+                                   ("AWS로 바꿔 줘", "openai"), ("use Nova Pro", "openai")] {
             let json = #"{"changes": [{"key": "provider", "value": "\#(answer)"}]}"#
             #expect(try preview(sentence, json) == .failure(.notAllowed), "\(sentence) → \(answer)")
         }
@@ -273,6 +275,54 @@ struct AIConfigTests {
         }
         #expect(AIConfig.namedProvider("use Apple Intelligence") == .apple && AIConfig.namedProvider("use ChatGPT") == .openai
                 && AIConfig.namedProvider("アマゾンの Bedrock にして") == .bedrock && AIConfig.namedProvider("hide phone numbers") == nil)
+    }
+
+    /// A sentence that moves away from the provider it names ("stop using Bedrock", "别用 Claude 了", "Bedrock 太慢了，换一个"),
+    /// in any of the interface's languages, asks for another: whichever the answer chooses is left to the other checks.
+    /// The provider in use, in the answer unchanged beside what the sentence asked for ("use Claude" on Bedrock, a Claude
+    /// model there): no row for it, refused or not.
+    @Test func aSentenceMovingAwayFromTheProviderItNamesDoesntHoldTheAnswerToIt() throws {
+        var config = config
+        config.provider = .openai
+        func preview(_ sentence: String, _ json: String, in config: Config) throws -> Result<AIConfig.Preview, AIConfig.Failure> {
+            var env = env(keys: [.anthropic, .gemini, .openai])
+            env.typedText = sentence
+            return try self.preview(json, config, env: env)
+        }
+        let away = [
+            ("stop using Bedrock", "gemini"), ("don't use Claude", "bedrock"), ("I don’t want Gemini anymore", "anthropic"),
+            ("switch from Bedrock", "anthropic"), ("Bedrock is too slow, change it", "gemini"), ("no more ChatGPT", "anthropic"),
+            ("use something other than Claude", "gemini"), ("不要用谷歌了", "bedrock"), ("别用 Claude 了", "gemini"), ("不用 Bedrock", "anthropic"),
+            ("把亚马逊换掉", "gemini"), ("Bedrock 太慢了，换一个", "anthropic"), ("別用 Claude 了", "bedrock"), ("把亞馬遜換掉", "gemini"),
+            ("Bedrock を使わないで", "gemini"), ("クロードはやめて", "bedrock"), ("Gemini 以外にして", "anthropic"),
+            ("Bedrock 말고", "gemini"), ("클로드 쓰지 마", "bedrock"), ("구글 안 써", "anthropic"),
+            ("nicht mehr Bedrock", "gemini"), ("Claude ist zu langsam", "bedrock"), ("n’utilise plus Bedrock", "anthropic"),
+            ("arrête Gemini", "bedrock"), ("deja de usar Bedrock", "gemini"), ("no uses Claude", "gemini"),
+            ("pare de usar o Gemini", "anthropic"), ("não use Bedrock", "anthropic"),
+        ]
+        for (sentence, answer) in away {
+            #expect(AIConfig.namedProvider(sentence) == nil, "\(sentence)")
+            let json = #"{"changes": [{"key": "provider", "value": "\#(answer)"}]}"#
+            #expect((try? preview(sentence, json, in: config).get().edits) == [.provider(Provider(rawValue: answer)!)], "\(sentence) → \(answer)")
+        }
+        // Asked for in those languages: still held to it.
+        for (sentence, named) in [("use Bedrock", Provider.bedrock), ("改用谷歌的模型", .gemini), ("改用亞馬遜", .bedrock),
+                                  ("クロードにして", .anthropic), ("AWS로 바꿔 줘", .bedrock), ("nimm Gemini", .gemini),
+                                  ("passe à Bedrock", .bedrock), ("usa Claude", .anthropic), ("mude para o Gemini", .gemini)] {
+            #expect(AIConfig.namedProvider(sentence) == named, "\(sentence)")
+        }
+
+        // Bedrock in use; "use Claude" answered with Claude on Bedrock, the provider as it is.
+        config.provider = .bedrock
+        config.modelId = "us.amazon.nova-2-lite-v1:0"
+        let claudeOnBedrock = #"""
+            {"changes": [{"key": "provider", "value": "bedrock"}, {"key": "modelId", "value": "us.anthropic.claude-haiku-4-5-20251001-v1:0"}]}
+            """#
+        for sentence in ["use Claude", "用 Claude", "use DeepSeek R1"] {
+            let shown = try preview(sentence, claudeOnBedrock, in: config).get()
+            #expect(shown.edits == [.model(.bedrock, "us.anthropic.claude-haiku-4-5-20251001-v1:0")] && !shown.rows.contains(where: \.isRefused),
+                    "\(sentence): \(shown.rows.map { $0.text(chinese: false) })")
+        }
     }
 
     @Test func keysTypedIntoTheSentenceAreDropped() {

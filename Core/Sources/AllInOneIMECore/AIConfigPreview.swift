@@ -89,14 +89,63 @@ extension AIConfig {
 
     /// The provider `text` (what the user typed) names, when it names one only: by the services' names in the interface's
     /// languages ("use Bedrock", "改用谷歌的模型", "AWS로"), as `AIConfigFit.relevance` reads words. Nil when it names none or
-    /// several ("Claude on Bedrock"), or has a dotted name in it, a model ID or a host ("us.anthropic.claude-…",
-    /// "api.deepseek.com"), whose provider the words can't tell.
+    /// several ("Claude on Bedrock"), has a dotted name in it, a model ID or a host ("us.anthropic.claude-…",
+    /// "api.deepseek.com"), whose provider the words can't tell, or may be moving away from the one it names ("stop using
+    /// Bedrock", "别用 Claude 了", "Bedrock 太慢了，换一个": `movesAway`).
     public static func namedProvider(_ text: String) -> Provider? {
         let words = AIConfigFit.Words(text)
-        guard words.lowered.range(of: #"\p{L}\.\p{L}"#, options: .regularExpression) == nil else { return nil }
+        guard words.lowered.range(of: #"\p{L}\.\p{L}"#, options: .regularExpression) == nil, !movesAway(words.lowered) else { return nil }
         let named = providerNames.filter { $0.value.contains(where: words.contains) }.map(\.key)
         return named.count == 1 ? named[0] : nil
     }
+
+    /// Whether `lowered` (what the user typed, lowercased) may be about leaving a provider rather than choosing it: a
+    /// negation, "stop", "instead", "other", "from", "too slow" … anywhere in it, in the interface's languages. On the safe
+    /// side: such a word about anything else in the sentence leaves the provider to the other checks too.
+    static func movesAway(_ lowered: String) -> Bool {
+        lowered.range(of: awayPattern, options: .regularExpression) != nil || awayCJK.contains(where: lowered.contains)
+    }
+
+    /// The words of `movesAway` in Latin script, lowercased, whole words (a phrase's words apart by spaces).
+    static let awayWords = [
+        // English ("n't" below).
+        "not", "no", "never", "dont", "doesnt", "isnt", "cant", "wont", "stop", "stopped", "quit", "drop", "ditch", "avoid", "without",
+        "instead", "rather", "other", "another", "else", "different", "except", "besides", "away", "from", "off", "replace", "remove",
+        "leave", "abandon", "too", "slow", "slower", "expensive", "hate", "broken",
+        // German
+        "nicht", "kein", "keine", "keinen", "keinem", "keiner", "nie", "niemals", "ohne", "statt", "anstatt", "anstelle", "stattdessen",
+        "andere", "anderen", "anderer", "anderes", "außer", "weg", "von", "aufhören", "hör auf", "höre auf", "langsam", "teuer", "ersetze",
+        "ersetzen", "entferne",
+        // French ("n'" below)
+        "pas", "ne", "plus", "jamais", "sans", "au lieu", "plutôt", "autre", "autres", "arrête", "arrêter", "arrêtez", "quitte", "quitter",
+        "abandonne", "lent", "lente", "cher", "chère", "remplace", "remplacer", "sauf",
+        // Spanish
+        "nunca", "sin", "deja", "dejar", "deje", "en lugar", "en vez", "otro", "otra", "otros", "otras", "lento", "lenta", "caro", "cara",
+        "quita", "quitar", "reemplaza", "reemplazar", "excepto", "salvo", "distinto", "distinta", "diferente",
+        // Portuguese
+        "não", "nao", "sem", "pare", "parar", "para de", "deixe", "deixar", "deixa", "em vez", "ao invés", "tire", "tirar", "tira",
+        "substitua", "substituir", "exceto",
+    ]
+
+    /// `awayWords` as whole words, ending where Chinese, Japanese or Korean meets them; English "n't" and French "n'" too.
+    /// Korean 안 ("not") at the start of a word.
+    static let awayPattern: String = {
+        let notCJK = #"[\p{L}\p{M}\p{N}&&[^\p{Han}\p{Hiragana}\p{Katakana}\p{Hangul}]]"#
+        let words = awayWords.map { NSRegularExpression.escapedPattern(for: $0).replacingOccurrences(of: " ", with: #"\s+"#) }
+        return #"(?<!\#(notCJK))(?:\#(words.joined(separator: "|")))(?!\#(notCJK))|\p{L}n['’]t(?!\p{L})|(?<!\p{L})n['’](?=\p{L})"#
+            + #"|(?<!\p{Hangul})안"#
+    }()
+
+    /// The words of `movesAway` in Chinese, Japanese and Korean, anywhere.
+    static let awayCJK = [
+        // Chinese: 不要用, 不用, 别用, 没, 停用, 换掉, 换一个, 其他, 另, 除了, 以外, 太慢, 贵, 从, 离开, 放弃, 去掉, 取消, 讨厌, 代替.
+        "不", "别", "別", "没", "沒", "停", "换掉", "換掉", "换一个", "換一個", "换个", "換個", "其他", "其它", "另", "除了", "以外", "之外",
+        "太", "慢", "贵", "貴", "从", "從", "离开", "離開", "放弃", "放棄", "弃", "棄", "掉", "取消", "讨厌", "討厭", "代替", "替换", "替換",
+        // Japanese: 使わない, ではなく, 使わず, やめて, 以外, 他の, ほかの, 遅い, 高い, から, 代わり, 外して, 嫌, だめ.
+        "ない", "なく", "わず", "やめ", "止め", "他の", "ほかの", "遅", "高い", "から", "代わり", "外し", "外す", "嫌", "だめ", "ダメ",
+        // Korean: 말고, 않아, 그만, 대신, 다른, 느려, 비싸, 에서, 빼, 제외, 싫어, 쓰지 마, 못.
+        "말고", "않", "그만", "대신", "다른", "느려", "느리", "비싸", "에서", "빼", "제외", "싫", "지 마", "지마", "못",
+    ]
 
     /// The words that name each provider, lowercased: the services, not their models (Claude and Llama are on Bedrock
     /// too, DeepSeek and Qwen on the OpenAI-compatible services and on Bedrock).
@@ -488,11 +537,13 @@ extension AIConfig {
                 return refused(text.notValid)
             }
             guard env.offeredProviders.contains(provider) else { return refused(text.notOffered) }
-            // The sentence names one provider, the answer another (the on-device model has answered "use Bedrock" with
-            // Claude API): the model's slip, never applied, nor taken for the one in use being already so.
+            // The one in use, unchanged: no row ("use Claude" on Bedrock answered with a Claude model there, the provider
+            // as it is).
+            guard provider != config.provider else { return nil }
+            // The sentence asks for one provider, the answer chooses another (the on-device model has answered "use
+            // Bedrock" with Claude API): the model's slip, never applied.
             if let named = namedProvider(env.typedText), named != provider { return refused(text.notTheOneNamed(named, chosen: provider)) }
-            return provider == config.provider ? nil
-                : row(text.provider(config.provider), text.provider(provider), .provider(provider))
+            return row(text.provider(config.provider), text.provider(provider), .provider(provider))
         case .awsProfile:
             guard case let .string(name) = value, !name.isEmpty else { return refused(text.notValid) }
             guard env.awsProfiles().contains(name) else { return refused(text.unknownProfile) }
