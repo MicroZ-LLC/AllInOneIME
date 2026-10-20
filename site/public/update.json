@@ -1,15 +1,15 @@
 {
-  "build" : "9",
-  "generated" : "2026-10-16T07:06:17Z",
+  "build" : "11",
+  "generated" : "2026-10-19T06:18:55Z",
   "minimumSystemVersion" : "14.0",
-  "notesURL" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/tag/v0.6.3",
+  "notesURL" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/tag/v0.6.5",
   "schema" : 1,
-  "sha256" : "0ec534f636068671e7e201660028f55e8de6e548eb37a4474a10a829f3391345",
-  "size" : 15140132,
+  "sha256" : "652f0f5dc09e87460e9567f6294e25b46fc2c08ccf00b98dd1e0cd2326698419",
+  "size" : 22468337,
   "summary" : {
-    "en" : "Refine results, run commands on the selected text, see recent questions, set things per app, use Apple Intelligence on your Mac, and hide sensitive information before sending. The first release notarized by Apple.",
-    "zh" : "可以修改结果、对选中的文字用命令、查看最近的问题、按 App 设置，支持本机的 Apple Intelligence，发送前可以隐藏敏感信息。首个经过 Apple 公证的版本。"
+    "en" : "Reply to a message with @reply (paste a screenshot, read on your Mac), save snippets, send notes to Notion or a folder, translate as you type, sync settings and (if you choose) API keys through iCloud, and use the interface in nine languages. @config and @doctor moved to Settings → Assistant.",
+    "zh" : "用 @reply 回复消息（可以粘贴截图，在本机识别）、保存片段、把笔记存到 Notion 或文件夹、边打边译、通过 iCloud 同步设置和（可选的）API 密钥，界面支持九种语言。@config 和 @doctor 搬到了设置 →「助手」。"
   },
-  "url" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/download/v0.6.3/AllInOneIME-0.6.3-update.zip",
-  "version" : "0.6.3"
+  "url" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/download/v0.6.5/AllInOneIME-0.6.5-update.zip",
+  "version" : "0.6.5"
 }
