@@ -4184,6 +4184,53 @@
         }
       }
     },
+    "%@, the newest first" : {
+      "comment" : "%@ 个，新的在前 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, die neuesten zuerst"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, los más recientes primero"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, les plus récents d’abord"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@語、新しい順"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@개, 최신순"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, os mais recentes primeiro"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 個，新的在前"
+          }
+        }
+      }
+    },
     "%%.1f s: %%@" : {
       "comment" : "%%.1f 秒：%%@ — Sources/AllInOneIMECore/Settings/SettingsChecks.swift",
       "localizations" : {
@@ -9368,6 +9415,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Base URL"
+          }
+        }
+      }
+    },
+    "Bedrock, say" : {
+      "comment" : "比如 Bedrock — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "z. B. Bedrock"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "p. ej., Bedrock"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "par ex. Bedrock"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "例：Bedrock"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "예: Bedrock"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ex.: Bedrock"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "例如 Bedrock"
           }
         }
       }
@@ -16669,6 +16763,147 @@
         }
       }
     },
+    "Learn the English words you type" : {
+      "comment" : "学习打出的英文词 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Englische Wörter lernen, die du tippst"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aprender las palabras en inglés que escribes"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apprendre les mots anglais que vous tapez"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "入力した英単語を学習"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "입력한 영어 단어 학습"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aprender as palavras em inglês que você digita"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "學習打出的英文詞"
+          }
+        }
+      }
+    },
+    "Left out what looks like a key, a card or phone number, or an IP address: your English words come up among the candidates." : {
+      "comment" : "没有添加像密钥、卡号、电话号码或 IP 地址的内容：你的英文词会出现在候选里。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht hinzugefügt, was wie ein Schlüssel, eine Karten- oder Telefonnummer oder eine IP-Adresse aussieht: Deine englischen Wörter erscheinen unter den Kandidaten."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se omitió lo que parece una clave, un número de tarjeta o de teléfono, o una dirección IP: tus palabras en inglés aparecen entre los candidatos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce qui ressemble à une clé, à un numéro de carte ou de téléphone, ou à une adresse IP n’a pas été ajouté : vos mots anglais apparaissent parmi les candidats."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キー、カード番号や電話番号、IP アドレスのようなものは追加しませんでした：英単語は候補に表示されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "키, 카드 번호나 전화번호, IP 주소처럼 보이는 것은 추가하지 않았습니다: 영어 단어는 후보에 나타납니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ficou de fora o que parece uma chave, um número de cartão ou de telefone, ou um endereço IP: suas palavras em inglês aparecem entre os candidatos."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有加入像金鑰、卡號、電話號碼或 IP 位址的內容：你的英文詞會出現在候選裡。"
+          }
+        }
+      }
+    },
+    "Left out what looks like a key, a card or phone number, or an IP address: your English words sync through iCloud and come up among the candidates." : {
+      "comment" : "没有添加像密钥、卡号、电话号码或 IP 地址的内容：你的英文词会通过 iCloud 同步，也会出现在候选里。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht hinzugefügt, was wie ein Schlüssel, eine Karten- oder Telefonnummer oder eine IP-Adresse aussieht: Deine englischen Wörter werden über iCloud synchronisiert und erscheinen unter den Kandidaten."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se omitió lo que parece una clave, un número de tarjeta o de teléfono, o una dirección IP: tus palabras en inglés se sincronizan con iCloud y aparecen entre los candidatos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce qui ressemble à une clé, à un numéro de carte ou de téléphone, ou à une adresse IP n’a pas été ajouté : vos mots anglais se synchronisent via iCloud et apparaissent parmi les candidats."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キー、カード番号や電話番号、IP アドレスのようなものは追加しませんでした：英単語は iCloud で同期され、候補にも表示されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "키, 카드 번호나 전화번호, IP 주소처럼 보이는 것은 추가하지 않았습니다: 영어 단어는 iCloud로 동기화되고 후보에도 나타납니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ficou de fora o que parece uma chave, um número de cartão ou de telefone, ou um endereço IP: suas palavras em inglês são sincronizadas pelo iCloud e aparecem entre os candidatos."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有加入像金鑰、卡號、電話號碼或 IP 位址的內容：你的英文詞會透過 iCloud 同步，也會出現在候選裡。"
+          }
+        }
+      }
+    },
     "Letters only, e.g. py" : {
       "comment" : "只用英文字母，比如 py — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
@@ -20102,6 +20337,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "不是網址：%@"
+          }
+        }
+      }
+    },
+    "Not added: it's there already, or isn't an English word (a Latin letter first, then letters, digits or - . + & ' _ /)." : {
+      "comment" : "没有添加：已经有了，或者不是英文词（英文字母开头，可以带数字和 - . + & ' _ /）。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht hinzugefügt: Das Wort ist schon da oder kein englisches Wort (zuerst ein lateinischer Buchstabe, dann Buchstaben, Ziffern oder - . + & ' _ /)."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se añadió: ya está, o no es una palabra en inglés (primero una letra latina, luego letras, dígitos o - . + & ' _ /)."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non ajouté : il y est déjà, ou ce n’est pas un mot anglais (d’abord une lettre latine, puis des lettres, des chiffres ou - . + & ' _ /)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "追加されませんでした：すでにあるか、英単語ではありません（最初はラテン文字、その後は文字・数字・- . + & ' _ /）。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "추가되지 않았습니다: 이미 있거나 영어 단어가 아닙니다(라틴 문자로 시작하고, 이어서 문자, 숫자 또는 - . + & ' _ /)."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não adicionada: ela já está na lista, ou não é uma palavra em inglês (primeiro uma letra latina, depois letras, dígitos ou - . + & ' _ /)."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有加入：已經有了，或者不是英文詞（英文字母開頭，可以帶數字和 - . + & ' _ /）。"
           }
         }
       }
@@ -24385,6 +24667,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在網址中放一個 {input}"
+          }
+        }
+      }
+    },
+    "Put the same letters in as typed twice while typing pinyin (bedrock and ⏎, then again) and the word comes up among the candidates from then on. Never in password fields, terminals, remote desktops and virtual machines, or apps with AI off, nor anything that looks like a key or a number." : {
+      "comment" : "打拼音时把同样的字母原样上屏两次（比如打 bedrock 按 ⏎，再来一次），这个词以后就出现在候选里。密码框、终端、远程桌面和虚拟机、关了 AI 的 App 里不学，像密钥、号码的也不学。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gib beim Pinyin-Tippen dieselben Buchstaben zweimal so ein, wie du sie getippt hast (z. B. bedrock und ⏎, dann noch einmal), und das Wort erscheint von da an unter den Kandidaten. Nie in Passwortfeldern, Terminals, Remotedesktops und virtuellen Maschinen oder Apps mit ausgeschalteter KI, und nichts, was wie ein Schlüssel oder eine Nummer aussieht."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Al escribir pinyin, introduce dos veces las mismas letras tal cual (por ejemplo, bedrock y ⏎, y otra vez) y la palabra aparecerá desde entonces entre los candidatos. Nunca en campos de contraseña, terminales, escritorios remotos y máquinas virtuales, ni en apps con la IA desactivada, ni nada que parezca una clave o un número."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En tapant du pinyin, insérez deux fois les mêmes lettres telles que tapées (bedrock puis ⏎, puis encore une fois) et le mot apparaît ensuite parmi les candidats. Jamais dans les champs de mot de passe, les terminaux, les bureaux à distance et les machines virtuelles, ni dans les apps où l’IA est désactivée, ni pour ce qui ressemble à une clé ou à un numéro."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ピンイン入力中に同じ文字をそのまま 2 回確定すると（例：bedrock と入力して ⏎、もう一度）、その単語が以降の候補に出ます。パスワード欄、ターミナル、リモートデスクトップや仮想マシン、AI をオフにした App では学習せず、キーや番号のようなものも学習しません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "병음을 입력하다가 같은 글자를 입력한 그대로 두 번 넣으면(예: bedrock 입력 후 ⏎, 한 번 더) 그 단어가 이후 후보에 나타납니다. 암호 필드, 터미널, 원격 데스크톱과 가상 머신, AI를 끈 앱에서는 학습하지 않으며, 키나 번호처럼 보이는 것도 학습하지 않습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ao digitar pinyin, insira duas vezes as mesmas letras como digitadas (bedrock e ⏎, e de novo) e a palavra passa a aparecer entre os candidatos. Nunca em campos de senha, terminais, áreas de trabalho remotas e máquinas virtuais, nem em apps com a IA desativada, nem nada que pareça uma chave ou um número."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打拼音時把同樣的字母照原樣送出兩次（例如打 bedrock 按 ⏎，再來一次），這個詞以後就會出現在候選裡。密碼欄位、終端機、遠端桌面和虛擬機、關了 AI 的 App 裡不學，像金鑰、號碼的也不學。"
           }
         }
       }
@@ -37164,6 +37493,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你的 %@ 方案不包含這種搜尋"
+          }
+        }
+      }
+    },
+    "Your English words" : {
+      "comment" : "你的英文词 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deine englischen Wörter"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tus palabras en inglés"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vos mots anglais"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "あなたの英単語"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "내 영어 단어"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suas palavras em inglês"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的英文詞"
           }
         }
       }

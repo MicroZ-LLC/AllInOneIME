@@ -255,11 +255,47 @@ struct SettingsSchema {
                               value: .array(config.fuzzyPinyin.map(JSON.string)))
             fuzzy.choices = FuzzyPinyin.pairs.map { Choice($0.id, $0.label) }
             add(fuzzy, to: &fields) { store.setFuzzyPinyin(Self.strings($0)) }
+            englishWords(&fields)
         }
         add(toggle("voiceInput", tr("按住右 ⌥ 说话，松开结束", "Hold right ⌥ to talk, release to stop"),
                    tr("在这台 Mac 上识别，不上传", "Recognized on this Mac, never uploaded"), config.voiceInput, platforms: [.mac]),
             to: &fields) { store.config.voiceInput = Self.bool($0) }
         return fields
+    }
+
+    /// The English words among pinyin's candidates (`EnglishWords`), as the Mac's window has them (Input → Chinese →
+    /// English Words): the switch that learns them, and the user's, the newest first. A word typed in is added as its Add
+    /// adds it (the user's: one that isn't a word, or that hiding sensitive information hides, refused), one taken out is
+    /// removed, learned or added (`EnglishWords.edit`).
+    mutating func englishWords(_ fields: inout [Field]) {
+        let store = store
+        add(toggle("learnsEnglishWords", tr("学习打出的英文词", "Learn the English words you type"),
+                   tr("打拼音时把同样的字母原样上屏两次（比如打 bedrock 按 ⏎，再来一次），这个词以后就出现在候选里。密码框、终端、远程桌面和虚拟机、关了 AI 的 App 里不学，像密钥、号码的也不学。",
+                      "Put the same letters in as typed twice while typing pinyin (bedrock and ⏎, then again) and the word comes up among the candidates from then on. Never in password fields, terminals, remote desktops and virtual machines, or apps with AI off, nor anything that looks like a key or a number."),
+                   config.learnsEnglishWords), to: &fields) { store.config.learnsEnglishWords = Self.bool($0) }
+        let shown = Array(config.englishWords.reversed())
+        var words = Field(id: "englishWords", kind: .words, label: tr("你的英文词", "Your English words"),
+                          help: tr("\(shown.count) 个，新的在前", "\(shown.count), the newest first"), value: .array(shown.map(JSON.string)))
+        words.placeholder = tr("比如 Bedrock", "Bedrock, say")
+        words.text = shown.joined(separator: ", ")
+        let platform = platform
+        add(words, to: &fields) { value in
+            var config = store.config
+            switch EnglishWords.edit(&config, to: value.string.map(RedactionSettings.words(from:)) ?? Self.strings(value)) {
+            case .sensitive?:
+                throw SettingsProblem(.badValue, field: "englishWords", message: platform == .mac
+                    ? tr("没有添加像密钥、卡号、电话号码或 IP 地址的内容：你的英文词会通过 iCloud 同步，也会出现在候选里。",
+                         "Left out what looks like a key, a card or phone number, or an IP address: your English words sync through iCloud and come up among the candidates.")
+                    : tr("没有添加像密钥、卡号、电话号码或 IP 地址的内容：你的英文词会出现在候选里。",
+                         "Left out what looks like a key, a card or phone number, or an IP address: your English words come up among the candidates."))
+            case .notAWord?:
+                throw SettingsProblem(.badValue, field: "englishWords",
+                                      message: tr("没有添加：已经有了，或者不是英文词（英文字母开头，可以带数字和 - . + & ' _ /）。",
+                                                  "Not added: it's there already, or isn't an English word (a Latin letter first, then letters, digits or - . + & ' _ /)."))
+            case nil:
+                store.config = config
+            }
+        }
     }
 
     // MARK: Translate & Rewrite

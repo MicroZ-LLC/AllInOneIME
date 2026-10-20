@@ -233,6 +233,54 @@ struct SettingsServiceTests {
         #expect(problem("maxTokens", .number(1500), shown: strings("1000")) == .badValue)
     }
 
+    /// The English words with Chinese among the input languages, as the Mac's window has them: the switch that learns
+    /// them, and the user's, the newest first. A word typed in is added as the Mac's Add adds it (the user's), one taken
+    /// out is removed, learned or added, and one learned meanwhile stays; one that isn't a word, or that hiding sensitive
+    /// information hides, is refused, and nothing changes.
+    @Test func theEnglishWords() throws {
+        let (service, url) = try service(#"{"uiLanguage": "en", "inputLanguages": ["en"], "englishWords": ["frobnicate", "Bedrock"], "addedEnglishWords": ["Bedrock"]}"#)
+        func strings(_ values: String...) -> AIConfig.JSONValue { .array(values.map(AIConfig.JSONValue.string)) }
+        func problem(_ value: AIConfig.JSONValue, shown: AIConfig.JSONValue? = nil) -> SettingsProblem? {
+            if case let .failure(problem) = service.set("englishWords", to: value, shown: shown) { return problem }
+            return nil
+        }
+        #expect(service.document().field("englishWords") == nil && service.document().field("learnsEnglishWords") == nil)
+        #expect((try? service.set("inputLanguages", to: strings("en", "zh")).get()) != nil)
+        let words = try #require(service.document().field("englishWords"))
+        #expect(words.kind == .words && words.value == strings("Bedrock", "frobnicate") && words.text == "Bedrock, frobnicate")
+        #expect(words.help == "2, the newest first" && words.ordered == nil)
+        #expect(service.document().field("learnsEnglishWords")?.value == .bool(true))
+        // As the window's line: Kubeflow typed in, frobnicate (learned) taken out.
+        #expect(problem(.string("Kubeflow, Bedrock"), shown: .string("Bedrock, frobnicate")) == nil)
+        var config = try Config.load(from: url)
+        #expect(config.englishWords == ["Bedrock", "Kubeflow"] && config.addedEnglishWords == ["Bedrock", "Kubeflow"])
+        #expect(service.document().field("englishWords")?.text == "Kubeflow, Bedrock")
+        // One learned meanwhile stays; Bedrock (added) taken out goes from both lists.
+        #expect(try EnglishWords.learn("zorblax", at: url))
+        try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(60)], ofItemAtPath: url.path)
+        #expect(problem(strings("Kubeflow"), shown: strings("Kubeflow", "Bedrock")) == nil)
+        config = try Config.load(from: url)
+        #expect(config.englishWords == ["Kubeflow", "zorblax"] && config.addedEnglishWords == ["Kubeflow"])
+        // A key, or what isn't a word, typed in with another: refused, and nothing changes.
+        let refused = try #require(problem(strings("zorblax", "Kubeflow", "sk-ant-api03-abcdefghijklmnopqrstuvwx", "Hugging Face")))
+        #expect(refused.code == .badValue && refused.message.contains("looks like a key") && !refused.message.contains("iCloud"))
+        #expect(problem(strings("zorblax", "Kubeflow", "北京", "Hugging Face"))?.code == .badValue)
+        #expect(try Config.load(from: url) == config)
+        // Spelled another way, in another order: as it was.
+        #expect(problem(strings("ZORBLAX", "kubeflow")) == nil)
+        #expect(try Config.load(from: url) == config)
+        // The switch.
+        #expect((try? service.set("learnsEnglishWords", to: .bool(false)).get()) != nil)
+        #expect(try !Config.load(from: url).learnsEnglishWords)
+        // The Mac's document says the words sync through iCloud.
+        let (mac, _) = try self.service(#"{"uiLanguage": "en", "inputLanguages": ["zh"]}"#, platform: .mac)
+        if case let .failure(problem) = mac.set("englishWords", to: strings("sk-ant-api03-abcdefghijklmnopqrstuvwx")) {
+            #expect(problem.message.contains("iCloud"))
+        } else {
+            Issue.record("a key added on the Mac")
+        }
+    }
+
     /// A command's arguments aren't merged: their order is their meaning. Changed since the window showed them: stale.
     @Test func aCommandsArgumentsAreNotMerged() throws {
         let (service, url) = try service(#"{"agent": "custom", "agentCommand": ["muse", "--"]}"#)

@@ -480,6 +480,21 @@ struct EnglishWordsTests {
         #expect(config.englishWords == ["SageMaker"] && config.addedEnglishWords == ["SageMaker"])
     }
 
+    @Test func theListAsASettingsWindowSendsIt() {
+        var config = Config.default
+        config.englishWords = ["frobnicate", "Bedrock", "zorblax"]
+        config.addedEnglishWords = ["Bedrock"]
+        // Typed in: the user's; taken out: gone, learned or added; spelled another way, in another order: as it was.
+        #expect(EnglishWords.edit(&config, to: ["ZORBLAX", "Kubeflow", "Hugging Face"]) == nil)
+        #expect(config.englishWords == ["zorblax", "Kubeflow", "Hugging Face"])
+        #expect(config.addedEnglishWords == ["Kubeflow", "Hugging Face"])
+        // A word typed in that hiding sensitive information hides, or that isn't one: nothing changes.
+        let before = config
+        #expect(EnglishWords.edit(&config, to: ["Kubeflow", "Bedrock", "card 4111 1111 1111 1111"]) == .sensitive)
+        #expect(EnglishWords.edit(&config, to: ["Kubeflow", "Bedrock", "北京"]) == .notAWord)
+        #expect(config == before)
+    }
+
     @Test func aLearnedWordAddedByHandBecomesTheUsers() {
         var config = Config.default
         config.englishWords = ["kubeflow", "zorblax", "Bedrock"]

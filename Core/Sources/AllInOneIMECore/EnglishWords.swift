@@ -230,6 +230,30 @@ public enum EnglishWords {
         return Added(words: new, refused: refused)
     }
 
+    /// Why a settings window's list wasn't taken (`edit`).
+    public enum Refusal: Equatable, Sendable {
+        /// A word typed in isn't one (`word`).
+        case notAWord
+        /// A word typed in is what hiding sensitive information hides (`isSensitive`).
+        case sensitive
+    }
+
+    /// A settings window's list of the user's English words, in any order (Windows' Settings app: the words as one line):
+    /// those of `config`'s English words whose letters it lacks removed, added or learned (`remove`), and its words whose
+    /// letters `config`'s lack added as Settings' Add adds them (`add`: the user's). Nothing changes when a word added
+    /// isn't one or is refused (`isSensitive`): why. A word only spelled another way stays as it was.
+    public static func edit(_ config: inout Config, to list: [String]) -> Refusal? {
+        let had = Set(config.englishWords.map(key))
+        let typed = list.filter { !had.contains(key($0)) }
+        let words = typed.compactMap(word)
+        if words.contains(where: isSensitive) { return .sensitive }
+        if words.count < typed.count { return .notAWord }
+        let kept = Set(list.map(key))
+        for word in config.englishWords where !kept.contains(key(word)) { remove(word, from: &config) }
+        if !words.isEmpty { add(words.joined(separator: ", "), to: &config) }
+        return nil
+    }
+
     /// A word's ✕ in Settings: `word` gone from `config`'s English words (by its letters, as it is matched), added or
     /// learned.
     public static func remove(_ word: String, from config: inout Config) {

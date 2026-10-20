@@ -616,8 +616,8 @@ given and sends back what the user did. It opens no sessions.
   moved), it is taken; left out of a `choices` list, it stays where it was; it is never picked anew. The field can
   always be changed.
 - **Which fields apply:** only those that apply *now* are in the document: a provider's own fields while it is the one
-  in use, the typing speed while typing out is on, fuzzy pinyin with Chinese among the input languages. After a
-  change, draw the new document: fields come and go.
+  in use, the typing speed while typing out is on, fuzzy pinyin and the English words with Chinese among the input
+  languages. After a change, draw the new document: fields come and go.
 - **Which platform:** a document is made for the client's platform (the engine's: `windows`). The Mac's own fields
   aren't in Windows' document: `iCloudSync`, `menuBarIcon`, `checkForUpdates`, `voiceInput`, `agentPageContext`
   (Chrome's page). Nor are the Mac's choices: the action keys `optionTap` and `optionSpace`, Apple Notes
@@ -629,7 +629,7 @@ given and sends back what the user did. It opens no sessions.
 | Section | Fields |
 |---|---|
 | `general` | `actionKey`, `typeOut`, `typeOutRate`, `typeOutVaries`, `typeOutMistakes`, `useSelection`, `rememberQuestions`, `uiLanguage`; the Mac's: `menuBarIcon`, `iCloudSync`, `checkForUpdates` |
-| `input` | `inputLanguages`, `candidateLayout`, `fuzzyPinyin`; the Mac's: `voiceInput` |
+| `input` | `inputLanguages`, `candidateLayout`, `fuzzyPinyin`, `learnsEnglishWords`, `englishWords`; the Mac's: `voiceInput` |
 | `writing` | `outputLanguages`, `rewriteStyles`, `improveTranslates`, `jargonFile` |
 | `provider` | `provider`; `<p>.model`, `<p>.key`, `<p>.baseURL`, `<p>.effort` for `anthropic`, `gemini`, `openai`; `bedrock.modelId`, `bedrock.awsProfile`, `bedrock.region`; `provider.test` |
 | `request` | `maxTokens`, `temperature` (Bedrock), `timeoutSeconds` |
@@ -664,6 +664,11 @@ given and sends back what the user did. It opens no sessions.
     one edited, split as `settingsSet` splits a line. `shown` on any other field is `badValue`.
   - **Neither** (what a client of before sends): `value` is the field's new value, whatever changed since. A list
     then replaces the list as it is, additions made elsewhere since included: send `shown` (or `revision`) to keep them.
+- **The English words** (`englishWords`, the user's, the newest first) are a set, by their letters in any case
+  (`EnglishWords.edit`): a word the value has that the list lacks is added as the Mac's Add adds it (as the user's),
+  and one it lacks is removed, learned or added; a word only spelled another way stays as it was, and the order sent
+  says nothing. A word added that isn't one (a Latin letter first, then letters, digits or `- . + & ' _ /`), or that
+  hiding sensitive information hides (a key, a card or phone number, an address), is `badValue`: nothing changes.
 - **Revisions and restarts:** the revision is the engine process's own count, from 1. After the engine restarts (`bye`,
   a lost pipe) the numbers start again and say nothing about the document a client kept: fetch it again (`settingsGet`)
   before making changes on a revision.
