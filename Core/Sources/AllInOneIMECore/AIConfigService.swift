@@ -228,32 +228,47 @@ public final class AIConfigService: Sendable {
     }
 
     /// The request fitted to `backend`'s context (`AIConfigFit.plan`), its size counted by the model where it can tell
-    /// (else the estimate, on the high side); nil when it can't be fitted. The estimate is scaled by the model's count:
-    /// down once when it leaves room to spare (more of the settings fit), up when the request came out too large.
+    /// (else the estimate, on the high side); nil when it can't be fitted. Where the model counts, the whole request is
+    /// counted first: it goes when it fits, else the estimate is scaled to the model's count before the plan, so a
+    /// setting the sentence is about isn't given up on the estimate alone; then scaled again by each plan's count: up
+    /// when the request came out too large, down once when it leaves room to spare (more of the settings fit).
     static func fitted(_ sentence: String, turns: [Refinement.Turn], context: AIConfigPrompt.Context, tools: [GuidedTool],
                        protect: (ConverseRequest) -> ConverseRequest, backend: any AppleGuidedBackend) async -> AIConfigFit? {
         let contextSize = backend.contextSize
+        func estimate(_ scale: Double) -> (AppleModelRequest, GuidedSchema, [GuidedTool]) -> Int {
+            { request, schema, tools in Int((Double(AIConfigFit.estimatedTokens(request, schema: schema, tools: tools)) * scale).rounded(.up)) }
+        }
         func plan(_ scale: Double) -> AIConfigFit? {
             AIConfigFit.plan(sentence, turns: turns, context: context, tools: tools, protect: protect, budget: contextSize,
-                             contextSize: contextSize) { request, schema, tools in
-                Int((Double(AIConfigFit.estimatedTokens(request, schema: schema, tools: tools)) * scale).rounded(.up))
-            }
+                             contextSize: contextSize, measure: estimate(scale))
         }
+        func count(_ fit: AIConfigFit) async -> Int? {
+            let request = AppleModel.request(from: fit.body, maxTokens: fit.body.inferenceConfig.maxTokens ?? context.config.maxTokens,
+                                             contextSize: contextSize)
+            return await backend.tokenCount(of: request, schema: fit.schema, tools: fit.tools)
+        }
+        func fits(_ fit: AIConfigFit, _ tokens: Int) -> Bool { tokens <= contextSize - AIConfigFit.reserve(tools: !fit.tools.isEmpty) }
         var scale = 1.0
+        var whole = AIConfigFit.build(sentence, turns: turns, context: context, scope: .everything, tools: tools, protect: protect,
+                                      contextSize: contextSize, measure: estimate(1))
+        if let counted = await count(whole) {
+            guard !fits(whole, counted) else {
+                whole.tokens = counted
+                return whole
+            }
+            scale = Double(counted) / Double(max(whole.tokens, 1))
+        }
         var fitted: AIConfigFit?
         for _ in 0..<3 {
             guard var fit = plan(scale) else { break }
-            let request = AppleModel.request(from: fit.body, maxTokens: fit.body.inferenceConfig.maxTokens ?? context.config.maxTokens,
-                                             contextSize: contextSize)
-            guard let counted = await backend.tokenCount(of: request, schema: fit.schema, tools: fit.tools) else { return fitted ?? fit }
+            guard let counted = await count(fit) else { return fitted ?? fit }
             let ratio = Double(counted) / Double(max(fit.tokens, 1))
-            guard counted <= contextSize - AIConfigFit.reserve(tools: !fit.tools.isEmpty) else {
+            guard fits(fit, counted) else {
                 scale *= ratio * 1.05
                 continue
             }
             fit.tokens = counted
-            let whole = fit.scope == .everything && fit.turns.count == turns.count
-            guard fitted == nil, !whole, ratio < 0.95 else { return fit }
+            guard fitted == nil, ratio < 0.95 else { return fit }
             fitted = fit
             scale *= ratio
         }

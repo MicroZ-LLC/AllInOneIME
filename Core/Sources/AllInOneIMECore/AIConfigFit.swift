@@ -5,9 +5,9 @@ import Foundation
 /// 8192 since, and the schema of every setting alone takes about 2400 of them (measured on macOS 27.2). The whole request
 /// when it fits, as before; else the settings the sentence is about first (`relevance`, a look at its words), a refine's
 /// latest turn, then the rest while there is room: older turns, the other settings, the other apps' current values.
-/// Room is kept for the answer (`answerRoom`) and the tools' calls (`toolRoom`). Nil when not even the sentence and the
-/// latest turn fit with one part of the settings: `AIConfigService` sends it to the user's own provider instead, or says
-/// what to do.
+/// Room is kept for the answer (`answerRoom`) and the tools' calls (`toolRoom`). Nil when the settings the sentence is
+/// about don't all fit with the latest turn: `AIConfigService` sends it to the user's own provider instead, or says what
+/// to do.
 public struct AIConfigFit: Sendable {
     /// The settings listed.
     public var scope: AIConfigPrompt.Scope
@@ -200,19 +200,17 @@ public struct AIConfigFit: Sendable {
     // MARK: - The plan
 
     /// The request within `budget` tokens by `measure` (the size of a request with its schema and tools): the whole of it
-    /// when it fits; else `relevance`'s parts and apps (in `priority`'s order, each while it fits), the latest turn, then
-    /// older turns, the other parts and the other apps while there is room. Nil when not even the sentence and the latest
-    /// turn fit with one part. `protect` hides the values hidden from the AI (`Redaction.protect`), as the request goes.
+    /// when it fits; else `relevance`'s parts and apps with the latest turn, then older turns, the other parts and the
+    /// other apps while there is room. Nil when not all the parts the sentence is about fit with the latest turn (or,
+    /// when it is about none, not even one part): an answer without a setting the user asked about would leave it out
+    /// of the preview unsaid, so the user's own provider gets the whole request instead. `protect` hides the values
+    /// hidden from the AI (`Redaction.protect`), as the request goes.
     static func plan(_ sentence: String, turns: [Refinement.Turn], context: AIConfigPrompt.Context, tools: [GuidedTool],
                      protect: (ConverseRequest) -> ConverseRequest, budget: Int, contextSize: Int,
                      measure: (AppleModelRequest, GuidedSchema, [GuidedTool]) -> Int) -> AIConfigFit? {
         func build(_ scope: AIConfigPrompt.Scope, turns kept: Int) -> AIConfigFit {
-            let sent = Array(turns.suffix(kept))
-            let body = protect(AIConfigPrompt.request(sentence, context: context, turns: sent, compact: true, scope: scope))
-            let schema = AIConfigPrompt.schema(context, scope: scope)
-            let needed = Self.tools(tools, for: scope)
-            let apple = AppleModel.request(from: body, maxTokens: body.inferenceConfig.maxTokens ?? context.config.maxTokens, contextSize: contextSize)
-            return AIConfigFit(scope: scope, turns: sent, tools: needed, body: body, schema: schema, tokens: measure(apple, schema, needed))
+            Self.build(sentence, turns: Array(turns.suffix(kept)), context: context, scope: scope, tools: tools, protect: protect,
+                       contextSize: contextSize, measure: measure)
         }
         func fits(_ fit: AIConfigFit) -> Bool { fit.tokens <= budget - reserve(tools: !fit.tools.isEmpty) }
         let whole = build(.everything, turns: turns.count)
@@ -225,17 +223,20 @@ public struct AIConfigFit: Sendable {
         var kept = min(turns.count, 1)
         var best: AIConfigFit?
         /// `scope` with `part` when that fits.
-        func add(_ part: AIConfigPrompt.Part) {
+        @discardableResult func add(_ part: AIConfigPrompt.Part) -> Bool {
             var next = scope
             next.parts.insert(part)
             let fit = build(next, turns: kept)
-            guard fits(fit) else { return }
+            guard fits(fit) else { return false }
             scope = next
             best = fit
+            return true
         }
-        // The settings the sentence is about with the apps it names, and the latest turn; at least one part (the first
-        // that fits, when it names none or none of those fits).
-        for part in priority where relevant.parts.contains(part) { add(part) }
+        // The settings the sentence is about with the apps it names, and the latest turn: every one of them. When it
+        // names none, the first part that fits.
+        for part in priority where relevant.parts.contains(part) {
+            guard add(part) else { return nil }
+        }
         for part in priority where best == nil { add(part) }
         guard best != nil else { return nil }
         // Then older turns, the newest first.
@@ -266,6 +267,17 @@ public struct AIConfigFit: Sendable {
             }
         }
         return best
+    }
+
+    /// The request for `sentence` with `turns` and the settings in `scope`, its size by `measure`.
+    static func build(_ sentence: String, turns: [Refinement.Turn], context: AIConfigPrompt.Context, scope: AIConfigPrompt.Scope,
+                      tools: [GuidedTool], protect: (ConverseRequest) -> ConverseRequest, contextSize: Int,
+                      measure: (AppleModelRequest, GuidedSchema, [GuidedTool]) -> Int) -> AIConfigFit {
+        let body = protect(AIConfigPrompt.request(sentence, context: context, turns: turns, compact: true, scope: scope))
+        let schema = AIConfigPrompt.schema(context, scope: scope)
+        let needed = Self.tools(tools, for: scope)
+        let apple = AppleModel.request(from: body, maxTokens: body.inferenceConfig.maxTokens ?? context.config.maxTokens, contextSize: contextSize)
+        return AIConfigFit(scope: scope, turns: turns, tools: needed, body: body, schema: schema, tokens: measure(apple, schema, needed))
     }
 
     /// The tools the parts in `scope` need: apps looked up for an app's settings, the AWS profiles for Bedrock's, the

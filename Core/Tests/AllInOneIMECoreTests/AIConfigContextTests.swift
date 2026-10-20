@@ -256,16 +256,8 @@ struct AIConfigContextTests {
     @Test func tooLongAllTheSameGoesToTheUsersProvider() async throws {
         let host = "assistant-fallback.test"
         let answer = #"{"changes": [{"key": "candidateLayout", "value": "vertical"}]}"#
-        let chunk = "data: " + String(decoding: try JSONSerialization.data(withJSONObject: ["choices": [["delta": ["content": answer]]]]), as: UTF8.self)
-            + "\n\ndata: [DONE]\n\n"
-        StubURLProtocol.register(host: host, .init(status: 200, headers: ["Content-Type": "text/event-stream"], chunks: [Data(chunk.utf8)]))
         let model = ContextLimitedModel(overflows: true)
-        let service = AIConfigService(client: ChatClient(bedrock: BedrockClient(session: StubURLProtocol.session()), apple: model),
-                                      loadCredentials: { _ in throw AWSConfigError.profileNotFound("none") },
-                                      loadKey: { provider, keyHost in provider == .openai && keyHost == host ? "sk-test" : nil })
-        var config = Self.bigConfig()
-        config.provider = .openai
-        config.openai = ProviderSettings(model: "some-model", baseURL: "https://\(host)/v1")
+        let (service, config) = try Self.openAIService(model, host: host, answer: answer)
         let got = try await service.ask("candidates in a column", context: Self.context(config), tools: Self.tools)
         #expect(got.text == answer && !got.onDevice && got.instead == .openai && !got.fromCache)
         #expect(model.sent.count == 1)
@@ -277,6 +269,43 @@ struct AIConfigContextTests {
         #expect(again.fromCache && again.instead == .openai && model.sent.count == 2)
         #expect(AIConfig.Text(language: "en").answeredInstead(.openai)
             == "Too long for Apple Intelligence on this Mac: OpenAI-compatible API answered instead")
+    }
+
+    /// A setting the sentence is about is never left out to fit: a sentence about nine of them doesn't fit a 4096-token
+    /// context whatever else is left out, so the user's own provider gets it whole, and the on-device model nothing.
+    @Test(arguments: [true, false])
+    func aSettingTheSentenceIsAboutIsNeverLeftOut(counts: Bool) async throws {
+        let host = "assistant-whole-\(counts).test"
+        let model = ContextLimitedModel(contextSize: 4096, counts: counts)
+        let (service, config) = try Self.openAIService(model, host: host, answer: #"{"changes": []}"#)
+        let got = try await service.ask(Self.nineSettings, context: Self.context(config), tools: Self.tools)
+        #expect(model.sent.isEmpty && !got.onDevice && got.instead == .openai)
+        let body = RedactionTests.body(StubURLProtocol.lastRequest(host: host))
+        for key in ["candidateLayout", "outputLanguages", "typeOutRate", "redaction.phones", "iCloudSync.enabled", "region", "checkForUpdates",
+                    "rememberQuestions", "com.tencent.xinWeChat"] {
+            #expect(body.contains(key), "\(key)")
+        }
+    }
+
+    /// Where the model counts, the settings the sentence is about go to the device when they fit by its count, every
+    /// one of them, though the estimate (on the high side) says they don't; without its count the estimate decides,
+    /// and the user's own provider is asked (here it has no key: the line says so).
+    @Test func whatFitsByTheModelsCountGoesToTheDevice() async throws {
+        let sentence = "translate into Japanese, type out slower, hide phone numbers, use Bedrock"
+        let context = Self.context(Self.bigConfig())
+        let counted = ContextLimitedModel(contextSize: 4096)
+        let answer = try await Self.service(counted).ask(sentence, context: context, tools: Self.tools)
+        #expect(answer.onDevice)
+        let sent = try #require(counted.sent.last)
+        #expect(sent.tokens + sent.request.maximumResponseTokens <= 4096)
+        let choices = Self.choices(sent.schema)
+        #expect(["OutputLanguages", "InputLanguages", "TypeOutRate", "HideWords", "Provider", "Region"].allSatisfy(choices.contains), "\(choices)")
+
+        let estimated = ContextLimitedModel(contextSize: 4096, counts: false)
+        await #expect(throws: AIConfigService.TooLong.self) {
+            _ = try await Self.service(estimated).ask(sentence, context: context, tools: Self.tools)
+        }
+        #expect(estimated.sent.isEmpty)
     }
 
     /// With the on-device model as the provider chosen there is nothing else to ask: the line says what to do, in the
@@ -377,6 +406,24 @@ struct AIConfigContextTests {
     }
 
     // MARK: - Helpers
+
+    /// A sentence about nine of the settings and an app.
+    static let nineSettings = "竖排候选，微信里用中文，翻译成日文和法文，打字慢一点，隐藏电话号码，打开 iCloud 同步，用 Bedrock 的 us-west-2，关闭自动更新，记住我的问题"
+
+    /// A service whose user's provider is an OpenAI-compatible one at `host` (a stub that streams `answer`, no network),
+    /// with its key; the config that chooses it.
+    static func openAIService(_ model: ContextLimitedModel, host: String, answer: String) throws -> (AIConfigService, Config) {
+        let chunk = "data: " + String(decoding: try JSONSerialization.data(withJSONObject: ["choices": [["delta": ["content": answer]]]]), as: UTF8.self)
+            + "\n\ndata: [DONE]\n\n"
+        StubURLProtocol.register(host: host, .init(status: 200, headers: ["Content-Type": "text/event-stream"], chunks: [Data(chunk.utf8)]))
+        let service = AIConfigService(client: ChatClient(bedrock: BedrockClient(session: StubURLProtocol.session()), apple: model),
+                                      loadCredentials: { _ in throw AWSConfigError.profileNotFound("none") },
+                                      loadKey: { provider, keyHost in provider == .openai && keyHost == host ? "sk-test" : nil })
+        var config = bigConfig()
+        config.provider = .openai
+        config.openai = ProviderSettings(model: "some-model", baseURL: "https://\(host)/v1")
+        return (service, config)
+    }
 
     /// The names of the changes a schema allows.
     static func choices(_ schema: GuidedSchema) -> [String] {
