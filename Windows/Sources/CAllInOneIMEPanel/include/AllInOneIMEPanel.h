@@ -157,6 +157,11 @@ int32_t aio_owns_foreground(uint32_t pid, int32_t trusted);
 /// host's window), or a window inside the foreground window is: in ApplicationFrameHost's frame (a UWP app's), or, for
 /// a `trusted` client (medium integrity or higher, no AppContainer, §8), anywhere.
 int32_t aio_in_front(void *foreground, void *focus, uint32_t pid, int32_t trusted);
+
+/// Whether `window` is System32's ApplicationFrameHost.exe's: the frame a UWP app's window is put in, inside which an
+/// untrusted client's window may be in front (`aio_in_front`).
+int32_t aio_is_frame_host_window(void *window);
+
 /// Where a caret that the process `pid` reports in `hwnd` may be (§6 `caret`): that window's rectangle, in physical
 /// screen pixels, if the window is the process's (a classic console's, its conhost's); with no window (0), the
 /// foreground window's, if the process is the app in front (`aio_owns_foreground`, `trusted` as there). 0 if neither:

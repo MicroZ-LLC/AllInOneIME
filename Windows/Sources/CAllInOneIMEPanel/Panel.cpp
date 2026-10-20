@@ -36,9 +36,13 @@
 
 #include <algorithm>
 #include <cmath>
+#include <condition_variable>
 #include <cstring>
+#include <deque>
+#include <memory>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "AllInOneIMEPanel.h"
@@ -155,6 +159,11 @@ struct Command {
 const UINT kCommand = WM_APP + 1;
 const UINT kSync = WM_APP + 2;
 const UINT kSavePng = WM_APP + 3;
+const UINT kImagesRead = WM_APP + 4;  // the image loader read something: draw again
+// An image is looked at again (in the background) when a draw wants it this long after it last was: changed, or
+// readable now. At most kMaxImages are kept, the least recently drawn going first.
+const ULONGLONG kImageRecheckMs = 2000;
+const size_t kMaxImages = 64;
 const UINT_PTR kNoticeTimer = 1;
 const UINT_PTR kCaretTimer = 2;
 const wchar_t kClassName[] = L"AllInOneIME.CandidateWindow";
@@ -186,6 +195,31 @@ Colors ThemeColors(bool dark) {
             Rgb(0xC42B1C), Rgb(0xEAEAEA)};
 }
 
+// An image a row shows (a script extension's), as it was last read: premultiplied BGRA pixels, at most 128 a side (none:
+// unreadable), and what the file was then.
+struct ImageEntry {
+    std::wstring path;
+    std::vector<BYTE> pixels;
+    UINT width = 0, height = 0;
+    bool tried = false, exists = false;
+    FILETIME written = {};
+    ULONGLONG size = 0;
+    ULONGLONG checkedAt = 0, usedAt = 0;
+    bool loading = false;
+};
+
+// Reads the rows' images on a thread of its own, never the window's: a file on a share that is slow or offline holds
+// nothing up, the panel drawing the fallback meanwhile. What it read goes into `entries` and the window is told to draw
+// again (kImagesRead). Shared with that thread, which may outlive the panel (a read that never ends) and then ends.
+struct ImageLoader {
+    std::mutex lock;
+    std::condition_variable wake;
+    std::deque<std::wstring> pending;
+    std::vector<ImageEntry> entries;
+    HWND notify = nullptr;
+    bool stopping = false;
+};
+
 }  // namespace
 
 struct AioPanel {
@@ -202,9 +236,11 @@ struct AioPanel {
     IDWriteTextFormat *textFormat = nullptr, *labelFormat = nullptr, *commentFormat = nullptr, *footerFormat = nullptr,
                       *statusFormat = nullptr, *iconFormat = nullptr, *emojiFormat = nullptr;
     UINT formatsDpi = 0;
-    // The rows' images (a script extension's), read once, as WIC's device-independent bitmaps (nil: unreadable).
+    // The rows' images (a script extension's): read off the window's thread (`ImageLoader`, made with the first one);
+    // where there is no window (render_png, `readImagesNow`) read as they are drawn, with `wic`.
+    std::shared_ptr<ImageLoader> images;
+    bool readImagesNow = false;
     IWICImagingFactory *wic = nullptr;
-    std::vector<std::pair<std::wstring, IWICBitmapSource *>> images;
 
     HDC memoryDC = nullptr;
     HBITMAP bitmap = nullptr;
@@ -262,17 +298,19 @@ IDWriteTextFormat *MakeFormat(AioPanel *p, float size, DWRITE_FONT_WEIGHT weight
 }
 
 // The icons' font: Segoe Fluent Icons (Windows 11), else Segoe MDL2 Assets (Windows 10), whose code points it keeps.
+// Found once, by the first caller, whatever thread it is on (render_png may be called from any).
 const wchar_t *IconFont(AioPanel *p) {
-    static const wchar_t *font = nullptr;
-    if (font) return font;
-    font = L"Segoe MDL2 Assets";
-    IDWriteFontCollection *fonts = nullptr;
-    if (SUCCEEDED(p->dwrite->GetSystemFontCollection(&fonts, FALSE)) && fonts) {
-        UINT32 index = 0;
-        BOOL exists = FALSE;
-        if (SUCCEEDED(fonts->FindFamilyName(L"Segoe Fluent Icons", &index, &exists)) && exists) font = L"Segoe Fluent Icons";
-        fonts->Release();
-    }
+    static const wchar_t *const font = [p]() -> const wchar_t * {
+        const wchar_t *found = L"Segoe MDL2 Assets";
+        IDWriteFontCollection *fonts = nullptr;
+        if (SUCCEEDED(p->dwrite->GetSystemFontCollection(&fonts, FALSE)) && fonts) {
+            UINT32 index = 0;
+            BOOL exists = FALSE;
+            if (SUCCEEDED(fonts->FindFamilyName(L"Segoe Fluent Icons", &index, &exists)) && exists) found = L"Segoe Fluent Icons";
+            fonts->Release();
+        }
+        return found;
+    }();
     return font;
 }
 
@@ -608,74 +646,184 @@ void Fill(AioPanel *p, D2D1_RECT_F rect, const D2D1_COLOR_F &color) {
     brush->Release();
 }
 
-// The image at `path` as WIC reads it (premultiplied BGRA, at most 128 pixels a side), kept for the next draws: nil when
-// it can't be read.
-IWICBitmapSource *Image(AioPanel *p, const std::wstring &path) {
-    for (const auto &image : p->images) {
-        if (image.first == path) return image.second;
-    }
-    if (!p->wic) {
-        CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, __uuidof(IWICImagingFactory),
-                         reinterpret_cast<void **>(&p->wic));
-    }
-    IWICBitmapSource *source = nullptr;
+// `path` read with `wic` into `entry`'s pixels (premultiplied BGRA, at most 128 pixels a side; none when it can't be).
+void ReadImage(IWICImagingFactory *wic, const std::wstring &path, ImageEntry &entry) {
+    entry.pixels.clear();
+    entry.width = entry.height = 0;
     IWICBitmapDecoder *decoder = nullptr;
     IWICBitmapFrameDecode *frame = nullptr;
     IWICBitmapScaler *scaler = nullptr;
     IWICFormatConverter *converter = nullptr;
     UINT width = 0, height = 0;
-    if (p->wic && SUCCEEDED(p->wic->CreateDecoderFromFilename(path.c_str(), nullptr, GENERIC_READ,
-                                                               WICDecodeMetadataCacheOnDemand, &decoder)) &&
+    if (wic && SUCCEEDED(wic->CreateDecoderFromFilename(path.c_str(), nullptr, GENERIC_READ, WICDecodeMetadataCacheOnDemand,
+                                                        &decoder)) &&
         SUCCEEDED(decoder->GetFrame(0, &frame)) && SUCCEEDED(frame->GetSize(&width, &height)) && width && height) {
         IWICBitmapSource *frameSource = frame;
         const UINT most = 128;
-        if ((width > most || height > most) && SUCCEEDED(p->wic->CreateBitmapScaler(&scaler))) {
+        if ((width > most || height > most) && SUCCEEDED(wic->CreateBitmapScaler(&scaler))) {
             float ratio = std::min(most / (float)width, most / (float)height);
             if (SUCCEEDED(scaler->Initialize(frame, std::max(1u, (UINT)(width * ratio)), std::max(1u, (UINT)(height * ratio)),
                                              WICBitmapInterpolationModeFant))) {
                 frameSource = scaler;
             }
         }
-        IWICBitmap *bitmap = nullptr;
-        if (SUCCEEDED(p->wic->CreateFormatConverter(&converter)) &&
+        UINT w = 0, h = 0;
+        if (SUCCEEDED(wic->CreateFormatConverter(&converter)) &&
             SUCCEEDED(converter->Initialize(frameSource, GUID_WICPixelFormat32bppPBGRA, WICBitmapDitherTypeNone, nullptr, 0,
                                             WICBitmapPaletteTypeMedianCut)) &&
-            SUCCEEDED(p->wic->CreateBitmapFromSource(converter, WICBitmapCacheOnLoad, &bitmap))) {
-            source = bitmap;  // read now: the file may change or go
+            SUCCEEDED(converter->GetSize(&w, &h)) && w && h) {
+            std::vector<BYTE> pixels((size_t)w * h * 4);
+            if (SUCCEEDED(converter->CopyPixels(nullptr, w * 4, (UINT)pixels.size(), pixels.data()))) {
+                entry.pixels = std::move(pixels);
+                entry.width = w;
+                entry.height = h;
+            }
         }
     }
     SafeRelease(converter);
     SafeRelease(scaler);
     SafeRelease(frame);
     SafeRelease(decoder);
-    if (p->images.size() >= 64) {
-        for (auto &image : p->images) SafeRelease(image.second);
-        p->images.clear();
+}
+
+// The file's time and size now; false when it isn't there or can't be asked.
+bool FileStamp(const std::wstring &path, FILETIME &written, ULONGLONG &size) {
+    WIN32_FILE_ATTRIBUTE_DATA data = {};
+    if (!GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &data)) return false;
+    written = data.ftLastWriteTime;
+    size = ((ULONGLONG)data.nFileSizeHigh << 32) | data.nFileSizeLow;
+    return true;
+}
+
+// The image loader's thread: each path asked for is looked at (its time and size) and read again unless it is as it
+// was (read once at least), then the window is told when what it draws changed.
+void LoadImages(std::shared_ptr<ImageLoader> loader) {
+    const HRESULT init = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+    IWICImagingFactory *wic = nullptr;
+    CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, __uuidof(IWICImagingFactory),
+                     reinterpret_cast<void **>(&wic));
+    std::unique_lock<std::mutex> lock(loader->lock);
+    auto entry = [&](const std::wstring &path) -> ImageEntry * {
+        for (ImageEntry &e : loader->entries) {
+            if (e.path == path) return &e;
+        }
+        return nullptr;
+    };
+    while (true) {
+        loader->wake.wait(lock, [&] { return loader->stopping || !loader->pending.empty(); });
+        if (loader->stopping) break;
+        const std::wstring path = std::move(loader->pending.front());
+        loader->pending.pop_front();
+        ImageEntry *before = entry(path);
+        if (!before) continue;  // no longer kept
+        const ImageEntry was = *before;
+        lock.unlock();
+        ImageEntry read;
+        FILETIME written = {};
+        ULONGLONG size = 0;
+        const bool exists = FileStamp(path, written, size);
+        const bool same = was.tried && exists == was.exists &&
+                          (!exists || (CompareFileTime(&written, &was.written) == 0 && size == was.size));
+        if (!same && exists) ReadImage(wic, path, read);
+        lock.lock();
+        ImageEntry *now = entry(path);
+        if (!now) continue;
+        now->loading = false;
+        now->checkedAt = GetTickCount64();
+        if (same) continue;
+        const bool changed = !was.pixels.empty() || !read.pixels.empty();
+        now->tried = true;
+        now->exists = exists;
+        now->written = written;
+        now->size = size;
+        now->pixels = std::move(read.pixels);
+        now->width = read.width;
+        now->height = read.height;
+        if (changed && loader->notify) PostMessageW(loader->notify, kImagesRead, 0, 0);
     }
-    p->images.push_back({path, source});
-    return source;
+    lock.unlock();
+    SafeRelease(wic);
+    if (SUCCEEDED(init)) CoUninitialize();
+}
+
+// `entry`'s pixels as a bitmap of the render target's; nil without pixels.
+ID2D1Bitmap *Bitmap(AioPanel *p, const ImageEntry &entry) {
+    if (entry.pixels.empty()) return nullptr;
+    ID2D1Bitmap *bitmap = nullptr;
+    D2D1_BITMAP_PROPERTIES properties =
+        D2D1::BitmapProperties(D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED));
+    p->target->CreateBitmap(D2D1::SizeU(entry.width, entry.height), entry.pixels.data(), entry.width * 4, properties, &bitmap);
+    return bitmap;
+}
+
+// The image at `path` for this draw, as last read; nil while it is being read the first time, or when it can't be (the
+// fallback is drawn, and the image once it comes: kImagesRead). One last looked at kImageRecheckMs ago or more is looked
+// at again in the background, so that a file changed, or one readable now, is drawn as it is. Where there is no window
+// (`readImagesNow`), read here.
+ID2D1Bitmap *Image(AioPanel *p, const std::wstring &path) {
+    if (p->readImagesNow) {
+        if (!p->wic) {
+            CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, __uuidof(IWICImagingFactory),
+                             reinterpret_cast<void **>(&p->wic));
+        }
+        ImageEntry entry;
+        ReadImage(p->wic, path, entry);
+        return Bitmap(p, entry);
+    }
+    if (!p->images) {
+        p->images = std::make_shared<ImageLoader>();
+        p->images->notify = p->hwnd;
+        std::thread(LoadImages, p->images).detach();
+    }
+    ImageLoader &loader = *p->images;
+    std::lock_guard<std::mutex> lock(loader.lock);
+    const ULONGLONG now = GetTickCount64();
+    auto found = std::find_if(loader.entries.begin(), loader.entries.end(), [&](const ImageEntry &e) { return e.path == path; });
+    if (found == loader.entries.end()) {
+        if (loader.entries.size() >= kMaxImages) {
+            auto oldest = loader.entries.end();
+            for (auto e = loader.entries.begin(); e != loader.entries.end(); ++e) {
+                if (!e->loading && (oldest == loader.entries.end() || e->usedAt < oldest->usedAt)) oldest = e;
+            }
+            if (oldest != loader.entries.end()) loader.entries.erase(oldest);
+        }
+        ImageEntry entry;
+        entry.path = path;
+        entry.loading = true;
+        entry.checkedAt = entry.usedAt = now;
+        loader.entries.push_back(std::move(entry));
+        loader.pending.push_back(path);
+        loader.wake.notify_one();
+        return nullptr;
+    }
+    found->usedAt = now;
+    if (!found->loading && now - found->checkedAt >= kImageRecheckMs) {
+        found->loading = true;
+        found->checkedAt = now;
+        loader.pending.push_back(path);
+        loader.wake.notify_one();
+    }
+    return Bitmap(p, *found);
 }
 
 // A row's icon in `box`: an image or an emoji in the square's place, else the glyph white on its colored rounded square
-// (the fallback glyph where the image can't be read).
-void DrawIcon(AioPanel *p, const Icon &icon, D2D1_RECT_F box) {
+// (the fallback glyph where the image can't be read, or isn't yet). An emoji a font has no color for is in `color`, the
+// row's text's.
+void DrawIcon(AioPanel *p, const Icon &icon, D2D1_RECT_F box, const D2D1_COLOR_F &color) {
     const float side = box.right - box.left;
     if (icon.kind == AIO_ICON_IMAGE) {
-        if (IWICBitmapSource *source = Image(p, icon.text)) {
-            ID2D1Bitmap *bitmap = nullptr;
-            if (SUCCEEDED(p->target->CreateBitmapFromWicBitmap(source, nullptr, &bitmap)) && bitmap) {
-                D2D1_SIZE_F size = bitmap->GetSize();
-                float ratio = std::min(side / std::max(size.width, 1.0f), side / std::max(size.height, 1.0f));
-                float w = size.width * ratio, h = size.height * ratio;
-                float x = box.left + (side - w) / 2, y = box.top + (side - h) / 2;
-                p->target->DrawBitmap(bitmap, D2D1::RectF(x, y, x + w, y + h), 1.0f, D2D1_BITMAP_INTERPOLATION_MODE_LINEAR);
-                bitmap->Release();
-                return;
-            }
+        if (ID2D1Bitmap *bitmap = Image(p, icon.text)) {
+            D2D1_SIZE_F size = bitmap->GetSize();
+            float ratio = std::min(side / std::max(size.width, 1.0f), side / std::max(size.height, 1.0f));
+            float w = size.width * ratio, h = size.height * ratio;
+            float x = box.left + (side - w) / 2, y = box.top + (side - h) / 2;
+            p->target->DrawBitmap(bitmap, D2D1::RectF(x, y, x + w, y + h), 1.0f, D2D1_BITMAP_INTERPOLATION_MODE_LINEAR);
+            bitmap->Release();
+            return;
         }
     } else if (icon.kind == AIO_ICON_EMOJI && !icon.text.empty()) {
         float grow = std::round(side * 0.2f);
-        DrawText(p, icon.text, p->emojiFormat, box.left - grow, box.top - grow, side + 2 * grow, side + 2 * grow, Rgb(0x000000),
+        DrawText(p, icon.text, p->emojiFormat, box.left - grow, box.top - grow, side + 2 * grow, side + 2 * grow, color,
                  DWRITE_TEXT_ALIGNMENT_CENTER);
         return;
     }
@@ -962,7 +1110,7 @@ bool Paint(AioPanel *p, const Model &model, bool dark, float maxHeight) {
         if (icons) {
             if (row.icon.kind != AIO_ICON_NONE) {
                 float iy = top + insetY + (textHeight - iconSize) / 2;
-                DrawIcon(p, row.icon, D2D1::RectF(tx, iy, tx + iconSize, iy + iconSize));
+                DrawIcon(p, row.icon, D2D1::RectF(tx, iy, tx + iconSize, iy + iconSize), textColor);
             }
             tx += iconColumn;
         }
@@ -1243,6 +1391,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
     case kSync:
         SetEvent(reinterpret_cast<HANDLE>(lParam));  // everything posted before is done
         return 0;
+    case kImagesRead:
+        if (p && p->visible && (p->modelShown || p->noticeAlone)) Render(p);  // an image came, or changed
+        return 0;
     case kSavePng:
         break;
     case WM_DISPLAYCHANGE:
@@ -1266,8 +1417,14 @@ void ReleaseDrawing(AioPanel *p) {
                                        &p->iconFormat, &p->emojiFormat}) {
         SafeRelease(*format);
     }
-    for (auto &image : p->images) SafeRelease(image.second);
-    p->images.clear();
+    if (p->images) {
+        // Its thread ends once a read under way is done (it keeps the loader till then); it tells no window any more.
+        std::lock_guard<std::mutex> lock(p->images->lock);
+        p->images->stopping = true;
+        p->images->notify = nullptr;
+        p->images->wake.notify_all();
+    }
+    p->images.reset();
     SafeRelease(p->wic);
     SafeRelease(p->dwrite);
     SafeRelease(p->d2d);
@@ -1482,6 +1639,7 @@ int32_t aio_panel_render_png(const AioPanelModel *model, int32_t dpi, int32_t da
     bool ok = false;
     if (panel.d2d && panel.dwrite) {
         panel.dpi = dpi > 0 ? (UINT)dpi : 96;
+        panel.readImagesNow = true;  // no window to draw again once they are read
         panel.model = CopyModel(model);
         if (Paint(&panel, panel.model, dark != 0, (float)std::max(maxHeight, 0))) {
             ok = SavePng(&panel, reinterpret_cast<const wchar_t *>(path));
@@ -1500,6 +1658,8 @@ int32_t aio_owns_foreground(uint32_t pid, int32_t trusted) { return OwnsForegrou
 int32_t aio_in_front(void *foreground, void *focus, uint32_t pid, int32_t trusted) {
     return InFront(static_cast<HWND>(foreground), static_cast<HWND>(focus), pid, trusted != 0) ? 1 : 0;
 }
+
+int32_t aio_is_frame_host_window(void *window) { return IsFrameHostWindow(static_cast<HWND>(window)) ? 1 : 0; }
 
 int32_t aio_client_rect_on_screen(void *window, int32_t left, int32_t top, int32_t right, int32_t bottom, AioCaret *out) {
     AioCaret c = {};

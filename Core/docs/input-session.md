@@ -171,8 +171,10 @@ The engine (merged in 0.6.6/integration) drives a `Composer` through `AllInOneIM
    - `Status.list`: `AIO_STATUS_LIST`, its items a line each under the hint; an error after "⚠", in its color;
    - a row's `icon` (`PanelIcons`): a built-in as a glyph of Segoe Fluent Icons (Segoe MDL2 Assets' code points, for
      Windows 10) white on a rounded square of its color (the Mac's system colors), a symbol's name mapped where Windows
-     has one (else its `fallback`), an emoji drawn in the square's place (Segoe UI Emoji), an image read with WIC (else
-     `fallback`); a row's `choice` needs nothing there, the click's row index goes to `.pick` as it is;
+     has one (else its `fallback`), an emoji drawn in the square's place (Segoe UI Emoji, in the row's text color where
+     the font has none of its own), an image read with WIC on a thread of its own (`fallback` until it is in, or when it
+     can't be read; looked at again as the panel is drawn 2 s or more later, so a file changed or readable now is drawn
+     as it is); a row's `choice` needs nothing there, the click's row index goes to `.pick` as it is;
    - `transcript`: the rows' text wrapped, the panel no taller than half the monitor's work area, the rows scrolled to
      the last one (or the highlighted one above), a rule where they are cut; a row out of sight takes no click;
    - from top to bottom as the model says (the status under the rows), a rule above the footer as the Mac's panel

@@ -16,6 +16,10 @@ public enum Foreground {
         aio_in_front(UnsafeMutableRawPointer(foreground), UnsafeMutableRawPointer(focus), pid, trusted ? 1 : 0) != 0
     }
 
+    /// Whether `window` is System32's ApplicationFrameHost.exe's: the frame a UWP app's window is put in, inside which an
+    /// untrusted client's window may be in front (`isInFront`).
+    static func isFrameHostWindow(_ window: HWND?) -> Bool { aio_is_frame_host_window(UnsafeMutableRawPointer(window)) != 0 }
+
     /// The rectangle a caret that process `pid` reports in window `hwnd` must be in: that window's, if it is the
     /// process's; with no window, the foreground window's, if the process owns it (`trusted` as `isOwned`). Nil if
     /// neither.
