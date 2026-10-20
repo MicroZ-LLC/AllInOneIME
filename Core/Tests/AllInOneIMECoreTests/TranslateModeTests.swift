@@ -1051,8 +1051,9 @@ extension ShiftHoldTests {
         #expect(h.poll() == .toggle)
     }
 
-    /// The page slow to let a tap go by: Shift's down and up come again after the release. The press they seem to start
-    /// ends with the second release; nothing toggles.
+    /// The page slow to let a tap go by: Shift's down and up come again after the release, with their times. On its
+    /// own, the press they seem to start ends with the second release; nothing toggles. As the shell hands them on (the
+    /// copies dropped first, `ModifierFeed`), the composer too: the input language switched once, not back again.
     @Test func aTapHandedOverAgainLate() {
         let h = HoldProbe()
         #expect(h.flags(VirtualKey.leftShift, [.shift, .leftShift]))
@@ -1064,6 +1065,20 @@ extension ShiftHoldTests {
         #expect(!h.up())
         h.wait(1.2)
         #expect(h.poll() == nil && h.hold.held == nil)
+
+        let f = ModifierFeed()
+        let (pressed, released) = (f.now, f.now + 0.1)
+        #expect(f.change(VirtualKey.leftShift, [.shift, .leftShift], at: pressed) == [])
+        #expect(f.hold.hold.held != nil)
+        f.wait(0.1)
+        #expect(f.change(VirtualKey.leftShift, [], at: released)?.contains(.inputLanguageChanged(.english)) == true)
+        f.wait(0.2)
+        #expect(f.change(VirtualKey.leftShift, [.shift, .leftShift], at: pressed) == nil)
+        f.wait(0.01)
+        #expect(f.change(VirtualKey.leftShift, [], at: released) == nil)
+        f.wait(1.2)
+        #expect(f.hold.poll() == nil && f.hold.hold.held == nil)
+        #expect(f.switches == 1 && f.composer.inputLanguage == .english)
     }
 
     /// Modifier changes gone unseen (another field, another app, secure input: `resync`): the next change counts, even

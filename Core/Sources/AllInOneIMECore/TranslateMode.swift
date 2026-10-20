@@ -174,7 +174,9 @@ public enum TranslateMode {
     /// ("keep holding") is due once it has been held `hintAfter`, the toggle once `toggleAfter`, each once per press.
     /// Any key, another modifier (fn too), the release, or the pointer used or moved meanwhile (a Shift-click, aimed)
     /// ends the press. With Sticky Keys on there is none: a Shift it latches looks held. A modifier change handed over
-    /// twice counts once: Chromium and Electron apps (Slack, VS Code, Chrome) hand the input method every one twice.
+    /// twice counts once: Chromium and Electron apps (Slack, VS Code, Chrome) hand the input method every one twice. The
+    /// shell drops such a copy before it gets here (`ModifierEchoes`); the one right after its original is dropped here
+    /// too, whatever its time.
     public struct ShiftHold {
         public static let hintAfter: TimeInterval = 0.5
         public static let toggleAfter: TimeInterval = 1.0
@@ -227,7 +229,9 @@ public enum TranslateMode {
         public mutating func flagsChanged(key: Key, modifiers: Modifiers) -> Bool {
             // Chromium sends a key event the page let go by through the app again, and AppKit hands a modifier change
             // to the input method there: Shift's down comes a second time 5–20 ms later, as if Shift were already held
-            // (the other Shift). Nothing changed: the press goes on. (A held key's repeats look the same.)
+            // (the other Shift). Nothing changed: the press goes on. The shell drops such copies first by their time
+            // (`ModifierEchoes`), after other changes too; this catches the one right after its original even with no
+            // time (0) or another one, which the shell can't tell from a new change.
             if let last = lastChange, last.key == key, last.modifiers == modifiers { return false }
             lastChange = (key, modifiers)
             let isShift = key.modifierKind == .shift

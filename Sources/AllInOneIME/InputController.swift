@@ -972,8 +972,16 @@ final class AllInOneIMEInputController: IMKInputController {
         return response.handled
     }
 
+    /// The modifier changes handed over last, whatever the text field (a copy may reach another one).
+    @MainActor private static var modifierEchoes = ModifierEchoes()
+
     @MainActor
     func handleFlagsChanged(_ event: NSEvent, client: IMKTextInput?) {
+        // Chromium and Electron apps (Slack, VS Code, Chrome) hand every modifier change over twice, the same event, after
+        // the next change too when the page is busy: the copy changes nothing, for the composer (a tap of Shift or ⌥)
+        // and the long press of Shift alike.
+        guard !Self.modifierEchoes.isEcho(keyCode: event.keyCode, flags: event.modifierFlags.rawValue,
+                                          timestamp: event.timestamp) else { return }
         guard !SecureInput.blocksComposing(client ?? clientOverride ?? self.client()) else {
             // A password field took over: stop any recording (its release may never arrive here).
             if composer.voice != .off { perform(composer.commitAsTyped(), client: client) }
