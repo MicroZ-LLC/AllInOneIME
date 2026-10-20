@@ -206,8 +206,8 @@ final class SettingsModel: ObservableObject {
     }
 
     /// Settings → Input → English Words' Add: the words of `text` added to the English words pinyin offers, marked as the
-    /// user's (`EnglishWords.add`), on the list as the file has it now: those added (each isn't there yet, and is a word),
-    /// and those refused as what hiding sensitive information hides.
+    /// user's (`EnglishWords.add`), on the list as the file has it now: those added (each a word the user hadn't added; one
+    /// learned becomes theirs), and those refused as what hiding sensitive information hides.
     @discardableResult
     func addEnglishWords(_ text: String) -> EnglishWords.Added {
         refresh()

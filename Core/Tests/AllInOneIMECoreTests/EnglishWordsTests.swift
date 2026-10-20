@@ -449,6 +449,18 @@ struct EnglishWordsTests {
         #expect(config.englishWords == ["SageMaker"] && config.addedEnglishWords == ["SageMaker"])
     }
 
+    @Test func aLearnedWordAddedByHandBecomesTheUsers() {
+        var config = Config.default
+        config.englishWords = ["kubeflow", "zorblax", "Bedrock"]
+        config.addedEnglishWords = ["Bedrock"]
+        // As if removed and added again: as written now, the newest, kept over those learned.
+        #expect(EnglishWords.add("Kubeflow, Hugging Face", to: &config).words == ["Kubeflow", "Hugging Face"])
+        #expect(config.englishWords == ["zorblax", "Bedrock", "Kubeflow", "Hugging Face"])
+        #expect(config.addedEnglishWords == ["Bedrock", "Kubeflow", "Hugging Face"])
+        #expect(EnglishWords.add("KUBEFLOW, bedrock", to: &config) == EnglishWords.Added(), "added already")
+        #expect(config.englishWords == ["zorblax", "Bedrock", "Kubeflow", "Hugging Face"])
+    }
+
     @Test func aWordAddedByHandThatHidingSensitiveInformationHidesIsRefused() {
         // Words (a letter first, then letters, digits, - . + & ' _ / and spaces) that are a key, a card or phone number, an
         // address: the list syncs through iCloud and shows on screen.

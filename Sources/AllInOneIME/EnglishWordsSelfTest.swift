@@ -102,6 +102,10 @@ extension SelfTest {
         model.removeEnglishWord("FROBNICATE")
         check(saved()?.englishWords == ["Bedrock"] && saved()?.addedEnglishWords == ["Bedrock"],
               "✕ removes it (\(saved()?.englishWords ?? []), \(saved()?.addedEnglishWords ?? []))")
+        _ = try? EnglishWords.learn("quuxify", at: url)
+        check(model.addEnglishWords("Quuxify").words == ["Quuxify"] && saved()?.englishWords == ["Bedrock", "Quuxify"]
+                && saved()?.addedEnglishWords == ["Bedrock", "Quuxify"],
+              "Add makes a word learned the user's, as written (\(saved()?.englishWords ?? []), \(saved()?.addedEnglishWords ?? []))")
         model.config.learnsEnglishWords = false
         model.save()
         check(saved()?.learnsEnglishWords == false, "learning turned off is saved")

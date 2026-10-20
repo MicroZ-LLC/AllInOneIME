@@ -202,17 +202,19 @@ public enum EnglishWords {
         !Redaction.find(word, settings: RedactionSettings(enabled: true)).isEmpty
     }
 
-    /// Settings' Add: the words of `text` (`newWords`) added at the end of `config`'s English words and marked as the
-    /// user's (`Config.addedEnglishWords`), within `maxWords` (`capped`: the oldest learned go first); those
-    /// `isSensitive` refused.
+    /// Settings' Add: the words of `text` the user hasn't added yet (`newWords`) added at the end of `config`'s English
+    /// words and marked as the user's (`Config.addedEnglishWords`), within `maxWords` (`capped`: the oldest learned go
+    /// first); those `isSensitive` refused. One learned already becomes the user's, as written now: as if removed and
+    /// added again.
     @discardableResult
     public static func add(_ text: String, to config: inout Config) -> Added {
-        let found = newWords(text, besides: config.englishWords)
+        let found = newWords(text, besides: config.addedEnglishWords)
         let refused = found.filter(isSensitive)
         let new = found.filter { !isSensitive($0) }
         guard !new.isEmpty else { return Added(refused: refused) }
         let added = config.addedEnglishWords + new
-        config.englishWords = capped(config.englishWords + new, added: added)
+        let marked = Set(new.map(key))
+        config.englishWords = capped(config.englishWords.filter { !marked.contains(key($0)) } + new, added: added)
         // Each once, and only those the list still has.
         var keys = Set(config.englishWords.map(key))
         config.addedEnglishWords = added.filter { keys.remove(key($0)) != nil }
