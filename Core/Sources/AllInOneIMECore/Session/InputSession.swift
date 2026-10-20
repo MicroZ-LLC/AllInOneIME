@@ -278,9 +278,9 @@ public final class InputSession {
     /// Letters put in as they were typed while typing pinyin ("bedrock" and ⏎), learned as an English word the second time
     /// when they may be one (`EnglishWords.learnable`; the first time they are only remembered, in memory:
     /// `SessionServices.englishTypedOnce`): never during secure input, in a terminal (a password prompt of sudo's or ssh's
-    /// doesn't turn secure input on in every one), in a remote desktop or a virtual machine (`EnglishWords.isRemote`), in an
-    /// app with no AI, or with learning off (`Config.learnsEnglishWords`). Offered in this field at once; kept for every
-    /// field (`SessionServices.learnEnglishWord`).
+    /// doesn't turn secure input on in every one), in a remote desktop, a virtual machine or an SSH client
+    /// (`EnglishWords.isRemote`), in an app with no AI, or with learning off (`Config.learnsEnglishWords`). Offered in this
+    /// field at once; kept for every field (`SessionServices.learnEnglishWord`).
     private func learnEnglishWord(_ typed: String) {
         guard let englishWords, !secureInputActive(), !terminal, !EnglishWords.isRemote(app) else { return }
         let config = services.loadSettings()

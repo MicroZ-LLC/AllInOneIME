@@ -54,18 +54,26 @@ public enum EnglishWords {
             && k.contains(where: { "aeiouy".contains($0) }) && !looksSecret(typed, hidden: hidden)
     }
 
-    /// Remote desktops and virtual machines, by the beginning of their bundle ids (the Mac's): what is typed there goes to
-    /// another computer, whose password fields this one can't tell (secure input stays off), so nothing is learned there.
-    /// Microsoft's Remote Desktop (Windows App), Apple's Screen Sharing, Screens, Jump Desktop, Parallels Desktop (and the
-    /// Windows apps it shows), VMware Fusion, UTM, VirtualBox, Citrix Workspace, AnyDesk, TeamViewer, RealVNC's viewer,
-    /// Chrome Remote Desktop's app (in a browser's tab it goes by the browser's id, and can't be told).
+    /// Remote desktops, virtual machines and SSH clients, by the beginning of their bundle ids (the Mac's, in small
+    /// letters): what is typed there goes to another computer, whose password fields (and password prompts) this one can't
+    /// tell (secure input stays off), so nothing is learned there. Microsoft's Remote Desktop (Windows App), Apple's Screen
+    /// Sharing, Screens, Jump Desktop, Parallels Desktop (and the Windows apps it shows), VMware's (Fusion, Horizon) and
+    /// Omnissa's Horizon, UTM, VirtualBox, Citrix Workspace, AnyDesk, TeamViewer, RealVNC's viewer, Chrome Remote Desktop's
+    /// app (in a browser's tab it goes by the browser's id, and can't be told), Parsec, RustDesk, Splashtop, NoMachine,
+    /// Amazon WorkSpaces; Termius, Royal TSX, Core Shell, SecureCRT, Prompt, Secure ShellFish (the terminals the shell knows
+    /// are its own, `FieldInfo.terminal`). Their ids as Homebrew's casks, Apple's App Store lookup or the apps' own
+    /// Info.plist give them (Prompt's as its iOS app's, which the Mac's shares). A terminal inside an editor (VS Code's,
+    /// Cursor's, JetBrains') has the editor's id, and can't be told.
     static let remoteApps = [
         "com.microsoft.rdc", "com.apple.screensharing", "com.edovia.screens", "com.p5sys.jump", "com.parallels.",
-        "com.vmware.fusion", "com.utmapp.", "org.virtualbox.app.", "com.citrix.", "com.philandro.anydesk", "com.teamviewer.",
-        "com.realvnc.", "com.google.chromeremotedesktop",
+        "com.vmware.", "com.omnissa.horizon", "com.utmapp.", "org.virtualbox.app.", "com.citrix.", "com.philandro.anydesk",
+        "com.teamviewer.", "com.realvnc.", "com.google.chromeremotedesktop", "tv.parsec.", "com.carriez.rustdesk",
+        "com.splashtop.", "com.nomachine.", "com.amazon.workspaces",
+        "com.termius", "com.lemonmojo.royaltsx", "io.coressh.", "com.vandyke.securecrt", "com.panic.prompt",
+        "com.appliedphasor.secure-shellfish",
     ]
 
-    /// Whether `app` (a bundle id, in any case) is a remote desktop or a virtual machine (`remoteApps`).
+    /// Whether `app` (a bundle id, in any case) is a remote desktop, a virtual machine or an SSH client (`remoteApps`).
     public static func isRemote(_ app: String?) -> Bool {
         guard let app = app?.lowercased() else { return false }
         return remoteApps.contains { app.hasPrefix($0) }

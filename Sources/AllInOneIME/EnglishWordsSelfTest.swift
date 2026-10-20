@@ -64,7 +64,7 @@ extension SelfTest {
         controller.services.secureInputActive = { false }
         let noAI = "com.example.noai"
         settings.appProfiles[noAI] = AppProfile(noAI: true)
-        for app in [noAI, "com.apple.Terminal", "com.microsoft.rdc.macos"] {
+        for app in [noAI, "com.apple.Terminal", "com.microsoft.rdc.macos", "com.termius-dmg.mac"] {
             client.bundleIDOverride = app
             controller.activateServer(client)
             controller.composer.setInputMode(.chinese)
@@ -76,7 +76,7 @@ extension SelfTest {
         controller.composer.setInputMode(.chinese)
         putInTwice("nihao")
         check(!learned().contains("quuxify") && !learned().contains("nihao"),
-              "nothing learned during secure input, in an app with no AI, a terminal or a remote desktop, or of pinyin (\(learned()))")
+              "nothing learned during secure input, in an app with no AI, a terminal, a remote desktop or an SSH client, or of pinyin (\(learned()))")
     }
 
     /// Settings → Input → Chinese → English Words: words added and removed are saved at once (a config file of its own),

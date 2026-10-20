@@ -411,14 +411,24 @@ struct EnglishWordsTests {
         }
     }
 
-    @Test func remoteDesktopsAndVirtualMachinesByTheirBundleIds() {
+    @Test func remoteDesktopsVirtualMachinesAndSSHClientsByTheirBundleIds() {
         for app in ["com.microsoft.rdc.macos", "com.microsoft.rdc.osx.beta", "com.apple.ScreenSharing", "com.edovia.screens5.mac",
                     "com.p5sys.jump.mac.viewer.web", "com.parallels.desktop.console", "com.parallels.winapp.notepad",
                     "com.vmware.fusion", "com.utmapp.UTM", "org.virtualbox.app.VirtualBoxVM", "com.citrix.receiver.icaviewer.mac",
-                    "com.philandro.anydesk", "com.teamviewer.TeamViewer", "com.realvnc.vncviewer", "COM.MICROSOFT.RDC.MACOS"] {
+                    "com.philandro.anydesk", "com.teamviewer.TeamViewer", "com.realvnc.vncviewer", "COM.MICROSOFT.RDC.MACOS",
+                    // Horizon (VMware's, then Omnissa's), Parsec, RustDesk, Splashtop (Business, Personal), NoMachine, Amazon
+                    // WorkSpaces.
+                    "com.vmware.horizon", "com.omnissa.horizon.client.mac", "com.omnissa.horizonapp", "tv.parsec.www",
+                    "com.carriez.rustdesk", "com.carriez.RustDesk", "com.splashtop.stb.macosx", "com.splashtop.stp.macosx",
+                    "com.nomachine.nxdock", "com.amazon.workspaces",
+                    // SSH clients: Termius (its download, the App Store's), Royal TSX, Core Shell, SecureCRT, Prompt 3, Secure
+                    // ShellFish.
+                    "com.termius-dmg.mac", "com.termius.mac", "com.lemonmojo.RoyalTSX.App", "io.coressh.shell", "com.vandyke.SecureCRT",
+                    "com.panic.prompt.3", "com.appliedphasor.secure-shellfish"] {
             #expect(EnglishWords.isRemote(app), "\(app)")
         }
-        for app in ["com.microsoft.VSCode", "com.apple.TextEdit", "com.google.Chrome", "com.vmware.horizonx", nil] {
+        for app in ["com.microsoft.VSCode", "com.apple.TextEdit", "com.google.Chrome", "com.amazon.Kindle", "com.panic.Nova",
+                    "com.microsoft.Word", nil] {
             #expect(!EnglishWords.isRemote(app), "\(app ?? "none")")
         }
     }
@@ -701,7 +711,8 @@ struct EnglishWordsSessionTests {
             #expect(terminal.document == "frobnicatefrobnicate")
             // What is typed there goes to another computer, whose password fields this one can't tell.
             for app in ["com.microsoft.rdc.macos", "com.parallels.desktop.console", "com.vmware.fusion", "com.utmapp.UTM",
-                        "com.citrix.receiver.icaviewer.mac", "com.teamviewer.TeamViewer"] {
+                        "com.citrix.receiver.icaviewer.mac", "com.teamviewer.TeamViewer", "com.omnissa.horizon.client.mac",
+                        "com.termius-dmg.mac"] {
                 let remote = host(learned: learned, app: app)
                 putInTwice("frobnicate", remote)
                 #expect(remote.document == "frobnicatefrobnicate", "\(app)")
