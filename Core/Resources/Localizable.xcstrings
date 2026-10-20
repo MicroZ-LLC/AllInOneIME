@@ -14754,49 +14754,49 @@
         }
       }
     },
-    "Too long for Apple Intelligence on this Mac: %@ answered instead" : {
-      "comment" : "这句话对本机的 Apple Intelligence 来说太长了，改由 %@ 回答 — Sources/AllInOneIMECore/AIConfigText.swift",
+    "Too long for Apple Intelligence on this Mac: sent to %@ instead" : {
+      "comment" : "这句话对本机的 Apple Intelligence 来说太长了，已改发给 %@ — Sources/AllInOneIMECore/AIConfigText.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Zu lang für Apple Intelligence auf diesem Mac: %@ hat stattdessen geantwortet"
+            "value" : "Zu lang für Apple Intelligence auf diesem Mac: stattdessen an %@ gesendet"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Demasiado largo para Apple Intelligence en este Mac: respondió %@ en su lugar"
+            "value" : "Demasiado largo para Apple Intelligence en este Mac: enviado a %@ en su lugar"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Trop long pour Apple Intelligence sur ce Mac : %@ a répondu à la place"
+            "value" : "Trop long pour Apple Intelligence sur ce Mac : envoyé à %@ à la place"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "このMacのApple Intelligenceには長すぎるため、代わりに%@が応答しました"
+            "value" : "このMacのApple Intelligenceには長すぎるため、代わりに%@に送信しました"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "이 Mac의 Apple Intelligence가 처리하기에는 너무 길어서 대신 %@이(가) 응답했습니다"
+            "value" : "이 Mac의 Apple Intelligence가 처리하기에는 너무 길어서 대신 %@(으)로 보냈습니다"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Longo demais para a Apple Intelligence neste Mac: %@ respondeu no lugar"
+            "value" : "Longo demais para a Apple Intelligence neste Mac: enviado para %@ no lugar"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "這句話對本機的 Apple Intelligence 來說太長了，改由 %@ 回答"
+            "value" : "這句話對本機的 Apple Intelligence 來說太長了，已改傳送給 %@"
           }
         }
       }

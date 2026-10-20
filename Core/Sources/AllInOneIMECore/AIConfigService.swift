@@ -20,7 +20,7 @@ public final class AIConfigService: Sendable {
         /// How many values were hidden from the AI.
         public var hidden: Int
         /// The user's own provider, which answered instead of the on-device model: the request was too long for its
-        /// context (`AIConfig.Text.answeredInstead`).
+        /// context (`AIConfig.Text.sentInstead`).
         public var instead: Provider? = nil
     }
 
@@ -114,9 +114,10 @@ public final class AIConfigService: Sendable {
     /// The answer for `sentence` (keys already dropped), or with `turns`, the revised one after them. Throws the
     /// provider's error (no key, the network …), `AppleModelError.unavailable` when the user's provider is the on-device
     /// model and it can't be used, or `TooLong` when the request was too long for the on-device model and the user's own
-    /// provider couldn't take it instead.
-    public func ask(_ sentence: String, turns: [Refinement.Turn] = [], context: AIConfigPrompt.Context,
-                    tools: Tools? = nil) async throws -> Answer {
+    /// provider couldn't take it instead. `sendingInstead` is called with that provider before it is asked instead of the
+    /// on-device model, so the page says where the request goes before it goes (`AIConfig.Text.sentInstead`).
+    public func ask(_ sentence: String, turns: [Refinement.Turn] = [], context: AIConfigPrompt.Context, tools: Tools? = nil,
+                    sendingInstead: (@Sendable (Provider) async -> Void)? = nil) async throws -> Answer {
         let onDevice = self.onDevice
         let config = context.config
         if !onDevice, config.provider == .apple { throw AppleModelError.unavailable(client.apple.availability) }
@@ -138,6 +139,7 @@ public final class AIConfigService: Sendable {
             // The AWS profiles' names go to a cloud provider only when the request is about AWS or Bedrock.
             context.showsAWSProfile = AIConfig.mentionsAWS(([sentence] + turns.map(\.instruction)).joined(separator: "\n"))
             if !context.showsAWSProfile { context.awsProfiles = [] }
+            await sendingInstead?(config.provider)
             do {
                 return try await askProvider(sentence, turns: turns, context: context, hiding: hiding, instead: true)
             } catch let error where !(error is CancellationError) {

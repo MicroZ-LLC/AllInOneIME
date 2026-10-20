@@ -22,7 +22,8 @@ final class AssistantModel: ObservableObject {
     @Published private(set) var lines: [String] = []
     /// Why there is no preview (no model, not understood, nothing to change), or what applying couldn't do: one line.
     @Published private(set) var message: String?
-    /// Over the preview: the user's own provider answered, the request being too long for the on-device model.
+    /// Over the preview, and while it is on its way: the request went to the user's own provider, being too long for the
+    /// on-device model.
     @Published private(set) var notice: String?
     /// "Changed 2 settings", while those changes can be undone (`AIConfigSession.lastApplied`) or after an action.
     @Published private(set) var applied: String?
@@ -114,19 +115,25 @@ final class AssistantModel: ObservableObject {
                 installedPacks: Set(Language.allCases.filter(env.packInstalled)), showsAWSProfile: showsAWS, apps: env.apps)
             let tools = AIConfigSession.tools(env)
             guard !Task.isCancelled else { return }
+            let text = AIConfig.Text(language: env.language)
             do {
-                let answer = try await service.ask(keys.text, context: context, tools: tools)
+                // Too long for the on-device model: where it goes instead is said before it goes.
+                let answer = try await service.ask(keys.text, context: context, tools: tools) { [weak self] provider in
+                    await MainActor.run {
+                        log.notice("assistant: too long for the on-device model; sent to \(provider.rawValue, privacy: .public) instead")
+                        self?.notice = text.sentInstead(provider)
+                    }
+                }
                 guard let self, !Task.isCancelled else { return }
                 self.working = false
-                if let provider = answer.instead {
-                    log.notice("assistant: too long for the on-device model; \(provider.rawValue, privacy: .public) answered instead")
-                    self.notice = AIConfig.Text(language: env.language).answeredInstead(provider)
-                }
+                if let provider = answer.instead { self.notice = text.sentInstead(provider) }
                 self.show(answer: answer.text, env: env, droppedKey: (keys.dropped, keys.provider))
             } catch {
                 guard let self, !Task.isCancelled else { return }
                 log.error("assistant: the request failed: \(AllInOneIMEInputController.errorKind(error), privacy: .public)")
                 self.working = false
+                // The line says what the provider asked instead did (or that it isn't set up).
+                self.notice = nil
                 self.message = UIText.describe(error)
             }
         }

@@ -221,10 +221,11 @@ extension AIConfig {
                "Too long for Apple Intelligence on this Mac, and \(self.provider(provider)) couldn't answer instead: \(detail)")
         }
 
-        /// Over the preview when the user's own provider answered instead of the on-device model (`AIConfigService.Answer.instead`).
-        public func answeredInstead(_ provider: Provider) -> String {
-            tr("这句话对本机的 Apple Intelligence 来说太长了，改由 \(self.provider(provider)) 回答",
-               "Too long for Apple Intelligence on this Mac: \(self.provider(provider)) answered instead")
+        /// Over the preview when the request goes to the user's own provider instead of the on-device model, said as it
+        /// goes (`AIConfigService.ask`'s `sendingInstead`) and with the answer (`AIConfigService.Answer.instead`).
+        public func sentInstead(_ provider: Provider) -> String {
+            tr("这句话对本机的 Apple Intelligence 来说太长了，已改发给 \(self.provider(provider))",
+               "Too long for Apple Intelligence on this Mac: sent to \(self.provider(provider)) instead")
         }
 
         /// A key typed into the sentence, with nothing else in it: nothing is sent, and the key field opens.

@@ -407,8 +407,14 @@ struct AIConfigContextTests {
         let answer = #"{"changes": [{"key": "candidateLayout", "value": "vertical"}]}"#
         let model = ContextLimitedModel(overflows: true)
         let (service, config) = try Self.openAIService(model, host: host, answer: answer)
-        let got = try await service.ask("candidates in a column", context: Self.context(config), tools: Self.tools)
+        // Where it goes is said before it goes.
+        let told = Locked<[(Provider, sentYet: Bool)]>(initialState: [])
+        let got = try await service.ask("candidates in a column", context: Self.context(config), tools: Self.tools) { provider in
+            let sentYet = StubURLProtocol.lastRequest(host: host) != nil
+            told.withLock { $0.append((provider, sentYet)) }
+        }
         #expect(got.text == answer && !got.onDevice && got.instead == .openai && !got.fromCache)
+        #expect(told.withLock { $0.map(\.0) } == [.openai] && told.withLock { $0.first?.sentYet } == false)
         #expect(model.sent.count == 1)
         let body = RedactionTests.body(StubURLProtocol.lastRequest(host: host))
         // The instructions as the providers get them (the allowed values); no AWS profile named: the sentence isn't about AWS.
@@ -416,8 +422,15 @@ struct AIConfigContextTests {
         // Asked again: kept, still said to be the provider's.
         let again = try await service.ask("candidates in a column", context: Self.context(config), tools: Self.tools)
         #expect(again.fromCache && again.instead == .openai && model.sent.count == 2)
-        #expect(AIConfig.Text(language: "en").answeredInstead(.openai)
-            == "Too long for Apple Intelligence on this Mac: OpenAI-compatible API answered instead")
+        #expect(AIConfig.Text(language: "en").sentInstead(.openai) == "Too long for Apple Intelligence on this Mac: sent to OpenAI-compatible API instead")
+        #expect(AIConfig.Text(language: "zh-Hans").sentInstead(.anthropic) == "这句话对本机的 Apple Intelligence 来说太长了，已改发给 Claude API")
+        // Answered on the device: nothing said.
+        let onDevice = ContextLimitedModel(contextSize: 8192)
+        var small = Config.default
+        small.provider = .openai
+        _ = try await Self.service(onDevice).ask("candidates in a column", context: Self.context(small), tools: Self.tools) { _ in
+            Issue.record("said to go elsewhere")
+        }
     }
 
     /// A setting the sentence is about is never left out to fit: a sentence about nine of them doesn't fit a 4096-token
