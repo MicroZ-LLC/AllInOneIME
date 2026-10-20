@@ -311,6 +311,40 @@ extension OnTheDesktop {
             #expect(ConsoleCommand.removeStalePrompts(in: folder) == ["agent-prompt-held.txt"])
         }
 
+        /// The engine's main thread runs what is posted to the main queue (between the watchdog's ticks): what the core
+        /// posts there (`UIText.languageChanged`, as the settings change the interface language) runs rather than
+        /// piling up. In test mode the engine posts a block there as it is ready, which logs.
+        @Test(.timeLimit(.minutes(1))) func theEngineRunsWhatIsPostedToTheMainQueue() throws {
+            try #require(FileManager.default.fileExists(atPath: debugEngine.path), "build the engine first (swift build)")
+            let folder = try temporaryFolder("main-queue")
+            defer { try? FileManager.default.removeItem(at: folder) }
+            let config = folder.appendingPathComponent("config.json")
+            try Data("{}".utf8).write(to: config)
+            let engine = Process()
+            engine.executableURL = debugEngine
+            // A pipe of its own: its own single-instance mutex too, whatever engine runs for this user.
+            engine.arguments = ["--test", "--no-panel", "--no-rime", "--config", config.path,
+                                "--pipe", "aio-main-queue-\(GetCurrentProcessId())-\(UInt32.random(in: 0...UInt32.max))"]
+            let errors = Pipe()
+            engine.standardError = errors
+            engine.standardOutput = FileHandle.nullDevice
+            let output = Locked(initialState: "")
+            errors.fileHandleForReading.readabilityHandler = { handle in
+                let data = handle.availableData
+                output.withLock { $0 += String(decoding: data, as: UTF8.self) }
+            }
+            try engine.run()
+            defer {
+                engine.terminate()
+                engine.waitUntilExit()
+                errors.fileHandleForReading.readabilityHandler = nil
+            }
+            let deadline = Date().addingTimeInterval(20)
+            while !output.withLock({ $0.contains("the main queue runs") }), Date() < deadline { Thread.sleep(forTimeInterval: 0.05) }
+            #expect(output.withLock { $0 }.contains("ready in"), "\(output.withLock { $0 })")
+            #expect(output.withLock { $0 }.contains("the main queue runs"), "\(output.withLock { $0 })")
+        }
+
         /// The engine, as it starts, deletes the prompts' files an earlier run left (`%TEMP%\AllInOneIME`).
         @Test(.timeLimit(.minutes(1))) func theEngineDeletesStalePromptsAsItStarts() throws {
             try #require(FileManager.default.fileExists(atPath: debugEngine.path), "build the engine first (swift build)")

@@ -365,12 +365,20 @@ func runEngine(_ options: EngineOptions) -> Never {
         exit(0)
     }, true)
 
+    // In test mode, a sign that the main queue runs (the tests read it).
+    if options.test { DispatchQueue.main.async { log("the main queue runs") } }
+
     // The watchdog (§2.5): a session queue stalled for more than 2 s, and the engine exits so that it is relaunched.
     // About once a second, the settings file: changed by something else (allinoneime-cli, an editor), the settings
-    // windows are told (§12.6).
+    // windows are told (§12.6). Between its ticks this thread runs the main queue (the main run loop): what the core
+    // posts there (`UIText.languageChanged` as the settings change the interface language) runs instead of piling up.
     var ticks = 0
     while true {
-        Sleep(250)
+        let tick = ProcessInfo.processInfo.systemUptime
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.25))
+        // Never a busy loop, should the run loop come back at once.
+        let rest = 0.25 - (ProcessInfo.processInfo.systemUptime - tick)
+        if rest > 0.01 { Sleep(DWORD(rest * 1000)) }
         let busy = server.longestBusy
         if busy > 2 {
             log("a session queue has been busy for \(Int(busy * 1000)) ms: exiting", always: true)

@@ -342,7 +342,8 @@ prove is its own and in front. The 0.6.4 package from before those fixes, run wi
   window on the screen), then to the process the shell starts, if it starts one.
 - **A client that stops reading:** its writes time out after 500 ms and the connection is dropped (tested: about
   0.6 s), so the engine isn't stalled for every app.
-- **Watchdog:** the engine exits when a connection's queue is busy for more than 2 s.
+- **Watchdog:** the engine exits when a connection's queue is busy for more than 2 s. Its thread, the main one, runs the
+  main queue (the main run loop) between its ticks: what the core posts there (the interface language's observers) runs.
 - **bye:** Ctrl+C, logoff and shutdown send `bye` to every client first.
 - **`--test`:** a manual clock, level two from a golden's scripted provider, and `x-test` directives
   (`AllInOneIMEWire`'s `TestFrame`) accepted. Clients are taken to own the foreground. `wire-replay` drives it.
