@@ -893,7 +893,7 @@ struct TranslateModeAcceptanceTypingTests {
 
 @Suite("TranslateModeAcceptance: the target language")
 struct TranslateModeAcceptanceTargetTests {
-    @Test func target_beforeAnyPickItIsTheFirstOutputLanguage() throws {
+    @Test func target_beforeAnyPickItIsTheFirstOutputLanguageTheTypedLanguageCanBeTranslatedInto() throws {
         #expect(TranslateMode.target(last: nil, outputs: [tmJapanese, .english]) == tmJapanese)
         var state = TranslateMode.State()
         let entered = state.enter(last: nil, config: tmConfig([tmJapanese, .english]))
