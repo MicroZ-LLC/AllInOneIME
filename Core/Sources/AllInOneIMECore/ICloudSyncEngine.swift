@@ -240,6 +240,15 @@ public struct ICloudSyncEngine: @unchecked Sendable {  // used from one queue at
                     // With the merge it derives from (`Entry.base`), for a change made here on top of it.
                     plan.entries[key] = ICloudSync.Entry(value: after[key], stamp: entry.stamp, base: entry.base)
                 }
+                // The English words given back those added (`ICloudSync.applying`): a change made here on top of what the
+                // run had, stamped now, and up, so that every Mac offers them.
+                if key == ICloudSync.englishWordsKey, plan.merges[key] == nil,
+                   ICloudSync.addsWords(after[key], to: incoming[key]?.value ?? local[key]) {
+                    let mine = ICloudSync.Entry(value: after[key], stamp: .init(modified: now, by: state.macID),
+                                                base: ICloudSync.changeBase(key, plan.entries[key]))
+                    plan.outgoing[key] = mine
+                    plan.entries[key] = mine
+                }
             }
             let keys = AIConfig.changedKeys(config, result.config)
             var written = Set<String>()

@@ -745,6 +745,12 @@ public enum ICloudSync {
         return .array(kept.map { .string($0) })
     }
 
+    /// Whether the English words `after` hold a word (by its letters) that `before` lacks.
+    static func addsWords(_ after: AIConfig.JSONValue?, to before: AIConfig.JSONValue?) -> Bool {
+        let had = Set((before?.strings ?? []).map(EnglishWords.key))
+        return (after?.strings ?? []).contains { !had.contains(EnglishWords.key($0)) }
+    }
+
     /// A jargon list merged: iCloud's text, then this Mac's lines that iCloud's lacks (each once, spaces at the ends aside).
     public static func mergedJargon(_ theirs: String, _ mine: String) -> String {
         var seen = Set(theirs.components(separatedBy: .newlines).map { $0.trimmingCharacters(in: .whitespaces) })
@@ -1030,10 +1036,13 @@ public enum ICloudSync {
             current = next
             applied.append(key)
         }
-        // The English words within their limit, the oldest learned going first, once those added are in too (a list from
-        // iCloud may hold more).
+        // The English words with every word added in them (one Mac's list may meet the words another added: the newer
+        // list won while the other Mac added one), within their limit, the oldest learned going first (a list from iCloud
+        // may hold more). Words given back count as the list applied.
         if applied.contains(englishWordsKey) || applied.contains(addedEnglishWordsKey) {
-            current.englishWords = EnglishWords.capped(current.englishWords, added: current.addedEnglishWords)
+            let words = EnglishWords.withAdded(current.englishWords, added: current.addedEnglishWords)
+            if words != current.englishWords, !applied.contains(englishWordsKey) { applied.append(englishWordsKey) }
+            current.englishWords = words
         }
         return (current, applied, rejected)
     }

@@ -165,6 +165,13 @@ public enum EnglishWords {
         return Array(out.suffix(maxWords))
     }
 
+    /// `list` with the words of `added` it lacks (by their letters) at the end, within `maxWords` (`capped`): every word
+    /// the user added is offered, also when the list came from a Mac that hadn't seen it added (iCloud sync).
+    public static func withAdded(_ list: [String], added: [String]) -> [String] {
+        var keys = Set(list.map(key))
+        return capped(list + added.filter { keys.insert(key($0)).inserted }, added: added)
+    }
+
     // MARK: The list in Settings
 
     /// The words of `text` (separated by commas, semicolons or lines: `RedactionSettings.words`) that are words (`word`)

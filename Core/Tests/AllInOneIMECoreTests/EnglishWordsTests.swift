@@ -788,6 +788,30 @@ struct EnglishWordsSyncTests {
         #expect(ICloudSync.category(of: ICloudSync.addedEnglishWordsKey) == .learnedWords)
     }
 
+    @Test func aWordAddedOnOneMacWhileAnotherLearnsIsOfferedOnBoth() throws {
+        let rig = try SyncRig()
+        let a = try rig.mac("A") { $0.englishWords = ["frobnicate"] }
+        let b = try rig.mac("B")
+        a.sync(at: t(0))
+        b.sync(at: t(1))
+        // A adds a word in Settings; B learns one after (its list, newer, wins), before either syncs.
+        try a.edit(at: t(3)) { EnglishWords.add("Kubeflow", to: &$0) }
+        try EnglishWords.learn("zorblax", at: b.configURL)
+        try b.touch(b.configURL, at: t(4))
+        a.sync(at: t(5))
+        b.sync(at: t(6))
+        a.sync(at: t(7))
+        for mac in [a, b] {
+            let config = try mac.config()
+            #expect(config.addedEnglishWords == ["Kubeflow"])
+            #expect(Set(config.englishWords) == ["frobnicate", "zorblax", "Kubeflow"], "\(config.englishWords)")
+        }
+        let icloud = (try rig.settingsJSON()[ICloudSync.englishWordsKey] as? [String: Any])?["value"] as? [String]
+        #expect(Set(icloud ?? []) == ["frobnicate", "zorblax", "Kubeflow"], "\(icloud ?? [])")
+        // Settled: nothing more goes up.
+        #expect(b.sync(at: t(8)).uploaded.isEmpty && a.sync(at: t(9)).uploaded.isEmpty)
+    }
+
     /// The keys this version syncs that 0.6.5, which synced the settings and the learned words, didn't know.
     static let keysSince065: Set<String> = [ICloudSync.englishWordsKey, ICloudSync.addedEnglishWordsKey, "learnsEnglishWords"]
 
