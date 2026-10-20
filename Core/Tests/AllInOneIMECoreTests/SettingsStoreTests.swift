@@ -375,11 +375,23 @@ struct SettingsStoreTests {
 }
 
 /// `body` with `folder` read-only (a save into it fails), then writable again. False, `body` not run, where that keeps
-/// nothing from writing there (root).
+/// nothing from writing there (root). On Windows, where a folder's read-only attribute keeps nothing from being written
+/// in it (nor a file's from being replaced by an atomic write), writing is denied to everyone on the folder and what is
+/// in it (`denyWrites`), then allowed again.
 func whileReadOnly(_ folder: URL, _ body: () throws -> Void) throws -> Bool {
+    #if os(Windows)
+    guard let restore = denyWrites(in: folder) else { return false }
+    defer { restore() }
+    let probe = folder.appendingPathComponent("probe.txt")
+    if (try? Data().write(to: probe)) != nil {
+        try? FileManager.default.removeItem(at: probe)
+        return false
+    }
+    #else
     try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: folder.path)
     defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: folder.path) }
     guard !FileManager.default.isWritableFile(atPath: folder.path) else { return false }
+    #endif
     try body()
     return true
 }
