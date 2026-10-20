@@ -1,5 +1,12 @@
 import Foundation
 
+/// Where in the settings something missing is added: what ⏎ opens on a failure that needs it (`Composer.fail(_:id:fixedIn:)`).
+/// The shell knows the page.
+public enum SettingsPlace: String, Equatable, Sendable {
+    /// The languages `@translate` translates into.
+    case translationLanguages
+}
+
 /// Two-level input state machine.
 ///
 /// Level one is a local pinyin engine (Rime): typing, selecting and committing words works like any
@@ -89,6 +96,9 @@ public final class Composer {
         case listAgents(id: Int)
         /// Show the settings window (`@settings`).
         case openSettings
+        /// Show the settings where `place` is: ⏎ on a failure put right there (`fail(_:id:fixedIn:)`), the sentence in
+        /// as typed.
+        case openSettingsAt(SettingsPlace)
         /// Save `text` to Apple Notes (`@note`); nothing is inserted.
         case saveNote(text: String)
         /// Read the reminder in `input` (`@reminder`), by the real clock; it arrives via `receiveReminder`.
@@ -1658,12 +1668,31 @@ public final class Composer {
         return [.showPanel]
     }
 
-    public func fail(_ message: String, id: Int) -> [Effect] {
+    /// `place`: where in the settings it is put right (no language to translate into): ⏎ opens them there
+    /// (`failureFixedIn`) instead of trying again, which would only fail the same way.
+    public func fail(_ message: String, id: Int, fixedIn place: SettingsPlace? = nil) -> [Effect] {
         guard phase == .translating(id: id) else { return [] }
         if id == modeRequestID { return modeFailed(message) }
         if id == refineID { return refineFailed(message) }
         phase = .failed(message)
+        failureFix = place.map { (message, $0) }
         return [.showPanel]
+    }
+
+    /// The failure `fail(_:id:fixedIn:)` was told is put right in the settings, and where.
+    private var failureFix: (message: String, place: SettingsPlace)?
+
+    /// Where in the settings the failure shown is put right (`fail(_:id:fixedIn:)`), which ⏎ opens; nil for any other
+    /// failure, and when none is shown.
+    public var failureFixedIn: SettingsPlace? {
+        guard case let .failed(message) = phase, let failureFix, failureFix.message == message else { return nil }
+        return failureFix.place
+    }
+
+    /// ⏎ on a failure put right in the settings: the sentence goes in as typed, as 0 puts it on any failure (the settings
+    /// take the focus, and a field left puts the draft in as it is, the command too), and they open there.
+    private func openFailureFix(_ place: SettingsPlace) -> [Effect] {
+        finish(committing: selection == nil ? sentText : "") + [.openSettingsAt(place)]
     }
 
     /// The reminder read from the `@reminder` text (`.previewReminder`): one row to confirm (Space, ⏎ or 1
@@ -2459,6 +2488,8 @@ public final class Composer {
             // key it retries instead, before reaching here). A reminder with nothing to be reminded of
             // goes back to its text instead: typed into the app, it would only be the time.
             if case .failed = phase {
+                // Put right in the settings (nothing to translate into): ⏎ opens them, whatever the action key.
+                if let place = failureFixedIn { return .consumed(openFailureFix(place)) }
                 // A message is never inserted: ⏎ tries again.
                 if activeCommand?.kind == .message { return .consumed(startAction().effects) }
                 // With a selection, it stays as it was.
@@ -3222,12 +3253,16 @@ public final class Composer {
 
     /// Space (or the action key) in level two: inserts the highlighted line once it is complete;
     /// after a failure, asks again (a reminder with nothing to be reminded of would fail again: back to
-    /// its text, like Esc).
+    /// its text, like Esc; one put right in the settings opens them).
     private func acceptInLevelTwo() -> [Effect] {
         // A refine instruction or a follow-up typed: an action key other than ⏎ (⌥Space, a shortcut) sends it, as ⇧⏎
         // does; ⏎ inserts, the line going with the rest (on an empty line every action key inserts).
         if typesRefine, actionKey != .enter, !refineText.isEmpty || engineState.isComposing { return runRefine() }
-        if case .failed = phase { return activeCommand?.kind == .reminder ? backToDraft() : startAction().effects }
+        if case .failed = phase {
+            // Trying again would fail the same way until the settings change: it opens them where they do.
+            if let place = failureFixedIn { return openFailureFix(place) }
+            return activeCommand?.kind == .reminder ? backToDraft() : startAction().effects
+        }
         return commitChoice(at: highlighted)
     }
 

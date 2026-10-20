@@ -1170,6 +1170,10 @@ final class AllInOneIMEInputController: IMKInputController {
                 }
             case .openSettings:
                 SettingsWindow.shared.show()
+            case let .openSettingsAt(place):
+                switch place {
+                case .translationLanguages: openSettings(.writing, .outputLanguages)
+                }
             case let .listAgents(id):
                 conversionTask?.cancel()
                 conversionTask = Task { @MainActor [weak self] in
@@ -1880,8 +1884,16 @@ final class AllInOneIMEInputController: IMKInputController {
         return AppProfileText.refusal
     }
 
-    /// Opens the settings window on `page` (the self-test records it instead).
-    var openSettings: @MainActor (SettingsPage) -> Void = { SettingsWindow.shared.show(page: $0) }
+    /// Opens the settings window on `page`, pointing at `spot` there if given (the self-test records it instead).
+    var openSettings: @MainActor (SettingsPage, SettingsSpot?) -> Void = { SettingsWindow.shared.show(page: $0, spot: $1) }
+
+    /// The notice of `@translate` with no language to translate into: ⏎ on it opens Settings where they're added
+    /// (`Composer.failureFixedIn`), and the page is named as its sidebar names it.
+    static var noTranslationTargetText: String {
+        let page = SettingsPage.writing.title
+        return tr("还没有要翻译成的语言：按 ⏎ 打开设置 →「\(page)」加一种",
+                  "No language to translate into yet: ⏎ opens Settings → \(page) to add one")
+    }
 
     @MainActor
     /// `replyPage`: `@reply`'s Chrome page (`Prompt.replyMessage(_:page:)` of nothing), added after its message once the
@@ -1898,12 +1910,12 @@ final class AllInOneIMEInputController: IMKInputController {
         let inner = plan.map { ", inside: " + $0.inner.map { "@" + logged($0.command) }.joined(separator: " ") } ?? ""
         log.notice("conversion \(id) started (\(input.count) chars\(command.map { ", @\(logged($0))" } ?? "")\(inner), privacy: .public))")
         // @translate with no language to translate into but the sentence's own (a new user whose system has no
-        // other language): nothing is sent; the settings open where languages are added.
+        // other language): nothing is sent; the notice says where languages are added, and ⏎ on it opens the settings
+        // there. Not opened at once: a window taking the focus from a key ends the field's text, the notice gone with it
+        // and the draft put in as typed ("@translate …"); one macOS keeps the focus from comes up unfocused, unexplained.
         if command == .translate, !Self.hasTranslationTarget(for: input, config: loadSettings()) {
             log.notice("conversion \(id): no language to translate into")
-            perform(composer.fail(tr("还没有要翻译成的语言：在设置的「翻译与改写」里加一种", "No language to translate into yet: add one under Translate & Rewrite in the settings"),
-                                  id: id), client: nil)
-            openSettings(.writing)
+            perform(composer.fail(Self.noTranslationTargetText, id: id, fixedIn: .translationLanguages), client: nil)
             return
         }
         let (runPlugin, runProgram, converter, loadSearchKey) = (self.runPlugin, self.runProgram, self.converter, self.loadSearchKey)
@@ -2483,6 +2495,8 @@ final class AllInOneIMEInputController: IMKInputController {
                 // A reminder without anything to be reminded of: write it in.
                 model.footer = command == .reminder
                     ? tr("Esc 返回修改", "Esc back to edit")
+                    : composer.failureFixedIn != nil
+                    ? tr("空格 / ⏎ 打开设置 · 0 原文 · Esc 返回", "Space / ⏎ open the settings · 0 original · Esc back")
                     : composer.actionKey == .enter
                     ? tr("空格 / ⏎ 重试 · 0 原文 · Esc 返回", "Space / ⏎ retry · 0 original · Esc back")
                     : tr("空格 重试 · ⏎ 上屏原文 · Esc 返回", "Space retry · ⏎ insert original · Esc back")

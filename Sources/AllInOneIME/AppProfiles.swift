@@ -321,7 +321,7 @@ extension AllInOneIMEInputController {
     @objc func showAppSettings(_ sender: Any?) {
         MainActor.assumeIsolated {
             perform(composer.commitAll(), client: nil)  // the window takes focus from the text field
-            openSettings(.apps)
+            openSettings(.apps, nil)
         }
     }
 }

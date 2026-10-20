@@ -1951,42 +1951,6 @@ enum SelfTest {
         }
     }
 
-    /// @translate with nothing to translate into but the sentence's own language (a new user whose system
-    /// has no other language): no request, a notice, and the settings open on Translate & Rewrite.
-    static func testNothingToTranslateInto(_ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
-        section("@translate with nothing to translate into", needs: .composing)
-        let (settingsBefore, loadBefore, openBefore) = (settings, controller.loadSettings, controller.openSettings)
-        var opened: [SettingsPage] = []
-        defer {
-            controller.commitComposition(client)
-            (settings, controller.loadSettings, controller.openSettings) = (settingsBefore, loadBefore, openBefore)
-            controller.applySettings()
-            controller.composer.setInputMode(settings.defaultInput)
-        }
-        settings = (try? Config.load()) ?? .default
-        (settings.typeOut, settings.typeOutMistakes) = (false, false)  // inserted at once, no typos
-        settings.setOrder([Language.english])
-        settings.setOrder([OutputLanguage.english])
-        settings.uiLanguage = "en"
-        controller.loadSettings = { SelfTest.settings }
-        controller.openSettings = { opened.append($0) }
-        controller.applySettings()
-        controller.composer.setInputMode(.english)
-        press(controller, client, "@", code: 0x13, flags: .shift)
-        type("t", controller, client)
-        press(controller, client, "\t", code: VirtualKey.tab)
-        type("good morning", controller, client)
-        _ = enter(controller, client)
-        _ = pump(timeout: 0.5) { !opened.isEmpty }
-        let shown = controller.panelModel()
-        check(opened == [.writing] && !controller.composer.choices.contains { $0.kind == .version },
-              "@translate with nothing to translate into opens the settings on Translate & Rewrite, no request (\(opened))")
-        let text = [shown.footer, shown.detail ?? "", "\(shown.status)"].joined(separator: " | ")
-        check(text.contains("No language to translate into"), "…and says why (\(text))")
-        _ = escape(controller, client)
-        _ = escape(controller, client)
-    }
-
     /// The English README's images (docs/en, `en-*`): what someone who writes English sees, not the
     /// Chinese scenes with the interface in English. English is the only input language, @translate goes
     /// into Spanish, French and German, and the interface is English. Live requests; the settings it
@@ -2706,7 +2670,7 @@ enum SelfTest {
         (controller.converter, settings, controller.loadSettings) = (converterBefore, settingsBefore, loadBefore)
         controller.applySettings()
         englishReadmeScenes(controller, client, in: snapshotDirectory)
-        testNothingToTranslateInto(controller, client)
+        testNothingToTranslateInto(controller, client, in: snapshotDirectory)
         // @open's history in memory: the user's is neither read (it would reorder the results checked
         // here) nor changed (what the test opens would come first in their searches).
         var openHistory = OpenHistory()

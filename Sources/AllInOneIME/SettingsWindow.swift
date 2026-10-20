@@ -105,6 +105,9 @@ final class SettingsModel: ObservableObject {
     }
 
     let configURL: URL
+    /// The control the window was opened to point at (`SettingsWindow.show(page:spot:)`), outlined on its page until it's
+    /// used or another page is shown.
+    @Published var spot: SettingsSpot?
     /// False for previews/screenshots: nothing is ever written.
     private let persists: Bool
     private var testTask: Task<Void, Never>?
@@ -1337,9 +1340,27 @@ struct SettingsView: View {
                         }
                     }
                     .fixedSize()
+                    // Opened from @translate's notice (nothing to translate into): this is where.
+                    .overlay {
+                        if model.spot == .outputLanguages {
+                            RoundedRectangle(cornerRadius: 8).stroke(Color.accentColor, lineWidth: 2.5).padding(-4)
+                                .allowsHitTesting(false)
+                        }
+                    }
                 }
             } label: {
-                titled(tr("翻译语言", "Languages"), tr("每种一行，拖动排序", "A line in each; drag to reorder"))
+                if model.config.hasLanguageToTranslateInto {
+                    titled(tr("翻译语言", "Languages"), tr("每种一行，拖动排序", "A line in each; drag to reorder"))
+                } else {
+                    // Only the languages typed (a new user whose Mac has English alone): @translate has nothing to do yet.
+                    let typed = model.config.inputLanguages.map { UIText.name(OutputLanguage($0)) }.joined(separator: tr("、", ", "))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(tr("翻译语言", "Languages"))
+                        Text(tr("再加一种\(typed)以外的语言：句子不会翻译成它本来的语言",
+                                "Add one besides \(typed): a sentence isn't translated into its own language"))
+                            .font(.callout).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+                    }
+                }
             }
         } header: {
             SectionTitle(tr("翻译（@translate）", "Translate (@translate)"), icon: CommandIcons.translate)
@@ -2221,7 +2242,10 @@ struct SettingsView: View {
             model.save()
             model.refreshExtensions(discover: model.config.findRaycastScripts)
         }
-        .onChange(of: page) { if page == .commands { model.refreshExtensions(discover: true) } }
+        .onChange(of: page) {
+            if page == .commands { model.refreshExtensions(discover: true) }
+            if let spot = model.spot, spot.page != page { model.spot = nil }  // pointed at on a page no longer shown
+        }
         .onChange(of: model.config.customCommands) { model.refreshExtensions() }  // a name an extension had may be taken now
         .onChange(of: model.config.notes) { model.refreshNotesFolder() }
         .onAppear {
@@ -2393,6 +2417,7 @@ struct SettingsView: View {
 
     private func addOutputLanguage(_ language: OutputLanguage) {
         model.config.outputLanguages.append(language)
+        if model.spot == .outputLanguages { model.spot = nil }
     }
 
     /// Removes an added output language (one always stays); the next one is then in use.
@@ -2804,6 +2829,8 @@ struct SettingsView: View {
 final class SettingsWindow {
     static let shared = SettingsWindow()
     private var window: NSWindow?
+    /// The open window's settings.
+    private var model: SettingsModel?
     private var closing: NSObjectProtocol?
 
     static var title: String { tr("AllInOneIME 设置", "AllInOneIME Settings") }
@@ -2814,11 +2841,15 @@ final class SettingsWindow {
     /// Whether the window is open (an update opens it again once the input method restarts).
     var isVisible: Bool { window?.isVisible == true }
 
-    /// Shows the window on `page` (already open: it turns to it).
-    func show(page: SettingsPage) {
+    /// Shows the window on `page` (already open: it turns to it), and outlines `spot` there if given (`SettingsModel.spot`).
+    func show(page: SettingsPage, spot: SettingsSpot? = nil) {
         show(opening: page)
+        model?.spot = spot
         NotificationCenter.default.post(name: .allInOneIMEShowSettingsPage, object: nil, userInfo: ["page": page.rawValue])
     }
+
+    /// What the window outlines (`show(page:spot:)`), while it does.
+    var spot: SettingsSpot? { model?.spot }
 
     /// Shows the window; opened now, it starts on Assistant.
     func show() { show(opening: nil) }
@@ -2829,6 +2860,7 @@ final class SettingsWindow {
             // (Re)build so the window reflects the config file as it is now.
             window?.close()
             let model = SettingsModel()
+            self.model = model
             UIText.choice = model.config.uiLanguage
             let host = NSHostingController(rootView: SettingsView(model: model, page: page))
             let window = NSWindow(contentViewController: host)
@@ -3233,6 +3265,19 @@ enum SettingsPage: String, CaseIterable, Identifiable {
     }
 }
 
+
+/// A control the settings window is opened to point at (`SettingsWindow.show(page:spot:)`).
+enum SettingsSpot: String {
+    /// Translate & Rewrite's languages, where one is added (`@translate` with nothing to translate into).
+    case outputLanguages
+
+    /// The page it's on.
+    var page: SettingsPage {
+        switch self {
+        case .outputLanguages: return .writing
+        }
+    }
+}
 
 /// The settings window drawn offscreen, for the README and the wiki: `page`, as tall as its content.
 enum SettingsImage {

@@ -6352,6 +6352,53 @@
         }
       }
     },
+    "Add one besides %@: a sentence isn't translated into its own language" : {
+      "comment" : "再加一种%@以外的语言：句子不会翻译成它本来的语言 — Sources/AllInOneIME/SettingsWindow.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Füge eine Sprache außer %@ hinzu: Ein Satz wird nicht in seine eigene Sprache übersetzt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Añade un idioma además de %@: una frase no se traduce a su propio idioma"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajoutez une langue autre que %@ : une phrase n’est pas traduite dans sa propre langue"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@以外の言語を追加してください：文はその文自身の言語には翻訳されません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 외의 언어를 추가하세요: 문장은 원래 언어로 번역되지 않습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adicione um idioma além de %@: uma frase não é traduzida para o próprio idioma"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再加入一種%@以外的語言：句子不會翻譯成它原本的語言"
+          }
+        }
+      }
+    },
     "Add or Reorder Languages…" : {
       "comment" : "添加 / 排序语言… — Sources/AllInOneIME/InputController.swift",
       "localizations" : {
@@ -21899,8 +21946,56 @@
         }
       }
     },
+    "No language to translate into yet: ⏎ opens Settings → %@ to add one" : {
+      "comment" : "还没有要翻译成的语言：按 ⏎ 打开设置 →「%@」加一种 — Sources/AllInOneIME/InputController.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noch keine Zielsprache: ⏎ öffnet Einstellungen → „%@“, um eine hinzuzufügen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aún no hay ningún idioma al que traducir: ⏎ abre Ajustes → “%@” para añadir uno"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucune langue cible pour l’instant : ⏎ ouvre Réglages → %@ pour en ajouter une"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "翻訳先の言語がまだありません：⏎ で 設定 →「%@」を開いて追加します"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "아직 번역할 언어가 없음: ⏎를 누르면 설정 → %@에서 추가할 수 있습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ainda não há idioma para tradução: ⏎ abre Ajustes → %@ para adicionar um"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒有要翻譯成的語言：按 ⏎ 打開設定 →「%@」加入一種"
+          }
+        }
+      }
+    },
     "No language to translate into yet: add one under Translate & Rewrite in the settings" : {
       "comment" : "还没有要翻译成的语言：在设置的「翻译与改写」里加一种 — Sources/AllInOneIME/InputController.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -36352,6 +36447,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "空白鍵 / ⏎ 打開 · 數字 選取 · ⌘C 拷貝路徑 · Esc 返回"
+          }
+        }
+      }
+    },
+    "Space / ⏎ open the settings · 0 original · Esc back" : {
+      "comment" : "空格 / ⏎ 打开设置 · 0 原文 · Esc 返回 — Sources/AllInOneIME/InputController.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leertaste / ⏎ Einstellungen öffnen · 0 Original · Esc zurück"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Espacio / ⏎ abrir los ajustes · 0 original · Esc volver"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Espace / ⏎ ouvrir les réglages · 0 original · Esc retour"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スペース / ⏎ 設定を開く · 0 原文 · Esc 戻る"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Space / ⏎ 설정 열기 · 0 원문 · Esc 뒤로"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Espaço / ⏎ abrir os Ajustes · 0 original · Esc voltar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "空白鍵 / ⏎ 打開設定 · 0 原文 · Esc 返回"
           }
         }
       }
