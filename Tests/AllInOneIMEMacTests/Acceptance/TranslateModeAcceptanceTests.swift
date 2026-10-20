@@ -1009,10 +1009,12 @@ struct TranslateModeAcceptanceChipTests {
     }
 
     @Test func chip_aLanguageClickedIsTheTargetAtOnceAndRemembered() throws {
-        let config = tmConfig([.english, tmJapanese, tmFrench])
+        // Chinese and English typed (pinyin below): the first output, English, until Japanese is clicked.
+        let config = tmConfig([.english, tmJapanese, tmFrench]) { $0.inputLanguages = [.chinese, .english] }
         var state = TranslateMode.State()
         let rig = TMAccRig(target: nil)
         let entered = state.enter(last: nil, config: config)
+        #expect(entered?.target == .english)
         rig.setMode(try #require(entered).target)
         rig.pick("nihao")
         // The target part clicked, then Japanese in its list (as the controller does with the row clicked).
