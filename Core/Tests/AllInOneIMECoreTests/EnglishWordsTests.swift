@@ -433,6 +433,54 @@ struct EnglishWordsTests {
         }
     }
 
+    @Test func remoteDesktopsVirtualMachinesAndSSHClientsOnWindowsByTheirPrograms() {
+        // Windows' app ids (wire protocol §4): "win:" and the program's file name, or a packaged app's id, in any case.
+        for app in ["win:mstsc.exe", "win:MSRDC.EXE", "win:msrdcw.exe", "win:vmconnect.exe", "win:vmware.exe", "win:VirtualBoxVM.exe",
+                    "win:vmware-view.exe", "win:vmware-remotemks.exe", "win:wfica32.exe", "win:CDViewer.exe", "win:AnyDesk.exe",
+                    "win:TeamViewer.exe", "win:rustdesk.exe", "win:parsecd.exe", "win:vncviewer.exe", "win:termius.exe",
+                    "win:Microsoft.RemoteDesktop_8wekyb3d8bbwe!App",
+                    "win:MicrosoftCorporationII.Windows365_8wekyb3d8bbwe!Windows365"] {
+            #expect(EnglishWords.isRemote(app), "\(app)")
+        }
+        for app in ["win:notepad.exe", "win:code.exe", "win:Microsoft.WindowsNotepad_8wekyb3d8bbwe!App", "win:mstsc.exe.bak",
+                    "win:", "mstsc.exe", "win:com.microsoft.rdc.macos"] {
+            #expect(!EnglishWords.isRemote(app), "\(app)")
+        }
+    }
+
+    @Test func theRuleEveryShellLearnsBy() {
+        let editor = FieldInfo(app: "win:notepad.exe")
+        func learns(_ field: FieldInfo = editor, secureInput: Bool = false, config: Config = .default,
+                    once: EnglishWords.TypedOnce = EnglishWords.TypedOnce()) -> Bool {
+            EnglishWords.learns("frobnicate", in: field, secureInput: secureInput, config: { config }, offered: [],
+                                dictionary: dictionary, typedOnce: once)
+        }
+        let once = EnglishWords.TypedOnce()
+        #expect(!learns(once: once) && learns(once: once), "the second time")
+        // Where it never is: the first time isn't even remembered there.
+        for field in [FieldInfo(app: "win:notepad.exe", secure: true), FieldInfo(app: "win:windowsterminal.exe", terminal: true),
+                      FieldInfo(app: "win:mstsc.exe")] {
+            let once = EnglishWords.TypedOnce()
+            #expect(!learns(field, once: once) && !learns(field, once: once) && !learns(once: once), "\(field)")
+        }
+        let elsewhere = EnglishWords.TypedOnce()
+        #expect(!learns(secureInput: true, once: elsewhere) && !learns(secureInput: true, once: elsewhere), "secure input")
+        var off = Config.default
+        off.learnsEnglishWords = false
+        var noAI = Config.default
+        noAI.appProfiles["win:notepad.exe"] = AppProfile(noAI: true)
+        for config in [off, noAI] {
+            let once = EnglishWords.TypedOnce()
+            #expect(!learns(config: config, once: once) && !learns(config: config, once: once))
+        }
+        // A word offered already isn't learned again.
+        let offered = EnglishWords.TypedOnce()
+        for _ in 0..<2 {
+            #expect(!EnglishWords.learns("frobnicate", in: editor, secureInput: false, config: { .default }, offered: ["Frobnicate"],
+                                         dictionary: dictionary, typedOnce: offered))
+        }
+    }
+
     @Test func aHiddenWordAnywhereInTheLettersIsNeverLearned() {
         func learnable(_ typed: String, hidden: [String]) -> Bool {
             EnglishWords.learnable(typed, known: [], dictionary: dictionary, hidden: hidden)

@@ -73,10 +73,51 @@ public enum EnglishWords {
         "com.appliedphasor.secure-shellfish",
     ]
 
-    /// Whether `app` (a bundle id, in any case) is a remote desktop, a virtual machine or an SSH client (`remoteApps`).
+    /// The same on Windows, by their program's file name (an app id "win:mstsc.exe", wire protocol §4): Remote Desktop
+    /// Connection (mstsc), the Remote Desktop client and the session window of Azure Virtual Desktop and Windows App
+    /// (msrdcw, msrdc), Hyper-V's VM window (vmconnect), VMware Workstation and Player, VirtualBox's VM window, Horizon's
+    /// client and its session window (vmware-view, vmware-remotemks), Citrix's session window and Desktop Viewer (wfica32,
+    /// cdviewer), AnyDesk, TeamViewer, RustDesk, Parsec (parsecd), Splashtop Business (strwinclt), NoMachine (nxplayer.bin),
+    /// Amazon WorkSpaces, VNC viewers (RealVNC's, TigerVNC's, UltraVNC's vncviewer, TightVNC's tvnviewer), the remote
+    /// desktop managers (Remote Desktop Connection Manager, Royal TS, mRemoteNG, Devolutions' Remote Desktop Manager);
+    /// SSH clients the engine doesn't know as terminals (Termius, SecureCRT, Xshell, Bitvise's terminal, FinalShell,
+    /// electerm).
+    static let remotePrograms: Set<String> = [
+        "mstsc.exe", "msrdc.exe", "msrdcw.exe", "vmconnect.exe", "vmware.exe", "vmplayer.exe", "virtualboxvm.exe",
+        "vmware-view.exe", "vmware-remotemks.exe", "wfica32.exe", "cdviewer.exe", "anydesk.exe", "teamviewer.exe",
+        "rustdesk.exe", "parsecd.exe", "strwinclt.exe", "nxplayer.bin", "workspaces.exe", "vncviewer.exe", "tvnviewer.exe",
+        "rdcman.exe", "royalts.exe", "mremoteng.exe", "remotedesktopmanager.exe",
+        "termius.exe", "securecrt.exe", "xshell.exe", "bvterm.exe", "finalshell.exe", "electerm.exe",
+    ]
+    /// And packaged apps, by their package's name (an app id "win:<package>_<publisher>!<app>"): Microsoft's Remote
+    /// Desktop app and Windows App.
+    static let remotePackages = ["microsoft.remotedesktop_", "microsoftcorporationii.windows365_"]
+
+    /// Whether `app` (a bundle id, or a Windows app id; in any case) is a remote desktop, a virtual machine or an SSH
+    /// client (`remoteApps`, `remotePrograms`, `remotePackages`).
     public static func isRemote(_ app: String?) -> Bool {
         guard let app = app?.lowercased() else { return false }
+        if app.hasPrefix("win:") {
+            let id = String(app.dropFirst(4))
+            return remotePrograms.contains(id) || remotePackages.contains { id.hasPrefix($0) }
+        }
         return remoteApps.contains { app.hasPrefix($0) }
+    }
+
+    /// Whether letters put in as typed in `field` (`EnglishWordsEngine.rawCommitted`) are learned, as every shell learns
+    /// them (`InputSession`, the Windows engine): the second time (`typedOnce`; the first time they are only remembered,
+    /// in memory) when they may be a word (`learnable`, not one of `offered` already). Never during secure input
+    /// (`secureInput`) or in a password field (`FieldInfo.secure`), in a terminal (a password prompt of sudo's or ssh's
+    /// doesn't turn secure input on in every one), in a remote desktop, a virtual machine or an SSH client (`isRemote`),
+    /// in an app with no AI, or with learning off (`Config.learnsEnglishWords`). `config` is read only past those.
+    public static func learns(_ typed: String, in field: FieldInfo, secureInput: Bool, config: () -> Config, offered: [String],
+                              dictionary: EnglishDictionary, typedOnce: TypedOnce) -> Bool {
+        guard !secureInput, !field.secure, !field.terminal, !isRemote(field.app) else { return false }
+        let config = config()
+        return config.learnsEnglishWords && config.allowsAI(in: field.app)
+            && learnable(typed, known: Set(offered.map(key)), dictionary: dictionary, hidden: config.redaction.customWords,
+                         fuzzy: config.fuzzyPinyin)
+            && typedOnce.again(typed)
     }
 
     /// What is never learned or taken from the jargon list: what hiding sensitive information would hide from the AI

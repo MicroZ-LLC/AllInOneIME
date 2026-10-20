@@ -276,18 +276,15 @@ public final class InputSession {
     }
 
     /// Letters put in as they were typed while typing pinyin ("bedrock" and ⏎), learned as an English word the second time
-    /// when they may be one (`EnglishWords.learnable`; the first time they are only remembered, in memory:
-    /// `SessionServices.englishTypedOnce`): never during secure input, in a terminal (a password prompt of sudo's or ssh's
-    /// doesn't turn secure input on in every one), in a remote desktop, a virtual machine or an SSH client
-    /// (`EnglishWords.isRemote`), in an app with no AI, or with learning off (`Config.learnsEnglishWords`). Offered in this
-    /// field at once; kept for every field (`SessionServices.learnEnglishWord`).
+    /// when they may be one, as every shell learns them (`EnglishWords.learns`; the first time they are only remembered,
+    /// in memory: `SessionServices.englishTypedOnce`): never during secure input, in a terminal, in a remote desktop, a
+    /// virtual machine or an SSH client, in an app with no AI, or with learning off. Offered in this field at once; kept
+    /// for every field (`SessionServices.learnEnglishWord`).
     private func learnEnglishWord(_ typed: String) {
-        guard let englishWords, !secureInputActive(), !terminal, !EnglishWords.isRemote(app) else { return }
-        let config = services.loadSettings()
-        guard config.learnsEnglishWords, config.allowsAI(in: app),
-              EnglishWords.learnable(typed, known: Set(englishWords.words.map(EnglishWords.key)), dictionary: englishWords.dictionary,
-                                     hidden: config.redaction.customWords, fuzzy: config.fuzzyPinyin),
-              services.englishTypedOnce.again(typed) else { return }
+        guard let englishWords,
+              EnglishWords.learns(typed, in: FieldInfo(app: app, terminal: terminal, secure: field.secure),
+                                  secureInput: secureInputActive(), config: services.loadSettings, offered: englishWords.words,
+                                  dictionary: englishWords.dictionary, typedOnce: services.englishTypedOnce) else { return }
         englishWords.words.append(typed)
         services.learnEnglishWord(typed)
         log.notice("learned an English word (\(typed.count) letters)")
