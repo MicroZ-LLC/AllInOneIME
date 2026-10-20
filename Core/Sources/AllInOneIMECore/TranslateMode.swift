@@ -5,8 +5,8 @@ import Foundation
 /// Translate as You Type (「边打边译」): typed text collects into a draft, and ⏎ translates it into one language and
 /// inserts the translation at once, with no candidates to pick from (⇧⏎ inserts the draft as typed). A long press of
 /// Shift on its own turns it on and off (`ShiftHold`); there is no command for it. It translates into the language picked
-/// last on its chip (`Chip`), at first the first output language (`target(last:outputs:)`), in a tone that follows the
-/// app (`tone(app:config:)`).
+/// last on its chip (`Chip`), at first the first output language other than the only one typed
+/// (`target(last:outputs:inputs:)`), in a tone that follows the app (`tone(app:config:)`).
 /// It is one input method's state across its text fields (`State`): switching to another app leaves it (`appActivated`,
 /// a text field or not), unless that app's profile translates always (`AppProfile.translateAlways`), where its field
 /// keeps it on or turns it on. The composer does the typing (Composer+TranslateMode.swift),
@@ -21,9 +21,13 @@ public enum TranslateMode {
     }
 
     /// The language it translates into: the one picked last (`last`, on the chip) while it is one of `outputs`, else
-    /// the first of them (nil: none). The language being typed has no say: text typed in the target goes in as typed.
-    public static func target(last: OutputLanguage?, outputs: [OutputLanguage]) -> OutputLanguage? {
-        last.flatMap { last in outputs.first { $0 == last } } ?? outputs.first
+    /// the first of them something typed (`inputs`, the input languages) is translated into, as
+    /// `Config.hasLanguageToTranslateInto` counts them: with English alone typed, English first and French added,
+    /// French (into English it would only ever put text in as typed). Else the first of them (nil: none). The language
+    /// being typed has no say: text typed in the target goes in as typed.
+    public static func target(last: OutputLanguage?, outputs: [OutputLanguage], inputs: [Language] = []) -> OutputLanguage? {
+        last.flatMap { last in outputs.first { $0 == last } }
+            ?? outputs.first { output in inputs.contains { !$0.matches(output) } } ?? outputs.first
     }
 
     /// One language as the chip writes it in the Chinese interface: 「英」, 「日」, 「繁」 …, else its Chinese name
@@ -63,13 +67,15 @@ public enum TranslateMode {
 
         public var isOn: Bool { session != nil }
 
-        /// Turns it on: into `last` (the language picked last) if it's still an output language, else the first one.
-        /// Nil, and nothing changes, when there's nothing to translate into: no output language but the languages typed
-        /// (`Config.hasLanguageToTranslateInto`; English alone, say), where it would only ever put text in as typed.
+        /// Turns it on: into `last` (the language picked last) if it's still an output language, else the first one
+        /// something typed is translated into (`TranslateMode.target`). Nil, and nothing changes, when there's nothing
+        /// to translate into: no output language but the languages typed (`Config.hasLanguageToTranslateInto`; English
+        /// alone, say), where it would only ever put text in as typed.
         @discardableResult
         public mutating func enter(last: OutputLanguage?, config: Config) -> Session? {
             guard config.hasLanguageToTranslateInto,
-                  let target = TranslateMode.target(last: last, outputs: config.outputLanguages) else { return nil }
+                  let target = TranslateMode.target(last: last, outputs: config.outputLanguages, inputs: config.inputLanguages)
+            else { return nil }
             let session = Session(target: target)
             self.session = session
             return session
@@ -87,12 +93,13 @@ public enum TranslateMode {
             return session
         }
 
-        /// The settings were read again (`outputs`, the output languages now): a target no longer among them (removed in
-        /// the settings) gives way at once to the first of them; with none left it leaves. True: the session changed.
+        /// The settings were read again (`outputs`, the output languages now; `inputs`, the input languages): a target
+        /// no longer among them (removed in the settings) gives way at once to the one it would take with none picked
+        /// (`TranslateMode.target`); with none left it leaves. True: the session changed.
         @discardableResult
-        public mutating func follow(outputs: [OutputLanguage]) -> Bool {
+        public mutating func follow(outputs: [OutputLanguage], inputs: [Language] = []) -> Bool {
             guard let session, !outputs.contains(session.target) else { return false }
-            self.session = outputs.first.map(Session.init(target:))
+            self.session = TranslateMode.target(last: nil, outputs: outputs, inputs: inputs).map(Session.init(target:))
             return true
         }
 
@@ -104,7 +111,7 @@ public enum TranslateMode {
 
         /// A text field of `app` became active. Another field of the same app changes nothing. Another app leaves
         /// the mode, unless its profile translates always (`AppProfile.translateAlways`): there it stays on, or comes
-        /// on (as `enter`, into `last` or the first output language).
+        /// on (as `enter`, into `last` or the first output language something typed is translated into).
         public mutating func activated(app: String?, last: OutputLanguage?, config: Config) -> Transition {
             let same = sawApp && app?.lowercased() == self.app?.lowercased()
             (self.app, sawApp) = (app, true)

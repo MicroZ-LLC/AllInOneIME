@@ -112,9 +112,49 @@ struct NoTranslationTargetTests {
         always.appProfiles = ["com.tinyspeck.slackmacgap": AppProfile(translateAlways: true)]
         _ = state.activated(app: "com.apple.TextEdit", last: nil, config: always)
         #expect(state.activated(app: "com.tinyspeck.slackmacgap", last: nil, config: always) == .unchanged && !state.isOn)
-        // Another language added: on, into the first output language as before.
+        // Another language added: on, into that one (`withALanguageAddedItTranslatesIntoThatOne`).
         var added = Config.default
         added.setOrder([OutputLanguage.english, OutputLanguage("fr")])
-        #expect(state.enter(last: nil, config: added) == TranslateMode.Session(target: .english))
+        #expect(state.enter(last: nil, config: added) == TranslateMode.Session(target: OutputLanguage("fr")))
+    }
+
+    /// French added after English as the notice says (English alone typed): Translate as You Type comes on into French
+    /// at once, English typed collecting into a draft that ⏎ translates, not "on: English" with everything going in as
+    /// typed until French is picked on the chip. In an app that translates always too.
+    @Test func withALanguageAddedItTranslatesIntoThatOne() {
+        let french = OutputLanguage("fr")
+        var added = Config.default
+        added.setOrder([OutputLanguage.english, french])
+        var state = TranslateMode.State()
+        let session = state.enter(last: nil, config: added)
+        #expect(session == TranslateMode.Session(target: french))
+        let c = Composer(engine: FakeEngine(), actionKey: .enter)
+        c.setInputMode(.english)
+        _ = c.setTranslateMode(session)
+        for ch in "good morning" { _ = c.handleKeyDown(k(String(ch))) }
+        #expect(c.draft == "good morning" && c.translateModeChip()?.text == "英 → 法")
+        let r = c.handleKeyDown(enterKey)
+        #expect(r.effects.contains { if case let .startTranslateMode(input, session, _) = $0 { return input == "good morning" && session.target == french } else { return false } },
+                "\(r.effects)")
+        var always = added
+        always.appProfiles = ["com.tinyspeck.slackmacgap": AppProfile(translateAlways: true)]
+        var elsewhere = TranslateMode.State()
+        _ = elsewhere.activated(app: "com.apple.TextEdit", last: nil, config: always)
+        #expect(elsewhere.activated(app: "com.tinyspeck.slackmacgap", last: nil, config: always) == .entered(TranslateMode.Session(target: french)))
+    }
+
+    /// Only the language typed is passed over, and only with none picked: English picked on the chip is still English, and
+    /// with Chinese typed too it's the first output language as before (Chinese typed goes into English).
+    @Test func aPickAndAnotherLanguageTypedStillHaveTheirSay() {
+        var added = Config.default
+        added.setOrder([OutputLanguage.english, OutputLanguage("fr")])
+        var state = TranslateMode.State()
+        #expect(state.enter(last: .english, config: added)?.target == .english)
+        state.leave()
+        #expect(state.enter(last: OutputLanguage("ja"), config: added)?.target == OutputLanguage("fr"))  // no longer offered
+        state.leave()
+        var both = added
+        both.setOrder([Language.chinese, .english])
+        #expect(state.enter(last: nil, config: both)?.target == .english)
     }
 }

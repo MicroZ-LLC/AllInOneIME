@@ -655,12 +655,13 @@ dot. There is no command for it.
 While it's on, what you type collects into a draft, with the languages on the chip by it ("ZH → EN"; 「中 → 英」 in the
 Chinese interface). It translates into the language you picked last on its chip (below), in every app and after a
 restart; until you pick one, into your first translation language in Settings (and back to that one when the language
-picked is no longer among them). The language you're typing when it comes on doesn't change it. ⏎ translates the draft
-and the translation goes in at once, with no candidates to pick: the draft says "Translating…" meanwhile, and nothing is
-sent (⏎ again is the app's own). ⇧⏎ inserts the draft as typed; Esc while it's translating stops it and keeps the draft
-(⌫ stops it too, and deletes a character as on the draft); if it fails (the network, a refusal, secure input), the draft
-stays with a one-line notice and ⏎ tries again. Text typed in the language it translates into (tap Shift to English)
-goes in as typed.
+picked is no longer among them). If you type only one language, it's passed over: typing English alone, with English
+then French to translate into, it's French. The language you're typing when it comes on doesn't change it. ⏎ translates
+the draft and the translation goes in at once, with no candidates to pick: the draft says "Translating…" meanwhile, and
+nothing is sent (⏎ again is the app's own). ⇧⏎ inserts the draft as typed; Esc while it's translating stops it and keeps
+the draft (⌫ stops it too, and deletes a character as on the draft); if it fails (the network, a refusal, secure input),
+the draft stays with a one-line notice and ⏎ tries again. Text typed in the language it translates into (tap Shift to
+English) goes in as typed.
 
 While it's on, a small chip "ZH → EN" (「中 → 英」 in the Chinese interface) shows under the line you're typing in, in the
 input method's own panel (the candidate panel: on top of the candidates while you type pinyin), so it never takes the

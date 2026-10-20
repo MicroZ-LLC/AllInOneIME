@@ -474,9 +474,11 @@ struct TranslateModeComposerTests {
     }
 
     /// The target comes from the state (the last pick, else the first output language), never from the language typed:
-    /// turned on while English is typed it still translates into English, and English goes in as typed.
+    /// with Chinese and English typed, turned on while English is typed it still translates into English, and English
+    /// goes in as typed.
     @Test func theLanguageTypedHasNoSayInTheTarget() {
         var config = Config.default
+        config.setOrder([Language.chinese, .english])
         config.setOrder([OutputLanguage.english, .chinese])
         var state = TranslateMode.State()
         let (c, _) = composer(nil)
@@ -626,8 +628,10 @@ struct TranslateModeStateTests {
     let finder = "com.apple.finder"
     let english = TranslateMode.Session(target: .english)
 
+    /// Chinese and English typed, into English and Chinese.
     var config: Config {
         var config = Config.default
+        config.setOrder([Language.chinese, .english])
         config.setOrder([OutputLanguage.english, .chinese])
         return config
     }
@@ -721,6 +725,9 @@ struct TranslateModeStateTests {
         #expect(state.follow(outputs: [.english, .chinese]) && state.session == english)
         #expect(commits(c.setTranslateMode(state.session)).isEmpty && c.draft == "你好" && c.translateModeChip()?.text == "中 → 英")
         #expect(state.follow(outputs: []) && !state.isOn)  // none left
+        // English alone typed (the config's): not to English, where it would only put text in as typed, but Chinese.
+        state.enter(last: ja, config: config)
+        #expect(state.follow(outputs: [.english, .chinese], inputs: config.inputLanguages) && state.session?.target == .chinese)
     }
 
     func type(_ text: String, _ c: Composer) {

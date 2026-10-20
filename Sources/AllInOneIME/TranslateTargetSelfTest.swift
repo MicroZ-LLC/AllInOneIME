@@ -10,9 +10,9 @@ extension SelfTest {
     /// front, from closed, from another page behind a window of the self-test's, and from the Dock (English alone then);
     /// its Add… menu offers every other language (Chinese, typed, too), and one picked is saved at once: ⏎ on `@translate`
     /// then sends it, into that language, without a restart (the page as it arrives: settings-no-translation-target*.png).
-    /// Translate as You Type with English alone doesn't turn on, and says where to add one. Nothing is sent off the Mac (a
-    /// canned on-device stand-in answers), so secure input held by another app (the lock screen) doesn't stop it: the
-    /// controller is told it's off.
+    /// Translate as You Type with English alone doesn't turn on, and says where to add one; French added after English, it
+    /// comes on into French. Nothing is sent off the Mac (a canned on-device stand-in answers), so secure input held by
+    /// another app (the lock screen) doesn't stop it: the controller is told it's off.
     static func testNothingToTranslateInto(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, in directory: URL) {
         section("@translate with nothing to translate into", needs: SecureInput.ownerPID() == -1 ? .composing : [])
         let saved = (settings: settings, load: controller.loadSettings, open: controller.openSettings, converter: controller.converter,
@@ -202,15 +202,33 @@ extension SelfTest {
         alone.setOrder([Language.english])
         try? alone.write(to: scratch)
         controller.applySettings()
+        // No language picked on the chip: the self-test's own defaults (the user's stay as they are).
+        let suite = "com.aipinyin.selftest.translatetarget"
+        UserDefaults.standard.removePersistentDomain(forName: suite)
+        let savedDefaults = TranslateModeShared.defaults
+        TranslateModeShared.defaults = UserDefaults(suiteName: suite) ?? .standard
         defer {
             TranslateModeShared.state = TranslateMode.State()
             controller.perform(controller.composer.setTranslateMode(nil), client: client)
             MenuBarIcon.shared.setTranslating(false)
             if let notice = controller.notice { controller.endNotice(notice) }
+            TranslateModeShared.defaults = savedDefaults
+            UserDefaults.standard.removePersistentDomain(forName: suite)
         }
         controller.toggleTranslateMode()
         let notice = controller.notice ?? "-"
         check(!TranslateModeShared.state.isOn && controller.composer.translateMode == nil && notice.contains(SettingsPage.writing.title),
               "Translate as You Type with English alone stays off, and says where to add one (\(notice))")
+        // French added after English, as the notice says: on at once, into French, not "on: English" with everything typed
+        // going in as typed until French is picked on the chip.
+        let french = OutputLanguage("fr")
+        alone.setOrder([OutputLanguage.english, french])
+        try? alone.write(to: scratch)
+        controller.applySettings()
+        controller.toggleTranslateMode()
+        let on = controller.notice ?? "-"
+        check(TranslateModeShared.state.session?.target == french && controller.composer.translateMode?.target == french
+              && on.contains(UIText.name(french)),
+              "…French added after English, it comes on into French at once (\(on))")
     }
 }

@@ -35,7 +35,7 @@ enum TranslateModeShared {
     static var defaults = UserDefaults.standard
     static let lastTargetKey = "translateModeTarget"
     /// The language picked last on the chip, for every app and across launches (nil: none yet): what it translates
-    /// into while that's an output language (`TranslateMode.target(last:outputs:)`).
+    /// into while that's an output language (`TranslateMode.target(last:outputs:inputs:)`).
     static var lastTarget: OutputLanguage? {
         get { defaults.string(forKey: lastTargetKey).map(OutputLanguage.init) }
         set { defaults.set(newValue?.code, forKey: lastTargetKey) }
@@ -183,8 +183,9 @@ extension AllInOneIMEInputController {
         if TranslateModeShared.state.isOn { leaveTranslateMode() } else { enterTranslateMode() }
     }
 
-    /// On, for every field: into the language picked last on the chip (at first, the first output language), whatever
-    /// is being typed, in the app's tone. In an app with no AI it's on but does nothing there, and says so.
+    /// On, for every field: into the language picked last on the chip (at first, the first output language other than
+    /// the only one typed), whatever is being typed, in the app's tone. In an app with no AI it's on but does nothing
+    /// there, and says so.
     @MainActor
     private func enterTranslateMode() {
         let config = loadSettings()
@@ -255,10 +256,11 @@ extension AllInOneIMEInputController {
     }
 
     /// The settings read again (`applySettings`, a key): a target no longer among the output languages (removed in the
-    /// settings) gives way at once to the first of them (`State.follow`), in this field and on its chip.
+    /// settings) gives way at once to the one it would take with none picked (`State.follow`), in this field and on its
+    /// chip.
     @MainActor
     func translateModeFollow(_ config: Config) {
-        guard TranslateModeShared.state.follow(outputs: config.outputLanguages) else { return }
+        guard TranslateModeShared.state.follow(outputs: config.outputLanguages, inputs: config.inputLanguages) else { return }
         let session = TranslateModeShared.state.session
         log.notice("Translate as You Type: into \(session?.target.code ?? "-", privacy: .public) (the target was removed)")
         perform(composer.setTranslateMode(session.flatMap { config.allowsAI(in: modeApp) ? $0 : nil }), client: nil)
