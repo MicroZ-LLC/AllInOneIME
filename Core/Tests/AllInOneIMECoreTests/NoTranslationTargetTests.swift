@@ -3,7 +3,7 @@ import Testing
 @testable import AllInOneIMECore
 
 /// Nothing to translate into but the language typed (a new user whose Mac has English alone): `@translate`'s failure is
-/// put right in the settings, and ⏎ on its notice takes the user there.
+/// put right in the settings, and ⏎ on its notice takes the user there; Translate as You Type doesn't turn on.
 struct NoTranslationTargetTests {
     let at = KeyEvent(keyCode: 0x13, characters: "@", charactersIgnoringModifiers: "@", modifiers: .shift)
     let tab = KeyEvent(keyCode: VirtualKey.tab, characters: "\t")
@@ -95,5 +95,20 @@ struct NoTranslationTargetTests {
         #expect(config.hasLanguageToTranslateInto)  // pinyin comes out simplified: traditional is another language
         #expect(Config.fresh(preferring: ["en-US"]).hasLanguageToTranslateInto == false)
         #expect(Config.fresh(preferring: ["en-US", "ja-JP"]).hasLanguageToTranslateInto)
+    }
+
+    @Test func translateAsYouTypeDoesntTurnOnWithNothingToTranslateInto() {
+        var state = TranslateMode.State()
+        #expect(state.enter(last: nil, config: Config.default) == nil && !state.isOn)
+        #expect(state.enter(last: .english, config: Config.default) == nil && !state.isOn)
+        // Nor in an app that translates always.
+        var always = Config.default
+        always.appProfiles = ["com.tinyspeck.slackmacgap": AppProfile(translateAlways: true)]
+        _ = state.activated(app: "com.apple.TextEdit", last: nil, config: always)
+        #expect(state.activated(app: "com.tinyspeck.slackmacgap", last: nil, config: always) == .unchanged && !state.isOn)
+        // Another language added: on, into the first output language as before.
+        var added = Config.default
+        added.setOrder([OutputLanguage.english, OutputLanguage("fr")])
+        #expect(state.enter(last: nil, config: added) == TranslateMode.Session(target: .english))
     }
 }

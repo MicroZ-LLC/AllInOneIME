@@ -22041,8 +22041,56 @@
         }
       }
     },
+    "No language to translate into: add one in Settings → %@" : {
+      "comment" : "没有要翻译成的语言：在设置 →「%@」里加一种 — Sources/AllInOneIME/TranslateModeController.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Zielsprache: Füge unter Einstellungen → „%@“ eine hinzu"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No hay ningún idioma al que traducir: añade uno en Ajustes → “%@”"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucune langue cible : ajoutez-en une dans Réglages → %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "翻訳先の言語がありません：設定 →「%@」で追加してください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "번역할 언어 없음: 설정 → %@에서 추가하세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nenhum idioma para tradução: adicione um em Ajustes → %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有要翻譯成的語言：請在設定 →「%@」中加入一種"
+          }
+        }
+      }
+    },
     "No language to translate into: add one under Translate & Rewrite in the settings" : {
       "comment" : "没有要翻译成的语言：在设置的「翻译与改写」里加一种 — Sources/AllInOneIME/TranslateModeController.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {

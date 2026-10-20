@@ -10,8 +10,9 @@ extension SelfTest {
     /// front, from closed, from another page behind a window of the self-test's, and from the Dock (English alone then);
     /// its Add… menu offers every other language (Chinese, typed, too), and one picked is saved at once: ⏎ on `@translate`
     /// then sends it, into that language, without a restart (the page as it arrives: settings-no-translation-target*.png).
-    /// Nothing is sent off the Mac (a canned on-device stand-in answers), so secure input held by another app
-    /// (the lock screen) doesn't stop it: the controller is told it's off.
+    /// Translate as You Type with English alone doesn't turn on, and says where to add one. Nothing is sent off the Mac (a
+    /// canned on-device stand-in answers), so secure input held by another app (the lock screen) doesn't stop it: the
+    /// controller is told it's off.
     static func testNothingToTranslateInto(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, in directory: URL) {
         section("@translate with nothing to translate into", needs: SecureInput.ownerPID() == -1 ? .composing : [])
         let saved = (settings: settings, load: controller.loadSettings, open: controller.openSettings, converter: controller.converter,
@@ -195,5 +196,21 @@ extension SelfTest {
             settingsWindow()?.close()
             _ = pump(timeout: 0.3) { false }
         }
+
+        // Translate as You Type with English alone: it doesn't turn on, and says where to add a language.
+        var alone = own
+        alone.setOrder([Language.english])
+        try? alone.write(to: scratch)
+        controller.applySettings()
+        defer {
+            TranslateModeShared.state = TranslateMode.State()
+            controller.perform(controller.composer.setTranslateMode(nil), client: client)
+            MenuBarIcon.shared.setTranslating(false)
+            if let notice = controller.notice { controller.endNotice(notice) }
+        }
+        controller.toggleTranslateMode()
+        let notice = controller.notice ?? "-"
+        check(!TranslateModeShared.state.isOn && controller.composer.translateMode == nil && notice.contains(SettingsPage.writing.title),
+              "Translate as You Type with English alone stays off, and says where to add one (\(notice))")
     }
 }

@@ -167,7 +167,9 @@ extension AllInOneIMEInputController {
         if TranslateModeShared.state.isOn {
             return tr("继续按住 → 关闭边打边译", "Keep holding → Translate as You Type off")
         }
-        guard TranslateMode.target(last: TranslateModeShared.lastTarget, outputs: loadSettings().outputLanguages) != nil else {
+        let config = loadSettings()
+        guard config.hasLanguageToTranslateInto,
+              TranslateMode.target(last: TranslateModeShared.lastTarget, outputs: config.outputLanguages) != nil else {
             return noTargetText
         }
         return tr("继续按住 → 边打边译", "Keep holding → Translate as You Type")
@@ -277,8 +279,11 @@ extension AllInOneIMEInputController {
         showNotice(text + why, client: nil, lasting: why.isEmpty ? TranslateModeShared.noticeLasting : nil)
     }
 
+    /// Nothing to translate into but the languages typed (`Config.hasLanguageToTranslateInto`): where one is added, the
+    /// page named as the settings' sidebar names it.
     private var noTargetText: String {
-        tr("没有要翻译成的语言：在设置的「翻译与改写」里加一种", "No language to translate into: add one under Translate & Rewrite in the settings")
+        let page = SettingsPage.writing.title
+        return tr("没有要翻译成的语言：在设置 →「\(page)」里加一种", "No language to translate into: add one in Settings → \(page)")
     }
 
     // MARK: The chip

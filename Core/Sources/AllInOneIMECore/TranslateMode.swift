@@ -64,10 +64,12 @@ public enum TranslateMode {
         public var isOn: Bool { session != nil }
 
         /// Turns it on: into `last` (the language picked last) if it's still an output language, else the first one.
-        /// Nil, and nothing changes, when there's nothing to translate into.
+        /// Nil, and nothing changes, when there's nothing to translate into: no output language but the languages typed
+        /// (`Config.hasLanguageToTranslateInto`; English alone, say), where it would only ever put text in as typed.
         @discardableResult
         public mutating func enter(last: OutputLanguage?, config: Config) -> Session? {
-            guard let target = TranslateMode.target(last: last, outputs: config.outputLanguages) else { return nil }
+            guard config.hasLanguageToTranslateInto,
+                  let target = TranslateMode.target(last: last, outputs: config.outputLanguages) else { return nil }
             let session = Session(target: target)
             self.session = session
             return session

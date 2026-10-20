@@ -7,6 +7,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 ### Fixed
 
 - `@translate` with nothing to translate into but the sentence's own language (English alone, as on a new Mac with no other language) no longer opens Settings by itself. Opened from the key, the window either took the focus at once, which hid the notice and put `@translate …` into your text as typed, or, where macOS kept the focus in your text, came up without it, with nothing on the notice saying so. Now the notice stays and names the page: "No language to translate into yet: ⏎ opens Settings → Translate & Rewrite to add one". ⏎ (or Space) on it puts the sentence in as typed and opens that page with its Add… outlined; a language picked there works at once. While no language other than the ones you type is added, the page says so under Languages.
+- Translate as You Type with only the languages you type to translate into (English alone) no longer turns on and then does nothing: it says there's no language to translate into, and where to add one.
 
 ## 0.6.5.1 (2026-10-19)
 
