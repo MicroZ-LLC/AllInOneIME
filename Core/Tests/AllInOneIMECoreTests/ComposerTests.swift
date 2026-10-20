@@ -600,7 +600,7 @@ struct ComposerTests {
         #expect(c.handleKeyDown(spaceKey).effects.first == .startConversion(input: "我今天有点不舒服", id: 1))
     }
 
-    @Test func tapsAndOptionShortcutsNeverStartDictation() {
+    @Test(MacTerms()) func tapsAndOptionShortcutsNeverStartDictation() {
         // A tap: released before the hold is confirmed.
         let (c, _) = composer()
         _ = optionDown(c)
@@ -1017,7 +1017,7 @@ struct ComposerTests {
         #expect(c.voiceFinished("你好吗", id: 1).first == .startConversion(input: "你好吗", id: 1))
     }
 
-    @Test func messagesFollowTheInterfaceLanguage() {
+    @Test(MacTerms()) func messagesFollowTheInterfaceLanguage() {
         let (c, _) = composer()
         c.messages = .english
         _ = c.handleFlagsChanged(keyCode: VirtualKey.leftShift, modifiers: .shift, timestamp: 1)
@@ -1129,7 +1129,7 @@ struct ComposerTests {
         #expect(d.voiceHoldElapsed().isEmpty && d.voice == .off)  // the tap disarmed dictation
     }
 
-    @Test func whatIsNotAnOptionTap() {
+    @Test(MacTerms()) func whatIsNotAnOptionTap() {
         let (c, _) = improveDraft(key: .optionTap)
         type("nihao", c)
         // An ⌥-click or ⌥-drag.

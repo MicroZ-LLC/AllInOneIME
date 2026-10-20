@@ -18,6 +18,7 @@ private let interfaceLanguageLock = NSRecursiveLock()
 
 /// What a text field's session says around the composer (`SessionText`), in Simplified Chinese and English: in the
 /// language each call is given.
+@Suite(MacTerms())
 struct SessionTextTests {
     let at = KeyEvent(keyCode: 0x13, characters: "@", charactersIgnoringModifiers: "@", modifiers: .shift)
     let tab = KeyEvent(keyCode: VirtualKey.tab, characters: "\t")

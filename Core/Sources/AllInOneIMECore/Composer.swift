@@ -355,8 +355,11 @@ public final class Composer {
                 language: language)
         }
 
-        public static let chinese = make(language: "zh-Hans")
-        public static let english = make(language: "en")
+        /// In Simplified Chinese and in English, with the keys as the platform names them now (`Platform.current.terms`):
+        /// made each time, so that a composer made where the terms are another platform's (a test of the Mac's text on
+        /// Windows) names its keys.
+        public static var chinese: Messages { make(language: "zh-Hans") }
+        public static var english: Messages { make(language: "en") }
     }
     /// The command of the request in level two (nil otherwise).
     public internal(set) var activeCommand: Command?

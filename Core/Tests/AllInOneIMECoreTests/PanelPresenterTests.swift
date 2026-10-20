@@ -5,6 +5,7 @@ import AllInOneIMETestSupport
 
 /// The candidate panel as the core makes it (`PanelPresenter`, `PanelModel`), in Simplified Chinese and English: what
 /// every shell draws. In the language each presenter is given, whatever the process's is (`UIText.language`).
+@Suite(MacTerms())
 struct PanelPresenterTests {
     let at = KeyEvent(keyCode: 0x13, characters: "@", charactersIgnoringModifiers: "@", modifiers: .shift)
     let tab = KeyEvent(keyCode: VirtualKey.tab, characters: "\t")

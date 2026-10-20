@@ -341,7 +341,7 @@ struct QuestionChatTests {
     }
 
     /// Another agent than Claude Code: its own effect, and the notice names it (a custom one by its program).
-    @Test func anotherAgentIsHandedTheConversationByItsOwnEffect() {
+    @Test(MacTerms()) func anotherAgentIsHandedTheConversationByItsOwnEffect() {
         let c = asked(rounds: 2, handoff: [.kiroCLI, .customAgent, .copy])
         c.messages = .english
         c.messages.agentNames = [.custom: "muse"]
@@ -734,7 +734,7 @@ struct QuestionChatTests {
 
     /// A hand-off to "@agent's agent" starts the agent `@agent` picked (`pickedAgent`), as that agent (Claude Code by its
     /// own effect); with none installed, nothing happens and the conversation stays.
-    @Test func handingOffToAtAgentStartsThePickedAgent() {
+    @Test(MacTerms()) func handingOffToAtAgentStartsThePickedAgent() {
         #expect(ChatHandoff.action(.atAgent, prompt: "x", copied: "md", atAgent: .gemini) == .agent(.gemini, prompt: "x"))
         #expect(ChatHandoff.action(.atAgent, prompt: "x", copied: "md") == nil)
         let kiro = asked(rounds: 2, handoff: [.copy])
