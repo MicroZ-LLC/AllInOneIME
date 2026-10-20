@@ -4,7 +4,7 @@ import AppKit
 extension SelfTest {
     /// English words among pinyin's candidates (`EnglishWordsEngine`) in the fake text field, on the real librime: a
     /// word rime-ice lacks ("bedrock", from the curated list) first when all its letters are typed, second while longer;
-    /// letters put in as typed learned (into the self-test's own config file) and offered at once; nothing learned
+    /// letters put in as typed twice learned (into the self-test's own config file) and offered at once; nothing learned
     /// during secure input, in an app with no AI, a terminal or a remote desktop; rime-ice's own English words as they were.
     static func testEnglishWords(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
         section("English words among pinyin's candidates", needs: .composing)
@@ -35,11 +35,14 @@ extension SelfTest {
               "rime-ice's own English word as before, once (\(candidates().prefix(3)))")
         _ = escape(controller, client)
 
-        // Learned: letters put in as typed (⏎), kept in the self-test's config, offered at once.
+        // Learned the second time letters are put in as typed (⏎), kept in the self-test's config, offered at once.
         check(Config.defaultURL != Config.userURL, "words are learned into the self-test's own config")
         type("frobnicate", controller, client)
         check(enter(controller, client) && client.inserted.last == "frobnicate", "⏎ puts 'frobnicate' in as typed")
-        check(learned().contains("frobnicate"), "…and it is learned (\(learned()))")
+        check(!learned().contains("frobnicate"), "…the first time it is only remembered (\(learned()))")
+        type("frobnicate", controller, client)
+        _ = enter(controller, client)
+        check(learned().contains("frobnicate"), "…the second time it is learned (\(learned()))")
         type("frobn", controller, client)
         let place = candidates().firstIndex(of: "frobnicate")
         check(place == 1, "'frobn' offers it second (\(candidates().prefix(3)))")

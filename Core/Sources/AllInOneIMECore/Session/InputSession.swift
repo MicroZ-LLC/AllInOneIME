@@ -275,8 +275,9 @@ public final class InputSession {
         return mixed
     }
 
-    /// Letters put in as they were typed while typing pinyin ("bedrock" and ⏎), learned as an English word when they may
-    /// be one (`EnglishWords.learnable`): never during secure input, in a terminal (a password prompt of sudo's or ssh's
+    /// Letters put in as they were typed while typing pinyin ("bedrock" and ⏎), learned as an English word the second time
+    /// when they may be one (`EnglishWords.learnable`; the first time they are only remembered, in memory:
+    /// `SessionServices.englishTypedOnce`): never during secure input, in a terminal (a password prompt of sudo's or ssh's
     /// doesn't turn secure input on in every one), in a remote desktop or a virtual machine (`EnglishWords.isRemote`), in an
     /// app with no AI, or with learning off (`Config.learnsEnglishWords`). Offered in this field at once; kept for every
     /// field (`SessionServices.learnEnglishWord`).
@@ -285,7 +286,8 @@ public final class InputSession {
         let config = services.loadSettings()
         guard config.learnsEnglishWords, config.allowsAI(in: app),
               EnglishWords.learnable(typed, known: Set(englishWords.words.map(EnglishWords.key)), dictionary: englishWords.dictionary,
-                                     hidden: config.redaction.customWords) else { return }
+                                     hidden: config.redaction.customWords),
+              services.englishTypedOnce.again(typed) else { return }
         englishWords.words.append(typed)
         services.learnEnglishWord(typed)
         log.notice("learned an English word (\(typed.count) letters)")

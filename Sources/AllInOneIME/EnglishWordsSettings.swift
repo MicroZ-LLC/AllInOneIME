@@ -16,8 +16,8 @@ struct EnglishWordsSection: View {
         Section {
             Toggle(isOn: $model.config.learnsEnglishWords) {
                 titled(tr("学习打出的英文词", "Learn the English words you type"),
-                       tr("打拼音时把字母原样上屏（比如打 bedrock 按 ⏎），这个词以后就出现在候选里。密码框里、关了 AI 的 App 里不学，像密钥、号码的也不学。",
-                          "Put letters in as typed while typing pinyin (bedrock and ⏎, say) and the word comes up among the candidates from then on. Never in password fields or apps with AI off, nor anything that looks like a key or a number."))
+                       tr("打拼音时把同样的字母原样上屏两次（比如打 bedrock 按 ⏎，再来一次），这个词以后就出现在候选里。密码框、终端、远程桌面和虚拟机、关了 AI 的 App 里不学，像密钥、号码的也不学。",
+                          "Put the same letters in as typed twice while typing pinyin (bedrock and ⏎, then again) and the word comes up among the candidates from then on. Never in password fields, terminals, remote desktops and virtual machines, or apps with AI off, nor anything that looks like a key or a number."))
             }
             LabeledContent {
                 HStack(spacing: 8) {

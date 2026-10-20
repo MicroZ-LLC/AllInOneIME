@@ -451,24 +451,63 @@ struct EnglishWordsSessionTests {
 
     func candidates(_ host: FakeHost) -> [String] { host.composer.engineState.candidates.map(\.text) }
 
-    @Test func lettersPutInAsTypedAreLearnedAndOfferedAtOnce() {
+    @Test func lettersPutInAsTypedTwiceAreLearnedAndOfferedAtOnce() {
         withInterfaceLanguage("en") {
             let learned = Learned()
             let host = host(learned: learned)
+            // The first time only remembered (a password typed once is never kept), in memory: not offered, not kept.
             host.type("frobnicate")
             host.press(FakeHost.enter)
             #expect(host.document == "frobnicate")
+            #expect(learned.words.isEmpty)
+            host.type("frobn")
+            #expect(!candidates(host).contains("frobnicate"))
+            host.press(FakeHost.escape)
+            // The second time: learned.
+            host.type("frobnicate")
+            host.press(FakeHost.enter)
             #expect(learned.words == ["frobnicate"])
             host.type("frobn")
             #expect(candidates(host).contains("frobnicate"))
             // Pinyin and words rime-ice has aren't.
             host.press(FakeHost.escape)
-            host.type("nihao")
-            host.press(FakeHost.enter)
-            host.type("hello")
-            host.press(FakeHost.enter)
+            putInTwice("nihao", host)
+            putInTwice("hello", host)
             #expect(learned.words == ["frobnicate"])
         }
+    }
+
+    @Test func theFirstTimeIsRememberedForEveryFieldUntilTheAppQuits() {
+        withInterfaceLanguage("en") {
+            let learned = Learned()
+            var services = SessionServices(loadSettings: { Self.settings })
+            services.levelOne = { .engine(FakeEngine()) }
+            services.englishDictionary = { EnglishDictionary(["hello"]) }
+            services.learnEnglishWord = { learned.words.append($0) }
+            let mail = FakeHost(services: services)
+            mail.focus()
+            mail.type("zorblax")
+            mail.press(FakeHost.enter)
+            let notes = FakeHost(services: services)
+            notes.app = "com.example.notes"
+            notes.focus()
+            notes.type("zorblax")
+            notes.press(FakeHost.enter)
+            #expect(learned.words == ["zorblax"], "once in each of two fields")
+            // Another launch (services of their own) starts afresh.
+            let later = host(learned: learned)
+            later.type("quuxify")
+            later.press(FakeHost.enter)
+            #expect(learned.words == ["zorblax"])
+        }
+    }
+
+    @Test func typedOnceKeepsTheLatestByTheirLetters() {
+        let once = EnglishWords.TypedOnce()
+        #expect(!once.again("Frobnicate") && once.again("FROBNICATE"), "the same letters, in any case")
+        #expect(!once.again("frobnicate"), "forgotten once it came again")
+        for i in 0..<EnglishWords.TypedOnce.limit { _ = once.again("word\(i)") }
+        #expect(!once.again("zorblax") && !once.again("word0"), "the oldest forgotten beyond the limit")
     }
 
     @Test func neverDuringSecureInputInAnAppWithNoAIOrWithLearningOff() {
@@ -476,27 +515,31 @@ struct EnglishWordsSessionTests {
             let learned = Learned()
             var secure = false
             let anywhere = host(learned: learned, secure: { secure })
-            anywhere.type("frobnicate")
-            secure = true
-            anywhere.press(FakeHost.enter)
-            #expect(anywhere.document == "frobnicate" && learned.words.isEmpty, "secure input elsewhere")
+            for _ in 0..<2 {
+                anywhere.type("frobnicate")
+                secure = true
+                anywhere.press(FakeHost.enter)
+                secure = false
+            }
+            #expect(anywhere.document == "frobnicatefrobnicate" && learned.words.isEmpty, "secure input elsewhere")
             // A password field takes the keys.
             let field = host(learned: learned)
-            field.type("frobnicate")
-            field.secure = true
-            field.press(FakeHost.enter)
+            for _ in 0..<2 {
+                field.type("frobnicate")
+                field.secure = true
+                field.press(FakeHost.enter)
+                field.secure = false
+            }
             #expect(learned.words.isEmpty, "a password field")
             var noAI = Self.settings
             noAI.appProfiles["com.example.editor"] = AppProfile(noAI: true)
             let app = host(noAI, learned: learned)
-            app.type("frobnicate")
-            app.press(FakeHost.enter)
+            putInTwice("frobnicate", app)
             var off = Self.settings
             off.learnsEnglishWords = false
             let notLearning = host(off, learned: learned)
-            notLearning.type("frobnicate")
-            notLearning.press(FakeHost.enter)
-            #expect(app.document == "frobnicate" && notLearning.document == "frobnicate" && learned.words.isEmpty)
+            putInTwice("frobnicate", notLearning)
+            #expect(app.document == "frobnicatefrobnicate" && notLearning.document == "frobnicatefrobnicate" && learned.words.isEmpty)
         }
     }
 
@@ -547,8 +590,7 @@ struct EnglishWordsSessionTests {
             host.type("frob")
             #expect(candidates(host) == ["frob"])
             host.press(FakeHost.enter)
-            host.type("zorblax")
-            host.press(FakeHost.enter)
+            putInTwice("zorblax", host)
             #expect(learned.words.isEmpty)
         }
     }

@@ -22193,49 +22193,49 @@
         }
       }
     },
-    "Put letters in as typed while typing pinyin (bedrock and ⏎, say) and the word comes up among the candidates from then on. Never in password fields or apps with AI off, nor anything that looks like a key or a number." : {
-      "comment" : "打拼音时把字母原样上屏（比如打 bedrock 按 ⏎），这个词以后就出现在候选里。密码框里、关了 AI 的 App 里不学，像密钥、号码的也不学。 — Sources/AllInOneIME/EnglishWordsSettings.swift",
+    "Put the same letters in as typed twice while typing pinyin (bedrock and ⏎, then again) and the word comes up among the candidates from then on. Never in password fields, terminals, remote desktops and virtual machines, or apps with AI off, nor anything that looks like a key or a number." : {
+      "comment" : "打拼音时把同样的字母原样上屏两次（比如打 bedrock 按 ⏎，再来一次），这个词以后就出现在候选里。密码框、终端、远程桌面和虚拟机、关了 AI 的 App 里不学，像密钥、号码的也不学。 — Sources/AllInOneIME/EnglishWordsSettings.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gib beim Pinyin-Tippen Buchstaben so ein, wie du sie getippt hast (z. B. bedrock und ⏎), und das Wort erscheint von da an unter den Kandidaten. Nie in Passwortfeldern oder Apps mit ausgeschalteter KI, und nichts, was wie ein Schlüssel oder eine Nummer aussieht."
+            "value" : "Gib beim Pinyin-Tippen dieselben Buchstaben zweimal so ein, wie du sie getippt hast (z. B. bedrock und ⏎, dann noch einmal), und das Wort erscheint von da an unter den Kandidaten. Nie in Passwortfeldern, Terminals, Remotedesktops und virtuellen Maschinen oder Apps mit ausgeschalteter KI, und nichts, was wie ein Schlüssel oder eine Nummer aussieht."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Al escribir pinyin, introduce las letras tal cual (por ejemplo, bedrock y ⏎) y la palabra aparecerá desde entonces entre los candidatos. Nunca en campos de contraseña ni en apps con la IA desactivada, ni nada que parezca una clave o un número."
+            "value" : "Al escribir pinyin, introduce dos veces las mismas letras tal cual (por ejemplo, bedrock y ⏎, y otra vez) y la palabra aparecerá desde entonces entre los candidatos. Nunca en campos de contraseña, terminales, escritorios remotos y máquinas virtuales, ni en apps con la IA desactivada, ni nada que parezca una clave o un número."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "En tapant du pinyin, insérez les lettres telles que tapées (bedrock puis ⏎, par exemple) et le mot apparaît ensuite parmi les candidats. Jamais dans les champs de mot de passe ni dans les apps où l’IA est désactivée, ni pour ce qui ressemble à une clé ou à un numéro."
+            "value" : "En tapant du pinyin, insérez deux fois les mêmes lettres telles que tapées (bedrock puis ⏎, puis encore une fois) et le mot apparaît ensuite parmi les candidats. Jamais dans les champs de mot de passe, les terminaux, les bureaux à distance et les machines virtuelles, ni dans les apps où l’IA est désactivée, ni pour ce qui ressemble à une clé ou à un numéro."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ピンイン入力中に文字をそのまま確定すると（例：bedrock と入力して ⏎）、その単語が以降の候補に出ます。パスワード欄や AI をオフにした App では学習せず、キーや番号のようなものも学習しません。"
+            "value" : "ピンイン入力中に同じ文字をそのまま 2 回確定すると（例：bedrock と入力して ⏎、もう一度）、その単語が以降の候補に出ます。パスワード欄、ターミナル、リモートデスクトップや仮想マシン、AI をオフにした App では学習せず、キーや番号のようなものも学習しません。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "병음을 입력하다가 글자를 입력한 그대로 넣으면(예: bedrock 입력 후 ⏎) 그 단어가 이후 후보에 나타납니다. 암호 필드나 AI를 끈 앱에서는 학습하지 않으며, 키나 번호처럼 보이는 것도 학습하지 않습니다."
+            "value" : "병음을 입력하다가 같은 글자를 입력한 그대로 두 번 넣으면(예: bedrock 입력 후 ⏎, 한 번 더) 그 단어가 이후 후보에 나타납니다. 암호 필드, 터미널, 원격 데스크톱과 가상 머신, AI를 끈 앱에서는 학습하지 않으며, 키나 번호처럼 보이는 것도 학습하지 않습니다."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ao digitar pinyin, insira as letras como digitadas (bedrock e ⏎, por exemplo) e a palavra passa a aparecer entre os candidatos. Nunca em campos de senha nem em apps com a IA desativada, nem nada que pareça uma chave ou um número."
+            "value" : "Ao digitar pinyin, insira duas vezes as mesmas letras como digitadas (bedrock e ⏎, e de novo) e a palavra passa a aparecer entre os candidatos. Nunca em campos de senha, terminais, áreas de trabalho remotas e máquinas virtuais, nem em apps com a IA desativada, nem nada que pareça uma chave ou um número."
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "打拼音時把字母照原樣送出（例如打 bedrock 按 ⏎），這個詞以後就會出現在候選裡。密碼欄位裡、關了 AI 的 App 裡不學，像金鑰、號碼的也不學。"
+            "value" : "打拼音時把同樣的字母照原樣送出兩次（例如打 bedrock 按 ⏎，再來一次），這個詞以後就會出現在候選裡。密碼欄位、終端機、遠端桌面和虛擬機、關了 AI 的 App 裡不學，像金鑰、號碼的也不學。"
           }
         }
       }

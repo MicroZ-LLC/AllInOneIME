@@ -90,6 +90,30 @@ public enum EnglishWords {
         return false
     }
 
+    /// Letters put in as typed once, by their letters (`key`), the latest `limit`: the session learns a word the second
+    /// time (`InputSession`), so a password typed once is never kept. In memory only, never written or synced: shared by
+    /// the fields of one launch (`SessionServices.englishTypedOnce`), forgotten when the app quits. Main thread only, as
+    /// the session.
+    public final class TypedOnce: @unchecked Sendable {
+        public static let limit = 200
+        private var keys: [String] = []
+
+        public init() {}
+
+        /// Whether the letters of `typed` were put in before (forgotten then, as they are learned); else they are
+        /// remembered.
+        public func again(_ typed: String) -> Bool {
+            let k = EnglishWords.key(typed)
+            if let i = keys.firstIndex(of: k) {
+                keys.remove(at: i)
+                return true
+            }
+            keys.append(k)
+            if keys.count > Self.limit { keys.removeFirst(keys.count - Self.limit) }
+            return false
+        }
+    }
+
     /// `typed` learned into the config file at `url` (`Config.englishWords`): added at the end unless a word with its
     /// letters is there, the oldest going beyond `maxWords`. Only that key of the file changes; a missing file is
     /// written with this Mac's new user's settings. Whether it was added.

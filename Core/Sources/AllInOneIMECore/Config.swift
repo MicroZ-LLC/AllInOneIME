@@ -109,7 +109,7 @@ public struct Config: Codable, Equatable, Sendable {
     /// English words of the user's offered among pinyin's candidates (`EnglishWords`, `EnglishWordsEngine`), as they are
     /// written ("Bedrock"): added in Settings, or learned (`learnsEnglishWords`). Oldest first; none by default.
     public var englishWords: [String]
-    /// Letters put in as typed while typing pinyin ("bedrock" and ⏎) are learned as an English word (`EnglishWords.
+    /// Letters put in as typed twice while typing pinyin ("bedrock" and ⏎) are learned as an English word (`EnglishWords.
     /// learnable`): never during secure input, in a terminal, a remote desktop or a virtual machine, in an app with no AI,
     /// or for what looks like a secret. On by default.
     public var learnsEnglishWords: Bool

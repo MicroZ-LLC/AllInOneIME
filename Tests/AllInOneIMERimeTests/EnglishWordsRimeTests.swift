@@ -34,8 +34,10 @@ extension RimeEngineTests {
         let session = try RimeFixture.session()
         let engine = EnglishWordsEngine(base: session, dictionary: try englishDictionary())
         var learned: [String] = []
+        let once = EnglishWords.TypedOnce()
         engine.rawCommitted = { word in
-            if EnglishWords.learnable(word, known: Set(engine.words.map(EnglishWords.key)), dictionary: engine.dictionary, hidden: []) {
+            if EnglishWords.learnable(word, known: Set(engine.words.map(EnglishWords.key)), dictionary: engine.dictionary, hidden: []),
+               once.again(word) {
                 engine.words.append(word)
                 learned.append(word)
             }
@@ -43,7 +45,10 @@ extension RimeEngineTests {
         let composer = Composer(engine: engine, actionKey: .enter)
         typeLetters("bedrock", composer)
         #expect(!shown(composer).contains("bedrock"), "pinyin only: \(shown(composer))")
-        // ⏎ puts the letters in as typed: learned.
+        // ⏎ puts the letters in as typed: remembered the first time, learned the second.
+        #expect(commits(composer.handleKeyDown(enter)) == ["bedrock"])
+        #expect(learned.isEmpty)
+        typeLetters("bedrock", composer)
         #expect(commits(composer.handleKeyDown(enter)) == ["bedrock"])
         #expect(learned == ["bedrock"])
         typeLetters("bedrock", composer)
@@ -53,10 +58,12 @@ extension RimeEngineTests {
         #expect(shown(composer).dropFirst().first == "bedrock", "second while longer: \(shown(composer))")
         _ = composer.handleKeyDown(KeyEvent(keyCode: VirtualKey.escape, characters: "\u{1B}"))
         // What rime-ice has, and pinyin, aren't learned.
-        typeLetters("hello", composer)
-        #expect(commits(composer.handleKeyDown(enter)) == ["hello"])
-        typeLetters("nihao", composer)
-        #expect(commits(composer.handleKeyDown(enter)) == ["nihao"])
+        for _ in 0..<2 {
+            typeLetters("hello", composer)
+            #expect(commits(composer.handleKeyDown(enter)) == ["hello"])
+            typeLetters("nihao", composer)
+            #expect(commits(composer.handleKeyDown(enter)) == ["nihao"])
+        }
         #expect(learned == ["bedrock"])
     }
 

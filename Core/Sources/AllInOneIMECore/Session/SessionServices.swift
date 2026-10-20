@@ -35,6 +35,9 @@ public struct SessionServices {
     /// An English word learned from letters put in as typed (`EnglishWords.learnable`): kept in the settings
     /// (`EnglishWords.learn`, `Config.englishWords`).
     public var learnEnglishWord: (String) -> Void
+    /// The letters put in as typed once (learned the second time), shared by every field of a launch: the shell gives one
+    /// for them all; the default is these services' own.
+    public var englishTypedOnce: EnglishWords.TypedOnce
 
     // MARK: What is kept
 
@@ -155,6 +158,7 @@ public struct SessionServices {
         voiceSupported = { false }
         englishDictionary = { nil }
         learnEnglishWord = { _ in }
+        englishTypedOnce = EnglishWords.TypedOnce()
         page = { _ in nil }
         pastesInTerminal = { false }
         needsTheUser = { ($0 as? NoteError)?.needsTheUser ?? false }
