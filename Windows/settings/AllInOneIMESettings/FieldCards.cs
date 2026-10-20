@@ -20,7 +20,7 @@ namespace AllInOneIME.Settings;
 /// </summary>
 public abstract class FieldCard
 {
-    static readonly string[] Volatile = ["value", "label", "help", "status", "isSet", "text", "placeholder"];
+    static readonly string[] Volatile = ["value", "label", "help", "status", "isSet", "text", "placeholder", "running"];
 
     readonly TextBlock label = new() { TextWrapping = TextWrapping.Wrap };
     readonly TextBlock help = new() { TextWrapping = TextWrapping.Wrap };
@@ -39,7 +39,7 @@ public abstract class FieldCard
         AutomationProperties.SetLiveSetting(status, AutomationLiveSetting.Polite);
     }
 
-    public Field Field { get; private set; }
+    public Field Field { get; protected set; }
     protected CardContext Context { get; private set; }
     public FrameworkElement Root { get; private set; } = null!;
     /// <summary>The grid the card's texts and control are in.</summary>
@@ -73,7 +73,8 @@ public abstract class FieldCard
         return true;
     }
 
-    /// <summary>Two versions of a field differ only in what a card updates in place.</summary>
+    /// <summary>Two versions of a field differ only in what a card updates in place (an action that takes a while
+    /// starting or ending on it, with its <c>cancel</c>, too).</summary>
     protected static bool SameShape(Field a, Field b)
     {
         var x = (JsonObject)a.Json.DeepClone();
@@ -82,6 +83,10 @@ public abstract class FieldCard
         {
             x.Remove(key);
             y.Remove(key);
+        }
+        foreach (var json in new[] { x, y })
+        {
+            if (json["actions"] is JsonArray actions) json["actions"] = new JsonArray([.. actions.Where(a => SettingsDocument.Text(a) != "cancel").Select(a => a?.DeepClone())]);
         }
         return JsonNode.DeepEquals(x, y);
     }
@@ -119,7 +124,7 @@ public abstract class FieldCard
     protected void Identify(FrameworkElement control, string role = "", string? name = null)
     {
         AutomationProperties.SetAutomationId(control, Field.Id + (role.Length > 0 ? "/" + role : ""));
-        AutomationProperties.SetName(control, name ?? Field.Label);
+        AutomationProperties.SetName(control, name ?? FieldPresenter.AccessibleName(Field));
         if (Field.Help is { } text && role.Length == 0) AutomationProperties.SetHelpText(control, text);
     }
 
@@ -372,7 +377,7 @@ sealed class TextCard : FieldCard
                 var item = new MenuFlyoutItem { Text = choice.Note is null ? choice.Label : $"{choice.Label} — {choice.Note}" };
                 item.Click += async (_, _) =>
                 {
-                    box.Text = (string?)choice.Value ?? "";
+                    box.Text = FieldPresenter.ValueText(choice.Value);
                     await CommitAsync();
                 };
                 menu.Items.Add(item);
@@ -381,7 +386,7 @@ sealed class TextCard : FieldCard
             Identify(suggestions, "suggestions", $"{Field.Label}: {Context.Text["choose"]}");
             extras.Add(suggestions);
         }
-        if (Field.Pick is { } pick)
+        if (Field.Picker is { } pick)
         {
             var choose = new Button { Content = Context.Text["choose"], IsEnabled = Enabled };
             Identify(choose, "pick", $"{Field.Label}: {Context.Text["choose"]}");
@@ -489,7 +494,7 @@ sealed class CheckListCard : FieldCard
             var box = new CheckBox { Content = Label(choice), IsEnabled = Enabled && !choice.Disabled };
             AutomationProperties.SetName(box, choice.Label);
             if (choice.Note is { } note) AutomationProperties.SetHelpText(box, note);
-            AutomationProperties.SetAutomationId(box, Field.Id + "/" + ((string?)choice.Value ?? index.ToString()));
+            AutomationProperties.SetAutomationId(box, Field.Id + "/" + (SettingsDocument.Text(choice.Value) ?? index.ToString()));
             box.Checked += async (_, _) => { if (!updating) await Send(FieldPresenter.Checked(Field, index, true)); };
             box.Unchecked += async (_, _) => { if (!updating) await Send(FieldPresenter.Checked(Field, index, false)); };
             Grid.SetRow(box, index / columns);
@@ -551,7 +556,7 @@ sealed class OrderedListCard : FieldCard
         {
             var position = i;
             var text = FieldPresenter.LabelOf(Field, values[i]);
-            var key = (string?)values[i] ?? i.ToString();
+            var key = SettingsDocument.Text(values[i]) ?? i.ToString();
             var row = new Grid { ColumnSpacing = 4, Padding = new Thickness(8, 2, 0, 2) };
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             for (var c = 0; c < 3; c++) row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -653,15 +658,17 @@ sealed class InfoCard : FieldCard
     {
         text.Text = Field.StringValue ?? Field.Value?.ToJsonString() ?? "";
         text.Visibility = text.Text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
-        AutomationProperties.SetName(text, Field.Label);
+        AutomationProperties.SetName(text, FieldPresenter.AccessibleName(Field));
     }
 }
 
-/// <summary><c>button</c>: its action (Test Connection), with a box for what it takes when it has a placeholder (a
-/// link); a ring while it runs, and its last outcome under the label.</summary>
+/// <summary><c>button</c>: its action (Test Connection), with a box for what it takes when the action takes a text (a
+/// link, <c>textActions</c>); while it runs (sent from here, or <c>running</c> in the document: started elsewhere) a ring,
+/// "Working…" and Cancel; its last outcome under the label.</summary>
 sealed class ButtonCard : FieldCard
 {
     readonly Button button = new();
+    readonly Button cancel = new();
     readonly ProgressRing ring = new() { Width = 20, Height = 20, IsActive = false };
     readonly TextBox? value;
     bool busy;
@@ -670,17 +677,21 @@ sealed class ButtonCard : FieldCard
     {
         button.Content = ActionWord();
         Identify(button);
+        cancel.Content = Context.Text.Action("cancel");
+        Identify(cancel, "cancel", $"{FieldPresenter.AccessibleName(Field)}: {Context.Text.Action("cancel")}");
         AutomationProperties.SetName(ring, Context.Text["working"]);
         var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        if (Field.Placeholder is { } placeholder)
+        if (FieldPresenter.TakesText(Field, FieldPresenter.MainAction(Field)))
         {
-            value = new TextBox { PlaceholderText = placeholder, MinWidth = 320 };
+            value = new TextBox { PlaceholderText = Field.Placeholder ?? "", MinWidth = 320 };
             Identify(value, "value");
             row.Children.Add(value);
         }
         row.Children.Add(button);
         row.Children.Add(ring);
+        row.Children.Add(cancel);
         button.Click += async (_, _) => await Send(FieldPresenter.Run(Field, value?.Text));
+        cancel.Click += async (_, _) => await Send(FieldPresenter.Cancel(Field) ?? new SettingsActionRequest(Field.Id, "cancel"));
         busy = Context.Page.Busy.Contains(Field.Id);
         Update(field);
         Build(row, FieldPresenter.IsWide(field));
@@ -693,19 +704,27 @@ sealed class ButtonCard : FieldCard
         ShowTexts();
     }
 
-    protected override string? StatusText() => busy ? Context.Text["working"] : base.StatusText();
+    /// <summary>Its action runs: sent from here and not answered yet, or running in the document (started elsewhere).</summary>
+    bool Running => busy || FieldPresenter.IsRunning(Field);
+
+    protected override string? StatusText() => Running ? Context.Text["working"] : base.StatusText();
 
     /// <summary>The button's word: its action's ("Test"), as the window's words have it.</summary>
-    string ActionWord() => Field.Actions.Count > 0 ? Context.Text.Action(Field.Actions[0]) : Field.Label;
+    string ActionWord() => FieldPresenter.MainAction(Field) is { } action ? Context.Text.Action(action) : Field.Label;
 
     protected override void Update(Field old)
     {
         button.Content = ActionWord();
-        AutomationProperties.SetName(button, Field.Label);
-        button.IsEnabled = Enabled && !busy && Field.Actions.Count > 0;
-        ring.IsActive = busy;
-        ring.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
-        if (value is not null) value.IsEnabled = Enabled && !busy;
+        AutomationProperties.SetName(button, FieldPresenter.AccessibleName(Field));
+        button.IsEnabled = Enabled && !Running && FieldPresenter.MainAction(Field) is not null;
+        ring.IsActive = Running;
+        ring.Visibility = Running ? Visibility.Visible : Visibility.Collapsed;
+        // Cancel: what the document says runs (its `cancel`), or what this window sent and waits for.
+        cancel.Content = Context.Text.Action("cancel");
+        cancel.Visibility = Running ? Visibility.Visible : Visibility.Collapsed;
+        cancel.IsEnabled = Enabled;
+        if (value is not null) value.IsEnabled = Enabled && !Running;
+        ShowTexts();
     }
 }
 
@@ -715,7 +734,7 @@ static class Styles
     public static Style Get(string name) => (Style)Application.Current.Resources[name];
 }
 
-/// <summary>Folders and files picked for a field (<c>pick</c>).</summary>
+/// <summary>Folders and files picked for a field (<c>picker</c>).</summary>
 static class Pickers
 {
     public static async Task<string?> PickAsync(string kind, IntPtr window)

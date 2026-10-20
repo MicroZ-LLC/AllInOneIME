@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using AllInOneIME.Settings.Document;
 using AllInOneIME.Settings.Presentation;
+using AllInOneIME.Settings.Wire;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -13,14 +14,18 @@ namespace AllInOneIME.Settings;
 /// <summary>
 /// <c>items</c>: a list (plugins, apps, folders, extensions, custom commands). Each entry has its title, detail and
 /// actions; one with fields of its own (an app's settings, an extension's switch and preferences) opens to show them
-/// as cards. The list's own actions: <c>add</c> with a box (suggestions, a picker), a new entry through the field's
-/// <c>form</c>, the others as buttons.
+/// as cards. The list's own actions: <c>add</c> with a box when it takes a text (<c>textActions</c>: suggestions, a
+/// <c>picker</c>), a new entry through the field's editor (its <c>schema</c>), the others as buttons. While an action
+/// that takes a while runs on the list (the library's download) or on an entry (an install): a ring and Cancel.
 /// </summary>
 sealed class ItemsCard : FieldCard
 {
     readonly StackPanel list = new() { Spacing = 4 };
     readonly Dictionary<string, FieldCard> nested = [];
     readonly Dictionary<string, (TextBlock title, TextBlock detail)> headers = [];
+    /// <summary>Each entry's progress and Cancel, and the list's own.</summary>
+    readonly Dictionary<string, (ProgressRing ring, Button cancel)> runs = [];
+    (ProgressRing ring, Button cancel)? listRun;
     TextBox? addBox;
 
     public ItemsCard(Field field, CardContext context) : base(field, context)
@@ -29,7 +34,7 @@ sealed class ItemsCard : FieldCard
         AutomationProperties.SetName(list, Field.Label);
         panel.Children.Add(list);
         foreach (var item in Field.Items) list.Children.Add(Entry(item));
-        if (Field.Actions.Contains("add")) panel.Children.Add(AddRow());
+        if (Field.Actions.Contains("add") && FieldPresenter.TakesText(Field, "add")) panel.Children.Add(AddRow());
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         foreach (var action in FieldPresenter.ListActions(Field))
         {
@@ -38,16 +43,35 @@ sealed class ItemsCard : FieldCard
             AutomationProperties.SetName(button, $"{Field.Label}: {Context.Text.Action(action)}");
             button.Click += async (_, _) =>
             {
-                if (action == "save" && Field.Form.Count > 0) await EditAsync(null);
+                if (action == "save" && Field.Schema.Count > 0) await EditAsync(null);
                 else await Send(FieldPresenter.FieldAction(Field, action));
             };
             buttons.Children.Add(button);
         }
+        if (Field.Actions.Any(a => a is "browse" or "install" or "test") || Field.Running)
+        {
+            listRun = RunControls(Field.Id + "/cancel", $"{Field.Label}: {Context.Text.Action("cancel")}", () => FieldPresenter.Cancel(Field));
+            buttons.Children.Add(listRun.Value.ring);
+            buttons.Children.Add(listRun.Value.cancel);
+        }
         if (buttons.Children.Count > 0) panel.Children.Add(buttons);
         Build(panel, wide: true);
+        ShowRuns();
     }
 
     string Key(Item item) => Field.Id + "|" + item.Id;
+
+    /// <summary>A ring and a Cancel button, shown while an action runs (<see cref="ShowRuns"/>).</summary>
+    (ProgressRing ring, Button cancel) RunControls(string automationId, string name, Func<SettingsActionRequest?> cancel)
+    {
+        var ring = new ProgressRing { Width = 20, Height = 20, IsActive = false, Visibility = Visibility.Collapsed };
+        AutomationProperties.SetName(ring, Context.Text["working"]);
+        var button = new Button { Content = Context.Text.Action("cancel"), Visibility = Visibility.Collapsed };
+        AutomationProperties.SetAutomationId(button, automationId);
+        AutomationProperties.SetName(button, name);
+        button.Click += async (_, _) => await Send(cancel());
+        return (ring, button);
+    }
 
     FrameworkElement Entry(Item item)
     {
@@ -62,7 +86,7 @@ sealed class ItemsCard : FieldCard
         texts.Children.Add(title);
         texts.Children.Add(detail);
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
-        foreach (var action in item.Actions)
+        foreach (var action in FieldPresenter.ItemActions(item))
         {
             var label = Context.Text.Action(action, onItem: true);
             var button = new Button { Content = label, IsEnabled = Enabled };
@@ -70,10 +94,19 @@ sealed class ItemsCard : FieldCard
             AutomationProperties.SetName(button, $"{label} {item.Title}");
             button.Click += async (_, _) =>
             {
-                if (action == "save" && Field.Form.Count > 0) await EditAsync(item);
+                if (action == "save" && Field.Schema.Count > 0) await EditAsync(item);
                 else if (await ConfirmAsync(action, onItem: true, item.Title)) await Send(FieldPresenter.ItemAction(Field, item, action));
             };
             actions.Children.Add(button);
+        }
+        if (item.Actions.Contains("install") || item.Running)
+        {
+            var id = item.Id;
+            var run = RunControls(Field.Id + "/cancel/" + item.Id, $"{Context.Text.Action("cancel")} {item.Title}",
+                                  () => Field.Items.FirstOrDefault(i => i.Id == id) is { } now ? FieldPresenter.Cancel(Field, now) : null);
+            runs[item.Id] = run;
+            actions.Children.Add(run.ring);
+            actions.Children.Add(run.cancel);
         }
         // An entry whose one field is its switch (a script's): the switch in its row.
         if (item.Fields is [{ Kind: "toggle" } only])
@@ -120,6 +153,28 @@ sealed class ItemsCard : FieldCard
         return expander;
     }
 
+    /// <summary>The rings and Cancel buttons of what runs now: the list's (sent from here and not answered yet, or
+    /// <c>running</c> in the document) and each entry's.</summary>
+    void ShowRuns()
+    {
+        if (listRun is { } run) Show(run, Context.Page.Busy.Contains(Field.Id) || FieldPresenter.IsRunning(Field), FieldPresenter.IsRunning(Field));
+        foreach (var item in Field.Items)
+        {
+            if (runs.TryGetValue(item.Id, out var entry)) Show(entry, FieldPresenter.IsRunning(Field, item), FieldPresenter.IsRunning(Field, item));
+        }
+
+        void Show((ProgressRing ring, Button cancel) controls, bool running, bool cancellable)
+        {
+            controls.ring.IsActive = running;
+            controls.ring.Visibility = running ? Visibility.Visible : Visibility.Collapsed;
+            controls.cancel.Content = Context.Text.Action("cancel");
+            controls.cancel.Visibility = cancellable ? Visibility.Visible : Visibility.Collapsed;
+            controls.cancel.IsEnabled = Enabled;
+        }
+    }
+
+    public override void SetBusy(bool busy) => ShowRuns();
+
     /// <summary>The box an app or a folder is added with: suggestions (the apps typed in lately), a picker, Add.</summary>
     FrameworkElement AddRow()
     {
@@ -151,7 +206,7 @@ sealed class ItemsCard : FieldCard
             foreach (var choice in Field.Choices.Where(c => !c.Disabled))
             {
                 var item = new MenuFlyoutItem { Text = choice.Label };
-                item.Click += async (_, _) => await Send(FieldPresenter.Add(Field, (string?)choice.Value ?? ""));
+                item.Click += async (_, _) => await Send(FieldPresenter.Add(Field, FieldPresenter.ValueText(choice.Value)));
                 menu.Items.Add(item);
             }
             var suggestions = new DropDownButton { Content = Context.Text["choose"], Flyout = menu, IsEnabled = Enabled };
@@ -159,7 +214,7 @@ sealed class ItemsCard : FieldCard
             AutomationProperties.SetName(suggestions, $"{Field.Label}: {Context.Text["choose"]}");
             Column(suggestions);
         }
-        else if (Field.Pick is { } pick)
+        else if (Field.Picker is { } pick)
         {
             var choose = new Button { Content = Context.Text["choose"], IsEnabled = Enabled };
             AutomationProperties.SetAutomationId(choose, Field.Id + "/pick");
@@ -181,13 +236,13 @@ sealed class ItemsCard : FieldCard
         if (answer is { Problem: null }) addBox.Text = "";
     }
 
-    /// <summary>The field's form for <paramref name="item"/> (null: a new one); saved through the engine, which says
-    /// what keeps it from being saved (the dialog stays open then).</summary>
+    /// <summary>The field's editor for <paramref name="item"/> (null: a new one), from its <c>schema</c>; saved through
+    /// the engine, which says what keeps it from being saved (the dialog stays open then).</summary>
     async Task EditAsync(Item? item)
     {
         var values = FieldPresenter.FormValues(Field, item);
-        var form = new FormView(Field.Form, values, Enabled);
-        var problem = new TextBlock { Visibility = Visibility.Collapsed, Style = Styles.Get("ProblemTextStyle") };
+        var form = new FormView(Field.Schema, values, Enabled);
+        var problem = new TextBlock { Visibility = Visibility.Collapsed, Style = Styles.Get("ProblemTextStyle"), TextWrapping = TextWrapping.Wrap };
         AutomationProperties.SetLiveSetting(problem, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Assertive);
         form.Panel.Children.Add(problem);
         var dialog = new ContentDialog
@@ -242,17 +297,22 @@ sealed class ItemsCard : FieldCard
                 if (!nested.TryGetValue(inner.Id, out var card) || !card.TryUpdate(inner, context)) return false;
             }
         }
-        return base.TryUpdate(StripItems(field, Field), context);
+        if (!base.TryUpdate(StripItems(field, Field), context)) return false;
+        // The items as they are now (what runs on them), the card's own copy keeping their texts.
+        Field = field;
+        ShowRuns();
+        return true;
     }
 
-    /// <summary>The same entries (ids, actions, their fields' ids and kinds) and the same list.</summary>
+    /// <summary>The same entries (ids, actions but <c>cancel</c>, their fields' ids and kinds) and the same list (its
+    /// actions but <c>cancel</c>, which comes and goes as something runs).</summary>
     static bool SameEntries(Field a, Field b)
     {
-        if (a.Items.Count != b.Items.Count || !a.Actions.SequenceEqual(b.Actions)) return false;
+        if (a.Items.Count != b.Items.Count || !a.Actions.Where(x => x != "cancel").SequenceEqual(b.Actions.Where(x => x != "cancel"))) return false;
         for (var i = 0; i < a.Items.Count; i++)
         {
             var (x, y) = (a.Items[i], b.Items[i]);
-            if (x.Id != y.Id || !x.Actions.SequenceEqual(y.Actions) || x.Fields.Count != y.Fields.Count
+            if (x.Id != y.Id || !FieldPresenter.ItemActions(x).SequenceEqual(FieldPresenter.ItemActions(y)) || x.Fields.Count != y.Fields.Count
                 || !JsonNode.DeepEquals(x.Value, y.Value)) return false;
             if (x.Fields.Zip(y.Fields).Any(pair => pair.First.Id != pair.Second.Id || pair.First.Kind != pair.Second.Kind)) return false;
         }
@@ -271,8 +331,8 @@ sealed class ItemsCard : FieldCard
         Field.Id == id ? this : nested.Values.Select(card => card.Find(id)).FirstOrDefault(card => card is not null);
 }
 
-/// <summary>A form's fields (a custom command's editor): a text, several lines, a choice, a command line, a switch,
-/// each shown while its <c>when</c> holds.</summary>
+/// <summary>An items field's editor (a custom command's), from its <c>schema</c>: a text, several lines, a choice, a
+/// command line, a number (empty: not set), a switch, a note; each shown while its <c>when</c> holds.</summary>
 sealed class FormView
 {
     readonly IReadOnlyList<Field> fields;
@@ -281,6 +341,7 @@ sealed class FormView
     /// <summary>A text's value as its box has it now: read when the form is saved (TextChanged comes later than the
     /// text, so a text pasted and saved at once would be missed).</summary>
     readonly Dictionary<string, TextBox> texts = [];
+    readonly Dictionary<string, NumberBox> numbers = [];
 
     public FormView(IReadOnlyList<Field> fields, Dictionary<string, JsonNode?> values, bool enabled)
     {
@@ -289,7 +350,7 @@ sealed class FormView
         foreach (var field in fields)
         {
             var row = new StackPanel { Spacing = 4 };
-            row.Children.Add(new TextBlock { Text = field.Label, TextWrapping = TextWrapping.Wrap });
+            if (field.Label.Length > 0) row.Children.Add(new TextBlock { Text = field.Label, TextWrapping = TextWrapping.Wrap });
             FrameworkElement control;
             switch (field.Kind)
             {
@@ -306,14 +367,34 @@ sealed class FormView
                     control = combo;
                     break;
                 case "toggle":
-                    var toggle = new ToggleSwitch { OnContent = "", OffContent = "", IsOn = values.GetValueOrDefault(field.Id) is JsonValue v && v.TryGetValue<bool>(out var on) && on, IsEnabled = enabled };
+                    var toggle = new ToggleSwitch { OnContent = "", OffContent = "", IsOn = SettingsDocument.Bool(values.GetValueOrDefault(field.Id)) == true, IsEnabled = enabled };
                     toggle.Toggled += (_, _) => values[field.Id] = JsonValue.Create(toggle.IsOn);
                     control = toggle;
+                    break;
+                case "number" or "integer":
+                    // Empty is "not set" (the default, its placeholder); else a number in its bounds.
+                    var number = new NumberBox
+                    {
+                        Value = SettingsDocument.Number(values.GetValueOrDefault(field.Id)) ?? double.NaN, PlaceholderText = field.Placeholder ?? "",
+                        Minimum = field.Min ?? double.MinValue, Maximum = field.Max ?? double.MaxValue, SmallChange = field.Step ?? 1,
+                        SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Inline, ValidationMode = NumberBoxValidationMode.InvalidInputOverwritten,
+                        MinWidth = 160, HorizontalAlignment = HorizontalAlignment.Left, IsEnabled = enabled,
+                    };
+                    numbers[field.Id] = number;
+                    control = number;
+                    break;
+                case "info":
+                    // A note to read (the warning about programs): never sent.
+                    control = new TextBlock
+                    {
+                        Text = SettingsDocument.Text(field.Value) ?? "", TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true,
+                        Style = Styles.Get("SecondaryTextStyle"), MaxWidth = 520, HorizontalAlignment = HorizontalAlignment.Left,
+                    };
                     break;
                 default:
                     var box = new TextBox
                     {
-                        Text = (string?)values.GetValueOrDefault(field.Id) ?? "", PlaceholderText = field.Placeholder ?? "",
+                        Text = SettingsDocument.Text(values.GetValueOrDefault(field.Id)) ?? "", PlaceholderText = field.Placeholder ?? "",
                         AcceptsReturn = field.Multiline, TextWrapping = field.Multiline ? TextWrapping.Wrap : TextWrapping.NoWrap,
                         MinHeight = field.Multiline ? 96 : 0, MinWidth = 420, IsEnabled = enabled,
                     };
@@ -321,12 +402,12 @@ sealed class FormView
                     control = box;
                     break;
             }
-            AutomationProperties.SetName(control, field.Label);
+            AutomationProperties.SetName(control, FieldPresenter.AccessibleName(field));
             AutomationProperties.SetAutomationId(control, "form/" + field.Id);
             if (field.Help is { } help)
             {
                 AutomationProperties.SetHelpText(control, help);
-                row.Children.Add(new TextBlock { Text = help, Style = Styles.Get("SecondaryTextStyle") });
+                row.Children.Add(new TextBlock { Text = help, Style = Styles.Get("SecondaryTextStyle"), TextWrapping = TextWrapping.Wrap, MaxWidth = 520, HorizontalAlignment = HorizontalAlignment.Left });
             }
             row.Children.Add(control);
             rows[field.Id] = row;
@@ -336,12 +417,13 @@ sealed class FormView
     }
 
     public StackPanel Panel { get; } = new() { Spacing = 12, MinWidth = 440 };
-    /// <summary>The form's values as its controls have them now.</summary>
+    /// <summary>The form's values as its controls have them now (a number not set: none).</summary>
     public IReadOnlyDictionary<string, JsonNode?> Values
     {
         get
         {
             foreach (var (id, box) in texts) values[id] = JsonValue.Create(box.Text);
+            foreach (var (id, box) in numbers) values[id] = double.IsNaN(box.Value) ? null : JsonValue.Create(box.Value);
             return values;
         }
     }

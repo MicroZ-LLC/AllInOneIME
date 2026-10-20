@@ -144,8 +144,16 @@ public sealed class SectionPage
             var answer = await connection.SendAsync(request);
             if (answer is null) return null;
             var card = Find(request.Field) ?? from;
-            if (answer.Problem is { } problem)
+            if (answer.Problem is { IsCancelled: true } stopped)
             {
+                // Stopped (Cancel, or the same action again): said as its outcome, not as an error.
+                card.ShowProblem(null);
+                card.ShowOutcome(stopped.Message);
+            }
+            else if (answer.Problem is { } problem)
+            {
+                // Refused; stale: the settings changed meanwhile, the document drawn is as they are now, and the user
+                // makes the change again on it.
                 var at = Find(problem.Field) ?? card;
                 at.ShowProblem(problem.Message);
                 if (!at.Root.IsLoaded || at.Root.Visibility != Visibility.Visible) ShowAnswer(InfoBarSeverity.Error, problem.Message);
@@ -158,9 +166,10 @@ public sealed class SectionPage
             if (answer.Message is { } message) card.ShowOutcome(message);
             return answer;
         }
-        catch (WireException)
+        catch (Exception error) when (error is WireException or InvalidOperationException or FormatException or System.Text.Json.JsonException)
         {
-            // The connection went away (the window says so) or the frame was refused: the field shows what it was.
+            // The connection went away (the window says so), the frame was refused or its answer can't be read: the
+            // field shows what it was. (A handler of a click is async void: nothing may escape it.)
             ShowSection(connection.Document, shown, keepScroll: true);
             return null;
         }

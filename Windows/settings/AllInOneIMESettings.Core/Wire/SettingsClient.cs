@@ -81,10 +81,17 @@ public sealed class SettingsClient : IAsyncDisposable
         RequestAsync(new JsonObject { ["type"] = "settingsGet" }, RequestTimeout, cancellation);
 
     /// <summary>One change: <paramref name="value"/> may be null (a text unset, "follow the system"), which is sent as
-    /// <c>null</c>: a value, not a missing one.</summary>
-    public Task<SettingsAnswer> SetAsync(string field, JsonNode? value, CancellationToken cancellation = default) =>
-        RequestAsync(new JsonObject { ["type"] = "settingsSet", ["field"] = field, ["value"] = value?.DeepClone() },
-                     RequestTimeout, cancellation);
+    /// <c>null</c>: a value, not a missing one. Made on what the window showed (§12.4): <paramref name="shown"/>, a list
+    /// as it was shown (the value is then an edit of it, merged with what changed elsewhere), and
+    /// <paramref name="revision"/>, the document's (refused <c>stale</c> when the settings have moved on).</summary>
+    public Task<SettingsAnswer> SetAsync(string field, JsonNode? value, CancellationToken cancellation = default,
+                                         JsonNode? shown = null, ulong? revision = null)
+    {
+        var frame = new JsonObject { ["type"] = "settingsSet", ["field"] = field, ["value"] = value?.DeepClone() };
+        if (shown is not null) frame["shown"] = shown.DeepClone();
+        if (revision is not null) frame["revision"] = revision.Value;
+        return RequestAsync(frame, RequestTimeout, cancellation);
+    }
 
     /// <summary>One of a field's actions. A test, a browse and an install take a while: answered when done.</summary>
     public Task<SettingsAnswer> ActionAsync(SettingsActionRequest action, CancellationToken cancellation = default)
@@ -99,7 +106,7 @@ public sealed class SettingsClient : IAsyncDisposable
     /// <summary>Sends <paramref name="request"/>: a set or an action.</summary>
     public Task<SettingsAnswer> SendAsync(SettingsRequest request, CancellationToken cancellation = default) => request switch
     {
-        SettingsSetRequest set => SetAsync(set.Field, set.Value, cancellation),
+        SettingsSetRequest set => SetAsync(set.Field, set.Value, cancellation, set.Shown, set.Revision),
         SettingsActionRequest action => ActionAsync(action, cancellation),
         _ => throw new ArgumentException("an unknown request", nameof(request)),
     };
@@ -220,10 +227,15 @@ public abstract class SettingsRequest(string field)
     public string Field { get; } = field;
 }
 
-/// <summary><c>settingsSet</c>: a field's new value (null is a value).</summary>
-public sealed class SettingsSetRequest(string field, JsonNode? value) : SettingsRequest(field)
+/// <summary><c>settingsSet</c>: a field's new value (null is a value); for a list, the list as the window showed it
+/// (<c>shown</c>), so that what changed elsewhere meanwhile is kept (§12.4).</summary>
+public sealed class SettingsSetRequest(string field, JsonNode? value, JsonNode? shown = null, ulong? revision = null) : SettingsRequest(field)
 {
     public JsonNode? Value { get; } = value;
+    /// <summary>The list as the window showed it (or its line), the value being the window's edit of it.</summary>
+    public JsonNode? Shown { get; } = shown;
+    /// <summary>The revision of the document the change was made on.</summary>
+    public ulong? Revision { get; } = revision;
 
     public override string ToString() => $"set {Field}";
 }
@@ -253,21 +265,42 @@ public sealed class SettingsAnswer
     /// <summary>What an action that worked says: a test's outcome, "✓ 1.2 s: …".</summary>
     public string? Message { get; init; }
 
+    /// <summary>The answer in <paramref name="frame"/>; a frame that isn't one (another type, a field of the wrong
+    /// type) is a <see cref="WireException"/> <c>badMessage</c>, as any frame the window can't read.</summary>
     public static SettingsAnswer Parse(JsonObject frame)
     {
-        if ((string?)frame["type"] != "settings") throw new WireException("badMessage", $"a {(string?)frame["type"]} frame, not settings");
-        var problem = frame["problem"] as JsonObject;
-        return new SettingsAnswer
+        if (SettingsDocument.Text(frame["type"]) != "settings")
         {
-            Revision = frame["revision"]?.GetValue<ulong>() ?? 0,
-            Document = SettingsDocument.Parse(frame["document"] as JsonObject ?? throw new WireException("badMessage", "no document")),
-            Problem = problem is null ? null : new SettingsProblem((string?)problem["code"] ?? "", (string?)problem["field"],
-                                                                   (string?)problem["message"] ?? ""),
-            Message = (string?)frame["message"],
-        };
+            throw new WireException("badMessage", $"a {SettingsDocument.Text(frame["type"]) ?? "nameless"} frame, not settings");
+        }
+        try
+        {
+            var problem = frame["problem"] as JsonObject;
+            return new SettingsAnswer
+            {
+                Revision = frame["revision"]?.GetValue<ulong>() ?? 0,
+                Document = SettingsDocument.Parse(frame["document"] as JsonObject ?? throw new WireException("badMessage", "no document")),
+                Problem = problem is null ? null : new SettingsProblem(SettingsDocument.Text(problem["code"]) ?? "",
+                                                                       SettingsDocument.Text(problem["field"]),
+                                                                       SettingsDocument.Text(problem["message"]) ?? ""),
+                Message = SettingsDocument.Text(frame["message"]),
+            };
+        }
+        catch (Exception error) when (error is InvalidOperationException or FormatException or System.Text.Json.JsonException)
+        {
+            throw new WireException("badMessage", "a settings frame that can't be read: " + error.GetType().Name);
+        }
     }
 }
 
 /// <summary>A change or action refused (§12.4): <c>unknownField</c>, <c>badValue</c>, <c>notChangeable</c>,
-/// <c>configBroken</c>, <c>failed</c>; its message is for the user, in the interface language.</summary>
-public sealed record SettingsProblem(string Code, string? Field, string Message);
+/// <c>configBroken</c>, <c>failed</c>, <c>cancelled</c> (an action stopped), <c>stale</c> (made on what the settings
+/// have moved on from: nothing changed, the document is as they are now); its message is for the user, in the interface
+/// language.</summary>
+public sealed record SettingsProblem(string Code, string? Field, string Message)
+{
+    /// <summary>An action that takes a while stopped by <c>cancel</c> (or by the same action again): not an error.</summary>
+    public bool IsCancelled => Code == "cancelled";
+    /// <summary>Made on settings that changed meanwhile: the user makes the change again on the document now.</summary>
+    public bool IsStale => Code == "stale";
+}

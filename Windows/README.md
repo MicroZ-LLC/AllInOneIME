@@ -138,7 +138,8 @@ mode the goldens bring their own (`#! settings`); `settings.jsonl` replays over 
 - **Fuzzy pinyin** changed in the settings reaches librime as on the Mac (`RimeFuzzy`): the schema's patch in the user
   folder, deployed again once a deployment under way is done, the fields given new sessions.
 - **More of the store:** the per-app settings (an app added by its program), the script extensions' folders, switches,
-  preferences and passwords, the custom command editor's form, the window's own words (§12.3).
+  preferences and passwords, the custom command editor (`schema`), the window's own words (§12.3), what runs and its
+  cancel (§12.5).
 - **Tests:** an engine on a pipe of its own (`--pipe`) with `--test --config FILE` serves that file's settings, its keys
   in memory: the Settings app's end-to-end test (`settings/Scripts/run-e2e.sh`).
 

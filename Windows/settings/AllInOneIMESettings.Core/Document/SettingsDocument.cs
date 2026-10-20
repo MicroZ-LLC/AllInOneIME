@@ -23,13 +23,13 @@ public sealed class SettingsDocument
 
     public static SettingsDocument Parse(JsonObject json) => new()
     {
-        Language = (string?)json["language"] ?? "en",
-        Platform = (string?)json["platform"] ?? "windows",
-        LoadError = (string?)json["loadError"],
-        SaveError = (string?)json["saveError"],
+        Language = Text(json["language"]) ?? "en",
+        Platform = Text(json["platform"]) ?? "windows",
+        LoadError = Text(json["loadError"]),
+        SaveError = Text(json["saveError"]),
         Sections = Array(json["sections"]).Select(Section.Parse).ToList(),
-        Strings = (json["strings"] as JsonObject)?.Where(p => p.Value is JsonValue)
-            .ToDictionary(p => p.Key, p => (string?)p.Value ?? "") ?? new Dictionary<string, string>(),
+        Strings = (json["strings"] as JsonObject)?.Where(p => Text(p.Value) is not null)
+            .ToDictionary(p => p.Key, p => Text(p.Value)!) ?? new Dictionary<string, string>(),
         Json = json,
     };
 
@@ -39,12 +39,16 @@ public sealed class SettingsDocument
     internal static IEnumerable<JsonObject> Array(JsonNode? node) => (node as JsonArray)?.OfType<JsonObject>() ?? [];
 
     internal static IReadOnlyList<string> StringList(JsonNode? node) =>
-        (node as JsonArray)?.Select(n => n is JsonValue v && v.TryGetValue<string>(out var s) ? s : null).OfType<string>().ToList() ?? [];
+        (node as JsonArray)?.Select(Text).OfType<string>().ToList() ?? [];
 
-    internal static double? Number(JsonNode? node) =>
+    /// <summary>A string, or null for anything else (a later engine's number where a string was): what is drawn never
+    /// throws on a value of another type.</summary>
+    public static string? Text(JsonNode? node) => node is JsonValue v && v.TryGetValue<string>(out var s) ? s : null;
+
+    public static double? Number(JsonNode? node) =>
         node is JsonValue value && value.GetValueKind() == JsonValueKind.Number ? value.GetValue<double>() : null;
 
-    internal static bool? Bool(JsonNode? node) =>
+    public static bool? Bool(JsonNode? node) =>
         node is JsonValue value && value.GetValueKind() is JsonValueKind.True or JsonValueKind.False ? value.GetValue<bool>() : null;
 }
 
@@ -58,9 +62,9 @@ public sealed class Section
 
     public static Section Parse(JsonObject json) => new()
     {
-        Id = (string?)json["id"] ?? "",
-        Title = (string?)json["title"] ?? "",
-        Footer = (string?)json["footer"],
+        Id = SettingsDocument.Text(json["id"]) ?? "",
+        Title = SettingsDocument.Text(json["title"]) ?? "",
+        Footer = SettingsDocument.Text(json["footer"]),
         Fields = SettingsDocument.Array(json["fields"]).Select(Field.Parse).ToList(),
     };
 }
@@ -89,26 +93,34 @@ public sealed class Field
     public bool? IsSet { get; init; }
     public IReadOnlyList<string> Actions { get; init; } = [];
     public IReadOnlyList<Item> Items { get; init; } = [];
+    /// <summary>An action that takes a while runs on it now (a test, the library's download): <c>cancel</c> is among
+    /// its actions (§12.5).</summary>
+    public bool Running { get; init; }
     /// <summary>A <c>words</c> field's list as the one line it shows (and takes).</summary>
     public string? Text { get; init; }
-    /// <summary><c>folder</c> or <c>file</c>: a picker may help fill it in.</summary>
-    public string? Pick { get; init; }
+    /// <summary><c>folder</c> or <c>file</c>: the system's open panel fills it in; on an <c>items</c> field, the path its
+    /// <c>add</c> takes.</summary>
+    public string? Picker { get; init; }
     public bool Multiline { get; init; }
-    /// <summary>An items field's editor (a custom command's): fields by the item value's keys.</summary>
-    public IReadOnlyList<Field> Form { get; init; } = [];
-    /// <summary>A form field shown only while the form's other field has one of these values.</summary>
+    /// <summary>The actions that take a text the user types, sent as the action's <c>value</c> (a link to test, the app
+    /// or folder to add; the box's hint is the <c>placeholder</c>).</summary>
+    public IReadOnlyList<string> TextActions { get; init; } = [];
+    /// <summary>What an items field's items' <c>value</c> is (a custom command's definition): a field for each of its
+    /// keys, the editor's.</summary>
+    public IReadOnlyList<Field> Schema { get; init; } = [];
+    /// <summary>A schema's field that applies only while the definition's other field has one of these values.</summary>
     public IReadOnlyDictionary<string, IReadOnlyList<JsonNode?>> When { get; init; } = new Dictionary<string, IReadOnlyList<JsonNode?>>();
     /// <summary>The field as it came: two versions of it are the same field drawn the same way when they are equal.</summary>
     public required JsonObject Json { get; init; }
 
     public static Field Parse(JsonObject json) => new()
     {
-        Id = (string?)json["id"] ?? "",
-        Kind = (string?)json["kind"] ?? "",
-        Label = (string?)json["label"] ?? "",
-        Help = (string?)json["help"],
+        Id = SettingsDocument.Text(json["id"]) ?? "",
+        Kind = SettingsDocument.Text(json["kind"]) ?? "",
+        Label = SettingsDocument.Text(json["label"]) ?? "",
+        Help = SettingsDocument.Text(json["help"]),
         Value = json["value"],
-        Placeholder = (string?)json["placeholder"],
+        Placeholder = SettingsDocument.Text(json["placeholder"]),
         Choices = SettingsDocument.Array(json["choices"]).Select(Choice.Parse).ToList(),
         Ordered = SettingsDocument.Bool(json["ordered"]) == true,
         MinCount = (int?)SettingsDocument.Number(json["minCount"]),
@@ -118,14 +130,16 @@ public sealed class Field
         Step = SettingsDocument.Number(json["step"]),
         Optional = SettingsDocument.Bool(json["optional"]) == true,
         ReadOnly = SettingsDocument.Bool(json["readOnly"]) == true,
-        Status = (string?)json["status"],
+        Status = SettingsDocument.Text(json["status"]),
         IsSet = SettingsDocument.Bool(json["isSet"]),
         Actions = SettingsDocument.StringList(json["actions"]),
         Items = SettingsDocument.Array(json["items"]).Select(Item.Parse).ToList(),
-        Text = (string?)json["text"],
-        Pick = (string?)json["pick"],
+        Running = SettingsDocument.Bool(json["running"]) == true,
+        Text = SettingsDocument.Text(json["text"]),
+        Picker = SettingsDocument.Text(json["picker"]),
         Multiline = SettingsDocument.Bool(json["multiline"]) == true,
-        Form = SettingsDocument.Array(json["form"]).Select(Parse).ToList(),
+        TextActions = SettingsDocument.StringList(json["textActions"]),
+        Schema = SettingsDocument.Array(json["schema"]).Select(Parse).ToList(),
         When = (json["when"] as JsonObject)?.ToDictionary(p => p.Key, p => (IReadOnlyList<JsonNode?>)((p.Value as JsonArray)?.ToList() ?? []))
             ?? new Dictionary<string, IReadOnlyList<JsonNode?>>(),
         Json = json,
@@ -145,7 +159,7 @@ public sealed class Field
     }
 
     /// <summary>The value as a string, when it is one.</summary>
-    public string? StringValue => Value is JsonValue v && v.TryGetValue<string>(out var s) ? s : null;
+    public string? StringValue => SettingsDocument.Text(Value);
 
     /// <summary>The value as an array of strings (a <c>choices</c> or <c>words</c> field's).</summary>
     public IReadOnlyList<string> StringsValue => SettingsDocument.StringList(Value);
@@ -167,8 +181,8 @@ public sealed class Choice
     public static Choice Parse(JsonObject json) => new()
     {
         Value = json["value"],
-        Label = (string?)json["label"] ?? "",
-        Note = (string?)json["note"],
+        Label = SettingsDocument.Text(json["label"]) ?? "",
+        Note = SettingsDocument.Text(json["note"]),
         Disabled = SettingsDocument.Bool(json["disabled"]) == true,
     };
 
@@ -182,19 +196,22 @@ public sealed class Item
     public required string Id { get; init; }
     public required string Title { get; init; }
     public string? Detail { get; init; }
-    /// <summary>Its definition, for the field's <c>form</c>.</summary>
+    /// <summary>Its definition, as the field's <c>schema</c> describes it.</summary>
     public JsonNode? Value { get; init; }
     public IReadOnlyList<string> Actions { get; init; } = [];
+    /// <summary>An action that takes a while runs on it now (an install): <c>cancel</c> is among its actions.</summary>
+    public bool Running { get; init; }
     /// <summary>Its own settings.</summary>
     public IReadOnlyList<Field> Fields { get; init; } = [];
 
     public static Item Parse(JsonObject json) => new()
     {
-        Id = (string?)json["id"] ?? "",
-        Title = (string?)json["title"] ?? "",
-        Detail = (string?)json["detail"],
+        Id = SettingsDocument.Text(json["id"]) ?? "",
+        Title = SettingsDocument.Text(json["title"]) ?? "",
+        Detail = SettingsDocument.Text(json["detail"]),
         Value = json["value"],
         Actions = SettingsDocument.StringList(json["actions"]),
+        Running = SettingsDocument.Bool(json["running"]) == true,
         Fields = SettingsDocument.Array(json["fields"]).Select(Field.Parse).ToList(),
     };
 }

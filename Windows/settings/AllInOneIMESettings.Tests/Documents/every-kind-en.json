@@ -401,7 +401,7 @@
       "kind": "text",
       "label": "Jargon list",
       "optional": true,
-      "pick": "file",
+      "picker": "file",
       "placeholder": "C:/Users/zwj10/AppData/Roaming/AllInOneIME/jargon.txt"
      }
     ],
@@ -609,6 +609,7 @@
       "id": "agentCommand",
       "kind": "words",
       "label": "Command",
+      "ordered": true,
       "placeholder": "e.g. muse --",
       "text": "muse --model \"big one\"",
       "value": [
@@ -693,6 +694,11 @@
             "label": "Jargon",
             "note": "Big-tech speak, Amazon-style in English",
             "value": "黑话"
+           },
+           {
+            "disabled": true,
+            "label": "formal",
+            "value": "formal"
            }
           ],
           "id": "apps.win:notepad.exe.rewriteStyles",
@@ -716,7 +722,10 @@
       ],
       "kind": "items",
       "label": "Per-App Settings",
-      "placeholder": "Its program, e.g. notepad.exe"
+      "placeholder": "Its program, e.g. notepad.exe",
+      "textActions": [
+       "add"
+      ]
      }
     ],
     "id": "apps",
@@ -758,14 +767,17 @@
          "remove"
         ],
         "detail": "added",
-        "id": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-450dvbdn",
-        "title": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-450dvbdn"
+        "id": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-touyrwbu",
+        "title": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-touyrwbu"
        }
       ],
       "kind": "items",
       "label": "Folders",
-      "pick": "folder",
-      "placeholder": "~/.config/allinoneime/extensions"
+      "picker": "folder",
+      "placeholder": "~/.config/allinoneime/extensions",
+      "textActions": [
+       "add"
+      ]
      },
      {
       "id": "extensions.installed",
@@ -835,13 +847,13 @@
         "fields": [
          {
           "help": "Say hi",
-          "id": "extensions.on.C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-450dvbdn/hello.sh",
+          "id": "extensions.on.C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-touyrwbu/hello.sh",
           "kind": "toggle",
           "label": "@hello",
           "value": true
          }
         ],
-        "id": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-450dvbdn/hello.sh",
+        "id": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-touyrwbu/hello.sh",
         "title": "@hello"
        }
       ],
@@ -876,7 +888,7 @@
       "kind": "text",
       "label": "Folder (Obsidian or any)",
       "optional": true,
-      "pick": "folder",
+      "picker": "folder",
       "value": "C:\\Notes"
      }
     ],
@@ -888,95 +900,6 @@
      {
       "actions": [
        "save"
-      ],
-      "form": [
-       {
-        "id": "name",
-        "kind": "text",
-        "label": "Name",
-        "placeholder": "Letters only, e.g. py"
-       },
-       {
-        "choices": [
-         {
-          "label": "AI instruction",
-          "value": "prompt"
-         },
-         {
-          "label": "Run a program",
-          "value": "run"
-         },
-         {
-          "label": "Run in Terminal",
-          "value": "terminal"
-         },
-         {
-          "label": "Open a web page",
-          "value": "link"
-         },
-         {
-          "label": "Insert text",
-          "value": "snippet"
-         }
-        ],
-        "id": "type",
-        "kind": "choice",
-        "label": "What it does",
-        "value": "prompt"
-       },
-       {
-        "help": "Shown in the command list (optional)",
-        "id": "summary",
-        "kind": "text",
-        "label": "Description",
-        "optional": true
-       },
-       {
-        "id": "prompt",
-        "kind": "text",
-        "label": "AI instruction",
-        "multiline": true,
-        "when": {
-         "type": [
-          "prompt"
-         ]
-        }
-       },
-       {
-        "id": "argv",
-        "kind": "words",
-        "label": "Command",
-        "placeholder": "python3 convert.py {input}",
-        "text": "",
-        "when": {
-         "type": [
-          "run",
-          "terminal"
-         ]
-        }
-       },
-       {
-        "id": "url",
-        "kind": "text",
-        "label": "Address",
-        "placeholder": "https://www.google.com/search?q={input}",
-        "when": {
-         "type": [
-          "link"
-         ]
-        }
-       },
-       {
-        "id": "text",
-        "kind": "text",
-        "label": "Insert text",
-        "multiline": true,
-        "when": {
-         "type": [
-          "snippet"
-         ]
-        }
-       }
       ],
       "id": "commands.custom",
       "items": [
@@ -1014,7 +937,154 @@
        }
       ],
       "kind": "items",
-      "label": "Custom @ Commands"
+      "label": "Custom @ Commands",
+      "schema": [
+       {
+        "id": "name",
+        "kind": "text",
+        "label": "Name",
+        "placeholder": "Letters only, e.g. py"
+       },
+       {
+        "choices": [
+         {
+          "label": "AI instruction",
+          "value": "prompt"
+         },
+         {
+          "label": "Run a program",
+          "value": "run"
+         },
+         {
+          "label": "Run in Terminal",
+          "value": "terminal"
+         },
+         {
+          "label": "Open a web page",
+          "value": "link"
+         },
+         {
+          "label": "Insert text",
+          "value": "snippet"
+         }
+        ],
+        "id": "type",
+        "kind": "choice",
+        "label": "What it does",
+        "value": "prompt"
+       },
+       {
+        "id": "summary",
+        "kind": "text",
+        "label": "Description",
+        "optional": true,
+        "placeholder": "Shown in the command list (optional)"
+       },
+       {
+        "help": "Tell the AI what to do with the text after the command, e.g. \"Write a short, polite reply to the user's message.\" The answer appears in the candidates; ⏎ inserts it.",
+        "id": "prompt",
+        "kind": "text",
+        "label": "AI instruction",
+        "multiline": true,
+        "when": {
+         "type": [
+          "prompt"
+         ]
+        }
+       },
+       {
+        "help": "The text after the command replaces {input}; {label?} is a blank, filled in order, separated by commas; write {{ for {",
+        "id": "text",
+        "kind": "text",
+        "label": "Insert text",
+        "multiline": true,
+        "when": {
+         "type": [
+          "snippet"
+         ]
+        }
+       },
+       {
+        "help": "{input} becomes the text after the command (encoded), after the ?. The action key opens it in the browser; nothing is inserted. https:// only.",
+        "id": "url",
+        "kind": "text",
+        "label": "Address",
+        "placeholder": "https://www.google.com/search?q={input}",
+        "when": {
+         "type": [
+          "link"
+         ]
+        }
+       },
+       {
+        "help": "{input} becomes the text after the command, always as one argument, never through a shell (for one, write zsh -c {input}). Quote arguments with spaces.",
+        "id": "argv",
+        "kind": "words",
+        "label": "Command",
+        "ordered": true,
+        "placeholder": "python3 -c {input}",
+        "when": {
+         "type": [
+          "run",
+          "terminal"
+         ]
+        }
+       },
+       {
+        "help": "Send the text to standard input (no {input} needed)",
+        "id": "stdin",
+        "kind": "text",
+        "label": "Standard input",
+        "optional": true,
+        "placeholder": "{input}",
+        "when": {
+         "type": [
+          "run"
+         ]
+        }
+       },
+       {
+        "id": "timeoutSeconds",
+        "kind": "number",
+        "label": "Stop after (seconds)",
+        "max": 120,
+        "min": 1,
+        "optional": true,
+        "placeholder": "10",
+        "step": 1,
+        "when": {
+         "type": [
+          "run"
+         ]
+        }
+       },
+       {
+        "id": "ascii",
+        "kind": "toggle",
+        "label": "Type English letters (for code and paths)",
+        "optional": true,
+        "when": {
+         "type": [
+          "prompt",
+          "run",
+          "terminal",
+          "link"
+         ]
+        }
+       },
+       {
+        "id": "programs",
+        "kind": "info",
+        "label": "",
+        "value": "Programs run on your Mac: add only commands you wrote and trust. They run only when you press the action key, never in password fields.",
+        "when": {
+         "type": [
+          "run",
+          "terminal"
+         ]
+        }
+       }
+      ]
      }
     ],
     "footer": "Once saved, type @ and its name at the start of any text field, like @improve.",
@@ -1027,7 +1097,7 @@
       "id": "configFile",
       "kind": "info",
       "label": "Config file",
-      "value": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-2e6t3cfe/config.json"
+      "value": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-5waahf7f/config.json"
      }
     ],
     "footer": "Changes apply right away, with no restart.",
@@ -1038,6 +1108,7 @@
   "strings": {
    "action.add": "Add",
    "action.browse": "Open the Library",
+   "action.cancel": "Cancel",
    "action.delete": "Delete…",
    "action.hide": "Hide",
    "action.install": "Install",
@@ -1052,7 +1123,7 @@
    "cancel": "Cancel",
    "choose": "Choose…",
    "confirm.delete": "Delete “{name}”?",
-   "confirm.remove": "Remove “{name}”?",
+   "confirm.removeItem": "Remove “{name}”?",
    "confirm.removeKey": "Remove “{name}”?",
    "moveDown": "Move down",
    "moveUp": "Move up",

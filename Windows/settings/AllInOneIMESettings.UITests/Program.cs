@@ -21,8 +21,8 @@ namespace AllInOneIME.Settings.UITests;
 /// 3. every section shown, each control named for Narrator and reachable from the keyboard (and captured when the
 ///    window happens to be in front);
 /// 4. a switch, a choice, an ordered list, a check box and a text changed, a key saved (and the box cleared), Test
-///    Connection run against the stand-in;
-///    config.json, the engine's key store (through the wire: saved, its last 4) and the stand-in's log checked;
+///    Connection run against the stand-in, then against a slow one and cancelled while it runs;
+///    config.json, the engine's key store (through the wire: saved, its last 4) and the stand-ins' logs checked;
 /// 5. changes from elsewhere shown: config.json edited by hand, another window's change, the interface language; a
 ///    custom command saved through its form and deleted (two dialogs); a second start of the app;
 /// 6. the window closed; the app's own screenshots of every section, light and dark.
@@ -156,11 +156,39 @@ static class Program
             var outcome = WaitFor("Test Connection's outcome", () => window.FindFirstDescendant(c => c.ByControlType(ControlType.Text)
                 .And(new FlaUI.Core.Conditions.PropertyCondition(automation.PropertyLibrary.Element.Name, "Hello there.", PropertyConditionFlags.MatchSubstring))), 60);
             Check("Test Connection passed, with the stand-in's first version", outcome.Name.StartsWith("✓") && outcome.Name.Contains("Hello there."), outcome.Name);
-            var requests = File.Exists(stubLog) ? File.ReadAllLines(stubLog).Select(l => JsonNode.Parse(l)!).ToList() : [];
+            // Its requests (the log's "event" lines say how each stream ended).
+            var requests = File.Exists(stubLog) ? File.ReadAllLines(stubLog).Select(l => JsonNode.Parse(l)!).Where(r => r["event"] is null).ToList() : [];
             Check("the stand-in got one request, with the key the window saved",
                   requests.Count == 1 && (string?)requests[0]["kind"] == "anthropic" && requests[0]["keyOk"]?.GetValue<bool>() == true
                   && (string?)requests[0]["model"] == "claude-e2e-model", string.Join(" | ", requests.Select(r => r.ToJsonString())));
             Capture(window, Path.Combine(shots, "after-test-connection.png"));
+
+            // A test that takes a while (a stand-in that answers slowly): the window shows it running, with Cancel;
+            // cancelled, it says so, and the stand-in sees the request go before its answer was done.
+            var slow = StartStub(options, work.FullName, key, out var slowPort, out var slowLog, delayMs: 2000, name: "slow");
+            try
+            {
+                client.SetAsync("anthropic.baseURL", JsonValue.Create($"http://127.0.0.1:{slowPort}"), cancellation.Token).GetAwaiter().GetResult();
+                Check("the slow stand-in's address shows", Eventually(() =>
+                    window.FindFirstDescendant(c => c.ByAutomationId("anthropic.baseURL"))?.Patterns.Value.Pattern.Value.Value.EndsWith($":{slowPort}") == true));
+                window.FindFirstDescendant(c => c.ByAutomationId("provider.test")).AsButton().Invoke();
+                var cancel = WaitFor("Test Connection's Cancel (running)", () => window.FindFirstDescendant(c => c.ByAutomationId("provider.test/cancel")), 20);
+                Check("while it runs: Working… and Cancel", window.FindFirstDescendant(c => c.ByName("Working…")) is not null && cancel.Name.EndsWith("Cancel"),
+                      cancel.Name);
+                Capture(window, Path.Combine(shots, "test-running.png"));
+                cancel.AsButton().Invoke();
+                Check("cancelled: the window says so, and Cancel goes", Eventually(() =>
+                    window.FindFirstDescendant(c => c.ByName("Cancelled")) is not null
+                    && window.FindFirstDescendant(c => c.ByAutomationId("provider.test/cancel")) is null, 15));
+                Check("the slow stand-in saw the request go before it was answered", Eventually(() =>
+                    File.Exists(slowLog) && File.ReadAllLines(slowLog).Any(l => l.Contains("client-gone")), 20),
+                      File.Exists(slowLog) ? string.Join(" | ", File.ReadAllLines(slowLog)) : "no log");
+                client.SetAsync("anthropic.baseURL", JsonValue.Create($"http://127.0.0.1:{port}"), cancellation.Token).GetAwaiter().GetResult();
+            }
+            finally
+            {
+                try { slow.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
+            }
 
             // 5. Changes made elsewhere: config.json by hand, another window, the interface language.
             var edited = Config(config);
@@ -233,14 +261,14 @@ static class Program
 
     // MARK: The parts
 
-    static Process StartStub(Options options, string folder, string key, out int port, out string stubLog)
+    static Process StartStub(Options options, string folder, string key, out int port, out string stubLog, int delayMs = 30, string name = "stub")
     {
-        var portFile = Path.Combine(folder, "port");
-        stubLog = Path.Combine(folder, "stub.log");
+        var portFile = Path.Combine(folder, name + ".port");
+        stubLog = Path.Combine(folder, name + ".log");
         var stub = Process.Start(new ProcessStartInfo(options.Python)
         {
             ArgumentList = { options.Stub, "--port", "0", "--port-file", portFile, "--log", stubLog, "--key", key, "--lifetime", "900",
-                             "--versions", "Hello there.|Hi!|Greetings." },
+                             "--versions", "Hello there.|Hi!|Greetings.", "--delay-ms", delayMs.ToString() },
             UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true,
         })!;
         port = WaitFor("the stand-in's port", () => File.Exists(portFile) && int.TryParse(File.ReadAllText(portFile).Trim(), out var p) ? p : (int?)null, 20)!.Value;

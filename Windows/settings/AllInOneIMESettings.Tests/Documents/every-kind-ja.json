@@ -401,7 +401,7 @@
       "kind": "text",
       "label": "業界用語リスト",
       "optional": true,
-      "pick": "file",
+      "picker": "file",
       "placeholder": "C:/Users/zwj10/AppData/Roaming/AllInOneIME/jargon.txt"
      }
     ],
@@ -609,6 +609,7 @@
       "id": "agentCommand",
       "kind": "words",
       "label": "コマンド",
+      "ordered": true,
       "placeholder": "例：muse --",
       "text": "muse --model \"big one\"",
       "value": [
@@ -693,6 +694,11 @@
             "label": "業界用語",
             "note": "大手IT企業風の言い回し（英語はAmazon流）",
             "value": "黑话"
+           },
+           {
+            "disabled": true,
+            "label": "formal",
+            "value": "formal"
            }
           ],
           "id": "apps.win:notepad.exe.rewriteStyles",
@@ -716,7 +722,10 @@
       ],
       "kind": "items",
       "label": "App別設定",
-      "placeholder": "プログラム名（例：notepad.exe）"
+      "placeholder": "プログラム名（例：notepad.exe）",
+      "textActions": [
+       "add"
+      ]
      }
     ],
     "id": "apps",
@@ -758,14 +767,17 @@
          "remove"
         ],
         "detail": "追加済み",
-        "id": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-450dvbdn",
-        "title": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-450dvbdn"
+        "id": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-touyrwbu",
+        "title": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-touyrwbu"
        }
       ],
       "kind": "items",
       "label": "フォルダ",
-      "pick": "folder",
-      "placeholder": "~/.config/allinoneime/extensions"
+      "picker": "folder",
+      "placeholder": "~/.config/allinoneime/extensions",
+      "textActions": [
+       "add"
+      ]
      },
      {
       "id": "extensions.installed",
@@ -835,13 +847,13 @@
         "fields": [
          {
           "help": "Say hi",
-          "id": "extensions.on.C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-450dvbdn/hello.sh",
+          "id": "extensions.on.C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-touyrwbu/hello.sh",
           "kind": "toggle",
           "label": "@hello",
           "value": true
          }
         ],
-        "id": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-450dvbdn/hello.sh",
+        "id": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-touyrwbu/hello.sh",
         "title": "@hello"
        }
       ],
@@ -876,7 +888,7 @@
       "kind": "text",
       "label": "フォルダ（Obsidianなど）",
       "optional": true,
-      "pick": "folder",
+      "picker": "folder",
       "value": "C:\\Notes"
      }
     ],
@@ -888,95 +900,6 @@
      {
       "actions": [
        "save"
-      ],
-      "form": [
-       {
-        "id": "name",
-        "kind": "text",
-        "label": "名前",
-        "placeholder": "英字のみ。例：py"
-       },
-       {
-        "choices": [
-         {
-          "label": "AIへの指示",
-          "value": "prompt"
-         },
-         {
-          "label": "プログラムを実行",
-          "value": "run"
-         },
-         {
-          "label": "ターミナルで実行",
-          "value": "terminal"
-         },
-         {
-          "label": "Webページを開く",
-          "value": "link"
-         },
-         {
-          "label": "テキストを挿入",
-          "value": "snippet"
-         }
-        ],
-        "id": "type",
-        "kind": "choice",
-        "label": "動作",
-        "value": "prompt"
-       },
-       {
-        "help": "コマンドリストに表示（省略可）",
-        "id": "summary",
-        "kind": "text",
-        "label": "説明",
-        "optional": true
-       },
-       {
-        "id": "prompt",
-        "kind": "text",
-        "label": "AIへの指示",
-        "multiline": true,
-        "when": {
-         "type": [
-          "prompt"
-         ]
-        }
-       },
-       {
-        "id": "argv",
-        "kind": "words",
-        "label": "コマンド",
-        "placeholder": "python3 convert.py {input}",
-        "text": "",
-        "when": {
-         "type": [
-          "run",
-          "terminal"
-         ]
-        }
-       },
-       {
-        "id": "url",
-        "kind": "text",
-        "label": "URL",
-        "placeholder": "https://www.google.com/search?q={input}",
-        "when": {
-         "type": [
-          "link"
-         ]
-        }
-       },
-       {
-        "id": "text",
-        "kind": "text",
-        "label": "テキストを挿入",
-        "multiline": true,
-        "when": {
-         "type": [
-          "snippet"
-         ]
-        }
-       }
       ],
       "id": "commands.custom",
       "items": [
@@ -1014,7 +937,154 @@
        }
       ],
       "kind": "items",
-      "label": "カスタム@コマンド"
+      "label": "カスタム@コマンド",
+      "schema": [
+       {
+        "id": "name",
+        "kind": "text",
+        "label": "名前",
+        "placeholder": "英字のみ。例：py"
+       },
+       {
+        "choices": [
+         {
+          "label": "AIへの指示",
+          "value": "prompt"
+         },
+         {
+          "label": "プログラムを実行",
+          "value": "run"
+         },
+         {
+          "label": "ターミナルで実行",
+          "value": "terminal"
+         },
+         {
+          "label": "Webページを開く",
+          "value": "link"
+         },
+         {
+          "label": "テキストを挿入",
+          "value": "snippet"
+         }
+        ],
+        "id": "type",
+        "kind": "choice",
+        "label": "動作",
+        "value": "prompt"
+       },
+       {
+        "id": "summary",
+        "kind": "text",
+        "label": "説明",
+        "optional": true,
+        "placeholder": "コマンドリストに表示（省略可）"
+       },
+       {
+        "help": "コマンドのあとのテキストをどう処理するかAIに指示します。例：「ユーザのメッセージに短く丁寧な返信を書いてください。」回答は候補に表示され、⏎で挿入します。",
+        "id": "prompt",
+        "kind": "text",
+        "label": "AIへの指示",
+        "multiline": true,
+        "when": {
+         "type": [
+          "prompt"
+         ]
+        }
+       },
+       {
+        "help": "{input}はコマンドのあとに書いたテキストに置き換わります。{label?}は空欄で、カンマで区切った内容が順に入ります。{は{{と書きます",
+        "id": "text",
+        "kind": "text",
+        "label": "テキストを挿入",
+        "multiline": true,
+        "when": {
+         "type": [
+          "snippet"
+         ]
+        }
+       },
+       {
+        "help": "{input}はコマンドのあとのテキスト（エンコード済み）に置き換わり、?のあとに入ります。実行キーでブラウザで開きます。テキストは挿入されません。https://のみ。",
+        "id": "url",
+        "kind": "text",
+        "label": "URL",
+        "placeholder": "https://www.google.com/search?q={input}",
+        "when": {
+         "type": [
+          "link"
+         ]
+        }
+       },
+       {
+        "help": "{input}はコマンドのあとのテキストに置き換わり、常に1つの引数になります。シェルは経由しません（シェルを使うにはzsh -c {input}と書きます）。スペースを含む引数は引用符で囲んでください。",
+        "id": "argv",
+        "kind": "words",
+        "label": "コマンド",
+        "ordered": true,
+        "placeholder": "python3 -c {input}",
+        "when": {
+         "type": [
+          "run",
+          "terminal"
+         ]
+        }
+       },
+       {
+        "help": "テキストを標準入力に送る（{input}は不要）",
+        "id": "stdin",
+        "kind": "text",
+        "label": "標準入力",
+        "optional": true,
+        "placeholder": "{input}",
+        "when": {
+         "type": [
+          "run"
+         ]
+        }
+       },
+       {
+        "id": "timeoutSeconds",
+        "kind": "number",
+        "label": "最大実行時間（秒）",
+        "max": 120,
+        "min": 1,
+        "optional": true,
+        "placeholder": "10",
+        "step": 1,
+        "when": {
+         "type": [
+          "run"
+         ]
+        }
+       },
+       {
+        "id": "ascii",
+        "kind": "toggle",
+        "label": "英字で入力（コードやパス用）",
+        "optional": true,
+        "when": {
+         "type": [
+          "prompt",
+          "run",
+          "terminal",
+          "link"
+         ]
+        }
+       },
+       {
+        "id": "programs",
+        "kind": "info",
+        "label": "",
+        "value": "プログラムはこのMac上で実行されます。自分で書いた信頼できるコマンドだけを追加してください。実行キーを押したときにのみ実行され、パスワード欄では実行されません。",
+        "when": {
+         "type": [
+          "run",
+          "terminal"
+         ]
+        }
+       }
+      ]
      }
     ],
     "footer": "保存後は、@improveと同じように、任意のテキストフィールドの先頭で@と名前を入力して使います。",
@@ -1027,7 +1097,7 @@
       "id": "configFile",
       "kind": "info",
       "label": "設定ファイル",
-      "value": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-q3fvlf0q/config.json"
+      "value": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-cod11dea/config.json"
      }
     ],
     "footer": "変更はすぐに反映され、再起動は不要です。",
@@ -1038,6 +1108,7 @@
   "strings": {
    "action.add": "追加",
    "action.browse": "ライブラリを開く",
+   "action.cancel": "キャンセル",
    "action.delete": "削除…",
    "action.hide": "非表示にする",
    "action.install": "インストール",
@@ -1052,7 +1123,7 @@
    "cancel": "キャンセル",
    "choose": "選択…",
    "confirm.delete": "「{name}」を削除しますか？",
-   "confirm.remove": "「{name}」を取り除きますか？",
+   "confirm.removeItem": "「{name}」を取り除きますか？",
    "confirm.removeKey": "「{name}」を削除しますか？",
    "moveDown": "下へ移動",
    "moveUp": "上へ移動",

@@ -7,7 +7,7 @@ what the user did. Labels, help, which fields show, validation and the window's 
 
 ```
 dotnet build AllInOneIMESettings.sln                    # .NET 8 SDK; the Windows App SDK comes from NuGet
-dotnet test AllInOneIMESettings.Tests                   # 78 tests, no window, no engine
+dotnet test AllInOneIMESettings.Tests                   # 104 tests, no window, no engine
 Scripts/run-e2e.sh                                      # the end-to-end test, in Git Bash, with the user logged on
 python Scripts/make-test-documents.py <AllInOneIMEEngine.exe>   # the tests' documents, again (after the core changed)
 ```
@@ -29,20 +29,26 @@ python Scripts/make-test-documents.py <AllInOneIMEEngine.exe>   # the tests' doc
   | `toggle` | a switch |
   | `integer` | a number box with its bounds and step |
   | `number` | a slider, its value in words under the label (`status`); an `optional` one with a check box that sends it at all |
-  | `text` | a box committed on Enter (Ctrl+Enter for several lines) or when the focus leaves, Escape puts it back; `choices` as a menu of suggestions; `pick` adds a folder or file picker |
+  | `text` | a box committed on Enter (Ctrl+Enter for several lines) or when the focus leaves, Escape puts it back; `choices` as a menu of suggestions; `picker` adds the system's folder or file picker |
   | `choice` | a drop-down; a choice shown but `disabled` is greyed |
   | `choices` | check boxes, or, `ordered`, the list in its order with Move up / Move down / Remove and an Add… menu (`minCount`, `maxCount` respected) |
-  | `words` | the line its `text` shows, sent as the line (the core splits it) |
+  | `words` | the line its `text` shows, sent as the line (the core splits it: a command line with Windows' rules, a path's backslashes its own) with the line it showed (`shown`) |
   | `secret` | its state (`status`: "✓ Saved · ends in a1b2"), a password box, Save, and Remove… (confirmed) when it has the action |
-  | `items` | the list: each entry with its actions (confirmed when they delete) and its own fields (an app's settings, an extension's switch and preferences) when it is opened; the list's `add` (a box, suggestions, a picker), a new entry through the field's `form` (the custom command editor), the others as buttons |
-  | `info` | its text, selectable |
-  | `button` | its action, a box for its value when it has a `placeholder` (a Notion link), a progress ring while it runs, its outcome under the label |
+  | `items` | the list: each entry with its actions (confirmed when they delete) and its own fields (an app's settings, an extension's switch and preferences) when it is opened; the list's `add` when it takes a text (`textActions`: a box, suggestions, the `picker`), a new entry or an edit through the field's `schema` (the custom command editor: texts, a choice, the command line, a number, a switch, the note about programs), the others as buttons; a ring and Cancel on what runs (the library's download, an install) |
+  | `info` | its text, selectable, named by its label and its text |
+  | `button` | its action, a box for its value when the action takes a text (`textActions`: a Notion link), while it runs (`running`, or sent from here) a progress ring, "Working…" and Cancel (`cancel`), its outcome under the label |
   | any other | its label, help and value, read-only (a later core's kind) |
 
 - **Changes:** one at a time, as the user makes them; the answer's document is drawn (a refused change shows why, at its
-  field, and the control goes back to the value). A newer document updates the cards in place where a field is drawn the
-  same way, so the focus, a text being typed and an open list stay; only a field that changed shape is drawn anew, and the
-  focus goes back to its control. A text still being typed is committed when the window closes.
+  field, and the control goes back to the value). A list (check boxes, an ordered list, words) is sent as the window's
+  edit of the list it showed (`shown`, §12.4), so that what another window, `allinoneime-cli` or a sync added or took out
+  meanwhile stays so; a scalar's change is its value (the last one wins, as in the Mac's window). `stale` (a command
+  line changed elsewhere since it was shown) shows the settings as they are now with why, for the user to make the change
+  again; `cancelled` (Cancel, or the same action again) is said as the action's outcome. A newer document updates the
+  cards in place where a field is drawn the same way (an action starting or ending on it too), so the focus, a text
+  being typed and an open list stay; only a field that changed shape is drawn anew, and the focus goes back to its
+  control. A text still being typed is committed when the window closes. A value of an unexpected type (a later engine's) is drawn as text, and an answer
+  that can't be read is a wire error, never a crash.
 - **Keys:** a key, token or password goes once, in its `settingsAction setKey` frame; the box is cleared as it is sent,
   the frame's bytes cleared once written, and nothing logs a value (the requests' `ToString` leaves the key out).
 - **Changes made elsewhere** (another window, `allinoneime-cli`, a hand edit of `config.json`, a test that ran):
@@ -54,9 +60,9 @@ python Scripts/make-test-documents.py <AllInOneIMEEngine.exe>   # the tests' doc
   text size; every control has its label as its accessible name and its help as its help text (Narrator), and is reached
   with Tab or, in the pane and lists, the arrow keys.
 
-The core's document has, for this window, the words of its own controls (`strings`: "Save", "Move up", "Remove “{name}”?"
-…), the per-app settings, the script extensions' folders, switches, preferences and passwords, the custom command
-editor's `form`, the `text` of a list of words and `pick` (§12.3).
+The core's document has, for this window, the words of its own controls (`strings`: "Save", "Move up", "Remove “{name}”?",
+"Cancel" …), the per-app settings, the script extensions' folders, switches, preferences and passwords, the custom
+command editor (`schema`), the `text` of a list of words, `picker`, `textActions` and `running` (§12.3, §12.5).
 
 ## Layout
 
@@ -104,16 +110,20 @@ AllInOneIMESettings.exe [--pipe NAME] [--engine EXE [--engine-args "ARGS"]] [--t
 
 ## Tests
 
-- **Unit** (`dotnet test AllInOneIMESettings.Tests`): 78.
+- **Unit** (`dotnet test AllInOneIMESettings.Tests`): 104.
   - The protocol client against the settings golden (`Core/Tests/AllInOneIMEWireTests/WireGoldens/settings.jsonl`),
-    replayed by a stand-in engine: each frame the client sends is the golden's, and each answer and notification comes
-    back as the golden has it, with the documents the engine really sent for those requests. Answers out of order,
-    null sent as a value, a key in its frame and nowhere else, the engine going away, frames and their limits.
+    replayed by a stand-in engine: each frame the client sends is the golden's (`shown` and `revision` too), and each
+    answer and notification comes back as the golden has it, with the documents the engine really sent for those
+    requests. Answers out of order, null sent as a value, a key in its frame and nowhere else, what the window showed
+    sent with a change, the engine going away, frames and their limits.
   - The documents the engine sends (`Documents/`, made by `Scripts/make-test-documents.py` from a build of the engine:
     the golden's answers; every kind of field in English, Simplified Chinese, French and Japanese; Notion; a file that
-    doesn't parse): every field drawn with a control and named, every kind there, the text in the interface language,
-    a broken file read-only, and each user action's request (a switch, a choice whose value is null, numbers, a text, a
-    line of words, check boxes, an ordered list, a key, a button with its value, lists, the command form).
+    doesn't parse; Test Connection running against a server that never answers, its cancel and the test's `cancelled`):
+    every field drawn with a control and named, every kind there, the text and the confirmations in the interface
+    language, a broken file read-only, and each user action's request (a switch, a choice whose value is null, numbers, a
+    text, a line of words and lists with what they showed, check boxes, an ordered list, a key, a button with its value
+    when it takes one, lists, the command editor from its schema, running and cancelled, stale), values of another type.
+  - A command line written as Windows reads it back (`CommandLineToArgvW` itself).
   - The window's session (revisions, one fetch at a time, reconnecting), starting the engine (none to start, started
     and waited for, already starting, won't start), the options, the names.
 - **End to end** (`Scripts/run-e2e.sh`): the driver runs in the user's session (`../tip/test/run-in-session.sh`), starts
@@ -124,7 +134,8 @@ AllInOneIMESettings.exe [--pipe NAME] [--engine EXE [--engine-args "ARGS"]] [--t
   (a language added and moved), a check box and a text are changed and checked in `config.json`; a custom command is
   saved through its form and deleted (two dialogs); a second start brings the window forward; a fake key is saved (the
   box cleared; the engine's store has it, its last 4 through the wire; `config.json` doesn't); Test Connection goes to
-  the stand-in (one request, with that key) and its outcome shows; a hand edit of `config.json`, another window's change
+  the stand-in (one request, with that key) and its outcome shows; against a slow stand-in it shows Working… and Cancel,
+  and Cancel stops it (the window says Cancelled, the stand-in sees the request go); a hand edit of `config.json`, another window's change
   and the interface language (French, and back) show; the window closes; the app draws every section, light and dark.
   `APP=` and `ENGINE=` test other builds (the installer's: `../installer/build/stage/`).
 
@@ -136,8 +147,9 @@ AllInOneIMESettings.exe [--pipe NAME] [--engine EXE [--engine-args "ARGS"]] [--t
 
 ## Not done yet
 
-- The plugin library and the custom command editor are tested through the document and the client, not clicked
-  end to end (the library needs the network).
+- The plugin library is tested through the document and the client, not clicked end to end (it needs the network); a
+  `stale` answer only through the client (the window's lists send `shown`, which the engine merges, and only an ordered
+  command line can be stale).
 - AllInOneIME Cloud's sign-in (the Mac's), the language packs (Korean, Hindi), the Git extension sources (the Mac's
   `ExtensionSourcesSettings`), the recent apps' names and icons (the per-app list shows the program's file name).
 - The window's own messages before it has a document follow Windows' display language, not the settings' (it can't read

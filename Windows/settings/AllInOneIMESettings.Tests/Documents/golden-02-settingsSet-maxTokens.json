@@ -323,7 +323,7 @@
       "kind": "text",
       "label": "Jargon list",
       "optional": true,
-      "pick": "file",
+      "picker": "file",
       "placeholder": "C:/Users/zwj10/AppData/Roaming/AllInOneIME/jargon.txt"
      }
     ],
@@ -518,7 +518,10 @@
       "items": [],
       "kind": "items",
       "label": "Per-App Settings",
-      "placeholder": "Its program, e.g. notepad.exe"
+      "placeholder": "Its program, e.g. notepad.exe",
+      "textActions": [
+       "add"
+      ]
      }
     ],
     "id": "apps",
@@ -554,20 +557,14 @@
       ],
       "help": "Choose a folder of scripts or extension bundles",
       "id": "extensions.folders",
-      "items": [
-       {
-        "actions": [
-         "remove"
-        ],
-        "detail": "added",
-        "id": "~/.config/allinoneime/extensions",
-        "title": "~/.config/allinoneime/extensions"
-       }
-      ],
+      "items": [],
       "kind": "items",
       "label": "Folders",
-      "pick": "folder",
-      "placeholder": "~/.config/allinoneime/extensions"
+      "picker": "folder",
+      "placeholder": "~/.config/allinoneime/extensions",
+      "textActions": [
+       "add"
+      ]
      },
      {
       "help": "No extensions yet. Put scripts, extension bundles or Raycast Script Commands in a folder above.",
@@ -609,7 +606,7 @@
       "kind": "text",
       "label": "Folder (Obsidian or any)",
       "optional": true,
-      "pick": "folder"
+      "picker": "folder"
      }
     ],
     "id": "notes",
@@ -621,7 +618,11 @@
       "actions": [
        "save"
       ],
-      "form": [
+      "id": "commands.custom",
+      "items": [],
+      "kind": "items",
+      "label": "Custom @ Commands",
+      "schema": [
        {
         "id": "name",
         "kind": "text",
@@ -657,13 +658,14 @@
         "value": "prompt"
        },
        {
-        "help": "Shown in the command list (optional)",
         "id": "summary",
         "kind": "text",
         "label": "Description",
-        "optional": true
+        "optional": true,
+        "placeholder": "Shown in the command list (optional)"
        },
        {
+        "help": "Tell the AI what to do with the text after the command, e.g. \"Write a short, polite reply to the user's message.\" The answer appears in the candidates; ⏎ inserts it.",
         "id": "prompt",
         "kind": "text",
         "label": "AI instruction",
@@ -675,19 +677,19 @@
         }
        },
        {
-        "id": "argv",
-        "kind": "words",
-        "label": "Command",
-        "placeholder": "python3 convert.py {input}",
-        "text": "",
+        "help": "The text after the command replaces {input}; {label?} is a blank, filled in order, separated by commas; write {{ for {",
+        "id": "text",
+        "kind": "text",
+        "label": "Insert text",
+        "multiline": true,
         "when": {
          "type": [
-          "run",
-          "terminal"
+          "snippet"
          ]
         }
        },
        {
+        "help": "{input} becomes the text after the command (encoded), after the ?. The action key opens it in the browser; nothing is inserted. https:// only.",
         "id": "url",
         "kind": "text",
         "label": "Address",
@@ -699,21 +701,74 @@
         }
        },
        {
-        "id": "text",
-        "kind": "text",
-        "label": "Insert text",
-        "multiline": true,
+        "help": "{input} becomes the text after the command, always as one argument, never through a shell (for one, write zsh -c {input}). Quote arguments with spaces.",
+        "id": "argv",
+        "kind": "words",
+        "label": "Command",
+        "ordered": true,
+        "placeholder": "python3 -c {input}",
         "when": {
          "type": [
-          "snippet"
+          "run",
+          "terminal"
+         ]
+        }
+       },
+       {
+        "help": "Send the text to standard input (no {input} needed)",
+        "id": "stdin",
+        "kind": "text",
+        "label": "Standard input",
+        "optional": true,
+        "placeholder": "{input}",
+        "when": {
+         "type": [
+          "run"
+         ]
+        }
+       },
+       {
+        "id": "timeoutSeconds",
+        "kind": "number",
+        "label": "Stop after (seconds)",
+        "max": 120,
+        "min": 1,
+        "optional": true,
+        "placeholder": "10",
+        "step": 1,
+        "when": {
+         "type": [
+          "run"
+         ]
+        }
+       },
+       {
+        "id": "ascii",
+        "kind": "toggle",
+        "label": "Type English letters (for code and paths)",
+        "optional": true,
+        "when": {
+         "type": [
+          "prompt",
+          "run",
+          "terminal",
+          "link"
+         ]
+        }
+       },
+       {
+        "id": "programs",
+        "kind": "info",
+        "label": "",
+        "value": "Programs run on your Mac: add only commands you wrote and trust. They run only when you press the action key, never in password fields.",
+        "when": {
+         "type": [
+          "run",
+          "terminal"
          ]
         }
        }
-      ],
-      "id": "commands.custom",
-      "items": [],
-      "kind": "items",
-      "label": "Custom @ Commands"
+      ]
      }
     ],
     "footer": "Once saved, type @ and its name at the start of any text field, like @improve.",
@@ -726,7 +781,7 @@
       "id": "configFile",
       "kind": "info",
       "label": "Config file",
-      "value": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-0vz1xgj_/config.json"
+      "value": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-b_dm9fuj/config.json"
      }
     ],
     "footer": "Changes apply right away, with no restart.",
@@ -737,6 +792,7 @@
   "strings": {
    "action.add": "Add",
    "action.browse": "Open the Library",
+   "action.cancel": "Cancel",
    "action.delete": "Delete…",
    "action.hide": "Hide",
    "action.install": "Install",
@@ -751,7 +807,7 @@
    "cancel": "Cancel",
    "choose": "Choose…",
    "confirm.delete": "Delete “{name}”?",
-   "confirm.remove": "Remove “{name}”?",
+   "confirm.removeItem": "Remove “{name}”?",
    "confirm.removeKey": "Remove “{name}”?",
    "moveDown": "Move down",
    "moveUp": "Move up",

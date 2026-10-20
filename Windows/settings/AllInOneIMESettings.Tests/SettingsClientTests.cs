@@ -39,7 +39,8 @@ public class SettingsClientTests
             Task<SettingsAnswer> sending = (string)request["type"]! switch
             {
                 "settingsGet" => client.GetAsync(),
-                "settingsSet" when request.ContainsKey("value") => client.SetAsync((string)request["field"]!, request["value"]),
+                "settingsSet" when request.ContainsKey("value") => client.SetAsync((string)request["field"]!, request["value"], default,
+                                                                                    request["shown"], request["revision"]?.GetValue<ulong>()),
                 "settingsSet" => Task.FromException<SettingsAnswer>(new InvalidOperationException("skip")),
                 _ => client.ActionAsync(new SettingsActionRequest((string)request["field"]!, (string)request["action"]!,
                                                                  (string?)request["item"], request["value"], (string?)request["key"])),
@@ -71,8 +72,37 @@ public class SettingsClientTests
             answered++;
         }
         Assert.Equal(documents.Count, answered);
-        await WaitFor(() => changes.Count == 5);
-        Assert.Equal([2UL, 3UL, 4UL, 5UL, 6UL], changes);
+        // Every settingsChanged of the golden's first connection, in order.
+        var notified = steps.Where(step => !step.sent && (string?)step.frame["type"] == "settingsChanged")
+            .Select(step => step.frame["revision"]!.GetValue<ulong>()).ToList();
+        Assert.NotEmpty(notified);
+        await WaitFor(() => changes.Count == notified.Count);
+        Assert.Equal(notified, changes);
+    }
+
+    /// <summary>A list edited as the window showed it: <c>shown</c> goes with the value, and the revision when the
+    /// request has one (§12.4); a request without them sends neither.</summary>
+    [Fact]
+    public async Task WhatTheWindowShowedGoesWithTheChange()
+    {
+        var pipe = new MemoryPipe();
+        var engine = new FakeEngine(pipe.Engine);
+        var connecting = SettingsClient.ConnectAsync(pipe.Client, "test", CancellationToken.None);
+        await engine.WelcomeAsync();
+        await using var client = await connecting;
+        var document = (JsonObject)Fixtures.Answer("golden-01-settingsGet")["document"]!;
+        var edit = client.SendAsync(new SettingsSetRequest("redaction.customWords", new JsonArray("Acme", "Mine"), shown: new JsonArray("Acme"), revision: 4));
+        var frame = await engine.ReceiveAsync();
+        Assert.Equal(["Acme"], ((JsonArray)frame["shown"]!).Select(v => (string?)v));
+        Assert.Equal(4UL, frame["revision"]!.GetValue<ulong>());
+        await engine.AnswerAsync(frame, 5, document);
+        await edit;
+        var plain = client.SendAsync(new SettingsSetRequest("maxTokens", JsonValue.Create(1500)));
+        frame = await engine.ReceiveAsync();
+        Assert.False(frame.ContainsKey("shown") || frame.ContainsKey("revision"));
+        await engine.AnswerAsync(frame, 6, document, new JsonObject { ["code"] = "stale", ["field"] = "maxTokens", ["message"] = "changed" });
+        var stale = await plain;
+        Assert.True(stale.Problem!.IsStale);
     }
 
     /// <summary>A golden's <c>&gt;</c> line against what the client sent: the same keys and values, "$any" for any, the

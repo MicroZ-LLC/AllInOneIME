@@ -33,7 +33,8 @@ public enum FieldControl
     Items,
     /// <summary><c>info</c>: text to read and copy.</summary>
     Info,
-    /// <summary><c>button</c>: its action (a box for its value when it has a <c>placeholder</c>), its last outcome.</summary>
+    /// <summary><c>button</c>: its action (a box for its value when the action takes a text, <c>textActions</c>), its
+    /// last outcome; a progress ring and Cancel while it runs.</summary>
     Button,
     /// <summary>A kind a later engine sends: its label and help, read-only.</summary>
     Unknown,
@@ -68,10 +69,19 @@ public static class FieldPresenter
     {
         FieldControl.CheckList or FieldControl.OrderedList or FieldControl.Items or FieldControl.Secret or FieldControl.Words
             or FieldControl.Info or FieldControl.TextWithSuggestions => true,
-        FieldControl.TextBox => field.Multiline || field.Pick is not null || (field.StringValue?.Length ?? 0) > 40,
-        FieldControl.Button => field.Placeholder is not null,
+        FieldControl.TextBox => field.Multiline || field.Picker is not null || (field.StringValue?.Length ?? 0) > 40,
+        FieldControl.Button => TakesText(field, MainAction(field)),
         _ => false,
     };
+
+    /// <summary>The name a screen reader says for the field's control: its label; a note without one (the command
+    /// editor's warning), its text.</summary>
+    public static string AccessibleName(Field field) =>
+        field.Label.Length > 0 ? field.Label : field.StringValue ?? field.Value?.ToJsonString() ?? field.Id;
+
+    /// <summary>A value as text (a choice's, for an automation id or a box): a string as it is, anything else as JSON,
+    /// so that a later engine's number never throws.</summary>
+    public static string ValueText(JsonNode? value) => SettingsDocument.Text(value) ?? value?.ToJsonString() ?? "";
 
     /// <summary>Whether the user may change it now: not read-only, and the config file can be read.</summary>
     public static bool IsEnabled(Field field, SettingsDocument document) => !field.ReadOnly && document.LoadError is null;
@@ -141,6 +151,11 @@ public static class FieldPresenter
     public static bool IsPicked(Field field, int index) =>
         PickedValues(field).Any(value => JsonNode.DeepEquals(value, field.Choices[index].Value));
 
+    /// <summary>A list changed: the edit, with the list as the window showed it (<c>shown</c>), so that what was added
+    /// or taken out elsewhere meanwhile stays so (§12.4).</summary>
+    static SettingsSetRequest ListEdit(Field field, JsonNode edited) =>
+        new(field.Id, edited, shown: field.Value?.DeepClone() ?? new JsonArray());
+
     /// <summary>A check list's box checked or cleared: the values in the choices' order.</summary>
     public static SettingsSetRequest? Checked(Field field, int index, bool on)
     {
@@ -150,7 +165,7 @@ public static class FieldPresenter
         {
             if (i == index ? on : IsPicked(field, i)) values.Add(field.Choices[i].Value?.DeepClone());
         }
-        return new SettingsSetRequest(field.Id, values);
+        return ListEdit(field, values);
     }
 
     /// <summary>An ordered list's entry moved by <paramref name="delta"/> places.</summary>
@@ -160,7 +175,7 @@ public static class FieldPresenter
         var to = position + delta;
         if (position < 0 || position >= values.Count || to < 0 || to >= values.Count) return null;
         (values[position], values[to]) = (values[to], values[position]);
-        return new SettingsSetRequest(field.Id, new JsonArray([.. values]));
+        return ListEdit(field, new JsonArray([.. values]));
     }
 
     /// <summary>An ordered list's entry removed.</summary>
@@ -169,7 +184,7 @@ public static class FieldPresenter
         var values = PickedValues(field).Select(v => v?.DeepClone()).ToList();
         if (position < 0 || position >= values.Count) return null;
         values.RemoveAt(position);
-        return new SettingsSetRequest(field.Id, new JsonArray([.. values]));
+        return ListEdit(field, new JsonArray([.. values]));
     }
 
     /// <summary>The choices an ordered list can add: not in it, not disabled.</summary>
@@ -182,24 +197,24 @@ public static class FieldPresenter
         var values = PickedValues(field).Select(v => v?.DeepClone()).ToList();
         if (values.Any(v => JsonNode.DeepEquals(v, choice.Value))) return null;
         values.Add(choice.Value?.DeepClone());
-        return new SettingsSetRequest(field.Id, new JsonArray([.. values]));
+        return ListEdit(field, new JsonArray([.. values]));
     }
 
     /// <summary>The label a value of the field has (its choice's), or the value itself.</summary>
-    public static string LabelOf(Field field, JsonNode? value) =>
-        field.Choices.FirstOrDefault(c => c.Is(value))?.Label ?? (value is JsonValue v && v.TryGetValue<string>(out var s) ? s : value?.ToJsonString() ?? "");
+    public static string LabelOf(Field field, JsonNode? value) => field.Choices.FirstOrDefault(c => c.Is(value))?.Label ?? ValueText(value);
 
     /// <summary>A words field's line as shown: its <c>text</c>, else the words with ", " between them.</summary>
     public static string WordsLine(Field field) => field.Text ?? string.Join(", ", field.StringsValue);
 
-    /// <summary>A words field's line committed: sent as the line (the engine splits it as it shows it), or as the
-    /// words split at commas for an engine without <c>text</c>.</summary>
+    /// <summary>A words field's line committed: sent as the line (the engine splits it as it shows it), with the line
+    /// it showed (<c>shown</c>: words added elsewhere meanwhile stay; a command line changed elsewhere is <c>stale</c>);
+    /// or as the words split at commas for an engine without <c>text</c>, with the words shown.</summary>
     public static SettingsSetRequest? Words(Field field, string line)
     {
         if (line == WordsLine(field)) return null;
-        if (field.Text is not null) return new SettingsSetRequest(field.Id, JsonValue.Create(line));
+        if (field.Text is not null) return new SettingsSetRequest(field.Id, JsonValue.Create(line), shown: JsonValue.Create(field.Text));
         var words = line.Split([',', '，', '、', ';', '；', '\n'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
-        return new SettingsSetRequest(field.Id, new JsonArray([.. words.Select(w => (JsonNode?)JsonValue.Create(w))]));
+        return ListEdit(field, new JsonArray([.. words.Select(w => (JsonNode?)JsonValue.Create(w))]));
     }
 
     // MARK: Actions
@@ -211,10 +226,25 @@ public static class FieldPresenter
     public static SettingsActionRequest? RemoveSecret(Field field) =>
         field.Actions.Contains("removeKey") ? new SettingsActionRequest(field.Id, "removeKey") : null;
 
-    /// <summary>A button's action, with the value typed beside it (a link to test), if any.</summary>
-    public static SettingsActionRequest? Run(Field field, string? value = null) =>
-        field.Actions.Count == 0 ? null : new SettingsActionRequest(field.Id, field.Actions[0],
-                                                                    value: string.IsNullOrWhiteSpace(value) ? null : JsonValue.Create(value.Trim()));
+    /// <summary>A button's action (its first; <c>cancel</c> is its own button while it runs).</summary>
+    public static string? MainAction(Field field) => field.Actions.FirstOrDefault(a => a != "cancel");
+
+    /// <summary>Whether <paramref name="action"/> takes a text the user types (<c>textActions</c>).</summary>
+    public static bool TakesText(Field field, string? action) => action is not null && field.TextActions.Contains(action);
+
+    /// <summary>A button's action, with the value typed beside it (a link to test) when it takes one.</summary>
+    public static SettingsActionRequest? Run(Field field, string? value = null) => MainAction(field) is not { } action ? null
+        : new SettingsActionRequest(field.Id, action, value: !TakesText(field, action) || string.IsNullOrWhiteSpace(value) ? null
+                                                                 : JsonValue.Create(value.Trim()));
+
+    /// <summary>Whether an action that takes a while runs on the field (or on <paramref name="item"/>): its progress and
+    /// Cancel are shown.</summary>
+    public static bool IsRunning(Field field, Item? item = null) =>
+        item is null ? field.Running && field.Actions.Contains("cancel") : item.Running && item.Actions.Contains("cancel");
+
+    /// <summary><c>cancel</c>: what runs on the field (or on the item: an install) stopped.</summary>
+    public static SettingsActionRequest? Cancel(Field field, Item? item = null) =>
+        IsRunning(field, item) ? new SettingsActionRequest(field.Id, "cancel", item: item?.Id) : null;
 
     /// <summary>An item's action: remove a plugin, an app, a folder; delete a command; install from the library.</summary>
     public static SettingsActionRequest ItemAction(Field field, Item item, string action) => new(field.Id, action, item: item.Id);
@@ -224,20 +254,26 @@ public static class FieldPresenter
 
     /// <summary>An app or a folder added by what was typed or picked.</summary>
     public static SettingsActionRequest? Add(Field field, string value) =>
-        string.IsNullOrWhiteSpace(value) || !field.Actions.Contains("add") ? null
+        string.IsNullOrWhiteSpace(value) || !field.Actions.Contains("add") || !TakesText(field, "add") ? null
             : new SettingsActionRequest(field.Id, "add", value: JsonValue.Create(value.Trim()));
 
-    /// <summary>The field's actions that a list shows as its own buttons (add has its own box; save is the form's).</summary>
-    public static IReadOnlyList<string> ListActions(Field field) => field.Actions.Where(a => a is not "add").ToList();
+    /// <summary>The field's actions that a list shows as its own buttons: not one that takes a text (it has its own box:
+    /// <c>add</c>), nor <c>cancel</c> (shown while one runs). <c>save</c> opens the editor.</summary>
+    public static IReadOnlyList<string> ListActions(Field field) =>
+        field.Actions.Where(a => !TakesText(field, a) && a != "cancel").ToList();
 
-    // MARK: Forms (a custom command's editor)
+    /// <summary>An item's own buttons: its actions but <c>cancel</c> (shown while one runs on it).</summary>
+    public static IReadOnlyList<string> ItemActions(Item item) => item.Actions.Where(a => a != "cancel").ToList();
 
-    /// <summary>What the form shows first: an item's value's keys, or each form field's own value (a new one).</summary>
+    // MARK: The editor of an items field's values (a custom command's: its schema)
+
+    /// <summary>What the editor shows first: an item's value's keys, or each schema field's own value (a new one). A
+    /// command line (<c>words</c>) as the one line it is typed as; a note (<c>info</c>) is no value.</summary>
     public static Dictionary<string, JsonNode?> FormValues(Field field, Item? item)
     {
         var values = new Dictionary<string, JsonNode?>();
         var definition = item?.Value as JsonObject;
-        foreach (var form in field.Form)
+        foreach (var form in field.Schema.Where(f => f.Kind != "info"))
         {
             if (definition is null)
             {
@@ -246,27 +282,29 @@ public static class FieldPresenter
             }
             var value = definition[form.Id];
             values[form.Id] = form.Kind == "words" && value is JsonArray words
-                ? JsonValue.Create(CommandLine(words.Select(w => (string?)w ?? "")))
+                ? JsonValue.Create(CommandLine(words.Select(w => SettingsDocument.Text(w) ?? "")))
                 : value?.DeepClone();
         }
         return values;
     }
 
-    /// <summary>Whether a form's field shows with the form's values as they are (its <c>when</c>).</summary>
+    /// <summary>Whether a schema's field applies with the editor's values as they are (its <c>when</c>).</summary>
     public static bool IsShown(Field form, IReadOnlyDictionary<string, JsonNode?> values) =>
         form.When.All(rule => rule.Value.Any(v => JsonNode.DeepEquals(v, values.GetValueOrDefault(rule.Key))));
 
-    /// <summary>The form saved: the item's value (or a new one) with the shown fields' values; a text left empty, and a
-    /// field not shown, left out.</summary>
+    /// <summary>The editor saved: the item's value (or a new one) with the values of the schema's fields that apply; the
+    /// keys the schema doesn't name (an icon, a color) sent back as they were. Left out: a field that doesn't apply, a
+    /// note, a text left empty, a number not set, an optional switch that is off.</summary>
     public static SettingsActionRequest SaveForm(Field field, Item? item, IReadOnlyDictionary<string, JsonNode?> values)
     {
         var definition = (item?.Value as JsonObject)?.DeepClone() as JsonObject ?? [];
-        foreach (var form in field.Form)
+        foreach (var form in field.Schema)
         {
             definition.Remove(form.Id);
-            if (!IsShown(form, values)) continue;
+            if (form.Kind == "info" || !IsShown(form, values)) continue;
             var value = values.GetValueOrDefault(form.Id);
-            if (value is null || (value is JsonValue v && v.TryGetValue<string>(out var text) && text.Trim().Length == 0)) continue;
+            if (value is null || value is JsonValue v && (SettingsDocument.Text(v) is { } text && text.Trim().Length == 0
+                    || form.Kind == "toggle" && form.Optional && SettingsDocument.Bool(v) == false)) continue;
             definition[form.Id] = value.DeepClone();
         }
         return new SettingsActionRequest(field.Id, "save", item: item?.Id, value: definition);

@@ -401,7 +401,7 @@
       "kind": "text",
       "label": "黑话库",
       "optional": true,
-      "pick": "file",
+      "picker": "file",
       "placeholder": "C:/Users/zwj10/AppData/Roaming/AllInOneIME/jargon.txt"
      }
     ],
@@ -609,6 +609,7 @@
       "id": "agentCommand",
       "kind": "words",
       "label": "命令",
+      "ordered": true,
       "placeholder": "例如 muse --",
       "text": "muse --model \"big one\"",
       "value": [
@@ -693,6 +694,11 @@
             "label": "黑话",
             "note": "大厂黑话，英文是 Amazon 腔",
             "value": "黑话"
+           },
+           {
+            "disabled": true,
+            "label": "formal",
+            "value": "formal"
            }
           ],
           "id": "apps.win:notepad.exe.rewriteStyles",
@@ -716,7 +722,10 @@
       ],
       "kind": "items",
       "label": "按 App 设置",
-      "placeholder": "程序名，比如 notepad.exe"
+      "placeholder": "程序名，比如 notepad.exe",
+      "textActions": [
+       "add"
+      ]
      }
     ],
     "id": "apps",
@@ -758,14 +767,17 @@
          "remove"
         ],
         "detail": "添加的",
-        "id": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-450dvbdn",
-        "title": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-450dvbdn"
+        "id": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-touyrwbu",
+        "title": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-touyrwbu"
        }
       ],
       "kind": "items",
       "label": "文件夹",
-      "pick": "folder",
-      "placeholder": "~/.config/allinoneime/extensions"
+      "picker": "folder",
+      "placeholder": "~/.config/allinoneime/extensions",
+      "textActions": [
+       "add"
+      ]
      },
      {
       "id": "extensions.installed",
@@ -835,13 +847,13 @@
         "fields": [
          {
           "help": "Say hi",
-          "id": "extensions.on.C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-450dvbdn/hello.sh",
+          "id": "extensions.on.C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-touyrwbu/hello.sh",
           "kind": "toggle",
           "label": "@hello",
           "value": true
          }
         ],
-        "id": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-450dvbdn/hello.sh",
+        "id": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-touyrwbu/hello.sh",
         "title": "@hello"
        }
       ],
@@ -876,7 +888,7 @@
       "kind": "text",
       "label": "文件夹（Obsidian 等）",
       "optional": true,
-      "pick": "folder",
+      "picker": "folder",
       "value": "C:\\Notes"
      }
     ],
@@ -888,95 +900,6 @@
      {
       "actions": [
        "save"
-      ],
-      "form": [
-       {
-        "id": "name",
-        "kind": "text",
-        "label": "名字",
-        "placeholder": "只用英文字母，比如 py"
-       },
-       {
-        "choices": [
-         {
-          "label": "AI 指令",
-          "value": "prompt"
-         },
-         {
-          "label": "运行程序",
-          "value": "run"
-         },
-         {
-          "label": "在终端运行",
-          "value": "terminal"
-         },
-         {
-          "label": "打开网页",
-          "value": "link"
-         },
-         {
-          "label": "插入文字",
-          "value": "snippet"
-         }
-        ],
-        "id": "type",
-        "kind": "choice",
-        "label": "做什么",
-        "value": "prompt"
-       },
-       {
-        "help": "命令列表里显示，可以不填",
-        "id": "summary",
-        "kind": "text",
-        "label": "说明",
-        "optional": true
-       },
-       {
-        "id": "prompt",
-        "kind": "text",
-        "label": "AI 指令",
-        "multiline": true,
-        "when": {
-         "type": [
-          "prompt"
-         ]
-        }
-       },
-       {
-        "id": "argv",
-        "kind": "words",
-        "label": "命令",
-        "placeholder": "python3 convert.py {input}",
-        "text": "",
-        "when": {
-         "type": [
-          "run",
-          "terminal"
-         ]
-        }
-       },
-       {
-        "id": "url",
-        "kind": "text",
-        "label": "网址",
-        "placeholder": "https://www.google.com/search?q={input}",
-        "when": {
-         "type": [
-          "link"
-         ]
-        }
-       },
-       {
-        "id": "text",
-        "kind": "text",
-        "label": "插入文字",
-        "multiline": true,
-        "when": {
-         "type": [
-          "snippet"
-         ]
-        }
-       }
       ],
       "id": "commands.custom",
       "items": [
@@ -1014,7 +937,154 @@
        }
       ],
       "kind": "items",
-      "label": "自定义 @ 命令"
+      "label": "自定义 @ 命令",
+      "schema": [
+       {
+        "id": "name",
+        "kind": "text",
+        "label": "名字",
+        "placeholder": "只用英文字母，比如 py"
+       },
+       {
+        "choices": [
+         {
+          "label": "AI 指令",
+          "value": "prompt"
+         },
+         {
+          "label": "运行程序",
+          "value": "run"
+         },
+         {
+          "label": "在终端运行",
+          "value": "terminal"
+         },
+         {
+          "label": "打开网页",
+          "value": "link"
+         },
+         {
+          "label": "插入文字",
+          "value": "snippet"
+         }
+        ],
+        "id": "type",
+        "kind": "choice",
+        "label": "做什么",
+        "value": "prompt"
+       },
+       {
+        "id": "summary",
+        "kind": "text",
+        "label": "说明",
+        "optional": true,
+        "placeholder": "命令列表里显示，可以不填"
+       },
+       {
+        "help": "告诉 AI 怎么处理命令后面写的内容，比如「把用户的话写成一条礼貌简短的回复」。回答出现在候选里，⏎ 上屏。",
+        "id": "prompt",
+        "kind": "text",
+        "label": "AI 指令",
+        "multiline": true,
+        "when": {
+         "type": [
+          "prompt"
+         ]
+        }
+       },
+       {
+        "help": "命令后面写的内容换掉 {input}；{名字?} 是要填的空，用逗号分开依次填；{{ 写出 {",
+        "id": "text",
+        "kind": "text",
+        "label": "插入文字",
+        "multiline": true,
+        "when": {
+         "type": [
+          "snippet"
+         ]
+        }
+       },
+       {
+        "help": "{input} 换成命令后面写的内容（自动编码），放在 ? 后面。按执行键在浏览器打开，不上屏。只能用 https://。",
+        "id": "url",
+        "kind": "text",
+        "label": "网址",
+        "placeholder": "https://www.google.com/search?q={input}",
+        "when": {
+         "type": [
+          "link"
+         ]
+        }
+       },
+       {
+        "help": "{input} 换成命令后面写的内容，始终是一个参数，不经过 shell（要 shell 就写 zsh -c {input}）。参数里有空格时用引号。",
+        "id": "argv",
+        "kind": "words",
+        "label": "命令",
+        "ordered": true,
+        "placeholder": "python3 -c {input}",
+        "when": {
+         "type": [
+          "run",
+          "terminal"
+         ]
+        }
+       },
+       {
+        "help": "把内容作为标准输入（命令里不用写 {input}）",
+        "id": "stdin",
+        "kind": "text",
+        "label": "标准输入",
+        "optional": true,
+        "placeholder": "{input}",
+        "when": {
+         "type": [
+          "run"
+         ]
+        }
+       },
+       {
+        "id": "timeoutSeconds",
+        "kind": "number",
+        "label": "最多运行（秒）",
+        "max": 120,
+        "min": 1,
+        "optional": true,
+        "placeholder": "10",
+        "step": 1,
+        "when": {
+         "type": [
+          "run"
+         ]
+        }
+       },
+       {
+        "id": "ascii",
+        "kind": "toggle",
+        "label": "用英文字母输入（写代码、路径时）",
+        "optional": true,
+        "when": {
+         "type": [
+          "prompt",
+          "run",
+          "terminal",
+          "link"
+         ]
+        }
+       },
+       {
+        "id": "programs",
+        "kind": "info",
+        "label": "",
+        "value": "「运行程序」和「在终端运行」会在你的 Mac 上执行命令：只加你自己写的、信得过的。它们只在你按执行键时运行，密码框里不运行。",
+        "when": {
+         "type": [
+          "run",
+          "terminal"
+         ]
+        }
+       }
+      ]
      }
     ],
     "footer": "保存后，在任意输入框开头打 @ 加名字就能用，和 @improve 一样。",
@@ -1027,7 +1097,7 @@
       "id": "configFile",
       "kind": "info",
       "label": "配置文件",
-      "value": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-5pw_3nu0/config.json"
+      "value": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-j16orbdi/config.json"
      }
     ],
     "footer": "改完立即生效，不用重启。",
@@ -1038,6 +1108,7 @@
   "strings": {
    "action.add": "添加",
    "action.browse": "打开插件库",
+   "action.cancel": "取消",
    "action.delete": "删除…",
    "action.hide": "隐藏",
    "action.install": "安装",
@@ -1052,7 +1123,7 @@
    "cancel": "取消",
    "choose": "选择…",
    "confirm.delete": "删除「{name}」？",
-   "confirm.remove": "移除「{name}」？",
+   "confirm.removeItem": "移除「{name}」？",
    "confirm.removeKey": "删除「{name}」？",
    "moveDown": "下移",
    "moveUp": "上移",

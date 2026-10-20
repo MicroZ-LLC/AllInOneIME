@@ -10,8 +10,8 @@ namespace AllInOneIME.Settings.Tests;
 
 /// <summary>
 /// The documents the engine really sends (Documents/: the golden's, every kind of field in four languages, Notion, a
-/// broken file), drawn by kind: every field gets a control and a name, and each thing the user does makes the request
-/// the protocol wants (§12.3, §12.4, §12.5).
+/// broken file, a test running and cancelled), drawn by kind: every field gets a control and a name, and each thing the
+/// user does makes the request the protocol wants (§12.3, §12.4, §12.5).
 /// </summary>
 public class RendererTests
 {
@@ -20,7 +20,7 @@ public class RendererTests
     static IEnumerable<Field> AllFields(SettingsDocument document)
     {
         IEnumerable<Field> Walk(IEnumerable<Field> fields) =>
-            fields.SelectMany(f => new[] { f }.Concat(Walk(f.Items.SelectMany(i => i.Fields))).Concat(Walk(f.Form)));
+            fields.SelectMany(f => new[] { f }.Concat(Walk(f.Items.SelectMany(i => i.Fields))).Concat(Walk(f.Schema)));
         return Walk(document.Sections.SelectMany(s => s.Fields));
     }
 
@@ -37,8 +37,9 @@ public class RendererTests
         foreach (var field in AllFields(document))
         {
             Assert.NotEqual(FieldControl.Unknown, FieldPresenter.ControlFor(field));
-            Assert.False(string.IsNullOrWhiteSpace(field.Label), $"{field.Id} has no label (its accessible name)");
-            if (!field.Id.Contains('/') && field.Form.Count == 0) Assert.True(ids.Add(field.Id) || IsFormField(document, field.Id), $"{field.Id} twice");
+            Assert.False(string.IsNullOrWhiteSpace(FieldPresenter.AccessibleName(field)), $"{field.Id} has no accessible name");
+            if (field.Label.Length == 0) Assert.Equal("info", field.Kind);  // a note: named by its text
+            if (!field.Id.Contains('/') && field.Schema.Count == 0) Assert.True(ids.Add(field.Id) || IsFormField(document, field.Id), $"{field.Id} twice");
             // Its actions have words in the window's own (the document's, or the window's English).
             foreach (var action in field.Actions.Concat(field.Items.SelectMany(i => i.Actions)))
             {
@@ -50,7 +51,7 @@ public class RendererTests
     }
 
     static bool IsFormField(SettingsDocument document, string id) =>
-        AllFields(document).Any(f => f.Form.Any(form => form.Id == id));
+        AllFields(document).Any(f => f.Schema.Any(form => form.Id == id));
 
     [Theory]
     [MemberData(nameof(Documents))]
@@ -61,7 +62,20 @@ public class RendererTests
         Assert.False(string.IsNullOrWhiteSpace(text["window.title"]));
         Assert.Equal(document.Strings["save"], text["save"]);
         Assert.Contains("“x”", new WindowText(null).Confirmation("delete", false, "x"));
+        // Each question an action that deletes asks is the document's, by the name the window looks it up with.
+        foreach (var (action, onItem, key) in new[] { ("removeKey", false, "confirm.removeKey"), ("delete", true, "confirm.delete"),
+                                                       ("remove", true, "confirm.removeItem") })
+        {
+            Assert.True(document.Strings.ContainsKey(key), $"{name} has no {key}");
+            Assert.Equal(document.Strings[key].Replace("{name}", "x"), text.Confirmation(action, onItem, "x"));
+        }
+        Assert.Equal(document.Strings["action.cancel"], text.Action("cancel"));
     }
+
+    /// <summary>In Chinese the window asks in Chinese before an app, a folder or a plugin is removed.</summary>
+    [Fact]
+    public void TheConfirmationIsInTheInterfaceLanguage() =>
+        Assert.Equal("移除「记事本」？", new WindowText(Fixtures.Document("every-kind-zh-Hans")).Confirmation("remove", true, "记事本"));
 
     /// <summary>Every kind the core has is in the documents, and each has its control.</summary>
     [Fact]
@@ -177,7 +191,8 @@ public class RendererTests
         var model = document.Find("bedrock.modelId")!;
         Assert.Equal(FieldControl.TextWithSuggestions, FieldPresenter.ControlFor(model));
         Assert.True(FieldPresenter.IsWide(model));
-        Assert.Equal("folder", document.Find("notes.folder")!.Pick);
+        Assert.Equal("folder", document.Find("notes.folder")!.Picker);
+        Assert.Equal("file", document.Find("jargonFile")!.Picker);
     }
 
     [Fact]
@@ -187,12 +202,20 @@ public class RendererTests
         var words = document.Find("redaction.customWords")!;
         Assert.Equal("Project X, Jane", FieldPresenter.WordsLine(words));
         Assert.Null(FieldPresenter.Words(words, "Project X, Jane"));
-        Assert.Equal("Project X, Jane, Doe", (string?)FieldPresenter.Words(words, "Project X, Jane, Doe")!.Value);
+        var edited = FieldPresenter.Words(words, "Project X, Jane, Doe")!;
+        Assert.Equal("Project X, Jane, Doe", (string?)edited.Value);
+        // With the line it showed: a word added elsewhere meanwhile stays (§12.4).
+        Assert.Equal("Project X, Jane", (string?)edited.Shown);
+        Assert.Null(edited.Revision);
         var agent = document.Find("agentCommand")!;
+        Assert.True(agent.Ordered);
         Assert.Equal("muse --model \"big one\"", FieldPresenter.WordsLine(agent));
-        // An engine without `text`: the words, split at commas.
+        Assert.Equal("muse --model \"big one\"", (string?)FieldPresenter.Words(agent, "muse -q")!.Shown);
+        // An engine without `text`: the words, split at commas, and the words shown.
         var old = Field.Parse(new JsonObject { ["id"] = "w", ["kind"] = "words", ["label"] = "W", ["value"] = new JsonArray("a") });
-        Assert.Equal(["a", "b c"], ((JsonArray)FieldPresenter.Words(old, "a, b c")!.Value!).Select(v => (string?)v));
+        var split = FieldPresenter.Words(old, "a, b c")!;
+        Assert.Equal(["a", "b c"], ((JsonArray)split.Value!).Select(v => (string?)v));
+        Assert.Equal(["a"], ((JsonArray)split.Shown!).Select(v => (string?)v));
     }
 
     [Fact]
@@ -203,8 +226,9 @@ public class RendererTests
         var ids = fuzzy.Choices.Select(c => (string?)c.Value).ToList();
         Assert.True(FieldPresenter.IsPicked(fuzzy, ids.IndexOf("z-zh")));
         var on = FieldPresenter.Checked(fuzzy, ids.IndexOf("c-ch"), true)!;
-        // In the choices' order.
+        // In the choices' order, with the list as it was shown.
         Assert.Equal(ids.Where(i => i is "z-zh" or "c-ch" or "en-eng"), ((JsonArray)on.Value!).Select(v => (string?)v));
+        Assert.Equal(["z-zh", "en-eng"], ((JsonArray)on.Shown!).Select(v => (string?)v));
         Assert.Null(FieldPresenter.Checked(fuzzy, ids.IndexOf("z-zh"), true));
     }
 
@@ -220,6 +244,21 @@ public class RendererTests
         var french = FieldPresenter.Addable(languages).Single(c => (string?)c.Value == "fr");
         Assert.Equal(["en", "zh", "fr"], ((JsonArray)FieldPresenter.Added(languages, french)!.Value!).Select(v => (string?)v));
         Assert.Equal("English", FieldPresenter.LabelOf(languages, JsonValue.Create("en")));
+        // Each edit says what the window showed: a language added elsewhere meanwhile isn't dropped.
+        foreach (var edit in new[] { FieldPresenter.Moved(languages, 1, -1), FieldPresenter.Removed(languages, 0), FieldPresenter.Added(languages, french) })
+        {
+            Assert.Equal(["en", "zh"], ((JsonArray)edit!.Shown!).Select(v => (string?)v));
+        }
+    }
+
+    /// <summary>A scalar's change says nothing of what was shown: the last change wins, as in the Mac's window.</summary>
+    [Fact]
+    public void AScalarChangeIsJustItsValue()
+    {
+        var document = Fixtures.Document("every-kind-en");
+        var typeOut = FieldPresenter.Toggled(document.Find("typeOut")!, false)!;
+        Assert.Null(typeOut.Shown);
+        Assert.Null(typeOut.Revision);
     }
 
     [Fact]
@@ -232,7 +271,7 @@ public class RendererTests
         var save = FieldPresenter.SaveSecret(token, "tok-123")!;
         Assert.Equal(("setKey", "tok-123"), (save.Action, save.Key));
         Assert.Null(FieldPresenter.RemoveSecret(token));
-        var key = Fixtures.Document("golden-06-settingsAction-anthropic_key-setKey").Find("anthropic.key")!;
+        var key = Fixtures.Document("golden-11-settingsAction-anthropic_key-setKey").Find("anthropic.key")!;
         Assert.Equal(true, key.IsSet);
         Assert.EndsWith("a1b2", key.Status);
         Assert.Equal("removeKey", FieldPresenter.RemoveSecret(key)!.Action);
@@ -244,6 +283,9 @@ public class RendererTests
         var document = Fixtures.Document("notion-en");
         var link = document.Find("notes.notion")!;
         Assert.Equal(FieldControl.Button, FieldPresenter.ControlFor(link));
+        // Its test takes the link the user types (textActions), not just because it has a placeholder.
+        Assert.Equal(["test"], link.TextActions);
+        Assert.True(FieldPresenter.TakesText(link, "test"));
         Assert.True(FieldPresenter.IsWide(link));
         var run = FieldPresenter.Run(link, " https://www.notion.so/page ")!;
         Assert.Equal(("test", "https://www.notion.so/page"), (run.Action, (string?)run.Value));
@@ -251,6 +293,75 @@ public class RendererTests
         Assert.Null(FieldPresenter.Run(link, "")!.Value);
         var test = Fixtures.Document("golden-01-settingsGet").Find("provider.test")!;
         Assert.False(FieldPresenter.IsWide(test));
+        Assert.False(FieldPresenter.TakesText(test, "test"));
+        Assert.Null(FieldPresenter.Run(test, "typed")!.Value);
+        // A button with a placeholder whose action takes no text: no box.
+        var hinted = Field.Parse(new JsonObject { ["id"] = "b", ["kind"] = "button", ["label"] = "B", ["placeholder"] = "hint", ["actions"] = new JsonArray("test") });
+        Assert.False(FieldPresenter.IsWide(hinted));
+    }
+
+    /// <summary>An action that takes a while, running (Test Connection against a server that never answers): the
+    /// document says so, with <c>cancel</c>; Cancel sends it; the test is answered <c>cancelled</c>, not as an error.</summary>
+    [Fact]
+    public void ATestRunningIsCancelled()
+    {
+        var running = Fixtures.Document("running-en").Find("provider.test")!;
+        Assert.True(running.Running);
+        Assert.True(FieldPresenter.IsRunning(running));
+        Assert.Equal("test", FieldPresenter.MainAction(running));
+        Assert.Equal(FieldControl.Button, FieldPresenter.ControlFor(running));
+        var cancel = FieldPresenter.Cancel(running)!;
+        Assert.Equal(("provider.test", "cancel", null), (cancel.Field, cancel.Action, cancel.Item));
+        Assert.False(cancel.TakesAWhile);
+        Assert.Equal("Cancel", new WindowText(Fixtures.Document("running-en")).Action("cancel"));
+
+        var stopped = SettingsAnswer.Parse(Fixtures.Answer("cancel-en"));
+        Assert.Null(stopped.Problem);
+        var done = stopped.Document.Find("provider.test")!;
+        Assert.False(FieldPresenter.IsRunning(done));
+        Assert.Null(FieldPresenter.Cancel(done));
+        var cancelled = SettingsAnswer.Parse(Fixtures.Answer("cancelled-en"));
+        Assert.Equal(("cancelled", "provider.test"), (cancelled.Problem!.Code, cancelled.Problem.Field));
+        Assert.True(cancelled.Problem.IsCancelled);
+        Assert.False(cancelled.Problem.IsStale);
+    }
+
+    /// <summary>A change made on settings that have moved on: <c>stale</c>, with the document as it is now.</summary>
+    [Fact]
+    public void AStaleChange()
+    {
+        var stale = SettingsAnswer.Parse(Fixtures.Answer("golden-06-settingsSet-maxTokens"));
+        Assert.True(stale.Problem!.IsStale);
+        Assert.Equal("maxTokens", stale.Problem.Field);
+        Assert.NotEmpty(stale.Document.Sections);
+    }
+
+    /// <summary>A later engine's values of another type (a number where a string was) are drawn, never thrown on; an
+    /// answer that can't be read is a wire error, as a frame the window can't read.</summary>
+    [Fact]
+    public void ValuesOfAnotherType()
+    {
+        var field = Field.Parse(new JsonObject
+        {
+            ["id"] = "level", ["kind"] = "choice", ["label"] = 7, ["value"] = 2, ["help"] = new JsonArray("x"),
+            ["choices"] = new JsonArray(new JsonObject { ["value"] = 1, ["label"] = "One" }, new JsonObject { ["value"] = 2, ["label"] = 2 }),
+            ["actions"] = new JsonArray("test", 3),
+        });
+        Assert.Equal(("", null), (field.Label, field.Help));
+        Assert.Equal(["test"], field.Actions);
+        Assert.Equal(1, FieldPresenter.SelectedChoice(field));
+        Assert.Equal("1", FieldPresenter.ValueText(field.Choices[0].Value));
+        Assert.Equal("One", FieldPresenter.LabelOf(field, JsonValue.Create(1)));
+        Assert.Equal("level", FieldPresenter.AccessibleName(Field.Parse(new JsonObject { ["id"] = "level", ["kind"] = "info" })));
+        var document = SettingsDocument.Parse(new JsonObject { ["language"] = 1, ["sections"] = new JsonArray(), ["strings"] = new JsonObject { ["save"] = 5, ["cancel"] = "Cancel" } });
+        Assert.Equal(("en", "Cancel"), (document.Language, document.Strings["cancel"]));
+        Assert.False(document.Strings.ContainsKey("save"));
+        var answer = Fixtures.Answer("golden-01-settingsGet");
+        answer["revision"] = "one";
+        Assert.Equal("badMessage", Assert.Throws<WireException>(() => SettingsAnswer.Parse(answer)).Code);
+        answer["revision"] = 1;
+        answer["type"] = 7;
+        Assert.Equal("badMessage", Assert.Throws<WireException>(() => SettingsAnswer.Parse(answer)).Code);
     }
 
     [Fact]
@@ -260,34 +371,61 @@ public class RendererTests
         var apps = document.Find("apps.profiles")!;
         Assert.Equal("notepad.exe", (string?)FieldPresenter.Add(apps, " notepad.exe ")!.Value);
         Assert.Null(FieldPresenter.Add(apps, ""));
+        Assert.True(FieldPresenter.TakesText(apps, "add"));
         var folders = document.Find("extensions.folders")!;
-        Assert.Equal("folder", folders.Pick);
+        Assert.Equal("folder", folders.Picker);
+        Assert.Equal(["add"], folders.TextActions);
         var remove = FieldPresenter.ItemAction(folders, folders.Items[0], "remove");
         Assert.Equal((folders.Id, "remove", folders.Items[0].Id), (remove.Field, remove.Action, remove.Item));
         Assert.Empty(FieldPresenter.ListActions(apps));
         Assert.Equal(["browse"], FieldPresenter.ListActions(document.Find("plugins.library")!));
+        // An add that takes no text (not in textActions) is a button of the list, and Add sends nothing.
+        var plain = Field.Parse(new JsonObject { ["id"] = "l", ["kind"] = "items", ["label"] = "L", ["actions"] = new JsonArray("add", "cancel") });
+        Assert.Equal(["add"], FieldPresenter.ListActions(plain));
+        Assert.Null(FieldPresenter.Add(plain, "x"));
     }
 
-    /// <summary>The custom command editor: filled in from a command (its command line as one line), the fields of its
-    /// type only, saved with what the form doesn't show kept.</summary>
+    /// <summary>The custom command editor, from the field's <c>schema</c>: filled in from a command (its command line
+    /// as one line), the fields of its type only (a number, a switch, an optional text, a note), saved with what the
+    /// schema doesn't name kept, and without what is empty, off or only to read.</summary>
     [Fact]
     public void TheCommandForm()
     {
         var commands = Fixtures.Document("every-kind-en").Find("commands.custom")!;
+        Assert.Equal(["name", "type", "summary", "prompt", "text", "url", "argv", "stdin", "timeoutSeconds", "ascii", "programs"],
+                     commands.Schema.Select(f => f.Id));
         var upper = commands.Items.Single(i => i.Id == "upper");
         var values = FieldPresenter.FormValues(commands, upper);
         Assert.Equal("run", (string?)values["type"]);
         Assert.Equal("python3 -c print(input().upper())", (string?)values["argv"]);
-        Assert.True(FieldPresenter.IsShown(commands.Form.Single(f => f.Id == "argv"), values));
-        Assert.False(FieldPresenter.IsShown(commands.Form.Single(f => f.Id == "prompt"), values));
-        values["argv"] = JsonValue.Create("python3 up.py");
+        Assert.False(values.ContainsKey("programs"));  // a note, no value
+        Field Schema(string id) => commands.Schema.Single(f => f.Id == id);
+        Assert.True(FieldPresenter.IsShown(Schema("argv"), values));
+        Assert.False(FieldPresenter.IsShown(Schema("prompt"), values));
+        foreach (var id in new[] { "stdin", "timeoutSeconds", "ascii", "programs" }) Assert.True(FieldPresenter.IsShown(Schema(id), values), id);
+        Assert.Equal(("number", true, 1.0, 120.0), (Schema("timeoutSeconds").Kind, Schema("timeoutSeconds").Optional, Schema("timeoutSeconds").Min, Schema("timeoutSeconds").Max));
+        Assert.Equal(("toggle", "info", true), (Schema("ascii").Kind, Schema("programs").Kind, Schema("stdin").Optional));
+        values["argv"] = JsonValue.Create(@"C:\Tools\up.exe {input}");
         values["prompt"] = JsonValue.Create("not shown");
+        values["timeoutSeconds"] = JsonValue.Create(30.0);
+        values["ascii"] = JsonValue.Create(false);
+        values["stdin"] = JsonValue.Create("");
         var save = FieldPresenter.SaveForm(commands, upper, values);
         var definition = (JsonObject)save.Value!;
         Assert.Equal(("save", "upper"), (save.Action, save.Item));
-        Assert.Equal("python3 up.py", (string?)definition["argv"]);
-        Assert.False(definition.ContainsKey("prompt"));
-        Assert.False(definition.ContainsKey("summary"));
+        Assert.Equal(@"C:\Tools\up.exe {input}", (string?)definition["argv"]);
+        Assert.Equal(30, definition["timeoutSeconds"]!.GetValue<double>());
+        foreach (var gone in new[] { "prompt", "summary", "ascii", "stdin", "programs" }) Assert.False(definition.ContainsKey(gone), gone);
+        values["ascii"] = JsonValue.Create(true);
+        values["stdin"] = JsonValue.Create("{input}");
+        values["timeoutSeconds"] = null;
+        definition = (JsonObject)FieldPresenter.SaveForm(commands, upper, values).Value!;
+        Assert.True(definition["ascii"]!.GetValue<bool>());
+        Assert.Equal("{input}", (string?)definition["stdin"]);
+        Assert.False(definition.ContainsKey("timeoutSeconds"));
+        // Keys the schema doesn't name are sent back as they were.
+        var colored = new Item { Id = "c", Title = "@c", Value = new JsonObject { ["name"] = "c", ["type"] = "prompt", ["prompt"] = "p", ["color"] = "blue" } };
+        Assert.Equal("blue", (string?)((JsonObject)FieldPresenter.SaveForm(commands, colored, FieldPresenter.FormValues(commands, colored)).Value!)["color"]);
 
         var fresh = FieldPresenter.FormValues(commands, null);
         Assert.Equal("prompt", (string?)fresh["type"]);

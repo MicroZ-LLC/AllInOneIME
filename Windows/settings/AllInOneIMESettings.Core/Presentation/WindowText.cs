@@ -16,6 +16,7 @@ public sealed class WindowText(SettingsDocument? document)
         ["action.setKey"] = "Save", ["action.removeKey"] = "Remove…", ["action.test"] = "Test", ["action.browse"] = "Open the Library",
         ["action.install"] = "Install", ["action.remove"] = "Remove", ["action.save"] = "New…", ["action.save.item"] = "Edit…",
         ["action.delete"] = "Delete…", ["action.add"] = "Add", ["action.hide"] = "Hide", ["action.show"] = "Show",
+        ["action.cancel"] = "Cancel",
         ["confirm.removeKey"] = "Remove “{name}”?", ["confirm.delete"] = "Delete “{name}”?", ["confirm.removeItem"] = "Remove “{name}”?",
         ["save"] = "Save", ["cancel"] = "Cancel", ["choose"] = "Choose…", ["moveUp"] = "Move up", ["moveDown"] = "Move down",
         ["remove"] = "Remove", ["add"] = "Add…", ["paste"] = "Paste it", ["working"] = "Working…",

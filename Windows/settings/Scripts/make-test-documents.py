@@ -8,7 +8,9 @@ the engine, so that the tests draw what the core really sends:
   custom agent, an app's settings, a script extension bundle with each kind of preference, a custom command, fuzzy
   pinyin), in English, Simplified Chinese, French and Japanese;
 - notion-en.json: Notion as @note's destination (a secret and a button that takes a link);
-- broken-en.json: a config file that doesn't parse (every field read-only).
+- broken-en.json: a config file that doesn't parse (every field read-only);
+- running-en.json: Test Connection running (against a server on localhost that never answers): the field `running`,
+  with `cancel`; cancel-en.json, the answer to its cancel, and cancelled-en.json, the test's own answer then.
 
     python make-test-documents.py <AllInOneIMEEngine.exe>
 
@@ -18,10 +20,12 @@ memory: nothing of the user's is read or written. Run it again when the core's d
 import json
 import os
 import shutil
+import socket
 import struct
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -69,14 +73,16 @@ def frame(obj):
 
 
 class Engine:
-    def __init__(self, exe, config_text, name):
+    def __init__(self, exe, config_text, name, arguments=(), environment=None):
         self.folder = tempfile.mkdtemp(prefix='aio-docs-')
         self.config = os.path.join(self.folder, 'config.json')
         with open(self.config, 'w', encoding='utf-8') as f:
             f.write(config_text)
         self.pipe = r'\\.\pipe\aio-test-documents-' + name
+        self.answers = {}
         self.process = subprocess.Popen([exe, '--test', '--quiet', '--no-panel', '--config', self.config,
-                                         '--pipe', self.pipe], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                                         '--pipe', self.pipe, *arguments], stdout=subprocess.DEVNULL,
+                                        stderr=subprocess.DEVNULL, env=environment)
         for _ in range(100):
             try:
                 self.f = open(self.pipe, 'r+b', buffering=0)
@@ -91,16 +97,35 @@ class Engine:
         assert 'settings' in hello['capabilities'], hello
 
     def request(self, obj):
+        return self.wait(self.send(obj))
+
+    def send(self, obj):
+        """Sends a request without waiting for its answer (one that takes a while); its id."""
         self.id += 1
-        obj = dict(obj, v=1, id=self.id)
-        self.f.write(frame(obj))
-        while True:
-            data = self.f.read(1 << 21)
-            n = struct.unpack('<I', data[:4])[0]
-            assert n == len(data) - 4
-            answer = json.loads(data[4:].decode('utf-8'))
-            if answer.get('re') == self.id:
+        self.f.write(frame(dict(obj, v=1, id=self.id)))
+        return self.id
+
+    def wait(self, request_id, notification=None):
+        """The answer to `request_id` (others that come meanwhile are kept), or the first notification of the type
+        `notification`."""
+        while request_id not in self.answers:
+            n = struct.unpack('<I', self.read(4))[0]
+            answer = json.loads(self.read(n).decode('utf-8'))
+            if 're' in answer:
+                self.answers[answer['re']] = answer
+            elif notification is not None and answer.get('type') == notification:
                 return answer
+        return self.answers.pop(request_id)
+
+    def read(self, count):
+        """`count` bytes: a frame's length, or its body (the pipe read as bytes, two frames may come in one read)."""
+        data = b''
+        while len(data) < count:
+            more = self.f.read(count - len(data))
+            if not more:
+                raise SystemExit('the engine closed the pipe')
+            data += more
+        return data
 
     def close(self):
         self.f.close()
@@ -169,6 +194,33 @@ def main():
     engine = Engine(exe, '{ "uiLanguage": "en", nope', 'broken')
     save('broken-en', engine.request({"type": "settingsGet"}))
     engine.close()
+
+    # Test Connection running, against a server that takes the request and never answers; then cancelled. The key from
+    # the environment (keys in memory: --no-keychain).
+    server = socket.socket()
+    server.bind(('127.0.0.1', 0))
+    server.listen()
+    held = []
+
+    def hold():
+        try:
+            while True:
+                held.append(server.accept())
+        except OSError:
+            pass  # closed
+    threading.Thread(target=hold, daemon=True).start()
+    environment = dict(os.environ, ANTHROPIC_API_KEY='sk-test-documents-0000-a1b2')
+    engine = Engine(exe, json.dumps({"uiLanguage": "en", "provider": "anthropic", "inputLanguages": ["en"], "extensionFolders": [],
+                                     "anthropic": {"baseURL": "http://127.0.0.1:%d" % server.getsockname()[1]}}),
+                    'running', arguments=['--no-keychain'], environment=environment)
+    engine.request({"type": "settingsGet"})
+    test = engine.send({"type": "settingsAction", "field": "provider.test", "action": "test"})
+    engine.wait(None, notification='settingsChanged')
+    save('running-en', engine.request({"type": "settingsGet"}))
+    save('cancel-en', engine.request({"type": "settingsAction", "field": "provider.test", "action": "cancel"}))
+    save('cancelled-en', engine.wait(test))
+    engine.close()
+    server.close()
 
 
 if __name__ == '__main__':
