@@ -183,15 +183,39 @@ public struct AIConfigFit: Sendable {
     /// A text as the words are looked for in it.
     struct Words {
         let lowered: String
-        /// Its words (letters and digits), lowercased.
+        /// Its words (letters and digits), lowercased; a word ends where Chinese, Japanese or Korean meets other letters
+        /// or digits, as they are written without a space between them ("改用Bedrock", "AWSのプロファイル", "AWS로").
         let words: [String]
         /// The words joined by single spaces, with one before the first: phrases are looked for at the start of a word.
         let joined: String
 
         init(_ text: String) {
             lowered = text.lowercased()
-            words = lowered.split { !$0.isLetter && !$0.isNumber }.map(String.init)
+            var words: [String] = []
+            var word = "", cjk = false
+            for character in lowered {
+                let letter = character.isLetter || character.isNumber
+                let isCJK = letter && Self.isCJK(character)
+                if !word.isEmpty, !letter || isCJK != cjk {
+                    words.append(word)
+                    word = ""
+                }
+                if letter { word.append(character) }
+                cjk = isCJK
+            }
+            if !word.isEmpty { words.append(word) }
+            self.words = words
             joined = " " + words.joined(separator: " ")
+        }
+
+        /// Han, kana or Hangul.
+        static func isCJK(_ character: Character) -> Bool {
+            switch character.unicodeScalars.first?.value ?? 0 {
+            case 0x1100...0x11FF, 0x2E80...0x9FFF, 0xA960...0xA97F, 0xAC00...0xD7FF, 0xF900...0xFAFF, 0xFF66...0xFFDC, 0x20000...0x3FFFF:
+                return true
+            default:
+                return false
+            }
         }
 
         func contains(_ word: String) -> Bool {
@@ -205,8 +229,10 @@ public struct AIConfigFit: Sendable {
             return words.contains { $0.hasPrefix(word) }
         }
 
-        /// An AWS region code: "us-east-1".
-        var hasRegion: Bool { lowered.range(of: #"\b[a-z]{2}(-gov)?-[a-z]+-\d\b"#, options: .regularExpression) != nil }
+        /// An AWS region code: "us-east-1" (in "改成us-east-1" too, where `\b` sees no word's end).
+        var hasRegion: Bool {
+            lowered.range(of: #"(?<![a-z0-9])[a-z]{2}(-gov)?-[a-z]+-\d(?![a-z0-9])"#, options: .regularExpression) != nil
+        }
     }
 
     // MARK: - The plan

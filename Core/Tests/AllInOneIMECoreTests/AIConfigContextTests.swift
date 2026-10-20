@@ -245,7 +245,9 @@ struct AIConfigContextTests {
     /// has the provider's choices with Bedrock's, whatever the config, counted by the model or estimated.
     @Test(arguments: [0, 60, 250], [true, false])
     func useBedrockKeepsTheProvider(apps: Int, counts: Bool) async throws {
-        for sentence in ["use Bedrock", "switch to Amazon Nova", "use the AWS profile work"] {
+        // Latin words written against Chinese, Japanese or Korean without a space too.
+        for sentence in ["use Bedrock", "switch to Amazon Nova", "use the AWS profile work", "改用Bedrock", "用AWS的profile work",
+                         "AWS로 바꿔 줘", "AWSのプロファイルをworkにして"] {
             let model = ContextLimitedModel(contextSize: 4096, answer: #"{"changes": [{"key": "provider", "value": "bedrock"}]}"#, counts: counts)
             let answer = try await Self.service(model).ask(sentence, context: Self.context(Self.bigConfig(apps: apps)), tools: Self.tools)
             #expect(answer.onDevice)
@@ -474,8 +476,9 @@ struct AIConfigContextTests {
     /// one in use) only when the sentence is about AWS or Bedrock: by its words, not by letters inside others.
     @Test func theAWSProfilesAreNamedToTheProviderOnlyOnAWSSentences() async throws {
         let sentences = [("use the AWS profile personal", true), ("switch to Bedrock in us-west-2", true), ("改用亚马逊的模型", true),
-                         ("アマゾンの Bedrock にして", true), ("candidates in a column when it draws", false), ("hide the laws' names", false),
-                         ("候选竖排", false)]
+                         ("アマゾンの Bedrock にして", true), ("改用AWS的模型", true), ("AWSのプロファイル", true), ("AWS로 바꿔 줘", true),
+                         ("candidates in a column when it draws", false), ("hide the laws' names", false), ("候选竖排", false),
+                         ("用Laws的说法", false)]
         for (index, (sentence, aws)) in sentences.enumerated() {
             let host = "assistant-aws-\(index).test"
             let (service, config) = try Self.openAIService(ContextLimitedModel(overflows: true), host: host, answer: #"{"changes": []}"#)
@@ -587,9 +590,13 @@ struct AIConfigContextTests {
         #expect(parts("Bedrock in us-west-2").contains(.aws))
         // Bedrock, Amazon, AWS, Nova: the provider with AWS's settings, in the interface's languages.
         for sentence in ["use Bedrock", "switch to Amazon Nova", "use the AWS profile work", "Bedrock in us-west-2", "改用亚马逊的模型",
-                         "改用亞馬遜", "アマゾンの Bedrock を使う", "아마존 Bedrock으로 바꿔 줘", "nimm Amazon Nova"] {
+                         "改用亞馬遜", "アマゾンの Bedrock を使う", "아마존 Bedrock으로 바꿔 줘", "nimm Amazon Nova",
+                         // A Latin word against Chinese, Japanese or Korean is a word of its own.
+                         "改用Bedrock", "用AWS的profile work", "AWS로 바꿔 줘", "AWSのプロファイル", "改成us-west-2"] {
             #expect(parts(sentence).contains(.provider) && parts(sentence).contains(.aws), "\(sentence)")
         }
+        #expect(parts("用English").contains(.inputLanguages) && parts("改成vertical") == [.candidateLayout])
+        #expect(AIConfigFit.relevance(["在Slack里用中文"], context: context).apps == ["com.tinyspeck.slackmacgap"])
         for sentence in ["用谷歌的模型", "グーグルに切り替えて", "클로드로 바꿔", "ジェミニを使う", "제미나이로", "用深度求索"] {
             #expect(parts(sentence).contains(.provider), "\(sentence)")
         }
