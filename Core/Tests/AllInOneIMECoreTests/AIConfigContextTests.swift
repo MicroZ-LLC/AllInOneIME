@@ -190,6 +190,23 @@ struct AIConfigContextTests {
         #expect(apps.contains(#""com.tencent.xinWeChat":{"inputLanguage":"en"}"#) && apps.contains("other apps, not shown"), "\(apps)")
     }
 
+    /// "use Bedrock" chooses the provider as much as Bedrock's own settings: on a 4096-token model (macOS 26) the schema
+    /// has the provider's choices with Bedrock's, whatever the config, counted by the model or estimated.
+    @Test(arguments: [0, 60, 250], [true, false])
+    func useBedrockKeepsTheProvider(apps: Int, counts: Bool) async throws {
+        for sentence in ["use Bedrock", "switch to Amazon Nova", "use the AWS profile work"] {
+            let model = ContextLimitedModel(contextSize: 4096, answer: #"{"changes": [{"key": "provider", "value": "bedrock"}]}"#, counts: counts)
+            let answer = try await Self.service(model).ask(sentence, context: Self.context(Self.bigConfig(apps: apps)), tools: Self.tools)
+            #expect(answer.onDevice)
+            #expect(try AIConfig.parse(answer.text).changes == [.init(key: .setting(.provider), value: .string("bedrock"))])
+            let sent = try #require(model.sent.last)
+            #expect(sent.tokens + sent.request.maximumResponseTokens <= 4096)
+            let choices = Self.choices(sent.schema)
+            #expect(["Provider", "Region", "AWSProfile", "ModelBedrock"].allSatisfy(choices.contains), "\(sentence), \(apps) apps: \(choices)")
+            #expect(sent.tools.contains("awsProfiles"))
+        }
+    }
+
     /// A refine's conversation: its latest turn always (the last answer holds what the earlier instructions asked for),
     /// older ones while there is room, the oldest left out first.
     @Test func olderTurnsGoFirst() async throws {
@@ -321,6 +338,14 @@ struct AIConfigContextTests {
         #expect(parts("translate into Japanese and French").contains(.outputLanguages))
         #expect(parts("use Claude Sonnet") == [.provider])
         #expect(parts("Bedrock in us-west-2").contains(.aws))
+        // Bedrock, Amazon, AWS, Nova: the provider with AWS's settings, in the interface's languages.
+        for sentence in ["use Bedrock", "switch to Amazon Nova", "use the AWS profile work", "Bedrock in us-west-2", "改用亚马逊的模型",
+                         "改用亞馬遜", "アマゾンの Bedrock を使う", "아마존 Bedrock으로 바꿔 줘", "nimm Amazon Nova"] {
+            #expect(parts(sentence).contains(.provider) && parts(sentence).contains(.aws), "\(sentence)")
+        }
+        for sentence in ["用谷歌的模型", "グーグルに切り替えて", "클로드로 바꿔", "ジェミニを使う", "제미나이로", "用深度求索"] {
+            #expect(parts(sentence).contains(.provider), "\(sentence)")
+        }
         #expect(parts("hide phone numbers") == [.privacy])
         #expect(parts("打开 iCloud 同步") == [.iCloudSync])
         #expect(parts("关闭自动检查更新") == [.updates])

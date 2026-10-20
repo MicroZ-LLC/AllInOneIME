@@ -51,8 +51,8 @@ public struct AIConfigFit: Sendable {
     /// The parts of the settings `texts` (the sentence, a refine's instructions) are about, by the words they use (in
     /// English, Chinese and the interface's other languages, the names of languages and styles, the apps they name),
     /// and the parts of the keys in `answers` (a refine's earlier answers, which the revised one repeats); in the order
-    /// `Part.allCases` has them. And the apps with settings of their own named there (their keys in
-    /// `Config.appProfiles`): by a name the catalog has for them, their bundle ID, or their key.
+    /// `Part.allCases` has them, the provider with AWS's. And the apps with settings of their own named there (their
+    /// keys in `Config.appProfiles`): by a name the catalog has for them, their bundle ID, or their key.
     public static func relevance(_ texts: [String], answers: [String] = [], context: AIConfigPrompt.Context)
         -> (parts: [AIConfigPrompt.Part], apps: [String]) {
         let text = Words(texts.joined(separator: "\n"))
@@ -92,6 +92,8 @@ public struct AIConfigFit: Sendable {
                 }
             }
         }
+        // Bedrock's settings come with the provider's: "use Bedrock", "switch to Amazon Nova" choose it.
+        if parts.contains(.aws) { parts.insert(.provider) }
         return (AIConfigPrompt.Part.allCases.filter(parts.contains), apps)
     }
 
@@ -129,13 +131,14 @@ public struct AIConfigFit: Sendable {
         .updates: ["update", "new version", "更新", "新版本", "アップデート", "업데이트", "aktualisier", "mise à jour", "actualiza", "atualiza"],
         .iCloudSync: ["icloud", "sync", "同步", "同期", "동기화", "synchron", "sincroniz"],
         .provider: ["provider", "model", "claude", "anthropic", "haiku", "sonnet", "opus", "gemini", "google", "openai", "gpt", "chatgpt",
-                    "deepseek", "qwen", "kimi", "moonshot", "glm", "zhipu", "siliconflow", "openrouter", "ollama", "base url", "baseurl",
-                    "url", "endpoint", "apple intelligence", "on-device", "on this mac", "cloud", "ai service", "服务", "服務", "模型",
-                    "通义", "千问", "智谱", "月之暗面", "硅基", "本机", "本機", "云", "雲", "智能", "プロバイダ", "モデル", "サービス",
-                    "제공", "모델", "서비스", "anbieter", "modell", "dienst", "fournisseur", "modèle", "servic", "proveedor", "modelo",
-                    "provedor"],
-        .aws: ["aws", "bedrock", "amazon", "nova", "region", "profile", "亚马逊", "亞馬遜", "区域", "區域", "地区", "地區", "リージョン",
-               "プロファイル", "리전", "프로필", "profil", "región", "região"],
+                    "deepseek", "qwen", "kimi", "moonshot", "glm", "zhipu", "siliconflow", "openrouter", "ollama", "bedrock", "amazon",
+                    "aws", "nova", "base url", "baseurl", "url", "endpoint", "apple intelligence", "on-device", "on this mac", "cloud",
+                    "ai service", "服务", "服務", "模型", "亚马逊", "亞馬遜", "谷歌", "深度求索", "通义", "千问", "智谱", "月之暗面", "硅基", "本机",
+                    "本機", "云", "雲", "智能", "プロバイダ", "モデル", "サービス", "アマゾン", "グーグル", "クロード", "ジェミニ", "제공", "모델",
+                    "서비스", "아마존", "구글", "클로드", "제미나이", "오픈ai", "anbieter", "modell", "dienst", "fournisseur", "modèle",
+                    "servic", "proveedor", "modelo", "provedor"],
+        .aws: ["aws", "bedrock", "amazon", "nova", "region", "profile", "亚马逊", "亞馬遜", "区域", "區域", "地区", "地區", "アマゾン",
+               "リージョン", "プロファイル", "아마존", "리전", "프로필", "profil", "región", "região"],
         .apps: ["app", "apps", "application", "program", "应用", "應用", "软件", "軟體", "軟件", "程序", "程式", "アプリ", "앱", "anwendung", "appli",
                 "aplicación", "aplicativo", "programa"],
     ]
