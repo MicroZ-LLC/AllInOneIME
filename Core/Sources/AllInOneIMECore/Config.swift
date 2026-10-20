@@ -106,6 +106,16 @@ public struct Config: Codable, Equatable, Sendable {
     public var menuBarIcon: Bool
     /// Fuzzy pinyin (模糊音): the pairs typed either way (`FuzzyPinyin.pairs` ids, e.g. "z-zh", "n-l"); none by default.
     public var fuzzyPinyin: [String]
+    /// English words of the user's offered among pinyin's candidates (`EnglishWords`, `EnglishWordsEngine`), as they are
+    /// written ("Bedrock"): added in Settings, or learned (`learnsEnglishWords`). Oldest first; none by default.
+    public var englishWords: [String]
+    /// Those of `englishWords` the user added in Settings, as they are written (the others were learned): beyond
+    /// `EnglishWords.maxWords` the oldest learned go first (`EnglishWords.capped`). None by default.
+    public var addedEnglishWords: [String]
+    /// Letters put in as typed twice while typing pinyin ("bedrock" and ⏎) are learned as an English word (`EnglishWords.
+    /// learnable`): never during secure input, in a terminal, a remote desktop or a virtual machine, in an app with no AI,
+    /// or for what looks like a secret. On by default.
+    public var learnsEnglishWords: Bool
     /// The keyboard layout each input language types with, by language code ("fr": "com.apple.keylayout.French"),
     /// where it isn't the language's default (`Language.defaultKeyboardLayout`).
     public var keyboardLayouts: [String: String]
@@ -155,6 +165,10 @@ public struct Config: Codable, Equatable, Sendable {
     public var activeModel: String {
         provider == .bedrock ? modelId : "\(provider.rawValue):\(settings(for: provider).model ?? "")"
     }
+
+    /// The config file's key of `englishWords` (`EnglishWords.learn` writes it alone), and of `addedEnglishWords`.
+    public static let englishWordsKey = CodingKeys.englishWords.rawValue
+    public static let addedEnglishWordsKey = CodingKeys.addedEnglishWords.rawValue
 
     /// `jargonFile` with "~" expanded, or `JargonLibrary.defaultURL`.
     public var jargonURL: URL {
@@ -211,6 +225,9 @@ public struct Config: Codable, Equatable, Sendable {
         self.questionContinueIn = nil
         self.menuBarIcon = true
         self.fuzzyPinyin = []
+        self.englishWords = []
+        self.addedEnglishWords = []
+        self.learnsEnglishWords = true
         self.keyboardLayouts = [:]
         self.typeOut = false
         self.typeOutRate = TypeOut.defaultRate
@@ -243,6 +260,7 @@ public struct Config: Codable, Equatable, Sendable {
         case outputLanguage, outputLanguages, inputLanguages, defaultInput, improveTranslates, voiceInput, jargonFile, actionKey, uiLanguage, customCommands, claudeInBackground, agent, agentCommand, agentPageContext
         case extensionFolders, findRaycastScripts, hiddenExtensionFolders, disabledExtensions, extensionPreferences
         case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutMistakes, typeOutSpeed, fuzzyPinyin, keyboardLayouts, candidateLayout
+        case englishWords, addedEnglishWords, learnsEnglishWords
         case checkForUpdates, useSelection, appProfiles
         case rememberQuestions, questionRounds, questionContinueIn
         case redaction
@@ -313,6 +331,10 @@ public struct Config: Codable, Equatable, Sendable {
             .compactMap(ChatHandoff.Destination.init(rawValue:))
         menuBarIcon = try c.decodeIfPresent(Bool.self, forKey: .menuBarIcon) ?? d.menuBarIcon
         fuzzyPinyin = FuzzyPinyin.known(try c.decodeIfPresent([String].self, forKey: .fuzzyPinyin) ?? [])
+        // A list of the wrong type reads as none, not an error (the words are offered only as `EnglishWords.word` allows).
+        englishWords = (try? c.decodeIfPresent([String].self, forKey: .englishWords)).flatMap { $0 } ?? d.englishWords
+        addedEnglishWords = (try? c.decodeIfPresent([String].self, forKey: .addedEnglishWords)).flatMap { $0 } ?? d.addedEnglishWords
+        learnsEnglishWords = try c.decodeIfPresent(Bool.self, forKey: .learnsEnglishWords) ?? d.learnsEnglishWords
         keyboardLayouts = (try? c.decodeIfPresent([String: String].self, forKey: .keyboardLayouts)).flatMap { $0 } ?? [:]
         typeOut = try c.decodeIfPresent(Bool.self, forKey: .typeOut) ?? d.typeOut
         // A file from before the slider: "slow", "normal", "fast" or "random" (normal, varying).
@@ -468,6 +490,10 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encodeIfPresent(questionContinueIn, forKey: .questionContinueIn)
         try c.encode(menuBarIcon, forKey: .menuBarIcon)
         try c.encode(fuzzyPinyin, forKey: .fuzzyPinyin)
+        // Only once there are words, and learning only when it's off: a file from before them doesn't gain the keys.
+        if !englishWords.isEmpty { try c.encode(englishWords, forKey: .englishWords) }
+        if !addedEnglishWords.isEmpty { try c.encode(addedEnglishWords, forKey: .addedEnglishWords) }
+        if !learnsEnglishWords { try c.encode(learnsEnglishWords, forKey: .learnsEnglishWords) }
         try c.encode(keyboardLayouts, forKey: .keyboardLayouts)
         try c.encode(typeOut, forKey: .typeOut)
         try c.encode(typeOutRate, forKey: .typeOutRate)

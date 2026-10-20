@@ -4,6 +4,11 @@ import AllInOneIMERime
 import AppKit
 
 extension SessionServices {
+    /// The letters put in as typed once (an English word is learned the second time), every field's, until the input
+    /// method quits.
+    @MainActor
+    private static let lettersTypedOnce = EnglishWords.TypedOnce()
+
     /// This Mac's: the config file as of now, what UserDefaults keeps, Spotlight, Terminal, Notes or a folder or Notion,
     /// Reminders, Contacts and Messages, the keychain. Main thread only, but for the `@Sendable` ones.
     @MainActor
@@ -15,6 +20,16 @@ extension SessionServices {
             return RimeService.shared.isStarted ? .starting : .none
         }
         services.engineIsValid = { ($0 as? RimeSession)?.isValid ?? true }
+        // English words among pinyin's candidates; a word learned goes into the config file (the self-test's own while it runs).
+        services.englishDictionary = { RimeService.shared.englishDictionary }
+        services.englishTypedOnce = lettersTypedOnce
+        services.learnEnglishWord = { word in
+            do {
+                try EnglishWords.learn(word, at: Config.defaultURL)
+            } catch {
+                log.error("could not keep an English word: \(String(describing: error), privacy: .public)")
+            }
+        }
         services.hangulTables = { LanguagePackManager.shared.hangulTables() }
         services.hindiTables = { LanguagePackManager.shared.hindiTables() }
         services.usableLanguages = { LanguagePackManager.shared.usable($0) }

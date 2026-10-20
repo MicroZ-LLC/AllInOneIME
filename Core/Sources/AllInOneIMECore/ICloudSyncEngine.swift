@@ -196,8 +196,14 @@ public struct ICloudSyncEngine: @unchecked Sendable {  // used from one queue at
                 let result = ICloudSync.mergedCommands(icloud, mine)
                 merged[key] = result.value
                 report.replacedCommands = result.replaced
+            } else if key == ICloudSync.englishWordsKey {
+                // Those added on either Mac stay within the limit before the words learned.
+                let addedKey = ICloudSync.addedEnglishWordsKey
+                let added = (local[addedKey]?.strings ?? []) + (theirs?[addedKey]?.value?.strings ?? [])
+                merged[key] = ICloudSync.mergedEnglishWords(icloud, mine, added: added)
             } else {
-                merged[key] = ICloudSync.mergedWords(icloud, mine)
+                merged[key] = key == ICloudSync.addedEnglishWordsKey
+                    ? ICloudSync.mergedWords(icloud, mine, key: EnglishWords.key) : ICloudSync.mergedWords(icloud, mine)
             }
         }
 
@@ -233,6 +239,15 @@ public struct ICloudSyncEngine: @unchecked Sendable {  // used from one queue at
                 } else if let entry = incoming[key] {
                     // With the merge it derives from (`Entry.base`), for a change made here on top of it.
                     plan.entries[key] = ICloudSync.Entry(value: after[key], stamp: entry.stamp, base: entry.base)
+                }
+                // The English words given back those added (`ICloudSync.applying`): a change made here on top of what the
+                // run had, stamped now, and up, so that every Mac offers them.
+                if key == ICloudSync.englishWordsKey, plan.merges[key] == nil,
+                   ICloudSync.addsWords(after[key], to: incoming[key]?.value ?? local[key]) {
+                    let mine = ICloudSync.Entry(value: after[key], stamp: .init(modified: now, by: state.macID),
+                                                base: ICloudSync.changeBase(key, plan.entries[key]))
+                    plan.outgoing[key] = mine
+                    plan.entries[key] = mine
                 }
             }
             let keys = AIConfig.changedKeys(config, result.config)

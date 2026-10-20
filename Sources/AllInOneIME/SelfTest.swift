@@ -2939,6 +2939,9 @@ enum SelfTest {
               "in a command ⇧Space picks, then types a space ('\(controller.composer.draft)')")
         _ = escape(controller, client)
 
+        testEnglishWords(controller, client, snapshotDirectory: snapshotDirectory)
+        testEnglishWordsSettings(snapshotDirectory: snapshotDirectory)
+
         section("Shift switches Chinese / English", needs: .composing)
         tapShift(controller, client)
         check(controller.composer.engineState.isAsciiMode, "Shift alone switches to English")

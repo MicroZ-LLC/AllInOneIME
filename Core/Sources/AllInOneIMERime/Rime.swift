@@ -68,7 +68,33 @@ public final class RimeService {
         _ = api.pointee.start_maintenance(fullCheck ? 1 : 0)
         self.sharedDataDir = sharedDataDir
         self.userDataDir = userDataDir
+        englishLoad = EnglishLoad(sharedDataDir)
         isStarted = true
+    }
+
+    /// rime-ice's English dictionary in the shared data (`EnglishDictionary`), for the English words put among the
+    /// candidates (`EnglishWordsEngine`): read on a thread of its own once librime starts (it deploys meanwhile), waited
+    /// for if it isn't read yet. Nil before `start`, or without one.
+    public var englishDictionary: EnglishDictionary? { englishLoad?.dictionary }
+    private var englishLoad: EnglishLoad?
+
+    /// The dictionary being read.
+    private final class EnglishLoad: @unchecked Sendable {
+        private let group = DispatchGroup()
+        private var loaded: EnglishDictionary?
+
+        init(_ folder: URL) {
+            group.enter()
+            DispatchQueue.global(qos: .utility).async {
+                self.loaded = EnglishDictionary.load(rimeData: folder)
+                self.group.leave()
+            }
+        }
+
+        var dictionary: EnglishDictionary? {
+            group.wait()
+            return loaded
+        }
     }
 
     /// Re-deploys everything (e.g. after editing files in the user directory). Existing sessions are

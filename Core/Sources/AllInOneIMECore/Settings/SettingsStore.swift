@@ -172,8 +172,8 @@ public final class SettingsStore {
     }
 
     /// The file as it is now: what was changed and not saved yet saved (a save reads the file back), else the file read
-    /// again if something else changed it. Lists that sync through iCloud may change (the commands, the hidden words)
-    /// are read this way before an edit, and edited by name, never by an index shown earlier.
+    /// again if something else changed it. Lists that sync through iCloud may change (the commands, the hidden words, the
+    /// English words) are read this way before an edit, and edited by name, never by an index shown earlier.
     public func refresh() {
         save()
         reloadIfChanged()
@@ -201,6 +201,30 @@ public final class SettingsStore {
         config.redaction.customWords = list
         save()
         return config.redaction.customWords
+    }
+
+    /// Settings → Input → English Words' Add: the words of `text` added to the English words pinyin offers, marked as the
+    /// user's (`EnglishWords.add`), on the list as the file has it now: those added (each a word the user hadn't added; one
+    /// learned becomes theirs), and those refused as what hiding sensitive information hides.
+    @discardableResult
+    public func addEnglishWords(_ text: String) -> EnglishWords.Added {
+        refresh()
+        var changed = config
+        let result = EnglishWords.add(text, to: &changed)
+        guard !result.words.isEmpty else { return result }
+        config = changed
+        save()
+        return result
+    }
+
+    /// A word's ✕: `word` gone from the English words (`EnglishWords.remove`), wherever it is in the list now.
+    public func removeEnglishWord(_ word: String) {
+        refresh()
+        var changed = config
+        EnglishWords.remove(word, from: &changed)
+        guard changed != config else { return }
+        config = changed
+        save()
     }
 
     /// The custom commands an edit of the one named `original` (nil: one being added) is checked against.

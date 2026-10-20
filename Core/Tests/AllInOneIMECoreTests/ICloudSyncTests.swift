@@ -721,6 +721,23 @@ struct ICloudSyncJoinTests {
         }
     }
 
+    @Test func aKeyEveryMacHasThatTheRecordLacksJoins() {
+        // As a key a later version adds would be (its record made by an older one): at its default here, another Mac's
+        // value in iCloud comes in, whatever this Mac's file's time.
+        let other = ICloudSync.Entry(value: .bool(false), stamp: .init(modified: t(1), by: "B"))
+        let joins = ICloudSync.plan(local: ["menuBarIcon": .bool(true)], known: [:], remote: ["menuBarIcon": other],
+                                    categories: [.settings], mac: "A", now: t(5))
+        #expect(joins.incoming["menuBarIcon"] == other && joins.outgoing.isEmpty)
+        // Nothing in iCloud: it goes up as a joining Mac's values do, never over a change made elsewhere.
+        let up = ICloudSync.plan(local: ["menuBarIcon": .bool(true)], known: [:], remote: [:], categories: [.settings], mac: "A", now: t(5))
+        #expect(up.outgoing["menuBarIcon"] == ICloudSync.Entry(value: .bool(true), stamp: .joining("A")))
+        // Set here, it is a change: the newer wins.
+        let set = ICloudSync.plan(local: ["menuBarIcon": .bool(false)], known: [:],
+                                  remote: ["menuBarIcon": .init(value: .bool(true), stamp: .init(modified: t(1), by: "B"))],
+                                  categories: [.settings], mac: "A", now: t(5), changedAt: { _ in t(3) })
+        #expect(set.outgoing["menuBarIcon"] == ICloudSync.Entry(value: .bool(false), stamp: .init(modified: t(3), by: "A")))
+    }
+
     // MARK: Lost settings.json
 
     @Test(arguments: [false, true])
