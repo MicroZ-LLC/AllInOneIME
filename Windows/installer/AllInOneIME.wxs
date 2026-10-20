@@ -96,12 +96,13 @@
       <Component Id="SettingsProgram">
         <File Id="AllInOneIMESettings.exe" Source="$(StageDir)\Settings\AllInOneIMESettings.exe" KeyPath="yes" />
       </Component>
-      <!-- In the Start menu (every user's: the package is per machine). A shortcut's component keeps a value of the
-           installing user's as its key path, as Windows Installer wants (ICE43, ICE57). -->
+      <!-- In the Start menu (every user's: the package is per machine). A shortcut's component needs a registry value as
+           its key path; the machine's (HKMU: HKLM in a per-machine package), as the shortcut is, so that an uninstall by
+           another user than the one who installed leaves nothing in the installing user's registry (ICE57). -->
       <Component Id="SettingsShortcut" Directory="ProgramMenuFolder">
         <Shortcut Id="SettingsShortcut" Name="AllInOneIME Settings" Description="The settings of AllInOneIME, the input method"
                   Target="[#AllInOneIMESettings.exe]" WorkingDirectory="SettingsFolder" Icon="AllInOneIME.ico" />
-        <RegistryValue Root="HKCU" Key="Software\AllInOneIME" Name="SettingsShortcut" Type="integer" Value="1" KeyPath="yes" />
+        <RegistryValue Root="HKMU" Key="Software\AllInOneIME" Name="SettingsShortcut" Type="integer" Value="1" KeyPath="yes" />
       </Component>
     </ComponentGroup>
 

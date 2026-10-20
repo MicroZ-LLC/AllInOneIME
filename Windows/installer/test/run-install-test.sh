@@ -92,6 +92,12 @@ MADE_DATA=""
 MARKER="$DATA/install-test-marker.txt"
 echo "the installer's test checks that an uninstall leaves this folder alone" > "$MARKER"
 
+shortcut_is_the_machines() {
+  test -f "$(cygpath -u -F 23)/AllInOneIME Settings.lnk" &&  # the common Start menu's programs
+    reg query 'HKLM\Software\AllInOneIME' /v SettingsShortcut >/dev/null 2>&1 &&
+    ! reg query 'HKCU\Software\AllInOneIME' /v SettingsShortcut >/dev/null 2>&1
+}
+
 verify_installed() { # $1: the snapshot's name
   local s="$1"
   echo "  -- files"
@@ -113,6 +119,8 @@ verify_installed() { # $1: the snapshot's name
     grep -qxF "engine-path: $INSTALL_DIR_WIN\\AllInOneIMEEngine.exe" <<<"$status"
   check "the Run entry starts the engine at logon" \
     grep -qxF "run-at-logon: \"$INSTALL_DIR_WIN\\AllInOneIMEEngine.exe\"" <<<"$status"
+  check "AllInOneIME Settings in every user's Start menu, its key path the machine's (nothing in the user's HKCU)" \
+    shortcut_is_the_machines
   check "the en-US and zh-CN profiles are registered" \
     test "$(grep -cE '^profile (0409|0804): registered$' <<<"$status")" = 2
   local categories
