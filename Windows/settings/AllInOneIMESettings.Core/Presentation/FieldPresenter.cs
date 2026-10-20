@@ -272,9 +272,32 @@ public static class FieldPresenter
         return new SettingsActionRequest(field.Id, "save", item: item?.Id, value: definition);
     }
 
-    /// <summary>A program and its arguments as one line, quoted where needed: the core's <c>CustomCommand.commandLine</c>,
-    /// which the engine splits back.</summary>
-    public static string CommandLine(IEnumerable<string> argv) =>
-        string.Join(" ", argv.Select(a => a.Length == 0 || a.Any(c => c is ' ' or '\t' or '"' or '\'' or '\\')
-            ? "\"" + a.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"" : a));
+    /// <summary>A program and its arguments as one line, as the core writes it for Windows (<c>CustomCommand.commandLine</c>
+    /// with its Windows rules), which the engine splits back with <c>CommandLineToArgvW</c>'s: an argument with a space, a
+    /// tab or a <c>"</c> (or none at all) in quotes, its <c>"</c> and the backslashes before one escaped; a path's
+    /// backslashes as they are (<c>C:\Tools\run.exe</c>).</summary>
+    public static string CommandLine(IEnumerable<string> argv) => string.Join(" ", argv.Select((argument, index) =>
+    {
+        if (argument.Length > 0 && !argument.Any(c => c is ' ' or '\t' or '\n' or '\v' or '"')) return argument;
+        // The program: in quotes as it is (a file name has no ").
+        if (index == 0) return "\"" + argument + "\"";
+        var line = new System.Text.StringBuilder("\"");
+        var backslashes = 0;
+        foreach (var c in argument)
+        {
+            if (c == '\\')
+            {
+                backslashes++;
+            }
+            else
+            {
+                // n backslashes before a " become 2n + 1: the " escaped.
+                if (c == '"') line.Append('\\', backslashes + 1);
+                backslashes = 0;
+            }
+            line.Append(c);
+        }
+        // n backslashes before the closing " become 2n.
+        return line.Append('\\', backslashes).Append('"').ToString();
+    }));
 }

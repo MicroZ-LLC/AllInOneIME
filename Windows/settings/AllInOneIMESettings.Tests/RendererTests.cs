@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Text.Json.Nodes;
 using AllInOneIME.Settings.Document;
 using AllInOneIME.Settings.Presentation;
@@ -297,12 +298,44 @@ public class RendererTests
         Assert.Equal(["name", "prompt", "type"], ((JsonObject)created.Value!).Select(p => p.Key).Order());
     }
 
-    /// <summary>The command line as the core writes it (CustomCommand.commandLine), so that it splits back the same.</summary>
+    /// <summary>The command line as the core writes it for Windows (CustomCommand.commandLine, its Windows rules), so
+    /// that it splits back the same: a path's backslashes as they are.</summary>
     [Theory]
     [InlineData(new[] { "python3", "-c", "{input}" }, "python3 -c {input}")]
     [InlineData(new[] { "say", "hello world" }, "say \"hello world\"")]
-    [InlineData(new[] { "a\\b", "x\"y", "" }, "\"a\\\\b\" \"x\\\"y\" \"\"")]
+    [InlineData(new[] { @"C:\Tools\run.exe", @"C:\dir\", "{input}" }, @"C:\Tools\run.exe C:\dir\ {input}")]
+    [InlineData(new[] { @"C:\Program Files\x.exe", "x\"y", "", @"C:\My Files\" }, @"""C:\Program Files\x.exe"" ""x\""y"" """" ""C:\My Files\\""")]
     public void CommandLines(string[] argv, string line) => Assert.Equal(line, FieldPresenter.CommandLine(argv));
+
+    /// <summary>A command's arguments as one line, read back by Windows (CommandLineToArgvW, whose rules the engine
+    /// splits the line with): the same arguments.</summary>
+    [Theory]
+    [MemberData(nameof(ArgumentLists))]
+    public void CommandLinesSplitBackOnWindows(string[] argv)
+    {
+        var line = FieldPresenter.CommandLine(argv);
+        var read = CommandLineToArgvW(line, out var count);
+        try
+        {
+            var back = Enumerable.Range(0, count).Select(i => Marshal.PtrToStringUni(Marshal.ReadIntPtr(read, i * IntPtr.Size))).ToArray();
+            Assert.Equal(argv, back);
+        }
+        finally
+        {
+            LocalFree(read);
+        }
+    }
+
+    public static TheoryData<string[]> ArgumentLists => new(
+        [@"C:\Tools\run.exe", "{input}", @"\\server\share\a b"],
+        [@"C:\Program Files\Tool\t.exe", @"say ""hi"" \ there", @"C:\dir\", "", "tab\there"],
+        ["py", @"\\", @"\", @"a\\""b", @"x\y\", @"C:\My Files\"]);
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    static extern IntPtr CommandLineToArgvW(string commandLine, out int count);
+
+    [DllImport("kernel32.dll")]
+    static extern IntPtr LocalFree(IntPtr memory);
 
     [Theory]
     [InlineData("zh-CN", "zh-Hans")]
