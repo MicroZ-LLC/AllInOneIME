@@ -3,5 +3,5 @@
 /// same CFBundleShortVersionString (and one CFBundleVersion); `AppVersionTests` fails when they drift
 /// apart, so bump all four together.
 public enum AppVersion {
-    public static let string = "0.6.5"
+    public static let string = "0.6.5.1"
 }

@@ -2,6 +2,14 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
+## 0.6.5.1 (2026-10-19)
+
+### Fixed
+
+- Slack and other Electron or Chromium apps (VS Code, Discord, Chrome…): holding Shift turns Translate as You Type on and off there too, a tap of Shift switches the input language once (it could switch twice when the page was busy), and a tap of ⌥ runs the action key. These apps hand each press of a modifier key to the input method twice; the copy is now told apart.
+- Settings → Assistant on Apple Intelligence: no more "context too long" error. The request is fitted to the on-device model's context (only the settings the sentence is about when the whole doesn't fit); when even that doesn't fit, your own AI provider answers instead and the page says so before sending, or the page says what to do. A provider other than the one you asked for ("use Bedrock") is never applied. An AWS account number in a Bedrock model or profile name is not sent to other providers.
+- Apple Intelligence's "too long" message in every interface language.
+
 ## 0.6.5 (2026-10-18)
 
 ### Added
