@@ -6,7 +6,8 @@ import Testing
 /// near enough (`tokens`): the instructions, the conversation, the prompt, the schema the answer is held to (as the JSON
 /// schema the framework puts into the prompt) and the tools' definitions, then the answer. A request that leaves no room
 /// for its answer fails with `AppleModelError.contextExceeded`, as the framework's does. `overflows`: every request
-/// fails so (the model said so though the request was fitted).
+/// fails so (the model said so though the request was fitted). `weight`: its tokens are that many times those (a
+/// tokenizer the estimate falls short of).
 final class ContextLimitedModel: AppleGuidedBackend, @unchecked Sendable {
     let availability: AppleModelAvailability = .available
     let contextSize: Int
@@ -15,17 +16,19 @@ final class ContextLimitedModel: AppleGuidedBackend, @unchecked Sendable {
     let overflows: Bool
     /// Whether it counts a request's tokens when asked (macOS 26.4 and later); else the core estimates them.
     let counts: Bool
+    let weight: Double
     private let lock = NSLock()
     private var _sent: [(request: AppleModelRequest, schema: GuidedSchema, tools: [String], tokens: Int)] = []
     /// What was sent, and its size in tokens without the answer.
     var sent: [(request: AppleModelRequest, schema: GuidedSchema, tools: [String], tokens: Int)] { lock.withLock { _sent } }
 
     init(contextSize: Int = 4096, answer: String = #"{"changes": [{"key": "candidateLayout", "value": "vertical"}], "note": "The candidates are in a column now."}"#,
-         overflows: Bool = false, counts: Bool = true) {
+         overflows: Bool = false, counts: Bool = true, weight: Double = 1) {
         self.contextSize = contextSize
         self.answer = answer
         self.overflows = overflows
         self.counts = counts
+        self.weight = weight
     }
 
     func respond(to request: AppleModelRequest) -> AsyncThrowingStream<AppleModelSnapshot, Error> {
@@ -33,14 +36,18 @@ final class ContextLimitedModel: AppleGuidedBackend, @unchecked Sendable {
     }
 
     func respond(to request: AppleModelRequest, schema: GuidedSchema, tools: [GuidedTool]) async throws -> String {
-        let size = Self.tokens(request, schema: schema, tools: tools)
+        let size = weighed(request, schema: schema, tools: tools)
         lock.withLock { _sent.append((request, schema, tools.map(\.name), size)) }
         if overflows || size + Self.tokens(answer) > contextSize { throw AppleModelError.contextExceeded }
         return answer
     }
 
     func tokenCount(of request: AppleModelRequest, schema: GuidedSchema, tools: [GuidedTool]) async -> Int? {
-        counts ? Self.tokens(request, schema: schema, tools: tools) : nil
+        counts ? weighed(request, schema: schema, tools: tools) : nil
+    }
+
+    private func weighed(_ request: AppleModelRequest, schema: GuidedSchema, tools: [GuidedTool]) -> Int {
+        Int((Double(Self.tokens(request, schema: schema, tools: tools)) * weight).rounded(.up))
     }
 
     // MARK: Counting
@@ -242,6 +249,34 @@ struct AIConfigContextTests {
             let sent = try #require(model.sent.last)
             #expect(sent.tokens + sent.request.maximumResponseTokens <= 4096, "\(sent.tokens) + \(sent.request.maximumResponseTokens)")
         }
+    }
+
+    /// macOS 26.0 to 26.3, where the model can't count: should it find a request fitted by the estimate too long all the
+    /// same (a tokenizer heavier than the estimate has it), the request is fitted once more with the estimate ×1.3 and
+    /// answered on the device; too long again, the user's own provider (here it has no key: the line says so).
+    @Test func withoutTheModelsCountTooLongIsFittedOnceMore() async throws {
+        let context = Self.context(Self.bigConfig(apps: 120))
+        let heavy = ContextLimitedModel(contextSize: 4096, counts: false, weight: 1.6)
+        let answer = try await Self.service(heavy).ask("candidates in a column", context: context, tools: Self.tools)
+        #expect(answer.onDevice && heavy.sent.count == 2)
+        let (first, second) = (heavy.sent[0], heavy.sent[1])
+        #expect(first.tokens > 4096 - 30 && second.tokens + second.request.maximumResponseTokens <= 4096, "\(first.tokens), \(second.tokens)")
+        #expect(Self.choices(second.schema).contains("CandidateLayout"))
+
+        let heavier = ContextLimitedModel(contextSize: 4096, counts: false, weight: 2.5)
+        await #expect(throws: AIConfigService.TooLong.self) {
+            _ = try await Self.service(heavier).ask("candidates in a column", context: context, tools: Self.tools)
+        }
+        #expect(heavier.sent.count == 2)
+        // The same request once more would be too long again: the user's provider at once. And where the model counts,
+        // its count decides: no second try (`tooLongAllTheSameGoesToTheUsersProvider`).
+        var small = Config.default
+        small.provider = .anthropic
+        let whole = ContextLimitedModel(contextSize: 8192, overflows: true, counts: false)
+        await #expect(throws: AIConfigService.TooLong.self) {
+            _ = try await Self.service(whole).ask("candidates in a column", context: Self.context(small), tools: Self.tools)
+        }
+        #expect(whole.sent.count == 1)
     }
 
     /// The estimate is on the high side of the stand-in's count (the system's own: `theEstimateIsOnTheHighSideOfTheSystemsCount`).

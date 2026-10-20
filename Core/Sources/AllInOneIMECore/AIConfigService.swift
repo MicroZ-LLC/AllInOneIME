@@ -184,7 +184,8 @@ public final class AIConfigService: Sendable {
 
     /// The on-device model held to the schema with `tools`, the request fitted to its context (`fitted`), where the
     /// backend can (`AppleGuidedBackend`); else the JSON in the instructions, as for any provider. Throws
-    /// `AppleModelError.contextExceeded` when the request can't be fitted, or the model found it too long all the same.
+    /// `AppleModelError.contextExceeded` when the request can't be fitted, or the model found it too long all the same
+    /// (without its count, fitted once more first with the estimate ×1.3, `AIConfigFit.retryScale`).
     private func askOnDevice(_ sentence: String, turns: [Refinement.Turn], context: AIConfigPrompt.Context, tools: [GuidedTool],
                              hiding: Hiding) async throws -> Answer {
         var config = context.config
@@ -203,22 +204,34 @@ public final class AIConfigService: Sendable {
                                                            timeout: timeout))
             return keep(hiding.restore(text), key: key, answer)
         }
-        guard let fit = await Self.fitted(sentence, turns: turns, context: context, tools: tools, protect: hiding.protect, backend: guided)
-        else { throw AppleModelError.contextExceeded }
-        let key = Self.onDeviceKey(AIConfigPrompt.request(sentence, context: context, turns: fit.turns, compact: true, scope: fit.scope),
-                                   sentence: sentence, turns: turns)
-        if let hit = cache.withLock({ $0.get(key) }), let text = hit.versions.first?.text {
-            return Answer(text: text, fromCache: true, onDevice: true, hidden: hiding.count)
+        var tried: AIConfigFit?
+        for scale in [1, AIConfigFit.retryScale] {
+            guard let fit = await Self.fitted(sentence, turns: turns, context: context, tools: tools, protect: hiding.protect, scale: scale,
+                                              backend: guided),
+                  fit.scope != tried?.scope || fit.turns.count != tried?.turns.count
+            else { throw AppleModelError.contextExceeded }
+            let key = Self.onDeviceKey(AIConfigPrompt.request(sentence, context: context, turns: fit.turns, compact: true, scope: fit.scope),
+                                       sentence: sentence, turns: turns)
+            if let hit = cache.withLock({ $0.get(key) }), let text = hit.versions.first?.text {
+                return Answer(text: text, fromCache: true, onDevice: true, hidden: hiding.count)
+            }
+            let contextSize = guided.contextSize
+            var request = AppleModel.request(from: fit.body, maxTokens: fit.body.inferenceConfig.maxTokens ?? config.maxTokens, contextSize: contextSize)
+            // The answer gets what the context has left (the tools' calls their room): never less than its own room, never
+            // more than the user's limit.
+            let left = contextSize - fit.tokens - (fit.tools.isEmpty ? 0 : AIConfigFit.toolRoom)
+            request.maximumResponseTokens = min(fit.body.inferenceConfig.maxTokens ?? config.maxTokens, max(left, AIConfigFit.answerRoom))
+            let (sent, schema, tools) = (request, fit.schema, fit.tools)
+            do {
+                let json = try await Self.withTimeout(timeout) { try await guided.respond(to: sent, schema: schema, tools: tools) }
+                return keep(hiding.restore(AIConfigPrompt.canonical(json)), key: key, answer)
+            } catch AppleModelError.contextExceeded where !fit.counted && tried == nil {
+                // Too long though the estimate fitted it (no count before macOS 26.4): once more with the estimate a third
+                // larger, when that leaves more out; else the user's own provider.
+                tried = fit
+            }
         }
-        let contextSize = guided.contextSize
-        var request = AppleModel.request(from: fit.body, maxTokens: fit.body.inferenceConfig.maxTokens ?? config.maxTokens, contextSize: contextSize)
-        // The answer gets what the context has left (the tools' calls their room): never less than its own room, never more
-        // than the user's limit.
-        let left = contextSize - fit.tokens - (fit.tools.isEmpty ? 0 : AIConfigFit.toolRoom)
-        request.maximumResponseTokens = min(fit.body.inferenceConfig.maxTokens ?? config.maxTokens, max(left, AIConfigFit.answerRoom))
-        let (sent, schema, tools) = (request, fit.schema, fit.tools)
-        let json = try await Self.withTimeout(timeout) { try await guided.respond(to: sent, schema: schema, tools: tools) }
-        return keep(hiding.restore(AIConfigPrompt.canonical(json)), key: key, answer)
+        throw AppleModelError.contextExceeded
     }
 
     /// The cache key of an on-device request.
@@ -228,12 +241,13 @@ public final class AIConfigService: Sendable {
     }
 
     /// The request fitted to `backend`'s context (`AIConfigFit.plan`), its size counted by the model where it can tell
-    /// (else the estimate, on the high side); nil when it can't be fitted. Where the model counts, the whole request is
+    /// (else the estimate, on the high side, times `scale`); nil when it can't be fitted. Where the model counts, the whole request is
     /// counted first: it goes when it fits, else the estimate is scaled to the model's count before the plan, so a
     /// setting the sentence is about isn't given up on the estimate alone; then scaled again by each plan's count: up
     /// when the request came out too large, down once when it leaves room to spare (more of the settings fit).
     static func fitted(_ sentence: String, turns: [Refinement.Turn], context: AIConfigPrompt.Context, tools: [GuidedTool],
-                       protect: (ConverseRequest) -> ConverseRequest, backend: any AppleGuidedBackend) async -> AIConfigFit? {
+                       protect: (ConverseRequest) -> ConverseRequest, scale initial: Double = 1,
+                       backend: any AppleGuidedBackend) async -> AIConfigFit? {
         let contextSize = backend.contextSize
         func estimate(_ scale: Double) -> (AppleModelRequest, GuidedSchema, [GuidedTool]) -> Int {
             { request, schema, tools in Int((Double(AIConfigFit.estimatedTokens(request, schema: schema, tools: tools)) * scale).rounded(.up)) }
@@ -248,12 +262,13 @@ public final class AIConfigService: Sendable {
             return await backend.tokenCount(of: request, schema: fit.schema, tools: fit.tools)
         }
         func fits(_ fit: AIConfigFit, _ tokens: Int) -> Bool { tokens <= contextSize - AIConfigFit.reserve(tools: !fit.tools.isEmpty) }
-        var scale = 1.0
+        var scale = initial
         var whole = AIConfigFit.build(sentence, turns: turns, context: context, scope: .everything, tools: tools, protect: protect,
                                       contextSize: contextSize, measure: estimate(1))
         if let counted = await count(whole) {
             guard !fits(whole, counted) else {
                 whole.tokens = counted
+                whole.counted = true
                 return whole
             }
             scale = Double(counted) / Double(max(whole.tokens, 1))
@@ -268,6 +283,7 @@ public final class AIConfigService: Sendable {
                 continue
             }
             fit.tokens = counted
+            fit.counted = true
             guard fitted == nil, ratio < 0.95 else { return fit }
             fitted = fit
             scale *= ratio

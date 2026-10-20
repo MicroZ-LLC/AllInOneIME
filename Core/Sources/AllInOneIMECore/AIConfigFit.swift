@@ -19,14 +19,18 @@ public struct AIConfigFit: Sendable {
     /// The request as it goes (values hidden from the AI already hidden), and the schema its answer is held to.
     public var body: ConverseRequest
     public var schema: GuidedSchema
-    /// Its size in tokens, without the answer: the model's count where it can tell (macOS 26.4 and later), else the
-    /// estimate.
+    /// Its size in tokens, without the answer: the model's count where it can tell (macOS 26.4 and later, `counted`),
+    /// else the estimate.
     public var tokens: Int
+    public var counted = false
 
     /// Kept for the answer: twelve changes at most, and a note.
     public static let answerRoom = 600
     /// Kept for the tools' calls and what they return, when the request has tools.
     public static let toolRoom = 250
+    /// Without the model's count, the estimate times this when the model found a request fitted by the estimate too long
+    /// all the same (`AIConfigService`): the request is fitted once more before it goes to the user's own provider.
+    public static let retryScale = 1.3
 
     /// The tokens kept free of the request: the answer's room, and the tools' with tools.
     public static func reserve(tools: Bool) -> Int { answerRoom + (tools ? toolRoom : 0) }
