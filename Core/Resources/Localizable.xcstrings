@@ -14678,7 +14678,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Trop long pour Apple Intelligence sur ce Mac, et %@ n’a pas pu répondre à la place : %@"
+            "value" : "Trop long pour Apple Intelligence sur ce Mac, et %@ n’a pas pu répondre à la place : %@"
           }
         },
         "ja" : {
@@ -14725,7 +14725,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Trop long pour Apple Intelligence sur ce Mac, et %@ n’est pas configuré : essayez une requête plus courte, ou configurez %@ dans Réglages → Fournisseur d’IA"
+            "value" : "Trop long pour Apple Intelligence sur ce Mac, et %@ n’est pas configuré : essayez une requête plus courte, ou configurez %@ dans Réglages → Fournisseur d’IA"
           }
         },
         "ja" : {
@@ -14819,7 +14819,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Trop long pour Apple Intelligence sur ce Mac : essayez une requête plus courte, ou choisissez un autre fournisseur d’IA dans Réglages → Fournisseur d’IA"
+            "value" : "Trop long pour Apple Intelligence sur ce Mac : essayez une requête plus courte, ou choisissez un autre fournisseur d’IA dans Réglages → Fournisseur d’IA"
           }
         },
         "ja" : {

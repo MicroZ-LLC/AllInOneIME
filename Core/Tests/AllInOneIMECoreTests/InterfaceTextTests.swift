@@ -298,11 +298,12 @@ struct InterfaceTextTests {
         try StringCatalogCheck.translationsFit(Self.root.appendingPathComponent("Resources/Localizable.xcstrings"))
     }
 
-    /// Every interface language has every key in use, and its placeholders are the English's.
+    /// Every interface language has every key in use, and its placeholders are the English's; French is spaced as French.
     @Test func everyLanguageHasEveryKey() throws {
         let catalog = Self.root.appendingPathComponent("Resources/Localizable.xcstrings")
         try StringCatalogCheck.everyKeyTranslated(catalog)
         try StringCatalogCheck.placeholdersMatch(catalog)
+        try StringCatalogCheck.frenchSpacing(catalog)
     }
 
     @Test func placeholdersReadAsArguments() {
