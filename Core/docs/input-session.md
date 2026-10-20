@@ -150,7 +150,9 @@ The engine (merged in 0.6.6/integration) drives a `Composer` through `AllInOneIM
    `levelOne` (`EngineRime.makeEngine`, `.starting` while it deploys, `.none` without it), `englishDictionary`
    (`RimeService.shared.englishDictionary`: with it the session puts English words among librime's candidates,
    `EnglishWordsEngine`), `learnEnglishWord` (`EnglishWords.learn` into the engine's `config.json`) and `englishTypedOnce` (one for
-   all the engine's sessions, as the Mac's: a word is learned the second time, in any field), `runProgram` and `runPlugin`
+   all the engine's sessions, as the Mac's: a word is learned the second time, in any field; the engine does all three
+   already, on the Composer: `EngineHost.levelOne` and `learn`, by the session's rule, `EnglishWords.learns`, with the
+   field's `terminal` its own: a terminal's program or window, PowerShell ISE), `runProgram` and `runPlugin`
    (this program as a child, `--run-js`, `--run-plugin`), `loadExtensions`, `searchFiles` (`SystemActions.search`),
    `runInTerminal`, `continueInAgent` and `launchInTerminal` (`SystemActions.launchInTerminal`), `noteDestination` (a
    folder or Notion; Apple Notes refuses), `addReminder`, `messageSender`, `startAgent`, `listAgents` and

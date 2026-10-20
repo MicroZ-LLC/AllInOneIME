@@ -2,7 +2,7 @@
 // TSF and SendInput need an interactive desktop, see README), starts the real engine and real, registered DLL, and
 // types into real Notepad through AllInOneIME, reading the result back through UI Automation.
 //
-//   e2edriver --engine <AllInOneIMEEngine.exe> [--scenario improve|plain|pinyin|ai|terminal] [--fixture <provider.json>]
+//   e2edriver --engine <AllInOneIMEEngine.exe> [--scenario improve|plain|pinyin|english|ai|terminal] [--fixture <json>]
 //             [--plain <text>] [--engine-arg <arg>]... [--shots <dir>] [--engine-log <file>] [--langid 0x0409]
 //             [--timeout-ms 60000] [--expect-tip <dll>] [--probe] [--host | --console | --webview2 <host.exe> <data dir>]
 //
@@ -11,6 +11,9 @@
 //            "hi Hello." (the default);
 //   plain    the --plain text, as typed;
 //   pinyin   a tap of Shift (typing starts in English, as for a new user), "nihao", Space, "nihao", "1": "你好你好";
+//   english  English words among pinyin's candidates (typing starts in Chinese): "frobnicate" and Return twice, the
+//            letters put in as typed, learned the second time ("learned an English word" in the engine's log), then
+//            "frobn": the word among the candidates, second, and "2" picks it: "frobnicatefrobnicatefrobnicate";
 //   ai       "@improve hello", Return, the versions streamed from the provider the engine's settings name (the run's
 //            stub on localhost), "1": "Hello there.";
 //   terminal "@aioterm hello", Return: the run's `terminal` command (a batch file that prints what it is given and ends
@@ -543,6 +546,7 @@ struct Scenario {
     std::wstring Expected() const {
         if (name == "plain") return plain;
         if (name == "pinyin") return L"你好你好";  // 你好你好
+        if (name == "english") return L"frobnicatefrobnicatefrobnicate";
         if (name == "ai") return L"Hello there.";
         if (name == "terminal") return L"";
         return L"hi Hello.";
@@ -581,6 +585,26 @@ bool TypeScenario(const Scenario& s, DWORD pid) {
         if (!TypeText(L"nihao", pid)) return false;
         Pump(300);
         return TapKey('1', pid);
+    }
+    if (s.name == "english") {
+        bool ready = false;
+        for (int i = 0; i < 600 && !(ready = EngineLogHas(s.engineLog, "rime: ready")); ++i) Pump(100);
+        Check(ready, "librime is ready in the engine");
+        // Letters put in as typed while typing pinyin (Return): remembered the first time, learned the second.
+        for (int i = 0; i < 2; ++i) {
+            if (!TypeText(L"frobnicate", pid)) return false;
+            Pump(300);
+            if (!TapKey(VK_RETURN, pid)) return false;
+            Pump(300);
+        }
+        bool learned = false;
+        for (int i = 0; i < 50 && !(learned = EngineLogHas(s.engineLog, "learned an English word (10 letters)")); ++i) Pump(100);
+        Check(learned, "the engine learned the word the second time");
+        // Its beginning: the word among librime's candidates, second; "2" picks it.
+        if (!TypeText(L"frobn", pid)) return false;
+        Pump(300);
+        CheckPanel(s.enginePid, pid, s.Shot(L"english-candidates.png"), "frobn");
+        return TapKey('2', pid);
     }
     if (s.name == "ai") {
         if (!TypeText(L"@improve hello", pid) || !TapKey(VK_RETURN, pid)) return false;
@@ -1269,10 +1293,10 @@ int main(int argc, char** argv) {
     scenario.plain = plain;
     scenario.engineLog = engineLog;
     const bool known = scenario.name == "improve" || scenario.name == "plain" || scenario.name == "pinyin" ||
-                       scenario.name == "ai" || scenario.name == "terminal";
+                       scenario.name == "english" || scenario.name == "ai" || scenario.name == "terminal";
     if (enginePath.empty() || !known || (scenario.name == "improve" && fixturePath.empty()) ||
         (scenario.name == "plain" && plain.empty())) {
-        printf("usage: e2edriver --engine <exe> [--scenario improve|plain|pinyin|ai|terminal] [--fixture <json>]\n"
+        printf("usage: e2edriver --engine <exe> [--scenario improve|plain|pinyin|english|ai|terminal] [--fixture <json>]\n"
                "       [--plain <text>] [--engine-arg <arg>]... [--shots <dir>] [--engine-log <file>] [--langid 0xNNNN]\n"
                "       [--timeout-ms N] [--expect-tip <dll>] [--probe] [--host | --console | --webview2 <host.exe> <dir>]\n");
         return 2;
@@ -1533,6 +1557,7 @@ int main(int argc, char** argv) {
                                                           (!plain.empty() && now.find(plain) == 0) ||
                                                           now.find(L"improve") != std::wstring::npos ||
                                                           now.find(L"nihao") != std::wstring::npos ||
+                                                          now.find(L"frob") == 0 ||
                                                           now.find(L"你好") == 0);
         if (oursActive) {
             Chord(VK_CONTROL, 'S', np.pid);

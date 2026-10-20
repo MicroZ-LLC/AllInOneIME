@@ -49,6 +49,18 @@ In every app that loads TSF text services (the classic Win32 ones, and WinUI one
   Up / Page Down turn the page. The data comes with the installer (`rime-data`); what librime learns is the user's, in
   `%APPDATA%\AllInOneIME\rime`. librime deploys as the engine starts (under a second usually, several the first time in
   a user folder): until then a field types Latin letters, and gets pinyin once it is ready.
+- **English words among pinyin's candidates (0.6.6).** As on the Mac (the core's `EnglishWordsEngine` on each field's
+  librime session): the settings' words (`englishWords`, which AllInOneIME Settings edits), the jargon list's Latin
+  terms and the product words rime-ice lacks come up among librime's candidates as their letters are typed, unless
+  rime-ice's own English dictionary (read from the rime-data) has them. Letters put in as typed while typing pinyin
+  (Return) are learned the second time, in any field, into `config.json`, by the Mac's rule (`EnglishWords.learns`;
+  `learnsEnglishWords` turns it off): never in a password or PIN field nor a private one (the input scopes
+  `IS_PASSWORD`, the PINs', `IS_PRIVATE`), in a terminal (the consoles, Windows Terminal, PowerShell ISE, mintty and
+  the others the engine knows, Visual Studio's terminal by its window's class), in a remote desktop, a virtual
+  machine's window or an SSH client (Remote Desktop Connection, the Remote Desktop app, Windows App, Hyper-V, VMware,
+  VirtualBox, Horizon, Citrix, AnyDesk, TeamViewer, RustDesk, Parsec, the VNC viewers, Termius, SecureCRT...), or in an
+  app with no AI. The terminals of VS Code, Cursor and the JetBrains IDEs are drawn in the editor's own window and
+  can't be told from it (as on the Mac).
 - **The candidate window (M6).** The engine's own window, under the caret the DLL reports (above it near the bottom of
   the screen), on that monitor at its DPI, in the apps' light or dark theme: the candidates with their numbers (in a
   row, or one under the other with `"candidateLayout": "vertical"`), the highlight, the command list after "@", level

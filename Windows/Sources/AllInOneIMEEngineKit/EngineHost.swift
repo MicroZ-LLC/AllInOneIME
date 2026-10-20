@@ -6,7 +6,8 @@ import Foundation
 /// for Windows:
 ///
 /// - **Level one:** each field's Composer types pinyin with librime (`EngineRime`) once it has deployed, in the
-///   settings' input languages (Shift switches), and Latin letters without it.
+///   settings' input languages (Shift switches), and Latin letters without it; English words among its candidates
+///   (`EnglishWordsEngine`), learned as on the Mac (`learn`).
 /// - **The panel:** the core's `PanelModel` of the Composer (`PanelPresenter`, in the interface language and with
 ///   Windows' names of the keys), drawn by the engine's candidate window (`PanelWindow`) at the caret the DLL reports;
 ///   a click on a row picks the row's choice (`ComposerSession.choose`).
@@ -50,6 +51,10 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         /// nil: the folder of `config.json`.
         public var settingsApp: String?
         public var settingsAppArguments: [String] = []
+        /// Whether the window a caret was last reported in (`hwnd`; nil: the focus window of the foreground's thread) is a
+        /// terminal's inside another program (`Foreground.isTerminalWindow`: Visual Studio's), where nothing is learned.
+        /// Nil: none is (the tests).
+        public var terminalWindow: (@Sendable (_ hwnd: UInt64?, _ peer: WirePeer) -> Bool)?
 
         public init(system: SystemActions, systemQueue: SystemQueue, clipboardQueue: SystemQueue) {
             self.system = system
@@ -63,6 +68,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
     let log: @Sendable (String) -> Void
     let foreground: @Sendable (WirePeer) -> Bool
     let caretBounds: (@Sendable (UInt64?, WirePeer) -> CaretRect?)?
+    let terminalWindow: (@Sendable (UInt64?, WirePeer) -> Bool)?
     public let settings: EngineSettings
     let plugins: PluginCatalog
     public let rime: EngineRime?
@@ -83,6 +89,14 @@ public final class EngineHost: WireHost, @unchecked Sendable {
     private var recent: [String] = []
     /// The script extensions' files as last read: read again only when they changed.
     private let extensionCache = ExtensionCache()
+    /// The jargon list as last read (its terms are English words offered): read again only when it changed.
+    private var jargonCache: (url: URL, date: Date?, entries: [JargonEntry])?
+    /// The letters put in as typed once, every field's (a word is learned the second time), until the engine exits:
+    /// the Mac's `SessionServices.englishTypedOnce`, which the connections' queues share through `learning`.
+    private let typedOnce = EnglishWords.TypedOnce()
+    private let learning = NSLock()
+    /// Where the words learned are written into the settings file: one at a time, off the sessions' queues.
+    private let learnedWords = DispatchQueue(label: "AllInOneIME English words")
 
     public init(clock: WireClock = SystemClock(), options: Options, log: @escaping @Sendable (String) -> Void) {
         testMode = options.testMode
@@ -90,6 +104,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         self.log = log
         foreground = options.foreground
         caretBounds = options.caretBounds
+        terminalWindow = options.terminalWindow
         settings = options.settings
         plugins = options.plugins
         rime = options.rime
@@ -127,6 +142,8 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         var fromCache = false
         var caret: CaretRect?
         var appliedDefaultInput: Language?
+        /// What the English words on its librime session were last made of (the user's, the jargon list's terms).
+        var englishWordsMadeOf: [String]?
         /// What a click on each row of the panel shown last picks (`PanelModel.Row.choice`): the row's own index, in a
         /// conversation an answer's round, nil for a question.
         let choices: Locked<[Int?]>
@@ -183,7 +200,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
     /// commands work from the first key; Latin letters only without librime, and in test mode, as the goldens have them.
     /// Its settings are applied as it takes the focus (`sessionFocused`).
     public func makeComposer(_ field: WireField, _ peer: WirePeer) -> Composer {
-        let engine: PinyinEngine = testMode ? LatinEngine() : rime?.makeEngine() ?? LatinEngine()
+        let engine: PinyinEngine = testMode ? LatinEngine() : levelOne() ?? LatinEngine()
         let composer = Composer(engine: engine)
         if testMode { composer.setInputMode(inputLanguage ?? .english) }
         return composer
@@ -202,11 +219,26 @@ public final class EngineHost: WireHost, @unchecked Sendable {
     @discardableResult
     func attachRime(to session: ComposerSession, state: SessionState) -> Bool {
         let composer = session.composer
-        let current = composer.primaryEngine as? LockedRimeEngine
-        guard current == nil || current?.isValid == false, !composer.isComposing, let engine = rime?.makeEngine() else { return false }
+        let current = Self.rimeSession(composer.primaryEngine)
+        guard current == nil || current?.isValid == false, !composer.isComposing, let engine = levelOne() else { return false }
         composer.engine = engine
         state.appliedDefaultInput = nil  // a new session starts in the default input mode
+        state.englishWordsMadeOf = nil  // its words are given by `apply`
         return true
+    }
+
+    /// A librime session for a field's Composer, with English words among its candidates when rime-ice's English
+    /// dictionary is in the data (`EnglishWordsEngine`, as the Mac's `InputSession` makes it; its words and what it learns
+    /// from are set as the field takes the focus, `apply`). Nil while librime deploys, or without it.
+    func levelOne() -> PinyinEngine? {
+        guard let rime, let session = rime.makeEngine() else { return nil }
+        guard let dictionary = rime.englishDictionary else { return session }
+        return EnglishWordsEngine(base: session, dictionary: dictionary)
+    }
+
+    /// The librime session under `engine` (with the English words around it), if it is one.
+    static func rimeSession(_ engine: PinyinEngine?) -> LockedRimeEngine? {
+        (engine as? EnglishWordsEngine)?.base as? LockedRimeEngine ?? engine as? LockedRimeEngine
     }
 
     /// librime finished deploying: the Composers made before get their session (those not in the middle of something;
@@ -248,13 +280,14 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         // languages always.
         let usable = config.inputLanguages.filter { language in
             switch language {
-            case .chinese: return composer.primaryEngine is LockedRimeEngine
+            case .chinese: return Self.rimeSession(composer.primaryEngine) != nil
             case .korean, .hindi: return false
             default: return true
             }
         }
         let languages = usable.isEmpty ? [.english] : usable
         composer.inputLanguages = languages
+        if let words = composer.primaryEngine as? EnglishWordsEngine { applyEnglishWords(config, to: words, in: session, state: state) }
         let defaultInput = config.startingInput(in: app, among: languages)
         if state.appliedDefaultInput != defaultInput || languages.count == 1, composer.engine != nil, !composer.isComposing {
             composer.setInputMode(defaultInput)
@@ -731,6 +764,87 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         default: return String(describing: type(of: error))
         }
     }
+
+    // MARK: - English words
+
+    /// The English words on `engine` as the settings have them now (`EnglishWords.offered`: the user's, the jargon list's
+    /// terms, the product words rime-ice lacks), made again only when those change; the user's fuzzy pinyin; and what
+    /// it learns from (`learn`). The Mac's `InputSession.settings`.
+    func applyEnglishWords(_ config: Config, to engine: EnglishWordsEngine, in session: ComposerSession, state: SessionState) {
+        engine.fuzzyPinyin = config.fuzzyPinyin
+        let jargon = jargon(config)
+        let madeOf = config.englishWords + ["\u{0}"] + jargon.map(\.term)
+        if madeOf != state.englishWordsMadeOf {
+            state.englishWordsMadeOf = madeOf
+            engine.words = EnglishWords.offered(config, jargon: jargon)
+        }
+        engine.rawCommitted = { [weak self, weak session, weak engine] typed in
+            guard let self, let session, let engine else { return }
+            self.learn(typed, in: session, engine: engine)
+        }
+    }
+
+    /// The user's jargon list (`Config.jargonURL`), read again only when the file changed.
+    func jargon(_ config: Config) -> [JargonEntry] {
+        let url = config.jargonURL
+        let date = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
+        lock.lock()
+        defer { lock.unlock() }
+        if let cached = jargonCache, cached.url == url, cached.date == date { return cached.entries }
+        let entries = date == nil ? [] : JargonLibrary.load(from: url)
+        jargonCache = (url, date, entries)
+        return entries
+    }
+
+    /// Letters put in as typed in `session`'s field (`EnglishWordsEngine.rawCommitted`: Enter, or a tap of Shift, while
+    /// typing pinyin), learned as an English word as the Mac learns one (`EnglishWords.learns`: the second time, in any
+    /// field): never in a password field or a private one (`WireField.keepsNothing`), in a terminal (`runsWhatIsTyped`),
+    /// in a remote desktop, a virtual machine or an SSH client (its app, or its program: Windows App's session is
+    /// msrdc.exe), in an app with no AI, or with learning off. Offered in this field at once; written into the settings
+    /// file (`EnglishWords.learn`) off the session's queue, for every field.
+    func learn(_ typed: String, in session: ComposerSession, engine: EnglishWordsEngine) {
+        let field = session.field
+        guard !EnglishWords.isRemote("win:" + field.process) else { return }
+        let info = FieldInfo(app: field.app, terminal: runsWhatIsTyped(session), secure: field.keepsNothing)
+        let settings = self.settings
+        let learned = learning.withLock {
+            EnglishWords.learns(typed, in: info, secureInput: false, config: { settings.current }, offered: engine.words,
+                                dictionary: engine.dictionary, typedOnce: typedOnce)
+        }
+        guard learned else { return }
+        engine.words.append(typed)
+        log("session \(session.sid): learned an English word (\(typed.count) letters)")
+        let log = self.log
+        learnedWords.async {
+            do {
+                // A new user's file is Windows' (Chinese with English), not the Mac's new user's (`Config.fresh`).
+                if !FileManager.default.fileExists(atPath: settings.url.path) {
+                    try FileManager.default.createDirectory(at: settings.url.deletingLastPathComponent(),
+                                                            withIntermediateDirectories: true)
+                    try EngineSettings.fresh.write(to: settings.url)
+                }
+                try EnglishWords.learn(typed, at: settings.url)
+            } catch {
+                log("couldn't keep an English word: \(error)")
+            }
+        }
+    }
+
+    /// Waits for the words learned so far to be written (the tests).
+    func flushLearnedWords() { learnedWords.sync {} }
+
+    /// Whether what is typed in `session`'s field is run: a terminal's program (`ComposerSession.isTerminal`), PowerShell
+    /// ISE (its console pane), or a terminal's window inside another program (`terminalWindow`: Visual Studio's). The
+    /// terminals of VS Code, Cursor and the JetBrains IDEs are drawn inside the editor's own window, and can't be told
+    /// (as on the Mac); asking UI Automation would turn the editor's accessibility on.
+    func runsWhatIsTyped(_ session: ComposerSession) -> Bool {
+        let process = session.field.process.lowercased()
+        return ComposerSession.isTerminal(process) || Self.consoles.contains(process)
+            || terminalWindow?(session.caret?.hwnd, session.peer) == true
+    }
+
+    /// Programs that run what is typed in them besides the terminals (`ComposerSession.terminals`).
+    static let consoles: Set<String> = ["powershell_ise.exe"]
 
     // MARK: - Test mode
 

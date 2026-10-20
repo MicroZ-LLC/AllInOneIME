@@ -261,6 +261,7 @@ func runEngine(_ options: EngineOptions) -> Never {
     hostOptions.testMode = options.test
     hostOptions.foreground = { peer in peer.pid.map { Foreground.isOwned(by: $0, trusted: peer.trusted) } ?? false }
     hostOptions.caretBounds = { hwnd, peer in Foreground.caretBounds(hwnd: hwnd, pid: peer.pid, trusted: peer.trusted) }
+    hostOptions.terminalWindow = { hwnd, _ in Foreground.isTerminalWindow(hwnd) }
     hostOptions.settings = EngineSettings(url: options.config.map { URL(fileURLWithPath: $0) } ?? Config.userURL)
     hostOptions.executable = executablePath()
     // The interface in the settings' language, or the system's: the catalog's nine.

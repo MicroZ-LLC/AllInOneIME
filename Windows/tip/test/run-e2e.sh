@@ -8,7 +8,7 @@
 #   bash test/run-e2e.sh --notepad  # into real Notepad: a document of its own there, never the user's
 #   bash test/run-e2e.sh --probe    # the Notepad path, stopping after the switch, reporting what it found
 #
-#   ... [--installed [DIR] [--engine EXE]] [--plain TEXT | --pinyin | --ai | --terminal] [--langid 0xNNNN]
+#   ... [--installed [DIR] [--engine EXE]] [--plain TEXT | --pinyin | --english | --ai | --terminal] [--langid 0xNNNN]
 #
 #   --installed  the installed copy (Program Files\AllInOneIME\<version>, as HKLM\Software\AllInOneIME names it, or
 #                DIR): its DLL as the MSI registered it, so no regsvr32 here, before or after; and its engine. The
@@ -21,6 +21,9 @@
 #                typed; otherwise "hi @improve helo", Return and "1" with the scripted provider, expecting "hi Hello."
 #   --pinyin     pinyin through librime (M5): a tap of Shift, "nihao", Space, "nihao", "1", expecting "你好你好", with the
 #                engine as a user's runs, on settings of the run's own (English and Chinese, typing starting in English)
+#   --english    English words among pinyin's candidates: "frobnicate" and Return twice (typing starts in Chinese), the
+#                word learned into the run's own settings file (never the user's), then "frobn" and "2" pick it among the
+#                candidates, expecting "frobnicatefrobnicatefrobnicate"; the run's config.json must hold the word after
 #   --ai         a real AI request (M7): "@improve hello", Return, "1", expecting "Hello there.", the engine as a user's
 #                runs, its settings naming the Claude API at Scripts/stub-provider.py on localhost, started here (never a
 #                paid API), its key from the environment (--no-keychain: the user's Credential Manager isn't read)
@@ -89,6 +92,7 @@ while [ $# -gt 0 ]; do
     --engine) ENGINE_GIVEN="$2"; shift ;;
     --plain) PLAIN="$2"; SCENARIO="plain"; shift ;;
     --pinyin) SCENARIO="pinyin" ;;
+    --english) SCENARIO="english" ;;
     --ai) SCENARIO="ai" ;;
     --terminal) SCENARIO="terminal" ;;
     --langid) LANGID="$2"; LANGID_GIVEN=1; shift ;;
@@ -155,6 +159,9 @@ case "$SCENARIO" in
   pinyin)
     printf '{"inputLanguages": ["en", "zh"], "defaultInput": "en"}\n' > "$RUN_UNIX/config.json"
     ENGINE_ARGS+=(--engine-arg --config --engine-arg "\"$RUN_WIN\\config.json\"" --engine-arg --no-keychain) ;;
+  english)
+    printf '{"inputLanguages": ["zh", "en"], "defaultInput": "zh"}\n' > "$RUN_UNIX/config.json"
+    ENGINE_ARGS+=(--engine-arg --config --engine-arg "\"$RUN_WIN\\config.json\"" --engine-arg --no-keychain) ;;
   ai)
     echo "== the stub provider (Scripts/stub-provider.py), on localhost =="
     python -I "$(cygpath -w "$TIP_UNIX/../Scripts/stub-provider.py")" --port-file "$RUN_WIN\\stub.port" --log "$RUN_WIN\\stub.log" \
@@ -199,6 +206,17 @@ AIO_SESSION_ENV="$SESSION_ENV" bash test/run-in-session.sh e2e-driver "$DRIVER" 
     "${ENGINE_ARGS[@]}" "${SHOTS[@]}" --engine-log "\"$ENGINE_LOG_WIN\"" --langid "$LANGID" "${EXPECT[@]}" "${TARGET[@]}"
 RC=$?
 stop_stub
+if [ "$SCENARIO" = "english" ]; then
+  echo "== the run's settings file, after =="
+  sed 's/^/  /' "$RUN_UNIX/config.json"
+  if python -I -c 'import json, sys; sys.exit(json.load(open(sys.argv[1], encoding="utf-8")).get("englishWords") != ["frobnicate"])' \
+      "$RUN_WIN\\config.json"; then
+    echo "  the word learned is in it"
+  else
+    echo "  FAIL: the word learned isn't in it"
+    RC=1
+  fi
+fi
 if [ "$SCENARIO" = "ai" ]; then
   echo "== what the stub provider was asked (never the key) =="
   sed 's/^/  /' "$RUN_UNIX/stub.log" 2>/dev/null || echo "  (nothing)"

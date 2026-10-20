@@ -65,6 +65,20 @@ public struct WireField: Codable, Equatable, Sendable {
     }
 }
 
+extension WireField {
+    /// The input scopes of a password or a PIN, what the DLL makes `secure` of: `IS_PASSWORD` (31),
+    /// `IS_NUMERIC_PASSWORD` (63), `IS_NUMERIC_PIN`, `IS_ALPHANUMERIC_PIN`, `IS_ALPHANUMERIC_PIN_SET` (64–66).
+    public static let passwordScopes: Set<Int> = [31, 63, 64, 65, 66]
+    /// `IS_PRIVATE`: a field whose text an input method is to keep nothing of (a browser's private window).
+    public static let privateScope = 61
+
+    /// Whether nothing typed in the field is to be kept (an English word learned): a password field, however the
+    /// client said so (`secure`, or a password's scope), or a private one.
+    public var keepsNothing: Bool {
+        secure || scopes.contains { Self.passwordScopes.contains($0) || $0 == Self.privateScope }
+    }
+}
+
 /// The document around the caret when a key is sent (§5.1's FieldContext, `ctx`, and `applied`'s). Offsets in UTF-16
 /// units. Not the core's `FieldContext`.
 public struct WireContext: Codable, Equatable, Sendable {

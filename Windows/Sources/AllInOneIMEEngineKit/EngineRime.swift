@@ -215,6 +215,16 @@ public final class EngineRime: @unchecked Sendable {
         return outcome
     }
 
+    /// rime-ice's English dictionary in the data (`RimeService.englishDictionary`, read on a thread of its own as librime
+    /// starts), for the English words put among the candidates (`EnglishWordsEngine`): those librime offers itself. Nil
+    /// before `start`, or without one; waited for while it is still being read.
+    public var englishDictionary: EnglishDictionary? {
+        Self.lock.lock()
+        let started = self.started
+        Self.lock.unlock()
+        return started ? RimeService.shared.englishDictionary : nil
+    }
+
     /// A session for one Composer, through the lock; nil while librime deploys.
     public func makeEngine() -> PinyinEngine? {
         Self.lock.lock()

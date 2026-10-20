@@ -25,6 +25,33 @@ public enum Foreground {
         guard aio_caret_bounds(hwnd ?? 0, pid, trusted ? 1 : 0, &bounds) != 0 else { return nil }
         return CaretRect(x: Int(bounds.x), y: Int(bounds.y), width: Int(bounds.width), height: Int(bounds.height))
     }
+
+    /// The window classes of terminals (`isTerminalWindow`): Visual Studio's terminal, inside its own window
+    /// (Microsoft.Terminal.Wpf's `HwndTerminalClass`); a console's own windows (`ConsoleWindowClass`,
+    /// `PseudoConsoleWindow`) and Windows Terminal's (`CASCADIA_HOSTING_WINDOW_CLASS`), whose programs are terminals too.
+    static let terminalClasses: Set<String> = ["HwndTerminalClass", "ConsoleWindowClass", "PseudoConsoleWindow",
+                                                "CASCADIA_HOSTING_WINDOW_CLASS"]
+
+    /// Whether the window `hwnd` (a caret report's; nil: the focus window of the foreground window's thread), or one it
+    /// is inside, is a terminal's (`terminalClasses`): what is typed there is run, so nothing is learned from it.
+    public static func isTerminalWindow(_ hwnd: UInt64?) -> Bool {
+        var window: HWND? = hwnd.flatMap { HWND(bitPattern: UInt(truncatingIfNeeded: $0)) }
+        if window == nil, let foreground = GetForegroundWindow() {
+            var info = GUITHREADINFO()
+            info.cbSize = DWORD(MemoryLayout<GUITHREADINFO>.size)
+            if GetGUIThreadInfo(GetWindowThreadProcessId(foreground, nil), &info) { window = info.hwndFocus }
+        }
+        let desktop = GetDesktopWindow()
+        for _ in 0..<32 {
+            guard let current = window, current != desktop else { return false }
+            var name = [WCHAR](repeating: 0, count: 64)
+            if GetClassNameW(current, &name, 64) > 0, terminalClasses.contains(String(decodingCString: name, as: UTF16.self)) {
+                return true
+            }
+            window = GetAncestor(current, UINT(GA_PARENT))
+        }
+        return false
+    }
 }
 
 /// The engine's candidate window (M6), the `PanelWindow` on Windows: the C++ window of `CAllInOneIMEPanel` (a layered,

@@ -21,7 +21,7 @@ struct PinyinTests {
     @Test func aNewUserTypesEnglishAndShiftSwitchesToChinese() throws {
         let (client, folder) = try client()
         defer { try? FileManager.default.removeItem(at: folder) }
-        #expect(client.composer.engine is LockedRimeEngine)
+        #expect(EngineHost.rimeSession(client.composer.engine) != nil)  // librime's (with the English words around it)
         #expect(client.composer.inputLanguage == .english)
         // English: letters go straight in.
         #expect(client.type("hi") == [])
