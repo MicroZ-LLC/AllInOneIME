@@ -169,12 +169,15 @@ public enum SessionText {
         return PanelModel.Input(text: text, caret: min(max(composer.markedCursor, 0), text.count))
     }
 
-    /// The candidate panel's footer while pinyin is typed in Translate as You Type: what ⏎ and ⇧⏎ do.
-    public static func translateModeFooter(_ composer: Composer, language: String) -> String? {
+    /// The candidate panel's footer while pinyin is typed in Translate as You Type: what ⏎ and ⇧⏎ do, the keys as `terms`
+    /// name them.
+    public static func translateModeFooter(_ composer: Composer, language: String,
+                                           terms: PlatformTerms = Platform.current.terms) -> String? {
         guard composer.inModeComposition, let target = composer.translateMode?.target else { return nil }
         let t = InterfaceWords(language: language)
-        let name = t.name(target)
-        return t.tr("空格 选词 · ⏎ 翻译成\(name)上屏 · ⇧⏎ 原文上屏", "Space picks · ⏎ translate to \(name) and insert · ⇧⏎ as typed")
+        let name = t.name(target), enter = terms.enter, shiftEnter = terms.shiftEnter
+        return t.tr("空格 选词 · \(enter) 翻译成\(name)上屏 · \(shiftEnter) 原文上屏",
+                    "Space picks · \(enter) translate to \(name) and insert · \(shiftEnter) as typed")
     }
 
     // MARK: - An @question conversation

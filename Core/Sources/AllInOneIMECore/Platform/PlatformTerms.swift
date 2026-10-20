@@ -1,10 +1,10 @@
 import Foundation
 
 /// What the interface calls the keys and the places of the system it runs on (`Platform.terms`), so that the core's text
-/// names them as that system does: on the Mac its symbols (⌘C, ⌃V, right ⌥, ⌥Space), "this Mac", Terminal and `.app`
-/// bundles; on Windows the keys' names (Ctrl+C, Ctrl+V, right Ctrl, Ctrl+Space), "this PC", a terminal and the apps of
-/// the Start menu (`.lnk`, `.exe`). Return, ⇧Return, Delete, Esc, Tab and the arrows are written the same everywhere
-/// (⏎, ⇧⏎, ⌫, Esc, Tab, ↑↓), as are the digits that pick a row.
+/// names them as that system does: on the Mac its symbols (⌘C, ⌃V, right ⌥, ⌥Space, ⏎, ⇧⏎, ⌫), "this Mac", Terminal
+/// and `.app` bundles; on Windows the keys' names (Ctrl+C, Ctrl+V, right Ctrl, Ctrl+Space, Enter, Shift+Enter,
+/// Backspace), "this PC", a terminal and the apps of the Start menu (`.lnk`, `.exe`). Esc, Tab and the arrows are
+/// written the same everywhere (Esc, Tab, ↑↓), as are the digits that pick a row.
 ///
 /// The keys follow `roles` (`ModifierRoles`, the composer's): what the text names is the key that does it there.
 public struct PlatformTerms: Hashable, Sendable {
@@ -71,6 +71,16 @@ public struct PlatformTerms: Hashable, Sendable {
 
     /// What asks again (a saved answer) or writes more (`@reply`): "⌘R", "Ctrl+R".
     public var again: String { command("R") }
+
+    /// Return: "⏎"; "Enter".
+    public var enter: String { keyStyle == .symbols ? "⏎" : "Enter" }
+
+    /// Return with Shift (what sends a refine instruction or a question, or inserts a sentence as typed): "⇧⏎";
+    /// "Shift+Enter".
+    public var shiftEnter: String { shortcut(.shift, enter) }
+
+    /// The key that deletes the character before the caret: "⌫" (the Mac's Delete); "Backspace".
+    public var backspace: String { keyStyle == .symbols ? "⌫" : "Backspace" }
 
     /// What picks the `number`th of a list of shortcuts (where a conversation can go on): "⌘2", "Ctrl+2".
     public func pick(_ number: Int) -> String { command(String(number)) }

@@ -282,13 +282,14 @@ public enum TranslateMode {
             return failedFormat.replacingOccurrences(of: "{reason}", with: line.count > 100 ? String(line.prefix(100)) + "…" : line)
         }
 
-        /// What the mode says in the interface language `language` (`InterfaceLanguage`).
-        public static func make(language: String) -> Messages {
+        /// What the mode says in the interface language `language` (`InterfaceLanguage`), with the keys as `terms` name
+        /// them.
+        public static func make(language: String, terms: PlatformTerms = Platform.current.terms) -> Messages {
             let t = InterfaceWords(language: language)
             return Messages(
                 translating: t.tr("翻译中…", "Translating…", key: "translateMode.translating"),
                 secureInput: t.tr("系统安全输入已开启（密码框或锁屏），没有发给 AI", "secure input is on (a password field or the lock screen), nothing was sent"),
-                failedFormat: t.tr("没翻译成：{reason}（⏎ 重试）", "Not translated: {reason} (⏎ to retry)"))
+                failedFormat: t.tr("没翻译成：{reason}（\(terms.enter) 重试）", "Not translated: {reason} (\(terms.enter) to retry)"))
         }
 
         public static let chinese = make(language: "zh-Hans")

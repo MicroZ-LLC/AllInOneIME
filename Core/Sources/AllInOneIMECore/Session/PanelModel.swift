@@ -17,7 +17,8 @@ public struct PanelModel: Equatable, Sendable {
             case translation
         }
 
-        /// Its number ("1"), or "" (a row nothing picks by number), or a mark ("✓", "›").
+        /// Its number ("1"), or "" (a row nothing picks by number), or a mark ("✓", "›"), or the key that picks it (a
+        /// message to send, an issue to open: ⏎, "Enter").
         public var label: String
         public var text: String
         /// Smaller, after the text: the language, the style, where a file is …

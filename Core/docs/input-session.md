@@ -28,8 +28,8 @@ Still the process's, not a session's: the interface language the session sets fr
 which it hands its panel (`UIText.language`) and its messages; a change of it is told on the main queue
 (`.allInOneIMEInterfaceLanguageChanged`: at once when it was made there, else posted there), where a panel on screen all
 along draws. On Apple platforms that is the main thread; elsewhere the main queue's work may run on another thread (on
-Linux, after `dispatchMain()`), so the core asks the queue, not `Thread.isMainThread`. Where `@note` saves and the agent `@agent` hands to, by name (`UIText.noteDestinationName`,
-`UIText.agentName`), too.
+Linux, after `dispatchMain()`), so the core asks the queue, not `Thread.isMainThread`. Where `@note` saves and the
+agent `@agent` hands to, by name (`UIText.noteDestinationName`, `UIText.agentName`), too.
 
 ## What the field says
 
@@ -90,11 +90,13 @@ file (a script extension's), each with the built-in it falls back to (`fallback`
 or can't read the image.
 
 The keys and places the text names are the platform's (`Platform.terms`, `PlatformTerms`): `.mac` writes ⌘C, ⌃V, ⌘R,
-⌘1–⌘3, right ⌥, "Tap ⌥", ⌥Space, "this Mac", Terminal and calls `.app` bundles apps; `.windows` Ctrl+C, Ctrl+V, Ctrl+R,
-Ctrl+1–3, right Ctrl, "Tap Ctrl", Ctrl+Space, "this PC", a terminal and the Start menu's `.lnk` and `.exe` files.
-Return, ⇧Return, ⌫, Esc, Tab and the arrows are written the same everywhere. The keys follow `ModifierRoles`, which the
-shell sets on the composer too. Text outside the panel and the composer's messages still names the Mac: the settings',
-`@doctor`'s and some errors' ("no key for it on this Mac", "Run `aws sso login` in Terminal").
+⌘1–⌘3, right ⌥, "Tap ⌥", ⌥Space, ⏎, ⇧⏎, ⌫, "this Mac", Terminal and calls `.app` bundles apps; `.windows` Ctrl+C,
+Ctrl+V, Ctrl+R, Ctrl+1–3, right Ctrl, "Tap Ctrl", Ctrl+Space, Enter, Shift+Enter, Backspace, "this PC", a terminal and
+the Start menu's `.lnk` and `.exe` files (a row that Return picks, a message to send or an issue to open, has the key as
+its label too). Esc, Tab, the arrows and the digits are written the same everywhere. The keys follow `ModifierRoles`,
+which the shell sets on the composer too. Text outside the panel and the composer's messages still names the Mac: the
+settings' (`@settings`' "⏎ opens Settings" too), `@doctor`'s and some errors' ("no key for it on this Mac", "Run `aws sso
+login` in Terminal").
 
 ## Services
 
@@ -162,8 +164,8 @@ The engine (on the `0.6.6/windows-engine` branch, not merged here) drives a `Com
      it knows mapped, the others drawn as `fallback`), an emoji (Segoe UI Emoji), an image's path (read with WIC, else
      `fallback`), and the color; a row's `choice` needs nothing there, the click's row index goes to `.pick` as it is;
    - `transcript`: no taller than half the monitor, the rows scrolled to the last one (or the highlighted one above);
-   - the footers' symbols (⏎ ⇧ ⌫ ↑↓ › – ✓ ⚠︎) come from DirectWrite's font fallback (Segoe UI Symbol). `chip` stays
-     empty: Translate as You Type is the Mac shell's.
+   - the footers' symbols (↑↓ › – ✓ ⚠︎; Return, Shift and Delete are words there) come from DirectWrite's font
+     fallback (Segoe UI Symbol). `chip` stays empty: Translate as You Type is the Mac shell's.
 5. **Its tests**: the wire goldens (`AllInOneIMEWireTests`) and the engine's (`AllInOneIMEEngineTests`) run on Windows
    against the session; where an output's order changes (a panel shown, then hidden, in one answer), the golden is the
    spec, not the code.

@@ -1,49 +1,49 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    " · ⏎ insert · %@ pick · %@ copy · Esc back" : {
-      "comment" : " · ⏎ 上屏 · %@ 选 · %@ 复制 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+    " · %@ insert · %@ pick · %@ copy · Esc back" : {
+      "comment" : " · %@ 上屏 · %@ 选 · %@ 复制 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : " · ⏎ einfügen · %1$@ wählen · %2$@ kopieren · Esc zurück"
+            "value" : " · %1$@ einfügen · %2$@ wählen · %3$@ kopieren · Esc zurück"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : " · ⏎ insertar · %1$@ elegir · %2$@ copiar · Esc volver"
+            "value" : " · %1$@ insertar · %2$@ elegir · %3$@ copiar · Esc volver"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : " · ⏎ insérer · %1$@ choisir · %2$@ copier · Esc retour"
+            "value" : " · %1$@ insérer · %2$@ choisir · %3$@ copier · Esc retour"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : " · ⏎ 挿入 · %1$@ 選択 · %2$@ コピー · Esc 戻る"
+            "value" : " · %1$@ 挿入 · %2$@ 選択 · %3$@ コピー · Esc 戻る"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : " · ⏎ 입력 · %1$@ 선택 · %2$@ 복사 · Esc 뒤로"
+            "value" : " · %1$@ 입력 · %2$@ 선택 · %3$@ 복사 · Esc 뒤로"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : " · ⏎ inserir · %1$@ escolher · %2$@ copiar · Esc voltar"
+            "value" : " · %1$@ inserir · %2$@ escolher · %3$@ copiar · Esc voltar"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : " · ⏎ 插入 · %1$@ 選取 · %2$@ 拷貝 · Esc 返回"
+            "value" : " · %1$@ 插入 · %2$@ 選取 · %3$@ 拷貝 · Esc 返回"
           }
         }
       }
@@ -1223,6 +1223,147 @@
         }
       }
     },
+    "%@ / Space add to Reminders · Esc back to edit · %@ copy" : {
+      "comment" : "%@ / 空格 加到提醒事项 · Esc 返回修改 · %@ 复制 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ / Leertaste zu Erinnerungen hinzufügen · Esc zurück zum Bearbeiten · %2$@ kopieren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ / Espacio añadir a Recordatorios · Esc volver a editar · %2$@ copiar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ / Espace ajouter aux Rappels · Esc revenir à la saisie · %2$@ copier"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ / スペース リマインダーに追加 · Esc 編集に戻る · %2$@ コピー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ / Space 미리 알림에 추가 · Esc 편집으로 돌아가기 · %2$@ 복사"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ / Espaço adicionar aos Lembretes · Esc voltar para editar · %2$@ copiar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ / 空白鍵 加入「提醒事項」 · Esc 返回編輯 · %2$@ 拷貝"
+          }
+        }
+      }
+    },
+    "%@ / Tab / Space choose · Esc cancel" : {
+      "comment" : "%@ / Tab / 空格 选择 · Esc 取消 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ / Tab / Leertaste auswählen · Esc abbrechen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ / Tab / Espacio elegir · Esc cancelar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ / Tab / Espace choisir · Esc annuler"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ / Tab / スペース 選択 · Esc キャンセル"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ / Tab / Space 선택 · Esc 취소"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ / Tab / Espaço selecionar · Esc cancelar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ / Tab / 空白鍵 選擇 · Esc 取消"
+          }
+        }
+      }
+    },
+    "%@ / Tab pick the recipient · ↑↓ · Esc cancel" : {
+      "comment" : "%@ / Tab 选择收件人 · ↑↓ · Esc 取消 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ / Tab Empfänger wählen · ↑↓ · Esc abbrechen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ / Tab elegir destinatario · ↑↓ · Esc cancelar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ / Tab choisir le destinataire · ↑↓ · Esc annuler"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ / Tab 宛先を選択 · ↑↓ · Esc キャンセル"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ / Tab 받는 사람 선택 · ↑↓ · Esc 취소"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ / Tab escolher o destinatário · ↑↓ · Esc cancelar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ / Tab 選擇收件人 · ↑↓ · Esc 取消"
+          }
+        }
+      }
+    },
     "%@ a second" : {
       "comment" : "每秒 %@ 个字 — Sources/AllInOneIMECore/AIConfigText.swift",
       "localizations" : {
@@ -1266,6 +1407,147 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "每秒 %@ 個字"
+          }
+        }
+      }
+    },
+    "%@ ask · %@ insert · %@ pick · %@ copy · Esc back" : {
+      "comment" : "%@ 追问 · %@ 上屏 · %@ 选 · %@ 复制 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ nachfragen · %2$@ einfügen · %3$@ wählen · %4$@ kopieren · Esc zurück"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ preguntar · %2$@ insertar · %3$@ elegir · %4$@ copiar · Esc volver"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ demander · %2$@ insérer · %3$@ choisir · %4$@ copier · Esc retour"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 質問 · %2$@ 挿入 · %3$@ 選択 · %4$@ コピー · Esc 戻る"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 질문 · %2$@ 입력 · %3$@ 선택 · %4$@ 복사 · Esc 뒤로"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ perguntar · %2$@ inserir · %3$@ escolher · %4$@ copiar · Esc voltar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 追問 · %2$@ 插入 · %3$@ 選取 · %4$@ 拷貝 · Esc 返回"
+          }
+        }
+      }
+    },
+    "%@ ask · %@ insert · %@ pick · %@ re-ask · %@ copy · Esc back" : {
+      "comment" : "%@ 追问 · %@ 上屏 · %@ 选 · %@ 重新问 · %@ 复制 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ nachfragen · %2$@ einfügen · %3$@ wählen · %4$@ erneut fragen · %5$@ kopieren · Esc zurück"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ preguntar · %2$@ insertar · %3$@ elegir · %4$@ volver a preguntar · %5$@ copiar · Esc volver"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ demander · %2$@ insérer · %3$@ choisir · %4$@ redemander · %5$@ copier · Esc retour"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 質問 · %2$@ 挿入 · %3$@ 選択 · %4$@ 再質問 · %5$@ コピー · Esc 戻る"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 질문 · %2$@ 입력 · %3$@ 선택 · %4$@ 다시 질문 · %5$@ 복사 · Esc 뒤로"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ perguntar · %2$@ inserir · %3$@ escolher · %4$@ perguntar de novo · %5$@ copiar · Esc voltar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 追問 · %2$@ 插入 · %3$@ 選取 · %4$@ 重問 · %5$@ 拷貝 · Esc 返回"
+          }
+        }
+      }
+    },
+    "%@ ask · %@ insert · %@ re-ask · %@ copy · Esc back" : {
+      "comment" : "%@ 追问 · %@ 上屏 · %@ 重新问 · %@ 复制 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ nachfragen · %2$@ einfügen · %3$@ erneut fragen · %4$@ kopieren · Esc zurück"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ preguntar · %2$@ insertar · %3$@ volver a preguntar · %4$@ copiar · Esc volver"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ demander · %2$@ insérer · %3$@ redemander · %4$@ copier · Esc retour"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 質問 · %2$@ 挿入 · %3$@ 再質問 · %4$@ コピー · Esc 戻る"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 질문 · %2$@ 입력 · %3$@ 다시 질문 · %4$@ 복사 · Esc 뒤로"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ perguntar · %2$@ inserir · %3$@ perguntar de novo · %4$@ copiar · Esc voltar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 追問 · %2$@ 插入 · %3$@ 重問 · %4$@ 拷貝 · Esc 返回"
           }
         }
       }
@@ -1458,8 +1740,55 @@
         }
       }
     },
+    "%@ close · %@ copy all · Esc back" : {
+      "comment" : "%@ 关闭 · %@ 复制全部 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ schließen · %2$@ alles kopieren · Esc zurück"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ cerrar · %2$@ copiar todo · Esc volver"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ fermer · %2$@ tout copier · Esc retour"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 閉じる · %2$@ すべてコピー · Esc 戻る"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 닫기 · %2$@ 모두 복사 · Esc 뒤로"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ fechar · %2$@ copiar tudo · Esc voltar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 關閉 · %2$@ 拷貝全部 · Esc 返回"
+          }
+        }
+      }
+    },
     "%@ days ago" : {
-      "comment" : "%@ 天前 — Sources/AllInOneIMECore/Dashboard.swift",
+      "comment" : "%@ 天前 — Sources/AllInOneIMECore/RelativeTime.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -1647,7 +1976,7 @@
       }
     },
     "%@ h ago" : {
-      "comment" : "%@ 小时前 — Sources/AllInOneIMECore/ICloudSyncDoctor.swift",
+      "comment" : "%@ 小时前 — Sources/AllInOneIMECore/RelativeTime.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -1694,7 +2023,7 @@
       }
     },
     "%@ hr ago" : {
-      "comment" : "%@ 小时前 — Sources/AllInOneIMECore/Dashboard.swift",
+      "comment" : "%@ 小时前 — Sources/AllInOneIMECore/RelativeTime.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -2023,7 +2352,7 @@
       }
     },
     "%@ min ago" : {
-      "comment" : "%@ 分钟前 — Sources/AllInOneIMECore/Dashboard.swift",
+      "comment" : "%@ 分钟前 — Sources/AllInOneIMECore/RelativeTime.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -2210,96 +2539,284 @@
         }
       }
     },
-    "%@ paste · ⌫ delete · Esc cancel, the selection stays" : {
-      "comment" : "%@ 粘贴 · ⌫ 删字 · Esc 取消，选中的文字不变 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+    "%@ open · Tab complete path · ↑↓ choose · %@ copy path · Esc cancel" : {
+      "comment" : "%@ 打开 · Tab 补全路径 · ↑↓ 选择 · %@ 复制路径 · Esc 取消 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ einsetzen · ⌫ löschen · Esc abbrechen, die Auswahl bleibt"
+            "value" : "%1$@ öffnen · Tab Pfad vervollständigen · ↑↓ auswählen · %2$@ Pfad kopieren · Esc abbrechen"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ pegar · ⌫ borrar · Esc cancelar, la selección se mantiene"
+            "value" : "%1$@ abrir · Tab completar ruta · ↑↓ elegir · %2$@ copiar ruta · Esc cancelar"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ coller · ⌫ supprimer · Esc annuler, la sélection reste"
+            "value" : "%1$@ ouvrir · Tab compléter le chemin · ↑↓ choisir · %2$@ copier le chemin · Esc annuler"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ ペースト · ⌫ 削除 · Esc キャンセル（選択はそのまま）"
+            "value" : "%1$@ 開く · Tab パスを補完 · ↑↓ 移動 · %2$@ パスをコピー · Esc キャンセル"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ 붙여넣기 · ⌫ 삭제 · Esc 취소, 선택 영역 유지"
+            "value" : "%1$@ 열기 · Tab 경로 완성 · ↑↓ 이동 · %2$@ 경로 복사 · Esc 취소"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ colar · ⌫ apagar · Esc cancelar, a seleção é mantida"
+            "value" : "%1$@ abrir · Tab completar caminho · ↑↓ selecionar · %2$@ copiar caminho · Esc cancelar"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ 貼上 · ⌫ 刪除 · Esc 取消，選取內容不變"
+            "value" : "%1$@ 打開 · Tab 補齊路徑 · ↑↓ 選擇 · %2$@ 拷貝路徑 · Esc 取消"
           }
         }
       }
     },
-    "%@ paste · ⌫ delete · Esc clear" : {
-      "comment" : "%@ 粘贴 · ⌫ 删字 · Esc 清除 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+    "%@ open in a terminal · digits pick · %@ copy the reply · Esc back" : {
+      "comment" : "%@ 在终端打开 · 数字选择 · %@ 复制回复 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ einsetzen · ⌫ löschen · Esc leeren"
+            "value" : "%1$@ in einem Terminal öffnen · Ziffern wählen · %2$@ Antwort kopieren · Esc zurück"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ pegar · ⌫ borrar · Esc limpiar"
+            "value" : "%1$@ abrir en una terminal · números elegir · %2$@ copiar la respuesta · Esc volver"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ coller · ⌫ supprimer · Esc effacer"
+            "value" : "%1$@ ouvrir dans un terminal · chiffres choisir · %2$@ copier la réponse · Esc retour"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ ペースト · ⌫ 削除 · Esc クリア"
+            "value" : "%1$@ ターミナルで開く · 数字で選択 · %2$@ 返信をコピー · Esc 戻る"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ 붙여넣기 · ⌫ 삭제 · Esc 지우기"
+            "value" : "%1$@ 터미널에서 열기 · 숫자 선택 · %2$@ 응답 복사 · Esc 뒤로"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ colar · ⌫ apagar · Esc limpar"
+            "value" : "%1$@ abrir em um terminal · números escolhem · %2$@ copiar a resposta · Esc voltar"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ 貼上 · ⌫ 刪除 · Esc 清除"
+            "value" : "%1$@ 在終端機中打開 · 數字 選取 · %2$@ 拷貝回覆 · Esc 返回"
+          }
+        }
+      }
+    },
+    "%@ open in Terminal · digits pick · %@ copy the reply · Esc back" : {
+      "comment" : "%@ 在终端打开 · 数字选择 · %@ 复制回复 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ im Terminal öffnen · Ziffern wählen · %2$@ Antwort kopieren · Esc zurück"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ abrir en Terminal · números elegir · %2$@ copiar la respuesta · Esc volver"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ ouvrir dans Terminal · chiffres choisir · %2$@ copier la réponse · Esc retour"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ ターミナルで開く · 数字で選択 · %2$@ 返信をコピー · Esc 戻る"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 터미널에서 열기 · 숫자 선택 · %2$@ 응답 복사 · Esc 뒤로"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ abrir no Terminal · números escolhem · %2$@ copiar a resposta · Esc voltar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 在「終端機」中打開 · 數字 選取 · %2$@ 拷貝回覆 · Esc 返回"
+          }
+        }
+      }
+    },
+    "%@ open in the browser, submit it on GitHub · Esc back" : {
+      "comment" : "%@ 在浏览器打开，在 GitHub 上点提交 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ im Browser öffnen, auf GitHub absenden · Esc zurück"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ abrir en el navegador y enviarlo en GitHub · Esc volver"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ouvrir dans le navigateur, puis l’envoyer sur GitHub · Esc retour"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ブラウザで開いてGitHubで送信 · Esc 戻る"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 브라우저에서 열고 GitHub에서 제출 · Esc 뒤로"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ abrir no navegador e enviar no GitHub · Esc voltar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 在瀏覽器中打開，在 GitHub 上提交 · Esc 返回"
+          }
+        }
+      }
+    },
+    "%@ paste · %@ delete · Esc cancel, the selection stays" : {
+      "comment" : "%@ 粘贴 · %@ 删字 · Esc 取消，选中的文字不变 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ einsetzen · %2$@ löschen · Esc abbrechen, die Auswahl bleibt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ pegar · %2$@ borrar · Esc cancelar, la selección se mantiene"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ coller · %2$@ supprimer · Esc annuler, la sélection reste"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ ペースト · %2$@ 削除 · Esc キャンセル（選択はそのまま）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 붙여넣기 · %2$@ 삭제 · Esc 취소, 선택 영역 유지"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ colar · %2$@ apagar · Esc cancelar, a seleção é mantida"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 貼上 · %2$@ 刪除 · Esc 取消，選取內容不變"
+          }
+        }
+      }
+    },
+    "%@ paste · %@ delete · Esc clear" : {
+      "comment" : "%@ 粘贴 · %@ 删字 · Esc 清除 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ einsetzen · %2$@ löschen · Esc leeren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ pegar · %2$@ borrar · Esc limpiar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ coller · %2$@ supprimer · Esc effacer"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ ペースト · %2$@ 削除 · Esc クリア"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 붙여넣기 · %2$@ 삭제 · Esc 지우기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ colar · %2$@ apagar · Esc limpar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 貼上 · %2$@ 刪除 · Esc 清除"
           }
         }
       }
@@ -2347,6 +2864,100 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@ 選取 · ↑↓ 選擇 · Tab 補齊 · %2$@ 拷貝 · Esc 取消"
+          }
+        }
+      }
+    },
+    "%@ pick · digits pick · %@ copy · Esc back" : {
+      "comment" : "%@ 选中这一项 · 数字选择 · %@ 复制 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ übernehmen · Ziffern wählen · %2$@ kopieren · Esc zurück"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ elegir · números elegir · %2$@ copiar · Esc volver"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ choisir · chiffres choisir · %2$@ copier · Esc retour"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 選択 · 数字で選択 · %2$@ コピー · Esc 戻る"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 선택 · 숫자 선택 · %2$@ 복사 · Esc 뒤로"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ escolher · números escolhem · %2$@ copiar · Esc voltar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 選取 · 數字 選取 · %2$@ 拷貝 · Esc 返回"
+          }
+        }
+      }
+    },
+    "%@ pick from a list · Tab complete path · ↑↓ choose · %@ copy path · Esc cancel" : {
+      "comment" : "%@ 列出来选 · Tab 补全路径 · ↑↓ 选择 · %@ 复制路径 · Esc 取消 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ aus einer Liste wählen · Tab Pfad vervollständigen · ↑↓ auswählen · %2$@ Pfad kopieren · Esc abbrechen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ elegir de una lista · Tab completar ruta · ↑↓ elegir · %2$@ copiar ruta · Esc cancelar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ choisir dans une liste · Tab compléter le chemin · ↑↓ choisir · %2$@ copier le chemin · Esc annuler"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ リストから選ぶ · Tab パスを補完 · ↑↓ 移動 · %2$@ パスをコピー · Esc キャンセル"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 목록에서 선택 · Tab 경로 완성 · ↑↓ 이동 · %2$@ 경로 복사 · Esc 취소"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ escolher de uma lista · Tab completar caminho · ↑↓ selecionar · %2$@ copiar caminho · Esc cancelar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 列出來選 · Tab 補齊路徑 · ↑↓ 選擇 · %2$@ 拷貝路徑 · Esc 取消"
           }
         }
       }
@@ -2441,6 +3052,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "記錄中最近有 %@ 個錯誤"
+          }
+        }
+      }
+    },
+    "%@ refine · %@ insert · %@ delete · Esc clear · ↑↓ choose" : {
+      "comment" : "%@ 修改 · %@ 上屏 · %@ 删字 · Esc 清除 · ↑↓ 选择 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ verfeinern · %2$@ einfügen · %3$@ löschen · Esc leeren · ↑↓ auswählen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ refinar · %2$@ insertar · %3$@ borrar · Esc limpiar · ↑↓ elegir"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ affiner · %2$@ insérer · %3$@ supprimer · Esc effacer · ↑↓ choisir"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 手直し · %2$@ 挿入 · %3$@ 削除 · Esc クリア · ↑↓ 移動"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 수정 · %2$@ 입력 · %3$@ 삭제 · Esc 지우기 · ↑↓ 이동"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ refinar · %2$@ inserir · %3$@ apagar · Esc limpar · ↑↓ selecionar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 修改 · %2$@ 插入 · %3$@ 刪除 · Esc 清除 · ↑↓ 選擇"
           }
         }
       }
@@ -2633,6 +3291,53 @@
         }
       }
     },
+    "%@ send · Esc back to editing" : {
+      "comment" : "%@ 发送 · Esc 返回修改 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ senden · Esc zurück zum Bearbeiten"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ enviar · Esc volver a editar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ envoyer · Esc revenir à la saisie"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 送信 · Esc 編集に戻る"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 보내기 · Esc 편집으로 돌아가기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ enviar · Esc voltar a editar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 傳送 · Esc 返回編輯"
+          }
+        }
+      }
+    },
     "%@ settings from iCloud aren't used on this Mac" : {
       "comment" : "iCloud 里的 %@ 项设置没有用在这台 Mac 上 — Sources/AllInOneIMECore/ICloudSyncDoctor.swift",
       "localizations" : {
@@ -2774,49 +3479,49 @@
         }
       }
     },
-    "%@ three more · Type, ⇧⏎ refine · Space / ⏎ insert · digits pick · Esc back" : {
-      "comment" : "%@ 再写三条 · 打字后 ⇧⏎ 修改 · 空格 / ⏎ 上屏 · 数字选择 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+    "%@ three more · Type, %@ refine · Space / %@ insert · digits pick · Esc back" : {
+      "comment" : "%@ 再写三条 · 打字后 %@ 修改 · 空格 / %@ 上屏 · 数字选择 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ drei weitere · Tippen, ⇧⏎ verfeinern · Leertaste / ⏎ einfügen · Ziffern wählen · Esc zurück"
+            "value" : "%1$@ drei weitere · Tippen, %2$@ verfeinern · Leertaste / %3$@ einfügen · Ziffern wählen · Esc zurück"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ tres más · Escribe y ⇧⏎ refinar · Espacio / ⏎ insertar · números elegir · Esc volver"
+            "value" : "%1$@ tres más · Escribe y %2$@ refinar · Espacio / %3$@ insertar · números elegir · Esc volver"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ trois autres · Tapez, ⇧⏎ affiner · Espace / ⏎ insérer · chiffres choisir · Esc retour"
+            "value" : "%1$@ trois autres · Tapez, %2$@ affiner · Espace / %3$@ insérer · chiffres choisir · Esc retour"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ さらに3件 · 入力して⇧⏎ 手直し · スペース / ⏎ 挿入 · 数字で選択 · Esc 戻る"
+            "value" : "%1$@ さらに3件 · 入力して%2$@ 手直し · スペース / %3$@ 挿入 · 数字で選択 · Esc 戻る"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ 3개 더 작성 · 입력 후 ⇧⏎ 수정 · Space / ⏎ 입력 · 숫자 선택 · Esc 뒤로"
+            "value" : "%1$@ 3개 더 작성 · 입력 후 %2$@ 수정 · Space / %3$@ 입력 · 숫자 선택 · Esc 뒤로"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ mais três · Digite, ⇧⏎ refinar · Espaço / ⏎ inserir · números escolhem · Esc voltar"
+            "value" : "%1$@ mais três · Digite, %2$@ refinar · Espaço / %3$@ inserir · números escolhem · Esc voltar"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ 再寫三則 · 輸入後 ⇧⏎ 修改 · 空白鍵 / ⏎ 插入 · 數字 選取 · Esc 返回"
+            "value" : "%1$@ 再寫三則 · 輸入後 %2$@ 修改 · 空白鍵 / %3$@ 插入 · 數字 選取 · Esc 返回"
           }
         }
       }
@@ -3009,194 +3714,6 @@
         }
       }
     },
-    "⇧⏎ ask · ⏎ insert · %@ pick · %@ copy · Esc back" : {
-      "comment" : "⇧⏎ 追问 · ⏎ 上屏 · %@ 选 · %@ 复制 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⇧⏎ nachfragen · ⏎ einfügen · %1$@ wählen · %2$@ kopieren · Esc zurück"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⇧⏎ preguntar · ⏎ insertar · %1$@ elegir · %2$@ copiar · Esc volver"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⇧⏎ demander · ⏎ insérer · %1$@ choisir · %2$@ copier · Esc retour"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⇧⏎ 質問 · ⏎ 挿入 · %1$@ 選択 · %2$@ コピー · Esc 戻る"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⇧⏎ 질문 · ⏎ 입력 · %1$@ 선택 · %2$@ 복사 · Esc 뒤로"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⇧⏎ perguntar · ⏎ inserir · %1$@ escolher · %2$@ copiar · Esc voltar"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⇧⏎ 追問 · ⏎ 插入 · %1$@ 選取 · %2$@ 拷貝 · Esc 返回"
-          }
-        }
-      }
-    },
-    "⇧⏎ ask · ⏎ insert · %@ pick · %@ re-ask · %@ copy · Esc back" : {
-      "comment" : "⇧⏎ 追问 · ⏎ 上屏 · %@ 选 · %@ 重新问 · %@ 复制 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⇧⏎ nachfragen · ⏎ einfügen · %1$@ wählen · %2$@ erneut fragen · %3$@ kopieren · Esc zurück"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⇧⏎ preguntar · ⏎ insertar · %1$@ elegir · %2$@ volver a preguntar · %3$@ copiar · Esc volver"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⇧⏎ demander · ⏎ insérer · %1$@ choisir · %2$@ redemander · %3$@ copier · Esc retour"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⇧⏎ 質問 · ⏎ 挿入 · %1$@ 選択 · %2$@ 再質問 · %3$@ コピー · Esc 戻る"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⇧⏎ 질문 · ⏎ 입력 · %1$@ 선택 · %2$@ 다시 질문 · %3$@ 복사 · Esc 뒤로"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⇧⏎ perguntar · ⏎ inserir · %1$@ escolher · %2$@ perguntar de novo · %3$@ copiar · Esc voltar"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⇧⏎ 追問 · ⏎ 插入 · %1$@ 選取 · %2$@ 重問 · %3$@ 拷貝 · Esc 返回"
-          }
-        }
-      }
-    },
-    "⇧⏎ ask · ⏎ insert · %@ re-ask · %@ copy · Esc back" : {
-      "comment" : "⇧⏎ 追问 · ⏎ 上屏 · %@ 重新问 · %@ 复制 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⇧⏎ nachfragen · ⏎ einfügen · %1$@ erneut fragen · %2$@ kopieren · Esc zurück"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⇧⏎ preguntar · ⏎ insertar · %1$@ volver a preguntar · %2$@ copiar · Esc volver"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⇧⏎ demander · ⏎ insérer · %1$@ redemander · %2$@ copier · Esc retour"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⇧⏎ 質問 · ⏎ 挿入 · %1$@ 再質問 · %2$@ コピー · Esc 戻る"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⇧⏎ 질문 · ⏎ 입력 · %1$@ 다시 질문 · %2$@ 복사 · Esc 뒤로"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⇧⏎ perguntar · ⏎ inserir · %1$@ perguntar de novo · %2$@ copiar · Esc voltar"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⇧⏎ 追問 · ⏎ 插入 · %1$@ 重問 · %2$@ 拷貝 · Esc 返回"
-          }
-        }
-      }
-    },
-    "⇧⏎ refine · ⏎ insert · ⌫ delete · Esc clear · ↑↓ choose" : {
-      "comment" : "⇧⏎ 修改 · ⏎ 上屏 · ⌫ 删字 · Esc 清除 · ↑↓ 选择 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⇧⏎ verfeinern · ⏎ einfügen · ⌫ löschen · Esc leeren · ↑↓ auswählen"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⇧⏎ refinar · ⏎ insertar · ⌫ borrar · Esc limpiar · ↑↓ elegir"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⇧⏎ affiner · ⏎ insérer · ⌫ supprimer · Esc effacer · ↑↓ choisir"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⇧⏎ 手直し · ⏎ 挿入 · ⌫ 削除 · Esc クリア · ↑↓ 移動"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⇧⏎ 수정 · ⏎ 입력 · ⌫ 삭제 · Esc 지우기 · ↑↓ 이동"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⇧⏎ refinar · ⏎ inserir · ⌫ apagar · Esc limpar · ↑↓ selecionar"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⇧⏎ 修改 · ⏎ 插入 · ⌫ 刪除 · Esc 清除 · ↑↓ 選擇"
-          }
-        }
-      }
-    },
     "⌥Space" : {
       "comment" : "⌥空格 — Sources/AllInOneIMECore/UIText+Names.swift",
       "localizations" : {
@@ -3240,382 +3757,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "⌥空白鍵"
-          }
-        }
-      }
-    },
-    "⏎ / Space add to Reminders · Esc back to edit · %@ copy" : {
-      "comment" : "⏎ / 空格 加到提醒事项 · Esc 返回修改 · %@ 复制 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ / Leertaste zu Erinnerungen hinzufügen · Esc zurück zum Bearbeiten · %@ kopieren"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ / Espacio añadir a Recordatorios · Esc volver a editar · %@ copiar"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ / Espace ajouter aux Rappels · Esc revenir à la saisie · %@ copier"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ / スペース リマインダーに追加 · Esc 編集に戻る · %@ コピー"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ / Space 미리 알림에 추가 · Esc 편집으로 돌아가기 · %@ 복사"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ / Espaço adicionar aos Lembretes · Esc voltar para editar · %@ copiar"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ / 空白鍵 加入「提醒事項」 · Esc 返回編輯 · %@ 拷貝"
-          }
-        }
-      }
-    },
-    "⏎ / Tab / Space choose · Esc cancel" : {
-      "comment" : "⏎ / Tab / 空格 选择 · Esc 取消 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ / Tab / Leertaste auswählen · Esc abbrechen"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ / Tab / Espacio elegir · Esc cancelar"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ / Tab / Espace choisir · Esc annuler"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ / Tab / スペース 選択 · Esc キャンセル"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ / Tab / Space 선택 · Esc 취소"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ / Tab / Espaço selecionar · Esc cancelar"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ / Tab / 空白鍵 選擇 · Esc 取消"
-          }
-        }
-      }
-    },
-    "⏎ / Tab pick the recipient · ↑↓ · Esc cancel" : {
-      "comment" : "⏎ / Tab 选择收件人 · ↑↓ · Esc 取消 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ / Tab Empfänger wählen · ↑↓ · Esc abbrechen"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ / Tab elegir destinatario · ↑↓ · Esc cancelar"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ / Tab choisir le destinataire · ↑↓ · Esc annuler"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ / Tab 宛先を選択 · ↑↓ · Esc キャンセル"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ / Tab 받는 사람 선택 · ↑↓ · Esc 취소"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ / Tab escolher o destinatário · ↑↓ · Esc cancelar"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ / Tab 選擇收件人 · ↑↓ · Esc 取消"
-          }
-        }
-      }
-    },
-    "⏎ close · %@ copy all · Esc back" : {
-      "comment" : "⏎ 关闭 · %@ 复制全部 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ schließen · %@ alles kopieren · Esc zurück"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ cerrar · %@ copiar todo · Esc volver"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ fermer · %@ tout copier · Esc retour"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ 閉じる · %@ すべてコピー · Esc 戻る"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ 닫기 · %@ 모두 복사 · Esc 뒤로"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ fechar · %@ copiar tudo · Esc voltar"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ 關閉 · %@ 拷貝全部 · Esc 返回"
-          }
-        }
-      }
-    },
-    "⏎ open · Tab complete path · ↑↓ choose · %@ copy path · Esc cancel" : {
-      "comment" : "⏎ 打开 · Tab 补全路径 · ↑↓ 选择 · %@ 复制路径 · Esc 取消 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ öffnen · Tab Pfad vervollständigen · ↑↓ auswählen · %@ Pfad kopieren · Esc abbrechen"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ abrir · Tab completar ruta · ↑↓ elegir · %@ copiar ruta · Esc cancelar"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ ouvrir · Tab compléter le chemin · ↑↓ choisir · %@ copier le chemin · Esc annuler"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ 開く · Tab パスを補完 · ↑↓ 移動 · %@ パスをコピー · Esc キャンセル"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ 열기 · Tab 경로 완성 · ↑↓ 이동 · %@ 경로 복사 · Esc 취소"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ abrir · Tab completar caminho · ↑↓ selecionar · %@ copiar caminho · Esc cancelar"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ 打開 · Tab 補齊路徑 · ↑↓ 選擇 · %@ 拷貝路徑 · Esc 取消"
-          }
-        }
-      }
-    },
-    "⏎ open in a terminal · digits pick · %@ copy the reply · Esc back" : {
-      "comment" : "⏎ 在终端打开 · 数字选择 · %@ 复制回复 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ in einem Terminal öffnen · Ziffern wählen · %@ Antwort kopieren · Esc zurück"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ abrir en una terminal · números elegir · %@ copiar la respuesta · Esc volver"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ ouvrir dans un terminal · chiffres choisir · %@ copier la réponse · Esc retour"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ ターミナルで開く · 数字で選択 · %@ 返信をコピー · Esc 戻る"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ 터미널에서 열기 · 숫자 선택 · %@ 응답 복사 · Esc 뒤로"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ abrir em um terminal · números escolhem · %@ copiar a resposta · Esc voltar"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ 在終端機中打開 · 數字 選取 · %@ 拷貝回覆 · Esc 返回"
-          }
-        }
-      }
-    },
-    "⏎ open in Terminal · digits pick · %@ copy the reply · Esc back" : {
-      "comment" : "⏎ 在终端打开 · 数字选择 · %@ 复制回复 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ im Terminal öffnen · Ziffern wählen · %@ Antwort kopieren · Esc zurück"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ abrir en Terminal · números elegir · %@ copiar la respuesta · Esc volver"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ ouvrir dans Terminal · chiffres choisir · %@ copier la réponse · Esc retour"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ ターミナルで開く · 数字で選択 · %@ 返信をコピー · Esc 戻る"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ 터미널에서 열기 · 숫자 선택 · %@ 응답 복사 · Esc 뒤로"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ abrir no Terminal · números escolhem · %@ copiar a resposta · Esc voltar"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ 在「終端機」中打開 · 數字 選取 · %@ 拷貝回覆 · Esc 返回"
-          }
-        }
-      }
-    },
-    "⏎ open in the browser, submit it on GitHub · Esc back" : {
-      "comment" : "⏎ 在浏览器打开，在 GitHub 上点提交 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ im Browser öffnen, auf GitHub absenden · Esc zurück"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ abrir en el navegador y enviarlo en GitHub · Esc volver"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ ouvrir dans le navigateur, puis l’envoyer sur GitHub · Esc retour"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ ブラウザで開いてGitHubで送信 · Esc 戻る"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ 브라우저에서 열고 GitHub에서 제출 · Esc 뒤로"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ abrir no navegador e enviar no GitHub · Esc voltar"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ 在瀏覽器中打開，在 GitHub 上提交 · Esc 返回"
           }
         }
       }
@@ -3761,100 +3902,6 @@
         }
       }
     },
-    "⏎ pick · digits pick · %@ copy · Esc back" : {
-      "comment" : "⏎ 选中这一项 · 数字选择 · %@ 复制 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ übernehmen · Ziffern wählen · %@ kopieren · Esc zurück"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ elegir · números elegir · %@ copiar · Esc volver"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ choisir · chiffres choisir · %@ copier · Esc retour"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ 選択 · 数字で選択 · %@ コピー · Esc 戻る"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ 선택 · 숫자 선택 · %@ 복사 · Esc 뒤로"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ escolher · números escolhem · %@ copiar · Esc voltar"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ 選取 · 數字 選取 · %@ 拷貝 · Esc 返回"
-          }
-        }
-      }
-    },
-    "⏎ pick from a list · Tab complete path · ↑↓ choose · %@ copy path · Esc cancel" : {
-      "comment" : "⏎ 列出来选 · Tab 补全路径 · ↑↓ 选择 · %@ 复制路径 · Esc 取消 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ aus einer Liste wählen · Tab Pfad vervollständigen · ↑↓ auswählen · %@ Pfad kopieren · Esc abbrechen"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ elegir de una lista · Tab completar ruta · ↑↓ elegir · %@ copiar ruta · Esc cancelar"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ choisir dans une liste · Tab compléter le chemin · ↑↓ choisir · %@ copier le chemin · Esc annuler"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ リストから選ぶ · Tab パスを補完 · ↑↓ 移動 · %@ パスをコピー · Esc キャンセル"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ 목록에서 선택 · Tab 경로 완성 · ↑↓ 이동 · %@ 경로 복사 · Esc 취소"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ escolher de uma lista · Tab completar caminho · ↑↓ selecionar · %@ copiar caminho · Esc cancelar"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ 列出來選 · Tab 補齊路徑 · ↑↓ 選擇 · %@ 拷貝路徑 · Esc 取消"
-          }
-        }
-      }
-    },
     "⏎ Return" : {
       "comment" : "⏎ 回车 — Sources/AllInOneIMECore/UIText+Names.swift",
       "localizations" : {
@@ -3898,53 +3945,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "⏎ Return"
-          }
-        }
-      }
-    },
-    "⏎ send · Esc back to editing" : {
-      "comment" : "⏎ 发送 · Esc 返回修改 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ senden · Esc zurück zum Bearbeiten"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ enviar · Esc volver a editar"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ envoyer · Esc revenir à la saisie"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ 送信 · Esc 編集に戻る"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ 보내기 · Esc 편집으로 돌아가기"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ enviar · Esc voltar a editar"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⏎ 傳送 · Esc 返回編輯"
           }
         }
       }
@@ -3997,7 +3997,7 @@
       }
     },
     "1 day ago" : {
-      "comment" : "1 天前 — Sources/AllInOneIMECore/Dashboard.swift",
+      "comment" : "1 天前 — Sources/AllInOneIMECore/RelativeTime.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -12040,7 +12040,7 @@
       }
     },
     "just now" : {
-      "comment" : "刚刚 — Sources/AllInOneIMECore/Dashboard.swift",
+      "comment" : "刚刚 — Sources/AllInOneIMECore/RelativeTime.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -15094,49 +15094,49 @@
         }
       }
     },
-    "Not translated: {reason} (⏎ to retry)" : {
-      "comment" : "没翻译成：{reason}（⏎ 重试） — Sources/AllInOneIMECore/TranslateMode.swift",
+    "Not translated: {reason} (%@ to retry)" : {
+      "comment" : "没翻译成：{reason}（%@ 重试） — Sources/AllInOneIMECore/TranslateMode.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nicht übersetzt: {reason} (⏎ erneut versuchen)"
+            "value" : "Nicht übersetzt: {reason} (%@ erneut versuchen)"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sin traducir: {reason} (⏎ para reintentar)"
+            "value" : "Sin traducir: {reason} (%@ para reintentar)"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Non traduit : {reason} (⏎ pour réessayer)"
+            "value" : "Non traduit : {reason} (%@ pour réessayer)"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "翻訳できませんでした：{reason}（⏎で再試行）"
+            "value" : "翻訳できませんでした：{reason}（%@で再試行）"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "번역되지 않음: {reason} (⏎ 키로 재시도)"
+            "value" : "번역되지 않음: {reason} (%@ 키로 재시도)"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Não traduzido: {reason} (⏎ para tentar de novo)"
+            "value" : "Não traduzido: {reason} (%@ para tentar de novo)"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "未翻譯：{reason}（⏎ 重試）"
+            "value" : "未翻譯：{reason}（%@ 重試）"
           }
         }
       }
@@ -17027,49 +17027,49 @@
         }
       }
     },
-    "Pick a recipient first: ↑↓ choose, ⏎ / Tab confirm (or type a phone number or email)" : {
-      "comment" : "先选收件人：↑↓ 选择，⏎ / Tab 确定（也可以直接输入手机号或邮箱） — Sources/AllInOneIMECore/Composer.swift",
+    "Pick a recipient first: ↑↓ choose, %@ / Tab confirm (or type a phone number or email)" : {
+      "comment" : "先选收件人：↑↓ 选择，%@ / Tab 确定（也可以直接输入手机号或邮箱） — Sources/AllInOneIMECore/Composer.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Zuerst einen Empfänger wählen: ↑↓ auswählen, ⏎ / Tab bestätigen (oder Telefonnummer bzw. E-Mail-Adresse eingeben)"
+            "value" : "Zuerst einen Empfänger wählen: ↑↓ auswählen, %@ / Tab bestätigen (oder Telefonnummer bzw. E-Mail-Adresse eingeben)"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Elige primero un destinatario: ↑↓ para elegir, ⏎ / Tab para confirmar (o escribe un número de teléfono o un correo)"
+            "value" : "Elige primero un destinatario: ↑↓ para elegir, %@ / Tab para confirmar (o escribe un número de teléfono o un correo)"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Choisissez d’abord un destinataire : ↑↓ pour choisir, ⏎ / Tab pour confirmer (ou saisissez un numéro de téléphone ou une adresse e-mail)"
+            "value" : "Choisissez d’abord un destinataire : ↑↓ pour choisir, %@ / Tab pour confirmer (ou saisissez un numéro de téléphone ou une adresse e-mail)"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "まず宛先を選んでください：↑↓で選択、⏎ / Tabで決定（電話番号やメールアドレスを入力することもできます）"
+            "value" : "まず宛先を選んでください：↑↓で選択、%@ / Tabで決定（電話番号やメールアドレスを入力することもできます）"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "먼저 받는 사람을 선택하세요: ↑↓ 선택, ⏎ / Tab 확인 (또는 전화번호나 이메일 입력)"
+            "value" : "먼저 받는 사람을 선택하세요: ↑↓ 선택, %@ / Tab 확인 (또는 전화번호나 이메일 입력)"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Escolha um destinatário primeiro: ↑↓ selecionam, ⏎ / Tab confirmam (ou digite um número de telefone ou e-mail)"
+            "value" : "Escolha um destinatário primeiro: ↑↓ selecionam, %@ / Tab confirmam (ou digite um número de telefone ou e-mail)"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "請先選擇收件人：↑↓ 選擇，⏎ / Tab 確認（或輸入電話號碼或電子郵件）"
+            "value" : "請先選擇收件人：↑↓ 選擇，%@ / Tab 確認（或輸入電話號碼或電子郵件）"
           }
         }
       }
@@ -18625,49 +18625,49 @@
         }
       }
     },
-    "Release right %@ to stop · ⏎ run now · Esc cancel" : {
-      "comment" : "松开右 %@ 结束 · ⏎ 直接执行 · Esc 取消 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+    "Release right %@ to stop · %@ run now · Esc cancel" : {
+      "comment" : "松开右 %@ 结束 · %@ 直接执行 · Esc 取消 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Rechte %@-Taste loslassen zum Beenden · ⏎ sofort ausführen · Esc abbrechen"
+            "value" : "Rechte %1$@-Taste loslassen zum Beenden · %2$@ sofort ausführen · Esc abbrechen"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Suelta la tecla %@ derecha para terminar · ⏎ ejecutar ya · Esc cancelar"
+            "value" : "Suelta la tecla %1$@ derecha para terminar · %2$@ ejecutar ya · Esc cancelar"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Relâchez %@ droite pour arrêter · ⏎ exécuter maintenant · Esc annuler"
+            "value" : "Relâchez %1$@ droite pour arrêter · %2$@ exécuter maintenant · Esc annuler"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "右%@を離して終了 · ⏎ すぐ実行 · Esc キャンセル"
+            "value" : "右%1$@を離して終了 · %2$@ すぐ実行 · Esc キャンセル"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "오른쪽 %@를 놓으면 중지 · ⏎ 바로 실행 · Esc 취소"
+            "value" : "오른쪽 %1$@를 놓으면 중지 · %2$@ 바로 실행 · Esc 취소"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Solte o %@ direito para parar · ⏎ executar agora · Esc cancelar"
+            "value" : "Solte o %1$@ direito para parar · %2$@ executar agora · Esc cancelar"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "放開右 %@ 即停止 · ⏎ 立即執行 · Esc 取消"
+            "value" : "放開右 %1$@ 即停止 · %2$@ 立即執行 · Esc 取消"
           }
         }
       }
@@ -22338,190 +22338,284 @@
         }
       }
     },
-    "Space / ⏎ insert · digits pick · %@ copy · Esc back" : {
-      "comment" : "空格 / ⏎ 上屏 · 数字选择 · %@ 复制 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+    "Space / %@ insert · digits pick · %@ copy · Esc back" : {
+      "comment" : "空格 / %@ 上屏 · 数字选择 · %@ 复制 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Leertaste / ⏎ einfügen · Ziffern wählen · %@ kopieren · Esc zurück"
+            "value" : "Leertaste / %1$@ einfügen · Ziffern wählen · %2$@ kopieren · Esc zurück"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Espacio / ⏎ insertar · números elegir · %@ copiar · Esc volver"
+            "value" : "Espacio / %1$@ insertar · números elegir · %2$@ copiar · Esc volver"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Espace / ⏎ insérer · chiffres choisir · %@ copier · Esc retour"
+            "value" : "Espace / %1$@ insérer · chiffres choisir · %2$@ copier · Esc retour"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "スペース / ⏎ 挿入 · 数字で選択 · %@ コピー · Esc 戻る"
+            "value" : "スペース / %1$@ 挿入 · 数字で選択 · %2$@ コピー · Esc 戻る"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Space / ⏎ 입력 · 숫자 선택 · %@ 복사 · Esc 뒤로"
+            "value" : "Space / %1$@ 입력 · 숫자 선택 · %2$@ 복사 · Esc 뒤로"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Espaço / ⏎ inserir · números escolhem · %@ copiar · Esc voltar"
+            "value" : "Espaço / %1$@ inserir · números escolhem · %2$@ copiar · Esc voltar"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "空白鍵 / ⏎ 插入 · 數字 選取 · %@ 拷貝 · Esc 返回"
+            "value" : "空白鍵 / %1$@ 插入 · 數字 選取 · %2$@ 拷貝 · Esc 返回"
           }
         }
       }
     },
-    "Space / ⏎ insert · digits pick · 0 original · %@ copy · Esc back" : {
-      "comment" : "空格 / ⏎ 上屏 · 数字选择 · 0 原文 · %@ 复制 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+    "Space / %@ insert · digits pick · 0 original · %@ copy · Esc back" : {
+      "comment" : "空格 / %@ 上屏 · 数字选择 · 0 原文 · %@ 复制 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Leertaste / ⏎ einfügen · Ziffern wählen · 0 Original · %@ kopieren · Esc zurück"
+            "value" : "Leertaste / %1$@ einfügen · Ziffern wählen · 0 Original · %2$@ kopieren · Esc zurück"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Espacio / ⏎ insertar · números elegir · 0 original · %@ copiar · Esc volver"
+            "value" : "Espacio / %1$@ insertar · números elegir · 0 original · %2$@ copiar · Esc volver"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Espace / ⏎ insérer · chiffres choisir · 0 original · %@ copier · Esc retour"
+            "value" : "Espace / %1$@ insérer · chiffres choisir · 0 original · %2$@ copier · Esc retour"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "スペース / ⏎ 挿入 · 数字で選択 · 0 原文 · %@ コピー · Esc 戻る"
+            "value" : "スペース / %1$@ 挿入 · 数字で選択 · 0 原文 · %2$@ コピー · Esc 戻る"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Space / ⏎ 입력 · 숫자 선택 · 0 원문 · %@ 복사 · Esc 뒤로"
+            "value" : "Space / %1$@ 입력 · 숫자 선택 · 0 원문 · %2$@ 복사 · Esc 뒤로"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Espaço / ⏎ inserir · números escolhem · 0 original · %@ copiar · Esc voltar"
+            "value" : "Espaço / %1$@ inserir · números escolhem · 0 original · %2$@ copiar · Esc voltar"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "空白鍵 / ⏎ 插入 · 數字 選取 · 0 原文 · %@ 拷貝 · Esc 返回"
+            "value" : "空白鍵 / %1$@ 插入 · 數字 選取 · 0 原文 · %2$@ 拷貝 · Esc 返回"
           }
         }
       }
     },
-    "Space / ⏎ open · digits pick · %@ copy path · Esc back" : {
-      "comment" : "空格 / ⏎ 打开 · 数字选择 · %@ 复制路径 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+    "Space / %@ open · digits pick · %@ copy path · Esc back" : {
+      "comment" : "空格 / %@ 打开 · 数字选择 · %@ 复制路径 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Leertaste / ⏎ öffnen · Ziffern wählen · %@ Pfad kopieren · Esc zurück"
+            "value" : "Leertaste / %1$@ öffnen · Ziffern wählen · %2$@ Pfad kopieren · Esc zurück"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Espacio / ⏎ abrir · números elegir · %@ copiar ruta · Esc volver"
+            "value" : "Espacio / %1$@ abrir · números elegir · %2$@ copiar ruta · Esc volver"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Espace / ⏎ ouvrir · chiffres choisir · %@ copier le chemin · Esc retour"
+            "value" : "Espace / %1$@ ouvrir · chiffres choisir · %2$@ copier le chemin · Esc retour"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "スペース / ⏎ 開く · 数字で選択 · %@ パスをコピー · Esc 戻る"
+            "value" : "スペース / %1$@ 開く · 数字で選択 · %2$@ パスをコピー · Esc 戻る"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Space / ⏎ 열기 · 숫자 선택 · %@ 경로 복사 · Esc 뒤로"
+            "value" : "Space / %1$@ 열기 · 숫자 선택 · %2$@ 경로 복사 · Esc 뒤로"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Espaço / ⏎ abrir · números escolhem · %@ copiar caminho · Esc voltar"
+            "value" : "Espaço / %1$@ abrir · números escolhem · %2$@ copiar caminho · Esc voltar"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "空白鍵 / ⏎ 打開 · 數字 選取 · %@ 拷貝路徑 · Esc 返回"
+            "value" : "空白鍵 / %1$@ 打開 · 數字 選取 · %2$@ 拷貝路徑 · Esc 返回"
           }
         }
       }
     },
-    "Space / ⏎ retry · 0 original · Esc back" : {
-      "comment" : "空格 / ⏎ 重试 · 0 原文 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+    "Space / %@ retry · 0 original · Esc back" : {
+      "comment" : "空格 / %@ 重试 · 0 原文 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Leertaste / ⏎ erneut versuchen · 0 Original · Esc zurück"
+            "value" : "Leertaste / %@ erneut versuchen · 0 Original · Esc zurück"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Espacio / ⏎ reintentar · 0 original · Esc volver"
+            "value" : "Espacio / %@ reintentar · 0 original · Esc volver"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Espace / ⏎ réessayer · 0 original · Esc retour"
+            "value" : "Espace / %@ réessayer · 0 original · Esc retour"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "スペース / ⏎ 再試行 · 0 原文 · Esc 戻る"
+            "value" : "スペース / %@ 再試行 · 0 原文 · Esc 戻る"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Space / ⏎ 재시도 · 0 원문 · Esc 뒤로"
+            "value" : "Space / %@ 재시도 · 0 원문 · Esc 뒤로"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Espaço / ⏎ tentar de novo · 0 original · Esc voltar"
+            "value" : "Espaço / %@ tentar de novo · 0 original · Esc voltar"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "空白鍵 / ⏎ 重試 · 0 原文 · Esc 返回"
+            "value" : "空白鍵 / %@ 重試 · 0 原文 · Esc 返回"
+          }
+        }
+      }
+    },
+    "Space picks · %@ ask · %@ insert the answer · Esc clear the pinyin" : {
+      "comment" : "空格 选词 · %@ 追问 · %@ 上屏答案 · Esc 清除拼音 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leertaste wählt · %1$@ nachfragen · %2$@ Antwort einfügen · Esc Pinyin leeren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Espacio elige · %1$@ preguntar · %2$@ insertar la respuesta · Esc borrar el pinyin"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Espace choisir · %1$@ demander · %2$@ insérer la réponse · Esc effacer le pinyin"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スペース 選択 · %1$@ 質問 · %2$@ 回答を挿入 · Esc ピンインをクリア"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Space 단어 선택 · %1$@ 질문 · %2$@ 답변 입력 · Esc 병음 지우기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Espaço escolhe · %1$@ perguntar · %2$@ inserir a resposta · Esc limpar o pinyin"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "空白鍵 選字 · %1$@ 追問 · %2$@ 插入答案 · Esc 清除拼音"
+          }
+        }
+      }
+    },
+    "Space picks · %@ refine · %@ insert · Esc clear the pinyin" : {
+      "comment" : "空格 选词 · %@ 按这句修改结果 · %@ 上屏 · Esc 清除拼音 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leertaste wählt · %1$@ verfeinern · %2$@ einfügen · Esc Pinyin leeren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Espacio elige · %1$@ refinar · %2$@ insertar · Esc borrar el pinyin"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Espace choisir · %1$@ affiner · %2$@ insérer · Esc effacer le pinyin"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スペース 選択 · %1$@ 手直し · %2$@ 挿入 · Esc ピンインをクリア"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Space 단어 선택 · %1$@ 수정 · %2$@ 입력 · Esc 병음 지우기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Espaço escolhe · %1$@ refinar · %2$@ inserir · Esc limpar o pinyin"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "空白鍵 選字 · %1$@ 修改 · %2$@ 插入 · Esc 清除拼音"
           }
         }
       }
@@ -22573,143 +22667,49 @@
         }
       }
     },
-    "Space picks · ⇧⏎ ask · ⏎ insert the answer · Esc clear the pinyin" : {
-      "comment" : "空格 选词 · ⇧⏎ 追问 · ⏎ 上屏答案 · Esc 清除拼音 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+    "Space picks · %@ translate to %@ and insert · %@ as typed" : {
+      "comment" : "空格 选词 · %@ 翻译成%@上屏 · %@ 原文上屏 — Sources/AllInOneIMECore/Session/SessionText.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Leertaste wählt · ⇧⏎ nachfragen · ⏎ Antwort einfügen · Esc Pinyin leeren"
+            "value" : "Leertaste wählt · %1$@ auf %2$@ übersetzen und einfügen · %3$@ wie getippt"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Espacio elige · ⇧⏎ preguntar · ⏎ insertar la respuesta · Esc borrar el pinyin"
+            "value" : "Espacio elige · %1$@ traducir a %2$@ e insertar · %3$@ tal cual"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Espace choisir · ⇧⏎ demander · ⏎ insérer la réponse · Esc effacer le pinyin"
+            "value" : "Espace choisir · %1$@ traduire en %2$@ et insérer · %3$@ tel quel"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "スペース 選択 · ⇧⏎ 質問 · ⏎ 回答を挿入 · Esc ピンインをクリア"
+            "value" : "スペース 選択 · %1$@ %2$@に翻訳して挿入 · %3$@ 入力どおりに挿入"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Space 단어 선택 · ⇧⏎ 질문 · ⏎ 답변 입력 · Esc 병음 지우기"
+            "value" : "Space 단어 선택 · %1$@ %2$@(으)로 번역해 입력 · %3$@ 입력한 그대로"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Espaço escolhe · ⇧⏎ perguntar · ⏎ inserir a resposta · Esc limpar o pinyin"
+            "value" : "Espaço escolhe · %1$@ traduzir para %2$@ e inserir · %3$@ como digitado"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "空白鍵 選字 · ⇧⏎ 追問 · ⏎ 插入答案 · Esc 清除拼音"
-          }
-        }
-      }
-    },
-    "Space picks · ⇧⏎ refine · ⏎ insert · Esc clear the pinyin" : {
-      "comment" : "空格 选词 · ⇧⏎ 按这句修改结果 · ⏎ 上屏 · Esc 清除拼音 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Leertaste wählt · ⇧⏎ verfeinern · ⏎ einfügen · Esc Pinyin leeren"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Espacio elige · ⇧⏎ refinar · ⏎ insertar · Esc borrar el pinyin"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Espace choisir · ⇧⏎ affiner · ⏎ insérer · Esc effacer le pinyin"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "スペース 選択 · ⇧⏎ 手直し · ⏎ 挿入 · Esc ピンインをクリア"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Space 단어 선택 · ⇧⏎ 수정 · ⏎ 입력 · Esc 병음 지우기"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Espaço escolhe · ⇧⏎ refinar · ⏎ inserir · Esc limpar o pinyin"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "空白鍵 選字 · ⇧⏎ 修改 · ⏎ 插入 · Esc 清除拼音"
-          }
-        }
-      }
-    },
-    "Space picks · ⏎ translate to %@ and insert · ⇧⏎ as typed" : {
-      "comment" : "空格 选词 · ⏎ 翻译成%@上屏 · ⇧⏎ 原文上屏 — Sources/AllInOneIMECore/Session/SessionText.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Leertaste wählt · ⏎ auf %@ übersetzen und einfügen · ⇧⏎ wie getippt"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Espacio elige · ⏎ traducir a %@ e insertar · ⇧⏎ tal cual"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Espace choisir · ⏎ traduire en %@ et insérer · ⇧⏎ tel quel"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "スペース 選択 · ⏎ %@に翻訳して挿入 · ⇧⏎ 入力どおりに挿入"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Space 단어 선택 · ⏎ %@(으)로 번역해 입력 · ⇧⏎ 입력한 그대로"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Espaço escolhe · ⏎ traduzir para %@ e inserir · ⇧⏎ como digitado"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "空白鍵 選字 · ⏎ 翻譯成%@並插入 · ⇧⏎ 照原樣輸入"
+            "value" : "空白鍵 選字 · %1$@ 翻譯成%2$@並插入 · %3$@ 照原樣輸入"
           }
         }
       }
@@ -22761,49 +22761,49 @@
         }
       }
     },
-    "Space retry · ⏎ insert original · Esc back" : {
-      "comment" : "空格 重试 · ⏎ 上屏原文 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+    "Space retry · %@ insert original · Esc back" : {
+      "comment" : "空格 重试 · %@ 上屏原文 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Leertaste erneut versuchen · ⏎ Original einfügen · Esc zurück"
+            "value" : "Leertaste erneut versuchen · %@ Original einfügen · Esc zurück"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Espacio reintentar · ⏎ insertar original · Esc volver"
+            "value" : "Espacio reintentar · %@ insertar original · Esc volver"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Espace réessayer · ⏎ insérer l’original · Esc retour"
+            "value" : "Espace réessayer · %@ insérer l’original · Esc retour"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "スペース 再試行 · ⏎ 原文を挿入 · Esc 戻る"
+            "value" : "スペース 再試行 · %@ 原文を挿入 · Esc 戻る"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Space 재시도 · ⏎ 원문 입력 · Esc 뒤로"
+            "value" : "Space 재시도 · %@ 원문 입력 · Esc 뒤로"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Espaço tentar de novo · ⏎ inserir original · Esc voltar"
+            "value" : "Espaço tentar de novo · %@ inserir original · Esc voltar"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "空白鍵 重試 · ⏎ 插入原文 · Esc 返回"
+            "value" : "空白鍵 重試 · %@ 插入原文 · Esc 返回"
           }
         }
       }
@@ -26845,96 +26845,96 @@
         }
       }
     },
-    "Type, ⇧⏎ refine · Space / ⏎ insert · digits pick · 0 original · %@ copy · Esc back" : {
-      "comment" : "打字后 ⇧⏎ 修改 · 空格 / ⏎ 上屏 · 数字选择 · 0 原文 · %@ 复制 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+    "Type, %@ refine · Space / %@ insert · digits pick · 0 original · %@ copy · Esc back" : {
+      "comment" : "打字后 %@ 修改 · 空格 / %@ 上屏 · 数字选择 · 0 原文 · %@ 复制 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tippen, ⇧⏎ verfeinern · Leertaste / ⏎ einfügen · Ziffern wählen · 0 Original · %@ kopieren · Esc zurück"
+            "value" : "Tippen, %1$@ verfeinern · Leertaste / %2$@ einfügen · Ziffern wählen · 0 Original · %3$@ kopieren · Esc zurück"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Escribe y ⇧⏎ refinar · Espacio / ⏎ insertar · números elegir · 0 original · %@ copiar · Esc volver"
+            "value" : "Escribe y %1$@ refinar · Espacio / %2$@ insertar · números elegir · 0 original · %3$@ copiar · Esc volver"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tapez, ⇧⏎ affiner · Espace / ⏎ insérer · chiffres choisir · 0 original · %@ copier · Esc retour"
+            "value" : "Tapez, %1$@ affiner · Espace / %2$@ insérer · chiffres choisir · 0 original · %3$@ copier · Esc retour"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "入力して⇧⏎ 手直し · スペース / ⏎ 挿入 · 数字で選択 · 0 原文 · %@ コピー · Esc 戻る"
+            "value" : "入力して%1$@ 手直し · スペース / %2$@ 挿入 · 数字で選択 · 0 原文 · %3$@ コピー · Esc 戻る"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "입력 후 ⇧⏎ 수정 · Space / ⏎ 입력 · 숫자 선택 · 0 원문 · %@ 복사 · Esc 뒤로"
+            "value" : "입력 후 %1$@ 수정 · Space / %2$@ 입력 · 숫자 선택 · 0 원문 · %3$@ 복사 · Esc 뒤로"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Digite, ⇧⏎ refinar · Espaço / ⏎ inserir · números escolhem · 0 original · %@ copiar · Esc voltar"
+            "value" : "Digite, %1$@ refinar · Espaço / %2$@ inserir · números escolhem · 0 original · %3$@ copiar · Esc voltar"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "輸入後 ⇧⏎ 修改 · 空白鍵 / ⏎ 插入 · 數字 選取 · 0 原文 · %@ 拷貝 · Esc 返回"
+            "value" : "輸入後 %1$@ 修改 · 空白鍵 / %2$@ 插入 · 數字 選取 · 0 原文 · %3$@ 拷貝 · Esc 返回"
           }
         }
       }
     },
-    "Type, ⇧⏎ refine · Space / ⏎ insert · digits pick · 0 original · Esc previous" : {
-      "comment" : "打字后 ⇧⏎ 再改 · 空格 / ⏎ 上屏 · 数字选择 · 0 原文 · Esc 上一版 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+    "Type, %@ refine · Space / %@ insert · digits pick · 0 original · Esc previous" : {
+      "comment" : "打字后 %@ 再改 · 空格 / %@ 上屏 · 数字选择 · 0 原文 · Esc 上一版 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tippen, ⇧⏎ verfeinern · Leertaste / ⏎ einfügen · Ziffern wählen · 0 Original · Esc vorherige"
+            "value" : "Tippen, %1$@ verfeinern · Leertaste / %2$@ einfügen · Ziffern wählen · 0 Original · Esc vorherige"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Escribe y ⇧⏎ refinar · Espacio / ⏎ insertar · números elegir · 0 original · Esc anterior"
+            "value" : "Escribe y %1$@ refinar · Espacio / %2$@ insertar · números elegir · 0 original · Esc anterior"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tapez, ⇧⏎ affiner · Espace / ⏎ insérer · chiffres choisir · 0 original · Esc précédent"
+            "value" : "Tapez, %1$@ affiner · Espace / %2$@ insérer · chiffres choisir · 0 original · Esc précédent"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "入力して⇧⏎ 手直し · スペース / ⏎ 挿入 · 数字で選択 · 0 原文 · Esc 前の結果へ"
+            "value" : "入力して%1$@ 手直し · スペース / %2$@ 挿入 · 数字で選択 · 0 原文 · Esc 前の結果へ"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "입력 후 ⇧⏎ 수정 · Space / ⏎ 입력 · 숫자 선택 · 0 원문 · Esc 이전 결과"
+            "value" : "입력 후 %1$@ 수정 · Space / %2$@ 입력 · 숫자 선택 · 0 원문 · Esc 이전 결과"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Digite, ⇧⏎ refinar · Espaço / ⏎ inserir · números escolhem · 0 original · Esc anterior"
+            "value" : "Digite, %1$@ refinar · Espaço / %2$@ inserir · números escolhem · 0 original · Esc anterior"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "輸入後 ⇧⏎ 修改 · 空白鍵 / ⏎ 插入 · 數字 選取 · 0 原文 · Esc 上一版"
+            "value" : "輸入後 %1$@ 修改 · 空白鍵 / %2$@ 插入 · 數字 選取 · 0 原文 · Esc 上一版"
           }
         }
       }

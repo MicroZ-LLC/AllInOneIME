@@ -10,10 +10,10 @@ extension InterfaceWords {
     /// The language as Chinese or English: what script plugins are told (`run(input, {language})`, "zh" or "en").
     public var pluginLanguage: Language { chinese ? .chinese : .english }
 
-    /// "单按 ⌥" / "Tap ⌥", "⌥Space" …; on Windows "Tap Ctrl", "Ctrl+Space" (`terms`).
+    /// "⏎", "单按 ⌥" / "Tap ⌥", "⌥Space" …; on Windows "Enter", "Tap Ctrl", "Ctrl+Space" (`terms`).
     public func name(_ key: ActionKey, terms: PlatformTerms = Platform.current.terms) -> String {
         switch key {
-        case .enter: return "⏎"
+        case .enter: return terms.enter
         case .optionTap: return tr("单按 \(terms.actionTap)", "Tap \(terms.actionTap)")
         case .optionSpace:
             // The Mac's own way to write it in each language (「⌥空格」, "⌥-Leertaste"); elsewhere the key's name and

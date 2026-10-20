@@ -108,6 +108,7 @@ struct PlatformTermsTests {
         let mac = PlatformTerms.mac
         #expect([mac.copy, mac.paste, mac.again, mac.pick(2), mac.picks(1), mac.picks(3)] == ["⌘C", "⌃V", "⌘R", "⌘2", "⌘1", "⌘1–⌘3"])
         #expect(mac.voiceKey == "⌥" && mac.actionTap == "⌥" && mac.shortcut(.option, "Space") == "⌥Space")
+        #expect([mac.enter, mac.shiftEnter, mac.backspace] == ["⏎", "⇧⏎", "⌫"])
         #expect(mac.isApp("/Applications/Calculator.app") && !mac.isApp("/Users/a/Calculator.app.zip") && !mac.isApp("C:/x/Word.lnk"))
     }
 
@@ -117,8 +118,35 @@ struct PlatformTermsTests {
                 == ["Ctrl+C", "Ctrl+V", "Ctrl+R", "Ctrl+2", "Ctrl+1", "Ctrl+1–3"])
         // The keys follow the roles: the right Ctrl dictates, a tap of Ctrl is the action key.
         #expect(windows.voiceKey == "Ctrl" && windows.actionTap == "Ctrl" && windows.shortcut(.command, "D") == "Win+D")
+        // Return, ⇧Return and Delete by the names Windows' keyboards print.
+        #expect([windows.enter, windows.shiftEnter, windows.backspace] == ["Enter", "Shift+Enter", "Backspace"])
         #expect(windows.isApp(#"C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Word.lnk"#) && windows.isApp("C:/Tools/x.EXE"))
         #expect(!windows.isApp("/Applications/Calculator.app"))
+    }
+
+    /// The panel's text takes ⏎, ⇧⏎ and ⌫ from the terms in every language: no catalog key first used in Session/ (the
+    /// presenter's, the session's lines) writes them, nor any of its translations; each translation has the keys where
+    /// its English does (a German footer on Windows).
+    @Test func theCatalogTakesTheKeysFromTheTerms() throws {
+        let data = try Data(contentsOf: InterfaceTextTests.root.appendingPathComponent("Resources/Localizable.xcstrings"))
+        let catalog = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let entries = try #require(catalog["strings"] as? [String: [String: Any]])
+        var panel = 0
+        for (key, entry) in entries where entry["extractionState"] as? String != "stale"
+            && (entry["comment"] as? String ?? "").contains("Sources/AllInOneIMECore/Session/") {
+            panel += 1
+            let localizations = entry["localizations"] as? [String: Any] ?? [:]
+            let values = localizations.values.compactMap { (($0 as? [String: Any])?["stringUnit"] as? [String: Any])?["value"] as? String }
+            #expect(values.count == localizations.count, "\(key)")
+            for text in [key] + values {
+                #expect(!["⏎", "⌫"].contains { text.contains($0) }, "\(key): \(text)")
+            }
+        }
+        #expect(panel > 30)
+        let de = try StringCatalog.table("de", from: data), windows = PlatformTerms.windows
+        let footer: UIString = "\(windows.shiftEnter) refine · \(windows.enter) insert · \(windows.backspace) delete · Esc clear · ↑↓ choose"
+        #expect(InterfaceText.translate(footer, in: de)
+                == "Shift+Enter verfeinern · Enter einfügen · Backspace löschen · Esc leeren · ↑↓ auswählen")
     }
 
     @Test func theSystemsOwnByDefault() {
@@ -136,7 +164,8 @@ struct PlatformTermsTests {
         #expect([zh.name(.optionTap, terms: .mac), zh.name(.optionSpace, terms: .mac)] == ["单按 ⌥", "⌥空格"])
         #expect([en.name(.optionTap, terms: .windows), en.name(.optionSpace, terms: .windows)] == ["Tap Ctrl", "Ctrl+Space"])
         #expect([zh.name(.optionTap, terms: .windows), zh.name(.optionSpace, terms: .windows)] == ["单按 Ctrl", "Ctrl+空格"])
-        #expect(en.name(.enter, terms: .windows) == "⏎" && en.name(.space, terms: .windows) == "Space")
+        #expect(en.name(.enter, terms: .windows) == "Enter" && en.name(.enter, terms: .mac) == "⏎")
+        #expect(en.name(.space, terms: .windows) == "Space")
         let mac = Composer.Messages.make(language: "en", terms: .mac), windows = Composer.Messages.make(language: "en", terms: .windows)
         #expect(mac.holdToTalk == "Hold right ⌥ to talk" && windows.holdToTalk == "Hold right Ctrl to talk")
         #expect(mac.openedTerminal == "Opened Claude Code in Terminal" && windows.openedTerminal == "Opened Claude Code in a terminal")
@@ -145,6 +174,10 @@ struct PlatformTermsTests {
         #expect(windows.reply.reading == "Reading the screenshot on this PC (slower the first time)…")
         #expect(windows.reply.hint == "Select or copy their message, or take a screenshot and press Ctrl+V; or write what to reply")
         #expect(Composer.Messages.make(language: "zh-Hans", terms: .windows).holdToTalk == "按住右 Ctrl 说话")
+        #expect(mac.pickRecipient == "Pick a recipient first: ↑↓ choose, ⏎ / Tab confirm (or type a phone number or email)")
+        #expect(windows.pickRecipient == "Pick a recipient first: ↑↓ choose, Enter / Tab confirm (or type a phone number or email)")
+        #expect(TranslateMode.Messages.make(language: "en", terms: .mac).failed("offline") == "Not translated: offline (⏎ to retry)")
+        #expect(TranslateMode.Messages.make(language: "zh-Hans", terms: .windows).failed("offline") == "没翻译成：offline（Enter 重试）")
         // A command's summary and what the action key does with it.
         #expect(en.summary(.reply, terms: .windows) == "Reply: Ctrl+V their message or a screenshot")
         let terminal = CustomCommand(name: "top", type: .terminal, argv: ["/usr/bin/top"])

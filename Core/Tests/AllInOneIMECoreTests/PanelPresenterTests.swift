@@ -107,15 +107,16 @@ struct PanelPresenterTests {
         c.setInputMode(.english)
         improveDraft(c)
         let windows = PanelPresenter(config: .default, language: "en", terms: .windows)
-        #expect(windows.model(for: c).footer == "Ctrl+V paste · ⌫ delete · Esc clear")
+        #expect(windows.model(for: c).footer == "Ctrl+V paste · Backspace delete · Esc clear")
         #expect(windows.model(for: c).status == .hint("Write something, or Ctrl+V to paste"))
-        #expect(PanelPresenter(config: .default, language: "zh-Hans", terms: .windows).model(for: c).footer == "Ctrl+V 粘贴 · ⌫ 删字 · Esc 清除")
+        #expect(PanelPresenter(config: .default, language: "zh-Hans", terms: .windows).model(for: c).footer == "Ctrl+V 粘贴 · Backspace 删字 · Esc 清除")
         #expect(PanelPresenter(config: .default, language: "en", terms: .mac).model(for: c).footer == "⌃V paste · ⌫ delete · Esc clear")
         // Results: copied with Ctrl+C.
         let sent = translating()
         _ = sent.receive(result, isFinal: true, id: 1)
         try #require(sent.phase == .choosing)
-        #expect(windows.model(for: sent).footer == "Type, ⇧⏎ refine · Space / ⏎ insert · digits pick · 0 original · Ctrl+C copy · Esc back")
+        #expect(windows.model(for: sent).footer
+                == "Type, Shift+Enter refine · Space / Enter insert · digits pick · 0 original · Ctrl+C copy · Esc back")
         #expect(en.model(for: sent).footer == "Type, ⇧⏎ refine · Space / ⏎ insert · digits pick · 0 original · ⌘C copy · Esc back")
         // The action key a tap of Ctrl, in the palette's footer and a draft's hint.
         let tap = composer(key: .optionTap)
@@ -293,7 +294,7 @@ struct PanelPresenterTests {
         // On Windows, picked with Ctrl.
         let windows = PanelPresenter(config: .default, language: "en", terms: .windows).model(for: c)
         #expect(windows.handoff?.choices.map(\.shortcut) == ["Ctrl+1", "Ctrl+2", "Ctrl+3", "Ctrl+4", "Ctrl+5"])
-        #expect(windows.footer == "Ctrl+1–5 continue, with what you typed · ⏎ insert · 1–2 pick · Ctrl+C copy · Esc back")
+        #expect(windows.footer == "Ctrl+1–5 continue, with what you typed · Enter insert · 1–2 pick · Ctrl+C copy · Esc back")
         // Before the last round, ⌘⏎ shows them.
         let early = conversation(handoff: [.copy])
         #expect(en.model(for: early).handoff == nil)
