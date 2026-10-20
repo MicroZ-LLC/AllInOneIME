@@ -47,7 +47,8 @@ python Scripts/make-test-documents.py <AllInOneIMEEngine.exe>   # the tests' doc
   again; `cancelled` (Cancel, or the same action again) is said as the action's outcome. A newer document updates the
   cards in place where a field is drawn the same way (an action starting or ending on it too), so the focus, a text
   being typed and an open list stay; only a field that changed shape is drawn anew, and the focus goes back to its
-  control. A text still being typed is committed when the window closes. A value of an unexpected type (a later engine's) is drawn as text, and an answer
+  control. A text still being typed is committed when the window closes. While there is no connection every control is
+  disabled, for the keyboard too. A value of an unexpected type (a later engine's) is drawn as text, and an answer
   that can't be read is a wire error, never a crash.
 - **Keys:** a key, token or password goes once, in its `settingsAction setKey` frame; the box is cleared as it is sent,
   the frame's bytes cleared once written, and nothing logs a value (the requests' `ToString` leaves the key out).
@@ -132,7 +133,9 @@ AllInOneIMESettings.exe [--pipe NAME] [--engine EXE [--engine-args "ARGS"]] [--t
   the app starts it. Then, through UI Automation's patterns only (no key is pressed, no other window is touched): every
   section has a name on each control and each control is reached from the keyboard; a switch, a choice, an ordered list
   (a language added and moved), a check box and a text are changed and checked in `config.json`; a custom command is
-  saved through its form and deleted (two dialogs); a second start brings the window forward; a fake key is saved (the
+  saved through its form and deleted (two dialogs); a second start brings the window forward; with the engine gone and
+  its pipe held by something that never says welcome, the window's controls are disabled until it is connected again
+  (the engine started anew); a fake key is saved (the
   box cleared; the engine's store has it, its last 4 through the wire; `config.json` doesn't); Test Connection goes to
   the stand-in (one request, with that key) and its outcome shows; against a slow stand-in it shows Working… and Cancel,
   and Cancel stops it (the window says Cancelled, the stand-in sees the request go); a hand edit of `config.json`, another window's change

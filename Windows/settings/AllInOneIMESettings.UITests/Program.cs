@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 using System.Text.Json.Nodes;
+using AllInOneIME.Settings.Presentation;
 using AllInOneIME.Settings.Wire;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Definitions;
@@ -233,6 +234,40 @@ static class Program
                 ArgumentList = { "--pipe", pipe }, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true,
             })!;
             Check("a second start quits, leaving the one window", second.WaitForExit(15000) && !app.HasExited);
+
+            // The engine gone, and something on its pipe that never says welcome (this driver): the window connects
+            // again meanwhile, and nothing in it can be changed, by the mouse or the keyboard; once the pipe is free,
+            // it starts the engine again and is connected.
+            client.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            using (var engine = Process.GetProcessById((int)enginePid))
+            {
+                engine.Kill();
+                engine.WaitForExit(10000);
+            }
+            using (var squatter = new System.IO.Pipes.NamedPipeServerStream(pipe, System.IO.Pipes.PipeDirection.InOut, 4,
+                       System.IO.Pipes.PipeTransmissionMode.Message, System.IO.Pipes.PipeOptions.Asynchronous))
+            {
+                _ = squatter.WaitForConnectionAsync();
+                var newEntry = WaitFor("New… (still shown)", () => window.FindFirstDescendant(c => c.ByAutomationId("commands.custom/save")));
+                Check("while it connects again, the window's controls are disabled (the keyboard's too)",
+                      Eventually(() => !newEntry.Properties.IsEnabled.Value, 8), $"enabled: {newEntry.Properties.IsEnabled.ValueOrDefault}");
+                // In Windows' display language (the window's own words before it has a document again).
+                Check("and its bar says so", window.FindFirstDescendant(c => c.ByName(WindowText.Own(OwnText.Reconnecting))) is not null,
+                      WindowText.Own(OwnText.Reconnecting));
+                Capture(window, Path.Combine(shots, "reconnecting.png"));
+            }
+            Check("connected again (the engine started anew): its controls enabled", Eventually(() =>
+                window.FindFirstDescendant(c => c.ByAutomationId("commands.custom/save"))?.Properties.IsEnabled.Value == true, 90));
+            try
+            {
+                var again = PipeTransport.ConnectAsync(pipe, TimeSpan.FromSeconds(10), cancellation.Token).GetAwaiter().GetResult();
+                client = SettingsClient.ConnectAsync(again, "e2e", cancellation.Token).GetAwaiter().GetResult();
+                enginePid = client.EnginePid;
+            }
+            catch (Exception error)
+            {
+                Check("the new engine answers", false, error.Message);
+            }
 
             // 6. Closed.
             client.DisposeAsync().AsTask().GetAwaiter().GetResult();

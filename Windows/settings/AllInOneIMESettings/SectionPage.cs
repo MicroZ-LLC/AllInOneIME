@@ -23,6 +23,12 @@ public sealed class SectionPage
     readonly InfoBar documentBar = new() { IsClosable = false, Severity = InfoBarSeverity.Error, Margin = new Thickness(0, 0, 0, 8) };
     readonly InfoBar answerBar = new() { IsClosable = true, Margin = new Thickness(0, 0, 0, 8) };
     readonly TextBlock footer = new() { Margin = new Thickness(4, 12, 4, 0), TextWrapping = TextWrapping.Wrap };
+    /// <summary>The page's controls, all of them disabled while there is no connection (the keyboard too).</summary>
+    readonly ContentControl host = new()
+    {
+        IsTabStop = false, HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Top,
+        HorizontalAlignment = HorizontalAlignment.Stretch,
+    };
     Dictionary<string, FieldCard> cards = [];
     string? shown;
     bool enabled;
@@ -39,7 +45,8 @@ public sealed class SectionPage
         Panel.Padding = new Thickness(32, 20, 32, 32);
         Panel.MaxWidth = 1000;
         Panel.HorizontalAlignment = HorizontalAlignment.Stretch;
-        Root.Content = Panel;
+        host.Content = Panel;
+        Root.Content = host;
         Root.HorizontalScrollMode = ScrollMode.Disabled;
         Root.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
     }
@@ -60,12 +67,16 @@ public sealed class SectionPage
     /// <summary>Every items list's entries open (the screenshots).</summary>
     public bool ExpandAll { get; set; }
 
+    /// <summary>Connected or not: without a connection nothing can be changed, by the mouse or the keyboard (a key
+    /// pasted then would go nowhere), and the page is dimmed.</summary>
     public void SetEnabled(bool on)
     {
         enabled = on;
-        Panel.IsHitTestVisible = on;
+        host.IsEnabled = on;
         Panel.Opacity = on ? 1 : 0.6;
     }
+
+    public bool IsEnabled => enabled;
 
     public void ShowSection(SettingsDocument? document, string? id, bool keepScroll, SettingsAnswer? answer = null)
     {
