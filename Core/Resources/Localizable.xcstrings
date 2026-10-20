@@ -15653,6 +15653,53 @@
         }
       }
     },
+    "you asked for %@, not %@" : {
+      "comment" : "你要的是 %@，不是 %@ — Sources/AllInOneIMECore/AIConfigText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "du hast %@ verlangt, nicht %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "pediste %@, no %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "vous avez demandé %@, pas %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "指定されたのは%@で、%@ではありません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "요청한 서비스는 %@, %@ 아님"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "você pediu %@, não %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你要的是 %@，不是 %@"
+          }
+        }
+      }
+    },
     "You haven't signed in to SSO for profile %@. Run `%@` in Terminal" : {
       "comment" : "AWS profile '%@' 还没有 SSO 登录。在终端里运行 `%@` — Sources/AllInOneIMECore/AWSCredentialError.swift",
       "localizations" : {

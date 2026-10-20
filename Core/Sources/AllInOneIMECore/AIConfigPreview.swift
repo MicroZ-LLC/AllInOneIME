@@ -87,6 +87,29 @@ extension AIConfig {
         return hosts
     }
 
+    /// The provider `text` (what the user typed) names, when it names one only: by the services' names in the interface's
+    /// languages ("use Bedrock", "改用谷歌的模型", "AWS로"), as `AIConfigFit.relevance` reads words. Nil when it names none or
+    /// several ("Claude on Bedrock"), or has a dotted name in it, a model ID or a host ("us.anthropic.claude-…",
+    /// "api.deepseek.com"), whose provider the words can't tell.
+    public static func namedProvider(_ text: String) -> Provider? {
+        let words = AIConfigFit.Words(text)
+        guard words.lowered.range(of: #"\p{L}\.\p{L}"#, options: .regularExpression) == nil else { return nil }
+        let named = providerNames.filter { $0.value.contains(where: words.contains) }.map(\.key)
+        return named.count == 1 ? named[0] : nil
+    }
+
+    /// The words that name each provider, lowercased: the services, not their models (Claude and Llama are on Bedrock
+    /// too, DeepSeek and Qwen on the OpenAI-compatible services and on Bedrock).
+    static let providerNames: [Provider: [String]] = [
+        .bedrock: ["bedrock", "aws", "amazon", "亚马逊", "亞馬遜", "アマゾン", "아마존"] + AIConfigFit.novaModels,
+        .anthropic: ["anthropic", "claude", "クロード", "클로드"],
+        .gemini: ["gemini", "google", "谷歌", "グーグル", "ジェミニ", "구글", "제미나이"],
+        .openai: ["openai", "chatgpt", "gpt", "deepseek", "qwen", "kimi", "moonshot", "glm", "zhipu", "siliconflow", "openrouter", "ollama",
+                  "深度求索", "通义", "千问", "智谱", "月之暗面", "硅基", "오픈ai"],
+        .hosted: ["allinoneime cloud"],
+        .apple: ["apple intelligence", "on-device", "本机", "本機"],
+    ]
+
     /// A host as compared: lowercased, without a trailing dot, an IPv6 address without its brackets.
     static func normalizedHost(_ host: String) -> String {
         var host = host.lowercased()
@@ -465,6 +488,9 @@ extension AIConfig {
                 return refused(text.notValid)
             }
             guard env.offeredProviders.contains(provider) else { return refused(text.notOffered) }
+            // The sentence names one provider, the answer another (the on-device model has answered "use Bedrock" with
+            // Claude API): the model's slip, never applied, nor taken for the one in use being already so.
+            if let named = namedProvider(env.typedText), named != provider { return refused(text.notTheOneNamed(named, chosen: provider)) }
             return provider == config.provider ? nil
                 : row(text.provider(config.provider), text.provider(provider), .provider(provider))
         case .awsProfile:

@@ -176,6 +176,10 @@ extension AIConfig {
         func unknownStyle(_ name: String) -> String { tr("没有「\(name)」这个风格", "no style called “\(name)”") }
         var outOfRange: String { tr("超出范围", "out of range") }
         var notOffered: String { tr("这台 Mac 上没有这个服务", "not offered on this Mac") }
+        /// The sentence named one provider, the answer chose another.
+        func notTheOneNamed(_ named: Provider, chosen: Provider) -> String {
+            tr("你要的是 \(provider(named))，不是 \(provider(chosen))", "you asked for \(provider(named)), not \(provider(chosen))")
+        }
         var unknownProfile: String { tr("~/.aws 里没有这个 profile", "no such profile in ~/.aws") }
         var unknownRegion: String { tr("不是有效的 AWS 区域", "not a valid AWS region") }
         var unknownModel: String { tr("不在已知的模型里，请在设置里填", "not a model the app knows: enter it in Settings") }
