@@ -1,0 +1,3 @@
+# Golden transcripts and test documents compare byte for byte: LF on every checkout, Windows too.
+*.jsonl text eol=lf
+*.json text eol=lf

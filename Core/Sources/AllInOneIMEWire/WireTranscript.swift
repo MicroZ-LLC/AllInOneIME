@@ -137,7 +137,7 @@ public struct WireTranscript: Sendable {
     public init(_ text: String) throws {
         var steps: [Step] = []
         for (index, raw) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
-            let line = raw.trimmingCharacters(in: .whitespaces)
+            let line = raw.trimmingCharacters(in: .whitespacesAndNewlines)
             let number = index + 1
             if line.isEmpty { continue }
             if line.hasPrefix("#!") {
