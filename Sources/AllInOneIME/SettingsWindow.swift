@@ -205,6 +205,27 @@ final class SettingsModel: ObservableObject {
         return config.redaction.customWords
     }
 
+    /// Settings → Input → English Words' Add: the words of `text` added to the English words pinyin offers
+    /// (`EnglishWords.adding`), on the list as the file has it now. Whether one was (it isn't there yet, and is a word).
+    @discardableResult
+    func addEnglishWords(_ text: String) -> Bool {
+        refresh()
+        let list = EnglishWords.adding(text, to: config.englishWords)
+        guard list != config.englishWords else { return false }
+        config.englishWords = list
+        save()
+        return true
+    }
+
+    /// A word's ✕: `word` gone from the English words (`EnglishWords.removing`), wherever it is in the list now.
+    func removeEnglishWord(_ word: String) {
+        refresh()
+        let list = EnglishWords.removing(word, from: config.englishWords)
+        guard list != config.englishWords else { return }
+        config.englishWords = list
+        save()
+    }
+
     /// The custom commands an edit of the one named `original` (nil: one being added) is checked against.
     func otherCommands(than original: String?) -> [CustomCommand] {
         CustomCommand.others(than: original, in: config.customCommands)
@@ -2135,6 +2156,7 @@ struct SettingsView: View {
                 case .input:
                     inputSection
                     inputLanguageSection
+                    if shownInput == .chinese { EnglishWordsSection(model: model) }
                 case .writing:
                     translateSection
                     rewriteSection
@@ -3216,7 +3238,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         switch self {
         case .assistant: return "assistant config change settings describe sentence doctor check problems fix diagnose 助手 设置 改设置 描述 一句话 检查 问题 修复 诊断"
         case .general: return "action key return 执行键 回车 type out typing speed typos mistakes forget 逐字上屏 打字速度 打错 忘掉 menu bar panel 菜单栏 面板 interface language 界面语言 中文 english recent questions history @question clear 最近的问题 提问 记录 历史 清除 continue conversation claude code chatgpt gemini copy 接着聊 对话 追问 复制 icloud drive sync macs learned words hidden words remove 同步 云盘 多台 学到的词 隐藏的词 移除"
-        case .input: return "input languages pinyin english chinese shift 输入语言 拼音 中文 英文 fuzzy 模糊音 zh ch sh candidate layout horizontal vertical 候选 排列 横排 竖排"
+        case .input: return "input languages pinyin english chinese shift 输入语言 拼音 中文 英文 fuzzy 模糊音 zh ch sh candidate layout horizontal vertical 候选 排列 横排 竖排 english words dictionary learn bedrock 英文词 词典 词库 学习"
         case .writing: return "translate languages 翻译 语言 rewrite styles polish concise formal casual tactful jargon 改写 润色 简洁 正式 口语 委婉 黑话 jargon list 黑话库 improve"
         case .commands: return "custom commands 自定义 命令 prompt program terminal link 程序 终端 网页 raycast script commands scripts extensions bundles preferences 脚本 扩展 扩展包 偏好 文件夹 folder spotlight 聚焦 extension sources git repository link clone update pin ssh 扩展来源 仓库 链接 从链接添加 克隆 更新 固定"
         case .plugins: return "plugins library 插件 插件库 stock xe search 搜索 brave @note note notes save to notion obsidian folder markdown vault token integration 笔记 备忘录 存到 文件夹 令牌 集成"

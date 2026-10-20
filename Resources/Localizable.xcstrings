@@ -49,7 +49,7 @@
       }
     },
     "  " : {
-      "comment" : "　 — Sources/AllInOneIME/InputController.swift",
+      "comment" : "　 — Sources/AllInOneIME/InputMenu.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -613,7 +613,7 @@
       }
     },
     " (no language pack yet)" : {
-      "comment" : "（还没有语言包） — Sources/AllInOneIME/InputController.swift",
+      "comment" : "（还没有语言包） — Sources/AllInOneIME/InputMenu.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -1506,7 +1506,7 @@
       }
     },
     "@improve Also Translates" : {
-      "comment" : "@improve 同时翻译 — Sources/AllInOneIME/InputController.swift",
+      "comment" : "@improve 同时翻译 — Sources/AllInOneIME/InputMenu.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -2774,6 +2774,53 @@
         }
       }
     },
+    "%@, the newest first" : {
+      "comment" : "%@ 个，新的在前 — Sources/AllInOneIME/EnglishWordsSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, die neuesten zuerst"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, los más recientes primero"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, les plus récents d’abord"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@語、新しい順"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@개, 최신순"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, os mais recentes primeiro"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 個，新的在前"
+          }
+        }
+      }
+    },
     "%@%% downloaded" : {
       "comment" : "已下载 %@%% — Sources/AllInOneIME/Updates.swift",
       "localizations" : {
@@ -3010,7 +3057,7 @@
       }
     },
     "✓ is the default; Shift switches" : {
-      "comment" : "✓ 是默认；Shift 切换 — Sources/AllInOneIME/InputController.swift",
+      "comment" : "✓ 是默认；Shift 切换 — Sources/AllInOneIME/InputMenu.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -4096,6 +4143,53 @@
         }
       }
     },
+    "Add English words" : {
+      "comment" : "添加英文词 — Sources/AllInOneIME/EnglishWordsSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Englische Wörter hinzufügen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Añadir palabras en inglés"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajouter des mots anglais"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "英単語を追加"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "영어 단어 추가"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adicionar palavras em inglês"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加入英文詞"
+          }
+        }
+      }
+    },
     "Add Folder…" : {
       "comment" : "添加文件夹… — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
@@ -4191,7 +4285,7 @@
       }
     },
     "Add Languages…" : {
-      "comment" : "添加语言… — Sources/AllInOneIME/InputController.swift",
+      "comment" : "添加语言… — Sources/AllInOneIME/InputMenu.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -4238,7 +4332,7 @@
       }
     },
     "Add or Reorder Languages…" : {
-      "comment" : "添加 / 排序语言… — Sources/AllInOneIME/InputController.swift",
+      "comment" : "添加 / 排序语言… — Sources/AllInOneIME/InputMenu.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -6405,6 +6499,53 @@
         }
       }
     },
+    "Bedrock, say" : {
+      "comment" : "比如 Bedrock — Sources/AllInOneIME/EnglishWordsSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "z. B. Bedrock"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "p. ej., Bedrock"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "par ex. Bedrock"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "例：Bedrock"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "예: Bedrock"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ex.: Bedrock"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "例如 Bedrock"
+          }
+        }
+      }
+    },
     "Branch" : {
       "comment" : "分支 — Sources/AllInOneIME/ExtensionSourcesSettings.swift",
       "localizations" : {
@@ -7111,7 +7252,7 @@
       }
     },
     "Check for Updates…" : {
-      "comment" : "检查更新… — Sources/AllInOneIME/InputController.swift",
+      "comment" : "检查更新… — Sources/AllInOneIME/InputMenu.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -11387,6 +11528,53 @@
         }
       }
     },
+    "English Words" : {
+      "comment" : "英文词 — Sources/AllInOneIME/EnglishWordsSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Englische Wörter"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Palabras en inglés"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mots anglais"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "英単語"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "영어 단어"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Palavras em inglês"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "英文詞"
+          }
+        }
+      }
+    },
     "Every app can make typos and fix them." : {
       "comment" : "每个 App 都能打错再改。 — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
@@ -13333,7 +13521,7 @@
       }
     },
     "Input: " : {
-      "comment" : "输入： — Sources/AllInOneIME/InputController.swift",
+      "comment" : "输入： — Sources/AllInOneIME/InputMenu.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -14842,6 +15030,53 @@
         }
       }
     },
+    "Learn the English words you type" : {
+      "comment" : "学习打出的英文词 — Sources/AllInOneIME/EnglishWordsSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Englische Wörter lernen, die du tippst"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aprender las palabras en inglés que escribes"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apprendre les mots anglais que vous tapez"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "入力した英単語を学習"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "입력한 영어 단어 학습"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aprender as palavras em inglês que você digita"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "學習打出的英文詞"
+          }
+        }
+      }
+    },
     "Learned words" : {
       "comment" : "学到的词 — Sources/AllInOneIME/ICloudSyncSettings.swift",
       "localizations" : {
@@ -15689,7 +15924,7 @@
       }
     },
     "Model: " : {
-      "comment" : "模型： — Sources/AllInOneIME/InputController.swift",
+      "comment" : "模型： — Sources/AllInOneIME/InputMenu.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -17528,6 +17763,53 @@
         }
       }
     },
+    "None yet" : {
+      "comment" : "还没有 — Sources/AllInOneIME/EnglishWordsSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noch keine"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ninguna todavía"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun pour l’instant"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "まだありません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "아직 없음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nenhuma ainda"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒有"
+          }
+        }
+      }
+    },
     "none: follow the branch" : {
       "comment" : "不固定：跟随分支 — Sources/AllInOneIME/ExtensionSourcesSettings.swift",
       "localizations" : {
@@ -17665,6 +17947,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "不是有效的分支、標籤或 commit 名稱：%@"
+          }
+        }
+      }
+    },
+    "Not added: it's there already, or isn't an English word (a Latin letter first, then letters, digits or - . + & ' _ /)." : {
+      "comment" : "没有添加：已经有了，或者不是英文词（英文字母开头，可以带数字和 - . + & ' _ /）。 — Sources/AllInOneIME/EnglishWordsSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht hinzugefügt: Das Wort ist schon da oder kein englisches Wort (zuerst ein lateinischer Buchstabe, dann Buchstaben, Ziffern oder - . + & ' _ /)."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se añadió: ya está, o no es una palabra en inglés (primero una letra latina, luego letras, dígitos o - . + & ' _ /)."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non ajouté : il y est déjà, ou ce n’est pas un mot anglais (d’abord une lettre latine, puis des lettres, des chiffres ou - . + & ' _ /)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "追加されませんでした：すでにあるか、英単語ではありません（最初はラテン文字、その後は文字・数字・- . + & ' _ /）。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "추가되지 않았습니다: 이미 있거나 영어 단어가 아닙니다(라틴 문자로 시작하고, 이어서 문자, 숫자 또는 - . + & ' _ /)."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não adicionada: ela já está na lista, ou não é uma palavra em inglês (primeiro uma letra latina, depois letras, dígitos ou - . + & ' _ /)."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有加入：已經有了，或者不是英文詞（英文字母開頭，可以帶數字和 - . + & ' _ /）。"
           }
         }
       }
@@ -19691,7 +20020,7 @@
       }
     },
     "Open Rime User Folder" : {
-      "comment" : "打开 Rime 用户目录 — Sources/AllInOneIME/InputController.swift",
+      "comment" : "打开 Rime 用户目录 — Sources/AllInOneIME/InputMenu.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -21864,6 +22193,53 @@
         }
       }
     },
+    "Put letters in as typed while typing pinyin (bedrock and ⏎, say) and the word comes up among the candidates from then on. Never in password fields or apps with AI off, nor anything that looks like a key or a number." : {
+      "comment" : "打拼音时把字母原样上屏（比如打 bedrock 按 ⏎），这个词以后就出现在候选里。密码框里、关了 AI 的 App 里不学，像密钥、号码的也不学。 — Sources/AllInOneIME/EnglishWordsSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gib beim Pinyin-Tippen Buchstaben so ein, wie du sie getippt hast (z. B. bedrock und ⏎), und das Wort erscheint von da an unter den Kandidaten. Nie in Passwortfeldern oder Apps mit ausgeschalteter KI, und nichts, was wie ein Schlüssel oder eine Nummer aussieht."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Al escribir pinyin, introduce las letras tal cual (por ejemplo, bedrock y ⏎) y la palabra aparecerá desde entonces entre los candidatos. Nunca en campos de contraseña ni en apps con la IA desactivada, ni nada que parezca una clave o un número."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En tapant du pinyin, insérez les lettres telles que tapées (bedrock puis ⏎, par exemple) et le mot apparaît ensuite parmi les candidats. Jamais dans les champs de mot de passe ni dans les apps où l’IA est désactivée, ni pour ce qui ressemble à une clé ou à un numéro."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ピンイン入力中に文字をそのまま確定すると（例：bedrock と入力して ⏎）、その単語が以降の候補に出ます。パスワード欄や AI をオフにした App では学習せず、キーや番号のようなものも学習しません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "병음을 입력하다가 글자를 입력한 그대로 넣으면(예: bedrock 입력 후 ⏎) 그 단어가 이후 후보에 나타납니다. 암호 필드나 AI를 끈 앱에서는 학습하지 않으며, 키나 번호처럼 보이는 것도 학습하지 않습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ao digitar pinyin, insira as letras como digitadas (bedrock e ⏎, por exemplo) e a palavra passa a aparecer entre os candidatos. Nunca em campos de senha nem em apps com a IA desativada, nem nada que pareça uma chave ou um número."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打拼音時把字母照原樣送出（例如打 bedrock 按 ⏎），這個詞以後就會出現在候選裡。密碼欄位裡、關了 AI 的 App 裡不學，像金鑰、號碼的也不學。"
+          }
+        }
+      }
+    },
     "Question" : {
       "comment" : "问题 — Sources/AllInOneIME/AssistantPage.swift",
       "localizations" : {
@@ -22476,7 +22852,7 @@
       }
     },
     "Redeploy Dictionaries" : {
-      "comment" : "重新部署词库 — Sources/AllInOneIME/InputController.swift",
+      "comment" : "重新部署词库 — Sources/AllInOneIME/InputMenu.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -23182,7 +23558,7 @@
       }
     },
     "Remove %@" : {
-      "comment" : "移除%@ — Sources/AllInOneIME/SettingsWindow.swift",
+      "comment" : "移除%@ — Sources/AllInOneIME/EnglishWordsSettings.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -24131,7 +24507,7 @@
       }
     },
     "Report an Issue…" : {
-      "comment" : "报告问题… — Sources/AllInOneIME/InputController.swift",
+      "comment" : "报告问题… — Sources/AllInOneIME/InputMenu.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -24319,7 +24695,7 @@
       }
     },
     "Rewrite Styles" : {
-      "comment" : "改写风格 — Sources/AllInOneIME/InputController.swift",
+      "comment" : "改写风格 — Sources/AllInOneIME/InputMenu.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -25682,7 +26058,7 @@
       }
     },
     "Settings…" : {
-      "comment" : "设置… — Sources/AllInOneIME/InputController.swift",
+      "comment" : "设置… — Sources/AllInOneIME/InputMenu.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -25724,6 +26100,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "設定⋯"
+          }
+        }
+      }
+    },
+    "Several separated by commas" : {
+      "comment" : "几个词用逗号分开 — Sources/AllInOneIME/EnglishWordsSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mehrere durch Kommas getrennt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Varias separadas por comas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plusieurs, séparés par des virgules"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複数はカンマで区切る"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "여러 개는 쉼표로 구분"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Várias separadas por vírgulas"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "幾個詞用逗號分開"
           }
         }
       }
@@ -28132,7 +28555,7 @@
       }
     },
     "The config file has an error" : {
-      "comment" : "配置文件有误 — Sources/AllInOneIME/InputController.swift",
+      "comment" : "配置文件有误 — Sources/AllInOneIME/InputMenu.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -30670,7 +31093,7 @@
       }
     },
     "Translate to: " : {
-      "comment" : "翻译成： — Sources/AllInOneIME/InputController.swift",
+      "comment" : "翻译成： — Sources/AllInOneIME/InputMenu.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -30759,6 +31182,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "再試一次"
+          }
+        }
+      }
+    },
+    "Type a few letters and the English words they start come up among pinyin's candidates: bedr → Bedrock. Besides yours, the English terms of your jargon list and %@ common product and technical words (Bedrock, SageMaker…) come up too; rime-ice's own English words are as before." : {
+      "comment" : "打几个字母，以它们开头的英文词就出现在拼音的候选里，比如 bedr → Bedrock。除了你的，黑话库里的英文词和 %@ 个常用的产品和技术词（Bedrock、SageMaker…）也会出现；rime-ice 自带的英文词照旧。 — Sources/AllInOneIME/EnglishWordsSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tippe ein paar Buchstaben, und die englischen Wörter, die damit beginnen, erscheinen unter den Pinyin-Kandidaten: bedr → Bedrock. Neben deinen erscheinen auch die englischen Begriffe deiner Jargonliste und %@ gängige Produkt- und Technikwörter (Bedrock, SageMaker …); die englischen Wörter von rime-ice bleiben, wie sie waren."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escribe unas letras y las palabras en inglés que empiezan por ellas aparecen entre los candidatos del pinyin: bedr → Bedrock. Además de las tuyas, aparecen también los términos en inglés de tu lista de jerga y %@ palabras habituales de productos y tecnología (Bedrock, SageMaker…); las palabras en inglés propias de rime-ice siguen como antes."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tapez quelques lettres et les mots anglais qui commencent par elles apparaissent parmi les candidats du pinyin : bedr → Bedrock. Outre les vôtres, les termes anglais de votre liste de jargon et %@ mots courants de produits et de technique (Bedrock, SageMaker…) apparaissent aussi ; les mots anglais de rime-ice restent comme avant."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数文字入力すると、それで始まる英単語がピンインの候補に出ます（bedr → Bedrock）。あなたの単語のほか、業界用語リストの英語の用語と、よく使う製品・技術用語 %@ 語（Bedrock、SageMaker…）も出ます。rime-ice 自体の英単語はこれまでどおりです。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "글자 몇 개를 입력하면 그 글자로 시작하는 영어 단어가 병음 후보에 나타납니다: bedr → Bedrock. 사용자의 단어 외에도 용어 목록의 영어 용어와 자주 쓰는 제품·기술 단어 %@개(Bedrock, SageMaker…)도 나타나며, rime-ice 자체의 영어 단어는 그대로입니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Digite algumas letras e as palavras em inglês que começam com elas aparecem entre os candidatos do pinyin: bedr → Bedrock. Além das suas, aparecem também os termos em inglês da sua lista de jargões e %@ palavras comuns de produtos e tecnologia (Bedrock, SageMaker…); as palavras em inglês do próprio rime-ice continuam como antes."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打幾個字母，以它們開頭的英文詞就會出現在拼音的候選裡，例如 bedr → Bedrock。除了你的，行話詞庫裡的英文詞和 %@ 個常用的產品與技術詞（Bedrock、SageMaker…）也會出現；rime-ice 內建的英文詞照舊。"
           }
         }
       }
@@ -31610,7 +32080,7 @@
       }
     },
     "Update to %@…" : {
-      "comment" : "更新到 %@… — Sources/AllInOneIME/InputController.swift",
+      "comment" : "更新到 %@… — Sources/AllInOneIME/InputMenu.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -32275,6 +32745,7 @@
     },
     "What pinyin learned from your choices (Rime's user dictionary)" : {
       "comment" : "拼音从你的选择里学到的词（Rime 的用户词典） — Sources/AllInOneIME/ICloudSyncSettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -32316,6 +32787,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "拼音從你的選擇中學到的詞（Rime 的使用者詞典）"
+          }
+        }
+      }
+    },
+    "What pinyin learned from your choices (Rime's user dictionary), and your English words" : {
+      "comment" : "拼音从你的选择里学到的词（Rime 的用户词典），和你的英文词 — Sources/AllInOneIME/ICloudSyncSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Was Pinyin aus deiner Wortwahl gelernt hat (Benutzerwörterbuch von Rime), und deine englischen Wörter"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lo que el pinyin ha aprendido de tus elecciones (el diccionario de usuario de Rime) y tus palabras en inglés"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce que le pinyin a appris de vos choix (dictionnaire utilisateur de Rime) et vos mots anglais"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ピンインが選択から学習した単語（Rimeのユーザ辞書）と、あなたの英単語"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "병음이 사용자의 선택에서 학습한 단어 (Rime 사용자 사전)와 사용자의 영어 단어"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O que o pinyin aprendeu com as suas escolhas (dicionário do usuário do Rime) e as suas palavras em inglês"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拼音從你的選擇中學到的詞（Rime 的使用者詞典），和你的英文詞"
           }
         }
       }
@@ -32974,6 +33492,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你可以用 + 加回來"
+          }
+        }
+      }
+    },
+    "Your English words" : {
+      "comment" : "你的英文词 — Sources/AllInOneIME/EnglishWordsSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deine englischen Wörter"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tus palabras en inglés"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vos mots anglais"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "あなたの英単語"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "내 영어 단어"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suas palavras em inglês"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的英文詞"
           }
         }
       }

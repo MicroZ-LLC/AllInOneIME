@@ -7,7 +7,7 @@ extension EnglishWords {
     /// that dictionary by its letters (`key`) and is offered only where it still lacks it (`EnglishWordsEngine`); none is a
     /// Chinese name in pinyin ("Xiaomi", "Taobao" are typed as 小米, 淘宝) or shorter than three letters. The Rime tests
     /// (`EnglishWordsRimeTests`) check that rime-ice lacks each, and that each is a word the user could add (`word`).
-    static let curated: [String] = [
+    public static let curated: [String] = [
         // AI: models, providers, frameworks, vector stores, terms.
         "Bedrock", "AgentCore", "SageMaker", "LangGraph", "LlamaIndex", "Hugging Face", "cuDNN", "Stable Diffusion", "vLLM",
         "QLoRA", "RLHF", "LLMs", "xAI", "Groq", "Cohere", "Replicate", "LiteLLM", "Vertex AI", "Gemma", "Mixtral",
