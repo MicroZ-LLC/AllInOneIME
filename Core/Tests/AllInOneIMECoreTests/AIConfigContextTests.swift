@@ -99,6 +99,33 @@ final class ContextLimitedModel: AppleGuidedBackend, @unchecked Sendable {
     }
 }
 
+/// Stands in for an on-device model that calls its tools over and over (the same app, again and again): the tools named
+/// in `calls`, in that order, whatever they return; what each call returned. Then it answers.
+final class LoopingToolsModel: AppleGuidedBackend, @unchecked Sendable {
+    let availability: AppleModelAvailability = .available
+    let contextSize = 8192
+    let supportedLanguages: Set<String> = ["en", "zh"]
+    let calls: [String]
+    private let lock = NSLock()
+    private var _returned: [String] = []
+    var returned: [String] { lock.withLock { _returned } }
+
+    init(calls: [String]) { self.calls = calls }
+
+    func respond(to request: AppleModelRequest) -> AsyncThrowingStream<AppleModelSnapshot, Error> {
+        AsyncThrowingStream { $0.finish(throwing: AppleModelError.failed("plain path used")) }
+    }
+
+    func respond(to request: AppleModelRequest, schema: GuidedSchema, tools: [GuidedTool]) async throws -> String {
+        for name in calls {
+            guard let tool = tools.first(where: { $0.name == name }) else { continue }
+            let output = await tool.call(["name": "WeChat"])
+            lock.withLock { _returned.append(output) }
+        }
+        return #"{"changes": [{"key": "appProfiles.*.inputLanguage", "app": "WeChat", "value": "zh"}]}"#
+    }
+}
+
 /// The system's model where this Mac has it and it can count tokens (Apple Intelligence on, macOS 26.4 and later): its
 /// tokenizer, which the estimate and the plan are held to; nil elsewhere (the tests that need it are skipped).
 enum RealTokenizer {
@@ -272,6 +299,35 @@ struct AIConfigContextTests {
             let outcome = await Result { try await Self.service(model).ask(sentence, context: context, tools: Self.tools) }
             #expect((try? outcome.get())?.onDevice == true, "\(sentence), \(apps) apps: \(outcome)")
         }
+    }
+
+    /// A model that calls its tools over and over gets each one's lookup three times at most in a request, and six in all;
+    /// past that, it is told to answer without them, and does: its context (room for a call or two) isn't filled with
+    /// what they return until the request is too long. A request after it has its own calls.
+    @Test func theToolsAreLookedUpAFewTimesAtMost() async throws {
+        let looked = Locked(initialState: [String: Int]())
+        let tools = AIConfigService.Tools(
+            findApps: { _ in looked.withLock { $0["findApps", default: 0] += 1 }; return "WeChat: com.tencent.xinWeChat" },
+            awsProfiles: { looked.withLock { $0["awsProfiles", default: 0] += 1 }; return "default (region us-east-1)" },
+            languagePacks: { looked.withLock { $0["languagePacks", default: 0] += 1 }; return "zh (Chinese): installed" })
+        var config = Config.default
+        config.provider = .anthropic
+        // The same app, again and again.
+        let again = LoopingToolsModel(calls: Array(repeating: "findApps", count: 20))
+        let answer = try await Self.service(again).ask("微信里用中文", context: Self.context(config), tools: tools)
+        #expect(answer.onDevice && looked.withLock { $0 } == ["findApps": 3])
+        #expect(again.returned.count == 20 && again.returned.prefix(3).allSatisfy { $0 == "WeChat: com.tencent.xinWeChat" }
+                && again.returned.dropFirst(3).allSatisfy { $0 == GuidedTool.enough }, "\(again.returned)")
+        #expect(GuidedTool.enough.contains("answer now") && GuidedTool.enough.contains("without calling a tool"))
+        // Each of them: six in all, the seventh call told to answer whichever tool it is.
+        looked.withLock { $0 = [:] }
+        let all = LoopingToolsModel(calls: ["findApps", "awsProfiles"].flatMap { Array(repeating: $0, count: 4) } + ["languagePacks"])
+        _ = try await Self.service(all).ask("微信里用中文", context: Self.context(config), tools: tools)
+        #expect(looked.withLock { $0 } == ["findApps": 3, "awsProfiles": 3] && all.returned.last == GuidedTool.enough)
+        // The next request: its own.
+        looked.withLock { $0 = [:] }
+        _ = try await Self.service(again).ask("Slack 里用英文", context: Self.context(config), tools: tools)
+        #expect(looked.withLock { $0 } == ["findApps": 3])
     }
 
     /// A refine's conversation: its latest turn always (the last answer holds what the earlier instructions asked for),

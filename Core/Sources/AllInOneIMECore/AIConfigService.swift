@@ -228,7 +228,8 @@ public final class AIConfigService: Sendable {
             // more than the user's limit.
             let left = contextSize - fit.tokens - (fit.tools.isEmpty ? 0 : AIConfigFit.toolRoom)
             request.maximumResponseTokens = min(fit.body.inferenceConfig.maxTokens ?? config.maxTokens, max(left, AIConfigFit.answerRoom))
-            let (sent, schema, tools) = (request, fit.schema, fit.tools)
+            // A few calls of each tool at most: a model calling one over and over is told to answer.
+            let (sent, schema, tools) = (request, fit.schema, GuidedTool.limited(fit.tools))
             do {
                 let json = try await Self.withTimeout(timeout) { try await guided.respond(to: sent, schema: schema, tools: tools) }
                 return keep(hiding.restore(AIConfigPrompt.canonical(json)), key: key, answer)
@@ -340,6 +341,32 @@ public struct GuidedTool: Sendable {
         self.description = description
         self.arguments = arguments
         self.call = call
+    }
+
+    /// The times a request may call each tool, and all of them together: a small model can call one over and over (the
+    /// same app, again) until what they return fills its context, which has room for a call or two (`AIConfigFit.toolRoom`),
+    /// and the request fails as too long after the timeout's wait.
+    static let maxCallsEach = 3
+    static let maxCalls = 6
+    /// What a call past them returns instead of the lookup.
+    static let enough = "No more lookups: answer now with what you have, without calling a tool."
+
+    /// `tools` for one request, sharing its count of calls: each looks up `maxCallsEach` times at most, all of them
+    /// `maxCalls`; past that, a call returns `enough`.
+    static func limited(_ tools: [GuidedTool]) -> [GuidedTool] {
+        let calls = Locked(initialState: [String: Int]())
+        return tools.map { tool in
+            var limited = tool
+            limited.call = { arguments in
+                let allowed = calls.withLock { calls in
+                    guard calls[tool.name, default: 0] < maxCallsEach, calls.values.reduce(0, +) < maxCalls else { return false }
+                    calls[tool.name, default: 0] += 1
+                    return true
+                }
+                return allowed ? await tool.call(arguments) : enough
+            }
+            return limited
+        }
     }
 }
 
