@@ -5,8 +5,8 @@
 //   AllInOneIMESetup remove-keyboard                take it out of this user's list, and drop this user's TSF state
 //                                                   for it
 //   AllInOneIMESetup start-engine                   start this user's engine in this session, never elevated
-//   AllInOneIMESetup stop-engines                   end every engine and Settings app run from Program Files\AllInOneIME
-//                                                   (any user)
+//   AllInOneIMESetup stop-engines [--dry-run]       end every engine and Settings app run from where AllInOneIME is
+//                                                   installed (any user); --dry-run: say which, end none
 //   AllInOneIMESetup status                         what is registered, in this user's list, and running
 //
 // add-keyboard picks the language: Chinese (Simplified) when it is in the user's list, else English (US). It never
@@ -231,13 +231,29 @@ std::wstring EnginePath() {
     return dir.substr(0, dir.find_last_of(L'\\') + 1) + kEngineExe;
 }
 
-// Program Files\AllInOneIME\, with the trailing backslash: the only engines stop-engines ends are under it.
-std::wstring InstallRoot() {
+std::wstring WithBackslash(std::wstring folder) {
+    if (!folder.empty() && folder.back() != L'\\') folder += L'\\';
+    return folder;
+}
+
+// The folders the only engines stop-engines ends are in, each with its trailing backslash: this helper's own (the
+// installed copy's folder, wherever msiexec INSTALLFOLDER= put it: the MSI runs the helper from there, also while it
+// removes that copy, when HKLM's InstallDir is already gone), the installed copy's (InstallDir, run by hand), and
+// Program Files\AllInOneIME\ (every version's folder in the default place).
+std::vector<std::wstring> InstallRoots() {
+    std::vector<std::wstring> roots;
+    wchar_t self[MAX_PATH * 2] = {};
+    const DWORD length = GetModuleFileNameW(nullptr, self, static_cast<DWORD>(std::size(self)));
+    std::wstring own(self, length);
+    if (!own.empty()) roots.push_back(own.substr(0, own.find_last_of(L'\\') + 1));
+    const std::wstring installed = ReadMachineString(L"Software\\AllInOneIME", L"InstallDir");
+    if (!installed.empty()) roots.push_back(WithBackslash(installed));
     PWSTR folder = nullptr;
-    std::wstring root;
-    if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_ProgramFilesX64, 0, nullptr, &folder))) root = folder;
+    if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_ProgramFilesX64, 0, nullptr, &folder)) && folder) {
+        roots.push_back(WithBackslash(folder) + L"AllInOneIME\\");
+    }
     CoTaskMemFree(folder);
-    return root.empty() ? root : root + L"\\AllInOneIME\\";
+    return roots;
 }
 
 bool StartsWithNoCase(const std::wstring& text, const std::wstring& prefix) {
@@ -462,15 +478,24 @@ int StartEngine() {
     return 0;
 }
 
-int StopEngines() {
-    const std::wstring root = InstallRoot();
+// Ends the engines and Settings windows run from the installed copy's folders (InstallRoots), for an uninstall or an
+// upgrade: their files go. `dryRun`: says which it would end.
+int StopEngines(bool dryRun) {
+    const std::vector<std::wstring> roots = InstallRoots();
     int failures = 0, stopped = 0;
     std::vector<Engine> running = RunningEngines(kEngineExe);
     for (const auto& window : RunningEngines(kSettingsExe)) running.push_back(window);
     for (const auto& engine : running) {
-        if (!StartsWithNoCase(engine.path, root)) {
+        const bool installed = std::any_of(roots.begin(), roots.end(),
+                                           [&](const std::wstring& root) { return StartsWithNoCase(engine.path, root); });
+        if (!installed) {
             Say("stop-engines: left pid %lu alone (%ls)", engine.pid,
                 engine.path.empty() ? L"path unknown" : engine.path.c_str());
+            continue;
+        }
+        if (dryRun) {
+            Say("stop-engines: would stop pid %lu (session %lu, %ls)", engine.pid, engine.session, engine.path.c_str());
+            ++stopped;
             continue;
         }
         HANDLE process = OpenProcess(PROCESS_TERMINATE | SYNCHRONIZE, FALSE, engine.pid);
@@ -545,8 +570,8 @@ int Status() {
 }
 
 int Usage() {
-    printf("usage: AllInOneIMESetup add-keyboard [0x0804|0x0409] | remove-keyboard | start-engine | stop-engines | "
-           "status\n");
+    printf("usage: AllInOneIMESetup add-keyboard [0x0804|0x0409] | remove-keyboard | start-engine | "
+           "stop-engines [--dry-run] | status\n");
     return 2;
 }
 
@@ -570,7 +595,7 @@ int wmain(int argc, wchar_t** argv) {
     } else if (command == L"start-engine") {
         rc = StartEngine();
     } else if (command == L"stop-engines") {
-        rc = StopEngines();
+        rc = StopEngines(argc > 2 && std::wstring(argv[2]) == L"--dry-run");
     } else if (command == L"status") {
         rc = Status();
     } else {
