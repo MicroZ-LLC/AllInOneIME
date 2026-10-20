@@ -15171,6 +15171,53 @@
         }
       }
     },
+    "Left out what looks like a key, a card or phone number, or an IP address: your English words sync through iCloud and come up among the candidates." : {
+      "comment" : "没有添加像密钥、卡号、电话号码或 IP 地址的内容：你的英文词会通过 iCloud 同步，也会出现在候选里。 — Sources/AllInOneIME/EnglishWordsSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht hinzugefügt, was wie ein Schlüssel, eine Karten- oder Telefonnummer oder eine IP-Adresse aussieht: Deine englischen Wörter werden über iCloud synchronisiert und erscheinen unter den Kandidaten."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se omitió lo que parece una clave, un número de tarjeta o de teléfono, o una dirección IP: tus palabras en inglés se sincronizan con iCloud y aparecen entre los candidatos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce qui ressemble à une clé, à un numéro de carte ou de téléphone, ou à une adresse IP n’a pas été ajouté : vos mots anglais se synchronisent via iCloud et apparaissent parmi les candidats."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キー、カード番号や電話番号、IP アドレスのようなものは追加しませんでした：英単語は iCloud で同期され、候補にも表示されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "키, 카드 번호나 전화번호, IP 주소처럼 보이는 것은 추가하지 않았습니다: 영어 단어는 iCloud로 동기화되고 후보에도 나타납니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ficou de fora o que parece uma chave, um número de cartão ou de telefone, ou um endereço IP: suas palavras em inglês são sincronizadas pelo iCloud e aparecem entre os candidatos."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有加入像金鑰、卡號、電話號碼或 IP 位址的內容：你的英文詞會透過 iCloud 同步，也會出現在候選裡。"
+          }
+        }
+      }
+    },
     "Letters only, e.g. py" : {
       "comment" : "只用英文字母，比如 py — Sources/AllInOneIME/CommandEditor.swift",
       "localizations" : {

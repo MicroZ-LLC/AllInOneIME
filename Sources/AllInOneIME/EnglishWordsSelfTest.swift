@@ -91,10 +91,14 @@ extension SelfTest {
         try? Config.default.write(to: url)
         func saved() -> Config? { try? Config.load(from: url) }
         let model = SettingsModel(configURL: url)
-        check(model.addEnglishWords("Bedrock, frobnicate") && saved()?.englishWords == ["Bedrock", "frobnicate"]
-                && saved()?.addedEnglishWords == ["Bedrock", "frobnicate"],
+        check(model.addEnglishWords("Bedrock, frobnicate").words == ["Bedrock", "frobnicate"]
+                && saved()?.englishWords == ["Bedrock", "frobnicate"] && saved()?.addedEnglishWords == ["Bedrock", "frobnicate"],
               "Add saves the words at once, as added (\(saved()?.englishWords ?? []), \(saved()?.addedEnglishWords ?? []))")
-        check(!model.addEnglishWords("BEDROCK") && !model.addEnglishWords("北京"), "a word there already, or not English, isn't added")
+        check(model.addEnglishWords("BEDROCK") == EnglishWords.Added() && model.addEnglishWords("北京") == EnglishWords.Added(),
+              "a word there already, or not English, isn't added")
+        let key = "sk-ant-api03-abcdefghijklmnopqrstuvwx"
+        check(model.addEnglishWords(key) == EnglishWords.Added(refused: [key]) && saved()?.englishWords == ["Bedrock", "frobnicate"],
+              "a key is refused, and not saved")
         model.removeEnglishWord("FROBNICATE")
         check(saved()?.englishWords == ["Bedrock"] && saved()?.addedEnglishWords == ["Bedrock"],
               "✕ removes it (\(saved()?.englishWords ?? []), \(saved()?.addedEnglishWords ?? []))")

@@ -3,14 +3,16 @@ import SwiftUI
 
 /// Settings → Input → Chinese → English Words (「英文词」, `EnglishWords`): the English words of the user's that pinyin offers
 /// among its candidates (`Config.englishWords`), the newest first, each removed with its ✕; more added in the field (several
-/// separated by commas), saved on the list as the file has it then (`SettingsModel.addEnglishWords`); and the switch that
-/// learns them from letters put in as typed. The jargon list's English terms and the built-in list come up too, and aren't
-/// listed here.
+/// separated by commas), saved on the list as the file has it then (`SettingsModel.addEnglishWords`; a key, a card or phone
+/// number, an address refused, and said); and the switch that learns them from letters put in as typed. The jargon list's
+/// English terms and the built-in list come up too, and aren't listed here.
 struct EnglishWordsSection: View {
     @ObservedObject var model: SettingsModel
     @State private var adding = ""
     /// The last Add added nothing: the word is there already, or isn't one.
     @State private var notAdded = false
+    /// The last Add left out what looks like a key, a card or phone number, an address (`EnglishWords.isSensitive`).
+    @State private var refused = false
 
     var body: some View {
         Section {
@@ -21,7 +23,7 @@ struct EnglishWordsSection: View {
             }
             LabeledContent {
                 HStack(spacing: 8) {
-                    TextField("", text: Binding(get: { adding }, set: { adding = $0; notAdded = false }),
+                    TextField("", text: Binding(get: { adding }, set: { adding = $0; notAdded = false; refused = false }),
                               prompt: Text(tr("比如 Bedrock", "Bedrock, say")))
                         .onSubmit(add)
                         .frame(minWidth: 180)
@@ -31,7 +33,12 @@ struct EnglishWordsSection: View {
             } label: {
                 titled(tr("添加英文词", "Add English words"), tr("几个词用逗号分开", "Several separated by commas"))
             }
-            if notAdded {
+            if refused {
+                Label(tr("没有添加像密钥、卡号、电话号码或 IP 地址的内容：你的英文词会通过 iCloud 同步，也会出现在候选里。",
+                         "Left out what looks like a key, a card or phone number, or an IP address: your English words sync through iCloud and come up among the candidates."),
+                      systemImage: "lock.trianglebadge.exclamationmark")
+                    .font(.caption).foregroundStyle(.orange)
+            } else if notAdded {
                 Label(tr("没有添加：已经有了，或者不是英文词（英文字母开头，可以带数字和 - . + & ' _ /）。",
                          "Not added: it's there already, or isn't an English word (a Latin letter first, then letters, digits or - . + & ' _ /)."),
                       systemImage: "exclamationmark.triangle")
@@ -80,12 +87,11 @@ struct EnglishWordsSection: View {
 
     private func add() {
         guard !adding.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-        if model.addEnglishWords(adding) {
-            adding = ""
-            notAdded = false
-        } else {
-            notAdded = true
-        }
+        let result = model.addEnglishWords(adding)
+        refused = !result.refused.isEmpty
+        notAdded = result.words.isEmpty && !refused
+        // What was refused goes from the screen too.
+        if !result.words.isEmpty || refused { adding = "" }
     }
 
     private func titled(_ title: String, _ note: String) -> some View {

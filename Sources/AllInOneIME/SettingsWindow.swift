@@ -206,15 +206,17 @@ final class SettingsModel: ObservableObject {
     }
 
     /// Settings → Input → English Words' Add: the words of `text` added to the English words pinyin offers, marked as the
-    /// user's (`EnglishWords.add`), on the list as the file has it now. Whether one was (it isn't there yet, and is a word).
+    /// user's (`EnglishWords.add`), on the list as the file has it now: those added (each isn't there yet, and is a word),
+    /// and those refused as what hiding sensitive information hides.
     @discardableResult
-    func addEnglishWords(_ text: String) -> Bool {
+    func addEnglishWords(_ text: String) -> EnglishWords.Added {
         refresh()
         var changed = config
-        guard !EnglishWords.add(text, to: &changed).isEmpty else { return false }
+        let result = EnglishWords.add(text, to: &changed)
+        guard !result.words.isEmpty else { return result }
         config = changed
         save()
-        return true
+        return result
     }
 
     /// A word's ✕: `word` gone from the English words (`EnglishWords.remove`), wherever it is in the list now.

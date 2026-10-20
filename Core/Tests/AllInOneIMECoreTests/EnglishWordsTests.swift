@@ -426,11 +426,27 @@ struct EnglishWordsTests {
 
     @Test func theListInSettings() {
         var config = Config.default
-        #expect(EnglishWords.add("Bedrock, SageMaker；北京\nbedrock", to: &config) == ["Bedrock", "SageMaker"])
+        #expect(EnglishWords.add("Bedrock, SageMaker；北京\nbedrock", to: &config).words == ["Bedrock", "SageMaker"])
         #expect(config.englishWords == ["Bedrock", "SageMaker"] && config.addedEnglishWords == ["Bedrock", "SageMaker"])
-        #expect(EnglishWords.add("BEDROCK", to: &config).isEmpty, "there already")
+        #expect(EnglishWords.add("BEDROCK", to: &config) == EnglishWords.Added(), "there already")
         EnglishWords.remove("BEDROCK", from: &config)
         #expect(config.englishWords == ["SageMaker"] && config.addedEnglishWords == ["SageMaker"])
+    }
+
+    @Test func aWordAddedByHandThatHidingSensitiveInformationHidesIsRefused() {
+        // Words (a letter first, then letters, digits, - . + & ' _ / and spaces) that are a key, a card or phone number, an
+        // address: the list syncs through iCloud and shows on screen.
+        let secrets = ["sk-ant-api03-abcdefghijklmnopqrstuvwx", "AKIAIOSFODNN7EXAMPLE", "ghp_" + String(repeating: "aB3", count: 12),
+                       "x7Kq9PzR2mW4AbCdEfGh", "card 4111 1111 1111 1111", "tel 13800138000", "call +1 415 555 0134", "IP 192.168.1.20"]
+        for secret in secrets { #expect(EnglishWords.word(secret) != nil && EnglishWords.isSensitive(secret), "\(secret)") }
+        var config = Config.default
+        let result = EnglishWords.add((secrets + ["Bedrock"]).joined(separator: "\n"), to: &config)
+        #expect(result.words == ["Bedrock"] && result.refused == secrets)
+        #expect(config.englishWords == ["Bedrock"] && config.addedEnglishWords == ["Bedrock"])
+        // Not the user's hidden words, nor what only looks random to learning: the user added them.
+        config.redaction.customWords = ["Phoenix"]
+        let words = ["Phoenix", "qwrtzpsdf", "aaargh", "vLLM", "cuDNN", "Auth0", "x7Kq9", "K8s", "Web3"]
+        #expect(EnglishWords.add(words.joined(separator: ", "), to: &config) == EnglishWords.Added(words: words))
     }
 
     @Test func overTheLimitTheOldestLearnedGoFirst() throws {

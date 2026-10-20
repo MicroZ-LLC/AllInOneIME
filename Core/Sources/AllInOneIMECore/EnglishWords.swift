@@ -174,18 +174,42 @@ public enum EnglishWords {
         return RedactionSettings.words(from: text).compactMap(word).filter { keys.insert(key($0)).inserted }
     }
 
+    /// What Settings' Add did.
+    public struct Added: Equatable, Sendable {
+        /// The words added.
+        public var words: [String] = []
+        /// Those refused: what hiding sensitive information hides (`isSensitive`).
+        public var refused: [String] = []
+
+        public init(words: [String] = [], refused: [String] = []) {
+            self.words = words
+            self.refused = refused
+        }
+    }
+
+    /// Whether a word the user adds is refused: what hiding sensitive information hides from the AI (`Redaction`'s
+    /// detectors: a key or token, a card or phone number, an IP or email address), as the list syncs through iCloud and
+    /// shows on screen. Not the user's hidden words, nor what only looks random (`looksSecret`, for what is learned): the
+    /// user added it.
+    public static func isSensitive(_ word: String) -> Bool {
+        !Redaction.find(word, settings: RedactionSettings(enabled: true)).isEmpty
+    }
+
     /// Settings' Add: the words of `text` (`newWords`) added at the end of `config`'s English words and marked as the
-    /// user's (`Config.addedEnglishWords`), within `maxWords` (`capped`: the oldest learned go first). The words added.
+    /// user's (`Config.addedEnglishWords`), within `maxWords` (`capped`: the oldest learned go first); those
+    /// `isSensitive` refused.
     @discardableResult
-    public static func add(_ text: String, to config: inout Config) -> [String] {
-        let new = newWords(text, besides: config.englishWords)
-        guard !new.isEmpty else { return [] }
+    public static func add(_ text: String, to config: inout Config) -> Added {
+        let found = newWords(text, besides: config.englishWords)
+        let refused = found.filter(isSensitive)
+        let new = found.filter { !isSensitive($0) }
+        guard !new.isEmpty else { return Added(refused: refused) }
         let added = config.addedEnglishWords + new
         config.englishWords = capped(config.englishWords + new, added: added)
         // Each once, and only those the list still has.
         var keys = Set(config.englishWords.map(key))
         config.addedEnglishWords = added.filter { keys.remove(key($0)) != nil }
-        return new
+        return Added(words: new, refused: refused)
     }
 
     /// A word's ✕ in Settings: `word` gone from `config`'s English words (by its letters, as it is matched), added or
