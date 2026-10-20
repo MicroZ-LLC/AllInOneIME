@@ -219,6 +219,30 @@ public class RendererTests
     }
 
     [Fact]
+    public void TheEnglishWordsComeWithChinese()
+    {
+        // Chinese is an input language there: the switch that learns English words, and the user's, as a line.
+        var document = Fixtures.Document("every-kind-en");
+        var learns = document.Find("learnsEnglishWords")!;
+        Assert.Equal(FieldControl.Toggle, FieldPresenter.ControlFor(learns));
+        Assert.True(learns.Value?.GetValue<bool>());
+        var words = document.Find("englishWords")!;
+        Assert.Equal(FieldControl.Words, FieldPresenter.ControlFor(words));
+        Assert.Equal("", FieldPresenter.WordsLine(words));
+        // The line as typed, with the line it showed: the engine takes it as a set of words (EnglishWords.edit).
+        var added = FieldPresenter.Words(words, "Bedrock, Frobnicate")!;
+        Assert.Equal("Bedrock, Frobnicate", (string?)added.Value);
+        Assert.Equal("", (string?)added.Shown);
+        // In every language the core has.
+        foreach (var language in new[] { "zh-Hans", "fr", "ja" })
+        {
+            var translated = Fixtures.Document("every-kind-" + language);
+            Assert.NotNull(translated.Find("learnsEnglishWords"));
+            Assert.NotEqual(words.Label, translated.Find("englishWords")!.Label);
+        }
+    }
+
+    [Fact]
     public void ACheckList()
     {
         var fuzzy = Fixtures.Document("every-kind-en").Find("fuzzyPinyin")!;

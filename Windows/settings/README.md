@@ -7,7 +7,7 @@ what the user did. Labels, help, which fields show, validation and the window's 
 
 ```
 dotnet build AllInOneIMESettings.sln                    # .NET 8 SDK; the Windows App SDK comes from NuGet
-dotnet test AllInOneIMESettings.Tests                   # 106 tests, no window, no engine
+dotnet test AllInOneIMESettings.Tests                   # 107 tests, no window, no engine
 Scripts/run-e2e.sh                                      # the end-to-end test, in Git Bash, with the user logged on
 python Scripts/make-test-documents.py <AllInOneIMEEngine.exe>   # the tests' documents, again (after the core changed)
 ```
@@ -112,7 +112,7 @@ AllInOneIMESettings.exe [--pipe NAME] [--engine EXE [--engine-args "ARGS"]] [--t
 
 ## Tests
 
-- **Unit** (`dotnet test AllInOneIMESettings.Tests`): 106.
+- **Unit** (`dotnet test AllInOneIMESettings.Tests`): 107.
   - The protocol client against the settings golden (`Core/Tests/AllInOneIMEWireTests/WireGoldens/settings.jsonl`),
     replayed by a stand-in engine: each frame the client sends is the golden's (`shown` and `revision` too), and each
     answer and notification comes back as the golden has it, with the documents the engine really sent for those
@@ -135,7 +135,9 @@ AllInOneIMESettings.exe [--pipe NAME] [--engine EXE [--engine-args "ARGS"]] [--t
   pipe of its own with a build's engine to start there in test mode (a config in a temporary folder, keys in memory):
   the app starts it. Then, through UI Automation's patterns only (no key is pressed, no other window is touched): every
   section has a name on each control and each control is reached from the keyboard; a switch, a choice, an ordered list
-  (a language added and moved), a check box and a text are changed and checked in `config.json`; a custom command is
+  (a language added and moved), a check box and a text are changed and checked in `config.json`; with Chinese, the
+  English words' switch and line (two words added as the user's, the newest first, one like a key refused with why and
+  nothing changed); a custom command is
   saved through its form (a built-in's name refused first, in the dialog, and announced) and deleted (two dialogs); a second start brings the window forward; with the engine gone and
   its pipe held by something that never says welcome, the window's controls are disabled until it is connected again
   (the engine started anew); a fake key is saved (the

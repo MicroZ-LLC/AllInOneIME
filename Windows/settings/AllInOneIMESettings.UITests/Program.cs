@@ -128,6 +128,33 @@ static class Program
                 string.Join(",", Config(config)["fuzzyPinyin"]?.AsArray().Select(l => (string?)l) ?? []) == "z-zh"));
             Check("its box shows checked", Eventually(() =>
                 window.FindFirstDescendant(c => c.ByAutomationId("fuzzyPinyin/z-zh"))?.Patterns.Toggle.Pattern.ToggleState.Value == ToggleState.On));
+            // With Chinese, the English words come too: the switch that learns them (on), and the user's words as a line. A
+            // word typed in is added as the user's; one that looks like a key is refused, with why, and nothing changes.
+            var learns = WaitFor("learnsEnglishWords", () => window.FindFirstDescendant(c => c.ByAutomationId("learnsEnglishWords")));
+            Check("learnsEnglishWords is a switch, on", learns.Patterns.Toggle.Pattern.ToggleState.Value == ToggleState.On);
+            learns.Patterns.Toggle.Pattern.Toggle();
+            Check("learnsEnglishWords saved in config.json", Eventually(() => Config(config)["learnsEnglishWords"]?.GetValue<bool>() == false),
+                  Config(config).ToJsonString());
+            var englishWords = WaitFor("englishWords", () => window.FindFirstDescendant(c => c.ByAutomationId("englishWords")));
+            englishWords.Patterns.Value.Pattern.SetValue("Bedrock, Frobnicate");
+            window.FindFirstDescendant(c => c.ByAutomationId("candidateLayout")).Focus();  // the focus leaves: committed
+            static string Words(JsonNode file, string key) => string.Join(",", file[key]?.AsArray().Select(w => (string?)w) ?? []);
+            Check("the English words saved in config.json, as the user's", Eventually(() =>
+                Words(Config(config), "englishWords") == "Bedrock,Frobnicate" && Words(Config(config), "addedEnglishWords") == "Bedrock,Frobnicate"),
+                  Config(config).ToJsonString());
+            Check("the line shows them, the newest first", Eventually(() =>
+                window.FindFirstDescendant(c => c.ByAutomationId("englishWords"))?.Patterns.Value.Pattern.Value.Value == "Frobnicate, Bedrock"));
+            englishWords = window.FindFirstDescendant(c => c.ByAutomationId("englishWords"));
+            englishWords.Patterns.Value.Pattern.SetValue("Frobnicate, Bedrock, sk-ant-api03-abcdefghijklmnopqrstuvwx");
+            window.FindFirstDescendant(c => c.ByAutomationId("candidateLayout")).Focus();
+            var refused = WaitFor("why the key was refused", () => window.FindFirstDescendant(c => c.ByControlType(ControlType.Text)
+                .And(new FlaUI.Core.Conditions.PropertyCondition(automation.PropertyLibrary.Element.Name, "Left out what looks like a key",
+                                                                 PropertyConditionFlags.MatchSubstring))));
+            Check("a word that looks like a key is refused, and the window says why (not iCloud: Windows')",
+                  refused.Name.Contains("come up among the candidates") && !refused.Name.Contains("iCloud"),
+                  refused.Name);
+            Check("nothing changed", Words(Config(config), "englishWords") == "Bedrock,Frobnicate", Config(config).ToJsonString());
+            Capture(window, Path.Combine(shots, "input-english-words.png"));
             var moveUp = WaitFor("move Chinese up", () => window.FindFirstDescendant(c => c.ByAutomationId("inputLanguages/up/zh")));
             moveUp.AsButton().Invoke();
             Check("Chinese moved first (the default)", Eventually(() =>

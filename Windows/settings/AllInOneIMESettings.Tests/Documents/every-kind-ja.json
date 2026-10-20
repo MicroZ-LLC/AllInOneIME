@@ -224,6 +224,22 @@
        "z-zh",
        "en-eng"
       ]
+     },
+     {
+      "help": "ピンイン入力中に同じ文字をそのまま 2 回確定すると（例：bedrock と入力して ⏎、もう一度）、その単語が以降の候補に出ます。パスワード欄、ターミナル、リモートデスクトップや仮想マシン、AI をオフにした App では学習せず、キーや番号のようなものも学習しません。",
+      "id": "learnsEnglishWords",
+      "kind": "toggle",
+      "label": "入力した英単語を学習",
+      "value": true
+     },
+     {
+      "help": "0語、新しい順",
+      "id": "englishWords",
+      "kind": "words",
+      "label": "あなたの英単語",
+      "placeholder": "例：Bedrock",
+      "text": "",
+      "value": []
      }
     ],
     "id": "input",
@@ -767,8 +783,8 @@
          "remove"
         ],
         "detail": "追加済み",
-        "id": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-touyrwbu",
-        "title": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-touyrwbu"
+        "id": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-k_p_n022",
+        "title": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-k_p_n022"
        }
       ],
       "kind": "items",
@@ -847,13 +863,13 @@
         "fields": [
          {
           "help": "Say hi",
-          "id": "extensions.on.C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-touyrwbu/hello.sh",
+          "id": "extensions.on.C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-k_p_n022/hello.sh",
           "kind": "toggle",
           "label": "@hello",
           "value": true
          }
         ],
-        "id": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-touyrwbu/hello.sh",
+        "id": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-k_p_n022/hello.sh",
         "title": "@hello"
        }
       ],
@@ -1097,7 +1113,7 @@
       "id": "configFile",
       "kind": "info",
       "label": "設定ファイル",
-      "value": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-cod11dea/config.json"
+      "value": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-k1nqh6yt/config.json"
      }
     ],
     "footer": "変更はすぐに反映され、再起動は不要です。",

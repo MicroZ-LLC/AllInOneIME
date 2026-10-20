@@ -396,7 +396,7 @@
       "label": "Base URL",
       "optional": true,
       "placeholder": "https://api.anthropic.com",
-      "value": "http://127.0.0.1:64711"
+      "value": "http://127.0.0.1:61148"
      },
      {
       "choices": [
@@ -784,7 +784,7 @@
       "id": "configFile",
       "kind": "info",
       "label": "Config file",
-      "value": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-d89kwiep/config.json"
+      "value": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-tgan6p53/config.json"
      }
     ],
     "footer": "Changes apply right away, with no restart.",
@@ -821,6 +821,6 @@
    "working": "Working…"
   }
  },
- "revision": 8,
+ "revision": 2,
  "type": "settings"
 }

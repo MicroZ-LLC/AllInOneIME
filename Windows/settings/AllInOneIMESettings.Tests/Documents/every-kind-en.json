@@ -224,6 +224,22 @@
        "z-zh",
        "en-eng"
       ]
+     },
+     {
+      "help": "Put the same letters in as typed twice while typing pinyin (bedrock and ⏎, then again) and the word comes up among the candidates from then on. Never in password fields, terminals, remote desktops and virtual machines, or apps with AI off, nor anything that looks like a key or a number.",
+      "id": "learnsEnglishWords",
+      "kind": "toggle",
+      "label": "Learn the English words you type",
+      "value": true
+     },
+     {
+      "help": "0, the newest first",
+      "id": "englishWords",
+      "kind": "words",
+      "label": "Your English words",
+      "placeholder": "Bedrock, say",
+      "text": "",
+      "value": []
      }
     ],
     "id": "input",
@@ -767,8 +783,8 @@
          "remove"
         ],
         "detail": "added",
-        "id": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-touyrwbu",
-        "title": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-touyrwbu"
+        "id": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-k_p_n022",
+        "title": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-k_p_n022"
        }
       ],
       "kind": "items",
@@ -847,13 +863,13 @@
         "fields": [
          {
           "help": "Say hi",
-          "id": "extensions.on.C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-touyrwbu/hello.sh",
+          "id": "extensions.on.C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-k_p_n022/hello.sh",
           "kind": "toggle",
           "label": "@hello",
           "value": true
          }
         ],
-        "id": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-touyrwbu/hello.sh",
+        "id": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-k_p_n022/hello.sh",
         "title": "@hello"
        }
       ],
@@ -1097,7 +1113,7 @@
       "id": "configFile",
       "kind": "info",
       "label": "Config file",
-      "value": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-5waahf7f/config.json"
+      "value": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-vka3fhwk/config.json"
      }
     ],
     "footer": "Changes apply right away, with no restart.",

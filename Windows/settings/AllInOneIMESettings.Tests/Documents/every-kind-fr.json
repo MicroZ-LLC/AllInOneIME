@@ -224,6 +224,22 @@
        "z-zh",
        "en-eng"
       ]
+     },
+     {
+      "help": "En tapant du pinyin, insérez deux fois les mêmes lettres telles que tapées (bedrock puis ⏎, puis encore une fois) et le mot apparaît ensuite parmi les candidats. Jamais dans les champs de mot de passe, les terminaux, les bureaux à distance et les machines virtuelles, ni dans les apps où l’IA est désactivée, ni pour ce qui ressemble à une clé ou à un numéro.",
+      "id": "learnsEnglishWords",
+      "kind": "toggle",
+      "label": "Apprendre les mots anglais que vous tapez",
+      "value": true
+     },
+     {
+      "help": "0, les plus récents d’abord",
+      "id": "englishWords",
+      "kind": "words",
+      "label": "Vos mots anglais",
+      "placeholder": "par ex. Bedrock",
+      "text": "",
+      "value": []
      }
     ],
     "id": "input",
@@ -767,8 +783,8 @@
          "remove"
         ],
         "detail": "ajouté",
-        "id": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-touyrwbu",
-        "title": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-touyrwbu"
+        "id": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-k_p_n022",
+        "title": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-k_p_n022"
        }
       ],
       "kind": "items",
@@ -847,13 +863,13 @@
         "fields": [
          {
           "help": "Say hi",
-          "id": "extensions.on.C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-touyrwbu/hello.sh",
+          "id": "extensions.on.C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-k_p_n022/hello.sh",
           "kind": "toggle",
           "label": "@hello",
           "value": true
          }
         ],
-        "id": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-touyrwbu/hello.sh",
+        "id": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-k_p_n022/hello.sh",
         "title": "@hello"
        }
       ],
@@ -1097,7 +1113,7 @@
       "id": "configFile",
       "kind": "info",
       "label": "Fichier de configuration",
-      "value": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-kwz5po6_/config.json"
+      "value": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-bxgf73lf/config.json"
      }
     ],
     "footer": "Les modifications s’appliquent immédiatement, sans redémarrage.",

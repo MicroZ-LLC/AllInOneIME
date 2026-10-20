@@ -224,6 +224,22 @@
        "z-zh",
        "en-eng"
       ]
+     },
+     {
+      "help": "打拼音时把同样的字母原样上屏两次（比如打 bedrock 按 ⏎，再来一次），这个词以后就出现在候选里。密码框、终端、远程桌面和虚拟机、关了 AI 的 App 里不学，像密钥、号码的也不学。",
+      "id": "learnsEnglishWords",
+      "kind": "toggle",
+      "label": "学习打出的英文词",
+      "value": true
+     },
+     {
+      "help": "0 个，新的在前",
+      "id": "englishWords",
+      "kind": "words",
+      "label": "你的英文词",
+      "placeholder": "比如 Bedrock",
+      "text": "",
+      "value": []
      }
     ],
     "id": "input",
@@ -767,8 +783,8 @@
          "remove"
         ],
         "detail": "添加的",
-        "id": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-touyrwbu",
-        "title": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-touyrwbu"
+        "id": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-k_p_n022",
+        "title": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-k_p_n022"
        }
       ],
       "kind": "items",
@@ -847,13 +863,13 @@
         "fields": [
          {
           "help": "Say hi",
-          "id": "extensions.on.C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-touyrwbu/hello.sh",
+          "id": "extensions.on.C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-k_p_n022/hello.sh",
           "kind": "toggle",
           "label": "@hello",
           "value": true
          }
         ],
-        "id": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-touyrwbu/hello.sh",
+        "id": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-k_p_n022/hello.sh",
         "title": "@hello"
        }
       ],
@@ -1097,7 +1113,7 @@
       "id": "configFile",
       "kind": "info",
       "label": "配置文件",
-      "value": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-j16orbdi/config.json"
+      "value": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-b9yzgmo_/config.json"
      }
     ],
     "footer": "改完立即生效，不用重启。",
