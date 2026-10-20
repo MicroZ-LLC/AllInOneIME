@@ -91,22 +91,51 @@ extension FoundationModelsBackend: AppleGuidedBackend {
         LanguageModelSession(model: SystemLanguageModel.default).prewarm()
     }
 
+    /// The instructions, then a refine's conversation so far (its earlier answers and instructions), as the transcript;
+    /// the last instruction (or the sentence) is the prompt.
+    private static func transcript(_ request: AppleModelRequest) -> [Transcript.Entry] {
+        func text(_ content: String) -> [Transcript.Segment] { [.text(Transcript.TextSegment(content: content))] }
+        var entries: [Transcript.Entry] = [.instructions(Transcript.Instructions(segments: text(request.instructions), toolDefinitions: []))]
+        for turn in request.examples {
+            entries.append(.prompt(Transcript.Prompt(segments: text(turn.prompt))))
+            entries.append(.response(Transcript.Response(assetIDs: [], segments: text(turn.response))))
+        }
+        return entries
+    }
+
+    /// The model's own count (macOS 26.4 and later): the transcript, the prompt, the schema as it goes into the prompt and
+    /// the tools' definitions, each counted by the system's tokenizer.
+    func tokenCount(of request: AppleModelRequest, schema: GuidedSchema, tools: [GuidedTool]) async -> Int? {
+        guard #available(macOS 26.4, iOS 26.4, *) else { return nil }
+        do {
+            let model = SystemLanguageModel.default
+            var count = try await model.tokenCount(for: Self.transcript(request))
+            count += try await model.tokenCount(for: request.prompt)
+            count += try await model.tokenCount(for: GenerationSchema(root: GuidedSchemaBuilder().dynamic(schema), dependencies: []))
+            if !tools.isEmpty { count += try await model.tokenCount(for: try tools.map(DynamicTool.init) as [any Tool]) }
+            return count
+        } catch {
+            return nil
+        }
+    }
+
     func respond(to request: AppleModelRequest, schema: GuidedSchema, tools: [GuidedTool]) async throws -> String {
+        try await respondWithUsage(to: request, schema: schema, tools: tools).json
+    }
+
+    /// The answer, and on macOS 27 the session's usage and its whole transcript after the answer, counted.
+    func respondWithUsage(to request: AppleModelRequest, schema: GuidedSchema, tools: [GuidedTool]) async throws
+        -> (json: String, usage: GuidedUsage?) {
         do {
             let generation = try GenerationSchema(root: GuidedSchemaBuilder().dynamic(schema), dependencies: [])
-            // The instructions, then a refine's conversation so far (its earlier answers and instructions), as the
-            // transcript; the last instruction (or the sentence) is the prompt.
-            func text(_ content: String) -> [Transcript.Segment] { [.text(Transcript.TextSegment(content: content))] }
-            var entries: [Transcript.Entry] = [.instructions(Transcript.Instructions(segments: text(request.instructions), toolDefinitions: []))]
-            for turn in request.examples {
-                entries.append(.prompt(Transcript.Prompt(segments: text(turn.prompt))))
-                entries.append(.response(Transcript.Response(assetIDs: [], segments: text(turn.response))))
-            }
             let session = LanguageModelSession(model: SystemLanguageModel.default, tools: try tools.map(DynamicTool.init),
-                                               transcript: Transcript(entries: entries))
+                                               transcript: Transcript(entries: Self.transcript(request)))
             let options = GenerationOptions(temperature: request.temperature, maximumResponseTokens: request.maximumResponseTokens)
             let response = try await session.respond(to: request.prompt, schema: generation, options: options)
-            return response.content.jsonString
+            guard #available(macOS 27, iOS 27, *) else { return (response.content.jsonString, nil) }
+            let transcript = try? await SystemLanguageModel.default.tokenCount(for: session.transcript)
+            return (response.content.jsonString, GuidedUsage(input: response.usage.input.totalTokenCount,
+                                                             output: response.usage.output.totalTokenCount, transcript: transcript))
         } catch {
             throw Self.mapped(error)
         }

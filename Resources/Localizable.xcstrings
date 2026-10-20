@@ -41391,6 +41391,53 @@
         }
       }
     },
+    "Too long for Apple Intelligence on this Mac (its context is small): shorten the text or use another provider" : {
+      "comment" : "内容太长，本机的 Apple Intelligence 处理不了（它的上下文很小）：缩短一些，或换一个 AI 服务 — Sources/AllInOneIME/UIText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zu lang für Apple Intelligence auf diesem Mac (sein Kontext ist klein): Kürze den Text oder verwende einen anderen Anbieter"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Demasiado largo para Apple Intelligence en este Mac (su contexto es pequeño): acorta el texto o usa otro proveedor"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trop long pour Apple Intelligence sur ce Mac (son contexte est petit) : raccourcissez le texte ou utilisez un autre fournisseur"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このMacのApple Intelligenceには長すぎます（扱える長さが小さいため）。テキストを短くするか、別のプロバイダを使ってください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Mac의 Apple Intelligence가 처리하기에는 너무 깁니다(컨텍스트가 작음). 텍스트를 줄이거나 다른 서비스를 사용하세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Longo demais para a Apple Intelligence neste Mac (o contexto dela é pequeno): encurte o texto ou use outro provedor"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "內容太長，本機的 Apple Intelligence 處理不了（它的上下文很小）：縮短一些，或換一個 AI 服務"
+          }
+        }
+      }
+    },
     "Too many searches at once for %@: try again in a moment" : {
       "comment" : "%@ 搜索太频繁，稍后再试 — Sources/AllInOneIME/UIText.swift",
       "localizations" : {
@@ -44894,7 +44941,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vos réglages, votre liste de jargon, vos commandes personnalisées et les mots appris par le pinyin, identiques sur tous vos Mac ; vos clés API et mots de passe aussi, via le trousseau iCloud, si vous l’activez ci-dessous. Uniquement via votre propre iCloud : rien ne passe par nos serveurs, et aucune autre connexion n’est nécessaire."
+            "value" : "Vos réglages, votre liste de jargon, vos commandes personnalisées et les mots appris par le pinyin, identiques sur tous vos Mac ; vos clés API et mots de passe aussi, via le trousseau iCloud, si vous l’activez ci-dessous. Uniquement via votre propre iCloud : rien ne passe par nos serveurs, et aucune autre connexion n’est nécessaire."
           }
         },
         "ja" : {

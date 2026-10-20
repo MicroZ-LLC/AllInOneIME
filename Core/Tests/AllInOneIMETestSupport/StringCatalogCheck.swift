@@ -38,6 +38,17 @@ public enum StringCatalogCheck {
         }
     }
 
+    /// French puts a no-break space (U+00A0, as the catalogs have it) before ":", ";", "?" and "!", never a plain one:
+    /// a line isn't broken before them, and the catalogs read alike.
+    public static func frenchSpacing(_ url: URL, sourceLocation: SourceLocation = #_sourceLocation) throws {
+        let strings = try entries(url, sourceLocation: sourceLocation)
+        let plain = strings.compactMap { key, entry -> String? in
+            guard let value = unit(entry, "fr")?.value, value.range(of: " [:;?!]", options: .regularExpression) != nil else { return nil }
+            return key
+        }.sorted()
+        #expect(plain.isEmpty, "fr: \(plain.count) with a plain space before : ; ? or !: \(plain.prefix(5))", sourceLocation: sourceLocation)
+    }
+
     /// The arguments `format` refers to, each with how often: "%@ of %@" and "%2$@ of %1$@" → [0: 1, 1: 1]; nil when it
     /// has a "%" that isn't "%%", "%@" or "%n$@" (`InterfaceText.fill` shows English for it then).
     public static func arguments(_ format: String) -> [Int: Int]? {

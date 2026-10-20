@@ -22,6 +22,9 @@ final class AssistantModel: ObservableObject {
     @Published private(set) var lines: [String] = []
     /// Why there is no preview (no model, not understood, nothing to change), or what applying couldn't do: one line.
     @Published private(set) var message: String?
+    /// Over the preview, and while it is on its way: the request went to the user's own provider, being too long for the
+    /// on-device model.
+    @Published private(set) var notice: String?
     /// "Changed 2 settings", while those changes can be undone (`AIConfigSession.lastApplied`) or after an action.
     @Published private(set) var applied: String?
     /// The changes applied wrote settings: Undo is offered.
@@ -57,6 +60,9 @@ final class AssistantModel: ObservableObject {
     private(set) var connectionTests = 0
 
     private var requestTask: Task<Void, Never>?
+    /// The request on its way, by number (a new one, or Cancel, counts up): what one cancelled or replaced since says
+    /// when it gets somewhere (where it went instead, its answer, its failure) is dropped.
+    private var requestNumber = 0
     private var checkTask: Task<Void, Never>?
     private var connectionTask: Task<Void, Never>?
     private var lastProbe: Date?
@@ -104,26 +110,43 @@ final class AssistantModel: ObservableObject {
         let showsAWS = service.onDevice || AIConfig.mentionsAWS(keys.text)
         log.notice("assistant: request sent (\(keys.text.count) chars, \(service.onDevice ? "on device" : "provider", privacy: .public))")
         working = true
+        let number = requestNumber
         requestTask = Task { @MainActor [weak self] in
             let env = await AIConfigSession.environment(keys.text)
             let profiles = showsAWS ? await Task.detached { env.awsProfiles() }.value : []
             let context = AIConfigPrompt.Context(
                 config: config, knownModels: models, awsProfiles: profiles, offeredProviders: env.offeredProviders,
-                installedPacks: Set(Language.allCases.filter(env.packInstalled)), showsAWSProfile: showsAWS)
+                installedPacks: Set(Language.allCases.filter(env.packInstalled)), showsAWSProfile: showsAWS, apps: env.apps)
             let tools = AIConfigSession.tools(env)
             guard !Task.isCancelled else { return }
+            let text = AIConfig.Text(language: env.language)
             do {
-                let answer = try await service.ask(keys.text, context: context, tools: tools)
-                guard let self, !Task.isCancelled else { return }
+                // Too long for the on-device model: where it goes instead is said before it goes.
+                let answer = try await service.ask(keys.text, context: context, tools: tools) { [weak self] provider in
+                    await self?.sentInstead(provider, request: number, text: text)
+                }
+                guard let self, !Task.isCancelled, self.requestNumber == number else { return }
                 self.working = false
+                // Answered on the device: no line.
+                self.notice = answer.instead.map(text.sentInstead)
                 self.show(answer: answer.text, env: env, droppedKey: (keys.dropped, keys.provider))
             } catch {
-                guard let self, !Task.isCancelled else { return }
+                guard let self, !Task.isCancelled, self.requestNumber == number else { return }
                 log.error("assistant: the request failed: \(AllInOneIMEInputController.errorKind(error), privacy: .public)")
                 self.working = false
+                // The line says what the provider asked instead did (or that it isn't set up).
+                self.notice = nil
                 self.message = UIText.describe(error)
             }
         }
+    }
+
+    /// Request `number` goes to `provider` instead of the on-device model (too long for it): said while it is on its way,
+    /// unless it was cancelled or replaced since.
+    private func sentInstead(_ provider: Provider, request number: Int, text: AIConfig.Text) {
+        guard number == requestNumber else { return }
+        log.notice("assistant: too long for the on-device model; sent to \(provider.rawValue, privacy: .public) instead")
+        notice = text.sentInstead(provider)
     }
 
     /// The answer checked against the settings as they are now: the preview, or the line that says why not.
@@ -162,11 +185,14 @@ final class AssistantModel: ObservableObject {
         tr("别在这里打密钥：它没有发出去。密钥请在 AI 服务里填", "Don't type keys here: it wasn't sent. Add keys in AI Provider.")
     }
 
-    /// Esc or Cancel while the request is on its way: nothing more comes of it.
+    /// Esc or Cancel while the request is on its way: nothing more comes of it, and the line that says where it went
+    /// instead goes with it.
     func cancelRequest() {
         requestTask?.cancel()
         requestTask = nil
+        requestNumber += 1
         working = false
+        notice = nil
     }
 
     /// Cancel on the preview: nothing changes.
@@ -174,6 +200,7 @@ final class AssistantModel: ObservableObject {
         preview = nil
         lines = []
         previewConfig = nil
+        notice = nil
     }
 
     /// The page shown again: a preview made before the settings changed elsewhere (another page, the menu, a hand edit)
@@ -266,6 +293,7 @@ final class AssistantModel: ObservableObject {
     /// What a new request or apply replaces: the last outcome's lines.
     private func clearOutcome() {
         message = nil
+        notice = nil
         undone = nil
         connection = nil
         connectionTask?.cancel()
@@ -473,6 +501,10 @@ struct AssistantPage: View {
                         .keyboardShortcut(.return, modifiers: .command)
                         .disabled(!assistant.canPreview)
                 }
+            }
+            if let notice = assistant.notice {
+                Label(notice, systemImage: "info.circle").font(.callout).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             if let preview = assistant.preview {
                 ForEach(Array(preview.rows.enumerated()), id: \.offset) { index, row in

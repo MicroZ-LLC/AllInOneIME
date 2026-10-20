@@ -176,6 +176,10 @@ extension AIConfig {
         func unknownStyle(_ name: String) -> String { tr("没有「\(name)」这个风格", "no style called “\(name)”") }
         var outOfRange: String { tr("超出范围", "out of range") }
         var notOffered: String { tr("这台 Mac 上没有这个服务", "not offered on this Mac") }
+        /// The sentence named one provider, the answer chose another.
+        func notTheOneNamed(_ named: Provider, chosen: Provider) -> String {
+            tr("你要的是 \(provider(named))，不是 \(provider(chosen))", "you asked for \(provider(named)), not \(provider(chosen))")
+        }
         var unknownProfile: String { tr("~/.aws 里没有这个 profile", "no such profile in ~/.aws") }
         var unknownRegion: String { tr("不是有效的 AWS 区域", "not a valid AWS region") }
         var unknownModel: String { tr("不在已知的模型里，请在设置里填", "not a model the app knows: enter it in Settings") }
@@ -199,6 +203,33 @@ extension AIConfig {
             case .notAllowed: return tr("这些请到设置里对应的那一页改", "Change those on their own pages in Settings")
             case .alreadySet: return tr("已经是这样设置的了", "Already set that way")
             }
+        }
+
+        /// The request was too long for the on-device model's context, and there is no other provider to ask (it is the one
+        /// chosen): `AIConfigService.TooLong`.
+        public var tooLongNoProvider: String {
+            tr("这句话对本机的 Apple Intelligence 来说太长了：请说得短一些，或者在设置 → AI 服务里换一个 AI 服务",
+               "Too long for Apple Intelligence on this Mac: try a shorter request, or choose another AI provider in Settings → AI Provider")
+        }
+
+        /// Too long for the on-device model, and the user's own provider isn't set up (no key, no sign-in, no AWS profile).
+        public func tooLong(notSetUp provider: Provider) -> String {
+            let name = self.provider(provider)
+            return tr("这句话对本机的 Apple Intelligence 来说太长了，\(name) 也还没设置好：请说得短一些，或者在设置 → AI 服务里设置好 \(name)",
+                      "Too long for Apple Intelligence on this Mac, and \(name) isn't set up: try a shorter request, or set up \(name) in Settings → AI Provider")
+        }
+
+        /// Too long for the on-device model, and the user's own provider failed too: what it said (`detail`).
+        public func tooLong(provider: Provider, failed detail: String) -> String {
+            tr("这句话对本机的 Apple Intelligence 来说太长了，改问 \(self.provider(provider)) 也没成功：\(detail)",
+               "Too long for Apple Intelligence on this Mac, and \(self.provider(provider)) couldn't answer instead: \(detail)")
+        }
+
+        /// Over the preview when the request goes to the user's own provider instead of the on-device model, said as it
+        /// goes (`AIConfigService.ask`'s `sendingInstead`) and with the answer (`AIConfigService.Answer.instead`).
+        public func sentInstead(_ provider: Provider) -> String {
+            tr("这句话对本机的 Apple Intelligence 来说太长了，已改发给 \(self.provider(provider))",
+               "Too long for Apple Intelligence on this Mac: sent to \(self.provider(provider)) instead")
         }
 
         /// A key typed into the sentence, with nothing else in it: nothing is sent, and the key field opens.

@@ -13,9 +13,10 @@ struct StringCatalogTests {
         try StringCatalogCheck.translationsFit(Self.catalog)
     }
 
-    /// Every interface language has every key in use, and its placeholders are the English's.
+    /// Every interface language has every key in use, and its placeholders are the English's; French is spaced as French.
     @Test func everyLanguageHasEveryKey() throws {
         try StringCatalogCheck.everyKeyTranslated(Self.catalog)
         try StringCatalogCheck.placeholdersMatch(Self.catalog)
+        try StringCatalogCheck.frenchSpacing(Self.catalog)
     }
 }
