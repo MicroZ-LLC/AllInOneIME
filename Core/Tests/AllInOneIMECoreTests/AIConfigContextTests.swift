@@ -108,6 +108,41 @@ enum RealTokenizer {
     }()
 }
 
+/// The system's tokenizer (`RealTokenizer`) with macOS 26's context (4096 tokens): counts as the system does when
+/// `counts` (else the core estimates), answers `answer` without the model, and fails as the framework does when the
+/// request by the system's count leaves no room for it. What was sent, with its size by the system's count.
+final class RealTokenizerModel: AppleGuidedBackend, @unchecked Sendable {
+    let real: any AppleGuidedBackend
+    let availability: AppleModelAvailability = .available
+    let contextSize = 4096
+    let supportedLanguages: Set<String> = ["en", "zh"]
+    let counts: Bool
+    let answer = #"{"changes": [], "note": "-"}"#
+    private let lock = NSLock()
+    private var _sent: [(request: AppleModelRequest, schema: GuidedSchema, tokens: Int)] = []
+    var sent: [(request: AppleModelRequest, schema: GuidedSchema, tokens: Int)] { lock.withLock { _sent } }
+
+    init(_ real: any AppleGuidedBackend, counts: Bool) {
+        self.real = real
+        self.counts = counts
+    }
+
+    func respond(to request: AppleModelRequest) -> AsyncThrowingStream<AppleModelSnapshot, Error> {
+        AsyncThrowingStream { $0.finish(throwing: AppleModelError.failed("plain path used")) }
+    }
+
+    func respond(to request: AppleModelRequest, schema: GuidedSchema, tools: [GuidedTool]) async throws -> String {
+        let size = await real.tokenCount(of: request, schema: schema, tools: tools) ?? .max
+        lock.withLock { _sent.append((request, schema, size)) }
+        if size > contextSize - 20 { throw AppleModelError.contextExceeded }
+        return answer
+    }
+
+    func tokenCount(of request: AppleModelRequest, schema: GuidedSchema, tools: [GuidedTool]) async -> Int? {
+        counts ? await real.tokenCount(of: request, schema: schema, tools: tools) : nil
+    }
+}
+
 /// Settings → Assistant on the on-device model, whose context (4096 tokens before macOS 27, 8192 since) holds the
 /// instructions, the schema, the tools and the answer together: the request fitted to it, and when it can't be, the
 /// user's own provider, or a line that says what to do.
@@ -155,7 +190,7 @@ struct AIConfigContextTests {
                                              languagePacks: { "zh (Chinese): installed" })
 
     /// The provider's request never goes anywhere: there is none to go to.
-    static func service(_ model: ContextLimitedModel) -> AIConfigService {
+    static func service(_ model: any AppleGuidedBackend) -> AIConfigService {
         AIConfigService(client: ChatClient(apple: model), loadCredentials: { _ in throw AWSConfigError.profileNotFound("none") },
                         loadKey: { _, _ in nil })
     }
@@ -330,6 +365,36 @@ struct AIConfigContextTests {
             let estimate = AIConfigFit.estimatedTokens(sent, schema: schema, tools: tools)
             #expect(estimate >= counted, "\(name): \(estimate) estimated, \(counted) counted")
             if counted >= 1000 { #expect(Double(estimate) < 1.5 * Double(counted), "\(name): \(estimate) estimated, \(counted) counted") }
+        }
+    }
+
+    /// On the system's own tokenizer (where this Mac has it) with macOS 26's context, counted by the model or estimated:
+    /// each request goes within the context by the system's count, with every setting the sentence is about and room for
+    /// the answer; or, about more settings than fit (or than fit by the estimate), not at all.
+    @Test(.enabled(if: RealTokenizer.model != nil), arguments: [0, 60, 250], [true, false])
+    func fittedByTheSystemsCount(apps: Int, counts: Bool) async throws {
+        let real = try #require(RealTokenizer.model)
+        guard await real.tokenCount(of: AppleModelRequest(instructions: "", examples: [], prompt: "", temperature: 0, maximumResponseTokens: 1),
+                                    schema: .string, tools: []) != nil else { return }  // before macOS 26.4
+        let context = Self.context(Self.bigConfig(apps: apps))
+        let small = ["candidates in a column", "use Bedrock", "switch to Amazon Nova", "微信里用英文输入", "隐藏电话号码"]
+        for sentence in small + ["translate into Japanese, type out slower, hide phone numbers, use Bedrock", Self.nineSettings] {
+            let model = RealTokenizerModel(real, counts: counts)
+            let outcome = await Result { try await Self.service(model).ask(sentence, context: context, tools: Self.tools) }
+            guard case let .success(answer) = outcome else {
+                // Not sent at all; never for a sentence about a setting or two.
+                #expect(model.sent.isEmpty && !small.contains(sentence), "\(sentence): \(outcome)")
+                continue
+            }
+            let sent = try #require(model.sent.last)
+            #expect(answer.onDevice && model.sent.count == 1)
+            #expect(sent.tokens + sent.request.maximumResponseTokens <= 4096 && sent.request.maximumResponseTokens >= AIConfigFit.answerRoom,
+                    "\(sentence): \(sent.tokens) + \(sent.request.maximumResponseTokens)")
+            for part in AIConfigFit.relevance([sentence], context: context).parts {
+                let line = try #require(AIConfigPrompt.settings(context, compact: true, scope: AIConfigPrompt.Scope(parts: [part])).first)
+                let key = line.prefix { $0 != ":" }
+                #expect(sent.request.instructions.contains("\n- \(key):"), "\(sentence): \(part) left out")
+            }
         }
     }
 
