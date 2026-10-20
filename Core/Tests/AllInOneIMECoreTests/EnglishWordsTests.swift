@@ -131,6 +131,22 @@ struct EnglishWordsTests {
         for english in ["bedro", "hello", "kuber"] { #expect(!Pinyin.isPinyinBeingTyped(english), "\(english)") }
     }
 
+    @Test func theCuratedWordsAsTheyAreWritten() {
+        let curated = Set(EnglishWords.curated)
+        // The makers' own spellings.
+        for word in ["Core Data", "Core ML", "Argo CD", "SOC 2", "fine-tune", "full-stack"] { #expect(curated.contains(word), "\(word)") }
+        // Common English words in small letters: typed in full they come first, and a product's capital would make the
+        // word a name ("nomad" → Nomad).
+        for word in ["nomad", "replicate", "cohere", "storybook", "pinecone", "airflow", "redshift", "spanner", "babel", "rollup",
+                     "chroma", "caddy", "lovable"] {
+            #expect(curated.contains(word), "\(word)")
+        }
+        for word in ["CoreData", "ArgoCD", "SOC2", "finetune", "fullstack", "Nomad", "Replicate", "Cohere", "Storybook", "Pinecone",
+                     "Airflow", "Redshift", "Spanner", "Babel", "Rollup", "Chroma", "Caddy", "Lovable"] {
+            #expect(!curated.contains(word), "\(word)")
+        }
+    }
+
     @Test func pinyinAsRimeIcesSpellerReadsItCorrectedToo() {
         // Syllables the system's list lacks (这个 zhei-ge, 得了 dei-le, biangbiang 面), ü typed u or v, and rime-ice's
         // corrections of letters typed in the wrong order (中 zhogn, 上 shagn, 为 wie, 只 zih).
