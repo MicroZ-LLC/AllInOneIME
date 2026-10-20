@@ -256,16 +256,20 @@ extension AllInOneIMEInputController {
     }
 
     /// The settings read again (`applySettings`, a key): a target no longer among the output languages (removed in the
-    /// settings) gives way at once to the one it would take with none picked (`State.follow`), in this field and on its
-    /// chip.
+    /// settings) gives way at once to the one it would come on into with none picked (`State.follow`), in this field
+    /// and on its chip. With none (English alone typed, English left), it goes off and says where to add one, as a long
+    /// press says when it can't come on.
     @MainActor
     func translateModeFollow(_ config: Config) {
         guard TranslateModeShared.state.follow(outputs: config.outputLanguages, inputs: config.inputLanguages) else { return }
         let session = TranslateModeShared.state.session
-        log.notice("Translate as You Type: into \(session?.target.code ?? "-", privacy: .public) (the target was removed)")
+        let now = session.map { "into " + $0.target.code } ?? "off"
+        log.notice("Translate as You Type: \(now, privacy: .public) (the target was removed)")
+        if session == nil { TranslateModeShared.listOpen = false }
         perform(composer.setTranslateMode(session.flatMap { config.allowsAI(in: modeApp) ? $0 : nil }), client: nil)
         MenuBarIcon.shared.setTranslating(TranslateModeShared.state.isOn)
         refreshTranslateChip()
+        if session == nil { showNotice(noTargetText, client: nil) }
     }
 
     /// 「边打边译 已开启：中文 → 日语 · 再长按 Shift 关闭」, into the target, from the language typed (when that's the

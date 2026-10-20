@@ -26,8 +26,13 @@ public enum TranslateMode {
     /// French (into English it would only ever put text in as typed). Else the first of them (nil: none). The language
     /// being typed has no say: text typed in the target goes in as typed.
     public static func target(last: OutputLanguage?, outputs: [OutputLanguage], inputs: [Language] = []) -> OutputLanguage? {
-        last.flatMap { last in outputs.first { $0 == last } }
-            ?? outputs.first { output in inputs.contains { !$0.matches(output) } } ?? outputs.first
+        last.flatMap { last in outputs.first { $0 == last } } ?? first(of: outputs, from: inputs) ?? outputs.first
+    }
+
+    /// The first of `outputs` something typed (`inputs`, the input languages) is translated into, as
+    /// `Config.hasLanguageToTranslateInto` counts them; nil: none.
+    static func first(of outputs: [OutputLanguage], from inputs: [Language]) -> OutputLanguage? {
+        outputs.first { output in inputs.contains { !$0.matches(output) } }
     }
 
     /// One language as the chip writes it in the Chinese interface: 「英」, 「日」, 「繁」 …, else its Chinese name
@@ -94,12 +99,14 @@ public enum TranslateMode {
         }
 
         /// The settings were read again (`outputs`, the output languages now; `inputs`, the input languages): a target
-        /// no longer among them (removed in the settings) gives way at once to the one it would take with none picked
-        /// (`TranslateMode.target`); with none left it leaves. True: the session changed.
+        /// no longer among them (removed in the settings) gives way at once to the one it would come on into with none
+        /// picked (`enter`), the first of them something typed is translated into; with none, it leaves, as it wouldn't
+        /// come on (English alone typed and English left: not on into English, where it would only put text in as
+        /// typed). True: the session changed.
         @discardableResult
         public mutating func follow(outputs: [OutputLanguage], inputs: [Language] = []) -> Bool {
             guard let session, !outputs.contains(session.target) else { return false }
-            self.session = TranslateMode.target(last: nil, outputs: outputs, inputs: inputs).map(Session.init(target:))
+            self.session = TranslateMode.first(of: outputs, from: inputs).map(Session.init(target:))
             return true
         }
 

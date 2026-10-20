@@ -688,7 +688,8 @@ final class AllInOneIMEInputController: IMKInputController {
         composer.noteLeavesDevice = notes.leavesDevice
         nameNoteFolder(notes, settings: config.notes)
         composer.translateModeMessages = .make(language: UIText.language)
-        translateModeFollow(config)  // Translate as You Type's target removed: the first output language at once
+        // Translate as You Type's target removed: the first output language typed text is translated into, else off.
+        translateModeFollow(config)
         nameAgent()  // the messages were just reset
         applyChatSettings(config)
         // Only the languages whose pack is installed: Chinese is no input mode while its pack downloads.

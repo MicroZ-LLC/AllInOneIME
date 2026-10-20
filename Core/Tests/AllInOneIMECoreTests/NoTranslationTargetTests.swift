@@ -157,4 +157,24 @@ struct NoTranslationTargetTests {
         both.setOrder([Language.chinese, .english])
         #expect(state.enter(last: nil, config: both)?.target == .english)
     }
+
+    /// The target removed in the settings while it's on goes by the rule it comes on by: English alone typed, into
+    /// French, French removed with English left, it goes off (it wouldn't come on there), not "on: English" with
+    /// everything going in as typed; Japanese left after English, into Japanese.
+    @Test func theTargetRemovedGoesByTheRuleItComesOnBy() {
+        let (french, japanese) = (OutputLanguage("fr"), OutputLanguage("ja"))
+        var config = Config.default
+        config.setOrder([OutputLanguage.english, french])
+        var state = TranslateMode.State()
+        #expect(state.enter(last: nil, config: config)?.target == french)
+        config.setOrder([OutputLanguage.english])
+        var followed = state.follow(outputs: config.outputLanguages, inputs: config.inputLanguages)
+        #expect(followed && !state.isOn, "\(String(describing: state.session))")
+        #expect(state.enter(last: nil, config: config) == nil)
+        config.setOrder([OutputLanguage.english, french, japanese])
+        #expect(state.enter(last: french, config: config)?.target == french)
+        config.setOrder([OutputLanguage.english, japanese])
+        followed = state.follow(outputs: config.outputLanguages, inputs: config.inputLanguages)
+        #expect(followed && state.session?.target == japanese)
+    }
 }

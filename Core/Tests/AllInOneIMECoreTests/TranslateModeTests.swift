@@ -708,8 +708,8 @@ struct TranslateModeStateTests {
         #expect(s.activated(notes) == .left(english) && !s.isOn)
     }
 
-    /// The target removed from the output languages in the settings while it's on: the first of them at once (none left:
-    /// off), the draft kept and the chip following.
+    /// The target removed from the output languages in the settings while it's on: the first of them something typed is
+    /// translated into at once (none left: off), the draft kept and the chip following.
     @Test func aTargetRemovedInTheSettingsGivesWayToTheFirst() throws {
         let ja = OutputLanguage("ja")
         var state = TranslateMode.State()
@@ -722,7 +722,7 @@ struct TranslateModeStateTests {
         _ = c.setTranslateMode(state.session)
         type("nihao", c)
         _ = c.handleKeyDown(spaceKey)
-        #expect(state.follow(outputs: [.english, .chinese]) && state.session == english)
+        #expect(state.follow(outputs: [.english, .chinese], inputs: [.chinese, .english]) && state.session == english)
         #expect(commits(c.setTranslateMode(state.session)).isEmpty && c.draft == "你好" && c.translateModeChip()?.text == "中 → 英")
         #expect(state.follow(outputs: []) && !state.isOn)  // none left
         // English alone typed (the config's): not to English, where it would only put text in as typed, but Chinese.

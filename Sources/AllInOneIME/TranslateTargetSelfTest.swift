@@ -11,8 +11,9 @@ extension SelfTest {
     /// its Add… menu offers every other language (Chinese, typed, too), and one picked is saved at once: ⏎ on `@translate`
     /// then sends it, into that language, without a restart (the page as it arrives: settings-no-translation-target*.png).
     /// Translate as You Type with English alone doesn't turn on, and says where to add one; French added after English, it
-    /// comes on into French. Nothing is sent off the Mac (a canned on-device stand-in answers), so secure input held by
-    /// another app (the lock screen) doesn't stop it: the controller is told it's off.
+    /// comes on into French, and French removed again, it goes off and says so. Nothing is sent off the Mac (a canned
+    /// on-device stand-in answers), so secure input held by another app (the lock screen) doesn't stop it: the
+    /// controller is told it's off.
     static func testNothingToTranslateInto(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, in directory: URL) {
         section("@translate with nothing to translate into", needs: SecureInput.ownerPID() == -1 ? .composing : [])
         let saved = (settings: settings, load: controller.loadSettings, open: controller.openSettings, converter: controller.converter,
@@ -230,5 +231,14 @@ extension SelfTest {
         check(TranslateModeShared.state.session?.target == french && controller.composer.translateMode?.target == french
               && on.contains(UIText.name(french)),
               "…French added after English, it comes on into French at once (\(on))")
+        // French removed again while it's on: off, saying where to add one, as when it wouldn't come on; not "on" into
+        // English with everything going in as typed.
+        alone.setOrder([OutputLanguage.english])
+        try? alone.write(to: scratch)
+        controller.applySettings()
+        let gone = controller.notice ?? "-"
+        let off = !TranslateModeShared.state.isOn && controller.composer.translateMode == nil && !MenuBarIcon.shared.translating
+        check(off && gone.contains(tr("没有要翻译成的语言", "No language to translate into")) && gone.contains(SettingsPage.writing.title),
+              "…French removed while it's on, it goes off and says where to add one (\(gone))")
     }
 }
