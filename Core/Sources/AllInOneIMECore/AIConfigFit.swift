@@ -34,13 +34,21 @@ public struct AIConfigFit: Sendable {
     // MARK: - Sizes
 
     /// The size of `request` with `schema` and `tools` in tokens, on the high side: the texts (`AppleModel.estimatedTokens`),
-    /// a few tokens for each turn's markers, the schema as the JSON schema the framework puts into the prompt and the
-    /// tools' definitions (`estimatedJSONTokens`).
+    /// a refine's earlier answers, the schema as the JSON schema the framework puts into the prompt and the tools'
+    /// definitions as JSON (`estimatedJSONTokens`), a few tokens for each turn's markers and the framework's own around
+    /// them (`overhead`). Held to the system's count on macOS 27.2 for requests of every size, from an empty one to
+    /// each part of the settings alone and the whole: 1.14 (AWS's part alone) to 1.26 times it from 1000 tokens
+    /// (AIConfigContextTests).
     public static func estimatedTokens(_ request: AppleModelRequest, schema: GuidedSchema, tools: [GuidedTool]) -> Int {
-        let texts = [request.instructions, request.prompt] + request.examples.flatMap { [$0.prompt, $0.response] }
-        return texts.map(AppleModel.estimatedTokens).reduce(0, +) + 8 * (2 * request.examples.count + 2)
+        let texts = [request.instructions, request.prompt] + request.examples.map(\.prompt)
+        return texts.map(AppleModel.estimatedTokens).reduce(0, +) + request.examples.map { estimatedJSONTokens($0.response) }.reduce(0, +)
+            + 8 * (2 * request.examples.count + 2) + overhead
             + estimatedJSONTokens(schema.jsonSchema) + tools.map { estimatedJSONTokens($0.jsonSchema) }.reduce(0, +)
     }
+
+    /// The tokens the framework adds to any request (an empty one with an empty schema counts 84 on macOS 27.2) beyond
+    /// what the estimate has for its parts.
+    static let overhead = 32
 
     /// The tokens of a schema or a tool's definition as `jsonSchema` writes it, on the high side: the framework's own
     /// rendering is longer (references, definitions), about 2.8 bytes of this one a token (measured on macOS 27.2).

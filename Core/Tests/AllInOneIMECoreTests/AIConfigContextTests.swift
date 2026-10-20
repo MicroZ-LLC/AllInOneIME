@@ -92,6 +92,15 @@ final class ContextLimitedModel: AppleGuidedBackend, @unchecked Sendable {
     }
 }
 
+/// The system's model where this Mac has it and it can count tokens (Apple Intelligence on, macOS 26.4 and later): its
+/// tokenizer, which the estimate and the plan are held to; nil elsewhere (the tests that need it are skipped).
+enum RealTokenizer {
+    static let model: (any AppleGuidedBackend)? = {
+        guard AppleModel.system.availability == .available, let model = AppleModel.system as? any AppleGuidedBackend else { return nil }
+        return model
+    }()
+}
+
 /// Settings → Assistant on the on-device model, whose context (4096 tokens before macOS 27, 8192 since) holds the
 /// instructions, the schema, the tools and the answer together: the request fitted to it, and when it can't be, the
 /// user's own provider, or a line that says what to do.
@@ -235,7 +244,7 @@ struct AIConfigContextTests {
         }
     }
 
-    /// The estimate is on the high side for every part of the request (where the model can count, its count decides).
+    /// The estimate is on the high side of the stand-in's count (the system's own: `theEstimateIsOnTheHighSideOfTheSystemsCount`).
     @Test func theEstimateIsOnTheHighSide() {
         for apps in [0, 60, 200] {
             for sentence in ["candidates in a column", "微信里用中文输入，候选横排，翻译成英文和日文"] {
@@ -246,6 +255,46 @@ struct AIConfigContextTests {
                 let tools = Self.tools.guided
                 #expect(AIConfigFit.estimatedTokens(request, schema: schema, tools: tools) >= ContextLimitedModel.tokens(request, schema: schema, tools: tools))
             }
+        }
+    }
+
+    /// The estimate is on the high side of the system's own count (where this Mac has its model) for requests of every
+    /// size: an empty one, a sentence alone, each part of the settings alone (where the schema's enums weigh most) with its
+    /// tools and without, a refine's long answers, the whole of it; in English and Chinese, with no apps of their own and
+    /// with 250. And not so high that it wastes the context where there is no count: under 1.5 times it from 1000 tokens.
+    @Test(.enabled(if: RealTokenizer.model != nil)) func theEstimateIsOnTheHighSideOfTheSystemsCount() async throws {
+        let real = try #require(RealTokenizer.model)
+        func request(_ instructions: String, prompt: String, examples: [AppleModelRequest.Turn] = []) -> AppleModelRequest {
+            AppleModelRequest(instructions: instructions, examples: examples, prompt: prompt, temperature: 0, maximumResponseTokens: 1000)
+        }
+        var cases: [(String, AppleModelRequest, GuidedSchema, [GuidedTool])] = [
+            ("empty", request("", prompt: ""), .object(name: "A", properties: []), []),
+            ("a sentence", request("", prompt: "candidates in a column"), .object(name: "A", properties: []), []),
+        ]
+        let long = #"{"changes": ["# + (0..<12).map { #"{"key": "appProfiles.com.example.someapp\#($0).typeOut", "value": true}"# }.joined(separator: ", ") + "]}"
+        let turns = (1...8).map { Refinement.Turn(answer: ConversionResult(versions: [CandidateLine(long)]), instruction: "change number \($0)") }
+        for apps in [0, 250] {
+            let context = Self.context(Self.bigConfig(apps: apps))
+            for sentence in ["candidates in a column", "微信里用中文输入，候选横排，翻译成英文和日文"] {
+                var scopes = AIConfigPrompt.Part.allCases.map { (String(describing: $0), AIConfigPrompt.Scope(parts: [$0], apps: [])) }
+                scopes.append(("everything", .everything))
+                for (name, scope) in scopes {
+                    let body = AIConfigPrompt.request(sentence, context: context, compact: true, scope: scope)
+                    let schema = AIConfigPrompt.schema(context, scope: scope)
+                    let sent = AppleModel.request(from: body, maxTokens: 1000, contextSize: 8192)
+                    cases.append(("\(apps) apps, \(name), \(sentence)", sent, schema, AIConfigFit.tools(Self.tools.guided, for: scope)))
+                    if apps == 0, sentence.first == "c" { cases.append(("\(apps) apps, \(name), no tools, \(sentence)", sent, schema, [])) }
+                }
+                let refine = AIConfigPrompt.request(sentence, context: context, turns: turns, compact: true, scope: AIConfigPrompt.Scope(parts: [.typing], apps: []))
+                cases.append(("\(apps) apps, a refine's 8 answers, \(sentence)", AppleModel.request(from: refine, maxTokens: 1000, contextSize: 8192),
+                              AIConfigPrompt.schema(context, scope: AIConfigPrompt.Scope(parts: [.typing])), []))
+            }
+        }
+        for (name, sent, schema, tools) in cases {
+            guard let counted = await real.tokenCount(of: sent, schema: schema, tools: tools) else { return }  // before macOS 26.4
+            let estimate = AIConfigFit.estimatedTokens(sent, schema: schema, tools: tools)
+            #expect(estimate >= counted, "\(name): \(estimate) estimated, \(counted) counted")
+            if counted >= 1000 { #expect(Double(estimate) < 1.5 * Double(counted), "\(name): \(estimate) estimated, \(counted) counted") }
         }
     }
 
