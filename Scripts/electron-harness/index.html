@@ -27,7 +27,14 @@
   // Slack listens to keys at the document level for its shortcuts: a handler that looks at Shift and lets it go by.
   document.addEventListener('keydown', e => { if (e.key === 'Shift') { document.body.dataset.shift = '1' } });
   document.addEventListener('keyup', e => { if (e.key === 'Shift') { delete document.body.dataset.shift } });
-  const target = new URLSearchParams(location.search).get('field') || 'composer';
+  // A busy page (Slack's often is, for 100 ms and more): each key down takes `busy` ms, and the app sends it through
+  // again only after that, after the keys that came meanwhile.
+  const query = new URLSearchParams(location.search);
+  const busy = Number(query.get('busy')) || 0;
+  if (busy > 0) {
+    document.addEventListener('keydown', () => { const end = performance.now() + busy; while (performance.now() < end) {} });
+  }
+  const target = query.get('field') || 'composer';
   document.getElementById(target).focus();
   log('focused', document.activeElement.id, 'hasFocus', document.hasFocus());
 </script>

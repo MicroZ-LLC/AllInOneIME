@@ -9,8 +9,8 @@
 // handle through -[NSApplication sendEvent:] again (-[CommandDispatcher redispatchKeyEvent:], its window key), so the
 // input method gets every modifier change twice.
 //
-// Environment: HARNESS_SCRIPT (shift-hold, shift-tap, shift-letter), HARNESS_DELAY (seconds before it starts, the page
-// loaded), HARNESS_FAKE_KEY (the window says it's key, as it is while someone types in it: on a locked screen, or with
+// Environment: HARNESS_SCRIPT (shift-hold, shift-tap, shift-letter, option-tap), HARNESS_DELAY (seconds before it starts,
+// the page loaded), HARNESS_FAKE_KEY (the window says it's key, as it is while someone types in it: on a locked screen, or with
 // another app in front, no app becomes active; it's what Chromium looks at before it sends an event again). Prints
 // "REC <seconds into the script> <what> …" lines on stdout for the self-test (ElectronSelfTest.swift), and what it sees
 // on stderr; quits once the script is done.
@@ -175,6 +175,8 @@ static void post(NSEvent *e) {
 
 // Left Shift: key code 56, NSEventModifierFlagShift with NX_DEVICELSHIFTKEYMASK (0x2); 0x100 is NX_NONCOALSESCEDMASK.
 static const NSEventModifierFlags leftShift = NSEventModifierFlagShift | 0x2 | 0x100;
+// Left Option: key code 58, NSEventModifierFlagOption with NX_DEVICELALTKEYMASK (0x20).
+static const NSEventModifierFlags leftOption = NSEventModifierFlagOption | 0x20 | 0x100;
 static const NSEventModifierFlags noModifier = 0x100;
 
 static NSEvent *keyEvent(NSEventType type, NSEventModifierFlags flags, unsigned short code, NSString *characters) {
@@ -192,6 +194,10 @@ static NSArray *steps(NSString *name) {
     if ([name isEqualToString:@"shift-letter"]) {
         return @[@[@0, shiftDown], @[@0.2, ^{ post(keyEvent(NSEventTypeKeyDown, leftShift, 0, @"A")); }],
                  @[@0.05, ^{ post(keyEvent(NSEventTypeKeyUp, leftShift, 0, @"A")); }], @[@1.0, shiftUp]];
+    }
+    if ([name isEqualToString:@"option-tap"]) {
+        return @[@[@0, ^{ post(keyEvent(NSEventTypeFlagsChanged, leftOption, 58, @"")); }],
+                 @[@0.1, ^{ post(keyEvent(NSEventTypeFlagsChanged, noModifier, 58, @"")); }]];
     }
     return nil;
 }

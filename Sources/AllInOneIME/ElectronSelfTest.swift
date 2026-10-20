@@ -5,7 +5,8 @@ import AppKit
 /// change twice. AppKit hands a modifier change to the input method in `-[NSApplication sendEvent:]`
 /// (`TSMProcessRawKeyEvent`); Chromium sends a key event the page didn't handle through `-[NSApplication sendEvent:]`
 /// again once the page has let it go by (`-[CommandDispatcher redispatchKeyEvent:]`, its window key), and the input
-/// method gets the same Shift down (or up) a second time, 5–20 ms later, the same key, flags and time.
+/// method gets the same Shift down (or up) a second time, 5–20 ms later, the same key, flags and time; with the page
+/// busy (Slack's often is, for 100 ms and more), after the next change: a tap comes as down, up, down, up. Option too.
 ///
 /// The Electron harness (Scripts/electron-harness/: Slack's composer, a contenteditable, and a textarea in a pinned
 /// Electron; its probe drives it with key events posted to its own window and logs what reaches the input method)
@@ -105,6 +106,28 @@ extension SelfTest {
         REC 0.1101 flagsChanged 56 0x100 0.1039
         REC 0.6055 end
         """
+    /// The page busy 250 ms with each key down (`HARNESS_BUSY`): the tap's down and up come again after its release.
+    static let electronShiftTapBusy = """
+        REC 0.0000 script shift-tap com.github.Electron
+        REC 0.0003 posted flagsChanged 56 0x20102
+        REC 0.0044 flagsChanged 56 0x20102 0.0002
+        REC 0.1076 posted flagsChanged 56 0x100
+        REC 0.1082 flagsChanged 56 0x100 0.1076
+        REC 0.2576 flagsChanged 56 0x20102 0.0002
+        REC 0.2580 flagsChanged 56 0x100 0.1076
+        REC 0.6318 end
+        """
+    /// Left Option tapped: each change twice too.
+    static let electronOptionTap = """
+        REC 0.0001 script option-tap com.github.Electron
+        REC 0.0007 posted flagsChanged 58 0x80120
+        REC 0.0142 flagsChanged 58 0x80120 0.0002
+        REC 0.0185 flagsChanged 58 0x80120 0.0002
+        REC 0.1050 posted flagsChanged 58 0x100
+        REC 0.1061 flagsChanged 58 0x100 0.1050
+        REC 0.1073 flagsChanged 58 0x100 0.1050
+        REC 0.6193 end
+        """
     static let electronShiftLetter = """
         REC 0.0000 script shift-letter com.github.Electron
         REC 0.0001 posted flagsChanged 56 0x20102
@@ -120,8 +143,9 @@ extension SelfTest {
         """
 
     /// Translate as You Type's long press in Slack (an Electron app: every modifier change twice): a long press turns it
-    /// on and, again, off; a tap switches the input language once and toggles nothing; Shift held with a capital, or
-    /// with the pointer used (a Shift-click), toggles nothing. Then the live harness, when there is one.
+    /// on and, again, off; a tap switches the input language once and toggles nothing, with the page busy too (the
+    /// tap's copies after its release); Shift held with a capital, or with the pointer used (a Shift-click), toggles
+    /// nothing. A tap of ⌥, the action key, acts once. Then the live harness, when there is one.
     static func testShiftHoldInElectron(_ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
         section("Translate as You Type's long press of Shift in an Electron app (Slack)", needs: .composing)
         let saved = (settings: settings, pointer: TranslateModeShared.pointer, stickyKeys: TranslateModeShared.stickyKeys,
@@ -156,12 +180,14 @@ extension SelfTest {
         controller.composer.setInputMode(.chinese)
         client.inserted.removeAll()
         checkElectronRecordings(hold: reached(in: electronShiftHold), tap: reached(in: electronShiftTap),
-                                letter: reached(in: electronShiftLetter), from: "recorded", controller, client)
+                                busyTap: reached(in: electronShiftTapBusy), letter: reached(in: electronShiftLetter),
+                                optionTap: reached(in: electronOptionTap), from: "recorded", controller, client)
         testElectronHarness(controller, client)
     }
 
     /// The checks on one set of recordings (`from`: where they come from).
-    static func checkElectronRecordings(hold: [Reached], tap: [Reached], letter: [Reached], from: String,
+    static func checkElectronRecordings(hold: [Reached], tap: [Reached], busyTap: [Reached], letter: [Reached],
+                                        optionTap: [Reached], from: String,
                                         _ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
         let onHint = tr("继续按住 → 边打边译", "Keep holding → Translate as You Type")
         let shifts = hold.filter { $0.kind == .flagsChanged }
@@ -182,6 +208,15 @@ extension SelfTest {
         check(controller.composer.inputLanguage == .english && !TranslateModeShared.state.isOn,
               "\(from): a tap of Shift switches the input language once (\(controller.composer.inputLanguage)) and toggles nothing")
         tapShift(controller, client)
+        // The page busy: the tap's down and up come again after its release, and still switch nothing.
+        let busy = busyTap.filter { $0.kind == .flagsChanged }
+        check(busy.count == 4 && busy[2].timestamp == busy[0].timestamp && busy[2].flags == busy[0].flags
+              && busy[3].timestamp == busy[1].timestamp && busy[2].at > busy[1].at,
+              "\(from), the page busy: Shift's down and up reach the input method again after the release (\(busy.map { String(format: "%.3f", $0.at) }))")
+        replay(busyTap, controller, client, after: 1.0)
+        check(controller.composer.inputLanguage == .english && !TranslateModeShared.state.isOn,
+              "\(from), the page busy: a tap of Shift switches the input language once (\(controller.composer.inputLanguage)), not back")
+        if controller.composer.inputLanguage == .english { tapShift(controller, client) }
         // Shift held with a capital typed: nothing turns on.
         replay(letter, controller, client, after: 0.3)
         check(!TranslateModeShared.state.isOn, "\(from): Shift held with a capital typed toggles nothing")
@@ -194,12 +229,29 @@ extension SelfTest {
         controller.pointerUsedWithin = { _ in false }
         check(!TranslateModeShared.state.isOn, "\(from): a Shift-click held as long toggles nothing")
         if let notice = controller.notice { controller.endNotice(notice) }
+        // A tap of ⌥, the action key, with "@i" typed: it takes the command offered ("@improve "), once.
+        let options = optionTap.filter { $0.kind == .flagsChanged }
+        check(options.count == 4 && options[0].timestamp == options[1].timestamp && options[0].flags == options[1].flags,
+              "\(from): ⌥ down and up each reach the input method twice, the same event (\(options.map { String(format: "%.3f", $0.at) }))")
+        let actionKey = settings.actionKey
+        settings.actionKey = .optionTap
+        controller.applySettings()
+        press(controller, client, "@", code: 0x13, flags: .shift)  // ⇧2
+        type("i", controller, client)
+        replay(optionTap, controller, client, after: 0.2)
+        check(controller.composer.draft == "@improve " && client.marked == "improve › ",
+              "\(from): a tap of ⌥ (the action key) takes the command offered (\(controller.composer.draft))")
+        _ = escape(controller, client)
+        controller.commitComposition(client)
+        settings.actionKey = actionKey
+        controller.applySettings()
+        client.inserted.removeAll()
     }
 
     /// The Electron harness itself, when `ALLINONEIME_ELECTRON_HARNESS` names its folder (`make electron-harness`: its
     /// Electron, downloaded by npm, and its probe): each script run in its window, Slack's composer then the textarea
-    /// (about 2 s each, the window shown without taking the focus), and what reached the input method played into the
-    /// fake field. Skipped, and said so, without it.
+    /// (about 2 s each, the window shown without taking the focus; the tap of Shift a second time with the page busy),
+    /// and what reached the input method played into the fake field. Skipped, and said so, without it.
     static func testElectronHarness(_ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
         guard let folder = ProcessInfo.processInfo.environment["ALLINONEIME_ELECTRON_HARNESS"], !folder.isEmpty else {
             print("  the Electron harness: not run (make electron-harness, then make selftest ELECTRON_HARNESS=build/electron-harness)")
@@ -212,11 +264,13 @@ extension SelfTest {
         }
         for field in ["composer", "textarea"] {
             var recordings: [String: [Reached]] = [:]
-            for script in ["shift-hold", "shift-tap", "shift-letter"] {
+            for script in ["shift-hold", "shift-tap", "shift-letter", "option-tap"] {
                 recordings[script] = reached(in: runElectronHarness(harness, script: script, field: field) ?? "")
             }
-            checkElectronRecordings(hold: recordings["shift-hold"] ?? [], tap: recordings["shift-tap"] ?? [],
-                                    letter: recordings["shift-letter"] ?? [], from: "Electron harness, \(field)", controller, client)
+            let busyTap = reached(in: runElectronHarness(harness, script: "shift-tap", field: field, busy: 250) ?? "")
+            checkElectronRecordings(hold: recordings["shift-hold"] ?? [], tap: recordings["shift-tap"] ?? [], busyTap: busyTap,
+                                    letter: recordings["shift-letter"] ?? [], optionTap: recordings["option-tap"] ?? [],
+                                    from: "Electron harness, \(field)", controller, client)
         }
     }
 
@@ -227,8 +281,9 @@ extension SelfTest {
 
     /// One run of the harness (its folder, `harness`): what its probe printed (nil: it didn't finish in time). Its key
     /// events go to its own window only, in its own process: the window is said to be key (`HARNESS_FAKE_KEY`; as it
-    /// is while someone types in it) without taking the focus from the app in front.
-    static func runElectronHarness(_ harness: URL, script: String, field: String) -> String? {
+    /// is while someone types in it) without taking the focus from the app in front. `busy`: milliseconds its page
+    /// takes over each key down (`HARNESS_BUSY`).
+    static func runElectronHarness(_ harness: URL, script: String, field: String, busy: Int? = nil) -> String? {
         let output = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-electron-\(script)-\(field).txt")
         guard FileManager.default.createFile(atPath: output.path, contents: nil),
               let handle = try? FileHandle(forWritingTo: output) else { return nil }
@@ -243,6 +298,7 @@ extension SelfTest {
         environment["DYLD_INSERT_LIBRARIES"] = harness.appendingPathComponent("libprobe.dylib").path
         (environment["HARNESS_SCRIPT"], environment["HARNESS_FIELD"]) = (script, field)
         (environment["HARNESS_FAKE_KEY"], environment["HARNESS_DELAY"]) = ("1", "2")
+        environment["HARNESS_BUSY"] = busy.map(String.init)
         process.environment = environment
         (process.standardOutput, process.standardError) = (handle, FileHandle.nullDevice)
         do { try process.run() } catch {
