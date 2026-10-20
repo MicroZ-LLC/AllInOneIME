@@ -189,9 +189,9 @@ func runEngine(_ options: EngineOptions) -> Never {
     // The candidate window is laid out per monitor, in physical pixels, as the caret reports come.
     _ = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)
     // Keys from the environment (`APIKeys.load` falls back to it when the store has none) and the ones the Settings
-    // app saves meanwhile, in memory: the same store for the requests and for the settings.
-    let memoryKeys: APIKeys.Keychain? = options.noKeychain || options.test ? .inMemory() : nil
-    if options.noKeychain, let memoryKeys { APIKeys.keychain = memoryKeys }
+    // app saves meanwhile, in memory with --no-keychain and in test mode: the same store for the requests and for the
+    // settings.
+    let memoryKeys = EngineSettings.keyStore(test: options.test, noKeychain: options.noKeychain)
 
     let clock: WireClock = options.test && !options.systemClock ? ManualClock() : SystemClock()
     let shellThread = SystemThread(name: "AllInOneIME shell")

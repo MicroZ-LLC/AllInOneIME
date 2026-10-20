@@ -46,6 +46,20 @@ struct SettingsAppTests {
         #expect(!off.composer.commands.contains { $0.name == "hello" })
     }
 
+    /// In test mode (with `--no-keychain` or not) the keys are in memory, and the requests use the store the Settings
+    /// app saves into: the user's Credential Manager is never read nor written, and a key saved is the one sent.
+    @Test func testModeKeepsTheKeysInMemoryForTheRequestsToo() throws {
+        for (test, noKeychain) in [(true, false), (true, true), (false, true)] {
+            var installed: APIKeys.Keychain?
+            let store = try #require(EngineSettings.keyStore(test: test, noKeychain: noKeychain) { installed = $0 }, "test \(test)")
+            let requests = try #require(installed, "test \(test), no-keychain \(noKeychain): the requests' store isn't the memory one")
+            try APIKeys.save("sk-ant-memory-0000-wxyz", account: "anthropic", label: "test", in: store)
+            #expect(APIKeys.hasKeychainKey(account: "anthropic", in: requests))
+        }
+        var installed = false
+        #expect(EngineSettings.keyStore(test: false, noKeychain: false) { _ in installed = true } == nil && !installed)
+    }
+
     @Test func theAppsTypedInAreOffered() throws {
         let (client, folder) = try client()
         defer { try? FileManager.default.removeItem(at: folder) }

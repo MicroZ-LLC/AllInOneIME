@@ -15,6 +15,19 @@ public final class EngineSettings: @unchecked Sendable {
         self.url = url
     }
 
+    /// Where an engine keeps the API keys: the Credential Manager, or a store in memory with `--no-keychain` (keys from
+    /// the environment and those saved while it runs) and in test mode (a test never reads nor writes the user's keys).
+    /// The store in memory is `install`ed as the requests' (`APIKeys.keychain`) and returned for the Settings app's
+    /// `SettingsService`: one store, so a key the app saves is the one Test Connection sends. Nil: the Credential
+    /// Manager, for both.
+    public static func keyStore(test: Bool, noKeychain: Bool,
+                                install: (APIKeys.Keychain) -> Void = { APIKeys.keychain = $0 }) -> APIKeys.Keychain? {
+        guard test || noKeychain else { return nil }
+        let memory = APIKeys.Keychain.inMemory()
+        install(memory)
+        return memory
+    }
+
     /// The settings as of now.
     public var current: Config {
         let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
