@@ -283,6 +283,9 @@ public final class Composer {
         public var actionKeyName = "⏎"
         /// `@note` to Notion (`noteLeavesDevice`) while secure input is on: nothing is saved.
         public var secureInputNote = "系统安全输入已开启，没有存到 Notion"
+        /// A key in a password field (secure input on in the app typed in): nothing is composed, keys go straight in (the
+        /// session says it once each time).
+        public var secureInputPaused = "安全输入中：输入法暂停，按键直接输入"
         /// What `@reply` and a screenshot in a draft say (Composer+Reply.swift).
         public var reply = ReplyMessages.chinese
         /// A snippet's text, filled in, longer than `Composer.maxNoteLength`: nothing goes in.
@@ -359,6 +362,7 @@ public final class Composer {
                 openedAgent: app ? t.tr("已在终端打开 {agent}", "Opened {agent} in Terminal")
                     : t.tr("已在终端打开 {agent}", "Opened {agent} in a terminal"),
                 secureInputNote: t.tr("系统安全输入已开启，没有存到 Notion", "Secure input is on: not saved to Notion"),
+                secureInputPaused: t.tr("安全输入中：输入法暂停，按键直接输入", "Secure input: the input method is paused, keys go straight in"),
                 reply: .make(language: language, terms: terms),
                 snippetTooLong: t.tr("要插入的文字太长：最多 \(Composer.maxNoteLength) 字", "The text to insert is too long: \(Composer.maxNoteLength) characters at most"),
                 snippetSelectionTooLong: t.tr("选中的文字太长：最多 \(Composer.maxSelectionLength) 字", "The selected text is too long: \(Composer.maxSelectionLength) characters at most"),

@@ -29937,7 +29937,7 @@
       }
     },
     "Secure input: the input method is paused, keys go straight in" : {
-      "comment" : "安全输入中：输入法暂停，按键直接输入 — Sources/AllInOneIMECore/Session/InputSession.swift",
+      "comment" : "安全输入中：输入法暂停，按键直接输入 — Sources/AllInOneIMECore/Composer.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {

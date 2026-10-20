@@ -489,7 +489,7 @@ public final class InputSession {
             }
             if !secureNoticeShown, !event.characters.isEmpty, event.modifiers.isDisjoint(with: [.command, .control]) {
                 secureNoticeShown = true
-                perform([.notice(tr("安全输入中：输入法暂停，按键直接输入", "Secure input: the input method is paused, keys go straight in"))])
+                perform([.notice(composer.messages.secureInputPaused)])  // in the session's interface language
             }
             lastTyped.forget()
             return false

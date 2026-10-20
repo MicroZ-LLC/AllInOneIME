@@ -130,6 +130,24 @@ struct InputSessionTests {
         }
     }
 
+    /// The secure input notice is in the session's interface language (its messages, from its settings), as its other
+    /// notices are: not in the process's, which may be another one's meanwhile.
+    @Test func secureInputNoticeIsInTheSessionsLanguage() {
+        inEnglish {
+            let host = host()
+            host.secure = true
+            withInterfaceLanguage("zh") { _ = host.press(KeyEvent(keyCode: 0, characters: "a")) }
+            #expect(host.session.notice == "Secure input: the input method is paused, keys go straight in",
+                    "English settings: English (\(host.session.notice ?? "-"))")
+            let chinese = Settings()
+            chinese.config.uiLanguage = "zh"
+            let other = self.host(chinese)
+            other.secure = true
+            withInterfaceLanguage("en") { _ = other.press(KeyEvent(keyCode: 0, characters: "a")) }
+            #expect(other.session.notice == "安全输入中：输入法暂停，按键直接输入", "Chinese settings: Chinese (\(other.session.notice ?? "-"))")
+        }
+    }
+
     @Test func theAppTakingTheMarkedTextStartsOver() {
         inEnglish {
             let host = host()
