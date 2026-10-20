@@ -10,7 +10,8 @@ extension InterfaceWords {
     /// The language as Chinese or English: what script plugins are told (`run(input, {language})`, "zh" or "en").
     public var pluginLanguage: Language { chinese ? .chinese : .english }
 
-    /// "⏎", "单按 ⌥" / "Tap ⌥", "⌥Space" …; on Windows "Enter", "Tap Ctrl", "Ctrl+Space" (`terms`).
+    /// "⏎", "单按 ⌥" / "Tap ⌥", "⌥Space", a recorded "⌘J" …; on Windows "Enter", "Tap Ctrl", "Ctrl+Space", "Ctrl+J"
+    /// (`terms`).
     public func name(_ key: ActionKey, terms: PlatformTerms = Platform.current.terms) -> String {
         switch key {
         case .enter: return terms.enter
@@ -20,7 +21,7 @@ extension InterfaceWords {
             // Space's ("Ctrl+Leertaste").
             return terms.keyStyle == .symbols ? tr("⌥空格", "⌥Space") : terms.shortcut(terms.roles.actionTap, tr("空格", "Space"))
         case .space: return tr("空格", "Space")
-        case let .shortcut(key): return key.name
+        case let .shortcut(key): return terms.name(key, space: tr("空格", "Space"))
         }
     }
 

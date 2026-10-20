@@ -125,6 +125,13 @@ struct PanelPresenterTests {
         type("hello", tap)
         #expect(windows.model(for: tap).status == .hint("Tap Ctrl → polish / rewrite"))
         #expect(en.model(for: tap).status == .hint("Tap ⌥ → polish / rewrite"))
+        // A shortcut recorded on the Mac: pressed with Ctrl on Windows.
+        let recorded = composer(key: .shortcut(KeyShortcut(keyCode: 0x26, modifiers: .command, name: "⌘J")))
+        recorded.setInputMode(.english)
+        improveDraft(recorded)
+        type("hello", recorded)
+        #expect(windows.model(for: recorded).status == .hint("Ctrl+J → polish / rewrite"))
+        #expect(en.model(for: recorded).status == .hint("⌘J → polish / rewrite"))
     }
 
     @Test func appsAndThisDeviceAsThePlatformCallsThem() {

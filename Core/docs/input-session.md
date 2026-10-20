@@ -93,10 +93,11 @@ The keys and places the text names are the platform's (`Platform.terms`, `Platfo
 ⌘1–⌘3, right ⌥, "Tap ⌥", ⌥Space, ⏎, ⇧⏎, ⌫, "this Mac", Terminal and calls `.app` bundles apps; `.windows` Ctrl+C,
 Ctrl+V, Ctrl+R, Ctrl+1–3, right Ctrl, "Tap Ctrl", Ctrl+Space, Enter, Shift+Enter, Backspace, "this PC", a terminal and
 the Start menu's `.lnk` and `.exe` files (a row that Return picks, a message to send or an issue to open, has the key as
-its label too). Esc, Tab, the arrows and the digits are written the same everywhere. The keys follow `ModifierRoles`,
-which the shell sets on the composer too. Text outside the panel and the composer's messages still names the Mac: the
-settings' (`@settings`' "⏎ opens Settings" too), `@doctor`'s and some errors' ("no key for it on this Mac", "Run `aws sso
-login` in Terminal").
+its label too). Esc, Tab, the arrows and the digits are written the same everywhere. A recorded action key reads on
+Windows as it is pressed there, whichever system recorded it (`PlatformTerms.name(_:space:)`: the Mac's ⌘J is Ctrl+J,
+its ⌃⏎ Win+Enter); on the Mac as it was recorded. The keys follow `ModifierRoles`, which the shell sets on the composer
+too. Text outside the panel and the composer's messages still names the Mac: the settings' (`@settings`' "⏎ opens
+Settings" too), `@doctor`'s and some errors' ("no key for it on this Mac", "Run `aws sso login` in Terminal").
 
 ## Services
 

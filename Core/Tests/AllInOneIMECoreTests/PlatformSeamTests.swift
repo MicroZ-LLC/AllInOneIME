@@ -124,6 +124,27 @@ struct PlatformTermsTests {
         #expect(!windows.isApp("/Applications/Calculator.app"))
     }
 
+    /// A shortcut recorded on the Mac reads as it is pressed elsewhere: on Windows ⌘ is Ctrl, ⌃ the Windows key. On the Mac
+    /// it reads as it was recorded.
+    @Test func aRecordedShortcutAsTheSystemNamesIt() {
+        let j = KeyShortcut(keyCode: 0x26, modifiers: .command, name: "⌘J")
+        let controlReturn = KeyShortcut(keyCode: VirtualKey.returnKey, modifiers: .control, name: "⌃⏎")
+        let f5 = KeyShortcut(keyCode: 0x60, modifiers: [.option, .shift], name: "⌥⇧F5")
+        let delete = KeyShortcut(keyCode: VirtualKey.delete, modifiers: [.command, .option], name: "⌥⌘⌫")
+        #expect([j, controlReturn, f5, delete].map { PlatformTerms.mac.name($0) } == ["⌘J", "⌃⏎", "⌥⇧F5", "⌥⌘⌫"])
+        #expect([j, controlReturn, f5, delete].map { PlatformTerms.windows.name($0) }
+                == ["Ctrl+J", "Win+Enter", "Alt+Shift+F5", "Ctrl+Alt+Backspace"])
+        // Recorded on Windows (kept as ⌘⇧J), and a key the Mac doesn't have: as they were recorded there.
+        let pc = KeyShortcut(usage: 0x0D, modifiers: [.command, .shift], name: "Ctrl+Shift+J")
+        let f24 = KeyShortcut(usage: 0x73, modifiers: .command, name: "Ctrl+F24")
+        #expect([pc, f24].map { PlatformTerms.windows.name($0) } == ["Ctrl+Shift+J", "Ctrl+F24"])
+        // As the action key: Space in the interface language.
+        let space = KeyShortcut(keyCode: VirtualKey.space, modifiers: .control, name: "⌃空格")
+        let (en, zh) = (InterfaceWords(language: "en"), InterfaceWords(language: "zh-Hans"))
+        #expect(en.name(.shortcut(space), terms: .windows) == "Win+Space" && zh.name(.shortcut(space), terms: .windows) == "Win+空格")
+        #expect(en.name(.shortcut(j), terms: .windows) == "Ctrl+J" && en.name(.shortcut(j), terms: .mac) == "⌘J")
+    }
+
     /// The panel's text takes ⏎, ⇧⏎ and ⌫ from the terms in every language: no catalog key first used in Session/ (the
     /// presenter's, the session's lines) writes them, nor any of its translations; each translation has the keys where
     /// its English does (a German footer on Windows).

@@ -82,6 +82,49 @@ public struct PlatformTerms: Hashable, Sendable {
     /// The key that deletes the character before the caret: "⌫" (the Mac's Delete); "Backspace".
     public var backspace: String { keyStyle == .symbols ? "⌫" : "Backspace" }
 
+    /// A recorded shortcut (`KeyShortcut`: recorded on any system, its modifiers in the Mac's terms) as this system writes
+    /// it. With the Mac's symbols, the name it was recorded with ("⌃⏎", "⌘J", "⌥F5"). By name, the modifiers it is pressed
+    /// with here (`roles.swappingPrimary`: one recorded with ⌘ is pressed with Ctrl on Windows, one with ⌃ with the Windows
+    /// key), Win, Ctrl, Alt, Shift, then the key: "Ctrl+J", "Win+Enter", "Alt+Shift+F5". `space` is Space's name in the
+    /// interface language.
+    public func name(_ shortcut: KeyShortcut, space: String = "Space") -> String {
+        guard keyStyle == .names else { return shortcut.name }
+        let held = roles.swappingPrimary(shortcut.modifiers)
+        let modifiers = [Key.ModifierKind.command, .control, .option, .shift].filter { held.contains(.kind($0)) }
+        return (modifiers.map(name) + [key(of: shortcut, space: space)]).joined(separator: "+")
+    }
+
+    /// `shortcut`'s key by name (`keyStyle` `.names`): Enter, Backspace, Tab, Space, F5 …; a character, or a key without a
+    /// name here, as its recorded name ends ("J" of "⌘J", or of "Ctrl+J").
+    private func key(of shortcut: KeyShortcut, space: String) -> String {
+        let code = shortcut.usage != 0 ? MacKeyCodes.code(usage: shortcut.usage) : shortcut.keyCode
+        switch code.map(MacKeyCodes.key) ?? .other {
+        case .enter, .keypadEnter: return enter
+        case .backspace: return backspace
+        case .forwardDelete: return "Delete"
+        case .tab: return "Tab"
+        case .space: return space
+        case .escape: return "Esc"
+        case .arrow(.left): return "←"
+        case .arrow(.right): return "→"
+        case .arrow(.up): return "↑"
+        case .arrow(.down): return "↓"
+        case .home: return "Home"
+        case .end: return "End"
+        case .pageUp: return "Page Up"
+        case .pageDown: return "Page Down"
+        case .insert: return "Insert"
+        case let .f(number): return "F\(number)"
+        default:
+            var rest = Substring(shortcut.name)
+            while let first = rest.first, "⌃⌥⇧⌘".contains(first), rest.count > 1 { rest = rest.dropFirst() }
+            while let plus = rest.dropLast().firstIndex(of: "+"), ["Win", "Ctrl", "Alt", "Shift"].contains(String(rest[..<plus])) {
+                rest = rest[rest.index(after: plus)...]
+            }
+            return String(rest)
+        }
+    }
+
     /// What picks the `number`th of a list of shortcuts (where a conversation can go on): "⌘2", "Ctrl+2".
     public func pick(_ number: Int) -> String { command(String(number)) }
 
