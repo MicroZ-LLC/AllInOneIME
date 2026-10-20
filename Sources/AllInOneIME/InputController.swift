@@ -972,7 +972,7 @@ final class AllInOneIMEInputController: IMKInputController {
         return response.handled
     }
 
-    /// The modifier changes handed over last, whatever the text field (a copy may reach another one).
+    /// The latest time of each modifier change handed over, whatever the text field (a copy may reach another one).
     @MainActor private static var modifierEchoes = ModifierEchoes()
 
     @MainActor

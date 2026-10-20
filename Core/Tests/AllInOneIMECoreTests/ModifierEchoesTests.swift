@@ -45,13 +45,28 @@ struct ModifierEchoesTests {
         #expect(!e.echo(56, Self.shiftDown, at: 0))
     }
 
-    /// The last `kept` changes are kept: a copy after as many more changes is still one; after one more, the oldest is
-    /// forgotten.
-    @Test func itKeepsTheLastFew() {
+    /// However many changes came between (a busy page's copies after nine capitals: eighteen changes), a change no
+    /// later than the latest of its key and flags is a copy; the key pressed again is new.
+    @Test func aCopyAfterManyChangesIsStillAnEcho() {
+        let e = EchoProbe()
+        let times = (0..<9).map { 1 + Double($0) / 10 }
+        for time in times {
+            #expect(!e.echo(56, Self.shiftDown, at: time))
+            #expect(!e.echo(56, Self.shiftUp, at: time + 0.05))
+        }
+        for time in times {
+            #expect(e.echo(56, Self.shiftDown, at: time))
+            #expect(e.echo(56, Self.shiftUp, at: time + 0.05))
+        }
+        #expect(!e.echo(56, Self.shiftDown, at: 2))
+    }
+
+    /// It keeps the latest time of `kept` keys with their flags: one more, and the one seen longest ago is forgotten.
+    @Test func itForgetsTheKeyAndFlagsSeenLongestAgo() {
         let e = EchoProbe()
         #expect(!e.echo(56, Self.shiftDown, at: 1))
         for i in 1..<ModifierEchoes.kept {
-            #expect(!e.echo(58, Self.optionDown, at: 1 + Double(i) / 100))
+            #expect(!e.echo(UInt16(100 + i), Self.optionDown, at: 1 + Double(i) / 1000))
         }
         #expect(e.echo(56, Self.shiftDown, at: 1))
         #expect(!e.echo(58, Self.optionDown, at: 2))
@@ -160,6 +175,31 @@ extension ModifierEchoesTests {
         f.shiftUp(at: f.now)
         f.shiftUp(at: f.now)
         #expect(f.switches == 0)
+    }
+
+    /// Nine capitals typed with the page busy, all eighteen changes handed over again after them: every copy dropped,
+    /// no switch (each down and up again would be a tap), no long press.
+    @Test func nineCapitalsOnABusyPage() {
+        let f = ModifierFeed()
+        var times: [(pressed: TimeInterval, released: TimeInterval)] = []
+        for _ in 0..<9 {
+            let pressed = f.now
+            f.shiftDown(at: pressed)
+            f.wait(0.05)
+            _ = f.composer.handleKeyDown(KeyEvent(keyCode: 0x00, characters: "A", modifiers: .shift))
+            f.hold.key()
+            f.wait(0.05)
+            f.shiftUp(at: f.now)
+            times.append((pressed, f.now))
+            f.wait(0.05)
+        }
+        for (pressed, released) in times {
+            #expect(f.change(VirtualKey.leftShift, [.shift, .leftShift], at: pressed) == nil)
+            #expect(f.change(VirtualKey.leftShift, [], at: released) == nil)
+        }
+        f.wait(1.2)
+        #expect(f.switches == 0 && f.composer.inputLanguage == .chinese)
+        #expect(f.hold.poll() == nil && f.hold.hold.held == nil)
     }
 }
 
