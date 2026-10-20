@@ -70,6 +70,11 @@ echo "AllInOneIME $VERSION: $MSI"
 # ---- 0. a clean start ----
 echo "== 0. before"
 snapshot pre
+# The session's input method as the user has it, before a copy installed already is taken out: when it is AllInOneIME,
+# the uninstall puts the session on the next one meanwhile (the record below), and installing the same profile again
+# brings the user's own back (Windows remembers it).
+IM_ORIGINAL=""
+grep -q '^installed: ' "$STATE/pre/ours.txt" && IM_ORIGINAL="$(session_im original)"
 for code in $(sed -nE 's/^installed: (\{[^}]*\}).*/\1/p' "$STATE/pre/ours.txt"); do
   echo "  AllInOneIME is installed ($code): uninstalled first, for a clean record"
   msiexec /x "$code" /qn /norestart /l*v "$(win "$LOGS/pre-uninstall.log")"
@@ -83,6 +88,9 @@ fi
 rm -rf "$STATE/before"; mv "$STATE/pre" "$STATE/before"
 IM_BEFORE="$(session_im before)"
 echo "  the session's input method: ${IM_BEFORE:-unknown}"
+[ -n "$IM_ORIGINAL" ] && [ "$IM_ORIGINAL" != "$IM_BEFORE" ] && echo "  (the user's own, before the installed copy went: $IM_ORIGINAL)"
+# As recorded, or, while AllInOneIME is installed, the user's own from before the old copy went.
+im_as_recorded() { [ "$1" = "$IM_BEFORE" ] || { [ -n "$IM_ORIGINAL" ] && [ "$1" = "$IM_ORIGINAL" ]; }; }
 echo "  the user's language list:"; sed 's/^/    /' "$STATE/before/languages.txt"
 # The user's data: AllInOneIME's folder in %APPDATA%. A marker in it (the folder made for it, if there is none) must
 # survive the uninstall.
@@ -142,7 +150,7 @@ verify_installed() { # $1: the snapshot's name
   check "the default input method is as recorded" same before "$s" default.txt
   check "HKCU\\Keyboard Layout is as recorded" same before "$s" hkcu-keyboard-layout.txt || show_diff before "$s" hkcu-keyboard-layout.txt
   local im; im="$(session_im "$s")"
-  check "the session's input method is as recorded" test "$im" = "$IM_BEFORE"
+  check "the session's input method is as recorded (or the user's own, back with the profile)" im_as_recorded "$im"
 }
 
 # ---- 1. install ----
@@ -214,7 +222,7 @@ else
     "it was running before the install and keeps the DLL it had loaded until it restarts"
 fi
 IM_AFTER_E2E="$(session_im after-e2e)"
-check "the session's input method is as recorded" test "$IM_AFTER_E2E" = "$IM_BEFORE"
+check "the session's input method is as recorded (or the user's own, back with the profile)" im_as_recorded "$IM_AFTER_E2E"
 
 # ---- 4. uninstall ----
 echo "== 4. a silent uninstall"
