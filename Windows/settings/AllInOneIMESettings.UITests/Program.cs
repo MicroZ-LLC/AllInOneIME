@@ -95,6 +95,10 @@ static class Program
                 Check($"{id}: every control is reachable from the keyboard", unreachable.Count == 0, string.Join("; ", unreachable));
                 Capture(window, Path.Combine(shots, $"{++index:00}-{id}.png"));
             }
+            // A note's name is what it says (the config file's path), after its label.
+            Select(window, "advanced");
+            var configFile = WaitFor("configFile", () => window.FindFirstDescendant(c => c.ByAutomationId("configFile")));
+            Check("the config file's note is named with its path", configFile.Name.Contains("config.json"), configFile.Name);
 
             // 4. A switch, a choice, a text.
             Select(window, "general");
@@ -215,9 +219,20 @@ static class Program
             Select(window, "commands");
             WaitFor("New…", () => window.FindFirstDescendant(c => c.ByAutomationId("commands.custom/save"))).AsButton().Invoke();
             var name = WaitFor("the form's name", () => window.FindFirstDescendant(c => c.ByAutomationId("form/name")));
-            name.Patterns.Value.Pattern.SetValue("polite");
             WaitFor("the form's instruction", () => window.FindFirstDescendant(c => c.ByAutomationId("form/prompt")))
                 .Patterns.Value.Pattern.SetValue("Make it polite");
+            // A built-in's name first: refused, why said in the dialog, and announced to a screen reader.
+            var announced = 0;
+            using (window.RegisterAutomationEvent(automation.EventLibrary.Element.LiveRegionChangedEvent, TreeScope.Subtree,
+                                                  (_, _) => Interlocked.Increment(ref announced)))
+            {
+                name.Patterns.Value.Pattern.SetValue("improve");
+                window.FindFirstDescendant(c => c.ByAutomationId("PrimaryButton")).AsButton().Invoke();
+                Check("a name taken is refused, in the dialog", Eventually(() =>
+                    window.FindFirstDescendant(c => c.ByName("Another command has this name")) is not null));
+                Check("and said to a screen reader (LiveRegionChanged)", Eventually(() => Volatile.Read(ref announced) > 0, 5));
+            }
+            name.Patterns.Value.Pattern.SetValue("polite");
             window.FindFirstDescendant(c => c.ByAutomationId("PrimaryButton")).AsButton().Invoke();
             var saved = Eventually(() =>
                 Config(config)["customCommands"]?.AsArray().Any(c => (string?)c?["name"] == "polite" && (string?)c?["prompt"] == "Make it polite") == true);

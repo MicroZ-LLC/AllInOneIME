@@ -97,11 +97,20 @@ public abstract class FieldCard
     /// <summary>This card, or one of its own (an item's field), for the field <paramref name="id"/>.</summary>
     public virtual FieldCard? Find(string id) => Field.Id == id ? this : null;
 
-    /// <summary>What a change of it was refused for (null: nothing now).</summary>
+    /// <summary>What a change of it was refused for (null: nothing now); said by a screen reader as it shows.</summary>
     public void ShowProblem(string? message)
     {
+        var changed = problem.Text != (message ?? "");
         problem.Text = message ?? "";
         problem.Visibility = message is null ? Visibility.Collapsed : Visibility.Visible;
+        if (changed && message is not null) Announce(problem);
+    }
+
+    /// <summary>A live region's new text said by a screen reader: WinUI says it only when told (LiveRegionChanged).</summary>
+    protected static void Announce(FrameworkElement element)
+    {
+        var peer = FrameworkElementAutomationPeer.FromElement(element) ?? FrameworkElementAutomationPeer.CreatePeerForElement(element);
+        peer?.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
     }
 
     /// <summary>What its action said (a test's outcome), until the document says otherwise.</summary>
@@ -167,8 +176,10 @@ public abstract class FieldCard
         help.Text = Field.Help ?? "";
         help.Visibility = Field.Help is null ? Visibility.Collapsed : Visibility.Visible;
         var state = StatusText();
+        var changed = status.Text != (state ?? "");
         status.Text = state ?? "";
         status.Visibility = state is null ? Visibility.Collapsed : Visibility.Visible;
+        if (changed && state is not null && Root is not null) Announce(status);
     }
 
     /// <summary>The line under the help: the field's state (a key's, a value in words), or what its action said.</summary>
@@ -658,7 +669,8 @@ sealed class InfoCard : FieldCard
     {
         text.Text = Field.StringValue ?? Field.Value?.ToJsonString() ?? "";
         text.Visibility = text.Text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
-        AutomationProperties.SetName(text, FieldPresenter.AccessibleName(Field));
+        // What a screen reader says is the text itself (the config file's path), after the label.
+        AutomationProperties.SetName(text, Field.Label.Length > 0 && text.Text.Length > 0 ? $"{Field.Label}: {text.Text}" : FieldPresenter.AccessibleName(Field));
     }
 }
 

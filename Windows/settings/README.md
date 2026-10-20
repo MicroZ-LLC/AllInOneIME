@@ -59,7 +59,8 @@ python Scripts/make-test-documents.py <AllInOneIMEEngine.exe>   # the tests' doc
 - **One window per engine:** a second start (the Start menu, `@settings`) brings the first window forward.
 - **Looks:** Windows 11's (Mica, cards); light and dark follow Windows, as does the title bar; text scales with Windows'
   text size; every control has its label as its accessible name and its help as its help text (Narrator), and is reached
-  with Tab or, in the pane and lists, the arrow keys.
+  with Tab or, in the pane and lists, the arrow keys. A refusal and a new state are said as they show (WinUI's live
+  regions are told: LiveRegionChanged); a note is named by its label and its text (the config file's path).
 
 The core's document has, for this window, the words of its own controls (`strings`: "Save", "Move up", "Remove “{name}”?",
 "Cancel" …), the per-app settings, the script extensions' folders, switches, preferences and passwords, the custom
@@ -133,7 +134,7 @@ AllInOneIMESettings.exe [--pipe NAME] [--engine EXE [--engine-args "ARGS"]] [--t
   the app starts it. Then, through UI Automation's patterns only (no key is pressed, no other window is touched): every
   section has a name on each control and each control is reached from the keyboard; a switch, a choice, an ordered list
   (a language added and moved), a check box and a text are changed and checked in `config.json`; a custom command is
-  saved through its form and deleted (two dialogs); a second start brings the window forward; with the engine gone and
+  saved through its form (a built-in's name refused first, in the dialog, and announced) and deleted (two dialogs); a second start brings the window forward; with the engine gone and
   its pipe held by something that never says welcome, the window's controls are disabled until it is connected again
   (the engine started anew); a fake key is saved (the
   box cleared; the engine's store has it, its last 4 through the wire; `config.json` doesn't); Test Connection goes to

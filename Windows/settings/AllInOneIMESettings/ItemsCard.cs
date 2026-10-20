@@ -266,6 +266,7 @@ sealed class ItemsCard : FieldCard
                     args.Cancel = true;
                     problem.Text = refused.Message;
                     problem.Visibility = Visibility.Visible;
+                    Announce(problem);
                 }
                 else if (answer is null)
                 {
