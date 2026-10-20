@@ -355,7 +355,8 @@ the footer, the results with "原文", the row of candidates with the "中" noti
 
 - **Pipe:** `\\.\pipe\AllInOneIME-<UserSID>-v1`, with the protocol's SDDL and `FILE_FLAG_FIRST_PIPE_INSTANCE` (§2.1).
   It is in message mode, refuses remote clients, uses overlapped I/O, and keeps at least 4 instances waiting.
-- **Single instance:** a second engine for the same user exits (`Local\AllInOneIME-Engine-<SID>`).
+- **Single instance:** a second engine for the same user exits (`Local\AllInOneIME-Engine-<SID>`), with exit code 4
+  (`EngineExit.anotherEngineRuns`; 1 is any other failure to start).
 - **Client check:** a client from another session or another user is refused. Low-integrity and AppContainer
   clients are `untrusted` (§8). Tested with a low-integrity copy of the CLI: it connects, comes out
   `low, untrusted`, and the goldens pass.

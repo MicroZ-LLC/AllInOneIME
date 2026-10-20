@@ -68,8 +68,9 @@ namespace {
 int g_failures = 0;
 FILE* g_out = stdout;
 
-// Whether process `process`'s command line has `text` (NtQueryInformationProcess, ProcessCommandLineInformation).
-bool CommandLineHas(HANDLE process, const wchar_t* text) {
+// Process `process`'s command line (NtQueryInformationProcess, ProcessCommandLineInformation) into `out`; false when
+// it can't be read.
+bool ReadCommandLine(HANDLE process, std::wstring& out) {
     using Query = NTSTATUS(NTAPI*)(HANDLE, PROCESSINFOCLASS, PVOID, ULONG, PULONG);
     static const auto query = reinterpret_cast<Query>(GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "NtQueryInformationProcess"));
     if (!query) return false;
@@ -79,12 +80,30 @@ bool CommandLineHas(HANDLE process, const wchar_t* text) {
     std::vector<unsigned char> buffer(size);
     if (query(process, static_cast<PROCESSINFOCLASS>(60), buffer.data(), size, &size) < 0) return false;
     const auto* line = reinterpret_cast<const UNICODE_STRING*>(buffer.data());
-    return std::wstring(line->Buffer, line->Length / sizeof(wchar_t)).find(text) != std::wstring::npos;
+    out.assign(line->Buffer, line->Length / sizeof(wchar_t));
+    return true;
+}
+
+// The engine's exit code when another engine of the user's runs (it holds the single-instance mutex):
+// EngineExit.anotherEngineRuns. Only then does the driver end the user's engines.
+const DWORD kAnotherEngineRuns = 4;
+
+// The engine a text service starts when an app needs one: HKLM\Software\AllInOneIME, value Engine (the installed
+// copy's). Empty when AllInOneIME isn't installed.
+std::wstring RegisteredEngine() {
+    wchar_t path[MAX_PATH * 2] = {};
+    DWORD size = sizeof path;
+    if (RegGetValueW(HKEY_LOCAL_MACHINE, L"Software\\AllInOneIME", L"Engine", RRF_RT_REG_SZ | RRF_SUBKEY_WOW6464KEY, nullptr,
+                     path, &size) != ERROR_SUCCESS) {
+        return L"";
+    }
+    return path;
 }
 
 // Ends the other processes of `path` in this session (the user's engines: one a text service started again after
 // run-e2e.sh stopped them, as an app whose input method is AllInOneIME does), but a console window's
-// (`--run-in-console`, whose program still runs). How many it ended.
+// (`--run-in-console`, whose program still runs) and any whose command line can't be read (it may be one). How many it
+// ended.
 int EndOtherEngines(const std::wstring& path) {
     DWORD session = 0;
     ProcessIdToSessionId(GetCurrentProcessId(), &session);
@@ -100,8 +119,10 @@ int EndOtherEngines(const std::wstring& path) {
         if (!process) continue;
         wchar_t image[MAX_PATH * 2] = {};
         DWORD length = MAX_PATH * 2;
+        std::wstring line;
         if (QueryFullProcessImageNameW(process, 0, image, &length) && _wcsicmp(image, path.c_str()) == 0 &&
-            !CommandLineHas(process, L" --run-in-console") && TerminateProcess(process, 0)) {
+            ReadCommandLine(process, line) && line.find(L" --run-in-console") == std::wstring::npos &&
+            TerminateProcess(process, 0)) {
             WaitForSingleObject(process, 3000);
             ++ended;
         }
@@ -1358,15 +1379,25 @@ int main(int argc, char** argv) {
     cmdBuf.push_back(0);
     bool engineStarted = CreateProcessW(nullptr, cmdBuf.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW, nullptr,
                                         nullptr, &si, &engine) != 0;
-    // Ours exits at once while another engine of the user's holds the engine's mutex: one a text service started again
-    // since run-e2e.sh stopped them (an app whose input method is AllInOneIME starts the engine it lost, at once, then
-    // after a growing pause). That one ended, ours started again, a few tries.
-    for (int attempt = 1; engineStarted && attempt <= 10 && WaitForSingleObject(engine.hProcess, 400) == WAIT_OBJECT_0; ++attempt) {
+    // Ours exits at once while another engine of the user's holds the engine's mutex (its exit code says so): one a text
+    // service started again since run-e2e.sh stopped them (an app whose input method is AllInOneIME starts the engine
+    // it lost, at once, then after a growing pause), at our path or the installed one's (the text service's). That one
+    // ended, ours started again, a few tries. Exited for anything else, it failed: nothing is ended.
+    const std::wstring registered = RegisteredEngine();
+    for (int attempt = 1; engineStarted && WaitForSingleObject(engine.hProcess, 400) == WAIT_OBJECT_0; ++attempt) {
         DWORD code = 0;
         GetExitCodeProcess(engine.hProcess, &code);
         CloseHandle(engine.hThread);
         CloseHandle(engine.hProcess);
+        engine = {};
+        if (code != kAnotherEngineRuns || attempt > 10) {
+            Log("  the engine exited at once (code %lu)%s", code,
+                code == kAnotherEngineRuns ? ": another engine of the user's still runs" : "");
+            engineStarted = false;
+            break;
+        }
         int ended = EndOtherEngines(enginePath);
+        if (!registered.empty() && _wcsicmp(registered.c_str(), enginePath.c_str()) != 0) ended += EndOtherEngines(registered);
         Log("  the engine exited at once (code %lu): another engine of the user's runs; ended %d, starting again (%d)", code,
             ended, attempt);
         Pump(attempt * 100);
@@ -1376,9 +1407,8 @@ int main(int argc, char** argv) {
         engineStarted = CreateProcessW(nullptr, again.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW, nullptr, nullptr, &si,
                                        &engine) != 0;
     }
-    engineStarted = engineStarted && WaitForSingleObject(engine.hProcess, 0) == WAIT_TIMEOUT;
     Check(engineStarted, "the engine started");
-    if (!engineStarted) { Log("  CreateProcess failed: %lu", GetLastError()); return 1; }
+    if (!engineStarted) { Log("  no engine (CreateProcess: %lu)", GetLastError()); return 1; }
     scenario.enginePid = engine.dwProcessId;
     // Let the pipe come up (and, as a user's engine, librime deploy: a second or so in a new user folder).
     Pump(testMode ? 600 : 2500);

@@ -243,7 +243,7 @@ func runEngine(_ options: EngineOptions) -> Never {
     let mutex = mutexName.withCString(encodedAs: UTF16.self) { CreateMutexW(nil, true, $0) }
     if mutex == nil || GetLastError() == Win32Code.alreadyExists {
         log("another engine is running for this user: exiting", always: true)
-        exit(1)
+        exit(EngineExit.anotherEngineRuns)
     }
 
     // The candidate window is laid out per monitor, in physical pixels, as the caret reports come.
