@@ -101,37 +101,66 @@ struct PanelPresenterTests {
         #expect(english.status == .hint("Space twice → polish / rewrite"))
     }
 
+    /// The panel on Windows: its terms, the composer acting on its keys (`Composer.modifierRoles`), as a shell there sets
+    /// them.
+    func windows(_ c: Composer, language: String = "en") -> PanelModel {
+        let roles = c.modifierRoles
+        c.modifierRoles = .windows
+        defer { c.modifierRoles = roles }
+        return PanelPresenter(config: .default, language: language, terms: .windows).model(for: c)
+    }
+
     /// On Windows the keys have Windows' names (`PlatformTerms`); the Mac's text stays as it was.
     @Test func theKeysAsThePlatformNamesThem() throws {
         let c = composer()
         c.setInputMode(.english)
         improveDraft(c)
-        let windows = PanelPresenter(config: .default, language: "en", terms: .windows)
-        #expect(windows.model(for: c).footer == "Ctrl+V paste · Backspace delete · Esc clear")
-        #expect(windows.model(for: c).status == .hint("Write something, or Ctrl+V to paste"))
-        #expect(PanelPresenter(config: .default, language: "zh-Hans", terms: .windows).model(for: c).footer == "Ctrl+V 粘贴 · Backspace 删字 · Esc 清除")
+        #expect(windows(c).footer == "Ctrl+V paste · Backspace delete · Esc clear")
+        #expect(windows(c).status == .hint("Write something, or Ctrl+V to paste"))
+        #expect(windows(c, language: "zh-Hans").footer == "Ctrl+V 粘贴 · Backspace 删字 · Esc 清除")
         #expect(PanelPresenter(config: .default, language: "en", terms: .mac).model(for: c).footer == "⌃V paste · ⌫ delete · Esc clear")
         // Results: copied with Ctrl+C.
         let sent = translating()
         _ = sent.receive(result, isFinal: true, id: 1)
         try #require(sent.phase == .choosing)
-        #expect(windows.model(for: sent).footer
-                == "Type, Shift+Enter refine · Space / Enter insert · digits pick · 0 original · Ctrl+C copy · Esc back")
+        #expect(windows(sent).footer == "Type, Shift+Enter refine · Space / Enter insert · digits pick · 0 original · Ctrl+C copy · Esc back")
         #expect(en.model(for: sent).footer == "Type, ⇧⏎ refine · Space / ⏎ insert · digits pick · 0 original · ⌘C copy · Esc back")
         // The action key a tap of Ctrl, in the palette's footer and a draft's hint.
         let tap = composer(key: .optionTap)
         tap.setInputMode(.english)
         improveDraft(tap)
         type("hello", tap)
-        #expect(windows.model(for: tap).status == .hint("Tap Ctrl → polish / rewrite"))
+        #expect(windows(tap).status == .hint("Tap Ctrl → polish / rewrite"))
         #expect(en.model(for: tap).status == .hint("Tap ⌥ → polish / rewrite"))
         // A shortcut recorded on the Mac: pressed with Ctrl on Windows.
         let recorded = composer(key: .shortcut(KeyShortcut(keyCode: 0x26, modifiers: .command, name: "⌘J")))
         recorded.setInputMode(.english)
         improveDraft(recorded)
         type("hello", recorded)
-        #expect(windows.model(for: recorded).status == .hint("Ctrl+J → polish / rewrite"))
+        #expect(windows(recorded).status == .hint("Ctrl+J → polish / rewrite"))
         #expect(en.model(for: recorded).status == .hint("⌘J → polish / rewrite"))
+    }
+
+    /// Which key does what is the composer's (`Composer.modifierRoles`), whatever roles the terms came with: the panel
+    /// names the keys the composer acts on, so a shell that sets only one of the two can't make them disagree.
+    @Test func theKeysAreTheOnesTheComposerActsOn() throws {
+        let sent = translating()
+        _ = sent.receive(result, isFinal: true, id: 1)
+        try #require(sent.phase == .choosing)
+        var macRoles = PlatformTerms.windows
+        macRoles.roles = .mac
+        sent.modifierRoles = .windows
+        #expect(PanelPresenter(config: .default, language: "en", terms: macRoles).model(for: sent).footer.contains("Ctrl+C copy"))
+        // The composer left on the Mac's roles: ⌘, the Windows key there, copies.
+        sent.modifierRoles = .mac
+        #expect(PanelPresenter(config: .default, language: "en", terms: .windows).model(for: sent).footer.contains("Win+C copy"))
+        // The voice key and the action key too.
+        let tap = composer(key: .optionTap)
+        tap.setInputMode(.english)
+        improveDraft(tap)
+        type("hello", tap)
+        tap.modifierRoles = .windows
+        #expect(PanelPresenter(config: .default, language: "en", terms: macRoles).model(for: tap).status == .hint("Tap Ctrl → polish / rewrite"))
     }
 
     @Test func appsAndThisDeviceAsThePlatformCallsThem() {
@@ -299,9 +328,9 @@ struct PanelPresenterTests {
         #expect(typed.input == PanelModel.Input(prompt: "then › ", text: "and", caret: 3))
         #expect(typed.footer == "⌘1–⌘5 continue, with what you typed · ⏎ insert · 1–2 pick · ⌘C copy · Esc back")
         // On Windows, picked with Ctrl.
-        let windows = PanelPresenter(config: .default, language: "en", terms: .windows).model(for: c)
-        #expect(windows.handoff?.choices.map(\.shortcut) == ["Ctrl+1", "Ctrl+2", "Ctrl+3", "Ctrl+4", "Ctrl+5"])
-        #expect(windows.footer == "Ctrl+1–5 continue, with what you typed · Enter insert · 1–2 pick · Ctrl+C copy · Esc back")
+        let onWindows = windows(c)
+        #expect(onWindows.handoff?.choices.map(\.shortcut) == ["Ctrl+1", "Ctrl+2", "Ctrl+3", "Ctrl+4", "Ctrl+5"])
+        #expect(onWindows.footer == "Ctrl+1–5 continue, with what you typed · Enter insert · 1–2 pick · Ctrl+C copy · Esc back")
         // Before the last round, ⌘⏎ shows them.
         let early = conversation(handoff: [.copy])
         #expect(en.model(for: early).handoff == nil)

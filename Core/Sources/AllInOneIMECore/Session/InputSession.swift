@@ -280,8 +280,8 @@ public final class InputSession {
                                        disabled: config.disabledExtensions).commands, recheck: true)
         // The interface language (config `uiLanguage`, else the system's) for the panel, notices and menu.
         UIText.choice = config.uiLanguage
-        composer.messages = .make(language: UIText.language)
-        composer.messages.actionKeyName = UIText.name(config.actionKey)
+        composer.messages = .make(language: UIText.language, terms: terms)
+        composer.messages.actionKeyName = UIText.words.name(config.actionKey, terms: terms)
         // Where @note saves (named in the interface language): its name in the command list, and whether the note leaves
         // the device (then it isn't saved during secure input). A folder's name is what is remembered of it (never a walk
         // up its tree here: on a network volume that went away, that can hang); it is looked up in the background.
@@ -289,7 +289,7 @@ public final class InputSession {
         UIText.noteDestinationName = notes.name
         composer.noteLeavesDevice = notes.leavesDevice
         if let folder = notes as? MarkdownFolderDestination { tasks.nameFolder(folder, settings: config.notes) }
-        composer.translateModeMessages = .make(language: UIText.language)
+        composer.translateModeMessages = .make(language: UIText.language, terms: terms)
         nameAgent()  // the messages were just reset
         applyChatSettings(config)
         // Only the languages whose pack is installed: Chinese is no input mode while its pack downloads.
@@ -308,6 +308,14 @@ public final class InputSession {
         emit(.keyboardLayout)
     }
 
+    /// What the keys and places are called here (`Platform.terms`), the keys by the roles the composer acts on
+    /// (`Composer.modifierRoles`), as the panel names them (`PanelPresenter.model(for:)`).
+    private var terms: PlatformTerms {
+        var terms = Platform.current.terms
+        terms.roles = composer.modifierRoles
+        return terms
+    }
+
     /// The agent picked for `@agent`: only Claude Code runs in the background; the command list's summary names it.
     private func applyAgent(_ config: Config) {
         agent = config.agent
@@ -321,7 +329,7 @@ public final class InputSession {
     /// "已在终端打开 Claude Code": the agent picked, by name, in the messages; a custom agent by its program's name in a
     /// hand-off's.
     private func nameAgent() {
-        let base = Composer.Messages.make(language: UIText.language)
+        let base = Composer.Messages.make(language: UIText.language, terms: terms)
         composer.messages.openedTerminal = base.openedTerminal.replacingOccurrences(of: "Claude Code", with: UIText.agentName)
         composer.messages.secureInputTerminal = base.secureInputTerminal.replacingOccurrences(of: "Claude Code", with: UIText.agentName)
         // Only once it has a command: otherwise the messages stay the language's own.

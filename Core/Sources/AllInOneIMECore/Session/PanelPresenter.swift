@@ -10,7 +10,8 @@ public struct PanelPresenter {
     public var config: Config
     /// The interface language's code (`InterfaceLanguage`): "zh-Hans", "en", …
     public var language: String
-    /// What the keys and places are called where it is drawn (⌘C or Ctrl+C …).
+    /// What the keys and places are called where it is drawn (⌘C or Ctrl+C …). Which key does what (`roles`) is the
+    /// composer's, whatever these came with: the panel names the keys the composer acts on (`model(for:)`).
     public var terms: PlatformTerms
     /// The app the text field is in (its per-app settings, for the draft's hint).
     public var app: String?
@@ -70,8 +71,15 @@ public struct PanelPresenter {
 
     // MARK: - The panel
 
-    /// The panel for `composer` as it is now.
+    /// The panel for `composer` as it is now, its keys named by the roles the composer acts on (`Composer.modifierRoles`).
     public func model(for composer: Composer) -> PanelModel {
+        var presenter = self
+        presenter.terms.roles = composer.modifierRoles
+        return presenter.panel(for: composer)
+    }
+
+    /// `model(for:)`, with `terms`' roles the composer's.
+    private func panel(for composer: Composer) -> PanelModel {
         typealias Row = PanelModel.Row
         var model = PanelModel()
         let config = config

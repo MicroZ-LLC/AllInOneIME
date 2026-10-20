@@ -6,7 +6,8 @@ import Foundation
 /// Backspace), "this PC", a terminal and the apps of the Start menu (`.lnk`, `.exe`). Esc, Tab and the arrows are
 /// written the same everywhere (Esc, Tab, ↑↓), as are the digits that pick a row.
 ///
-/// The keys follow `roles` (`ModifierRoles`, the composer's): what the text names is the key that does it there.
+/// The keys follow `roles` (`ModifierRoles`): the candidate panel and the session's messages take them from the composer
+/// (`Composer.modifierRoles`), so what the text names is the key that does it there.
 public struct PlatformTerms: Hashable, Sendable {
     /// How a key with modifiers is written: the Mac's symbols, run together ("⌘C"), or the modifiers' names with "+"
     /// ("Ctrl+C").

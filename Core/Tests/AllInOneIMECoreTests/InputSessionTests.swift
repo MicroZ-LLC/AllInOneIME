@@ -26,13 +26,14 @@ struct InputSessionTests {
     }
 
     /// A session in a field that has the focus, with `adjust`'s services (programs installed, by default).
-    func host(_ settings: Settings = Settings(), _ adjust: (inout SessionServices) -> Void = { _ in }) -> FakeHost {
+    func host(_ settings: Settings = Settings(), composer: Composer = Composer(),
+              _ adjust: (inout SessionServices) -> Void = { _ in }) -> FakeHost {
         let engine = FakeEngine()
         var services = SessionServices(loadSettings: { settings.config })
         services.levelOne = { .engine(engine) }
         services.programInstalled = { _ in true }
         adjust(&services)
-        let host = FakeHost(services: services)
+        let host = FakeHost(services: services, composer: composer)
         host.focus()
         return host
     }
@@ -545,6 +546,25 @@ struct InputSessionTests {
     }
 
     // MARK: - Terminals, voice
+
+    /// The session's messages name the keys the composer acts on (`Composer.modifierRoles`), as its panel does, whatever
+    /// roles the platform's terms came with: the right Ctrl to talk, a tap of Ctrl to run, on a composer with Windows'.
+    @Test func theMessagesNameTheKeysTheComposerActsOn() {
+        inEnglish {
+            var platform = Platform.current
+            platform.terms = .windows
+            platform.terms.roles = .mac
+            Platform.$override.withValue(platform) {
+                let settings = Settings(), composer = Composer()
+                settings.config.actionKey = .optionTap
+                composer.modifierRoles = .windows
+                let host = host(settings, composer: composer)
+                #expect(host.composer.messages.holdToTalk == "Hold right Ctrl to talk")
+                #expect(host.composer.messages.actionKeyName == "Tap Ctrl")
+                #expect(host.composer.translateModeMessages.failed("offline") == "Not translated: offline (Enter to retry)")
+            }
+        }
+    }
 
     @Test func inATerminalAnArrowEndsTheListTheAtAfterIt() {
         inEnglish {
