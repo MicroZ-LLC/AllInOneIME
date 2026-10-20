@@ -131,6 +131,20 @@ struct EnglishWordsTests {
         for english in ["bedro", "hello", "kuber"] { #expect(!Pinyin.isPinyinBeingTyped(english), "\(english)") }
     }
 
+    @Test func pinyinAsRimeIcesSpellerReadsItCorrectedToo() {
+        // Syllables the system's list lacks (这个 zhei-ge, 得了 dei-le, biangbiang 面), ü typed u or v, and rime-ice's
+        // corrections of letters typed in the wrong order (中 zhogn, 上 shagn, 为 wie, 只 zih).
+        #expect(Pinyin.syllables.isSuperset(of: ["zhei", "tei", "dei", "cei", "biang", "nia"]))
+        for pinyin in ["zheige", "deile", "biangbiang", "zhogn", "shagn", "wie", "zih", "hzi", "jei", "lue", "nve", "jv", "qvan",
+                       "nihaozhogn"] {
+            #expect(Pinyin.isPinyin(pinyin), "\(pinyin)")
+        }
+        for english in ["bedrock", "openrouter", "frobnicate", "kubernetes", "anthropic"] { #expect(!Pinyin.isPinyin(english), "\(english)") }
+        for typed in ["zhogn", "zheige", "deile", "shagn", "nihaozhogn"] {
+            #expect(!EnglishWords.learnable(typed, known: [], dictionary: EnglishDictionary([]), hidden: []), "\(typed)")
+        }
+    }
+
     // MARK: Among the candidates
 
     @Test func aWordWhoseLettersAreTypedComesFirstAsItIsWritten() {

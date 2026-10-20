@@ -30,6 +30,24 @@ extension RimeEngineTests {
         }
     }
 
+    /// Pinyin as `EnglishWords` reads it is rime-ice's: every syllable of its character table, and its speller's rules.
+    @Test func pinyinIsRimeIces() throws {
+        // Its entries (after the header's "..."): a character, its syllable, its weight.
+        let table = try String(contentsOf: RimeFixture.sharedData.appendingPathComponent("cn_dicts/8105.dict.yaml"), encoding: .utf8)
+        var syllables = Set<String>(), body = false
+        for line in table.split(whereSeparator: \.isNewline) {
+            if !body { body = line.trimmingCharacters(in: .whitespaces) == "..."; continue }
+            let columns = line.split(separator: "\t")
+            guard !line.hasPrefix("#"), columns.count > 1 else { continue }
+            syllables.formUnion(columns[1].split(separator: " ").map(String.init))
+        }
+        #expect(syllables.count > 400)
+        #expect(syllables.subtracting(Pinyin.syllables).isEmpty, "\(syllables.subtracting(Pinyin.syllables).sorted())")
+        let schema = try String(contentsOf: RimeFixture.sharedData.appendingPathComponent("rime_ice.schema.yaml"), encoding: .utf8)
+        let derived = spellerDerivations(schema)
+        #expect(derived.count == Pinyin.algebra.count && zip(derived, Pinyin.algebra).allSatisfy { $0 == $1 }, "\(derived)")
+    }
+
     @Test func bedrockComesUpOnceLearned() throws {
         let session = try RimeFixture.session()
         let engine = EnglishWordsEngine(base: session, dictionary: try englishDictionary())
@@ -115,6 +133,21 @@ extension RimeEngineTests {
         #expect(shown(composer).first == "你好")
         #expect(commits(composer.handleKeyDown(space)) == ["你好"])
     }
+}
+
+/// The rules of a Rime schema's `speller/algebra` that derive a spelling ("- derive/([nl])ve$/$1ue/  # comment"), in
+/// order, the commented-out ones left out.
+private func spellerDerivations(_ schema: String) -> [(pattern: String, template: String)] {
+    var out: [(pattern: String, template: String)] = [], speller = false, algebra = false
+    for line in schema.split(whereSeparator: \.isNewline).map(String.init) {
+        if !line.hasPrefix(" ") && !line.hasPrefix("#") { speller = line.hasPrefix("speller:"); algebra = false; continue }
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        if speller, trimmed.hasPrefix("algebra:") { algebra = true; continue }
+        guard speller, algebra, trimmed.hasPrefix("- derive/") else { continue }
+        let rule = trimmed.dropFirst("- derive/".count).split(separator: "/", omittingEmptySubsequences: false)
+        if rule.count >= 2 { out.append((String(rule[0]), String(rule[1]))) }
+    }
+    return out
 }
 
 /// rime-ice's English dictionary, as librime's service read it once it started.

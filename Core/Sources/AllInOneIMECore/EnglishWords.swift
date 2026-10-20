@@ -232,42 +232,78 @@ public struct EnglishDictionary: Sendable {
 /// Mandarin pinyin as rime-ice reads it, for where an English word goes among its candidates (`EnglishWordsEngine`) and
 /// what isn't learned as one.
 enum Pinyin {
-    /// The syllables, without the interjections that are consonants alone (m, ng, hm): "mm" isn't two syllables.
-    static let syllables = RedactionWords.pinyin.subtracting(["m", "ng", "hm"])
+    /// The syllables: the system's list with those rime-ice spells and it lacks (这个 zhei, 得 dei, 忒 tei, 𰻞 biang; its
+    /// character table's, which `EnglishWordsRimeTests` checks), without the interjections that are consonants alone (m,
+    /// ng, hm; rime-ice's speller erases them): "mm" isn't two syllables.
+    static let syllables = RedactionWords.pinyin.union(["biang", "cei", "dei", "nia", "tei", "zhei"]).subtracting(["m", "ng", "hm"])
+    /// The spellings rime-ice's speller derives from a syllable (its `speller/algebra` in rime_ice.schema.yaml, in order;
+    /// `EnglishWordsRimeTests` checks them): ü typed as u or v, and its corrections of letters typed in the wrong order
+    /// ("hzi" and "zih" for zhi, "wie" for wei, "zhogn" for zhong) or left out ("do" for dou).
+    static let algebra: [(pattern: String, template: String)] = [
+        ("^([nl])ve$", "$1ue"), ("^([jqxy])u", "$1v"), ("^([nl])ue$", "$1ve"), ("^([jqxy])v", "$1u"),
+        ("([zcs])h(a|e|i|u|ai|ei|an|en|ou|uo|ua|un|ui|uan|uai|uang|ang|eng|ong)$", "h$1$2"), ("([zcs])h([aeiu])$", "$1$2h"),
+        ("^([wghk])ai$", "$1ia"), ("([wfghkz])ei$", "$1ie"), ("([jqx])ie$", "$1ei"), ("([rtypsdghklzcbnm])ao$", "$1oa"),
+        ("([ypfm])ou$", "$1uo"), ("([wrtypsdfghklzcbnm])ang$", "$1nag"), ("([wrtypsdfghklzcbnm])ang$", "$1agn"),
+        ("([wrtpsdfghklzcbnm])eng$", "$1neg"), ("([wrtpsdfghklzcbnm])eng$", "$1egn"), ("([qtypdjlxbnm])ing$", "$1nig"),
+        ("([qtypdjlxbnm])ing$", "$1ign"), ("([rtysdghklzcn])ong$", "$1nog"), ("([rtysdghklzcn])ong$", "$1ogn"),
+        ("([qtpdjlxbnm])iao$", "$1ioa"), ("([qtpdjlxbnm])iao$", "$1oia"), ("([rtsghkzc])ui$", "$1iu"), ("([qjlxnm])iu$", "$1ui"),
+        ("([qjlxn])iang$", "$1aing"), ("([qjlxn])iang$", "$1inag"), ("([g|k|h|zh|sh])ua$", "$1au"), ("([g|h|k|zh|ch|sh])uai$", "$1aui"),
+        ("([qrtysdghjklzxcn])uan$", "$1aun"), ("([nlyjqx])ue$", "$1eu"), ("([g|h|k|zh|ch|sh])uang$", "$1aung"),
+        ("([g|h|k|zh|ch|sh])uang$", "$1uagn"), ("([g|h|k|zh|ch|sh])uang$", "$1unag"), ("([g|h|k|zh|ch|sh])uang$", "$1augn"),
+        ("([jqx])iong$", "$1inog"), ("([jqx])iong$", "$1oing"), ("([jqx])iong$", "$1iogn"), ("([jqx])iong$", "$1oign"),
+        // Letters left out: "do" for dou and dong, "lon" for long, "ten" for teng, "lng" for lang, leng, ling and long.
+        ("([rtsdghkzc])o(u|ng)$", "$1o"), ("(.+)ong$", "$1on"), ("([tl])eng$", "$1en"), ("([qwrtypsdfghjklzxcbnm])([aeio])ng$", "$1ng"),
+    ]
+    /// The syllables as rime-ice's speller reads them: as spelled, and as its `algebra` derives them, each rule applied to
+    /// what the ones before it gave.
+    static let spellings: Set<String> = {
+        var out = syllables
+        for (pattern, template) in algebra {
+            let regex = try! NSRegularExpression(pattern: pattern)
+            for spelling in out {
+                let range = NSRange(location: 0, length: (spelling as NSString).length)
+                guard regex.firstMatch(in: spelling, range: range) != nil else { continue }
+                out.insert(regex.stringByReplacingMatches(in: spelling, range: range, withTemplate: template))
+            }
+        }
+        return out
+    }()
+    /// The longest spelling, in letters.
+    private static let longest = spellings.map(\.count).max() ?? 6
     /// The initials a syllable can be typed as on its own (rime-ice's abbreviations: "llm" for 来了吗).
     static let initials: Set<String> = Set("b p m f d t n l g k h j q x zh ch sh r z c s y w".split(separator: " ").map(String.init))
-    /// The beginnings of the syllables: what may end pinyin still being typed ("zhon").
-    static let syllablePrefixes: Set<String> = Set(syllables.flatMap { syllable in
-        (1...syllable.count).map { String(syllable.prefix($0)) }
+    /// The beginnings of the spellings: what may end pinyin still being typed ("zhon").
+    static let syllablePrefixes: Set<String> = Set(spellings.flatMap { spelling in
+        (1...spelling.count).map { String(spelling.prefix($0)) }
     })
 
-    /// Whether `letters` (lowercased) is pinyin: syllables only ("nihao", "xiaomi"), or, up to four letters, syllables
-    /// and initials ("rug" ru-g, "mac" ma-c, "llm"), which rime-ice takes for pinyin before an English word (its
-    /// `reduce_english_filter`).
+    /// Whether `letters` (lowercased) is pinyin: spellings only ("nihao", "xiaomi", "zheige", "zhogn"), or, up to four
+    /// letters, spellings and initials ("rug" ru-g, "mac" ma-c, "llm"), which rime-ice takes for pinyin before an English
+    /// word (its `reduce_english_filter`).
     static func isPinyin(_ letters: String) -> Bool {
         let s = Array(letters)
-        return splits(s, allowing: { syllables.contains($0) })
-            || s.count <= 4 && splits(s, allowing: { syllables.contains($0) || initials.contains($0) })
+        return splits(s, allowing: { spellings.contains($0) })
+            || s.count <= 4 && splits(s, allowing: { spellings.contains($0) || initials.contains($0) })
     }
 
-    /// Whether `letters` is pinyin still being typed: pinyin (`isPinyin`), or syllables then the beginning of one
+    /// Whether `letters` is pinyin still being typed: pinyin (`isPinyin`), or spellings then the beginning of one
     /// ("zhongg", "openr" o-pen-r).
     static func isPinyinBeingTyped(_ letters: String) -> Bool {
         if isPinyin(letters) { return true }
         let s = Array(letters)
         return (0..<s.count).contains { cut in
-            (cut == 0 || splits(Array(s[..<cut]), allowing: { syllables.contains($0) }))
+            (cut == 0 || splits(Array(s[..<cut]), allowing: { spellings.contains($0) }))
                 && syllablePrefixes.contains(String(s[cut...]))
         }
     }
 
-    /// Whether `s` is a run of units `allowing` takes (each six letters at most), with nothing left.
+    /// Whether `s` is a run of units `allowing` takes (each `longest` letters at most), with nothing left.
     private static func splits(_ s: [Character], allowing: (String) -> Bool) -> Bool {
         guard !s.isEmpty else { return false }
         var reachable = [Bool](repeating: false, count: s.count + 1)
         reachable[0] = true
         for start in 0..<s.count where reachable[start] {
-            for length in 1...min(6, s.count - start) where allowing(String(s[start..<(start + length)])) {
+            for length in 1...min(longest, s.count - start) where allowing(String(s[start..<(start + length)])) {
                 reachable[start + length] = true
             }
         }
