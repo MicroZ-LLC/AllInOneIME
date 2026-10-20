@@ -337,16 +337,25 @@ extension SelfTest {
               FileManager.default.fileExists(atPath: harness.appendingPathComponent("libprobe.dylib").path) else {
             return check(false, "the Electron harness in \(folder) (Electron and libprobe.dylib: make electron-harness)")
         }
+        // Electron's data (its caches, the page's storage) in a temporary folder, not under the user's Library; AppKit's
+        // defaults of Electron's app (com.github.Electron) still go to ~/Library/Preferences.
+        let userData = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-electron-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: userData, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: userData) }
         for field in ["composer", "textarea"] {
             var recordings: [String: [Reached]] = [:]
-            for script in ["shift-hold", "shift-tap", "shift-letter", "option-tap"] {
-                recordings[script] = reached(in: runElectronHarness(harness, script: script, field: field) ?? "")
+            func run(_ script: String, busy: Int? = nil) -> [Reached] {
+                reached(in: runElectronHarness(harness, script: script, field: field, busy: busy, userData: userData) ?? "")
             }
-            let busyTap = reached(in: runElectronHarness(harness, script: "shift-tap", field: field, busy: 250) ?? "")
+            for script in ["shift-hold", "shift-tap", "shift-letter", "option-tap"] { recordings[script] = run(script) }
+            let busyTap = run("shift-tap", busy: 250)
             checkElectronRecordings(hold: recordings["shift-hold"] ?? [], tap: recordings["shift-tap"] ?? [], busyTap: busyTap,
                                     letter: recordings["shift-letter"] ?? [], optionTap: recordings["option-tap"] ?? [],
                                     from: "Electron harness, \(field)", controller, client)
         }
+        let kept = (try? FileManager.default.contentsOfDirectory(atPath: userData.path)) ?? []
+        check(!kept.isEmpty, "the Electron harness kept its data in a temporary folder (\(kept.count) items: "
+              + "\(kept.sorted().prefix(3).joined(separator: ", "))…), removed after")
     }
 
     /// The harness's Electron, as npm installs it.
@@ -357,8 +366,9 @@ extension SelfTest {
     /// One run of the harness (its folder, `harness`): what its probe printed (nil: it didn't finish in time). Its key
     /// events go to its own window only, in its own process: the window is said to be key (`HARNESS_FAKE_KEY`; as it
     /// is while someone types in it) without taking the focus from the app in front. `busy`: milliseconds its page
-    /// takes over each key down (`HARNESS_BUSY`).
-    static func runElectronHarness(_ harness: URL, script: String, field: String, busy: Int? = nil) -> String? {
+    /// takes over each key down (`HARNESS_BUSY`). `userData`: the folder Electron keeps its data in
+    /// (`HARNESS_USER_DATA`).
+    static func runElectronHarness(_ harness: URL, script: String, field: String, busy: Int? = nil, userData: URL) -> String? {
         let output = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-electron-\(script)-\(field).txt")
         guard FileManager.default.createFile(atPath: output.path, contents: nil),
               let handle = try? FileHandle(forWritingTo: output) else { return nil }
@@ -370,13 +380,14 @@ extension SelfTest {
         process.executableURL = electronBinary(in: harness)
         process.arguments = [harness.path]
         // Of the self-test's environment (AWS keys, say), only what Electron needs to start: its home and temporary
-        // folders, the user; a plain PATH.
+        // folders, the user; a plain PATH. Its data in `userData`.
         var environment = ProcessInfo.processInfo.environment.filter { ["HOME", "TMPDIR", "USER", "LOGNAME"].contains($0.key) }
         environment["PATH"] = "/usr/bin:/bin:/usr/sbin:/sbin"
         environment["DYLD_INSERT_LIBRARIES"] = harness.appendingPathComponent("libprobe.dylib").path
         (environment["HARNESS_SCRIPT"], environment["HARNESS_FIELD"]) = (script, field)
         (environment["HARNESS_FAKE_KEY"], environment["HARNESS_DELAY"]) = ("1", "2")
         environment["HARNESS_BUSY"] = busy.map(String.init)
+        environment["HARNESS_USER_DATA"] = userData.path
         process.environment = environment
         (process.standardOutput, process.standardError) = (handle, FileHandle.nullDevice)
         do { try process.run() } catch {
