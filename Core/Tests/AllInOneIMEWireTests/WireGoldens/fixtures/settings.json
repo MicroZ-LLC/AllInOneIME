@@ -2,5 +2,6 @@
   "provider" : "anthropic",
   "inputLanguages" : ["en"],
   "maxTokens" : 1000,
-  "uiLanguage" : "en"
+  "uiLanguage" : "en",
+  "extensionFolders" : []
 }
