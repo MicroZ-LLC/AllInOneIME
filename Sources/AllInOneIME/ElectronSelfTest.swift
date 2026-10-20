@@ -294,7 +294,10 @@ extension SelfTest {
         let process = Process()
         process.executableURL = electronBinary(in: harness)
         process.arguments = [harness.path]
-        var environment = ProcessInfo.processInfo.environment
+        // Of the self-test's environment (AWS keys, say), only what Electron needs to start: its home and temporary
+        // folders, the user; a plain PATH.
+        var environment = ProcessInfo.processInfo.environment.filter { ["HOME", "TMPDIR", "USER", "LOGNAME"].contains($0.key) }
+        environment["PATH"] = "/usr/bin:/bin:/usr/sbin:/sbin"
         environment["DYLD_INSERT_LIBRARIES"] = harness.appendingPathComponent("libprobe.dylib").path
         (environment["HARNESS_SCRIPT"], environment["HARNESS_FIELD"]) = (script, field)
         (environment["HARNESS_FAKE_KEY"], environment["HARNESS_DELAY"]) = ("1", "2")
