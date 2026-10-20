@@ -141,11 +141,26 @@ extension SelfTest {
         REC 1.2911 flagsChanged 56 0x100 1.2844
         REC 1.7928 end
         """
+    /// Made by hand from those: a tap with the page busy, then Shift held for the long press, the tap's copies (and the
+    /// press's own down again) coming while it is held.
+    static let electronTapThenHoldBusy = """
+        REC 0.0000 script shift-tap-then-hold (by hand)
+        REC 0.0044 flagsChanged 56 0x20102 0.0002
+        REC 0.1082 flagsChanged 56 0x100 0.1076
+        REC 0.3000 flagsChanged 56 0x20102 0.2996
+        REC 0.3576 flagsChanged 56 0x20102 0.0002
+        REC 0.3580 flagsChanged 56 0x100 0.1076
+        REC 0.5500 flagsChanged 56 0x20102 0.2996
+        REC 1.5000 flagsChanged 56 0x100 1.4996
+        REC 1.5030 flagsChanged 56 0x100 1.4996
+        REC 1.7000 end
+        """
 
     /// Translate as You Type's long press in Slack (an Electron app: every modifier change twice): a long press turns it
     /// on and, again, off; a tap switches the input language once and toggles nothing, with the page busy too (the
     /// tap's copies after its release); Shift held with a capital, or with the pointer used (a Shift-click), toggles
-    /// nothing. A tap of ⌥, the action key, acts once. Then the live harness, when there is one.
+    /// nothing. A tap of ⌥, the action key, acts once. The controller drops a copy before the composer and the long
+    /// press see it, in any text field (`checkCopiesDroppedFirst`). Then the live harness, when there is one.
     static func testShiftHoldInElectron(_ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
         section("Translate as You Type's long press of Shift in an Electron app (Slack)", needs: .composing)
         let saved = (settings: settings, pointer: TranslateModeShared.pointer, stickyKeys: TranslateModeShared.stickyKeys,
@@ -182,6 +197,7 @@ extension SelfTest {
         checkElectronRecordings(hold: reached(in: electronShiftHold), tap: reached(in: electronShiftTap),
                                 busyTap: reached(in: electronShiftTapBusy), letter: reached(in: electronShiftLetter),
                                 optionTap: reached(in: electronOptionTap), from: "recorded", controller, client)
+        checkCopiesDroppedFirst(controller, client)
         testElectronHarness(controller, client)
     }
 
@@ -246,6 +262,65 @@ extension SelfTest {
         settings.actionKey = actionKey
         controller.applySettings()
         client.inserted.removeAll()
+    }
+
+    /// The controller drops a copy before anything sees it (`handleFlagsChanged`): before the composer and before the
+    /// long press, in any text field. A tap with the page busy, then a long press with the tap's copies coming while
+    /// Shift is held: one switch, and Translate as You Type on (the copy of the tap's release, reaching the long press,
+    /// would end the press; reaching the composer, the two copies would switch back). Then Shift+Tab with the page busy:
+    /// the focus in the next field before Shift's copies come; there the copy of Shift's down and the release would be a
+    /// tap, but the copy is known in every field (the composer of each field its own).
+    static func checkCopiesDroppedFirst(_ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
+        let onHint = tr("继续按住 → 边打边译", "Keep holding → Translate as You Type")
+        var hinted = false
+        replay(reached(in: electronTapThenHoldBusy), controller, client, after: 0.2) {
+            hinted = hinted || controller.notice == onHint
+        }
+        check(hinted && TranslateModeShared.state.isOn && controller.composer.inputLanguage == .english,
+              "a tap with the page busy, then a long press with its copies coming while Shift is held: the input language "
+              + "switched once (\(controller.composer.inputLanguage)) and Translate as You Type on (\(controller.notice ?? "-"))")
+        if TranslateModeShared.state.isOn { replay(reached(in: electronShiftHold), controller, client, after: 0.2) }  // off again
+        if let notice = controller.notice { controller.endNotice(notice) }
+        if controller.composer.inputLanguage == .english { tapShift(controller, client) }
+
+        guard let other = AllInOneIMEInputController(server: controller.server(), delegate: nil, client: nil) else {
+            return check(false, "a second text field's controller")
+        }
+        let otherClient = FakeTextClient()
+        otherClient.bundleIDOverride = client.bundleIDOverride
+        other.clientOverride = otherClient
+        other.loadSettings = { SelfTest.settings }
+        (other.loadCommandUsage, other.saveCommandUsage) = ({ CommandUsage() }, { _ in })
+        other.loadExtensions = { _, _ in .empty }
+        (other.recordApp, other.takeRenameNotice) = ({ _ in }, { _ in nil })
+        (other.warmsUpVision, other.selectionByAccessibility) = (false, false)
+        other.pointerUsedWithin = { _ in false }
+        /// Shift's change into `field`, at `time`.
+        func shift(_ field: AllInOneIMEInputController, _ fieldClient: FakeTextClient, down: Bool, at time: TimeInterval) {
+            guard let event = NSEvent.keyEvent(
+                with: .flagsChanged, location: .zero, modifierFlags: NSEvent.ModifierFlags(rawValue: down ? 0x20102 : 0x100),
+                timestamp: time, windowNumber: 0, context: nil, characters: "", charactersIgnoringModifiers: "",
+                isARepeat: false, keyCode: VirtualKey.leftShift)
+            else { return }
+            _ = field.handle(event, client: fieldClient)
+        }
+        controller.composer.setInputMode(.chinese)
+        let pressed = ProcessInfo.processInfo.systemUptime, released = pressed + 0.12
+        shift(controller, client, down: true, at: pressed)
+        press(controller, client, "\t", code: VirtualKey.tab, flags: .shift)
+        controller.deactivateServer(client)
+        other.activateServer(otherClient)
+        other.composer.setInputMode(.chinese)
+        shift(other, otherClient, down: true, at: pressed)  // the page let Shift's down go by: its copy
+        _ = pump(timeout: released - ProcessInfo.processInfo.systemUptime + 0.01) { false }
+        shift(other, otherClient, down: false, at: released)
+        shift(other, otherClient, down: false, at: released)
+        check(other.composer.inputLanguage == .chinese && controller.composer.inputLanguage == .chinese,
+              "Shift+Tab with the page busy, Shift's copy reaching the next field: no switch there "
+              + "(\(other.composer.inputLanguage)) nor in the field it left (\(controller.composer.inputLanguage))")
+        other.deactivateServer(otherClient)
+        other.inputControllerWillClose()
+        controller.activateServer(client)
     }
 
     /// The Electron harness itself, when `ALLINONEIME_ELECTRON_HARNESS` names its folder (`make electron-harness`: its
