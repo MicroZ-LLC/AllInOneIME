@@ -26,6 +26,71 @@ final class CannedGuidedModel: AppleGuidedBackend, @unchecked Sendable {
     }
 }
 
+/// Holds whoever waits on it until it opens, cancelled or not.
+final class SelfTestGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var isOpen = false
+    private var waiting: [CheckedContinuation<Void, Never>] = []
+    private var arrived = 0
+
+    /// How many have come to it.
+    var arrivals: Int { lock.withLock { arrived } }
+
+    func wait() async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            lock.lock()
+            arrived += 1
+            if isOpen {
+                lock.unlock()
+                continuation.resume()
+            } else {
+                waiting.append(continuation)
+                lock.unlock()
+            }
+        }
+    }
+
+    func open() {
+        lock.lock()
+        isOpen = true
+        let all = waiting
+        waiting = []
+        lock.unlock()
+        all.forEach { $0.resume() }
+    }
+}
+
+/// Stands in for the on-device model in the page's checks: a request whose sentence has `marker` in it is too long by
+/// the model's count, given once `gate` opens (cancelled or not, as the framework's count goes on): the user's own
+/// provider is asked instead. Any other is answered with `answer`.
+final class TooLongGuidedModel: AppleGuidedBackend, @unchecked Sendable {
+    let marker: String
+    let gate: SelfTestGate?
+    let answer: String
+
+    init(marker: String, gate: SelfTestGate? = nil, answer: String) {
+        self.marker = marker
+        self.gate = gate
+        self.answer = answer
+    }
+
+    var availability: AppleModelAvailability { .available }
+    var contextSize: Int { 4096 }
+    var supportedLanguages: Set<String> { ["en", "zh"] }
+
+    func respond(to request: AppleModelRequest) -> AsyncThrowingStream<AppleModelSnapshot, Error> {
+        AsyncThrowingStream { $0.finish(throwing: AppleModelError.failed("the self-test's model is held to a schema")) }
+    }
+
+    func tokenCount(of request: AppleModelRequest, schema: GuidedSchema, tools: [GuidedTool]) async -> Int? {
+        guard request.prompt.contains(marker) else { return nil }
+        await gate?.wait()
+        return 100_000
+    }
+
+    func respond(to request: AppleModelRequest, schema: GuidedSchema, tools: [GuidedTool]) async throws -> String { answer }
+}
+
 extension SelfTest {
     /// What Settings → Assistant runs against in the self-test: a config file of its own, a stand-in on-device model,
     /// made-up apps and keys, a stand-in connection test and fake probes; the key field and the fixes' actions recorded,
@@ -229,6 +294,8 @@ extension SelfTest {
         check(assistant.applied == "Changed 3 settings", "the confirmation in English (\(assistant.applied ?? "-"))")
         assistant.reset()
 
+        testSentInsteadIsTheRequestsOwn(snapshotDirectory: snapshotDirectory)
+
         testRememberQuestionsReload(snapshotDirectory: snapshotDirectory)
         testKeyStatus(snapshotDirectory: snapshotDirectory)
         testKeyFieldsKeepKeys(snapshotDirectory: snapshotDirectory)
@@ -236,6 +303,76 @@ extension SelfTest {
         testFieldsFollowOutsideWrites(snapshotDirectory: snapshotDirectory)
         testAgentCommandFollowsOutsideWrites(snapshotDirectory: snapshotDirectory)
         testSettingsSavesOnlyItsChanges(snapshotDirectory: snapshotDirectory)
+    }
+
+    /// The line over the preview that says the request went to the user's own provider (too long for the on-device
+    /// model) is that request's alone: one cancelled, or replaced by another, while the model was still counting it says
+    /// nothing when it gets to the provider, over the next one's preview or after; Cancel takes the line away with the
+    /// request; a request answered on the device has none. The provider is never reached (its credentials are held,
+    /// then refused).
+    static func testSentInsteadIsTheRequestsOwn(snapshotDirectory: URL) {
+        var start = settings
+        start.provider = .bedrock
+        start.candidateLayout = .horizontal  // the canned answer changes it, whatever sections before left
+        let rig = AssistantRig(snapshotDirectory, name: "assistant-instead.json", config: start)
+        UIText.choice = .english
+        let credentials = SelfTestGate()
+        defer {
+            credentials.open()
+            rig.restore()
+        }
+        func use(_ model: TooLongGuidedModel) {
+            AIConfigSession.service = AIConfigService(client: ChatClient(apple: model), loadCredentials: { _ in
+                await credentials.wait()
+                throw AWSConfigError.profileNotFound("selftest")
+            }, loadKey: { _, _ in nil })
+        }
+        let canned = #"{"changes": [{"key": "candidateLayout", "value": "vertical"}]}"#
+        let instead = AIConfig.Text(language: "en").sentInstead(.bedrock)
+        let assistant = AssistantModel()
+        defer { assistant.reset() }
+
+        // Replaced while the model counted it: the next request is answered on the device, and the first, too long, says
+        // nothing over its preview.
+        let replaced = SelfTestGate()
+        use(TooLongGuidedModel(marker: "slowly", gate: replaced, answer: canned))
+        assistant.request = "candidates in a column, slowly"
+        assistant.sendRequest()
+        _ = pump(timeout: 5) { replaced.arrivals > 0 }
+        assistant.request = "candidates in a column"
+        assistant.sendRequest()
+        _ = pump(timeout: 10) { !assistant.working }
+        let answered = assistant.preview != nil && assistant.notice == nil
+        replaced.open()
+        _ = pump(timeout: 1) { assistant.notice != nil }
+        check(replaced.arrivals == 1 && answered && assistant.preview != nil && assistant.notice == nil && assistant.message == nil,
+              "a request replaced while the model counted it says nothing over the next one's preview (\(assistant.notice ?? "no line"); "
+                  + "\(assistant.lines), \(assistant.message ?? "no message"))")
+
+        // Cancelled while the model counted it: nothing after.
+        let cancelled = SelfTestGate()
+        use(TooLongGuidedModel(marker: "slowly", gate: cancelled, answer: canned))
+        assistant.request = "candidates in a column, slowly"
+        assistant.sendRequest()
+        _ = pump(timeout: 5) { cancelled.arrivals > 0 }
+        assistant.cancelRequest()
+        cancelled.open()
+        _ = pump(timeout: 1) { assistant.notice != nil }
+        check(cancelled.arrivals == 1 && assistant.notice == nil && !assistant.working && assistant.preview == nil && assistant.message == nil,
+              "a request cancelled while the model counted it says nothing after (\(assistant.notice ?? "no line"))")
+
+        // Cancelled on its way to the provider: the line goes with it.
+        use(TooLongGuidedModel(marker: "slowly", answer: canned))
+        assistant.request = "candidates in a column, slowly"
+        assistant.sendRequest()
+        _ = pump(timeout: 5) { assistant.notice != nil }
+        let said = assistant.notice == instead && assistant.working
+        assistant.cancelRequest()
+        let gone = assistant.notice == nil && !assistant.working
+        credentials.open()
+        _ = pump(timeout: 1) { assistant.notice != nil || assistant.message != nil }
+        check(said && gone && assistant.notice == nil && assistant.message == nil,
+              "Cancel on the way to the provider takes the line that says so away, and nothing comes after (said: \(said), gone: \(gone))")
     }
 
     /// The settings the page's images are made from: made-up, never the user's (a provider without a key, a typing speed

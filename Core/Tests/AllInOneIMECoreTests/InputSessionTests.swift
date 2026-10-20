@@ -671,7 +671,9 @@ struct InputSessionTests {
         }
     }
 
-    @Test func nothingToTranslateIntoOpensTheSettings() {
+    /// Nothing to translate into: no request and nothing opens by itself; the notice says where, and ⏎ on it puts
+    /// the sentence in as typed and opens the settings there (`NoTranslationTargetTests` has the composer's side).
+    @Test func nothingToTranslateIntoOpensTheSettingsOnReturn() {
         inEnglish {
             let settings = Settings()
             settings.config.setOrder([OutputLanguage.english])
@@ -680,9 +682,15 @@ struct InputSessionTests {
             pick("tr", in: host)
             host.type("hello there")
             host.press(FakeHost.enter)
-            #expect(host.settingsOpened == [.outputLanguages], "\(host.settingsOpened)")
-            #expect(host.composer.phase == .failed("No language to translate into yet: add one under Translate & Rewrite in the settings"),
+            let notice = "No language to translate into yet: \(Platform.current.terms.enter) opens Settings → Translate & Rewrite to add one"
+            #expect(host.settingsOpened.isEmpty, "\(host.settingsOpened)")
+            #expect(host.composer.phase == .failed(notice) && host.composer.failureFixedIn == .translationLanguages,
                     "\(host.composer.phase)")
+            #expect(host.panel?.footer.hasPrefix("Space / \(Platform.current.terms.enter) open the settings") == true,
+                    "\(host.panel?.footer ?? "-")")
+            host.press(FakeHost.enter)
+            #expect(host.settingsOpened == [.translationLanguages], "\(host.settingsOpened)")
+            #expect(host.document == "hello there" && host.composer.phase == .idle, "\(host.document)")
         }
     }
 

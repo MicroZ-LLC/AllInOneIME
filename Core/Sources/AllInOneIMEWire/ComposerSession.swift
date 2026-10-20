@@ -393,9 +393,9 @@ public final class ComposerSession: @unchecked Sendable {
     static func isPrivileged(_ effect: Composer.Effect) -> Bool {
         switch effect {
         case .startCommand, .search, .open, .openLink, .runInTerminal, .continueInClaudeCode, .continueInAgent,
-             .launchInTerminal, .startBackgroundAgent, .listAgents, .openSettings, .saveNote, .previewReminder,
-             .addReminder, .startRun, .startScript, .startBackgroundScript, .sendMessage, .rememberQuestion, .reask,
-             .startPlan, .copy, .readClipboard, .startVoice, .armVoice:
+             .launchInTerminal, .startBackgroundAgent, .listAgents, .openSettings, .openSettingsAt, .saveNote,
+             .previewReminder, .addReminder, .startRun, .startScript, .startBackgroundScript, .sendMessage,
+             .rememberQuestion, .reask, .startPlan, .copy, .readClipboard, .startVoice, .armVoice:
             return true
         default:
             return false
@@ -405,7 +405,8 @@ public final class ComposerSession: @unchecked Sendable {
     /// Effects after which the engine's window or another program comes to the front (§6 `allowForeground`).
     static func takesForeground(_ effect: Composer.Effect) -> Bool {
         switch effect {
-        case .open, .openLink, .runInTerminal, .continueInClaudeCode, .continueInAgent, .launchInTerminal, .openSettings:
+        case .open, .openLink, .runInTerminal, .continueInClaudeCode, .continueInAgent, .launchInTerminal, .openSettings,
+             .openSettingsAt:
             return true
         default:
             return false

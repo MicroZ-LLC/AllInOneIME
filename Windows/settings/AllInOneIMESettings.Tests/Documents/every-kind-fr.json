@@ -52,7 +52,7 @@
       "value": false
      },
      {
-      "help": "Sélectionnez du texte, puis tapez @improve, @translate, @question… et Enter : la commande agit sur la sélection (elle reste sélectionnée et intacte pendant la saisie), et le résultat choisi la remplace ; Esc ne change rien. Désactivez cette option si elle pose problème dans une app.",
+      "help": "Sélectionnez du texte, puis tapez @improve, @translate, @question… et Enter : la commande agit sur la sélection (elle reste sélectionnée et intacte pendant la saisie), et le résultat choisi la remplace ; Esc ne change rien. Désactivez cette option si elle pose problème dans une app.",
       "id": "useSelection",
       "kind": "toggle",
       "label": "Utiliser le texte sélectionné",
@@ -997,7 +997,7 @@
         "placeholder": "Affichée dans la liste des commandes (facultatif)"
        },
        {
-        "help": "Indiquez à l’IA quoi faire du texte qui suit la commande, p. ex. « Rédige une réponse courte et polie au message de l’utilisateur. » La réponse apparaît dans les candidats ; Enter l’insère.",
+        "help": "Indiquez à l’IA quoi faire du texte qui suit la commande, p. ex. « Rédige une réponse courte et polie au message de l’utilisateur. » La réponse apparaît dans les candidats ; Enter l’insère.",
         "id": "prompt",
         "kind": "text",
         "label": "Instruction pour l’IA",
@@ -1092,7 +1092,7 @@
         "id": "programs",
         "kind": "info",
         "label": "",
-        "value": "Les programmes s’exécutent sur ce PC : n’ajoutez que des commandes que vous avez écrites et en lesquelles vous avez confiance. Ils ne s’exécutent que lorsque vous appuyez sur la touche d’action, jamais dans les champs de mot de passe.",
+        "value": "Les programmes s’exécutent sur ce PC : n’ajoutez que des commandes que vous avez écrites et en lesquelles vous avez confiance. Ils ne s’exécutent que lorsque vous appuyez sur la touche d’action, jamais dans les champs de mot de passe.",
         "when": {
          "type": [
           "run",
@@ -1138,9 +1138,9 @@
    "add": "Ajouter…",
    "cancel": "Annuler",
    "choose": "Choisir…",
-   "confirm.delete": "Supprimer « {name} » ?",
-   "confirm.removeItem": "Retirer « {name} » ?",
-   "confirm.removeKey": "Supprimer « {name} » ?",
+   "confirm.delete": "Supprimer « {name} » ?",
+   "confirm.removeItem": "Retirer « {name} » ?",
+   "confirm.removeKey": "Supprimer « {name} » ?",
    "moveDown": "Descendre",
    "moveUp": "Monter",
    "paste": "Collez-la",

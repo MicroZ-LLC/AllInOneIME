@@ -43,6 +43,13 @@ public struct Config: Codable, Equatable, Sendable {
     /// The language `text` is written in (`Language.of`): French only for someone who types it.
     public func language(of text: String) -> Language { Language.of(text, french: inputLanguages.contains(.french)) }
 
+    /// Whether what is typed has a language to be translated into: an output language other than one of the input
+    /// languages (text already in the language goes in as it is). A new user whose Mac has English alone has none until
+    /// one is added: English typed, English out.
+    public var hasLanguageToTranslateInto: Bool {
+        outputLanguages.contains { output in inputLanguages.contains { !$0.matches(output) } }
+    }
+
     /// At least one input language, at most this many.
     public static let maxInputLanguages = 5
     /// Mode a new text field starts in: pinyin (Chinese) or English letters. Always the first of `inputLanguages`.

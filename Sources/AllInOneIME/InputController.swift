@@ -78,8 +78,8 @@ final class AllInOneIMEInputController: IMKInputController {
     }
     /// Opens a background `@agent` task (Claude Code's) in Terminal.
     var openAgent: (String) -> Void = { id in MainActor.assumeIsolated { AgentMonitor.shared.open(id) } }
-    /// Opens the settings window on `page` (the self-test records it instead).
-    var openSettings: @MainActor (SettingsPage) -> Void = { SettingsWindow.shared.show(page: $0) }
+    /// Opens the settings window on `page`, pointing at `spot` there if given (the self-test records it instead).
+    var openSettings: @MainActor (SettingsPage, SettingsSpot?) -> Void = { SettingsWindow.shared.show(page: $0, spot: $1) }
     /// The browser's process when `@agent`'s page is to be read in `app` (`PageContextReader.applies`; the self-test reads
     /// none), and reading it: off the main thread (`SessionServices.page`).
     var pageProcess: (String?) -> pid_t? = { app in
@@ -226,7 +226,8 @@ final class AllInOneIMEInputController: IMKInputController {
             // The app's own starting language, rewrite styles, typing out (`AppProfile`); a terminal pastes on ⌘V itself.
             let field = FieldInfo(app: app, terminal: app.map(SecureInput.terminals.contains) ?? false)
             apply(session.handle(.focus(field)).outputs, client: sender as? IMKTextInput)
-            translateModeFollow(services.loadSettings())  // Translate as You Type's target removed: the first output language
+            // Translate as You Type's target removed: the first output language typed text goes into, else off.
+            translateModeFollow(services.loadSettings())
             translateModeActivated(app: app)  // another app leaves Translate as You Type, unless it translates always
             // A custom command renamed because a built-in has its name now: said once, last (no notice above covers it)
             apply(session.tellBuiltinRenames(), client: sender as? IMKTextInput)
@@ -490,7 +491,8 @@ final class AllInOneIMEInputController: IMKInputController {
                            charactersIgnoringModifiers: event.charactersIgnoringModifiers ?? "",
                            modifiers: Self.modifiers(event.modifierFlags), isRepeat: event.isARepeat)
         let context = fieldContext(for: key, in: target)
-        // Translate as You Type's target removed from the settings: the first output language, before the key.
+        // Translate as You Type's target removed from the settings: the first output language typed text is translated
+        // into (else off), before the key.
         if !context.secure, !composer.isComposing { translateModeFollow(services.loadSettings()) }
         let response = session.handle(.key(key, context))
         apply(response.outputs, client: client)
@@ -498,8 +500,27 @@ final class AllInOneIMEInputController: IMKInputController {
         return response.handled
     }
 
+    /// The latest time of each modifier change handed over, whatever the text field (a copy may reach another one).
+    @MainActor private static var modifierEchoes = ModifierEchoes()
+
     @MainActor
     func handleFlagsChanged(_ event: NSEvent, client: IMKTextInput?) {
+        // Chromium and Electron apps (Slack, VS Code, Chrome) hand every modifier change over twice, the same event,
+        // after the next change too when the page is busy: the copy changes nothing, for the session's composer (a tap
+        // of Shift or ⌥) and the long press of Shift alike.
+        guard !Self.modifierEchoes.isEcho(keyCode: event.keyCode, flags: event.modifierFlags.rawValue,
+                                          timestamp: event.timestamp, now: ProcessInfo.processInfo.systemUptime) else {
+            // Each copy dropped, how long after the event's time it came (`log stream --level debug --predicate
+            // 'subsystem == "com.aipinyin.inputmethod.AIPinyin" AND eventMessage BEGINSWITH "modifier copy"'`): what
+            // shows a real app hands the copy over with the event's own time.
+            let late = (ProcessInfo.processInfo.systemUptime - event.timestamp) * 1000
+            log.debug("""
+                modifier copy dropped: key \(event.keyCode, privacy: .public), flags \
+                \(event.modifierFlags.rawValue, format: .hex(includePrefix: true), privacy: .public), \
+                \(late, format: .fixed(precision: 1), privacy: .public) ms after its time
+                """)
+            return
+        }
         let target: IMKTextInput? = client ?? clientOverride ?? self.client()
         // The key was held up to the event; the pointer is asked later, so look back that much further.
         let change = ModifierChange(key: MacKeyCodes.key(event.keyCode), modifiers: Self.flagsChangedModifiers(event.modifierFlags),
@@ -665,9 +686,9 @@ final class AllInOneIMEInputController: IMKInputController {
                 openItem(item)
             case let .openAgent(id):
                 openAgent(id)  // in Terminal
-            case let .openSettings(topic):
-                switch topic {
-                case .outputLanguages?: openSettings(.writing)
+            case let .openSettings(place):
+                switch place {
+                case .translationLanguages?: openSettings(.writing, .outputLanguages)  // its Add… outlined
                 case nil: SettingsWindow.shared.show()
                 }
             case let .copy(text):

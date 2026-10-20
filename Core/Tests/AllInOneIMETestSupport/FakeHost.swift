@@ -35,7 +35,7 @@ public final class FakeHost: @unchecked Sendable {
     public private(set) var copied: [String] = []
     public private(set) var opened: [String] = []
     public private(set) var openedAgents: [String] = []
-    public private(set) var settingsOpened: [SettingsTopic?] = []
+    public private(set) var settingsOpened: [SettingsPlace?] = []
     public private(set) var typedOut: [String] = []
     public private(set) var noticesElsewhere: [String] = []
     public private(set) var platformActions: [PlatformAction] = []

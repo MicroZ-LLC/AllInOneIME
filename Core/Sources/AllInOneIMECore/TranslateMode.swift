@@ -5,8 +5,8 @@ import Foundation
 /// Translate as You Type (「边打边译」): typed text collects into a draft, and ⏎ translates it into one language and
 /// inserts the translation at once, with no candidates to pick from (⇧⏎ inserts the draft as typed). A long press of
 /// Shift on its own turns it on and off (`ShiftHold`); there is no command for it. It translates into the language picked
-/// last on its chip (`Chip`), at first the first output language (`target(last:outputs:)`), in a tone that follows the
-/// app (`tone(app:config:)`).
+/// last on its chip (`Chip`), at first the first output language other than the only one typed
+/// (`target(last:outputs:inputs:)`), in a tone that follows the app (`tone(app:config:)`).
 /// It is one input method's state across its text fields (`State`): switching to another app leaves it (`appActivated`,
 /// a text field or not), unless that app's profile translates always (`AppProfile.translateAlways`), where its field
 /// keeps it on or turns it on. The composer does the typing (Composer+TranslateMode.swift),
@@ -21,9 +21,18 @@ public enum TranslateMode {
     }
 
     /// The language it translates into: the one picked last (`last`, on the chip) while it is one of `outputs`, else
-    /// the first of them (nil: none). The language being typed has no say: text typed in the target goes in as typed.
-    public static func target(last: OutputLanguage?, outputs: [OutputLanguage]) -> OutputLanguage? {
-        last.flatMap { last in outputs.first { $0 == last } } ?? outputs.first
+    /// the first of them something typed (`inputs`, the input languages) is translated into, as
+    /// `Config.hasLanguageToTranslateInto` counts them: with English alone typed, English first and French added,
+    /// French (into English it would only ever put text in as typed). Else the first of them (nil: none). The language
+    /// being typed has no say: text typed in the target goes in as typed.
+    public static func target(last: OutputLanguage?, outputs: [OutputLanguage], inputs: [Language] = []) -> OutputLanguage? {
+        last.flatMap { last in outputs.first { $0 == last } } ?? first(of: outputs, from: inputs) ?? outputs.first
+    }
+
+    /// The first of `outputs` something typed (`inputs`, the input languages) is translated into, as
+    /// `Config.hasLanguageToTranslateInto` counts them; nil: none.
+    static func first(of outputs: [OutputLanguage], from inputs: [Language]) -> OutputLanguage? {
+        outputs.first { output in inputs.contains { !$0.matches(output) } }
     }
 
     /// One language as the chip writes it in the Chinese interface: 「英」, 「日」, 「繁」 …, else its Chinese name
@@ -63,11 +72,15 @@ public enum TranslateMode {
 
         public var isOn: Bool { session != nil }
 
-        /// Turns it on: into `last` (the language picked last) if it's still an output language, else the first one.
-        /// Nil, and nothing changes, when there's nothing to translate into.
+        /// Turns it on: into `last` (the language picked last) if it's still an output language, else the first one
+        /// something typed is translated into (`TranslateMode.target`). Nil, and nothing changes, when there's nothing
+        /// to translate into: no output language but the languages typed (`Config.hasLanguageToTranslateInto`; English
+        /// alone, say), where it would only ever put text in as typed.
         @discardableResult
         public mutating func enter(last: OutputLanguage?, config: Config) -> Session? {
-            guard let target = TranslateMode.target(last: last, outputs: config.outputLanguages) else { return nil }
+            guard config.hasLanguageToTranslateInto,
+                  let target = TranslateMode.target(last: last, outputs: config.outputLanguages, inputs: config.inputLanguages)
+            else { return nil }
             let session = Session(target: target)
             self.session = session
             return session
@@ -85,12 +98,15 @@ public enum TranslateMode {
             return session
         }
 
-        /// The settings were read again (`outputs`, the output languages now): a target no longer among them (removed in
-        /// the settings) gives way at once to the first of them; with none left it leaves. True: the session changed.
+        /// The settings were read again (`outputs`, the output languages now; `inputs`, the input languages): a target
+        /// no longer among them (removed in the settings) gives way at once to the one it would come on into with none
+        /// picked (`enter`), the first of them something typed is translated into; with none, it leaves, as it wouldn't
+        /// come on (English alone typed and English left: not on into English, where it would only put text in as
+        /// typed). True: the session changed.
         @discardableResult
-        public mutating func follow(outputs: [OutputLanguage]) -> Bool {
+        public mutating func follow(outputs: [OutputLanguage], inputs: [Language] = []) -> Bool {
             guard let session, !outputs.contains(session.target) else { return false }
-            self.session = outputs.first.map(Session.init(target:))
+            self.session = TranslateMode.first(of: outputs, from: inputs).map(Session.init(target:))
             return true
         }
 
@@ -102,7 +118,7 @@ public enum TranslateMode {
 
         /// A text field of `app` became active. Another field of the same app changes nothing. Another app leaves
         /// the mode, unless its profile translates always (`AppProfile.translateAlways`): there it stays on, or comes
-        /// on (as `enter`, into `last` or the first output language).
+        /// on (as `enter`, into `last` or the first output language something typed is translated into).
         public mutating func activated(app: String?, last: OutputLanguage?, config: Config) -> Transition {
             let same = sawApp && app?.lowercased() == self.app?.lowercased()
             (self.app, sawApp) = (app, true)
@@ -173,7 +189,10 @@ public enum TranslateMode {
     /// (`flagsChanged` says so), and the controller asks `poll` after `hintAfter` and after `toggleAfter`: the hint
     /// ("keep holding") is due once it has been held `hintAfter`, the toggle once `toggleAfter`, each once per press.
     /// Any key, another modifier (fn too), the release, or the pointer used or moved meanwhile (a Shift-click, aimed)
-    /// ends the press. With Sticky Keys on there is none: a Shift it latches looks held.
+    /// ends the press. With Sticky Keys on there is none: a Shift it latches looks held. A modifier change handed over
+    /// twice counts once: Chromium and Electron apps (Slack, VS Code, Chrome) hand the input method every one twice. The
+    /// shell drops such a copy before it gets here (`ModifierEchoes`); of those, this drops again only the one right
+    /// after its original, whatever its time.
     public struct ShiftHold {
         public static let hintAfter: TimeInterval = 0.5
         public static let toggleAfter: TimeInterval = 1.0
@@ -197,6 +216,8 @@ public enum TranslateMode {
         /// Whether Shift was down after the last modifier change: the other Shift pressed or let go meanwhile starts
         /// no press.
         private var shiftDown = false
+        /// The last modifier change: its key and the modifiers down after it (nil: none since `resync`).
+        private var lastChange: (key: Key, modifiers: Modifiers)?
         private var hinted = false
         private var toggled = false
 
@@ -214,13 +235,23 @@ public enum TranslateMode {
 
         /// A modifier changed: `keyCode` the key, `modifiers` those down now (fn as `.function`). True when Shift went
         /// down on its own (no Shift before, nothing else held but Caps Lock) and Sticky Keys is off: poll after
-        /// `hintAfter` and `toggleAfter`. Anything else ends a press.
+        /// `hintAfter` and `toggleAfter`. Anything else ends a press, but the same change again (the same key, the same
+        /// modifiers after it), which is the last one handed over a second time and changes nothing.
         public mutating func flagsChanged(keyCode: UInt16, modifiers: KeyModifiers) -> Bool {
             flagsChanged(key: MacKeyCodes.key(keyCode), modifiers: modifiers)
         }
 
         /// `flagsChanged(keyCode:modifiers:)` with the key that changed as a `Key`.
         public mutating func flagsChanged(key: Key, modifiers: Modifiers) -> Bool {
+            // Chromium sends a key event the page let go by through the app again, and AppKit hands a modifier change
+            // to the input method there: Shift's down comes a second time 5–20 ms later, as if Shift were already held
+            // (the other Shift). Nothing changed: the press goes on. The shell drops such copies first by their time
+            // (`ModifierEchoes`), after other changes too. This is a narrower check under it, for the long press only:
+            // the copy right after its original, even with no time (0) or another one. One after other changes (the
+            // page busy) gets by it, and the composer (a tap of Shift or ⌥) has none: should a copy come with a time
+            // other than its original's, the shell lets it by and a tap acts twice.
+            if let last = lastChange, last.key == key, last.modifiers == modifiers { return false }
+            lastChange = (key, modifiers)
             let isShift = key.modifierKind == .shift
             let wasDown = shiftDown
             shiftDown = modifiers.contains(.shift)
@@ -239,10 +270,11 @@ public enum TranslateMode {
 
         /// Modifier changes may have gone unseen (another field, another app, secure input): no press, and Shift down
         /// or not as it really is (`shiftDown`), so a release missed doesn't make the next press look like the other
-        /// Shift's.
+        /// Shift's; the next change counts, even one like the last seen.
         public mutating func resync(shiftDown: Bool) {
             cancel()
             self.shiftDown = shiftDown
+            lastChange = nil
         }
 
         /// What is due now (a timer went off): the hint, then the toggle, each once. `pointerUsed`: a mouse button, a

@@ -3732,7 +3732,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ exécute une commande @ ; Enter aussi, et sans @, Enter fonctionne normalement."
+            "value" : "%@ exécute une commande @ ; Enter aussi, et sans @, Enter fonctionne normalement."
           }
         },
         "ja" : {
@@ -11229,7 +11229,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Retirer « {name} » ?"
+            "value" : "Retirer « {name} » ?"
           }
         },
         "ja" : {
@@ -12780,7 +12780,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Supprimer « {name} » ?"
+            "value" : "Supprimer « {name} » ?"
           }
         },
         "ja" : {
@@ -17204,7 +17204,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ce qui ressemble à une clé, à un numéro de carte ou de téléphone, ou à une adresse IP n’a pas été ajouté : vos mots anglais apparaissent parmi les candidats."
+            "value" : "Ce qui ressemble à une clé, à un numéro de carte ou de téléphone, ou à une adresse IP n’a pas été ajouté : vos mots anglais apparaissent parmi les candidats."
           }
         },
         "ja" : {
@@ -17251,7 +17251,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ce qui ressemble à une clé, à un numéro de carte ou de téléphone, ou à une adresse IP n’a pas été ajouté : vos mots anglais se synchronisent via iCloud et apparaissent parmi les candidats."
+            "value" : "Ce qui ressemble à une clé, à un numéro de carte ou de téléphone, ou à une adresse IP n’a pas été ajouté : vos mots anglais se synchronisent via iCloud et apparaissent parmi les candidats."
           }
         },
         "ja" : {
@@ -19513,7 +19513,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Aucune clé : rien n'a été enregistré"
+            "value" : "Aucune clé : rien n'a été enregistré"
           }
         },
         "ja" : {
@@ -19542,8 +19542,56 @@
         }
       }
     },
+    "No language to translate into yet: %@ opens Settings → %@ to add one" : {
+      "comment" : "还没有要翻译成的语言：按 %@ 打开设置 →「%@」加一种 — Sources/AllInOneIMECore/Session/InputSession.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noch keine Zielsprache: %1$@ öffnet Einstellungen → „%2$@“, um eine hinzuzufügen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aún no hay ningún idioma al que traducir: %1$@ abre Ajustes → “%2$@” para añadir uno"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucune langue cible pour l’instant : %1$@ ouvre Réglages → %2$@ pour en ajouter une"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "翻訳先の言語がまだありません：%1$@ で 設定 →「%2$@」を開いて追加します"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "아직 번역할 언어가 없음: %1$@를 누르면 설정 → %2$@에서 추가할 수 있습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ainda não há idioma para tradução: %1$@ abre Ajustes → %2$@ para adicionar um"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒有要翻譯成的語言：按 %1$@ 打開設定 →「%2$@」加入一種"
+          }
+        }
+      }
+    },
     "No language to translate into yet: add one under Translate & Rewrite in the settings" : {
       "comment" : "还没有要翻译成的语言：在设置的「翻译与改写」里加一种 — Sources/AllInOneIMECore/Session/InputSession.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -20735,7 +20783,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Non ajouté : il y est déjà, ou ce n’est pas un mot anglais (d’abord une lettre latine, puis des lettres, des chiffres ou - . + & ' _ /)."
+            "value" : "Non ajouté : il y est déjà, ou ce n’est pas un mot anglais (d’abord une lettre latine, puis des lettres, des chiffres ou - . + & ' _ /)."
           }
         },
         "ja" : {
@@ -24924,7 +24972,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Les programmes s’exécutent sur ce PC : n’ajoutez que des commandes que vous avez écrites et en lesquelles vous avez confiance. Ils ne s’exécutent que lorsque vous appuyez sur la touche d’action, jamais dans les champs de mot de passe."
+            "value" : "Les programmes s’exécutent sur ce PC : n’ajoutez que des commandes que vous avez écrites et en lesquelles vous avez confiance. Ils ne s’exécutent que lorsque vous appuyez sur la touche d’action, jamais dans les champs de mot de passe."
           }
         },
         "ja" : {
@@ -26522,7 +26570,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Supprimer « {name} » ?"
+            "value" : "Supprimer « {name} » ?"
           }
         },
         "ja" : {
@@ -30047,7 +30095,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sélectionnez du texte, puis tapez @improve, @translate, @question… et Enter : la commande agit sur la sélection (elle reste sélectionnée et intacte pendant la saisie), et le résultat choisi la remplace ; Esc ne change rien. Désactivez cette option si elle pose problème dans une app."
+            "value" : "Sélectionnez du texte, puis tapez @improve, @translate, @question… et Enter : la commande agit sur la sélection (elle reste sélectionnée et intacte pendant la saisie), et le résultat choisi la remplace ; Esc ne change rien. Désactivez cette option si elle pose problème dans une app."
           }
         },
         "ja" : {
@@ -31298,6 +31346,53 @@
         }
       }
     },
+    "Space / %@ open the settings · 0 original · Esc back" : {
+      "comment" : "空格 / %@ 打开设置 · 0 原文 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leertaste / %@ Einstellungen öffnen · 0 Original · Esc zurück"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Espacio / %@ abrir los ajustes · 0 original · Esc volver"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Espace / %@ ouvrir les réglages · 0 original · Esc retour"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スペース / %@ 設定を開く · 0 原文 · Esc 戻る"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Space / %@ 설정 열기 · 0 원문 · Esc 뒤로"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Espaço / %@ abrir os Ajustes · 0 original · Esc voltar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "空白鍵 / %@ 打開設定 · 0 原文 · Esc 返回"
+          }
+        }
+      }
+    },
     "Space / %@ retry · 0 original · Esc back" : {
       "comment" : "空格 / %@ 重试 · 0 原文 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
       "localizations" : {
@@ -31598,7 +31693,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Espace choisit les mots ; quand il n’y a plus rien à choisir, un nouvel appui sur Espace exécute la commande. En mode anglais, appuyez deux fois sur Espace. Les commandes @ s’exécutent aussi avec Enter."
+            "value" : "Espace choisit les mots ; quand il n’y a plus rien à choisir, un nouvel appui sur Espace exécute la commande. En mode anglais, appuyez deux fois sur Espace. Les commandes @ s’exécutent aussi avec Enter."
           }
         },
         "ja" : {
@@ -32950,7 +33045,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Indiquez à l’IA quoi faire du texte qui suit la commande, p. ex. « Rédige une réponse courte et polie au message de l’utilisateur. » La réponse apparaît dans les candidats ; Enter l’insère."
+            "value" : "Indiquez à l’IA quoi faire du texte qui suit la commande, p. ex. « Rédige une réponse courte et polie au message de l’utilisateur. » La réponse apparaît dans les candidats ; Enter l’insère."
           }
         },
         "ja" : {
@@ -35253,7 +35348,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Les réglages ont changé entre-temps : rien n’a été modifié, les voici tels qu’ils sont maintenant"
+            "value" : "Les réglages ont changé entre-temps : rien n’a été modifié, les voici tels qu’ils sont maintenant"
           }
         },
         "ja" : {
@@ -36034,6 +36129,241 @@
         }
       }
     },
+    "Too long for Apple Intelligence on this Mac (its context is small): shorten the text or use another provider" : {
+      "comment" : "内容太长，本机的 Apple Intelligence 处理不了（它的上下文很小）：缩短一些，或换一个 AI 服务 — Sources/AllInOneIMECore/UIText+Errors.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zu lang für Apple Intelligence auf diesem Mac (sein Kontext ist klein): Kürze den Text oder verwende einen anderen Anbieter"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Demasiado largo para Apple Intelligence en este Mac (su contexto es pequeño): acorta el texto o usa otro proveedor"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trop long pour Apple Intelligence sur ce Mac (son contexte est petit) : raccourcissez le texte ou utilisez un autre fournisseur"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このMacのApple Intelligenceには長すぎます（扱える長さが小さいため）。テキストを短くするか、別のプロバイダを使ってください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Mac의 Apple Intelligence가 처리하기에는 너무 깁니다(컨텍스트가 작음). 텍스트를 줄이거나 다른 서비스를 사용하세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Longo demais para a Apple Intelligence neste Mac (o contexto dela é pequeno): encurte o texto ou use outro provedor"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "內容太長，本機的 Apple Intelligence 處理不了（它的上下文很小）：縮短一些，或換一個 AI 服務"
+          }
+        }
+      }
+    },
+    "Too long for Apple Intelligence on this Mac, and %@ couldn't answer instead: %@" : {
+      "comment" : "这句话对本机的 Apple Intelligence 来说太长了，改问 %@ 也没成功：%@ — Sources/AllInOneIMECore/AIConfigText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zu lang für Apple Intelligence auf diesem Mac, und %@ konnte stattdessen nicht antworten: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Demasiado largo para Apple Intelligence en este Mac, y %@ tampoco pudo responder: %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trop long pour Apple Intelligence sur ce Mac, et %@ n’a pas pu répondre à la place : %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このMacのApple Intelligenceには長すぎます。代わりに%@に頼みましたが、応答できませんでした：%@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Mac의 Apple Intelligence가 처리하기에는 너무 길고, 대신 %@에 요청했지만 응답하지 못했습니다: %@"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Longo demais para a Apple Intelligence neste Mac, e %@ também não conseguiu responder: %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這句話對本機的 Apple Intelligence 來說太長了，改問 %@ 也沒成功：%@"
+          }
+        }
+      }
+    },
+    "Too long for Apple Intelligence on this Mac, and %@ isn't set up: try a shorter request, or set up %@ in Settings → AI Provider" : {
+      "comment" : "这句话对本机的 Apple Intelligence 来说太长了，%@ 也还没设置好：请说得短一些，或者在设置 → AI 服务里设置好 %@ — Sources/AllInOneIMECore/AIConfigText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zu lang für Apple Intelligence auf diesem Mac, und %@ ist nicht eingerichtet: Formuliere die Anfrage kürzer oder richte %@ in Einstellungen → KI-Anbieter ein"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Demasiado largo para Apple Intelligence en este Mac, y %@ no está configurado: prueba con una solicitud más corta o configura %@ en Ajustes → Proveedor de IA"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trop long pour Apple Intelligence sur ce Mac, et %@ n’est pas configuré : essayez une requête plus courte, ou configurez %@ dans Réglages → Fournisseur d’IA"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このMacのApple Intelligenceには長すぎます。また、%@はまだ設定されていません。短くするか、設定 → AIプロバイダで%@を設定してください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Mac의 Apple Intelligence가 처리하기에는 너무 길고, %@도 아직 설정되지 않았습니다. 더 짧게 요청하거나 설정 → AI 서비스에서 %@을(를) 설정하세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Longo demais para a Apple Intelligence neste Mac, e %@ não está configurado: tente uma solicitação mais curta ou configure %@ em Ajustes → Provedor de IA"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這句話對本機的 Apple Intelligence 來說太長了，%@ 也還沒設定好：請說得短一些，或在設定 → AI 服務裡設定好 %@"
+          }
+        }
+      }
+    },
+    "Too long for Apple Intelligence on this Mac: sent to %@ instead" : {
+      "comment" : "这句话对本机的 Apple Intelligence 来说太长了，已改发给 %@ — Sources/AllInOneIMECore/AIConfigText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zu lang für Apple Intelligence auf diesem Mac: stattdessen an %@ gesendet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Demasiado largo para Apple Intelligence en este Mac: enviado a %@ en su lugar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trop long pour Apple Intelligence sur ce Mac : envoyé à %@ à la place"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このMacのApple Intelligenceには長すぎるため、代わりに%@に送信しました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Mac의 Apple Intelligence가 처리하기에는 너무 길어서 대신 %@(으)로 보냈습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Longo demais para a Apple Intelligence neste Mac: enviado para %@ no lugar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這句話對本機的 Apple Intelligence 來說太長了，已改傳送給 %@"
+          }
+        }
+      }
+    },
+    "Too long for Apple Intelligence on this Mac: try a shorter request, or choose another AI provider in Settings → AI Provider" : {
+      "comment" : "这句话对本机的 Apple Intelligence 来说太长了：请说得短一些，或者在设置 → AI 服务里换一个 AI 服务 — Sources/AllInOneIMECore/AIConfigText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zu lang für Apple Intelligence auf diesem Mac: Formuliere die Anfrage kürzer oder wähle einen anderen KI-Anbieter in Einstellungen → KI-Anbieter"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Demasiado largo para Apple Intelligence en este Mac: prueba con una solicitud más corta o elige otro proveedor de IA en Ajustes → Proveedor de IA"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trop long pour Apple Intelligence sur ce Mac : essayez une requête plus courte, ou choisissez un autre fournisseur d’IA dans Réglages → Fournisseur d’IA"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このMacのApple Intelligenceには長すぎます。短くするか、設定 → AIプロバイダで別のAIプロバイダを選んでください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Mac의 Apple Intelligence가 처리하기에는 너무 깁니다. 더 짧게 요청하거나 설정 → AI 서비스에서 다른 AI 서비스를 선택하세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Longo demais para a Apple Intelligence neste Mac: tente uma solicitação mais curta ou escolha outro provedor de IA em Ajustes → Provedor de IA"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這句話對本機的 Apple Intelligence 來說太長了：請說得短一些，或在設定 → AI 服務裡換一個 AI 服務"
+          }
+        }
+      }
+    },
     "Too many searches at once for %@: try again in a moment" : {
       "comment" : "%@ 搜索太频繁，稍后再试 — Sources/AllInOneIMECore/UIText+Errors.swift",
       "localizations" : {
@@ -36082,7 +36412,7 @@
       }
     },
     "Translate & Rewrite" : {
-      "comment" : "翻译与改写 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "comment" : "翻译与改写 — Sources/AllInOneIMECore/Session/InputSession.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -38104,6 +38434,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "昨天"
+          }
+        }
+      }
+    },
+    "you asked for %@, not %@" : {
+      "comment" : "你要的是 %@，不是 %@ — Sources/AllInOneIMECore/AIConfigText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "du hast %@ verlangt, nicht %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "pediste %@, no %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "vous avez demandé %@, pas %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "指定されたのは%@で、%@ではありません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "요청한 서비스는 %@, %@ 아님"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "você pediu %@, não %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你要的是 %@，不是 %@"
           }
         }
       }

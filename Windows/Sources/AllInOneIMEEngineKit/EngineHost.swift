@@ -465,9 +465,9 @@ public final class EngineHost: WireHost, @unchecked Sendable {
             launch(argv, prompt: nil, in: session)
         case let .saveNote(text):
             saveNote(text, in: session)
-        case .openSettings:
-            // The Settings app; without one (a build of the engine alone), the folder with config.json, and a notice
-            // that says so.
+        case .openSettings, .openSettingsAt:
+            // The Settings app (as it opens: it has no place to open at yet); without one (a build of the engine
+            // alone), the folder with config.json, and a notice that says so.
             if let app = settingsApp {
                 let (log, sid, arguments) = (self.log, session.sid, settingsAppArguments)
                 onSystem(session) { system in

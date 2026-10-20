@@ -256,9 +256,12 @@ public struct PanelPresenter {
             case let .failed(message):
                 model.status = .error(message)
                 model.highlighted = nil  // Space retries; nothing is selected
-                // A reminder without anything to be reminded of: write it in.
+                // A reminder without anything to be reminded of: write it in. One put right in the settings (nothing to
+                // translate into): they open.
                 model.footer = command == .reminder
                     ? t.tr("Esc 返回修改", "Esc back to edit")
+                    : composer.failureFixedIn != nil
+                    ? t.tr("空格 / \(enter) 打开设置 · 0 原文 · Esc 返回", "Space / \(enter) open the settings · 0 original · Esc back")
                     : composer.actionKey == .enter
                     ? t.tr("空格 / \(enter) 重试 · 0 原文 · Esc 返回", "Space / \(enter) retry · 0 original · Esc back")
                     : t.tr("空格 重试 · \(enter) 上屏原文 · Esc 返回", "Space retry · \(enter) insert original · Esc back")

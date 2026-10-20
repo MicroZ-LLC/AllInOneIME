@@ -612,6 +612,14 @@ public final class InputSession {
         tr("这个 App 里关了 AI，没有发给 AI（设置 → 按 App 设置）", "AI is off in this app: nothing was sent (Settings → Apps)")
     }
 
+    /// The notice of `@translate` with no language to translate into: ⏎ on it opens the settings where they're added
+    /// (`Composer.failureFixedIn`, `SessionOutput.openSettings`), the key as this platform names it and the page as the
+    /// settings name it.
+    var noTranslationTargetText: String {
+        let (enter, page) = (terms.enter, tr("翻译与改写", "Translate & Rewrite"))
+        return tr("还没有要翻译成的语言：按 \(enter) 打开设置 →「\(page)」加一种", "No language to translate into yet: \(enter) opens Settings → \(page) to add one")
+    }
+
     // MARK: - Effects
 
     private func perform(_ effects: [Composer.Effect]) {
@@ -729,6 +737,9 @@ public final class InputSession {
                 }
             case .openSettings:
                 emit(.openSettings(nil))
+            case let .openSettingsAt(place):
+                // ⏎ on a failure put right there (nothing to translate into): the sentence went in as typed before.
+                emit(.openSettings(place))
             case let .listAgents(id):
                 tasks.listAgents(id: id, with: services.listAgents)
             case let .runInTerminal(prompt):
@@ -880,12 +891,13 @@ public final class InputSession {
         let inner = plan.map { ", inside: " + $0.inner.map { "@" + logged($0.command) }.joined(separator: " ") } ?? ""
         log.notice("conversion \(id) started (\(input.count) chars\(command.map { ", @\(logged($0))" } ?? "")\(inner))")
         // @translate with no language to translate into but the sentence's own (a new user whose system has no other
-        // language): nothing is sent; the settings open where languages are added.
+        // language): nothing is sent; the notice says where languages are added, and ⏎ on it opens the settings there
+        // (`Composer.failureFixedIn`). Not opened at once: a window taking the focus from a key ends the field's text,
+        // the notice gone with it and the draft put in as typed ("@translate …"); one the system keeps the focus from
+        // comes up unfocused, unexplained.
         if command == .translate, !SessionText.hasTranslationTarget(for: input, config: services.loadSettings()) {
             log.notice("conversion \(id): no language to translate into")
-            perform(composer.fail(tr("还没有要翻译成的语言：在设置的「翻译与改写」里加一种", "No language to translate into yet: add one under Translate & Rewrite in the settings"),
-                                  id: id))
-            emit(.openSettings(.outputLanguages))
+            perform(composer.fail(noTranslationTargetText, id: id, fixedIn: .translationLanguages))
             return
         }
         let request = SessionTasks.Request(input: input, command: command, plan: plan, fresh: fresh, replyPage: replyPage,

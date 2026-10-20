@@ -72,8 +72,8 @@ public enum SessionOutput: Equatable, Sendable {
     case open(String)
     /// Open a background agent's session (`@tasks`).
     case openAgent(String)
-    /// Open the settings, where `topic` is (nil: as they open).
-    case openSettings(SettingsTopic?)
+    /// Open the settings, at `place` (nil: as they open).
+    case openSettings(SettingsPlace?)
     /// `text` on the clipboard.
     case copy(String)
     /// Read the clipboard for request `id`, once the key is answered (the system may ask first) and never during secure
@@ -85,12 +85,6 @@ public enum SessionOutput: Equatable, Sendable {
     case startTimer(TimerID, after: TimeInterval)
     /// What only some platforms can do.
     case platform(PlatformAction)
-}
-
-/// Where in the settings an output opens them.
-public enum SettingsTopic: Equatable, Sendable {
-    /// Where the languages `@translate` writes in are added.
-    case outputLanguages
 }
 
 /// What a session asks of the platform that not every one can do; one that can't answers as if it failed.
