@@ -56,6 +56,10 @@ public final class InputSession {
 
     /// Level one's engine as `services.levelOne` gave it.
     private var engine: PinyinEngine?
+    /// It with the English words among its candidates, the composer's engine (`levelOneEngine`).
+    private var englishWords: EnglishWordsEngine?
+    /// What its words were last made of (the user's, the jargon list's terms): made again only when that changes.
+    private var englishWordsMadeOf: [String]?
     /// The default input mode last applied (applied again when the setting changes).
     private var appliedDefaultInput: Language?
     /// A dead key typed before the next key.
@@ -163,6 +167,7 @@ public final class InputSession {
                 noticeToken += 1  // its timer does nothing now
                 composer.engine = nil
                 engine = nil
+                englishWords = nil
                 fieldSession += 1  // a save still on its way tells its outcome elsewhere
             }
         }
@@ -228,6 +233,7 @@ public final class InputSession {
     public func dropEngine() {
         composer.engine = nil
         engine = nil
+        englishWords = nil
     }
 
     private func ensureLevelOne() {
@@ -235,20 +241,52 @@ public final class InputSession {
         switch services.levelOne() {
         case let .engine(fresh):
             engine = fresh
-            composer.engine = fresh
+            composer.engine = levelOneEngine(fresh)
             appliedDefaultInput = nil  // a new session starts in the default input mode
             settings(app: nil)
         case .starting:
             engine = nil
+            englishWords = nil
             composer.engine = nil
         case .none:
             engine = nil
+            englishWords = nil
             if !(composer.primaryEngine is LatinEngine) {  // `engine` is Hindi's while Hindi is typed
                 composer.engine = LatinEngine()
                 appliedDefaultInput = nil
                 settings(app: nil)
             }
         }
+    }
+
+    // MARK: English words
+
+    /// `fresh` with English words among its candidates (`EnglishWordsEngine`), when the shell has rime-ice's English
+    /// dictionary; else as it is.
+    private func levelOneEngine(_ fresh: PinyinEngine) -> PinyinEngine {
+        guard let dictionary = services.englishDictionary() else {
+            englishWords = nil
+            return fresh
+        }
+        let mixed = EnglishWordsEngine(base: fresh, dictionary: dictionary)
+        mixed.rawCommitted = { [weak self] in self?.learnEnglishWord($0) }
+        englishWords = mixed
+        englishWordsMadeOf = nil  // its words are given by `settings`
+        return mixed
+    }
+
+    /// Letters put in as they were typed while typing pinyin ("bedrock" and ⏎), learned as an English word when they may
+    /// be one (`EnglishWords.learnable`): never during secure input, in an app with no AI, or with learning off
+    /// (`Config.learnsEnglishWords`). Offered in this field at once; kept for every field (`SessionServices.learnEnglishWord`).
+    private func learnEnglishWord(_ typed: String) {
+        guard let englishWords, !secureInputActive() else { return }
+        let config = services.loadSettings()
+        guard config.learnsEnglishWords, config.allowsAI(in: app),
+              EnglishWords.learnable(typed, known: Set(englishWords.words.map(EnglishWords.key)), dictionary: englishWords.dictionary,
+                                     hidden: config.redaction.customWords) else { return }
+        englishWords.words.append(typed)
+        services.learnEnglishWord(typed)
+        log.notice("learned an English word (\(typed.count) letters)")
     }
 
     // MARK: - Settings
@@ -265,6 +303,14 @@ public final class InputSession {
         composer.actionKey = config.actionKey
         composer.typesResults = config.applying(app: app).typeOut
         composer.horizontalCandidates = config.candidateLayout == .horizontal
+        if let englishWords {
+            let jargon = services.jargon(config)
+            let madeOf = config.englishWords + ["\u{0}"] + jargon.map(\.term)
+            if madeOf != englishWordsMadeOf {
+                englishWordsMadeOf = madeOf
+                englishWords.words = EnglishWords.offered(config, jargon: jargon)
+            }
+        }
         composer.outputLanguages = config.outputLanguages
         composer.provider = config.provider  // the on-device model gets less of a screenshot (`ReplyContext.Limits`)
         // `@reportissue`: the versions and settings it shows, read when it runs (the extensions as this field has them).

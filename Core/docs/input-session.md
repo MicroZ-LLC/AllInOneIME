@@ -148,7 +148,9 @@ The engine (on the `0.6.6/windows-engine` branch, not merged here) drives a `Com
      error is the notice), and its outputs that open or copy are dropped with the notice; a key's are held to the
      foreground the same way.
 3. **`EngineHost` becomes the engine's `SessionServices`**: `converter` and `loadSettings` (`EngineSettings.current`),
-   `levelOne` (`EngineRime.makeEngine`, `.starting` while it deploys, `.none` without it), `runProgram` and `runPlugin`
+   `levelOne` (`EngineRime.makeEngine`, `.starting` while it deploys, `.none` without it), `englishDictionary`
+   (`RimeService.shared.englishDictionary`: with it the session puts English words among librime's candidates,
+   `EnglishWordsEngine`) and `learnEnglishWord` (`EnglishWords.learn` into the engine's `config.json`), `runProgram` and `runPlugin`
    (this program as a child, `--run-js`, `--run-plugin`), `loadExtensions`, `searchFiles` (`SystemActions.search`),
    `runInTerminal`, `continueInAgent` and `launchInTerminal` (`SystemActions.launchInTerminal`), `noteDestination` (a
    folder or Notion; Apple Notes refuses), `addReminder`, `messageSender`, `startAgent`, `listAgents` and

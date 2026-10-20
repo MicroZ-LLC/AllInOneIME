@@ -15,6 +15,15 @@ extension SessionServices {
             return RimeService.shared.isStarted ? .starting : .none
         }
         services.engineIsValid = { ($0 as? RimeSession)?.isValid ?? true }
+        // English words among pinyin's candidates; a word learned goes into the config file (the self-test's own while it runs).
+        services.englishDictionary = { RimeService.shared.englishDictionary }
+        services.learnEnglishWord = { word in
+            do {
+                try EnglishWords.learn(word, at: Config.defaultURL)
+            } catch {
+                log.error("could not keep an English word: \(String(describing: error), privacy: .public)")
+            }
+        }
         services.hangulTables = { LanguagePackManager.shared.hangulTables() }
         services.hindiTables = { LanguagePackManager.shared.hindiTables() }
         services.usableLanguages = { LanguagePackManager.shared.usable($0) }

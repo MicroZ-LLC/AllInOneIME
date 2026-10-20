@@ -29,6 +29,12 @@ public struct SessionServices {
     public var usableLanguages: ([Language]) -> [Language]
     /// Whether voice input can work here (the system's speech recognition).
     public var voiceSupported: () -> Bool
+    /// rime-ice's English dictionary, for the English words put among librime's candidates (`EnglishWordsEngine`); nil:
+    /// none are (no Chinese pack, a test's engine).
+    public var englishDictionary: () -> EnglishDictionary?
+    /// An English word learned from letters put in as typed (`EnglishWords.learnable`): kept in the settings
+    /// (`EnglishWords.learn`, `Config.englishWords`).
+    public var learnEnglishWord: (String) -> Void
 
     // MARK: What is kept
 
@@ -147,6 +153,8 @@ public struct SessionServices {
         hindiTables = { nil }
         usableLanguages = { $0.filter { $0 != .korean && $0 != .hindi } }
         voiceSupported = { false }
+        englishDictionary = { nil }
+        learnEnglishWord = { _ in }
         page = { _ in nil }
         pastesInTerminal = { false }
         needsTheUser = { ($0 as? NoteError)?.needsTheUser ?? false }
