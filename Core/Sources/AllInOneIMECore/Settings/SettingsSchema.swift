@@ -46,6 +46,9 @@ struct SettingsSchema {
 
     var config: Config { store.config }
 
+    /// What the document's platform calls its keys and places (Enter, a terminal window, this PC on Windows).
+    var terms: PlatformTerms { platform == .mac ? .mac : .windows }
+
     mutating func sections() -> [SettingsDocument.Section] {
         [
             SettingsDocument.Section(id: "general", title: tr("通用", "General"), fields: general()),
@@ -169,15 +172,18 @@ struct SettingsSchema {
         var fields: [Field] = []
         let store = store
         // A recorded shortcut is the Mac's (its key recorder): shown as it is, not picked here.
+        let terms = terms
         var keys: [(Choice, [SettingsPlatform]?)] = [
-            (Choice("enter", UIText.pickerName(.enter)), nil),
-            (Choice("optionTap", UIText.pickerName(.optionTap)), [.mac]),
-            (Choice("optionSpace", UIText.pickerName(.optionSpace)), [.mac]),
-            (Choice("space", UIText.pickerName(.space)), nil),
+            (Choice("enter", UIText.pickerName(.enter, terms: terms)), nil),
+            (Choice("optionTap", UIText.pickerName(.optionTap, terms: terms)), [.mac]),
+            (Choice("optionSpace", UIText.pickerName(.optionSpace, terms: terms)), [.mac]),
+            (Choice("space", UIText.pickerName(.space, terms: terms)), nil),
         ]
         let actionKey = config.actionKey.rawName ?? "shortcut"
-        if case .shortcut = config.actionKey { keys.append((Choice("shortcut", UIText.pickerName(config.actionKey)), [.mac])) }
-        add(choice("actionKey", tr("执行键", "Action key"), UIText.actionKeyNote(config.actionKey), value: .string(actionKey),
+        if case .shortcut = config.actionKey {
+            keys.append((Choice("shortcut", UIText.pickerName(config.actionKey, terms: terms)), [.mac]))
+        }
+        add(choice("actionKey", tr("执行键", "Action key"), UIText.actionKeyNote(config.actionKey, terms: terms), value: .string(actionKey),
                    choices: keys), to: &fields) { value in
             guard let key = value.string.flatMap(ActionKey.named) else { return }
             store.config.actionKey = key
@@ -199,8 +205,11 @@ struct SettingsSchema {
                        config.typeOutMistakes), to: &fields) { store.config.typeOutMistakes = Self.bool($0) }
         }
         add(toggle("useSelection", tr("使用选中的文字", "Use the selected text"),
-                   tr("先选中一段文字，再打 @improve、@translate、@question 等命令按 ⏎：命令处理选中的文字（打字时它一直选中、不变），选好的结果替换它；Esc 什么都不改。哪个 App 里不正常就关掉。",
-                      "Select some text, then type @improve, @translate, @question … and ⏎: the command works on the selection (it stays selected and as it is while you type), and the result you pick replaces it; Esc changes nothing. Turn it off if it misbehaves in an app."),
+                   terms.keyStyle == .symbols
+                       ? tr("先选中一段文字，再打 @improve、@translate、@question 等命令按 ⏎：命令处理选中的文字（打字时它一直选中、不变），选好的结果替换它；Esc 什么都不改。哪个 App 里不正常就关掉。",
+                            "Select some text, then type @improve, @translate, @question … and ⏎: the command works on the selection (it stays selected and as it is while you type), and the result you pick replaces it; Esc changes nothing. Turn it off if it misbehaves in an app.")
+                       : tr("先选中一段文字，再打 @improve、@translate、@question 等命令按 Enter：命令处理选中的文字（打字时它一直选中、不变），选好的结果替换它；Esc 什么都不改。哪个应用里不正常就关掉。",
+                            "Select some text, then type @improve, @translate, @question … and Enter: the command works on the selection (it stays selected and as it is while you type), and the result you pick replaces it; Esc changes nothing. Turn it off if it misbehaves in an app."),
                    config.useSelection), to: &fields) { store.config.useSelection = Self.bool($0) }
         add(toggle("rememberQuestions", tr("记住最近的问题", "Remember recent questions"), nil, config.rememberQuestions),
             to: &fields) { store.setRememberQuestions(Self.bool($0)) }
@@ -270,8 +279,11 @@ struct SettingsSchema {
     mutating func englishWords(_ fields: inout [Field]) {
         let store = store
         add(toggle("learnsEnglishWords", tr("学习打出的英文词", "Learn the English words you type"),
-                   tr("打拼音时把同样的字母原样上屏两次（比如打 bedrock 按 ⏎，再来一次），这个词以后就出现在候选里。密码框、终端、远程桌面和虚拟机、关了 AI 的 App 里不学，像密钥、号码的也不学。",
-                      "Put the same letters in as typed twice while typing pinyin (bedrock and ⏎, then again) and the word comes up among the candidates from then on. Never in password fields, terminals, remote desktops and virtual machines, or apps with AI off, nor anything that looks like a key or a number."),
+                   terms.keyStyle == .symbols
+                       ? tr("打拼音时把同样的字母原样上屏两次（比如打 bedrock 按 ⏎，再来一次），这个词以后就出现在候选里。密码框、终端、远程桌面和虚拟机、关了 AI 的 App 里不学，像密钥、号码的也不学。",
+                            "Put the same letters in as typed twice while typing pinyin (bedrock and ⏎, then again) and the word comes up among the candidates from then on. Never in password fields, terminals, remote desktops and virtual machines, or apps with AI off, nor anything that looks like a key or a number.")
+                       : tr("打拼音时把同样的字母原样上屏两次（比如打 bedrock 按 Enter，再来一次），这个词以后就出现在候选里。密码框、终端、远程桌面和虚拟机、关了 AI 的应用里不学，像密钥、号码的也不学。",
+                            "Put the same letters in as typed twice while typing pinyin (bedrock and Enter, then again) and the word comes up among the candidates from then on. Never in password fields, terminals, remote desktops and virtual machines, or apps with AI off, nor anything that looks like a key or a number."),
                    config.learnsEnglishWords), to: &fields) { store.config.learnsEnglishWords = Self.bool($0) }
         let shown = Array(config.englishWords.reversed())
         var words = Field(id: "englishWords", kind: .words, label: tr("你的英文词", "Your English words"),
@@ -464,7 +476,9 @@ struct SettingsSchema {
         var fields: [Field] = []
         let store = store
         add(choice("agent", tr("@agent 交给", "@agent hands it to"),
-                   tr("在终端打开它，你打的字是第一句话。", "It opens in Terminal with what you typed as its first message."),
+                   terms.terminal == .terminalApp
+                       ? tr("在终端打开它，你打的字是第一句话。", "It opens in Terminal with what you typed as its first message.")
+                       : tr("在终端窗口里打开它，你打的字是第一句话。", "It opens in a terminal window with what you typed as its first message."),
                    value: .string(config.agent.rawValue),
                    choices: AgentKind.allCases.map { kind in
                        (Choice(kind.rawValue, kind == .custom ? tr("自定义", "Custom") : kind.displayName(custom: config.agentCommand)), nil)
@@ -610,7 +624,7 @@ struct SettingsSchema {
         var fields: [Field] = []
         var list = Field(id: "commands.custom", kind: .items, label: tr("自定义 @ 命令", "Custom @ Commands"))
         list.actions = [SettingsAction.save]
-        list.schema = Self.commandSchema
+        list.schema = Self.commandSchema(terms)
         list.items = config.customCommands.map { command in
             let value = (try? JSONEncoder().encode(command)).flatMap { try? JSONSerialization.jsonObject(with: $0) }.flatMap(JSON.init)
             let detail = [UIText.customKind(command), command.summary].compactMap { $0 }.joined(separator: " · ")
@@ -624,20 +638,26 @@ struct SettingsSchema {
     }
 
     /// A custom command's definition (`CustomCommand`, as `config.json` has it), as the Mac's command editor shows it:
-    /// what `save` takes as its `value`.
-    static var commandSchema: [Field] {
+    /// what `save` takes as its `value`. What runs where, and the keys, as `terms` names them (on Windows a terminal
+    /// window, this PC, cmd, Enter).
+    static func commandSchema(_ terms: PlatformTerms) -> [Field] {
+        let mac = terms.terminal == .terminalApp
         let types = ["prompt", "run", "terminal", "link", "snippet"].map(JSON.string)
         func only(_ values: String...) -> [String: [JSON]] { ["type": values.map(JSON.string)] }
         var name = Field(id: "name", kind: .text, label: tr("名字", "Name"))
         name.placeholder = tr("只用英文字母，比如 py", "Letters only, e.g. py")
         var type = Field(id: "type", kind: .choice, label: tr("做什么", "What it does"), value: .string("prompt"))
-        type.choices = zip(types, [tr("AI 指令", "AI instruction"), tr("运行程序", "Run a program"), tr("在终端运行", "Run in Terminal"),
+        type.choices = zip(types, [tr("AI 指令", "AI instruction"), tr("运行程序", "Run a program"),
+                                   mac ? tr("在终端运行", "Run in Terminal") : tr("在终端窗口运行", "Run in a terminal"),
                                    tr("打开网页", "Open a web page"), tr("插入文字", "Insert text")]).map { Choice(value: $0, label: $1) }
         var summary = Field(id: "summary", kind: .text, label: tr("说明", "Description"))
         (summary.placeholder, summary.optional) = (tr("命令列表里显示，可以不填", "Shown in the command list (optional)"), true)
         var prompt = Field(id: "prompt", kind: .text, label: tr("AI 指令", "AI instruction"),
-                           help: tr("告诉 AI 怎么处理命令后面写的内容，比如「把用户的话写成一条礼貌简短的回复」。回答出现在候选里，⏎ 上屏。",
-                                    "Tell the AI what to do with the text after the command, e.g. \"Write a short, polite reply to the user's message.\" The answer appears in the candidates; ⏎ inserts it."))
+                           help: terms.keyStyle == .symbols
+                               ? tr("告诉 AI 怎么处理命令后面写的内容，比如「把用户的话写成一条礼貌简短的回复」。回答出现在候选里，⏎ 上屏。",
+                                    "Tell the AI what to do with the text after the command, e.g. \"Write a short, polite reply to the user's message.\" The answer appears in the candidates; ⏎ inserts it.")
+                               : tr("告诉 AI 怎么处理命令后面写的内容，比如「把用户的话写成一条礼貌简短的回复」。回答出现在候选里，按 Enter 上屏。",
+                                    "Tell the AI what to do with the text after the command, e.g. \"Write a short, polite reply to the user's message.\" The answer appears in the candidates; Enter inserts it."))
         (prompt.multiline, prompt.when) = (true, only("prompt"))
         var text = Field(id: "text", kind: .text, label: tr("插入文字", "Insert text"),
                          help: tr("命令后面写的内容换掉 {input}；{名字?} 是要填的空，用逗号分开依次填；{{ 写出 {",
@@ -648,8 +668,11 @@ struct SettingsSchema {
                                  "{input} becomes the text after the command (encoded), after the ?. The action key opens it in the browser; nothing is inserted. https:// only."))
         (url.placeholder, url.when) = ("https://www.google.com/search?q={input}", only("link"))
         var argv = Field(id: "argv", kind: .words, label: tr("命令", "Command"),
-                         help: tr("{input} 换成命令后面写的内容，始终是一个参数，不经过 shell（要 shell 就写 zsh -c {input}）。参数里有空格时用引号。",
-                                  "{input} becomes the text after the command, always as one argument, never through a shell (for one, write zsh -c {input}). Quote arguments with spaces."))
+                         help: mac
+                             ? tr("{input} 换成命令后面写的内容，始终是一个参数，不经过 shell（要 shell 就写 zsh -c {input}）。参数里有空格时用引号。",
+                                  "{input} becomes the text after the command, always as one argument, never through a shell (for one, write zsh -c {input}). Quote arguments with spaces.")
+                             : tr("{input} 换成命令后面写的内容，始终是一个参数，不经过 shell（要 shell 就写 cmd /c {input}）。参数里有空格时用引号。",
+                                  "{input} becomes the text after the command, always as one argument, never through a shell (for one, write cmd /c {input}). Quote arguments with spaces."))
         (argv.placeholder, argv.ordered, argv.when) = ("python3 -c {input}", true, only("run", "terminal"))
         var stdin = Field(id: "stdin", kind: .text, label: tr("标准输入", "Standard input"),
                           help: tr("把内容作为标准输入（命令里不用写 {input}）", "Send the text to standard input (no {input} needed)"))
@@ -660,8 +683,11 @@ struct SettingsSchema {
         var ascii = Field(id: "ascii", kind: .toggle, label: tr("用英文字母输入（写代码、路径时）", "Type English letters (for code and paths)"))
         (ascii.optional, ascii.when) = (true, only("prompt", "run", "terminal", "link"))
         var programs = Field(id: "programs", kind: .info, label: "",
-                             value: .string(tr("「运行程序」和「在终端运行」会在你的 Mac 上执行命令：只加你自己写的、信得过的。它们只在你按执行键时运行，密码框里不运行。",
-                                               "Programs run on your Mac: add only commands you wrote and trust. They run only when you press the action key, never in password fields.")))
+                             value: .string(terms.device == .mac
+                                 ? tr("「运行程序」和「在终端运行」会在你的 Mac 上执行命令：只加你自己写的、信得过的。它们只在你按执行键时运行，密码框里不运行。",
+                                      "Programs run on your Mac: add only commands you wrote and trust. They run only when you press the action key, never in password fields.")
+                                 : tr("「运行程序」和「在终端窗口运行」会在这台电脑上执行命令：只加你自己写的、信得过的。它们只在你按执行键时运行，密码框里不运行。",
+                                      "Programs run on this PC: add only commands you wrote and trust. They run only when you press the action key, never in password fields.")))
         programs.when = only("run", "terminal")
         return [name, type, summary, prompt, text, url, argv, stdin, timeout, ascii, programs]
     }

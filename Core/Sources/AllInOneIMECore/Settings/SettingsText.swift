@@ -4,8 +4,10 @@ import Foundation
 // document, `SettingsDocument`).
 
 extension UIText {
-    /// How the chosen action key works, and what Space does with it.
-    public static func actionKeyNote(_ key: ActionKey) -> String {
+    /// How the chosen action key works, and what Space does with it; the keys as `terms` names them (on Windows Enter,
+    /// a tap of Ctrl, Ctrl+Space, a recorded shortcut as it is pressed there).
+    public static func actionKeyNote(_ key: ActionKey, terms: PlatformTerms = Platform.current.terms) -> String {
+        if terms.keyStyle == .names { return windowsActionKeyNote(key, terms: terms) }
         switch key {
         case .enter:
             return tr("@ 命令写完按 ⏎ 执行，拼音没选完也能直接按。没有 @ 时 ⏎ 就是普通回车。",
@@ -24,6 +26,29 @@ extension UIText {
         case let .shortcut(key):
             return tr("@ 命令写完按 \(key.name) 执行；⏎ 也执行，没有 @ 时 ⏎ 是普通回车。",
                       "\(key.name) runs an @ command; Return does too, and without @ Return is a normal Return.")
+        }
+    }
+
+    /// `actionKeyNote` with the keys' names (Windows'): no dictation there, so a tap of Ctrl does nothing else.
+    private static func windowsActionKeyNote(_ key: ActionKey, terms: PlatformTerms) -> String {
+        switch key {
+        case .enter:
+            return tr("@ 命令写完按 Enter 执行，拼音没选完也能直接按。没有 @ 时 Enter 就是普通的换行。",
+                      "Enter runs an @ command, also on pinyin not yet picked. Without @, Enter is a normal Enter.")
+        case .optionTap:
+            return tr("按一下 Ctrl 马上松开，左右都行。@ 命令按 Enter 也执行。",
+                      "Press either Ctrl and let go right away. @ commands also run on Enter.")
+        case .optionSpace:
+            return tr("拼音没选完也可以直接按 Ctrl+空格。@ 命令按 Enter 也执行。",
+                      "Ctrl+Space also works before the pinyin is picked. @ commands also run on Enter.")
+        case .space:
+            return tr("空格先选词，没有要选的了再按一次空格执行；英文模式下连按两次空格。@ 命令按 Enter 也执行。",
+                      "Space picks words; once nothing is left to pick, Space again runs it. In English mode, press Space twice. "
+                          + "@ commands also run on Enter.")
+        case let .shortcut(key):
+            let name = terms.name(key, space: tr("空格", "Space"))
+            return tr("@ 命令写完按 \(name) 执行；Enter 也执行，没有 @ 时 Enter 是普通的换行。",
+                      "\(name) runs an @ command; Enter does too, and without @ Enter is a normal Enter.")
         }
     }
 

@@ -200,9 +200,11 @@ extension UIText {
     /// "单按 ⌥" / "Tap ⌥", …
     public static func name(_ key: ActionKey) -> String { words.name(key) }
 
-    /// The action key in the settings picker: "⏎ 回车" / "⏎ Return", otherwise as `name`.
-    public static func pickerName(_ key: ActionKey) -> String {
-        key == .enter ? tr("⏎ 回车", "⏎ Return") : name(key)
+    /// The action key in the settings picker: "⏎ 回车" / "⏎ Return" (on Windows "Enter 键" / "Enter"), otherwise as `name`,
+    /// the keys named as `terms` names them.
+    public static func pickerName(_ key: ActionKey, terms: PlatformTerms = Platform.current.terms) -> String {
+        guard key == .enter else { return words.name(key, terms: terms) }
+        return terms.keyStyle == .symbols ? tr("⏎ 回车", "⏎ Return") : tr("Enter 键", "Enter")
     }
 
     /// "单按 ⌥" / "tap ⌥", "按空格" / "press Space", …

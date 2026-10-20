@@ -403,8 +403,19 @@ public final class SettingsStore {
             try APIKeys.save(key, for: provider, host: HTTPProviders.host(of: config.settings(for: provider)))
             return nil
         } catch {
-            return tr("无法保存到钥匙串：", "Couldn't save to the keychain: ") + UIText.describe(error)
+            return Self.couldntSaveKey + UIText.describe(error)
         }
+    }
+
+    /// "Couldn't save to the keychain: ", and "Couldn't remove it from the keychain: ": on Windows its Credential Manager,
+    /// where the keys are kept there (`Platform.current`, the engine's).
+    static var couldntSaveKey: String {
+        Platform.current.terms.device == .mac ? tr("无法保存到钥匙串：", "Couldn't save to the keychain: ")
+            : tr("无法保存到凭据管理器：", "Couldn't save to the Credential Manager: ")
+    }
+    static var couldntRemoveKey: String {
+        Platform.current.terms.device == .mac ? tr("无法从钥匙串里删除：", "Couldn't remove it from the keychain: ")
+            : tr("无法从凭据管理器里删除：", "Couldn't remove it from the Credential Manager: ")
     }
 
     /// Removes the provider's API key: Remove Key…, confirmed.
@@ -416,7 +427,7 @@ public final class SettingsStore {
             Self.log.notice("Settings: the \(provider.rawValue) key removed (Remove Key…, confirmed)")
             return nil
         } catch {
-            return tr("无法从钥匙串里删除：", "Couldn't remove it from the keychain: ") + UIText.describe(error)
+            return Self.couldntRemoveKey + UIText.describe(error)
         }
     }
 
@@ -428,7 +439,7 @@ public final class SettingsStore {
             try WebSearch.saveKey(key)
             return nil
         } catch {
-            return tr("无法保存到钥匙串：", "Couldn't save to the keychain: ") + UIText.describe(error)
+            return Self.couldntSaveKey + UIText.describe(error)
         }
     }
 
@@ -439,7 +450,7 @@ public final class SettingsStore {
             try WebSearch.removeKey()
             return nil
         } catch {
-            return tr("无法从钥匙串里删除：", "Couldn't remove it from the keychain: ") + UIText.describe(error)
+            return Self.couldntRemoveKey + UIText.describe(error)
         }
     }
 
@@ -451,7 +462,7 @@ public final class SettingsStore {
             try NotionAPI.saveToken(token)
             return nil
         } catch {
-            return tr("无法保存到钥匙串：", "Couldn't save to the keychain: ") + UIText.describe(error)
+            return Self.couldntSaveKey + UIText.describe(error)
         }
     }
 
@@ -462,7 +473,7 @@ public final class SettingsStore {
             try NotionAPI.removeToken()
             return nil
         } catch {
-            return tr("无法从钥匙串里删除：", "Couldn't remove it from the keychain: ") + UIText.describe(error)
+            return Self.couldntRemoveKey + UIText.describe(error)
         }
     }
 
@@ -533,7 +544,8 @@ public final class SettingsStore {
                              label: "AllInOneIME: \(bundle.title) – \(preference.title)")
             return nil
         } catch {
-            return tr("没有存进钥匙串：", "Couldn't save it in the keychain: ") + error.localizedDescription
+            return (Platform.current.terms.device == .mac ? tr("没有存进钥匙串：", "Couldn't save it in the keychain: ") : Self.couldntSaveKey)
+                + error.localizedDescription
         }
     }
 
@@ -545,7 +557,8 @@ public final class SettingsStore {
             try APIKeys.remove(account: ExtensionBundle.Preference.keychainAccount(bundle: bundle.name, name: preference.name))
             return nil
         } catch {
-            return tr("没能从钥匙串里删除：", "Couldn't remove it from the keychain: ", key: "extensionKey.removeFailed")
+            return (Platform.current.terms.device == .mac
+                ? tr("没能从钥匙串里删除：", "Couldn't remove it from the keychain: ", key: "extensionKey.removeFailed") : Self.couldntRemoveKey)
                 + error.localizedDescription
         }
     }

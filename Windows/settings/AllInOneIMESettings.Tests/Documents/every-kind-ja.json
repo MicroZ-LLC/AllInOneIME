@@ -8,7 +8,7 @@
      {
       "choices": [
        {
-        "label": "⏎ Return",
+        "label": "Enter",
         "value": "enter"
        },
        {
@@ -16,7 +16,7 @@
         "value": "space"
        }
       ],
-      "help": "Returnで@コマンドを実行します。ピンインが未確定でも実行できます。@がなければReturnは通常どおり動作します。",
+      "help": "Enterで@コマンドを実行します。ピンインが未確定でも実行できます。@がなければEnterは通常どおり動作します。",
       "id": "actionKey",
       "kind": "choice",
       "label": "実行キー",
@@ -52,7 +52,7 @@
       "value": false
      },
      {
-      "help": "テキストを選択してから@improve、@translate、@questionなどを入力して⏎を押すと、コマンドが選択したテキストに対して動作し（入力中も選択されたまま変わりません）、選んだ結果で置き換えます。Escでは何も変わりません。Appで正しく動作しない場合はオフにしてください。",
+      "help": "テキストを選択してから@improve、@translate、@questionなどを入力してEnterを押すと、コマンドが選択したテキストに対して動作し（入力中も選択されたまま変わりません）、選んだ結果で置き換えます。Escでは何も変わりません。アプリで正しく動作しない場合はオフにしてください。",
       "id": "useSelection",
       "kind": "toggle",
       "label": "選択したテキストを使う",
@@ -226,7 +226,7 @@
       ]
      },
      {
-      "help": "ピンイン入力中に同じ文字をそのまま 2 回確定すると（例：bedrock と入力して ⏎、もう一度）、その単語が以降の候補に出ます。パスワード欄、ターミナル、リモートデスクトップや仮想マシン、AI をオフにした App では学習せず、キーや番号のようなものも学習しません。",
+      "help": "ピンイン入力中に同じ文字をそのまま 2 回確定すると（例：bedrock と入力して Enter、もう一度）、その単語が以降の候補に出ます。パスワード欄、ターミナル、リモートデスクトップや仮想マシン、AI をオフにしたアプリでは学習せず、キーや番号のようなものも学習しません。",
       "id": "learnsEnglishWords",
       "kind": "toggle",
       "label": "入力した英単語を学習",
@@ -614,7 +614,7 @@
         "value": "custom"
        }
       ],
-      "help": "ターミナルで開き、入力した内容が最初のメッセージになります。",
+      "help": "ターミナルウィンドウで開き、入力した内容が最初のメッセージになります。",
       "id": "agent",
       "kind": "choice",
       "label": "@agentの渡し先",
@@ -783,14 +783,14 @@
          "remove"
         ],
         "detail": "追加済み",
-        "id": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-k_p_n022",
-        "title": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-k_p_n022"
+        "id": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-bwv3qyov",
+        "title": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-bwv3qyov"
        }
       ],
       "kind": "items",
       "label": "フォルダ",
       "picker": "folder",
-      "placeholder": "~/.config/allinoneime/extensions",
+      "placeholder": "%USERPROFILE%\\.config\\allinoneime\\extensions",
       "textActions": [
        "add"
       ]
@@ -863,13 +863,13 @@
         "fields": [
          {
           "help": "Say hi",
-          "id": "extensions.on.C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-k_p_n022/hello.sh",
+          "id": "extensions.on.C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-bwv3qyov/hello.sh",
           "kind": "toggle",
           "label": "@hello",
           "value": true
          }
         ],
-        "id": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-k_p_n022/hello.sh",
+        "id": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-bwv3qyov/hello.sh",
         "title": "@hello"
        }
       ],
@@ -997,7 +997,7 @@
         "placeholder": "コマンドリストに表示（省略可）"
        },
        {
-        "help": "コマンドのあとのテキストをどう処理するかAIに指示します。例：「ユーザのメッセージに短く丁寧な返信を書いてください。」回答は候補に表示され、⏎で挿入します。",
+        "help": "コマンドのあとのテキストをどう処理するかAIに指示します。例：「ユーザのメッセージに短く丁寧な返信を書いてください。」回答は候補に表示され、Enterで挿入します。",
         "id": "prompt",
         "kind": "text",
         "label": "AIへの指示",
@@ -1033,7 +1033,7 @@
         }
        },
        {
-        "help": "{input}はコマンドのあとのテキストに置き換わり、常に1つの引数になります。シェルは経由しません（シェルを使うにはzsh -c {input}と書きます）。スペースを含む引数は引用符で囲んでください。",
+        "help": "{input}はコマンドのあとのテキストに置き換わり、常に1つの引数になります。シェルは経由しません（シェルを使うにはcmd /c {input}と書きます）。スペースを含む引数は引用符で囲んでください。",
         "id": "argv",
         "kind": "words",
         "label": "コマンド",
@@ -1092,7 +1092,7 @@
         "id": "programs",
         "kind": "info",
         "label": "",
-        "value": "プログラムはこのMac上で実行されます。自分で書いた信頼できるコマンドだけを追加してください。実行キーを押したときにのみ実行され、パスワード欄では実行されません。",
+        "value": "プログラムはこのPC上で実行されます。自分で書いた信頼できるコマンドだけを追加してください。実行キーを押したときにのみ実行され、パスワード欄では実行されません。",
         "when": {
          "type": [
           "run",
@@ -1113,7 +1113,7 @@
       "id": "configFile",
       "kind": "info",
       "label": "設定ファイル",
-      "value": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-k1nqh6yt/config.json"
+      "value": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-ot5u_e94/config.json"
      }
     ],
     "footer": "変更はすぐに反映され、再起動は不要です。",

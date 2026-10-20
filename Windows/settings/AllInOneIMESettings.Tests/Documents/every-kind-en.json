@@ -8,7 +8,7 @@
      {
       "choices": [
        {
-        "label": "⏎ Return",
+        "label": "Enter",
         "value": "enter"
        },
        {
@@ -16,7 +16,7 @@
         "value": "space"
        }
       ],
-      "help": "Return runs an @ command, also on pinyin not yet picked. Without @, Return is a normal Return.",
+      "help": "Enter runs an @ command, also on pinyin not yet picked. Without @, Enter is a normal Enter.",
       "id": "actionKey",
       "kind": "choice",
       "label": "Action key",
@@ -52,7 +52,7 @@
       "value": false
      },
      {
-      "help": "Select some text, then type @improve, @translate, @question … and ⏎: the command works on the selection (it stays selected and as it is while you type), and the result you pick replaces it; Esc changes nothing. Turn it off if it misbehaves in an app.",
+      "help": "Select some text, then type @improve, @translate, @question … and Enter: the command works on the selection (it stays selected and as it is while you type), and the result you pick replaces it; Esc changes nothing. Turn it off if it misbehaves in an app.",
       "id": "useSelection",
       "kind": "toggle",
       "label": "Use the selected text",
@@ -226,7 +226,7 @@
       ]
      },
      {
-      "help": "Put the same letters in as typed twice while typing pinyin (bedrock and ⏎, then again) and the word comes up among the candidates from then on. Never in password fields, terminals, remote desktops and virtual machines, or apps with AI off, nor anything that looks like a key or a number.",
+      "help": "Put the same letters in as typed twice while typing pinyin (bedrock and Enter, then again) and the word comes up among the candidates from then on. Never in password fields, terminals, remote desktops and virtual machines, or apps with AI off, nor anything that looks like a key or a number.",
       "id": "learnsEnglishWords",
       "kind": "toggle",
       "label": "Learn the English words you type",
@@ -614,7 +614,7 @@
         "value": "custom"
        }
       ],
-      "help": "It opens in Terminal with what you typed as its first message.",
+      "help": "It opens in a terminal window with what you typed as its first message.",
       "id": "agent",
       "kind": "choice",
       "label": "@agent hands it to",
@@ -783,14 +783,14 @@
          "remove"
         ],
         "detail": "added",
-        "id": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-k_p_n022",
-        "title": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-k_p_n022"
+        "id": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-bwv3qyov",
+        "title": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-bwv3qyov"
        }
       ],
       "kind": "items",
       "label": "Folders",
       "picker": "folder",
-      "placeholder": "~/.config/allinoneime/extensions",
+      "placeholder": "%USERPROFILE%\\.config\\allinoneime\\extensions",
       "textActions": [
        "add"
       ]
@@ -863,13 +863,13 @@
         "fields": [
          {
           "help": "Say hi",
-          "id": "extensions.on.C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-k_p_n022/hello.sh",
+          "id": "extensions.on.C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-bwv3qyov/hello.sh",
           "kind": "toggle",
           "label": "@hello",
           "value": true
          }
         ],
-        "id": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-k_p_n022/hello.sh",
+        "id": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-bwv3qyov/hello.sh",
         "title": "@hello"
        }
       ],
@@ -972,7 +972,7 @@
           "value": "run"
          },
          {
-          "label": "Run in Terminal",
+          "label": "Run in a terminal",
           "value": "terminal"
          },
          {
@@ -997,7 +997,7 @@
         "placeholder": "Shown in the command list (optional)"
        },
        {
-        "help": "Tell the AI what to do with the text after the command, e.g. \"Write a short, polite reply to the user's message.\" The answer appears in the candidates; ⏎ inserts it.",
+        "help": "Tell the AI what to do with the text after the command, e.g. \"Write a short, polite reply to the user's message.\" The answer appears in the candidates; Enter inserts it.",
         "id": "prompt",
         "kind": "text",
         "label": "AI instruction",
@@ -1033,7 +1033,7 @@
         }
        },
        {
-        "help": "{input} becomes the text after the command, always as one argument, never through a shell (for one, write zsh -c {input}). Quote arguments with spaces.",
+        "help": "{input} becomes the text after the command, always as one argument, never through a shell (for one, write cmd /c {input}). Quote arguments with spaces.",
         "id": "argv",
         "kind": "words",
         "label": "Command",
@@ -1092,7 +1092,7 @@
         "id": "programs",
         "kind": "info",
         "label": "",
-        "value": "Programs run on your Mac: add only commands you wrote and trust. They run only when you press the action key, never in password fields.",
+        "value": "Programs run on this PC: add only commands you wrote and trust. They run only when you press the action key, never in password fields.",
         "when": {
          "type": [
           "run",
@@ -1113,7 +1113,7 @@
       "id": "configFile",
       "kind": "info",
       "label": "Config file",
-      "value": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-vka3fhwk/config.json"
+      "value": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-o54fbv79/config.json"
      }
     ],
     "footer": "Changes apply right away, with no restart.",

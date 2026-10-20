@@ -8,7 +8,7 @@
      {
       "choices": [
        {
-        "label": "⏎ Retour",
+        "label": "Enter",
         "value": "enter"
        },
        {
@@ -16,7 +16,7 @@
         "value": "space"
        }
       ],
-      "help": "Retour exécute une commande @, même sur un pinyin pas encore choisi. Sans @, Retour fonctionne normalement.",
+      "help": "Enter exécute une commande @, même sur un pinyin pas encore choisi. Sans @, Enter fonctionne normalement.",
       "id": "actionKey",
       "kind": "choice",
       "label": "Touche d’action",
@@ -52,7 +52,7 @@
       "value": false
      },
      {
-      "help": "Sélectionnez du texte, puis tapez @improve, @translate, @question… et ⏎ : la commande agit sur la sélection (elle reste sélectionnée et intacte pendant la saisie), et le résultat choisi la remplace ; Esc ne change rien. Désactivez cette option si elle pose problème dans une app.",
+      "help": "Sélectionnez du texte, puis tapez @improve, @translate, @question… et Enter : la commande agit sur la sélection (elle reste sélectionnée et intacte pendant la saisie), et le résultat choisi la remplace ; Esc ne change rien. Désactivez cette option si elle pose problème dans une app.",
       "id": "useSelection",
       "kind": "toggle",
       "label": "Utiliser le texte sélectionné",
@@ -226,7 +226,7 @@
       ]
      },
      {
-      "help": "En tapant du pinyin, insérez deux fois les mêmes lettres telles que tapées (bedrock puis ⏎, puis encore une fois) et le mot apparaît ensuite parmi les candidats. Jamais dans les champs de mot de passe, les terminaux, les bureaux à distance et les machines virtuelles, ni dans les apps où l’IA est désactivée, ni pour ce qui ressemble à une clé ou à un numéro.",
+      "help": "En tapant du pinyin, insérez deux fois les mêmes lettres telles que tapées (bedrock puis Enter, puis encore une fois) et le mot apparaît ensuite parmi les candidats. Jamais dans les champs de mot de passe, les terminaux, les bureaux à distance et les machines virtuelles, ni dans les apps où l’IA est désactivée, ni pour ce qui ressemble à une clé ou à un numéro.",
       "id": "learnsEnglishWords",
       "kind": "toggle",
       "label": "Apprendre les mots anglais que vous tapez",
@@ -614,7 +614,7 @@
         "value": "custom"
        }
       ],
-      "help": "Il s’ouvre dans Terminal avec ce que vous avez tapé comme premier message.",
+      "help": "Il s’ouvre dans une fenêtre de terminal avec ce que vous avez tapé comme premier message.",
       "id": "agent",
       "kind": "choice",
       "label": "@agent confie la tâche à",
@@ -783,14 +783,14 @@
          "remove"
         ],
         "detail": "ajouté",
-        "id": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-k_p_n022",
-        "title": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-k_p_n022"
+        "id": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-bwv3qyov",
+        "title": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-bwv3qyov"
        }
       ],
       "kind": "items",
       "label": "Dossiers",
       "picker": "folder",
-      "placeholder": "~/.config/allinoneime/extensions",
+      "placeholder": "%USERPROFILE%\\.config\\allinoneime\\extensions",
       "textActions": [
        "add"
       ]
@@ -863,13 +863,13 @@
         "fields": [
          {
           "help": "Say hi",
-          "id": "extensions.on.C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-k_p_n022/hello.sh",
+          "id": "extensions.on.C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-bwv3qyov/hello.sh",
           "kind": "toggle",
           "label": "@hello",
           "value": true
          }
         ],
-        "id": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-k_p_n022/hello.sh",
+        "id": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-bwv3qyov/hello.sh",
         "title": "@hello"
        }
       ],
@@ -972,7 +972,7 @@
           "value": "run"
          },
          {
-          "label": "Exécuter dans Terminal",
+          "label": "Exécuter dans un terminal",
           "value": "terminal"
          },
          {
@@ -997,7 +997,7 @@
         "placeholder": "Affichée dans la liste des commandes (facultatif)"
        },
        {
-        "help": "Indiquez à l’IA quoi faire du texte qui suit la commande, p. ex. « Rédige une réponse courte et polie au message de l’utilisateur. » La réponse apparaît dans les candidats ; ⏎ l’insère.",
+        "help": "Indiquez à l’IA quoi faire du texte qui suit la commande, p. ex. « Rédige une réponse courte et polie au message de l’utilisateur. » La réponse apparaît dans les candidats ; Enter l’insère.",
         "id": "prompt",
         "kind": "text",
         "label": "Instruction pour l’IA",
@@ -1033,7 +1033,7 @@
         }
        },
        {
-        "help": "{input} est remplacé par le texte qui suit la commande, toujours comme un seul argument, jamais via un shell (pour en utiliser un, écrivez zsh -c {input}). Mettez entre guillemets les arguments contenant des espaces.",
+        "help": "{input} est remplacé par le texte qui suit la commande, toujours comme un seul argument, jamais via un shell (pour en utiliser un, écrivez cmd /c {input}). Mettez entre guillemets les arguments contenant des espaces.",
         "id": "argv",
         "kind": "words",
         "label": "Commande",
@@ -1092,7 +1092,7 @@
         "id": "programs",
         "kind": "info",
         "label": "",
-        "value": "Les programmes s’exécutent sur votre Mac : n’ajoutez que des commandes que vous avez écrites et en lesquelles vous avez confiance. Ils ne s’exécutent que lorsque vous appuyez sur la touche d’action, jamais dans les champs de mot de passe.",
+        "value": "Les programmes s’exécutent sur ce PC : n’ajoutez que des commandes que vous avez écrites et en lesquelles vous avez confiance. Ils ne s’exécutent que lorsque vous appuyez sur la touche d’action, jamais dans les champs de mot de passe.",
         "when": {
          "type": [
           "run",
@@ -1113,7 +1113,7 @@
       "id": "configFile",
       "kind": "info",
       "label": "Fichier de configuration",
-      "value": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-bxgf73lf/config.json"
+      "value": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-ryl0xx2j/config.json"
      }
     ],
     "footer": "Les modifications s’appliquent immédiatement, sans redémarrage.",

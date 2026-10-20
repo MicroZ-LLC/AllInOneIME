@@ -97,9 +97,10 @@ its label too). Esc, Tab, the arrows and the digits are written the same everywh
 Windows as it is pressed there, whichever system recorded it (`PlatformTerms.name(_:space:)`: the Mac's ⌘J is Ctrl+J,
 its ⌃⏎ Win+Enter); on the Mac as it was recorded. Which key does what is the composer's (`Composer.modifierRoles`,
 which the shell sets): the presenter and the session's messages name the keys by its roles, whatever roles the terms
-came with, so the text names the keys the composer acts on. Text outside the panel and the composer's messages still
-names the Mac: the settings' (`@settings`' "⏎ opens Settings" too), `@doctor`'s and some errors' ("no key for it on this
-Mac", "Run `aws sso login` in Terminal").
+came with, so the text names the keys the composer acts on. The settings document names the keys and places of the
+platform it is made for (`SettingsSchema.terms`: on Windows Enter, a terminal window, this PC, `cmd /c`, the Credential
+Manager, `%USERPROFILE%`). Other text outside the panel and the composer's messages still names the Mac: `@settings`'
+"⏎ opens Settings", `@doctor`'s and some errors' ("no key for it on this Mac", "Run `aws sso login` in Terminal").
 
 ## Services
 

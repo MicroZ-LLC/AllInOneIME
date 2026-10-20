@@ -12,12 +12,15 @@ extension SettingsSchema {
                             help: tr("选择放脚本或扩展包的文件夹", "Choose a folder of scripts or extension bundles"))
         folders.actions = [SettingsAction.add]
         (folders.textActions, folders.picker) = ([SettingsAction.add], .folder)
-        folders.placeholder = ExtensionStore.defaultFolder
+        // On Windows written as Windows writes a path (`%USERPROFILE%\…`); one typed so is taken (`typedOnWindows`).
+        let windows = platform == .windows
+        folders.placeholder = windows ? ExtensionStore.windowsShown(ExtensionStore.defaultFolder) : ExtensionStore.defaultFolder
         let listed = ExtensionStore.folders(config, found: [])
         folders.items = listed.map { folder in
             let detail = folder.found ? (folder.hidden ? tr("自动找到 · 已隐藏", "found · hidden") : tr("自动找到", "found")) : tr("添加的", "added")
             let action = folder.found ? (folder.hidden ? SettingsAction.show : SettingsAction.hide) : SettingsAction.remove
-            return SettingsDocument.Item(id: folder.path, title: folder.path, detail: detail, actions: [action])
+            return SettingsDocument.Item(id: folder.path, title: windows ? ExtensionStore.windowsShown(folder.path) : folder.path,
+                                         detail: detail, actions: [action])
         }
         add(folders, to: &fields)
         handlers[folders.id] = { action in
@@ -27,7 +30,9 @@ extension SettingsSchema {
                 guard !path.isEmpty else {
                     return .failure(SettingsProblem(.badValue, field: action.field, message: SettingsService.badValue))
                 }
-                store.addExtensionFolder(ExtensionStore.abbreviated(path))
+                store.addExtensionFolder(windows ? ExtensionStore.typedOnWindows(path, home: NSHomeDirectory(),
+                                                                                 environment: ProcessInfo.processInfo.environment)
+                                                 : ExtensionStore.abbreviated(path))
             case SettingsAction.remove, SettingsAction.hide, SettingsAction.show:
                 guard let folder = ExtensionStore.folders(store.config, found: []).first(where: { $0.path == action.item }) else {
                     return .failure(SettingsProblem(.badValue, field: action.field, message: SettingsService.badValue))

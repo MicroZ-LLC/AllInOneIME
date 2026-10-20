@@ -623,7 +623,10 @@ given and sends back what the user did. It opens no sessions.
   (Chrome's page). Nor are the Mac's choices: the action keys `optionTap` and `optionSpace`, Apple Notes
   (`notes.destination` `notes`), the providers `apple` (Apple Intelligence) and `hosted` (its sign-in is the Mac's). A
   choice only the other platform has is shown, `disabled`, when it is the value now (Apple Notes, a new user's
-  default). Messages (`@imessage`) has no setting. A field's `platforms`, when present, says where it applies.
+  default). Messages (`@imessage`) has no setting. A field's `platforms`, when present, says where it applies. Its
+  text is the platform's too: Windows' names its keys (Enter, Ctrl+Space) and places (a terminal window, this PC,
+  `cmd /c` for a shell, the Credential Manager), and writes a folder in the home folder from `%USERPROFILE%`
+  (`extensions.folders`' placeholder and titles; one typed so is taken, its `%NAME%`s written out).
 - **Field ids** (stable; a later version may add fields, and a client draws any it is given):
 
 | Section | Fields |

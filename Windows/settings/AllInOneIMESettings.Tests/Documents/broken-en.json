@@ -1,7 +1,7 @@
 {
  "document": {
   "language": "zh-Hans",
-  "loadError": "配置文件格式错误（C:/Users/zwj10/AppData/Local/Temp/aio-docs-duvsnd94/config.json）：DecodingError.dataCorrupted: Data was corrupted. Debug description: The given data was not valid JSON.",
+  "loadError": "配置文件格式错误（C:/Users/zwj10/AppData/Local/Temp/aio-docs-dc1bbexo/config.json）：DecodingError.dataCorrupted: Data was corrupted. Debug description: The given data was not valid JSON.",
   "platform": "windows",
   "sections": [
    {
@@ -9,7 +9,7 @@
      {
       "choices": [
        {
-        "label": "⏎ 回车",
+        "label": "Enter 键",
         "value": "enter"
        },
        {
@@ -17,7 +17,7 @@
         "value": "space"
        }
       ],
-      "help": "@ 命令写完按 ⏎ 执行，拼音没选完也能直接按。没有 @ 时 ⏎ 就是普通回车。",
+      "help": "@ 命令写完按 Enter 执行，拼音没选完也能直接按。没有 @ 时 Enter 就是普通的换行。",
       "id": "actionKey",
       "kind": "choice",
       "label": "执行键",
@@ -33,7 +33,7 @@
       "value": false
      },
      {
-      "help": "先选中一段文字，再打 @improve、@translate、@question 等命令按 ⏎：命令处理选中的文字（打字时它一直选中、不变），选好的结果替换它；Esc 什么都不改。哪个 App 里不正常就关掉。",
+      "help": "先选中一段文字，再打 @improve、@translate、@question 等命令按 Enter：命令处理选中的文字（打字时它一直选中、不变），选好的结果替换它；Esc 什么都不改。哪个应用里不正常就关掉。",
       "id": "useSelection",
       "kind": "toggle",
       "label": "使用选中的文字",
@@ -496,7 +496,7 @@
         "value": "custom"
        }
       ],
-      "help": "在终端打开它，你打的字是第一句话。",
+      "help": "在终端窗口里打开它，你打的字是第一句话。",
       "id": "agent",
       "kind": "choice",
       "label": "@agent 交给",
@@ -571,13 +571,13 @@
         ],
         "detail": "添加的",
         "id": "~/.config/allinoneime/extensions",
-        "title": "~/.config/allinoneime/extensions"
+        "title": "%USERPROFILE%\\.config\\allinoneime\\extensions"
        }
       ],
       "kind": "items",
       "label": "文件夹",
       "picker": "folder",
-      "placeholder": "~/.config/allinoneime/extensions",
+      "placeholder": "%USERPROFILE%\\.config\\allinoneime\\extensions",
       "textActions": [
        "add"
       ]
@@ -658,7 +658,7 @@
           "value": "run"
          },
          {
-          "label": "在终端运行",
+          "label": "在终端窗口运行",
           "value": "terminal"
          },
          {
@@ -683,7 +683,7 @@
         "placeholder": "命令列表里显示，可以不填"
        },
        {
-        "help": "告诉 AI 怎么处理命令后面写的内容，比如「把用户的话写成一条礼貌简短的回复」。回答出现在候选里，⏎ 上屏。",
+        "help": "告诉 AI 怎么处理命令后面写的内容，比如「把用户的话写成一条礼貌简短的回复」。回答出现在候选里，按 Enter 上屏。",
         "id": "prompt",
         "kind": "text",
         "label": "AI 指令",
@@ -719,7 +719,7 @@
         }
        },
        {
-        "help": "{input} 换成命令后面写的内容，始终是一个参数，不经过 shell（要 shell 就写 zsh -c {input}）。参数里有空格时用引号。",
+        "help": "{input} 换成命令后面写的内容，始终是一个参数，不经过 shell（要 shell 就写 cmd /c {input}）。参数里有空格时用引号。",
         "id": "argv",
         "kind": "words",
         "label": "命令",
@@ -778,7 +778,7 @@
         "id": "programs",
         "kind": "info",
         "label": "",
-        "value": "「运行程序」和「在终端运行」会在你的 Mac 上执行命令：只加你自己写的、信得过的。它们只在你按执行键时运行，密码框里不运行。",
+        "value": "「运行程序」和「在终端窗口运行」会在这台电脑上执行命令：只加你自己写的、信得过的。它们只在你按执行键时运行，密码框里不运行。",
         "when": {
          "type": [
           "run",
@@ -799,7 +799,7 @@
       "id": "configFile",
       "kind": "info",
       "label": "配置文件",
-      "value": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-duvsnd94/config.json"
+      "value": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-dc1bbexo/config.json"
      }
     ],
     "footer": "改完立即生效，不用重启。",

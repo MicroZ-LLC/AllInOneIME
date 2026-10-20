@@ -1223,6 +1223,53 @@
         }
       }
     },
+    "{input} becomes the text after the command, always as one argument, never through a shell (for one, write cmd /c {input}). Quote arguments with spaces." : {
+      "comment" : "{input} 换成命令后面写的内容，始终是一个参数，不经过 shell（要 shell 就写 cmd /c {input}）。参数里有空格时用引号。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{input} wird durch den Text nach dem Befehl ersetzt, immer als ein einziges Argument, nie über eine Shell (für eine Shell: cmd /c {input}). Argumente mit Leerzeichen in Anführungszeichen setzen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{input} se sustituye por el texto que sigue al comando, siempre como un solo argumento y nunca a través de un shell (para usar uno, escribe cmd /c {input}). Pon entre comillas los argumentos con espacios."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{input} est remplacé par le texte qui suit la commande, toujours comme un seul argument, jamais via un shell (pour en utiliser un, écrivez cmd /c {input}). Mettez entre guillemets les arguments contenant des espaces."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{input}はコマンドのあとのテキストに置き換わり、常に1つの引数になります。シェルは経由しません（シェルを使うにはcmd /c {input}と書きます）。スペースを含む引数は引用符で囲んでください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{input}은(는) 명령 뒤에 입력한 텍스트로 바뀌며, 항상 하나의 인수로 전달되고 셸을 거치지 않습니다 (셸이 필요하면 cmd /c {input}으로 작성). 공백이 있는 인수는 따옴표로 묶으세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{input} é substituído pelo texto após o comando, sempre como um único argumento, nunca por um shell (para usar um, escreva cmd /c {input}). Coloque entre aspas os argumentos com espaços."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{input} 會換成指令後的文字，一律作為單一參數，不經過 shell（需要 shell 就寫 cmd /c {input}）。含空格的參數請加上引號。"
+          }
+        }
+      }
+    },
     "{input} becomes the text after the command, always as one argument, never through a shell (for one, write zsh -c {input}). Quote arguments with spaces." : {
       "comment" : "{input} 换成命令后面写的内容，始终是一个参数，不经过 shell（要 shell 就写 zsh -c {input}）。参数里有空格时用引号。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
@@ -3663,6 +3710,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ 執行 · Tab / 空白鍵 選擇 · Esc 取消"
+          }
+        }
+      }
+    },
+    "%@ runs an @ command; Enter does too, and without @ Enter is a normal Enter." : {
+      "comment" : "@ 命令写完按 %@ 执行；Enter 也执行，没有 @ 时 Enter 是普通的换行。 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ führt einen @-Befehl aus; Enter ebenfalls, und ohne @ verhält sich Enter wie gewohnt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ejecuta un comando @; Enter también, y sin @ Enter funciona como siempre."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ exécute une commande @ ; Enter aussi, et sans @, Enter fonctionne normalement."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@で@コマンドを実行します。Enterでも実行できます。@がなければEnterは通常どおり動作します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@(으)로 @ 명령을 실행합니다. Enter 키로도 실행되며, @가 없을 때 Enter는 일반 Enter입니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ executa um comando @; Enter também, e sem @ o Enter funciona normalmente."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按 %@ 執行 @ 指令；Enter 也可以，沒有 @ 時 Enter 就是一般的換行。"
           }
         }
       }
@@ -11775,6 +11869,53 @@
         }
       }
     },
+    "Couldn't remove it from the Credential Manager: " : {
+      "comment" : "无法从凭据管理器里删除： — Sources/AllInOneIMECore/Settings/SettingsStore.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Konnte nicht aus der Anmeldeinformationsverwaltung entfernt werden: "
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo eliminar del Administrador de credenciales: "
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de la supprimer du Gestionnaire d’identification : "
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資格情報マネージャーから削除できませんでした："
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자격 증명 관리자에서 제거하지 못함: "
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível removê-la do Gerenciador de Credenciais: "
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法從認證管理員中移除："
+          }
+        }
+      }
+    },
     "Couldn't remove it from the keychain: " : {
       "comment" : "无法从钥匙串里删除： — Sources/AllInOneIMECore/Settings/SettingsStore.swift",
       "localizations" : {
@@ -11912,6 +12053,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法將它儲存到鑰匙圈："
+          }
+        }
+      }
+    },
+    "Couldn't save to the Credential Manager: " : {
+      "comment" : "无法保存到凭据管理器： — Sources/AllInOneIMECore/Settings/SettingsStore.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sichern in der Anmeldeinformationsverwaltung fehlgeschlagen: "
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo guardar en el Administrador de credenciales: "
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible d’enregistrer dans le Gestionnaire d’identification : "
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資格情報マネージャーに保存できませんでした："
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자격 증명 관리자에 저장할 수 없음: "
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível salvar no Gerenciador de Credenciais: "
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法儲存到認證管理員："
           }
         }
       }
@@ -12241,6 +12429,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "憑證會沿用到 AWS 不再接受為止"
+          }
+        }
+      }
+    },
+    "Ctrl+Space also works before the pinyin is picked. @ commands also run on Enter." : {
+      "comment" : "拼音没选完也可以直接按 Ctrl+空格。@ 命令按 Enter 也执行。 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ctrl+Leertaste funktioniert auch, bevor das Pinyin gewählt ist. @-Befehle laufen auch mit Enter."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ctrl+Espacio también funciona antes de elegir el pinyin. Los comandos @ también se ejecutan con Enter."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ctrl+Espace fonctionne aussi avant que le pinyin soit choisi. Les commandes @ s’exécutent aussi avec Enter."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ctrl+スペースはピンインを確定する前でも使えます。@コマンドはEnterでも実行できます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ctrl+Space는 병음을 선택하기 전에도 작동합니다. @ 명령은 Enter 키로도 실행됩니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ctrl+Espaço também funciona antes de o pinyin ser escolhido. Comandos @ também são executados com Enter."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拼音還沒選字時也可以直接按 Ctrl+空白鍵。@ 指令按 Enter 也會執行。"
           }
         }
       }
@@ -13514,6 +13749,53 @@
         }
       }
     },
+    "Enter" : {
+      "comment" : "Enter 键 — Sources/AllInOneIMECore/UIText+Names.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter 鍵"
+          }
+        }
+      }
+    },
     "enter it in Settings (never sent to the AI)" : {
       "comment" : "请在设置里填（不会发给 AI） — Sources/AllInOneIMECore/AIConfigText.swift",
       "localizations" : {
@@ -13557,6 +13839,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "請在設定中填寫（不會傳送給 AI）"
+          }
+        }
+      }
+    },
+    "Enter runs an @ command, also on pinyin not yet picked. Without @, Enter is a normal Enter." : {
+      "comment" : "@ 命令写完按 Enter 执行，拼音没选完也能直接按。没有 @ 时 Enter 就是普通的换行。 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter führt einen @-Befehl aus, auch bei noch nicht gewähltem Pinyin. Ohne @ verhält sich Enter wie gewohnt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter ejecuta un comando @, también con pinyin aún sin elegir. Sin @, Enter funciona como siempre."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter exécute une commande @, même sur un pinyin pas encore choisi. Sans @, Enter fonctionne normalement."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enterで@コマンドを実行します。ピンインが未確定でも実行できます。@がなければEnterは通常どおり動作します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter 키로 @ 명령을 실행하며, 병음을 아직 선택하지 않았어도 실행됩니다. @가 없으면 Enter는 일반 Enter입니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter executa um comando @, mesmo com pinyin ainda não escolhido. Sem @, o Enter funciona normalmente."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter 會執行 @ 指令，拼音還沒選字時也可以。沒有 @ 時，Enter 就是一般的換行。"
           }
         }
       }
@@ -16336,6 +16665,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "不是已知的來源"
+          }
+        }
+      }
+    },
+    "It opens in a terminal window with what you typed as its first message." : {
+      "comment" : "在终端窗口里打开它，你打的字是第一句话。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Öffnet sich in einem Terminalfenster mit deiner Eingabe als erster Nachricht."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se abre en una ventana de terminal con lo que escribiste como primer mensaje."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il s’ouvre dans une fenêtre de terminal avec ce que vous avez tapé comme premier message."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ターミナルウィンドウで開き、入力した内容が最初のメッセージになります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "입력한 내용을 첫 메시지로 하여 터미널 창에서 열립니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ele abre em uma janela de terminal com o que você digitou como primeira mensagem."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "它會在終端機視窗中打開，並以你輸入的文字作為第一則訊息。"
           }
         }
       }
@@ -24248,6 +24624,53 @@
         }
       }
     },
+    "Press either Ctrl and let go right away. @ commands also run on Enter." : {
+      "comment" : "按一下 Ctrl 马上松开，左右都行。@ 命令按 Enter 也执行。 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine der Ctrl-Tasten drücken und sofort loslassen. @-Befehle laufen auch mit Enter."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pulsa cualquiera de las teclas Ctrl y suéltala enseguida. Los comandos @ también se ejecutan con Enter."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appuyez sur l’une des touches Ctrl et relâchez-la aussitôt. Les commandes @ s’exécutent aussi avec Enter."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "左右どちらかのCtrlを押してすぐに離します。@コマンドはEnterでも実行できます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ctrl 키(왼쪽 또는 오른쪽)를 눌렀다가 바로 떼세요. @ 명령은 Enter 키로도 실행됩니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pressione qualquer Ctrl e solte em seguida. Comandos @ também são executados com Enter."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按一下任一側的 Ctrl 並立即放開。@ 指令按 Enter 也會執行。"
+          }
+        }
+      }
+    },
     "press Return" : {
       "comment" : "按 ⏎ — Sources/AllInOneIMECore/UIText+Names.swift",
       "localizations" : {
@@ -24483,6 +24906,53 @@
         }
       }
     },
+    "Programs run on this PC: add only commands you wrote and trust. They run only when you press the action key, never in password fields." : {
+      "comment" : "「运行程序」和「在终端窗口运行」会在这台电脑上执行命令：只加你自己写的、信得过的。它们只在你按执行键时运行，密码框里不运行。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Programme laufen auf diesem PC: Füge nur Befehle hinzu, die du selbst geschrieben hast und denen du vertraust. Sie laufen nur, wenn du die Aktionstaste drückst, nie in Passwortfeldern."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los programas se ejecutan en este PC: añade solo comandos que hayas escrito tú y de los que te fíes. Solo se ejecutan cuando pulsas la tecla de acción, nunca en campos de contraseña."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les programmes s’exécutent sur ce PC : n’ajoutez que des commandes que vous avez écrites et en lesquelles vous avez confiance. Ils ne s’exécutent que lorsque vous appuyez sur la touche d’action, jamais dans les champs de mot de passe."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プログラムはこのPC上で実行されます。自分で書いた信頼できるコマンドだけを追加してください。実行キーを押したときにのみ実行され、パスワード欄では実行されません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "프로그램은 이 PC에서 실행됩니다. 직접 작성했고 신뢰할 수 있는 명령만 추가하세요. 실행 키를 눌렀을 때만 실행되며, 암호 입력란에서는 실행되지 않습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Os programas são executados neste PC: adicione apenas comandos que você escreveu e em que confia. Eles só são executados quando você pressiona a tecla de ação, nunca em campos de senha."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "程式會在這台電腦上執行：只加入你自己寫且信任的指令。它們只在你按執行鍵時執行，絕不在密碼欄位中執行。"
+          }
+        }
+      }
+    },
     "Programs run on your Mac: add only commands you wrote and trust. They run only when you press the action key, never in password fields." : {
       "comment" : "「运行程序」和「在终端运行」会在你的 Mac 上执行命令：只加你自己写的、信得过的。它们只在你按执行键时运行，密码框里不运行。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
@@ -24714,6 +25184,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "打拼音時把同樣的字母照原樣送出兩次（例如打 bedrock 按 ⏎，再來一次），這個詞以後就會出現在候選裡。密碼欄位、終端機、遠端桌面和虛擬機、關了 AI 的 App 裡不學，像金鑰、號碼的也不學。"
+          }
+        }
+      }
+    },
+    "Put the same letters in as typed twice while typing pinyin (bedrock and Enter, then again) and the word comes up among the candidates from then on. Never in password fields, terminals, remote desktops and virtual machines, or apps with AI off, nor anything that looks like a key or a number." : {
+      "comment" : "打拼音时把同样的字母原样上屏两次（比如打 bedrock 按 Enter，再来一次），这个词以后就出现在候选里。密码框、终端、远程桌面和虚拟机、关了 AI 的应用里不学，像密钥、号码的也不学。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gib beim Pinyin-Tippen dieselben Buchstaben zweimal so ein, wie du sie getippt hast (z. B. bedrock und Enter, dann noch einmal), und das Wort erscheint von da an unter den Kandidaten. Nie in Passwortfeldern, Terminals, Remotedesktops und virtuellen Maschinen oder Apps mit ausgeschalteter KI, und nichts, was wie ein Schlüssel oder eine Nummer aussieht."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Al escribir pinyin, introduce dos veces las mismas letras tal cual (por ejemplo, bedrock y Enter, y otra vez) y la palabra aparecerá desde entonces entre los candidatos. Nunca en campos de contraseña, terminales, escritorios remotos y máquinas virtuales, ni en apps con la IA desactivada, ni nada que parezca una clave o un número."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En tapant du pinyin, insérez deux fois les mêmes lettres telles que tapées (bedrock puis Enter, puis encore une fois) et le mot apparaît ensuite parmi les candidats. Jamais dans les champs de mot de passe, les terminaux, les bureaux à distance et les machines virtuelles, ni dans les apps où l’IA est désactivée, ni pour ce qui ressemble à une clé ou à un numéro."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ピンイン入力中に同じ文字をそのまま 2 回確定すると（例：bedrock と入力して Enter、もう一度）、その単語が以降の候補に出ます。パスワード欄、ターミナル、リモートデスクトップや仮想マシン、AI をオフにしたアプリでは学習せず、キーや番号のようなものも学習しません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "병음을 입력하다가 같은 글자를 입력한 그대로 두 번 넣으면(예: bedrock 입력 후 Enter, 한 번 더) 그 단어가 이후 후보에 나타납니다. 암호 필드, 터미널, 원격 데스크톱과 가상 머신, AI를 끈 앱에서는 학습하지 않으며, 키나 번호처럼 보이는 것도 학습하지 않습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ao digitar pinyin, insira duas vezes as mesmas letras como digitadas (bedrock e Enter, e de novo) e a palavra passa a aparecer entre os candidatos. Nunca em campos de senha, terminais, áreas de trabalho remotas e máquinas virtuais, nem em apps com a IA desativada, nem nada que pareça uma chave ou um número."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打拼音時把同樣的字母照原樣送出兩次（例如打 bedrock 按 Enter，再來一次），這個詞以後就會出現在候選裡。密碼欄位、終端機、遠端桌面和虛擬機、關了 AI 的應用程式裡不學，像金鑰、號碼的也不學。"
           }
         }
       }
@@ -26876,6 +27393,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在終端機中執行"
+          }
+        }
+      }
+    },
+    "Run in a terminal" : {
+      "comment" : "在终端窗口运行 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In einem Terminal ausführen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ejecutar en una terminal"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exécuter dans un terminal"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ターミナルで実行"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "터미널에서 실행"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Executar em um terminal"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在終端機視窗中執行"
           }
         }
       }
@@ -29465,6 +30029,53 @@
         }
       }
     },
+    "Select some text, then type @improve, @translate, @question … and Enter: the command works on the selection (it stays selected and as it is while you type), and the result you pick replaces it; Esc changes nothing. Turn it off if it misbehaves in an app." : {
+      "comment" : "先选中一段文字，再打 @improve、@translate、@question 等命令按 Enter：命令处理选中的文字（打字时它一直选中、不变），选好的结果替换它；Esc 什么都不改。哪个应用里不正常就关掉。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wähle Text aus, tippe dann @improve, @translate, @question … und Enter: Der Befehl arbeitet mit der Auswahl (sie bleibt beim Tippen ausgewählt und unverändert), und das gewählte Ergebnis ersetzt sie; Esc ändert nichts. Schalte es aus, falls es in einer App Probleme macht."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selecciona un texto y escribe @improve, @translate, @question… y Enter: el comando trabaja sobre la selección (sigue seleccionada y sin cambios mientras escribes) y el resultado que elijas la sustituye; Esc no cambia nada. Desactívalo si da problemas en alguna app."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sélectionnez du texte, puis tapez @improve, @translate, @question… et Enter : la commande agit sur la sélection (elle reste sélectionnée et intacte pendant la saisie), et le résultat choisi la remplace ; Esc ne change rien. Désactivez cette option si elle pose problème dans une app."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "テキストを選択してから@improve、@translate、@questionなどを入力してEnterを押すと、コマンドが選択したテキストに対して動作し（入力中も選択されたまま変わりません）、選んだ結果で置き換えます。Escでは何も変わりません。アプリで正しく動作しない場合はオフにしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "텍스트를 선택한 다음 @improve, @translate, @question 등을 입력하고 Enter 키를 누르세요. 명령이 선택 영역에 적용되고 (입력하는 동안 선택 영역은 그대로 유지됨), 고른 결과가 선택 영역을 대체합니다. Esc를 누르면 아무것도 바뀌지 않습니다. 앱에서 제대로 작동하지 않으면 끄세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selecione um texto e digite @improve, @translate, @question … e Enter: o comando atua sobre a seleção (ela continua selecionada e intacta enquanto você digita), e o resultado escolhido a substitui; Esc não altera nada. Desative se não funcionar bem em algum app."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先選取一些文字，再輸入 @improve、@translate、@question ⋯ 並按 Enter：指令會處理選取的文字（打字時它會保持選取且不變），你選的結果會取代它；按 Esc 則不做任何更改。如果在某個應用程式中運作不正常，請關閉這項設定。"
+          }
+        }
+      }
+    },
     "Send an iMessage: pick someone, write, confirm" : {
       "comment" : "发 iMessage：选联系人，写好后确认再发 — Sources/AllInOneIMECore/UIText+Names.swift",
       "localizations" : {
@@ -30500,7 +31111,7 @@
       }
     },
     "Space" : {
-      "comment" : "空格 — Sources/AllInOneIMECore/UIText+Names.swift",
+      "comment" : "空格 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -30965,6 +31576,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "空白鍵 選字 · 指令要先打 @"
+          }
+        }
+      }
+    },
+    "Space picks words; once nothing is left to pick, Space again runs it. In English mode, press Space twice. @ commands also run on Enter." : {
+      "comment" : "空格先选词，没有要选的了再按一次空格执行；英文模式下连按两次空格。@ 命令按 Enter 也执行。 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Leertaste wählt Wörter; ist nichts mehr zu wählen, führt ein weiterer Druck auf die Leertaste den Befehl aus. Im Englisch-Modus zweimal die Leertaste drücken. @-Befehle laufen auch mit Enter."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Espacio elige palabras; cuando no queda nada por elegir, Espacio otra vez lo ejecuta. En modo inglés, pulsa Espacio dos veces. Los comandos @ también se ejecutan con Enter."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Espace choisit les mots ; quand il n’y a plus rien à choisir, un nouvel appui sur Espace exécute la commande. En mode anglais, appuyez deux fois sur Espace. Les commandes @ s’exécutent aussi avec Enter."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スペースで語を選び、選ぶものがなくなったらもう一度スペースで実行します。英語モードではスペースを2回押します。@コマンドはEnterでも実行できます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Space로 단어를 선택하고, 더 선택할 것이 없으면 Space를 한 번 더 눌러 실행합니다. 영어 모드에서는 Space를 두 번 누르세요. @ 명령은 Enter 키로도 실행됩니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Espaço escolhe as palavras; quando não há mais nada para escolher, Espaço de novo executa. No modo inglês, pressione Espaço duas vezes. Comandos @ também são executados com Enter."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "空白鍵先選字；沒有可選的字時，再按一次空白鍵即執行。英文模式下請按兩次空白鍵。@ 指令按 Enter 也會執行。"
           }
         }
       }
@@ -32270,6 +32928,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "告訴 AI 如何處理指令後面的文字，例如「為對方的訊息寫一則簡短、有禮貌的回覆。」答案會出現在候選中；按 ⏎ 插入。"
+          }
+        }
+      }
+    },
+    "Tell the AI what to do with the text after the command, e.g. \"Write a short, polite reply to the user's message.\" The answer appears in the candidates; Enter inserts it." : {
+      "comment" : "告诉 AI 怎么处理命令后面写的内容，比如「把用户的话写成一条礼貌简短的回复」。回答出现在候选里，按 Enter 上屏。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sag der KI, was sie mit dem Text nach dem Befehl tun soll, z. B. „Schreib eine kurze, höfliche Antwort auf die Nachricht des Nutzers.“ Die Antwort erscheint in den Kandidaten; Enter fügt sie ein."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dile a la IA qué hacer con el texto que sigue al comando, p. ej., \"Escribe una respuesta breve y educada al mensaje del usuario.\" La respuesta aparece en los candidatos; Enter la inserta."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Indiquez à l’IA quoi faire du texte qui suit la commande, p. ex. « Rédige une réponse courte et polie au message de l’utilisateur. » La réponse apparaît dans les candidats ; Enter l’insère."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コマンドのあとのテキストをどう処理するかAIに指示します。例：「ユーザのメッセージに短く丁寧な返信を書いてください。」回答は候補に表示され、Enterで挿入します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "명령 뒤의 텍스트로 AI가 무엇을 할지 알려 주세요. 예: \"사용자의 메시지에 짧고 정중한 답장을 작성하세요.\" 답변이 후보에 표시되며, Enter 키를 누르면 입력됩니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diga à IA o que fazer com o texto depois do comando, por exemplo, “Escreva uma resposta curta e educada à mensagem do usuário.” A resposta aparece nos candidatos; Enter a insere."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "告訴 AI 如何處理指令後面的文字，例如「為對方的訊息寫一則簡短、有禮貌的回覆。」答案會出現在候選中；按 Enter 插入。"
           }
         }
       }
