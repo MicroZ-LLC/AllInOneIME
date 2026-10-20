@@ -418,7 +418,7 @@
       "label": "黑话库",
       "optional": true,
       "picker": "file",
-      "placeholder": "C:/Users/zwj10/AppData/Roaming/AllInOneIME/jargon.txt"
+      "placeholder": "%APPDATA%\\AllInOneIME\\jargon.txt"
      }
     ],
     "id": "writing",

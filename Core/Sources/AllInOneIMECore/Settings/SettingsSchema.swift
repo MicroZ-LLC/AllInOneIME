@@ -343,7 +343,10 @@ struct SettingsSchema {
         add(toggle("improveTranslates", tr("@improve 同时翻译", "@improve also translates"), nil, config.improveTranslates),
             to: &fields) { store.config.improveTranslates = Self.bool($0) }
         var jargon = text("jargonFile", tr("黑话库", "Jargon list"), tr("你团队自己的说法", "Your team's own terms"),
-                          value: config.jargonFile, placeholder: ExtensionStore.abbreviated(JargonLibrary.defaultURL.path))
+                          value: config.jargonFile,
+                          // On Windows where the engine keeps it, as Windows writes a path, whatever the host the document is made on.
+                          placeholder: platform == .windows ? #"%APPDATA%\AllInOneIME\"# + JargonLibrary.defaultURL.lastPathComponent
+                              : ExtensionStore.abbreviated(JargonLibrary.defaultURL.path))
         jargon.picker = .file
         add(jargon, to: &fields) { value in
             let path = value.string?.trimmingCharacters(in: .whitespaces) ?? ""
