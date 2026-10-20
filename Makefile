@@ -62,7 +62,7 @@ KO_PACK      := $(BUILD_DIR)/packs/ko-hangul-1.0.0.tar.xz
 HI_PACK      := $(BUILD_DIR)/packs/hi-phonetic-1.0.0.tar.xz
 PACK_RELEASES := https://github.com/MicroZ-LLC/AllInOneIME-languages/releases/download
 
-.PHONY: all deps pack packs install-pack build app settings-app installer-app strings strings-check redaction-words dmg update-zip update-manifest update-test test check-ios icon install uninstall cli status selftest screenshots panel-images realtest realtest-build realtest-run realtest-when-unlocked realtest-cancel clean distclean
+.PHONY: all deps pack packs install-pack build app settings-app installer-app strings strings-check redaction-words dmg update-zip update-manifest update-test test check-ios icon install uninstall cli status selftest electron-harness screenshots panel-images realtest realtest-build realtest-run realtest-when-unlocked realtest-cancel clean distclean
 
 all: app
 
@@ -411,9 +411,26 @@ status:
 	"$(INSTALLED_APP)/Contents/MacOS/$(APP_NAME)" --status
 
 # Drives the input controller (real Rime engine on this checkout's data, live Bedrock call) with a fake text field.
+# ELECTRON_HARNESS: the Electron harness's folder (`make electron-harness`), run by the self-test too; without it, that
+# check says it didn't run (what the harness recorded is played anyway).
 OUT ?= /tmp/allinoneime-selftest
+ELECTRON_HARNESS ?=
 selftest: app
-	"$(APP)/Contents/MacOS/$(APP_NAME)" --selftest "$(OUT)" --rime-data "$(abspath $(RIME_DATA))"
+	$(if $(ELECTRON_HARNESS),ALLINONEIME_ELECTRON_HARNESS="$(abspath $(ELECTRON_HARNESS))") \
+		"$(APP)/Contents/MacOS/$(APP_NAME)" --selftest "$(OUT)" --rime-data "$(abspath $(RIME_DATA))"
+
+# The Electron harness (Scripts/electron-harness/): a composer like Slack's and a textarea in a pinned Electron, and a
+# probe that drives its window and logs what reaches the input method (Sources/AllInOneIME/ElectronSelfTest.swift). In
+# build/electron-harness; npm downloads Electron (needs Node and the network). Then
+# `make selftest ELECTRON_HARNESS=build/electron-harness`.
+ELECTRON_HARNESS_DIR := $(BUILD_DIR)/electron-harness
+electron-harness:
+	mkdir -p $(ELECTRON_HARNESS_DIR)
+	cp Scripts/electron-harness/package.json Scripts/electron-harness/package-lock.json Scripts/electron-harness/main.js \
+		Scripts/electron-harness/index.html $(ELECTRON_HARNESS_DIR)/
+	cd $(ELECTRON_HARNESS_DIR) && npm ci --no-audit --no-fund && node node_modules/electron/install.js
+	clang -dynamiclib -fobjc-arc -framework AppKit -framework Carbon -o $(ELECTRON_HARNESS_DIR)/libprobe.dylib \
+		Scripts/electron-harness/probe.m
 
 # README images, rendered by the self-test (needs a working Bedrock setup): docs/ with the Chinese
 # interface and captions, docs/en/ with the English ones (the same states, rendered in English).

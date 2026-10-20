@@ -4,7 +4,9 @@ import FoundationNetworking
 #endif
 
 /// What the resolver reads and calls, so the tests and the self-test can give their own: the AWS variables, the files,
-/// how `credential_process` runs, the HTTP client for STS and SSO, and the clock.
+/// how `credential_process` runs, the HTTP client for STS and SSO, and the clock. The clock is the real time (`Date()`)
+/// unless a test gives one: credentials expire by it, and AWS checks requests against it, never a shell's clock
+/// (`Platform.clock`).
 public struct AWSCredentialContext: Sendable {
     public typealias RunProcess = @Sendable (AWSProcessRequest) async throws -> AWSProcessResult
     public typealias Send = @Sendable (URLRequest) async throws -> (Data, HTTPURLResponse)

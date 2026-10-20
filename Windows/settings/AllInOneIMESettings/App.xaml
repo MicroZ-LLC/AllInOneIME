@@ -1,0 +1,45 @@
+<Application x:Class="AllInOneIME.Settings.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- The window is drawn in code from the settings document; these are its looks. Each brush is a ThemeResource, so
+       that it follows the theme of the element it is on: Windows' own, or the one a test forces (- -theme). -->
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
+      </ResourceDictionary.MergedDictionaries>
+
+      <Style x:Key="CardStyle" TargetType="Border">
+        <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{ThemeResource OverlayCornerRadius}" />
+        <Setter Property="Padding" Value="16,12,16,12" />
+      </Style>
+
+      <Style x:Key="EntryStyle" TargetType="Grid">
+        <Setter Property="Background" Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
+        <Setter Property="CornerRadius" Value="{ThemeResource ControlCornerRadius}" />
+        <Setter Property="Padding" Value="12,8,8,8" />
+      </Style>
+
+      <Style x:Key="SecondaryTextStyle" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextBlockStyle}">
+        <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+      </Style>
+
+      <Style x:Key="ProblemTextStyle" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextBlockStyle}">
+        <Setter Property="Foreground" Value="{ThemeResource SystemFillColorCriticalBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+      </Style>
+
+      <!-- The page's own background where Mica isn't there to show through (the screenshots). -->
+      <Style x:Key="SolidPageStyle" TargetType="Grid">
+        <Setter Property="Background" Value="{ThemeResource SolidBackgroundFillColorBaseBrush}" />
+      </Style>
+      <Style x:Key="SolidPanelStyle" TargetType="StackPanel">
+        <Setter Property="Background" Value="{ThemeResource SolidBackgroundFillColorBaseBrush}" />
+      </Style>
+    </ResourceDictionary>
+  </Application.Resources>
+</Application>

@@ -533,17 +533,57 @@ extension CustomCommand {
         return list.firstIndex { $0.name.lowercased() == name }
     }
 
-    /// Arguments as one line, quoted where needed: ["python3", "-c", "{input}"] → `python3 -c {input}`.
-    public static func commandLine(_ argv: [String]) -> String {
-        argv.map { arg in
-            guard arg.isEmpty || arg.contains(where: { " \t\"'\\".contains($0) }) else { return arg }
-            return "\"" + arg.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") + "\""
+    /// How a command line is written and split into arguments: as the Mac's command editor does it, or as a Windows
+    /// program reads its own, where `\` separates a path's folders (`C:\Tools\run.exe`) rather than escaping.
+    public enum LineRules: Sendable {
+        /// A shell's words without its syntax: spaces separate them, "…" and '…' quote, \ escapes the next character.
+        case shell
+        /// `CommandLineToArgvW`'s: spaces and tabs separate the arguments, "…" quotes, and a backslash is itself
+        /// except before a `"` (2n of them and a `"` are n and a quote that opens or closes; 2n + 1 are n and a `"`).
+        /// The program, first, is read as Windows reads a program's path: to the next space, or in quotes to the
+        /// next `"`, its backslashes as they are.
+        case windows
+
+        /// The rules of the system the settings are made for: what a window there shows and sends is its line.
+        public init(_ platform: SettingsPlatform) { self = platform == .windows ? .windows : .shell }
+    }
+
+    /// Arguments as one line, quoted where needed: ["python3", "-c", "{input}"] → `python3 -c {input}`. With `.windows`,
+    /// an argument with a space, a tab or a `"` (or none at all) in quotes, its `"` and the backslashes before one
+    /// escaped; a path's backslashes as they are: `C:\Tools\run.exe "C:\My Files\a.txt"`.
+    public static func commandLine(_ argv: [String], rules: LineRules = .shell) -> String {
+        guard rules == .windows else {
+            return argv.map { arg in
+                guard arg.isEmpty || arg.contains(where: { " \t\"'\\".contains($0) }) else { return arg }
+                return "\"" + arg.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") + "\""
+            }.joined(separator: " ")
+        }
+        return argv.enumerated().map { index, arg in
+            let plain = !arg.isEmpty && !arg.unicodeScalars.contains { $0 == " " || $0 == "\t" || $0 == "\n" || $0 == "\u{0B}" || $0 == "\"" }
+            if plain { return arg }
+            // The program: in quotes as it is (a file name has no `"`).
+            if index == 0 { return "\"" + arg + "\"" }
+            var out = "\""
+            var backslashes = 0
+            for scalar in arg.unicodeScalars {
+                if scalar == "\\" {
+                    backslashes += 1
+                } else {
+                    // n backslashes before a `"` become 2n + 1: the `"` escaped.
+                    if scalar == "\"" { out += String(repeating: "\\", count: backslashes + 1) }
+                    backslashes = 0
+                }
+                out.unicodeScalars.append(scalar)
+            }
+            // n backslashes before the closing `"` become 2n.
+            return out + String(repeating: "\\", count: backslashes) + "\""
         }.joined(separator: " ")
     }
 
-    /// A command line split into arguments: spaces separate them, "…" and '…' quote, \ escapes the
-    /// next character. No other shell syntax: `;`, `|`, `$` are plain text. Nil if a quote isn't closed.
-    public static func arguments(fromCommandLine line: String) -> [String]? {
+    /// A command line split into arguments (`rules`; by default the Mac's): spaces separate them, "…" and '…' quote, \
+    /// escapes the next character. No other shell syntax: `;`, `|`, `$` are plain text. Nil if a quote isn't closed.
+    public static func arguments(fromCommandLine line: String, rules: LineRules = .shell) -> [String]? {
+        if rules == .windows { return windowsArguments(line) }
         var args: [String] = []
         var current = ""
         var inArgument = false
@@ -578,6 +618,82 @@ extension CustomCommand {
         }
         if quote != nil || escaped { return nil }
         if inArgument { args.append(current) }
+        return args
+    }
+
+    /// `line` split as `CommandLineToArgvW` splits it (Wine's reading of it, which Windows' own agrees with): the
+    /// program to the first space or tab, or in quotes to the next `"`; then the arguments, where three `"` in a row in
+    /// quotes are a `"`. Unlike it, a line of blanks is no argument (not the program's own path), the blanks before the
+    /// program are skipped, and a quote not closed is nil, as with the Mac's rules.
+    private static func windowsArguments(_ line: String) -> [String]? {
+        func isBlank(_ c: Unicode.Scalar) -> Bool { c == " " || c == "\t" }
+        var rest = Array(line.unicodeScalars)[...]
+        while let c = rest.first, isBlank(c) { rest = rest.dropFirst() }
+        guard !rest.isEmpty else { return [] }
+        var program = String.UnicodeScalarView()
+        if rest.first == "\"" {
+            rest = rest.dropFirst()
+            var closed = false
+            while let c = rest.popFirst() {
+                if c == "\"" {
+                    closed = true
+                    break
+                }
+                program.append(c)
+            }
+            guard closed else { return nil }
+        } else {
+            while let c = rest.first, !isBlank(c) {
+                program.append(c)
+                rest = rest.dropFirst()
+            }
+        }
+        var args = [String(program)]
+        while let c = rest.first, isBlank(c) { rest = rest.dropFirst() }
+        guard !rest.isEmpty else { return args }
+        var current = String.UnicodeScalarView()
+        // Quotes: odd while in quotes. Backslashes: those just before, which a `"` makes half as many.
+        var quotes = 0, backslashes = 0
+        while let c = rest.first {
+            if isBlank(c), quotes == 0 {
+                args.append(String(current))
+                current = String.UnicodeScalarView()
+                backslashes = 0
+                while let blank = rest.first, isBlank(blank) { rest = rest.dropFirst() }
+                if rest.isEmpty { return args }
+                continue
+            }
+            rest = rest.dropFirst()
+            if c == "\\" {
+                current.append(c)
+                backslashes += 1
+                continue
+            }
+            guard c == "\"" else {
+                current.append(c)
+                backslashes = 0
+                continue
+            }
+            if backslashes % 2 == 0 {
+                current.removeLast(backslashes / 2)
+                quotes += 1
+            } else {
+                current.removeLast(backslashes / 2 + 1)
+                current.append("\"")
+            }
+            backslashes = 0
+            while rest.first == "\"" {
+                rest = rest.dropFirst()
+                quotes += 1
+                if quotes == 3 {
+                    current.append("\"")
+                    quotes = 0
+                }
+            }
+            if quotes == 2 { quotes = 0 }
+        }
+        guard quotes == 0 else { return nil }
+        args.append(String(current))
         return args
     }
 }

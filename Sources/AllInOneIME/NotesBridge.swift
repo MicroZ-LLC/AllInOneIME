@@ -137,3 +137,16 @@ enum NotesBridge {
         return result
     }
 }
+
+extension NotesBridge.NotesError: InterfaceDescribedError {
+    var interfaceDescription: String? {
+        switch self {
+        case .notPermitted:
+            return tr("没有权限控制「备忘录」：在 系统设置 → 隐私与安全性 → 自动化 里允许 AllInOneIME",
+                      "Not allowed to control Notes: allow AllInOneIME in System Settings → Privacy & Security → Automation")
+        case let .failed(number):
+            // Our words and AppleScript's number, never its message (in the system's language).
+            return tr("没有存到备忘录（错误 \(number)）", "Not saved to Notes (error \(number))")
+        }
+    }
+}

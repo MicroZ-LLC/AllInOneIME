@@ -75,7 +75,7 @@ extension SelfTest {
     static func testTranslateMode(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
         section("Translate as You Type (canned translations)", needs: .composing)
         let (notes, chat, mail) = ("com.example.notes", "com.example.chat", "com.example.mail")
-        let saved = (converter: controller.converter, settings: settings, shiftHeld: TranslateModeShared.shiftHeld,
+        let saved = (converter: controller.services.converter, settings: settings, shiftHeld: TranslateModeShared.shiftHeld,
                      shiftDown: TranslateModeShared.shiftDown, defaults: TranslateModeShared.defaults,
                      lastTarget: TranslateModeShared.lastTarget, pointer: TranslateModeShared.pointer,
                      stickyKeys: TranslateModeShared.stickyKeys)
@@ -100,7 +100,7 @@ extension SelfTest {
             controller.perform(controller.composer.setTranslateMode(nil), client: client)
             controller.commitComposition(client)
             MenuBarIcon.shared.setTranslating(false)
-            (controller.converter, settings, TranslateModeShared.shiftHeld) = (saved.converter, saved.settings, saved.shiftHeld)
+            (controller.services.converter, settings, TranslateModeShared.shiftHeld) = (saved.converter, saved.settings, saved.shiftHeld)
             TranslateModeShared.defaults = saved.defaults
             if TranslateModeShared.lastTarget != saved.lastTarget { TranslateModeShared.lastTarget = saved.lastTarget }
             (TranslateModeShared.pointer, TranslateModeShared.stickyKeys) = (saved.pointer, saved.stickyKeys)
@@ -118,7 +118,7 @@ extension SelfTest {
         settings.appProfiles = [mail: AppProfile(rewriteStyles: ["正式"], translateAlways: true)]
         let model = CannedTranslationModel(answers: ["EN|你好": "Hello", "JA|你好": "こんにちは", "EN|我们": "We"])
         let fixed = settings
-        controller.converter = Converter(loadConfig: { fixed }, appleModel: model)
+        controller.services.converter = Converter(loadConfig: { fixed }, appleModel: model)
         controller.commitComposition(client)
         client.bundleIDOverride = notes
         controller.activateServer(client)
@@ -370,9 +370,20 @@ extension SelfTest {
         controller.activateServer(client)
         check(!TranslateModeShared.state.isOn && controller.composer.translateMode == nil && controller.notice == nil
               && !MenuBarIcon.shared.translating && chip() != zhEn, "switching to another app leaves it, with no notice and no chip")
+        // A rename to tell in that field too: said after its notice that the mode is on, which doesn't cover it.
+        let renames = controller.services.takeRenameNotice
+        var renameTold = false
+        controller.services.takeRenameNotice = { messages in
+            defer { renameTold = true }
+            return renameTold ? nil : messages.renamed(old: "reply", new: "myreply")
+        }
         client.bundleIDOverride = mail
         controller.activateServer(client)
+        controller.services.takeRenameNotice = renames
         check(TranslateModeShared.state.isOn && controller.composer.translateMode?.target == .english, "an app that translates always turns it on")
+        let renamed = controller.composer.messages.reply.renamed(old: "reply", new: "myreply")
+        check(renameTold && controller.notice == renamed, "…a rename told then is the notice up (\(controller.notice ?? "none"))")
+        endNotice()
         draft("nihao")
         _ = enter(controller, client)
         check(pump(timeout: 5) { client.inserted.last == "Hello" } && model.requests.last?.instructions.contains(AppTone.formal.rule) == true,

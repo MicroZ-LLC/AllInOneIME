@@ -208,7 +208,7 @@ public struct SnippetValues: Equatable, Sendable {
     public var timeZone: TimeZone
     public var locale: Locale
 
-    public init(input: String = "", fields: [String] = [], clipboard: String = "", selection: String = "", now: Date = Date(),
+    public init(input: String = "", fields: [String] = [], clipboard: String = "", selection: String = "", now: Date = Platform.current.clock.now,
                 timeZone: TimeZone = .autoupdatingCurrent, locale: Locale = Locale(identifier: "en_US_POSIX")) {
         self.input = input
         self.fields = fields

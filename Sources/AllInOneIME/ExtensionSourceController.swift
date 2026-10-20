@@ -280,7 +280,7 @@ enum ExtensionSourceText {
 
     /// "a1b2c3d · 2 hr ago".
     static func commit(_ sha: String?, _ date: Date?, now: Date = Date()) -> String {
-        [sha.map { String($0.prefix(7)) }, date.map { DashboardText.ago($0, now: now, language: UIText.language) }]
+        [sha.map { String($0.prefix(7)) }, date.map { RelativeTime.ago($0, now: now, language: UIText.language, style: .short) }]
             .compactMap { $0 }.joined(separator: " · ")
     }
 

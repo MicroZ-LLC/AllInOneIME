@@ -1,0 +1,824 @@
+{
+ "document": {
+  "language": "en",
+  "platform": "windows",
+  "sections": [
+   {
+    "fields": [
+     {
+      "choices": [
+       {
+        "label": "Enter",
+        "value": "enter"
+       },
+       {
+        "label": "Space",
+        "value": "space"
+       }
+      ],
+      "help": "Enter runs an @ command, also on pinyin not yet picked. Without @, Enter is a normal Enter.",
+      "id": "actionKey",
+      "kind": "choice",
+      "label": "Action key",
+      "value": "enter"
+     },
+     {
+      "help": "A command's result is typed in character by character, like a person typing; pinyin picks still go in at once. Esc stops it; any other key types the rest at once.",
+      "id": "typeOut",
+      "kind": "toggle",
+      "label": "Type results out",
+      "value": false
+     },
+     {
+      "help": "Select some text, then type @improve, @translate, @question … and Enter: the command works on the selection (it stays selected and as it is while you type), and the result you pick replaces it; Esc changes nothing. Turn it off if it misbehaves in an app.",
+      "id": "useSelection",
+      "kind": "toggle",
+      "label": "Use the selected text",
+      "value": true
+     },
+     {
+      "id": "rememberQuestions",
+      "kind": "toggle",
+      "label": "Remember recent questions",
+      "value": true
+     },
+     {
+      "choices": [
+       {
+        "label": "Follow the system",
+        "value": null
+       },
+       {
+        "label": "English",
+        "value": "en"
+       },
+       {
+        "label": "简体中文",
+        "value": "zh-Hans"
+       },
+       {
+        "label": "Deutsch",
+        "value": "de"
+       },
+       {
+        "label": "Español",
+        "value": "es"
+       },
+       {
+        "label": "Français",
+        "value": "fr"
+       },
+       {
+        "label": "日本語",
+        "value": "ja"
+       },
+       {
+        "label": "한국어",
+        "value": "ko"
+       },
+       {
+        "label": "Português (Brasil)",
+        "value": "pt-BR"
+       },
+       {
+        "label": "繁體中文",
+        "value": "zh-Hant"
+       }
+      ],
+      "id": "uiLanguage",
+      "kind": "choice",
+      "label": "Interface language",
+      "value": "en"
+     }
+    ],
+    "id": "general",
+    "title": "General"
+   },
+   {
+    "fields": [
+     {
+      "choices": [
+       {
+        "label": "Chinese (pinyin)",
+        "value": "zh"
+       },
+       {
+        "label": "English",
+        "value": "en"
+       },
+       {
+        "label": "French",
+        "value": "fr"
+       },
+       {
+        "label": "Korean",
+        "value": "ko"
+       },
+       {
+        "label": "Hindi",
+        "value": "hi"
+       }
+      ],
+      "help": "With one, Shift doesn't switch",
+      "id": "inputLanguages",
+      "kind": "choices",
+      "label": "Input languages",
+      "maxCount": 5,
+      "minCount": 1,
+      "ordered": true,
+      "value": [
+       "en"
+      ]
+     },
+     {
+      "choices": [
+       {
+        "label": "Vertical",
+        "value": "vertical"
+       },
+       {
+        "label": "Horizontal",
+        "value": "horizontal"
+       }
+      ],
+      "help": "For picking words (pinyin, Hindi): side by side (the default), like the system's own input methods; ← → choose, ↑↓ or - = turn the page. The @ list and results stay vertical. From the next text field.",
+      "id": "candidateLayout",
+      "kind": "choice",
+      "label": "Candidate layout",
+      "value": "horizontal"
+     }
+    ],
+    "id": "input",
+    "title": "Input"
+   },
+   {
+    "fields": [
+     {
+      "choices": [
+       {
+        "label": "English",
+        "value": "en"
+       },
+       {
+        "label": "Chinese",
+        "value": "zh"
+       },
+       {
+        "label": "Traditional Chinese",
+        "value": "zh-Hant"
+       },
+       {
+        "label": "Japanese",
+        "value": "ja"
+       },
+       {
+        "label": "Korean",
+        "value": "ko"
+       },
+       {
+        "label": "French",
+        "value": "fr"
+       },
+       {
+        "label": "German",
+        "value": "de"
+       },
+       {
+        "label": "Spanish",
+        "value": "es"
+       },
+       {
+        "label": "Portuguese",
+        "value": "pt"
+       },
+       {
+        "label": "Italian",
+        "value": "it"
+       },
+       {
+        "label": "Russian",
+        "value": "ru"
+       },
+       {
+        "label": "Vietnamese",
+        "value": "vi"
+       },
+       {
+        "label": "Thai",
+        "value": "th"
+       },
+       {
+        "label": "Indonesian",
+        "value": "id"
+       },
+       {
+        "label": "Arabic",
+        "value": "ar"
+       },
+       {
+        "label": "Hindi",
+        "value": "hi"
+       },
+       {
+        "label": "Bengali",
+        "value": "bn"
+       },
+       {
+        "label": "Telugu",
+        "value": "te"
+       },
+       {
+        "label": "Marathi",
+        "value": "mr"
+       },
+       {
+        "label": "Tamil",
+        "value": "ta"
+       },
+       {
+        "label": "Gujarati",
+        "value": "gu"
+       },
+       {
+        "label": "Kannada",
+        "value": "kn"
+       },
+       {
+        "label": "Malayalam",
+        "value": "ml"
+       },
+       {
+        "label": "Punjabi",
+        "value": "pa"
+       },
+       {
+        "label": "Urdu",
+        "value": "ur"
+       }
+      ],
+      "help": "A line in each; drag to reorder",
+      "id": "outputLanguages",
+      "kind": "choices",
+      "label": "Languages",
+      "minCount": 1,
+      "ordered": true,
+      "value": [
+       "en",
+       "zh"
+      ]
+     },
+     {
+      "choices": [
+       {
+        "label": "Polish",
+        "note": "Same tone, more natural",
+        "value": "润色"
+       },
+       {
+        "label": "Concise",
+        "note": "Shorter, no filler",
+        "value": "简洁"
+       },
+       {
+        "label": "Formal",
+        "note": "For managers and clients",
+        "value": "正式"
+       },
+       {
+        "label": "Casual",
+        "note": "Like chatting with a friend",
+        "value": "口语"
+       },
+       {
+        "label": "Tactful",
+        "note": "Politer and softer",
+        "value": "委婉"
+       },
+       {
+        "label": "Jargon",
+        "note": "Big-tech speak, Amazon-style in English",
+        "value": "黑话"
+       }
+      ],
+      "help": "In the language you wrote; drag to reorder",
+      "id": "rewriteStyles",
+      "kind": "choices",
+      "label": "Styles",
+      "ordered": true,
+      "value": [
+       "润色",
+       "简洁",
+       "正式"
+      ]
+     },
+     {
+      "id": "improveTranslates",
+      "kind": "toggle",
+      "label": "@improve also translates",
+      "value": false
+     },
+     {
+      "help": "Your team's own terms",
+      "id": "jargonFile",
+      "kind": "text",
+      "label": "Jargon list",
+      "optional": true,
+      "picker": "file",
+      "placeholder": "%APPDATA%\\AllInOneIME\\jargon.txt"
+     }
+    ],
+    "id": "writing",
+    "title": "Translate & Rewrite"
+   },
+   {
+    "fields": [
+     {
+      "choices": [
+       {
+        "label": "Amazon Bedrock",
+        "value": "bedrock"
+       },
+       {
+        "label": "Claude API",
+        "value": "anthropic"
+       },
+       {
+        "label": "Gemini API",
+        "value": "gemini"
+       },
+       {
+        "label": "OpenAI-compatible API",
+        "value": "openai"
+       }
+      ],
+      "id": "provider",
+      "kind": "choice",
+      "label": "Provider",
+      "value": "anthropic"
+     },
+     {
+      "choices": [
+       {
+        "label": "Claude Haiku 5.5",
+        "note": "Default: fastest, cheapest",
+        "value": "claude-haiku-5-5"
+       },
+       {
+        "label": "Claude Sonnet 5.5",
+        "note": "More careful, slower",
+        "value": "claude-sonnet-5-5"
+       },
+       {
+        "label": "Claude Opus 5.5",
+        "note": "Most capable, slowest, priciest",
+        "value": "claude-opus-5-5"
+       }
+      ],
+      "id": "anthropic.model",
+      "kind": "text",
+      "label": "Model",
+      "optional": true,
+      "placeholder": "claude-haiku-5-5"
+     },
+     {
+      "actions": [
+       "setKey"
+      ],
+      "id": "anthropic.key",
+      "isSet": false,
+      "kind": "secret",
+      "label": "API key",
+      "status": "No API key yet"
+     },
+     {
+      "id": "anthropic.baseURL",
+      "kind": "text",
+      "label": "Base URL",
+      "optional": true,
+      "placeholder": "https://api.anthropic.com",
+      "value": "http://127.0.0.1:53395"
+     },
+     {
+      "choices": [
+       {
+        "label": "Little (low, fastest)",
+        "value": "low"
+       },
+       {
+        "label": "medium",
+        "value": "medium"
+       },
+       {
+        "label": "high",
+        "value": "high"
+       },
+       {
+        "label": "Not set (for models without it)",
+        "value": ""
+       }
+      ],
+      "id": "anthropic.effort",
+      "kind": "choice",
+      "label": "Thinking",
+      "value": "low"
+     },
+     {
+      "actions": [
+       "test"
+      ],
+      "id": "provider.test",
+      "kind": "button",
+      "label": "Test Connection"
+     }
+    ],
+    "id": "provider",
+    "title": "AI Provider"
+   },
+   {
+    "fields": [
+     {
+      "id": "maxTokens",
+      "kind": "integer",
+      "label": "Up to 1000 output tokens",
+      "max": 4000,
+      "min": 200,
+      "step": 100,
+      "value": 1000
+     },
+     {
+      "id": "timeoutSeconds",
+      "kind": "integer",
+      "label": "Timeout 15 s",
+      "max": 60,
+      "min": 5,
+      "step": 5,
+      "value": 15
+     }
+    ],
+    "id": "request",
+    "title": "Model Settings"
+   },
+   {
+    "fields": [
+     {
+      "help": "Emails, numbers and keys are replaced with placeholders such as [EMAIL_1] before the AI sees the text, and put back in the results.",
+      "id": "redaction.enabled",
+      "kind": "toggle",
+      "label": "Hide sensitive information before sending",
+      "value": false
+     }
+    ],
+    "id": "privacy",
+    "title": "Privacy"
+   },
+   {
+    "fields": [
+     {
+      "choices": [
+       {
+        "label": "Claude Code",
+        "value": "claude"
+       },
+       {
+        "label": "Gemini CLI",
+        "value": "gemini"
+       },
+       {
+        "label": "Kiro CLI",
+        "value": "kiro"
+       },
+       {
+        "label": "Custom",
+        "value": "custom"
+       }
+      ],
+      "help": "It opens in a terminal window with what you typed as its first message.",
+      "id": "agent",
+      "kind": "choice",
+      "label": "@agent hands it to",
+      "value": "claude"
+     },
+     {
+      "id": "claudeInBackground",
+      "kind": "toggle",
+      "label": "Runs in the background and notifies me",
+      "value": true
+     }
+    ],
+    "id": "agent",
+    "title": "Agent"
+   },
+   {
+    "fields": [
+     {
+      "actions": [
+       "add"
+      ],
+      "help": "Different settings in different apps: say Slack starts in English with casual rewrites, Mail rewrites formally, and one app gets no AI at all. Anything not set follows the settings for every app.",
+      "id": "apps.profiles",
+      "items": [],
+      "kind": "items",
+      "label": "Per-App Settings",
+      "placeholder": "Its program, e.g. notepad.exe",
+      "textActions": [
+       "add"
+      ]
+     }
+    ],
+    "id": "apps",
+    "title": "Apps"
+   },
+   {
+    "fields": [
+     {
+      "help": "No plugins yet. Plugins are ready-made @ commands, like @stock for stock quotes; once installed they work like any command.",
+      "id": "plugins.installed",
+      "items": [],
+      "kind": "items",
+      "label": "Plugins"
+     },
+     {
+      "actions": [
+       "browse"
+      ],
+      "help": "Library plugins are reviewed and signed; the library is fetched only when you open it (plugins.allinoneime.com).",
+      "id": "plugins.library",
+      "kind": "items",
+      "label": "Plugin Library"
+     }
+    ],
+    "id": "plugins",
+    "title": "Plugins"
+   },
+   {
+    "fields": [
+     {
+      "actions": [
+       "add"
+      ],
+      "help": "Choose a folder of scripts or extension bundles",
+      "id": "extensions.folders",
+      "items": [],
+      "kind": "items",
+      "label": "Folders",
+      "picker": "folder",
+      "placeholder": "%USERPROFILE%\\.config\\allinoneime\\extensions",
+      "textActions": [
+       "add"
+      ]
+     },
+     {
+      "help": "No extensions yet. Put scripts, extension bundles or Raycast Script Commands in a folder above.",
+      "id": "extensions.installed",
+      "items": [],
+      "kind": "items",
+      "label": "Script Extensions"
+     }
+    ],
+    "footer": "Each script is an @ command named after its file (convert-timestamp.sh → @converttimestamp). Write its arguments after it, with commas between: @flights beijing, new york. A script can insert its result, show progress, offer a list to pick from, or run in the background and notify you. See docs/extensions.md for how to write one.",
+    "id": "extensions",
+    "title": "Script Extensions"
+   },
+   {
+    "fields": [
+     {
+      "choices": [
+       {
+        "disabled": true,
+        "label": "Notes",
+        "value": "notes"
+       },
+       {
+        "label": "Notion",
+        "value": "notion"
+       },
+       {
+        "label": "Folder (Obsidian or any)",
+        "value": "folder"
+       }
+      ],
+      "id": "notes.destination",
+      "kind": "choice",
+      "label": "Save to",
+      "value": "notes"
+     },
+     {
+      "id": "notes.folder",
+      "kind": "text",
+      "label": "Folder (Obsidian or any)",
+      "optional": true,
+      "picker": "folder"
+     }
+    ],
+    "id": "notes",
+    "title": "Notes (@note)"
+   },
+   {
+    "fields": [
+     {
+      "actions": [
+       "save"
+      ],
+      "id": "commands.custom",
+      "items": [],
+      "kind": "items",
+      "label": "Custom @ Commands",
+      "schema": [
+       {
+        "id": "name",
+        "kind": "text",
+        "label": "Name",
+        "placeholder": "Letters only, e.g. py"
+       },
+       {
+        "choices": [
+         {
+          "label": "AI instruction",
+          "value": "prompt"
+         },
+         {
+          "label": "Run a program",
+          "value": "run"
+         },
+         {
+          "label": "Run in a terminal",
+          "value": "terminal"
+         },
+         {
+          "label": "Open a web page",
+          "value": "link"
+         },
+         {
+          "label": "Insert text",
+          "value": "snippet"
+         }
+        ],
+        "id": "type",
+        "kind": "choice",
+        "label": "What it does",
+        "value": "prompt"
+       },
+       {
+        "id": "summary",
+        "kind": "text",
+        "label": "Description",
+        "optional": true,
+        "placeholder": "Shown in the command list (optional)"
+       },
+       {
+        "help": "Tell the AI what to do with the text after the command, e.g. \"Write a short, polite reply to the user's message.\" The answer appears in the candidates; Enter inserts it.",
+        "id": "prompt",
+        "kind": "text",
+        "label": "AI instruction",
+        "multiline": true,
+        "when": {
+         "type": [
+          "prompt"
+         ]
+        }
+       },
+       {
+        "help": "The text after the command replaces {input}; {label?} is a blank, filled in order, separated by commas; write {{ for {",
+        "id": "text",
+        "kind": "text",
+        "label": "Insert text",
+        "multiline": true,
+        "when": {
+         "type": [
+          "snippet"
+         ]
+        }
+       },
+       {
+        "help": "{input} becomes the text after the command (encoded), after the ?. The action key opens it in the browser; nothing is inserted. https:// only.",
+        "id": "url",
+        "kind": "text",
+        "label": "Address",
+        "placeholder": "https://www.google.com/search?q={input}",
+        "when": {
+         "type": [
+          "link"
+         ]
+        }
+       },
+       {
+        "help": "{input} becomes the text after the command, always as one argument, never through a shell (for one, write cmd /c {input}). Quote arguments with spaces.",
+        "id": "argv",
+        "kind": "words",
+        "label": "Command",
+        "ordered": true,
+        "placeholder": "python3 -c {input}",
+        "when": {
+         "type": [
+          "run",
+          "terminal"
+         ]
+        }
+       },
+       {
+        "help": "Send the text to standard input (no {input} needed)",
+        "id": "stdin",
+        "kind": "text",
+        "label": "Standard input",
+        "optional": true,
+        "placeholder": "{input}",
+        "when": {
+         "type": [
+          "run"
+         ]
+        }
+       },
+       {
+        "id": "timeoutSeconds",
+        "kind": "number",
+        "label": "Stop after (seconds)",
+        "max": 120,
+        "min": 1,
+        "optional": true,
+        "placeholder": "10",
+        "step": 1,
+        "when": {
+         "type": [
+          "run"
+         ]
+        }
+       },
+       {
+        "id": "ascii",
+        "kind": "toggle",
+        "label": "Type English letters (for code and paths)",
+        "optional": true,
+        "when": {
+         "type": [
+          "prompt",
+          "run",
+          "terminal",
+          "link"
+         ]
+        }
+       },
+       {
+        "id": "programs",
+        "kind": "info",
+        "label": "",
+        "value": "Programs run on this PC: add only commands you wrote and trust. They run only when you press the action key, never in password fields.",
+        "when": {
+         "type": [
+          "run",
+          "terminal"
+         ]
+        }
+       }
+      ]
+     }
+    ],
+    "footer": "Once saved, type @ and its name at the start of any text field, like @improve.",
+    "id": "commands",
+    "title": "Custom @ Commands"
+   },
+   {
+    "fields": [
+     {
+      "id": "configFile",
+      "kind": "info",
+      "label": "Config file",
+      "value": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-pfe7i59q/config.json"
+     }
+    ],
+    "footer": "Changes apply right away, with no restart.",
+    "id": "advanced",
+    "title": "Advanced"
+   }
+  ],
+  "strings": {
+   "action.add": "Add",
+   "action.browse": "Open the Library",
+   "action.cancel": "Cancel",
+   "action.delete": "Delete…",
+   "action.hide": "Hide",
+   "action.install": "Install",
+   "action.remove": "Remove",
+   "action.removeKey": "Remove…",
+   "action.save": "New…",
+   "action.save.item": "Edit…",
+   "action.setKey": "Save",
+   "action.show": "Show",
+   "action.test": "Test",
+   "add": "Add…",
+   "cancel": "Cancel",
+   "choose": "Choose…",
+   "confirm.delete": "Delete “{name}”?",
+   "confirm.removeItem": "Remove “{name}”?",
+   "confirm.removeKey": "Remove “{name}”?",
+   "moveDown": "Move down",
+   "moveUp": "Move up",
+   "paste": "Paste it",
+   "remove": "Remove",
+   "save": "Save",
+   "window.title": "AllInOneIME Settings",
+   "working": "Working…"
+  }
+ },
+ "revision": 3,
+ "type": "settings"
+}

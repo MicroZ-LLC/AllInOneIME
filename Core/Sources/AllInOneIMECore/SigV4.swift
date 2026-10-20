@@ -17,7 +17,9 @@ public struct SigV4Signer: Sendable {
     }
 
     /// Adds `X-Amz-Date`, `X-Amz-Security-Token` (when present) and `Authorization`.
-    /// Every header already set on the request, plus `host`, is signed, so set all headers first.
+    /// Every header already set on the request, plus `host`, is signed, so set all headers first. Signed at the real time
+    /// (`Date()`), never a shell's or a test's clock (`Platform.clock`): AWS refuses a request signed more than five
+    /// minutes off.
     public func sign(_ request: inout URLRequest, body: Data, date: Date = Date()) {
         guard let url = request.url, let host = url.host else { return }
         let amzDate = Self.amzDate(date)

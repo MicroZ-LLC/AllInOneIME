@@ -3,9 +3,9 @@ import AppKit
 import InputMethodKit
 
 /// `@reply` and screenshots in a draft, the Mac's side (the logic is the core's: `Composer+Reply.swift`, `ScreenText`,
-/// `Reply.swift`): the clipboard as ⌃V finds it, the screenshot read with Vision on this Mac, the text around the caret
-/// through IMK, Vision warmed up when a draft starts with an image on the clipboard, and the custom commands a built-in
-/// took the name of, renamed once.
+/// `Reply.swift`, the session's `SessionTasks.recognize`): the clipboard as ⌃V finds it, the text around the caret through
+/// IMK, Vision warmed up when a draft starts with an image on the clipboard, and the custom commands a built-in took the
+/// name of, renamed once.
 extension AllInOneIMEInputController {
     /// The clipboard as a draft takes it (`ClipboardContent`): its text first, else a PNG or TIFF image; nothing for what
     /// password managers mark as concealed or transient (nspasteboard.org, and the older markers), and when pasting from
@@ -34,42 +34,19 @@ extension AllInOneIMEInputController {
         }
     }
 
-    /// The screenshot pasted into the draft, read on this Mac (`Platform.current.text`: Vision) in the settings'
-    /// languages (`ScreenText.languages`), for at most `ScreenText.timeout`; the text, or why not, goes to the composer.
-    /// The image goes nowhere and isn't kept; the log has only how many lines were read.
-    @MainActor
-    func recognizeScreenshot(_ image: Data, id: Int) {
-        let languages = ScreenText.languages(loadSettings())
-        let recognizer = recognizeText
-        let started = Date()
-        Task { @MainActor [weak self] in
-            do {
-                let text = try await ScreenText.recognize(image, with: recognizer, languages: languages)
-                log.notice("screenshot \(id): \(text.lineCount) lines read in \(Date().timeIntervalSince(started), format: .fixed(precision: 2))s")
-                guard let self else { return }
-                self.perform(self.composer.recognized(text, id: id), client: nil)
-            } catch {
-                log.notice("screenshot \(id): not read (\(String(describing: type(of: error)), privacy: .public))")
-                guard let self else { return }
-                let message = (error as? ScreenText.Problem).map(self.composer.messages.reply.describe) ?? UIText.describe(error)
-                self.perform(self.composer.recognitionFailed(message, id: id), client: nil)
-            }
-        }
-    }
-
     /// Vision loaded ahead of time, in the languages a screenshot is read in (`ScreenText.languages`), once a command
     /// that takes one is picked (`Composer.draftTakesScreenshot`; not on "@" alone, a mention in a chat app) with an image
     /// on the clipboard (only the clipboard's types are looked at), once per clipboard: the screenshot pasted next is read
     /// quickly.
     @MainActor
     func warmUpScreenshotReading() {
-        guard warmsUpVision, composer.draftTakesScreenshot, !secureInputActive() else { return }
+        guard warmsUpVision, composer.draftTakesScreenshot, !services.secureInputActive() else { return }
         let pasteboard = NSPasteboard.general
         guard pasteboard.changeCount != Self.warmedFor else { return }
         Self.warmedFor = pasteboard.changeCount
         let types = pasteboard.types ?? []
         guard types.contains(.png) || types.contains(.tiff) else { return }
-        let recognizer = recognizeText, languages = ScreenText.languages(loadSettings())
+        let recognizer = services.recognizeText, languages = ScreenText.languages(services.loadSettings())
         Task.detached(priority: .utility) { await recognizer.prepare(languages: languages) }
     }
 
@@ -81,7 +58,7 @@ extension AllInOneIMEInputController {
     /// terminal (its text isn't being edited).
     @MainActor
     func readFieldText(from target: IMKTextInput?) -> FieldText? {
-        guard !secureInputActive(), let target, !Self.isTerminal(target) else { return nil }
+        guard !services.secureInputActive(), let target, !Self.isTerminal(target) else { return nil }
         let length = target.length()
         guard length > 0, length != NSNotFound else { return nil }
         let marked = target.markedRange(), selected = target.selectedRange()
@@ -105,17 +82,10 @@ extension AllInOneIMEInputController {
         log.notice("field text read for @reply (\(before.count) + \(after.count) characters)")
         return FieldText(before: before, after: after)
     }
-
-    /// The notice of the custom commands renamed for the built-in ones (`BuiltinRenames`), once.
-    @MainActor
-    func tellBuiltinRenames(client: IMKTextInput?) {
-        guard let notice = takeRenameNotice(composer.messages.reply) else { return }
-        showNotice(notice, client: client, long: true)
-    }
 }
 
 /// The custom commands a built-in took the name of (`Config.freeBuiltinNames`): renamed once when the input method starts,
-/// the config written, and the next text field says so once (`AllInOneIMEInputController.tellBuiltinRenames`).
+/// the config written, and the next text field says so once (`SessionServices.takeRenameNotice`).
 enum BuiltinRenames {
     static let key = "builtinRenamesToTell"
 

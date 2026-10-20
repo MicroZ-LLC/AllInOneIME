@@ -1,0 +1,10 @@
+{
+  "name": "allinoneime-electron-harness",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A Slack-like composer (contenteditable) and a textarea, for the input method's Shift long press",
+  "main": "main.js",
+  "devDependencies": {
+    "electron": "44.9.0"
+  }
+}

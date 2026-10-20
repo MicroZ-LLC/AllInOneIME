@@ -95,11 +95,11 @@ extension SelfTest {
         try? fm.removeItem(at: root)
         try? fm.createDirectory(at: root, withIntermediateDirectories: true)
         let (settingsBefore, destinationBefore, secureBefore, copyBefore) =
-            (settings, controller.noteDestination, controller.secureInputActive, controller.copyText)
+            (settings, controller.services.noteDestination, controller.services.secureInputActive, controller.copyText)
         let sessionBefore = NoteSaving.notionSession
         let chosen = UIText.choice
         defer {
-            (settings, controller.noteDestination, controller.secureInputActive, controller.copyText) =
+            (settings, controller.services.noteDestination, controller.services.secureInputActive, controller.copyText) =
                 (settingsBefore, destinationBefore, secureBefore, copyBefore)
             NoteSaving.notionSession = sessionBefore
             UIText.choice = chosen
@@ -113,7 +113,7 @@ extension SelfTest {
         // Notes is a stand-in that fails: a save that reached it would show.
         var reachedNotes = 0
         struct NotesReached: Error {}
-        controller.noteDestination = { notes in
+        controller.services.noteDestination = { notes in
             NoteDestinations.make(notes, system: StandInNotes { _ in
                 reachedNotes += 1
                 throw NotesReached()
@@ -310,7 +310,7 @@ extension SelfTest {
         let page = opened(panel.notes.first(where: { $0.id == NotionSelfTestStub.pageURL }))
         check(page?.absoluteString == NotionSelfTestStub.pageURL, "…which opens by its URL (not opened here)")
         // Secure input on: nothing goes to Notion, the draft stays, a notice says why.
-        controller.secureInputActive = { true }
+        controller.services.secureInputActive = { true }
         let sentBefore = NotionSelfTestStub.seen.count
         settle()
         note("nihao")
@@ -318,7 +318,7 @@ extension SelfTest {
         check(notice() == controller.composer.messages.secureInputNote && client.marked.hasPrefix("note › ")
               && NotionSelfTestStub.seen.count == sentBefore,
               "during secure input nothing is sent to Notion: \(notice() ?? "no notice")")
-        controller.secureInputActive = secureBefore
+        controller.services.secureInputActive = secureBefore
         _ = escape(controller, client)
         _ = escape(controller, client)
         controller.commitComposition(client)

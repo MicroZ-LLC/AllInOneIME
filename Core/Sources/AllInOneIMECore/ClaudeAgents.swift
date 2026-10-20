@@ -127,7 +127,7 @@ public struct AgentWatch: Codable, Equatable, Sendable {
         /// Already told the user it waits for them (once per wait).
         public var toldWaiting = false
 
-        public init(id: String, prompt: String, started: Date = Date()) {
+        public init(id: String, prompt: String, started: Date = Platform.current.clock.now) {
             self.id = id
             self.prompt = prompt
             self.started = started
@@ -153,7 +153,7 @@ public struct AgentWatch: Codable, Equatable, Sendable {
     /// What changed since the last look: done tasks are reported and dropped; a task waiting for the
     /// user is reported once per wait; a task no longer listed (removed) is dropped, as is one
     /// started over a day ago that hasn't ended.
-    public mutating func update(with sessions: [AgentSession], now: Date = Date()) -> [Event] {
+    public mutating func update(with sessions: [AgentSession], now: Date = Platform.current.clock.now) -> [Event] {
         var events: [Event] = []
         var kept: [Task] = []
         for var task in tasks {

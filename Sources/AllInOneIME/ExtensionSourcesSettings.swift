@@ -181,7 +181,7 @@ struct ExtensionSourcesSection: View {
         }
         if source.pin == nil {
             parts.append(status.checked.map {
-                let ago = DashboardText.ago($0, now: Date(), language: UIText.language)
+                let ago = RelativeTime.ago($0, now: Date(), language: UIText.language, style: .short)
                 return tr("检查于 \(ago)", "checked \(ago)")
             }
                          ?? tr("还没检查过", "not checked yet"))
@@ -198,7 +198,8 @@ struct ExtensionSourcesSection: View {
                 HStack(spacing: 6) {
                     Text(commit.shortSHA).font(.caption.monospaced()).foregroundStyle(.secondary)
                     Text(commit.subject).font(.caption).lineLimit(1)
-                    Text("— " + commit.author + (commit.date.map { ", " + DashboardText.ago($0, now: Date(), language: UIText.language) } ?? ""))
+                    let ago = commit.date.map { RelativeTime.ago($0, now: Date(), language: UIText.language, style: .short) }
+                    Text("— " + commit.author + (ago.map { ", " + $0 } ?? ""))
                         .font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
             }

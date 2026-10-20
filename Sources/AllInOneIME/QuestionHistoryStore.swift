@@ -44,14 +44,3 @@ enum QuestionHistoryStore {
         (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
     }
 }
-
-extension UIText {
-    /// How long ago `date` was, in the interface language: "刚刚" / "just now", "3 小时前" / "3 hours ago" …
-    static func ago(_ date: Date, now: Date = Date()) -> String {
-        guard now.timeIntervalSince(date) >= 60 else { return tr("刚刚", "just now") }
-        let formatter = RelativeDateTimeFormatter()
-        formatter.locale = Locale(identifier: language)
-        formatter.unitsStyle = .full
-        return formatter.localizedString(for: date, relativeTo: now)
-    }
-}

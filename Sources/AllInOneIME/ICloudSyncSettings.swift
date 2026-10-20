@@ -41,7 +41,8 @@ struct ICloudSyncSection: View {
                 }
                 Toggle(tr("黑话库和自定义命令", "Jargon and custom commands"), isOn: binding(\.jargon))
                 Toggle(isOn: binding(\.learnedWords)) {
-                    titled(tr("学到的词", "Learned words"), tr("拼音从你的选择里学到的词（Rime 的用户词典）", "What pinyin learned from your choices (Rime's user dictionary)"))
+                    titled(tr("学到的词", "Learned words"), tr("拼音从你的选择里学到的词（Rime 的用户词典），和你的英文词",
+                                                            "What pinyin learned from your choices (Rime's user dictionary), and your English words"))
                 }
                 Toggle(isOn: binding(\.hiddenWords)) {
                     titled(tr("隐藏的词", "Hidden words"),
@@ -204,7 +205,7 @@ struct ICloudSyncSection: View {
         case let .synced(date): return lastSynced(date, now: now)
         case .waiting: return tr("正在等 iCloud…", "Waiting for iCloud…")
             + (sync.lastSync.map {
-                let ago = ICloudSync.ago($0, now: now, language: UIText.language)
+                let ago = RelativeTime.ago($0, now: now, language: UIText.language, style: .shortThenDate)
                 return tr("（上次同步：\(ago)）", " (last synced \(ago))")
             } ?? "")
         case let .failed(message): return message
@@ -213,7 +214,7 @@ struct ICloudSyncSection: View {
 
     /// "Last synced 2 min ago".
     private func lastSynced(_ date: Date, now: Date) -> String {
-        let ago = ICloudSync.ago(date, now: now, language: UIText.language)
+        let ago = RelativeTime.ago(date, now: now, language: UIText.language, style: .shortThenDate)
         return tr("上次同步：\(ago)", "Last synced \(ago)")
     }
 

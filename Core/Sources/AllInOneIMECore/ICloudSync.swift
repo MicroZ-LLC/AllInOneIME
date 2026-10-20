@@ -23,7 +23,8 @@ public enum ICloudSync {
         case settings
         /// The jargon list and `customCommands`.
         case jargon
-        /// Rime's user dictionary: what pinyin learned from the user's choices (librime's own sync, `RimeSync`).
+        /// Rime's user dictionary: what pinyin learned from the user's choices (librime's own sync, `RimeSync`); and the
+        /// English words pinyin offers (`englishWordsKey`), learned or added (`addedEnglishWordsKey`).
         case learnedWords
         /// `redaction.customWords`: off by default (iCloud Drive is end-to-end encrypted only with Advanced Data Protection).
         case hiddenWords
@@ -42,12 +43,16 @@ public enum ICloudSync {
         "outputLanguages", "inputLanguages", "rewriteStyles", "improveTranslates", "voiceInput", "actionKey", "uiLanguage",
         "claudeInBackground", "rememberQuestions", "questionRounds", "questionContinueIn", "menuBarIcon",
         "typeOut", "typeOutRate", "typeOutVaries", "typeOutMistakes", "fuzzyPinyin", "keyboardLayouts", "candidateLayout",
-        "checkForUpdates", "useSelection", "redaction",
+        "checkForUpdates", "useSelection", "redaction", "learnsEnglishWords",
     ]
     /// One app's settings: "appProfiles.<bundle id>".
     public static let appPrefix = "appProfiles."
     public static let commandsKey = "customCommands"
     public static let hiddenWordsKey = "redaction.customWords"
+    /// The English words pinyin offers (`Config.englishWords`) and those of them the user added
+    /// (`Config.addedEnglishWords`): with the words it learned.
+    public static let englishWordsKey = "englishWords"
+    public static let addedEnglishWordsKey = "addedEnglishWords"
     /// The jargon list and the recent questions: entries of `settings.json` that stamp a file next to it (`jargonFile`,
     /// `questionsFile`), their value its SHA-256 (`fileValue`).
     public static let jargonKey = "file:jargon"
@@ -73,6 +78,7 @@ public enum ICloudSync {
         switch key {
         case commandsKey, jargonKey: return .jargon
         case hiddenWordsKey: return .hiddenWords
+        case englishWordsKey, addedEnglishWordsKey: return .learnedWords
         case questionsKey: return .recentQuestions
         default: return nil
         }
@@ -357,6 +363,8 @@ public enum ICloudSync {
         var out: [String: AIConfig.JSONValue] = [:]
         if categories.contains(.settings) {
             for key in settingsKeys { out[key] = encoded[key] }
+            // Written into the file only when off; synced either way.
+            out["learnsEnglishWords"] = .bool(config.learnsEnglishWords)
             if case var .object(redaction)? = encoded["redaction"] {
                 redaction["customWords"] = nil
                 out["redaction"] = .object(redaction)
@@ -368,6 +376,9 @@ public enum ICloudSync {
         if categories.contains(.jargon) { out[commandsKey] = encoded[commandsKey] }
         if categories.contains(.hiddenWords), case let .object(redaction)? = encoded["redaction"] {
             out[hiddenWordsKey] = redaction["customWords"] ?? .array([])
+        }
+        if categories.contains(.learnedWords) {
+            for key in [englishWordsKey, addedEnglishWordsKey] { out[key] = encoded[key] ?? .array([]) }
         }
         return out
     }
@@ -394,9 +405,9 @@ public enum ICloudSync {
     }
 
     /// The collections a joining (or rejoining) Mac merges with iCloud's rather than taking iCloud's: its custom
-    /// commands (by name, iCloud's on a clash), hidden words and jargon lines (each once). Recent questions are always
-    /// merged (`ICloudSyncEngine`).
-    public static let mergedOnJoin: Set<String> = [commandsKey, hiddenWordsKey, jargonKey]
+    /// commands (by name, iCloud's on a clash), hidden words, English words (those added too) and jargon lines (each
+    /// once). Recent questions are always merged (`ICloudSyncEngine`).
+    public static let mergedOnJoin: Set<String> = [commandsKey, hiddenWordsKey, englishWordsKey, addedEnglishWordsKey, jargonKey]
 
     /// What one run does with the keys: what comes into this Mac's config, what goes into `settings.json`, and this Mac's
     /// record afterwards.
@@ -425,10 +436,14 @@ public enum ICloudSync {
     /// (`changedAt`, at most `now`; `now` when not known), and always after the value it replaces (a stamp from a Mac
     /// whose clock is ahead is accepted, and a change here is stamped 1 ms after it); a key gone is a tombstone, except
     /// for keys in `ignoringLocalAbsence` (a file never created, or deleted, on this Mac); a key new since the last sync
-    /// is stamped the same way. Then the newer stamp wins. A Mac that has synced before never lets joining stamps (a
-    /// fresh Mac's values, put up while iCloud had lost its settings) over a value it synced: it puts its own back up,
-    /// with a real stamp; so it does for any value iCloud no longer has. A value of iCloud's refused here (`refused`, by its
-    /// stamp) is checked again each run, and this Mac's never goes over it unless changed here.
+    /// is stamped the same way. Then the newer stamp wins. A key every Mac of this version has that the record lacks (an
+    /// older version's) joins instead while it is at its default, or is a collection iCloud has. A Mac that has synced
+    /// before never lets joining stamps (a fresh Mac's values, put up while iCloud had lost its settings) over a value it
+    /// synced: it puts its own back up, with a real stamp; so it does for any value iCloud no longer has. But a value at
+    /// this version's default it joined with, unchanged since, is never made a change: it goes back up as it joined, and
+    /// iCloud's is taken when that is another joining Mac's (Macs that joined, or upgraded, at once). A value of iCloud's
+    /// refused here (`refused`, by its stamp) is checked again each run, and this Mac's never goes over it unless changed
+    /// here.
     public static func plan(local: [String: AIConfig.JSONValue], known: [String: Entry], remote: [String: Entry]?,
                             categories: Set<Category>, modes: [Category: Mode] = [:], mac: String, now: Date,
                             changedAt: (String) -> Date? = { _ in nil }, ignoringLocalAbsence: Set<String> = [],
@@ -436,8 +451,15 @@ public enum ICloudSync {
         var plan = Plan()
         var all = Set(local.keys).union(known.keys)
         if let remote { all.formUnion(remote.keys) }
-        func real(_ entry: Entry) -> Entry {
-            entry.stamp.isJoining ? Entry(value: entry.value, stamp: Stamp(modified: now, by: mac)) : entry
+        // What this version's values are on a Mac that never set them: the keys every Mac of it has.
+        let defaults = values(of: .default, in: categories)
+        // This Mac's own, put up again with a real stamp (now) when it went up as a joining Mac's (`Stamp.joining`): but
+        // for a value at this version's default (`defaults`), which nobody set here. Stamped now, it would look like a
+        // change, and go over one another Mac made meanwhile and hasn't put up yet (two Macs upgraded from 0.6.5 at once,
+        // each with its default up as a joining Mac's, the switch that learns English words turned off on a third).
+        func real(_ entry: Entry, _ key: String) -> Entry {
+            guard entry.stamp.isJoining, entry.value != defaults[key] else { return entry }
+            return Entry(value: entry.value, stamp: Stamp(modified: now, by: mac))
         }
         for key in all.sorted() {
             guard let category = category(of: key), categories.contains(category) else {
@@ -449,7 +471,18 @@ public enum ICloudSync {
             let record = known[key]
             let theirs = remote?[key]
             let absent = value == nil && ignoringLocalAbsence.contains(key)
-            switch modes[category] ?? .normal {
+            // A key every Mac of this version has (`defaults`) that this Mac has no record of, in a category it synced:
+            // the record was made by an older version, which didn't sync it (0.6.5: the English words, the switch that
+            // learns them). Its value here at the default (never set here), or a collection iCloud has, joins as a
+            // joining Mac's values do: never over a change made elsewhere (this version's defaults over the words another
+            // Mac added, or its learning turned off), the collection merged. Any other value set here since is a change,
+            // and the newer wins, as for a key both Macs set for the first time (an app's settings, the jargon list).
+            var mode = modes[category] ?? .normal
+            if mode != .joining, record == nil, let value, let unset = defaults[key],
+               value == unset || mergedOnJoin.contains(key) && theirs != nil {
+                mode = .joining
+            }
+            switch mode {
             case .joining:
                 // Nothing recorded until iCloud can be read: the category stays joining.
                 guard remote != nil else { continue }
@@ -499,7 +532,16 @@ public enum ICloudSync {
                     plan.outgoing[key] = entry
                     plan.entries[key] = entry
                 } else if let record {
-                    let entry = theirs == nil || filler ? real(record) : record
+                    let entry = theirs == nil || filler ? real(record, key) : record
+                    if let theirs, filler, entry.stamp.isJoining {
+                        // Two joining values, neither a change: iCloud's, as in a normal run.
+                        plan.entries[key] = theirs
+                        if theirs.value != value, !(theirs.value == nil && absent) {
+                            plan.incoming[key] = theirs
+                            plan.kept[key] = held ?? record
+                        }
+                        continue
+                    }
                     if entry != theirs, theirs == nil || filler { plan.outgoing[key] = entry }
                     plan.entries[key] = entry
                 }
@@ -519,10 +561,11 @@ public enum ICloudSync {
                     continue
                 }
                 guard let theirs else {
-                    // iCloud doesn't have it (lost, or never sent): this Mac's goes up, with a real stamp.
+                    // iCloud doesn't have it (lost, or never sent): this Mac's goes up, with a real stamp (a default as
+                    // it joined, as it is).
                     if let mine {
-                        plan.outgoing[key] = real(mine)
-                        plan.entries[key] = real(mine)
+                        plan.outgoing[key] = real(mine, key)
+                        plan.entries[key] = real(mine, key)
                     }
                     continue
                 }
@@ -554,7 +597,17 @@ public enum ICloudSync {
                 }
                 if let mine, let record, theirs.stamp.isJoining, theirs.stamp != record.stamp {
                     // A fresh Mac's value over one this Mac synced (iCloud had lost it): this Mac's goes back up.
-                    let entry = real(mine)
+                    let entry = real(mine, key)
+                    if entry.stamp.isJoining {
+                        // Unless it is a default as this Mac joined with it, unchanged since (`real`): two joining
+                        // values, neither a change (Macs that joined at once). iCloud's is taken, as by a joining Mac.
+                        plan.entries[key] = theirs
+                        if theirs.value != value, !(theirs.value == nil && absent) {
+                            plan.incoming[key] = theirs
+                            plan.kept[key] = mine
+                        }
+                        continue
+                    }
                     if entry != theirs { plan.outgoing[key] = entry }
                     plan.entries[key] = entry
                     continue
@@ -686,11 +739,44 @@ public enum ICloudSync {
         return (.array(out), replaced)
     }
 
-    /// Hidden words merged: iCloud's, then this Mac's that iCloud's lack (ignoring case, as they are matched).
-    public static func mergedWords(_ theirs: AIConfig.JSONValue, _ mine: AIConfig.JSONValue) -> AIConfig.JSONValue {
+    /// Hidden words merged: iCloud's, then this Mac's that iCloud's lack, as they are matched (`key`: ignoring case; the
+    /// English words added by their letters, `EnglishWords.key`).
+    public static func mergedWords(_ theirs: AIConfig.JSONValue, _ mine: AIConfig.JSONValue,
+                                   key: (String) -> String = { $0.lowercased() }) -> AIConfig.JSONValue {
         let icloud = theirs.strings ?? [], local = mine.strings ?? []
-        var seen = Set(icloud.map { $0.lowercased() })
-        return .array((icloud + local.filter { seen.insert($0.lowercased()).inserted }).map { .string($0) })
+        var seen = Set(icloud.map(key))
+        return .array((icloud + local.filter { seen.insert(key($0)).inserted }).map { .string($0) })
+    }
+
+    /// English words merged: iCloud's, then this Mac's that iCloud's lack, by their letters (`EnglishWords.key`: "Hugging
+    /// Face" is "HuggingFace"), within `EnglishWords.maxWords`. Over it, words learned give way before those added
+    /// (`added`, both Macs'), this Mac's before iCloud's, the oldest first: the other Macs' next merge then finds all of
+    /// theirs in iCloud's, and settles.
+    public static func mergedEnglishWords(_ theirs: AIConfig.JSONValue, _ mine: AIConfig.JSONValue, added: [String]) -> AIConfig.JSONValue {
+        let icloud = theirs.strings ?? []
+        var seen = Set(icloud.map(EnglishWords.key))
+        let lacking = (mine.strings ?? []).filter { seen.insert(EnglishWords.key($0)).inserted }
+        let user = Set(added.map(EnglishWords.key))
+        var excess = icloud.count + lacking.count - EnglishWords.maxWords
+        // Which of each part go: this Mac's first, then iCloud's.
+        var gone: [Set<Int>] = [[], []]
+        for addedOnes in [false, true] {
+            for (part, words) in [lacking, icloud].enumerated() {
+                for (i, word) in words.enumerated() where excess > 0 && user.contains(EnglishWords.key(word)) == addedOnes {
+                    gone[part].insert(i)
+                    excess -= 1
+                }
+            }
+        }
+        let kept = icloud.indices.filter { !gone[1].contains($0) }.map { icloud[$0] }
+            + lacking.indices.filter { !gone[0].contains($0) }.map { lacking[$0] }
+        return .array(kept.map { .string($0) })
+    }
+
+    /// Whether the English words `after` hold a word (by its letters) that `before` lacks.
+    static func addsWords(_ after: AIConfig.JSONValue?, to before: AIConfig.JSONValue?) -> Bool {
+        let had = Set((before?.strings ?? []).map(EnglishWords.key))
+        return (after?.strings ?? []).contains { !had.contains(EnglishWords.key($0)) }
     }
 
     /// A jargon list merged: iCloud's text, then this Mac's lines that iCloud's lacks (each once, spaces at the ends aside).
@@ -818,7 +904,7 @@ public enum ICloudSync {
         }
         switch key {
         case "improveTranslates", "voiceInput", "claudeInBackground", "rememberQuestions", "menuBarIcon", "typeOut",
-             "typeOutVaries", "typeOutMistakes", "checkForUpdates", "useSelection":
+             "typeOutVaries", "typeOutMistakes", "checkForUpdates", "useSelection", "learnsEnglishWords":
             if case .bool = value { return nil }
             return .wrongType
         case "provider":
@@ -885,7 +971,7 @@ public enum ICloudSync {
                 return .wrongType
             }
             return nil
-        case hiddenWordsKey:
+        case hiddenWordsKey, englishWordsKey, addedEnglishWordsKey:
             return strings() == nil ? .wrongType : nil
         case commandsKey:
             // An entry of a type this version doesn't know (a later one's) is kept as the config file keeps it; its name
@@ -977,6 +1063,14 @@ public enum ICloudSync {
             }
             current = next
             applied.append(key)
+        }
+        // The English words with every word added in them (one Mac's list may meet the words another added: the newer
+        // list won while the other Mac added one), within their limit, the oldest learned going first (a list from iCloud
+        // may hold more). Words given back count as the list applied.
+        if applied.contains(englishWordsKey) || applied.contains(addedEnglishWordsKey) {
+            let words = EnglishWords.withAdded(current.englishWords, added: current.addedEnglishWords)
+            if words != current.englishWords, !applied.contains(englishWordsKey) { applied.append(englishWordsKey) }
+            current.englishWords = words
         }
         return (current, applied, rejected)
     }

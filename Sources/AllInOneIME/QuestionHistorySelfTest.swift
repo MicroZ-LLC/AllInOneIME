@@ -73,14 +73,14 @@ extension SelfTest {
         controller.commitComposition(client)
 
         // Secure input: nothing is asked, nothing kept.
-        let secureInput = controller.secureInputActive
-        controller.secureInputActive = { true }
+        let secureInput = controller.services.secureInputActive
+        controller.services.secureInputActive = { true }
         question()
         type("mimashishenme", controller, client)
         _ = enter(controller, client)
         _ = pump(timeout: 1) { false }
         check(QuestionHistoryStore.history.entries.count == 1, "a question during secure input isn't kept")
-        controller.secureInputActive = secureInput
+        controller.services.secureInputActive = secureInput
         controller.commitComposition(client)
 
         // Clear (Settings → General): the list is gone, and the file.

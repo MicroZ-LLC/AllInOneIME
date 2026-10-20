@@ -15,11 +15,20 @@ fills in at launch (`Platform.current = …`). The macOS input method is the fir
 | `AllInOneIMEQuickJS` | QuickJS-ng (`Sources/CQuickJS`, vendored) as a `ScriptEngine` (`QuickJSEngine`): plugins and `@js` on Windows, Linux and Android, where the core links it; Apple platforms keep JavaScriptCore |
 | `AllInOneIMERime` | librime (local pinyin) behind the `PinyinEngine` protocol; on macOS and Windows for now. The headers are in `Sources/CRime/include`; the shell links the library (`-L`) |
 | `AllInOneIMECLI` | The command line (`CLI.run`): level two from a terminal, with a shell's own `main` |
+| `AllInOneIMEWire` | The wire protocol's engine side (`docs/wire-protocol-v1.md`): messages, frames, the server and the Composer's adapter, whatever carries them (the Windows shell's pipe, later Android's JNI and a C ABI) |
 | `AllInOneIMETestSupport` | What a shell's tests share with the core's (`FakeEngine`, `ScriptFolder`, `Timing`, …) |
 | `Strings` (plugin) | `swift package --allow-writing-to-package-directory strings [--check]`: the String Catalog in step with the code |
 
 The package has no unsafe flags, so a shell can depend on it by URL. On macOS the shell weak-links FoundationModels
 (`-weak_framework FoundationModels`; the core also imports it `@_weakLinked`) so that the app starts on macOS 14.
+
+## A text field's session
+
+Each shell drives one `InputSession` (`Sources/AllInOneIMECore/Session/`) per text field: it hands it its events (keys
+with what the field says around them, the focus, a click in the panel) and does what comes back (commit, the marked
+text, the panel, a notice, open, copy …); the session's async work answers through a callback the shell hands back on
+the session's thread. What the shell provides is `SessionServices`. How a shell drives it, and what the Windows engine
+needs to: [docs/input-session.md](docs/input-session.md).
 
 ## Building and testing
 

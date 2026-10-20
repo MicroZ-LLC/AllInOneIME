@@ -182,3 +182,18 @@ enum RemindersBridge {
                         overdue: read.isPast(now: now))
     }
 }
+
+extension RemindersBridge.RemindersError: InterfaceDescribedError {
+    var interfaceDescription: String? {
+        switch self {
+        case .notPermitted:
+            return tr("没有权限使用「提醒事项」：在 系统设置 → 隐私与安全性 → 提醒事项 里允许 AllInOneIME",
+                      "Not allowed to use Reminders: allow AllInOneIME in System Settings → Privacy & Security → Reminders")
+        case .noAccount:
+            return tr("没有能放提醒事项的账户：先打开「提醒事项」App 看看", "No account for reminders: open the Reminders app to set one up")
+        case .notFound: return tr("这条提醒事项已经不在了", "That reminder is gone")
+        // Our words and EventKit's code, never its message (in the system's language).
+        case let .failed(code): return tr("提醒事项出错（错误 \(code)）", "Reminders failed (error \(code))")
+        }
+    }
+}

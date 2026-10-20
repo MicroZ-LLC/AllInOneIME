@@ -62,7 +62,7 @@ enum AppProfileSamples {
 /// What the settings and the menu say about an app's profile.
 @MainActor
 enum AppProfileText {
-    static func inputName(_ language: Language) -> String { AllInOneIMEInputController.inputName(language) }
+    static func inputName(_ language: Language) -> String { SessionText.inputName(language, language: UIText.language) }
 
     /// "Starts in English · Rewrites: Formal · Typed out · No AI"; "Same as everywhere" when it sets nothing.
     static func summary(_ profile: AppProfile) -> String {
@@ -78,10 +78,8 @@ enum AppProfileText {
         return parts.isEmpty ? tr("和全局设置一样", "Same as everywhere", key: "appProfile.sameAsEverywhere") : parts.joined(separator: " · ")
     }
 
-    /// The notice of an AI command refused in an app with no AI.
-    static var refusal: String {
-        tr("这个 App 里关了 AI，没有发给 AI（设置 → 按 App 设置）", "AI is off in this app: nothing was sent (Settings → Apps)")
-    }
+    /// The notice of an AI command refused in an app with no AI (`InputSession.aiRefusal`).
+    static var refusal: String { InputSession.aiRefusal }
 }
 
 extension SettingsModel {
@@ -93,13 +91,11 @@ extension SettingsModel {
     /// Changes the profile of `app` (added if it has none, under the key it has in another case if so) and saves. One
     /// that sets nothing stays in the list while the window is open, and isn't saved.
     func changeProfile(_ app: String, _ change: (inout AppProfile) -> Void) {
-        config.changeProfile(for: app, change)
-        save()
+        store.changeProfile(app, change)
     }
 
     func removeProfile(_ app: String) {
-        config.removeProfile(for: app)
-        save()
+        store.removeProfile(app)
     }
 }
 
@@ -205,8 +201,8 @@ struct AppProfilesSection: View {
                                  set: { on in model.changeProfile(app) { $0.translateAlways = on ? true : nil } })) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(tr("总是边打边译", "Always Translate as You Type"))
-                    Text(tr("切到这个 App 就打开边打边译（平时长按 Shift 开关）：⏎ 直接翻译成小标签上选的语言（还没选过时是第一种翻译语言）并上屏，⇧⏎ 原文上屏。",
-                            "Translate as You Type comes on when you switch to this app (elsewhere a long press of Shift turns it on and off): ⏎ translates into the language picked on its chip (until you pick one, your first translation language) and inserts it, ⇧⏎ inserts as typed."))
+                    Text(tr("切到这个 App 就打开边打边译（平时长按 Shift 开关）：⏎ 直接翻译成小标签上选的语言（还没选过时是所打语言能译成的第一种翻译语言）并上屏，⇧⏎ 原文上屏。",
+                            "Translate as You Type comes on when you switch to this app (elsewhere a long press of Shift turns it on and off): ⏎ translates into the language picked on its chip (until you pick one, the first translation language the language you type can be translated into) and inserts it, ⇧⏎ inserts as typed."))
                         .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -227,7 +223,7 @@ struct AppProfilesSection: View {
                     get: { (own ?? RewriteStyle.resolve(model.config.rewriteStyles)).contains(style) },
                     set: { _ in
                         model.changeProfile(app) {
-                            $0.rewriteStyles = AllInOneIMEInputController.toggled(style.name, in: $0.rewriteStyles ?? model.config.rewriteStyles)
+                            $0.rewriteStyles = SessionText.toggled(style.name, in: $0.rewriteStyles ?? model.config.rewriteStyles)
                         }
                     }))
             }
@@ -262,10 +258,11 @@ extension AllInOneIMEInputController {
         let note = NSMenuItem(title: tr("开始的输入语言：", "Starts In:"), action: nil, keyEquivalent: "")
         note.isEnabled = false
         menu.addItem(note)
-        add(tr("跟全局一样（\(Self.inputName(current.defaultInput))）", "Same as Everywhere (\(Self.inputName(current.defaultInput)))"),
+        let everywhere = AppProfileText.inputName(current.defaultInput)
+        add(tr("跟全局一样（\(everywhere)）", "Same as Everywhere (\(everywhere))"),
             #selector(setAppInput(_:)), on: profile.inputLanguage == nil)
         for language in current.inputLanguages {
-            add(Self.inputName(language), #selector(setAppInput(_:)), value: language.rawValue, on: profile.inputLanguage == language)
+            add(AppProfileText.inputName(language), #selector(setAppInput(_:)), value: language.rawValue, on: profile.inputLanguage == language)
         }
         menu.addItem(.separator())
         let settings = NSMenuItem(title: tr("按 App 设置…", "Per-App Settings…"), action: #selector(showAppSettings(_:)), keyEquivalent: "")
@@ -321,7 +318,7 @@ extension AllInOneIMEInputController {
     @objc func showAppSettings(_ sender: Any?) {
         MainActor.assumeIsolated {
             perform(composer.commitAll(), client: nil)  // the window takes focus from the text field
-            openSettings(.apps)
+            openSettings(.apps, nil)
         }
     }
 }

@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import AllInOneIMECore
+@testable import AllInOneIMEText
 
 /// Interface text and its language: `UIString`, the catalog lookup (`InterfaceText`), picking the language
 /// (`InterfaceLanguage`), and the config value.
@@ -298,11 +299,12 @@ struct InterfaceTextTests {
         try StringCatalogCheck.translationsFit(Self.root.appendingPathComponent("Resources/Localizable.xcstrings"))
     }
 
-    /// Every interface language has every key in use, and its placeholders are the English's.
+    /// Every interface language has every key in use, and its placeholders are the English's; French is spaced as French.
     @Test func everyLanguageHasEveryKey() throws {
         let catalog = Self.root.appendingPathComponent("Resources/Localizable.xcstrings")
         try StringCatalogCheck.everyKeyTranslated(catalog)
         try StringCatalogCheck.placeholdersMatch(catalog)
+        try StringCatalogCheck.frenchSpacing(catalog)
     }
 
     @Test func placeholdersReadAsArguments() {
@@ -334,5 +336,46 @@ struct InterfaceTextTests {
         #expect(vertical == hant["Vertical"] && vertical != "竖排" && vertical != "Vertical")
         let english: UIString = " (\(n))"
         #expect(InterfaceText.translate(english, in: hant) == hant[" (%@)"].flatMap { InterfaceText.fill($0, ["12"]) })
+    }
+}
+
+/// The interface language as the process keeps it (`UIText`): a change is told on the main queue, whatever thread made
+/// it, so a panel on screen all along redraws where it draws.
+struct InterfaceLanguageStateTests {
+    /// Told from a queue (as a session on a thread of its own changes it): the notice comes on the main queue. Not the
+    /// language itself changed, which other tests read: what it posts. The main queue is told by a mark of the test's
+    /// own on it, not by the thread: off Apple platforms its work may run on another thread than the main one (on Linux,
+    /// under swift-testing, a worker thread).
+    @Test func aChangeMadeOffTheMainThreadIsToldOnIt() async {
+        final class Observer: @unchecked Sendable { var token: NSObjectProtocol? }
+        struct Mark: @unchecked Sendable { let key = DispatchSpecificKey<Bool>() }
+        let observer = Observer(), answered = Locked(initialState: false), main = Mark()
+        DispatchQueue.main.setSpecific(key: main.key, value: true)
+        let onMain = await withCheckedContinuation { (continuation: CheckedContinuation<Bool?, Never>) in
+            @Sendable func answer(_ value: Bool?) {
+                guard answered.withLock({ done in defer { done = true }; return !done }) else { return }
+                continuation.resume(returning: value)
+            }
+            observer.token = NotificationCenter.default.addObserver(forName: .allInOneIMEInterfaceLanguageChanged, object: nil,
+                                                                    queue: nil) { _ in
+                answer(DispatchQueue.getSpecific(key: main.key) == true)
+            }
+            DispatchQueue.global().async { UIText.languageChanged() }
+            DispatchQueue.global().asyncAfter(deadline: .now() + 10) { answer(nil) }
+        }
+        observer.token.map(NotificationCenter.default.removeObserver)
+        DispatchQueue.main.setSpecific(key: main.key, value: nil)
+        #expect(onMain == true, "told on the main queue (nil: not told within 10 s)")
+    }
+
+    /// The main queue's work is on it, wherever it runs; a queue of its own isn't.
+    @Test func theMainQueueIsToldByItsWork() async {
+        let onMain = await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+            DispatchQueue.main.async { continuation.resume(returning: MainQueue.isCurrent) }
+        }
+        let elsewhere = await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+            DispatchQueue(label: "not-main").async { continuation.resume(returning: MainQueue.isCurrent) }
+        }
+        #expect(onMain && !elsewhere)
     }
 }

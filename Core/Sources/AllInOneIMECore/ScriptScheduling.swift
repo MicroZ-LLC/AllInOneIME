@@ -15,7 +15,7 @@ public struct StatusSchedule: Sendable {
     public func text(for id: String) -> String? { values[id]?.text ?? nil }
 
     /// Of `shown`, those to run now (marked running): due, not running, as many as there's room for.
-    public mutating func due(_ shown: [ScriptCommand], now: Date = Date()) -> [ScriptCommand] {
+    public mutating func due(_ shown: [ScriptCommand], now: Date = Platform.current.clock.now) -> [ScriptCommand] {
         var start: [ScriptCommand] = []
         for command in shown {
             guard running.count < Self.maxRunning else { break }
@@ -30,7 +30,7 @@ public struct StatusSchedule: Sendable {
     /// A status run ended with `line` (nil: it failed, and the value before stays until its next refresh).
     /// True when what's shown changed.
     @discardableResult
-    public mutating func finished(_ id: String, line: String?, now: Date = Date()) -> Bool {
+    public mutating func finished(_ id: String, line: String?, now: Date = Platform.current.clock.now) -> Bool {
         running.remove(id)
         let old = values[id]?.text ?? nil
         values[id] = (line ?? old, now)

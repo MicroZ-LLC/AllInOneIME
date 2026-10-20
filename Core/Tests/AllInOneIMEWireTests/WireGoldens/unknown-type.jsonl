@@ -1,0 +1,27 @@
+# Forward compatibility (§9): an unknown type gets error unknownType and the connection goes on; unknown
+# fields are ignored; an unknown session gets noSession, an unfocused one notFocused.
+#! provider fixtures/improve-hello.json
+#! inputLanguage english
+> {"v":1,"id":1,"type":"hello","versions":[1],"client":"$any","platform":"win","arch":"x64","pid":"$any","tid":"$any","capabilities":["allowForeground","somethingNew"]}
+< {"v":1,"id":1,"re":1,"type":"welcome","version":1,"engine":"$any","enginePid":"$any","capabilities":[],"limits":{"contextBefore":32,"selection":10002}}
+> {"id":2,"type":"frobnicate","sid":1,"wobble":[1,2,3]}
+< {"id":2,"re":2,"type":"error","code":"unknownType","message":"unknown type"}
+> {"id":3,"type":"open","sid":1,"field":{"app":"win:notepad.exe","process":"notepad.exe","scopes":[0],"layout":"00000409"}}
+> {"id":4,"type":"focus","sid":1,"focus":1,"future":{"nested":true}}
+# A key with fields this version doesn't know: they are ignored
+> {"id":5,"type":"keyDown","sid":1,"t":1000,"key":{"vk":72,"scan":35,"text":"h","textIgnoringModifiers":"h","isSystem":false,"pressure":0.5},"ctx":{"sel":[0,0]}}
+< {"id":3,"re":5,"type":"result"}
+# No such session; a session open but not focused
+> {"id":6,"type":"keyDown","sid":7,"t":1100,"key":{"vk":73,"scan":23,"text":"i"}}
+< {"id":4,"re":6,"type":"error","code":"noSession","message":"no session 7"}
+> {"id":7,"type":"open","sid":2,"field":{"app":"win:notepad.exe","process":"notepad.exe","scopes":[0],"layout":"00000409"}}
+> {"id":8,"type":"keyDown","sid":2,"t":1100,"key":{"vk":73,"scan":23,"text":"i"}}
+< {"id":5,"re":8,"type":"error","code":"notFocused","message":"session 2 isn't focused"}
+> {"id":9,"type":"blur","sid":9}
+< {"id":6,"re":9,"type":"error","code":"noSession","message":"no session 9"}
+> {"id":10,"type":"ping"}
+< {"id":7,"re":10,"type":"pong"}
+> {"id":11,"type":"blur","sid":1}
+< {"id":8,"re":11,"type":"result"}
+> {"id":12,"type":"close","sid":1}
+> {"id":13,"type":"close","sid":2}

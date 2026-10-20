@@ -721,6 +721,43 @@ struct ICloudSyncJoinTests {
         }
     }
 
+    @Test func aKeyEveryMacHasThatTheRecordLacksJoins() {
+        // As a key a later version adds would be (its record made by an older one): at its default here, another Mac's
+        // value in iCloud comes in, whatever this Mac's file's time.
+        let other = ICloudSync.Entry(value: .bool(false), stamp: .init(modified: t(1), by: "B"))
+        let joins = ICloudSync.plan(local: ["menuBarIcon": .bool(true)], known: [:], remote: ["menuBarIcon": other],
+                                    categories: [.settings], mac: "A", now: t(5))
+        #expect(joins.incoming["menuBarIcon"] == other && joins.outgoing.isEmpty)
+        // Nothing in iCloud: it goes up as a joining Mac's values do, never over a change made elsewhere.
+        let up = ICloudSync.plan(local: ["menuBarIcon": .bool(true)], known: [:], remote: [:], categories: [.settings], mac: "A", now: t(5))
+        #expect(up.outgoing["menuBarIcon"] == ICloudSync.Entry(value: .bool(true), stamp: .joining("A")))
+        // Set here, it is a change: the newer wins.
+        let set = ICloudSync.plan(local: ["menuBarIcon": .bool(false)], known: [:],
+                                  remote: ["menuBarIcon": .init(value: .bool(true), stamp: .init(modified: t(1), by: "B"))],
+                                  categories: [.settings], mac: "A", now: t(5), changedAt: { _ in t(3) })
+        #expect(set.outgoing["menuBarIcon"] == ICloudSync.Entry(value: .bool(false), stamp: .init(modified: t(3), by: "A")))
+    }
+
+    @Test func aDefaultAMacJoinedWithIsNeverMadeAChange() {
+        // Two Macs that joined (or upgraded) at once: A's default went up as a joining Mac's, iCloud kept B's.
+        let mine = ICloudSync.Entry(value: .bool(true), stamp: .joining("A"))
+        let theirs = ICloudSync.Entry(value: .bool(true), stamp: .joining("B"))
+        for mode in [ICloudSync.Mode.normal, .rejoining] {
+            let plan = ICloudSync.plan(local: ["menuBarIcon": .bool(true)], known: ["menuBarIcon": mine], remote: ["menuBarIcon": theirs],
+                                       categories: [.settings], modes: [.settings: mode], mac: "A", now: t(5))
+            #expect(plan.outgoing.isEmpty && plan.entries["menuBarIcon"] == theirs, "\(mode)")
+            // iCloud has none: it goes back up as it joined.
+            let lost = ICloudSync.plan(local: ["menuBarIcon": .bool(true)], known: ["menuBarIcon": mine], remote: [:],
+                                       categories: [.settings], modes: [.settings: mode], mac: "A", now: t(5))
+            #expect(lost.outgoing["menuBarIcon"] == mine, "\(mode)")
+        }
+        // A value set here before it joined goes back up as a change, over a fresh Mac's.
+        let set = ICloudSync.plan(local: ["maxTokens": .number(2000)], known: ["maxTokens": .init(value: .number(2000), stamp: .joining("A"))],
+                                  remote: ["maxTokens": .init(value: .number(1000), stamp: .joining("C"))],
+                                  categories: [.settings], mac: "A", now: t(5))
+        #expect(set.outgoing["maxTokens"] == ICloudSync.Entry(value: .number(2000), stamp: .init(modified: t(5), by: "A")))
+    }
+
     // MARK: Lost settings.json
 
     @Test(arguments: [false, true])

@@ -1,5 +1,12 @@
 import Foundation
 
+/// Where in the settings something missing is added: what ⏎ opens on a failure that needs it (`Composer.fail(_:id:fixedIn:)`).
+/// The shell knows the page.
+public enum SettingsPlace: String, Equatable, Sendable {
+    /// The languages `@translate` translates into.
+    case translationLanguages
+}
+
 /// Two-level input state machine.
 ///
 /// Level one is a local pinyin engine (Rime): typing, selecting and committing words works like any
@@ -89,6 +96,9 @@ public final class Composer {
         case listAgents(id: Int)
         /// Show the settings window (`@settings`).
         case openSettings
+        /// Show the settings where `place` is: ⏎ on a failure put right there (`fail(_:id:fixedIn:)`), the sentence in
+        /// as typed.
+        case openSettingsAt(SettingsPlace)
         /// Save `text` to Apple Notes (`@note`); nothing is inserted.
         case saveNote(text: String)
         /// Read the reminder in `input` (`@reminder`), by the real clock; it arrives via `receiveReminder`.
@@ -273,6 +283,9 @@ public final class Composer {
         public var actionKeyName = "⏎"
         /// `@note` to Notion (`noteLeavesDevice`) while secure input is on: nothing is saved.
         public var secureInputNote = "系统安全输入已开启，没有存到 Notion"
+        /// A key in a password field (secure input on in the app typed in): nothing is composed, keys go straight in (the
+        /// session says it once each time).
+        public var secureInputPaused = "安全输入中：输入法暂停，按键直接输入"
         /// What `@reply` and a screenshot in a draft say (Composer+Reply.swift).
         public var reply = ReplyMessages.chinese
         /// A snippet's text, filled in, longer than `Composer.maxNoteLength`: nothing goes in.
@@ -306,12 +319,14 @@ public final class Composer {
             }
         }
 
-        /// What the composer says in the interface language `language` (`InterfaceLanguage`).
-        public static func make(language: String) -> Messages {
+        /// What the composer says in the interface language `language` (`InterfaceLanguage`), with the keys and places
+        /// as `terms` name them.
+        public static func make(language: String, terms: PlatformTerms = Platform.current.terms) -> Messages {
             let t = InterfaceWords(language: language)
+            let app = terms.terminal == .terminalApp
             return Messages(
                 notReady: t.tr("词库准备中，稍候可用", "Loading the dictionaries, one moment"),
-                holdToTalk: t.tr("按住右 ⌥ 说话", "Hold right ⌥ to talk"),
+                holdToTalk: t.tr("按住右 \(terms.voiceKey) 说话", "Hold right \(terms.voiceKey) to talk"),
                 didNotHear: t.tr("没听清，再说一次", "Didn't catch that, try again"),
                 chineseMode: t.tr("中", "Chinese"),
                 englishMode: t.tr("英", "English"),
@@ -319,9 +334,10 @@ public final class Composer {
                 typeAfterCommand: t.tr("在命令后面写上内容", "Type something after the command"),
                 nothingFound: t.tr("没有找到", "Nothing found"),
                 copied: t.tr("已复制", "Copied"),
-                openedTerminal: t.tr("已在终端打开 Claude Code", "Opened Claude Code in Terminal"),
+                openedTerminal: app ? t.tr("已在终端打开 Claude Code", "Opened Claude Code in Terminal")
+                    : t.tr("已在终端打开 Claude Code", "Opened Claude Code in a terminal"),
                 secureInputTerminal: t.tr("系统安全输入已开启（密码框或锁屏），没有打开 Claude Code", "Secure input is on (a password field or the lock screen): Claude Code was not opened"),
-                ranInTerminal: t.tr("已在终端运行", "Running in Terminal"),
+                ranInTerminal: app ? t.tr("已在终端运行", "Running in Terminal") : t.tr("已在终端运行", "Running in a terminal"),
                 startedInBackground: t.tr("已在后台开始，做完会通知你；@tasks 查看", "Started in the background; you'll be notified when it's done (@tasks)"),
                 secureInputCommand: t.tr("系统安全输入已开启（密码框或锁屏），没有运行命令", "Secure input is on (a password field or the lock screen): the command was not run"),
                 pasteTooLong: t.tr("剪贴板里的文字太长：最多 \(Composer.maxPasteLength) 字", "The clipboard text is too long: \(Composer.maxPasteLength) characters at most"),
@@ -331,7 +347,8 @@ public final class Composer {
                 linkTooLong: t.tr("文字太长，放不进链接：最多 \(LinkTemplate.maxInputLength) 字", "Too long for a link: \(LinkTemplate.maxInputLength) characters at most"),
                 noOutput: t.tr("代码没有输出：最后写一个表达式，或者把结果打印出来", "The code printed nothing: end it with an expression, or print the result"),
                 noteNotSaved: t.tr("笔记还没存，原文已复制到剪贴板", "The note wasn't saved; its text is on the clipboard"),
-                pickRecipient: t.tr("先选收件人：↑↓ 选择，⏎ / Tab 确定（也可以直接输入手机号或邮箱）", "Pick a recipient first: ↑↓ choose, ⏎ / Tab confirm (or type a phone number or email)"),
+                pickRecipient: t.tr("先选收件人：↑↓ 选择，\(terms.enter) / Tab 确定（也可以直接输入手机号或邮箱）",
+                                    "Pick a recipient first: ↑↓ choose, \(terms.enter) / Tab confirm (or type a phone number or email)"),
                 codeNotRun: t.tr("粘贴或语音来的文字里的 @py、@js 等没有运行，当作文字", "@py, @js and the like in pasted or dictated text weren't run: kept as text"),
                 frenchMode: t.tr("法", "French"),
                 koreanMode: t.tr("韩", "Korean"),
@@ -342,16 +359,21 @@ public final class Composer {
                 scriptRan: t.tr("已运行：", "Ran "),
                 scriptStarted: t.tr("在后台运行，完成后通知你：", "Running in the background, you'll be notified: "),
                 cantOpen: t.tr("打不开：", "Can't open: "),
-                openedAgent: t.tr("已在终端打开 {agent}", "Opened {agent} in Terminal"),
+                openedAgent: app ? t.tr("已在终端打开 {agent}", "Opened {agent} in Terminal")
+                    : t.tr("已在终端打开 {agent}", "Opened {agent} in a terminal"),
                 secureInputNote: t.tr("系统安全输入已开启，没有存到 Notion", "Secure input is on: not saved to Notion"),
-                reply: .make(language: language),
+                secureInputPaused: t.tr("安全输入中：输入法暂停，按键直接输入", "Secure input: the input method is paused, keys go straight in"),
+                reply: .make(language: language, terms: terms),
                 snippetTooLong: t.tr("要插入的文字太长：最多 \(Composer.maxNoteLength) 字", "The text to insert is too long: \(Composer.maxNoteLength) characters at most"),
                 snippetSelectionTooLong: t.tr("选中的文字太长：最多 \(Composer.maxSelectionLength) 字", "The selected text is too long: \(Composer.maxSelectionLength) characters at most"),
                 language: language)
         }
 
-        public static let chinese = make(language: "zh-Hans")
-        public static let english = make(language: "en")
+        /// In Simplified Chinese and in English, with the keys as the platform names them now (`Platform.current.terms`):
+        /// made each time, so that a composer made where the terms are another platform's (a test of the Mac's text on
+        /// Windows) names its keys.
+        public static var chinese: Messages { make(language: "zh-Hans") }
+        public static var english: Messages { make(language: "en") }
     }
     /// The command of the request in level two (nil otherwise).
     public internal(set) var activeCommand: Command?
@@ -1658,12 +1680,31 @@ public final class Composer {
         return [.showPanel]
     }
 
-    public func fail(_ message: String, id: Int) -> [Effect] {
+    /// `place`: where in the settings it is put right (no language to translate into): ⏎ opens them there
+    /// (`failureFixedIn`) instead of trying again, which would only fail the same way.
+    public func fail(_ message: String, id: Int, fixedIn place: SettingsPlace? = nil) -> [Effect] {
         guard phase == .translating(id: id) else { return [] }
         if id == modeRequestID { return modeFailed(message) }
         if id == refineID { return refineFailed(message) }
         phase = .failed(message)
+        failureFix = place.map { (message, $0) }
         return [.showPanel]
+    }
+
+    /// The failure `fail(_:id:fixedIn:)` was told is put right in the settings, and where.
+    private var failureFix: (message: String, place: SettingsPlace)?
+
+    /// Where in the settings the failure shown is put right (`fail(_:id:fixedIn:)`), which ⏎ opens; nil for any other
+    /// failure, and when none is shown.
+    public var failureFixedIn: SettingsPlace? {
+        guard case let .failed(message) = phase, let failureFix, failureFix.message == message else { return nil }
+        return failureFix.place
+    }
+
+    /// ⏎ on a failure put right in the settings: the sentence goes in as typed, as 0 puts it on any failure (the settings
+    /// take the focus, and a field left puts the draft in as it is, the command too), and they open there.
+    private func openFailureFix(_ place: SettingsPlace) -> [Effect] {
+        finish(committing: selection == nil ? sentText : "") + [.openSettingsAt(place)]
     }
 
     /// The reminder read from the `@reminder` text (`.previewReminder`): one row to confirm (Space, ⏎ or 1
@@ -1777,6 +1818,18 @@ public final class Composer {
             text += engine.rawInput
         }
         return effects + finishAsTyped(text)
+    }
+
+    /// The text `commitAsTyped` would insert, without ending anything: the draft as typed (with its "@"), a Hangul
+    /// syllable or an accent still waiting at the cursor, and the raw letters being typed. What a field should keep if
+    /// its composition ends without the Composer (the Windows client gives up on a key, or loses the engine).
+    public var textAsTyped: String {
+        let after = tail
+        var text = String(draft.dropLast(after.count)) + hangul.preedit + (pendingAccent ?? "") + after
+        if !isLevelTwo, let engine, engine.snapshot().isComposing {
+            text += engine.rawInput
+        }
+        return text
     }
 
     /// A dead key's accent with nothing after it goes in as is (the field lost, everything committed), as macOS does.
@@ -2459,6 +2512,8 @@ public final class Composer {
             // key it retries instead, before reaching here). A reminder with nothing to be reminded of
             // goes back to its text instead: typed into the app, it would only be the time.
             if case .failed = phase {
+                // Put right in the settings (nothing to translate into): ⏎ opens them, whatever the action key.
+                if let place = failureFixedIn { return .consumed(openFailureFix(place)) }
                 // A message is never inserted: ⏎ tries again.
                 if activeCommand?.kind == .message { return .consumed(startAction().effects) }
                 // With a selection, it stays as it was.
@@ -3150,7 +3205,7 @@ public final class Composer {
     /// ⌥Space, when that is the action key (an Option tap arrives as modifier changes instead).
     /// The action key as a key press: Return, or ⌥Space (an Option tap arrives as modifier changes).
     /// While right ⌥ is held for dictation, Return arrives as ⌥Return.
-    private func isActionKey(_ event: KeyEvent) -> Bool {
+    func isActionKey(_ event: KeyEvent) -> Bool {
         let modifiers = event.modifiers.subtracting(.capsLock)
         switch actionKey {
         case .enter:
@@ -3222,12 +3277,16 @@ public final class Composer {
 
     /// Space (or the action key) in level two: inserts the highlighted line once it is complete;
     /// after a failure, asks again (a reminder with nothing to be reminded of would fail again: back to
-    /// its text, like Esc).
+    /// its text, like Esc; one put right in the settings opens them).
     private func acceptInLevelTwo() -> [Effect] {
         // A refine instruction or a follow-up typed: an action key other than ⏎ (⌥Space, a shortcut) sends it, as ⇧⏎
         // does; ⏎ inserts, the line going with the rest (on an empty line every action key inserts).
         if typesRefine, actionKey != .enter, !refineText.isEmpty || engineState.isComposing { return runRefine() }
-        if case .failed = phase { return activeCommand?.kind == .reminder ? backToDraft() : startAction().effects }
+        if case .failed = phase {
+            // Trying again would fail the same way until the settings change: it opens them where they do.
+            if let place = failureFixedIn { return openFailureFix(place) }
+            return activeCommand?.kind == .reminder ? backToDraft() : startAction().effects
+        }
         return commitChoice(at: highlighted)
     }
 

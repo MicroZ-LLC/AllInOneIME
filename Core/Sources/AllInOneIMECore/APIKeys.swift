@@ -124,7 +124,7 @@ public enum APIKeys {
         let key = key.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty else { throw EmptyKey() }
         defer { cache.forget(account) }
-        let status = store.write(account, key, label, host?.lowercased() ?? "", ending(of: key), Date())
+        let status = store.write(account, key, label, host?.lowercased() ?? "", ending(of: key), Platform.current.clock.now)
         guard status == .ok else {
             log.error("key not saved: \(account) (\(status.code))")
             throw KeychainError(status: status.code, message: store.message(status.code))
@@ -338,7 +338,7 @@ public enum APIKeys {
                 read: { account in store.lock.withLock { store.items[account]?.key } },
                 write: { account, key, label, comment, ending, saved in
                     store.lock.withLock {
-                        let now = Date(), old = store.items[account]
+                        let now = Platform.current.clock.now, old = store.items[account]
                         store.items[account] = (key, label, comment, ending, old?.created ?? now, now, saved ?? old?.saved)
                     }
                     return .ok
@@ -347,7 +347,7 @@ public enum APIKeys {
                     store.lock.withLock {
                         guard store.items[account] != nil else { return .notFound }
                         store.items[account]?.comment = comment
-                        store.items[account]?.modified = Date()
+                        store.items[account]?.modified = Platform.current.clock.now
                         return .ok
                     }
                 },

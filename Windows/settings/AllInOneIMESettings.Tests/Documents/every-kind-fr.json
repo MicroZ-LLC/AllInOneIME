@@ -1,0 +1,1155 @@
+{
+ "document": {
+  "language": "fr",
+  "platform": "windows",
+  "sections": [
+   {
+    "fields": [
+     {
+      "choices": [
+       {
+        "label": "Enter",
+        "value": "enter"
+       },
+       {
+        "label": "Espace",
+        "value": "space"
+       }
+      ],
+      "help": "Enter exécute une commande @, même sur un pinyin pas encore choisi. Sans @, Enter fonctionne normalement.",
+      "id": "actionKey",
+      "kind": "choice",
+      "label": "Touche d’action",
+      "value": "enter"
+     },
+     {
+      "help": "Le résultat d’une commande est tapé caractère par caractère, comme par un humain ; les mots choisis en pinyin restent insérés d’un coup. Esc l’arrête ; toute autre touche tape le reste d’un coup.",
+      "id": "typeOut",
+      "kind": "toggle",
+      "label": "Taper les résultats lettre par lettre",
+      "value": true
+     },
+     {
+      "id": "typeOutRate",
+      "kind": "number",
+      "label": "Vitesse de frappe",
+      "max": 40,
+      "min": 0.16666666666666666,
+      "status": "16 par seconde",
+      "value": 16
+     },
+     {
+      "id": "typeOutVaries",
+      "kind": "toggle",
+      "label": "Accélérer et ralentir (comme un humain)",
+      "value": false
+     },
+     {
+      "help": "De temps en temps une touche voisine, une lettre ou un espace doublé, ou un mot retapé, corrigés au passage : tapé jusqu’au bout, le texte est exactement le résultat. Dans le code, les adresses et les nombres, corrigés aussitôt ; jamais dans un terminal.",
+      "id": "typeOutMistakes",
+      "kind": "toggle",
+      "label": "Faire parfois des fautes de frappe et les corriger",
+      "value": false
+     },
+     {
+      "help": "Sélectionnez du texte, puis tapez @improve, @translate, @question… et Enter : la commande agit sur la sélection (elle reste sélectionnée et intacte pendant la saisie), et le résultat choisi la remplace ; Esc ne change rien. Désactivez cette option si elle pose problème dans une app.",
+      "id": "useSelection",
+      "kind": "toggle",
+      "label": "Utiliser le texte sélectionné",
+      "value": true
+     },
+     {
+      "id": "rememberQuestions",
+      "kind": "toggle",
+      "label": "Mémoriser les questions récentes",
+      "value": true
+     },
+     {
+      "choices": [
+       {
+        "label": "Suivre le système",
+        "value": null
+       },
+       {
+        "label": "English",
+        "value": "en"
+       },
+       {
+        "label": "简体中文",
+        "value": "zh-Hans"
+       },
+       {
+        "label": "Deutsch",
+        "value": "de"
+       },
+       {
+        "label": "Español",
+        "value": "es"
+       },
+       {
+        "label": "Français",
+        "value": "fr"
+       },
+       {
+        "label": "日本語",
+        "value": "ja"
+       },
+       {
+        "label": "한국어",
+        "value": "ko"
+       },
+       {
+        "label": "Português (Brasil)",
+        "value": "pt-BR"
+       },
+       {
+        "label": "繁體中文",
+        "value": "zh-Hant"
+       }
+      ],
+      "id": "uiLanguage",
+      "kind": "choice",
+      "label": "Langue de l’interface",
+      "value": "fr"
+     }
+    ],
+    "id": "general",
+    "title": "Général"
+   },
+   {
+    "fields": [
+     {
+      "choices": [
+       {
+        "label": "Chinois (pinyin)",
+        "value": "zh"
+       },
+       {
+        "label": "anglais",
+        "value": "en"
+       },
+       {
+        "label": "français",
+        "value": "fr"
+       },
+       {
+        "label": "coréen",
+        "value": "ko"
+       },
+       {
+        "label": "hindi",
+        "value": "hi"
+       }
+      ],
+      "id": "inputLanguages",
+      "kind": "choices",
+      "label": "Langues de saisie",
+      "maxCount": 5,
+      "minCount": 1,
+      "ordered": true,
+      "value": [
+       "en",
+       "zh"
+      ]
+     },
+     {
+      "choices": [
+       {
+        "label": "Verticale",
+        "value": "vertical"
+       },
+       {
+        "label": "Horizontale",
+        "value": "horizontal"
+       }
+      ],
+      "help": "Pour choisir les mots (pinyin, hindi) : côte à côte (par défaut), comme les méthodes de saisie du système ; ← → pour choisir, ↑↓ ou - = pour changer de page. La liste @ et les résultats restent verticaux. À partir du prochain champ de texte.",
+      "id": "candidateLayout",
+      "kind": "choice",
+      "label": "Disposition des candidats",
+      "value": "horizontal"
+     },
+     {
+      "choices": [
+       {
+        "label": "z ↔ zh",
+        "value": "z-zh"
+       },
+       {
+        "label": "c ↔ ch",
+        "value": "c-ch"
+       },
+       {
+        "label": "s ↔ sh",
+        "value": "s-sh"
+       },
+       {
+        "label": "n ↔ l",
+        "value": "n-l"
+       },
+       {
+        "label": "f ↔ h",
+        "value": "f-h"
+       },
+       {
+        "label": "r ↔ l",
+        "value": "r-l"
+       },
+       {
+        "label": "an ↔ ang",
+        "value": "an-ang"
+       },
+       {
+        "label": "en ↔ eng",
+        "value": "en-eng"
+       },
+       {
+        "label": "in ↔ ing",
+        "value": "in-ing"
+       },
+       {
+        "label": "ian ↔ iang",
+        "value": "ian-iang"
+       },
+       {
+        "label": "uan ↔ uang",
+        "value": "uan-uang"
+       }
+      ],
+      "help": "Les sons que vous confondez s’écrivent indifféremment, p. ex. zh et z : zi propose aussi 之",
+      "id": "fuzzyPinyin",
+      "kind": "choices",
+      "label": "Pinyin approximatif",
+      "value": [
+       "z-zh",
+       "en-eng"
+      ]
+     },
+     {
+      "help": "En tapant du pinyin, insérez deux fois les mêmes lettres telles que tapées (bedrock puis Enter, puis encore une fois) et le mot apparaît ensuite parmi les candidats. Jamais dans les champs de mot de passe, les terminaux, les bureaux à distance et les machines virtuelles, ni dans les apps où l’IA est désactivée, ni pour ce qui ressemble à une clé ou à un numéro.",
+      "id": "learnsEnglishWords",
+      "kind": "toggle",
+      "label": "Apprendre les mots anglais que vous tapez",
+      "value": true
+     },
+     {
+      "help": "0, les plus récents d’abord",
+      "id": "englishWords",
+      "kind": "words",
+      "label": "Vos mots anglais",
+      "placeholder": "par ex. Bedrock",
+      "text": "",
+      "value": []
+     }
+    ],
+    "id": "input",
+    "title": "Saisie"
+   },
+   {
+    "fields": [
+     {
+      "choices": [
+       {
+        "label": "anglais",
+        "value": "en"
+       },
+       {
+        "label": "chinois",
+        "value": "zh"
+       },
+       {
+        "label": "chinois traditionnel",
+        "value": "zh-Hant"
+       },
+       {
+        "label": "japonais",
+        "value": "ja"
+       },
+       {
+        "label": "coréen",
+        "value": "ko"
+       },
+       {
+        "label": "français",
+        "value": "fr"
+       },
+       {
+        "label": "allemand",
+        "value": "de"
+       },
+       {
+        "label": "espagnol",
+        "value": "es"
+       },
+       {
+        "label": "portugais",
+        "value": "pt"
+       },
+       {
+        "label": "italien",
+        "value": "it"
+       },
+       {
+        "label": "russe",
+        "value": "ru"
+       },
+       {
+        "label": "vietnamien",
+        "value": "vi"
+       },
+       {
+        "label": "thaï",
+        "value": "th"
+       },
+       {
+        "label": "indonésien",
+        "value": "id"
+       },
+       {
+        "label": "arabe",
+        "value": "ar"
+       },
+       {
+        "label": "hindi",
+        "value": "hi"
+       },
+       {
+        "label": "bengali",
+        "value": "bn"
+       },
+       {
+        "label": "télougou",
+        "value": "te"
+       },
+       {
+        "label": "marathi",
+        "value": "mr"
+       },
+       {
+        "label": "tamoul",
+        "value": "ta"
+       },
+       {
+        "label": "goudjarati",
+        "value": "gu"
+       },
+       {
+        "label": "kannada",
+        "value": "kn"
+       },
+       {
+        "label": "malayalam",
+        "value": "ml"
+       },
+       {
+        "label": "pendjabi",
+        "value": "pa"
+       },
+       {
+        "label": "ourdou",
+        "value": "ur"
+       }
+      ],
+      "help": "Une ligne chacune ; faites glisser pour réordonner",
+      "id": "outputLanguages",
+      "kind": "choices",
+      "label": "Langues",
+      "minCount": 1,
+      "ordered": true,
+      "value": [
+       "en",
+       "zh"
+      ]
+     },
+     {
+      "choices": [
+       {
+        "label": "Soigné",
+        "note": "Même ton, plus naturel",
+        "value": "润色"
+       },
+       {
+        "label": "Concis",
+        "note": "Plus court, sans superflu",
+        "value": "简洁"
+       },
+       {
+        "label": "Formel",
+        "note": "Pour les managers et les clients",
+        "value": "正式"
+       },
+       {
+        "label": "Décontracté",
+        "note": "Comme une discussion entre amis",
+        "value": "口语"
+       },
+       {
+        "label": "Diplomate",
+        "note": "Plus poli et plus doux",
+        "value": "委婉"
+       },
+       {
+        "label": "Jargon",
+        "note": "Jargon des géants de la tech, façon Amazon en anglais",
+        "value": "黑话"
+       }
+      ],
+      "help": "Dans la langue de votre texte ; faites glisser pour réordonner",
+      "id": "rewriteStyles",
+      "kind": "choices",
+      "label": "Styles",
+      "ordered": true,
+      "value": [
+       "润色",
+       "简洁",
+       "正式"
+      ]
+     },
+     {
+      "id": "improveTranslates",
+      "kind": "toggle",
+      "label": "@improve traduit aussi",
+      "value": false
+     },
+     {
+      "help": "Les termes propres à votre équipe",
+      "id": "jargonFile",
+      "kind": "text",
+      "label": "Liste de jargon",
+      "optional": true,
+      "picker": "file",
+      "placeholder": "%APPDATA%\\AllInOneIME\\jargon.txt"
+     }
+    ],
+    "id": "writing",
+    "title": "Traduction et réécriture"
+   },
+   {
+    "fields": [
+     {
+      "choices": [
+       {
+        "label": "Amazon Bedrock",
+        "value": "bedrock"
+       },
+       {
+        "label": "Claude API",
+        "value": "anthropic"
+       },
+       {
+        "label": "Gemini API",
+        "value": "gemini"
+       },
+       {
+        "label": "API compatible OpenAI",
+        "value": "openai"
+       }
+      ],
+      "id": "provider",
+      "kind": "choice",
+      "label": "Fournisseur",
+      "value": "bedrock"
+     },
+     {
+      "choices": [
+       {
+        "label": "Claude Haiku 4.5",
+        "note": "Recommandé : environ 1,3 s, bonne qualité",
+        "value": "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+       },
+       {
+        "label": "Claude Sonnet 4.6",
+        "note": "Environ 2,2 s, les réécritures les plus soignées",
+        "value": "us.anthropic.claude-sonnet-4-6"
+       },
+       {
+        "label": "Amazon Nova 2 Lite",
+        "note": "Environ 1 s, le moins cher, peaufinage plus léger",
+        "value": "us.amazon.nova-2-lite-v1:0"
+       }
+      ],
+      "id": "bedrock.modelId",
+      "kind": "text",
+      "label": "Modèle",
+      "value": "us.anthropic.claude-haiku-5-5"
+     },
+     {
+      "choices": [
+       {
+        "label": "default",
+        "value": "default"
+       }
+      ],
+      "id": "bedrock.awsProfile",
+      "kind": "choice",
+      "label": "AWS Profile",
+      "value": "default"
+     },
+     {
+      "id": "bedrock.region",
+      "kind": "text",
+      "label": "Région",
+      "optional": true,
+      "placeholder": "Vide : la région du profil (us-east-1)"
+     },
+     {
+      "actions": [
+       "test"
+      ],
+      "id": "provider.test",
+      "kind": "button",
+      "label": "Tester la connexion"
+     }
+    ],
+    "id": "provider",
+    "title": "Fournisseur d’IA"
+   },
+   {
+    "fields": [
+     {
+      "id": "maxTokens",
+      "kind": "integer",
+      "label": "Jusqu’à 1000 tokens de sortie",
+      "max": 4000,
+      "min": 200,
+      "step": 100,
+      "value": 1000
+     },
+     {
+      "id": "temperature",
+      "kind": "number",
+      "label": "Envoyer la température (certains modèles ne la prennent pas en charge ; désactivez-la si les requêtes échouent)",
+      "max": 1,
+      "min": 0,
+      "optional": true,
+      "step": 0.1,
+      "value": 0.5
+     },
+     {
+      "id": "timeoutSeconds",
+      "kind": "integer",
+      "label": "Délai d’expiration 15 s",
+      "max": 60,
+      "min": 5,
+      "step": 5,
+      "value": 15
+     }
+    ],
+    "id": "request",
+    "title": "Réglages du modèle"
+   },
+   {
+    "fields": [
+     {
+      "help": "Les adresses e-mail, numéros et clés sont remplacés par des espaces réservés comme [EMAIL_1] avant que l’IA ne voie le texte, puis rétablis dans les résultats.",
+      "id": "redaction.enabled",
+      "kind": "toggle",
+      "label": "Masquer les informations sensibles avant l’envoi",
+      "value": true
+     },
+     {
+      "id": "redaction.emails",
+      "kind": "toggle",
+      "label": "Adresses e-mail",
+      "value": true
+     },
+     {
+      "id": "redaction.phones",
+      "kind": "toggle",
+      "label": "Numéros de téléphone",
+      "value": true
+     },
+     {
+      "id": "redaction.cards",
+      "kind": "toggle",
+      "label": "Numéros de carte bancaire",
+      "value": true
+     },
+     {
+      "id": "redaction.keys",
+      "kind": "toggle",
+      "label": "Clés API et jetons",
+      "value": true
+     },
+     {
+      "id": "redaction.ips",
+      "kind": "toggle",
+      "label": "Adresses IP",
+      "value": true
+     },
+     {
+      "help": "Ignorer la casse",
+      "id": "redaction.customWords",
+      "kind": "words",
+      "label": "Masquer aussi ces mots",
+      "placeholder": "Un nom de code, un nom…, séparés par des virgules",
+      "text": "Project X, Jane",
+      "value": [
+       "Project X",
+       "Jane"
+      ]
+     }
+    ],
+    "id": "privacy",
+    "title": "Confidentialité"
+   },
+   {
+    "fields": [
+     {
+      "choices": [
+       {
+        "label": "Claude Code",
+        "value": "claude"
+       },
+       {
+        "label": "Gemini CLI",
+        "value": "gemini"
+       },
+       {
+        "label": "Kiro CLI",
+        "value": "kiro"
+       },
+       {
+        "label": "Personnalisé",
+        "value": "custom"
+       }
+      ],
+      "help": "Il s’ouvre dans une fenêtre de terminal avec ce que vous avez tapé comme premier message.",
+      "id": "agent",
+      "kind": "choice",
+      "label": "@agent confie la tâche à",
+      "value": "custom"
+     },
+     {
+      "help": "Ce que vous avez tapé est ajouté comme dernier argument.",
+      "id": "agentCommand",
+      "kind": "words",
+      "label": "Commande",
+      "ordered": true,
+      "placeholder": "p. ex. muse --",
+      "text": "muse --model \"big one\"",
+      "value": [
+       "muse",
+       "--model",
+       "big one"
+      ]
+     }
+    ],
+    "id": "agent",
+    "title": "Agent"
+   },
+   {
+    "fields": [
+     {
+      "actions": [
+       "add"
+      ],
+      "help": "Des réglages différents selon l’app : par exemple, Slack démarre en anglais avec des réécritures décontractées, Mail réécrit de façon formelle, et une app n’utilise pas du tout l’IA. Tout ce qui n’est pas défini suit les réglages communs à toutes les apps.",
+      "id": "apps.profiles",
+      "items": [
+       {
+        "actions": [
+         "remove"
+        ],
+        "detail": "Démarre en Chinois (pinyin) · Réécritures : Formel · Pas d’IA",
+        "fields": [
+         {
+          "choices": [
+           {
+            "label": "Comme partout ailleurs (anglais)",
+            "value": null
+           },
+           {
+            "label": "anglais",
+            "value": "en"
+           },
+           {
+            "label": "Chinois (pinyin)",
+            "value": "zh"
+           }
+          ],
+          "id": "apps.win:notepad.exe.inputLanguage",
+          "kind": "choice",
+          "label": "Démarre en",
+          "value": "zh"
+         },
+         {
+          "id": "apps.win:notepad.exe.ownStyles",
+          "kind": "toggle",
+          "label": "Styles de réécriture propres",
+          "value": true
+         },
+         {
+          "choices": [
+           {
+            "label": "Soigné",
+            "note": "Même ton, plus naturel",
+            "value": "润色"
+           },
+           {
+            "label": "Concis",
+            "note": "Plus court, sans superflu",
+            "value": "简洁"
+           },
+           {
+            "label": "Formel",
+            "note": "Pour les managers et les clients",
+            "value": "正式"
+           },
+           {
+            "label": "Décontracté",
+            "note": "Comme une discussion entre amis",
+            "value": "口语"
+           },
+           {
+            "label": "Diplomate",
+            "note": "Plus poli et plus doux",
+            "value": "委婉"
+           },
+           {
+            "label": "Jargon",
+            "note": "Jargon des géants de la tech, façon Amazon en anglais",
+            "value": "黑话"
+           },
+           {
+            "disabled": true,
+            "label": "formal",
+            "value": "formal"
+           }
+          ],
+          "id": "apps.win:notepad.exe.rewriteStyles",
+          "kind": "choices",
+          "label": "Styles de réécriture",
+          "value": [
+           "formal"
+          ]
+         },
+         {
+          "help": "@improve, @translate, @question, @agent et autres n’envoient rien à l’IA ; la saisie et les autres commandes fonctionnent.",
+          "id": "apps.win:notepad.exe.noAI",
+          "kind": "toggle",
+          "label": "Pas d’IA dans cette app",
+          "value": true
+         }
+        ],
+        "id": "win:notepad.exe",
+        "title": "notepad.exe"
+       }
+      ],
+      "kind": "items",
+      "label": "Réglages par app",
+      "placeholder": "Son programme, p. ex. notepad.exe",
+      "textActions": [
+       "add"
+      ]
+     }
+    ],
+    "id": "apps",
+    "title": "Apps"
+   },
+   {
+    "fields": [
+     {
+      "help": "Pas encore de plug-ins. Les plug-ins sont des commandes @ toutes prêtes, comme @stock pour les cours de bourse ; une fois installés, ils fonctionnent comme n’importe quelle commande.",
+      "id": "plugins.installed",
+      "items": [],
+      "kind": "items",
+      "label": "Plug-ins"
+     },
+     {
+      "actions": [
+       "browse"
+      ],
+      "help": "Les plug-ins de la bibliothèque sont vérifiés et signés ; la bibliothèque n’est récupérée que lorsque vous l’ouvrez (plugins.allinoneime.com).",
+      "id": "plugins.library",
+      "kind": "items",
+      "label": "Bibliothèque de plug-ins"
+     }
+    ],
+    "id": "plugins",
+    "title": "Plug-ins"
+   },
+   {
+    "fields": [
+     {
+      "actions": [
+       "add"
+      ],
+      "help": "Choisissez un dossier de scripts ou de paquets d’extension",
+      "id": "extensions.folders",
+      "items": [
+       {
+        "actions": [
+         "remove"
+        ],
+        "detail": "ajouté",
+        "id": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-bwv3qyov",
+        "title": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-bwv3qyov"
+       }
+      ],
+      "kind": "items",
+      "label": "Dossiers",
+      "picker": "folder",
+      "placeholder": "%USERPROFILE%\\.config\\allinoneime\\extensions",
+      "textActions": [
+       "add"
+      ]
+     },
+     {
+      "id": "extensions.installed",
+      "items": [
+       {
+        "detail": "1.2.0 · Someone · Commands for the team",
+        "fields": [
+         {
+          "help": "Commands for the team",
+          "id": "extensions.on.tools",
+          "kind": "toggle",
+          "label": "Team Tools",
+          "value": true
+         },
+         {
+          "actions": [
+           "setKey"
+          ],
+          "id": "extensions.preference.tools.apiToken",
+          "isSet": false,
+          "kind": "secret",
+          "label": "API token *",
+          "status": "Pas encore défini"
+         },
+         {
+          "choices": [
+           {
+            "label": "Europe",
+            "value": "eu"
+           },
+           {
+            "label": "Asia",
+            "value": "asia"
+           }
+          ],
+          "id": "extensions.preference.tools.region",
+          "kind": "choice",
+          "label": "Region",
+          "value": "eu"
+         },
+         {
+          "id": "extensions.preference.tools.verbose",
+          "kind": "toggle",
+          "label": "Verbose",
+          "value": false
+         },
+         {
+          "id": "extensions.preference.tools.host",
+          "kind": "text",
+          "label": "Host",
+          "placeholder": "example.com",
+          "value": "example.com"
+         },
+         {
+          "help": "Find someone · Team Tools",
+          "id": "extensions.on.tools/find",
+          "kind": "toggle",
+          "label": "@find",
+          "value": true
+         }
+        ],
+        "id": "bundle:tools",
+        "title": "Team Tools"
+       },
+       {
+        "detail": "Say hi",
+        "fields": [
+         {
+          "help": "Say hi",
+          "id": "extensions.on.C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-bwv3qyov/hello.sh",
+          "kind": "toggle",
+          "label": "@hello",
+          "value": true
+         }
+        ],
+        "id": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-bwv3qyov/hello.sh",
+        "title": "@hello"
+       }
+      ],
+      "kind": "items",
+      "label": "Extensions de script"
+     }
+    ],
+    "footer": "Chaque script est une commande @ portant le nom de son fichier (convert-timestamp.sh → @converttimestamp). Écrivez ses arguments après, séparés par des virgules : @flights beijing, new york. Un script peut insérer son résultat, afficher une progression, proposer une liste où choisir, ou s’exécuter en arrière-plan et vous avertir. Consultez docs/extensions.md pour savoir comment en écrire un.",
+    "id": "extensions",
+    "title": "Extensions de script"
+   },
+   {
+    "fields": [
+     {
+      "choices": [
+       {
+        "label": "Notion",
+        "value": "notion"
+       },
+       {
+        "label": "Dossier (Obsidian ou autre)",
+        "value": "folder"
+       }
+      ],
+      "id": "notes.destination",
+      "kind": "choice",
+      "label": "Enregistrer dans",
+      "value": "folder"
+     },
+     {
+      "id": "notes.folder",
+      "kind": "text",
+      "label": "Dossier (Obsidian ou autre)",
+      "optional": true,
+      "picker": "folder",
+      "value": "C:\\Notes"
+     }
+    ],
+    "id": "notes",
+    "title": "Notes (@note)"
+   },
+   {
+    "fields": [
+     {
+      "actions": [
+       "save"
+      ],
+      "id": "commands.custom",
+      "items": [
+       {
+        "actions": [
+         "save",
+         "delete"
+        ],
+        "detail": "Votre propre instruction pour l’IA",
+        "id": "polite",
+        "title": "@polite",
+        "value": {
+         "name": "polite",
+         "prompt": "Make it polite",
+         "type": "prompt"
+        }
+       },
+       {
+        "actions": [
+         "save",
+         "delete"
+        ],
+        "detail": "Exécuter python3",
+        "id": "upper",
+        "title": "@upper",
+        "value": {
+         "argv": [
+          "python3",
+          "-c",
+          "print(input().upper())"
+         ],
+         "name": "upper",
+         "type": "run"
+        }
+       }
+      ],
+      "kind": "items",
+      "label": "Commandes @ personnalisées",
+      "schema": [
+       {
+        "id": "name",
+        "kind": "text",
+        "label": "Nom",
+        "placeholder": "Lettres uniquement, p. ex. py"
+       },
+       {
+        "choices": [
+         {
+          "label": "Instruction pour l’IA",
+          "value": "prompt"
+         },
+         {
+          "label": "Exécuter un programme",
+          "value": "run"
+         },
+         {
+          "label": "Exécuter dans un terminal",
+          "value": "terminal"
+         },
+         {
+          "label": "Ouvrir une page web",
+          "value": "link"
+         },
+         {
+          "label": "Insérer du texte",
+          "value": "snippet"
+         }
+        ],
+        "id": "type",
+        "kind": "choice",
+        "label": "Action",
+        "value": "prompt"
+       },
+       {
+        "id": "summary",
+        "kind": "text",
+        "label": "Description",
+        "optional": true,
+        "placeholder": "Affichée dans la liste des commandes (facultatif)"
+       },
+       {
+        "help": "Indiquez à l’IA quoi faire du texte qui suit la commande, p. ex. « Rédige une réponse courte et polie au message de l’utilisateur. » La réponse apparaît dans les candidats ; Enter l’insère.",
+        "id": "prompt",
+        "kind": "text",
+        "label": "Instruction pour l’IA",
+        "multiline": true,
+        "when": {
+         "type": [
+          "prompt"
+         ]
+        }
+       },
+       {
+        "help": "Le texte qui suit la commande remplace {input} ; chaque {label?} est un blanc à remplir, dans l’ordre, avec des valeurs séparées par des virgules ; écrivez {{ pour obtenir {",
+        "id": "text",
+        "kind": "text",
+        "label": "Insérer du texte",
+        "multiline": true,
+        "when": {
+         "type": [
+          "snippet"
+         ]
+        }
+       },
+       {
+        "help": "{input} est remplacé par le texte qui suit la commande (encodé), après le ?. La touche d’action l’ouvre dans le navigateur ; rien n’est inséré. https:// uniquement.",
+        "id": "url",
+        "kind": "text",
+        "label": "Adresse",
+        "placeholder": "https://www.google.com/search?q={input}",
+        "when": {
+         "type": [
+          "link"
+         ]
+        }
+       },
+       {
+        "help": "{input} est remplacé par le texte qui suit la commande, toujours comme un seul argument, jamais via un shell (pour en utiliser un, écrivez cmd /c {input}). Mettez entre guillemets les arguments contenant des espaces.",
+        "id": "argv",
+        "kind": "words",
+        "label": "Commande",
+        "ordered": true,
+        "placeholder": "python3 -c {input}",
+        "when": {
+         "type": [
+          "run",
+          "terminal"
+         ]
+        }
+       },
+       {
+        "help": "Envoyer le texte sur l’entrée standard ({input} inutile)",
+        "id": "stdin",
+        "kind": "text",
+        "label": "Entrée standard",
+        "optional": true,
+        "placeholder": "{input}",
+        "when": {
+         "type": [
+          "run"
+         ]
+        }
+       },
+       {
+        "id": "timeoutSeconds",
+        "kind": "number",
+        "label": "Arrêter après (secondes)",
+        "max": 120,
+        "min": 1,
+        "optional": true,
+        "placeholder": "10",
+        "step": 1,
+        "when": {
+         "type": [
+          "run"
+         ]
+        }
+       },
+       {
+        "id": "ascii",
+        "kind": "toggle",
+        "label": "Taper en lettres latines (pour le code et les chemins)",
+        "optional": true,
+        "when": {
+         "type": [
+          "prompt",
+          "run",
+          "terminal",
+          "link"
+         ]
+        }
+       },
+       {
+        "id": "programs",
+        "kind": "info",
+        "label": "",
+        "value": "Les programmes s’exécutent sur ce PC : n’ajoutez que des commandes que vous avez écrites et en lesquelles vous avez confiance. Ils ne s’exécutent que lorsque vous appuyez sur la touche d’action, jamais dans les champs de mot de passe.",
+        "when": {
+         "type": [
+          "run",
+          "terminal"
+         ]
+        }
+       }
+      ]
+     }
+    ],
+    "footer": "Une fois enregistrée, tapez @ suivi de son nom au début de n’importe quel champ de texte, comme @improve.",
+    "id": "commands",
+    "title": "Commandes @ personnalisées"
+   },
+   {
+    "fields": [
+     {
+      "id": "configFile",
+      "kind": "info",
+      "label": "Fichier de configuration",
+      "value": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-ryl0xx2j/config.json"
+     }
+    ],
+    "footer": "Les modifications s’appliquent immédiatement, sans redémarrage.",
+    "id": "advanced",
+    "title": "Avancé"
+   }
+  ],
+  "strings": {
+   "action.add": "Ajouter",
+   "action.browse": "Ouvrir la bibliothèque",
+   "action.cancel": "Annuler",
+   "action.delete": "Supprimer…",
+   "action.hide": "Masquer",
+   "action.install": "Installer",
+   "action.remove": "Retirer",
+   "action.removeKey": "Supprimer…",
+   "action.save": "Nouveau…",
+   "action.save.item": "Modifier…",
+   "action.setKey": "Enregistrer",
+   "action.show": "Afficher",
+   "action.test": "Tester",
+   "add": "Ajouter…",
+   "cancel": "Annuler",
+   "choose": "Choisir…",
+   "confirm.delete": "Supprimer « {name} » ?",
+   "confirm.removeItem": "Retirer « {name} » ?",
+   "confirm.removeKey": "Supprimer « {name} » ?",
+   "moveDown": "Descendre",
+   "moveUp": "Monter",
+   "paste": "Collez-la",
+   "remove": "Retirer",
+   "save": "Enregistrer",
+   "window.title": "Réglages d’AllInOneIME",
+   "working": "En cours…"
+  }
+ },
+ "revision": 1,
+ "type": "settings"
+}

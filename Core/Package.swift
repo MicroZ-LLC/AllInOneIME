@@ -15,6 +15,9 @@ let package = Package(
         .library(name: "AllInOneIMECore", targets: ["AllInOneIMECore"]),
         .library(name: "AllInOneIMERime", targets: ["AllInOneIMERime"]),
         .library(name: "AllInOneIMECLI", targets: ["AllInOneIMECLI"]),
+        // The wire protocol's engine side (docs/wire-protocol-v1.md): messages, frames, the server and the Composer's
+        // adapter, whatever carries them (the Windows shell's pipe, later Android's JNI and the C ABI).
+        .library(name: "AllInOneIMEWire", targets: ["AllInOneIMEWire"]),
         // QuickJS-ng as a ScriptEngine: the core's JavaScript off Apple platforms, and an Apple shell's if it wants it.
         .library(name: "AllInOneIMEQuickJS", targets: ["AllInOneIMEQuickJS"]),
         // What a shell's tests share with the core's (`FakeEngine`, the keys, `ScriptFolder`, `Timing`, `PackData`).
@@ -79,6 +82,9 @@ let package = Package(
         // The command line (`CLI.run`): level two from a terminal. Each shell runs it from its own main, with its platform.
         .target(name: "AllInOneIMECLI", dependencies: ["AllInOneIMECore"]),
 
+        // The wire protocol (docs/wire-protocol-v1.md), transport-independent: every platform's, as the core is.
+        .target(name: "AllInOneIMEWire", dependencies: ["AllInOneIMECore"]),
+
         // The tests' helpers, for the core's tests and a shell's; the tests' only, never a shell's app. It uses the core's
         // public API (and `package`: Prompt.liveDataRule), so it builds in release too.
         // (Crypto: Acceptance/AcceptanceShared.swift imports it, for the goldens' SHA-256.)
@@ -108,6 +114,9 @@ let package = Package(
         .testTarget(name: "AllInOneIMECoreTests", dependencies: ["AllInOneIMEQuickJS", "AllInOneIMECore", "AllInOneIMETestSupport"],
                     exclude: ["Acceptance/ICloudSyncAppLevelCases.md"],  // specs for the macOS shell's self-test
                     resources: [.copy("Fixtures")]),
+        // The wire protocol's goldens (WireGoldens/*.jsonl), replayed against the server with a scripted provider.
+        .testTarget(name: "AllInOneIMEWireTests", dependencies: ["AllInOneIMEWire", "AllInOneIMECore"],
+                    resources: [.copy("WireGoldens")]),
     ]
 )
 

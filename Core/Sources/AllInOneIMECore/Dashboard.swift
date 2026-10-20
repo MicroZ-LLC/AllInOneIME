@@ -151,23 +151,6 @@ public enum RowSwipe {
 /// The panel's wording made of numbers and dates, in the interface language (`InterfaceWords`): fixed wording like
 /// `ReminderDraft.when`, since it sits next to the panel's own text.
 public enum DashboardText {
-    /// How long ago: 「刚刚」「5 分钟前」「2 小时前」「3 天前」 / "just now", "5 min ago", "2 hr ago",
-    /// "3 days ago". A time ahead of `now` (another Mac's clock) is 「刚刚」.
-    public static func ago(_ date: Date, now: Date, language: String) -> String {
-        let t = InterfaceWords(language: language)
-        let seconds = max(0, now.timeIntervalSince(date))
-        let (minutes, hours, days) = (Int(seconds / 60), Int(seconds / 3600), Int(seconds / 86400))
-        if minutes < 1 { return t.tr("刚刚", "just now") }
-        if hours < 1 { return t.tr("\(minutes) 分钟前", "\(minutes) min ago") }
-        if days < 1 { return t.tr("\(hours) 小时前", "\(hours) hr ago") }
-        return days == 1 ? t.tr("1 天前", "1 day ago") : t.tr("\(days) 天前", "\(days) days ago")
-    }
-
-    /// `ago` in Simplified Chinese or English.
-    public static func ago(_ date: Date, now: Date, chinese: Bool) -> String {
-        ago(date, now: now, language: InterfaceLanguage.code(chinese: chinese))
-    }
-
     /// The header's counts: 「3 个提醒 · 1 个任务进行中 · 1 个等你」 / "3 reminders · 1 task running ·
     /// 1 waiting for you" (tasks waiting for the user aren't running). A zero is left out (nothing at
     /// all: empty); `moreReminders`: more than were read ("100+").

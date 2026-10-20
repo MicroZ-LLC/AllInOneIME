@@ -1,0 +1,7 @@
+{
+  "steps": [
+    {"after": 120, "versions": ["Hel"]},
+    {"after": 120, "versions": ["Hello.", "Hi th"]},
+    {"after": 120, "versions": ["Hello.", "Hi there.", "Hello!"], "final": true}
+  ]
+}

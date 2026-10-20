@@ -17,294 +17,101 @@ struct MainThreadBox<T>: @unchecked Sendable {
     init(_ value: T) { self.value = value }
 }
 
-/// An error already described for the user (`UIText.describe`), passed on as its message.
-struct DescribedError: LocalizedError {
-    let message: String
-    var errorDescription: String? { message }
+/// A weak reference that crosses threads: what the session's work answers through finds the controller on the main
+/// thread, if it's still there.
+final class WeakBox<T: AnyObject>: @unchecked Sendable {
+    weak var value: T?
+    init(_ value: T) { self.value = value }
 }
 
-/// The installed plugins, scanned again when a text field becomes active (installing or removing one
-/// shows up there) and at most every 30 seconds otherwise: then in the background, never while a key is
-/// handled (the key gets the plugins as last scanned). Main thread only.
-enum LivePlugins {
-    private static var cached: (at: Date, result: (plugins: [InstalledPlugin], skipped: [PluginStore.Skipped]))?
-    private static var scanning = false
-
-    static func current(rescan: Bool = false) -> [InstalledPlugin] {
-        guard rescan || cached == nil else {
-            if let cached, Date().timeIntervalSince(cached.at) >= 30, !scanning {
-                scanning = true
-                DispatchQueue.global(qos: .utility).async {
-                    let result = PluginStore.load()
-                    DispatchQueue.main.async {
-                        self.cached = (Date(), result)
-                        scanning = false
-                    }
-                }
-            }
-            return cached?.result.plugins ?? []
-        }
-        let result = PluginStore.load()
-        cached = (Date(), result)
-        return result.plugins
+/// What a controller's session still reaches once the controller is gone (`AllInOneIMEInputController.receivedAfterClose`):
+/// the clipboard it copies to. Main thread only.
+final class Leftovers: @unchecked Sendable {
+    var copyText: (String) -> Void = { text in
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
     }
 }
 
-/// How much each @ command is used (the order of the command list), shared by every text field and kept
-/// across launches.
-enum CommandUsageStore {
-    private static let key = "commandUsage"
-    static var usage: CommandUsage = {
-        // 0.6.4: @claude is @agent now. Once (also with nothing kept yet): a command of the user's own may be named
-        // "claude" afterwards.
-        let renamed = UserDefaults.standard.bool(forKey: renamedKey)
-        UserDefaults.standard.set(true, forKey: renamedKey)
-        guard let data = UserDefaults.standard.data(forKey: key),
-              var usage = try? JSONDecoder().decode(CommandUsage.self, from: data) else { return CommandUsage() }
-        if !renamed {
-            usage.migrateRenamed(from: "claude", to: "agent")
-            if let data = try? JSONEncoder().encode(usage) { UserDefaults.standard.set(data, forKey: key) }
-        }
-        return usage
-    }()
-    private static let renamedKey = "commandUsageRenamedClaudeToAgent"
-
-    static func save(_ new: CommandUsage) {
-        usage = new
-        if let data = try? JSONEncoder().encode(new) { UserDefaults.standard.set(data, forKey: key) }
-    }
-}
-
-/// The config file as of now, re-read only when it changed (checked by modification date).
-/// A file that doesn't parse reads as the defaults here; conversions report the error.
-enum LiveConfig {
-    private static var cached: (date: Date?, config: Config)?
-
-    static var current: Config {
-        let url = Config.defaultURL
-        let date = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
-        if let cached, cached.date == date { return cached.config }
-        let config = (try? Config.load(from: url)) ?? .default
-        cached = (date, config)
-        return config
-    }
-}
-
-/// The user's jargon list (for explaining the terms a jargon (黑话) line uses), re-read when the file changes.
-enum LiveJargon {
-    private static var cached: (url: URL, date: Date?, entries: [JargonEntry])?
-
-    static func entries(for config: Config) -> [JargonEntry] {
-        let url = config.jargonURL
-        let date = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
-        if let cached, cached.url == url, cached.date == date { return cached.entries }
-        let entries = date == nil ? [] : JargonLibrary.load(from: url)
-        cached = (url, date, entries)
-        return entries
-    }
-}
-
-/// IMK creates one controller per client text session. All IMK callbacks arrive on the main
-/// thread, so entry points hop into main-actor code with `MainActor.assumeIsolated`.
 @objc(AllInOneIMEInputController)
 final class AllInOneIMEInputController: IMKInputController {
-    /// The input state machine. It asks `secureInputActive` before starting the agent.
-    lazy var composer: Composer = {
-        let composer = Composer()
-        composer.secureInputActive = { [weak self] in self?.secureInputActive() ?? false }
-        composer.readSelection = { [weak self] in MainActor.assumeIsolated { self?.readSelection() } }
-        composer.characterBeforeCaret = { [weak self] in MainActor.assumeIsolated { self?.characterBeforeCaret() } }
-        composer.aiRefusal = { [weak self] in MainActor.assumeIsolated { self?.aiRefusal() } }
-        // @reply: the text around the caret, and whether the Chrome page goes along (ScreenshotAndReply.swift).
-        composer.readFieldText = { [weak self] in
-            MainActor.assumeIsolated { self.flatMap { $0.readFieldText(from: $0.keyClient ?? $0.clientOverride ?? $0.client()) } }
-        }
-        composer.pageContextApplies = { [weak self] in
-            MainActor.assumeIsolated { self.map { $0.agentPageContext && $0.pageProcess($0.appID ?? $0.activeApp) != nil } ?? false }
-        }
-        return composer
-    }()
-    private var session: RimeSession?
+    /// The field's session, the core's (`InputSession`): the composer and what goes on around it. This controller adapts
+    /// IMK's events to it (`SessionEvent`: the keys with what the field says around them) and does what it answers
+    /// (`SessionOutput`) to the field and on the screen; what the session's work answers later comes back here on the main
+    /// thread (`received`).
+    lazy var session: InputSession = makeSession()
+    /// The input state machine (the session's).
+    var composer: Composer { session.composer }
+    /// What the session asks of this Mac, or has it do (`SessionServices.mac`; the self-test supplies stand-ins that
+    /// leave the user's own alone).
+    var services: SessionServices {
+        get { session.services }
+        set { session.services = newValue }
+    }
+    /// The notice up now, and what the panel says of the last result (the session's).
+    var notice: String? {
+        get { session.notice }
+        set { session.notice = newValue }
+    }
+    var lastHidden: Int { session.lastHidden }
+    var lastShortened: Bool { session.lastShortened }
+    /// The app of the text field that became active last.
+    var activeApp: String? { session.field.app }
+    /// The bundle id of the app being typed in, as the client says it.
+    var appID: String? { (clientOverride ?? client())?.bundleIdentifier() }
     /// Whether the app still has the text being typed (Slack may take it into a mention on its own).
     private var markedWatch = MarkedTextWatch()
-    var conversionTask: Task<Void, Never>?
-    var lastElapsed: TimeInterval?
-    var lastFromCache = false
-    /// How many values the last request hid from the AI (`Redaction`): the panel says so.
-    var lastHidden = 0
-    /// The last answer's request left out parts of an @question conversation to fit the model (`QuestionChat.fit`).
-    var lastShortened = false
-    var notice: String?
     /// Whether this text session has delivered a key yet (logged once, without the key).
     private var receivedKeys = false
-    /// A dead key typed before the next key (`DeadKeyComposer`).
-    private var deadKeys = DeadKeyComposer()
-    /// Shown once each time composing gets paused for secure input.
-    private var secureNoticeShown = false
-    var converter: Converter = sharedConverter
-    /// The command usage as kept, and keeping it (the self-test leaves the user's alone).
-    var loadCommandUsage: () -> CommandUsage = { CommandUsageStore.usage }
-    var saveCommandUsage: (CommandUsage) -> Void = { CommandUsageStore.save($0) }
-    /// The recent `@question`s as kept, and keeping one (the self-test leaves the user's alone).
-    var loadQuestionHistory: () -> QuestionHistory = { QuestionHistoryStore.history }
-    var recordQuestion: (QuestionHistory.Entry) -> Void = { QuestionHistoryStore.record($0) }
-    /// The text field of the key being handled (`handleKeyDown`): where the selection is read.
-    var keyClient: IMKTextInput?
     /// Whether the selection may be read with Accessibility when the field doesn't say (`SelectedText`). False in the
     /// self-test: it would reach the user's own frontmost app.
     var selectionByAccessibility = true
-    /// What the field said was selected when a command started on its selection (`selectedRange()`, as it reported it):
-    /// a key finding it changed (a click, the app's own keys) gives the command up (`Composer.selectionMoved`).
-    private var selectionReported: NSRange?
-    /// Whether secure event input is on anywhere; no text is sent to the model then.
-    /// (The self-test replaces this to exercise both states.)
-    var secureInputActive: () -> Bool = { SecureInput.isOn }
     /// Only set by the self-test: IMK refuses to create a controller for anything but its own
     /// client proxies, so the test injects its fake text field here.
     var clientOverride: IMKTextInput?
-    /// The settings the controller follows (the self-test supplies its own).
-    var loadSettings: () -> Config = { LiveConfig.current }
     /// Keeps the app a text field became active in, for Settings → Apps' "Add App…" (the self-test keeps none).
     var recordApp: (String) -> Void = { app in MainActor.assumeIsolated { RecentApps.record(app) } }
-    /// The bundle id of the app being typed in (its `AppProfile`), as the field of the key, else the client, says it.
-    var appID: String? { (keyClient ?? clientOverride ?? client())?.bundleIdentifier() }
-    /// The app of the text field that became active last (for what's shown on every key, without asking it again).
-    var activeApp: String?
-    /// `@open`: finds files and apps, what it opened before first (`loadOpenHistory`), and opens the one
-    /// picked, which `recordOpen` keeps. The self-test opens nothing and keeps its history in memory.
-    var searchFiles: @MainActor (_ query: String, _ history: OpenHistory) async -> [SearchResult] = {
-        await FileSearch.run($0, history: $1)
-    }
-    /// Opens an `@open` result: a web address in the default browser, anything else as a file.
+    /// Opens an `@open` result: a web address in the default browser, anything else as a file (the self-test opens
+    /// nothing).
     var openItem: (String) -> Void = {
         NSWorkspace.shared.open(SearchResult(name: "", path: $0).webURL ?? URL(fileURLWithPath: $0))
     }
-    var loadOpenHistory: () -> OpenHistory = { OpenHistoryStore.history }
-    var recordOpen: (String) -> Void = { OpenHistoryStore.record($0) }
-    /// `@agent`: starts the agent's arguments (`AgentKind.terminalArguments`) with the prompt in Terminal (the self-test
-    /// starts nothing).
-    var runInTerminal: ([String], String) throws -> Void = { try TerminalLauncher.agent($0, prompt: $1) }
-    /// The coding agent `@agent` hands the text to, and a custom one's command (`Config.agent`, `applyAgent`).
-    private(set) var agent = AgentKind.claude
-    private(set) var agentCommand: [String] = []
-    /// An `@question` conversation going on in a coding agent: its arguments (`AgentKind.terminalArguments`) with the
-    /// conversation in Terminal (`ChatHandoff`; the self-test starts nothing).
-    var continueInAgent: ([String], String) throws -> Void = { try TerminalLauncher.agent($0, prompt: $1) }
-    /// Whether an agent is on this Mac (a custom one by its command), for the `@question` hand-off's choices (the
-    /// self-test supplies its own). Main thread only.
-    var agentInstalled: (AgentKind, [String]) -> Bool = { AgentAvailability.installed($0, custom: $1) }
-    /// `@agent` in Chrome takes the page along (`Config.agentPageContext`).
-    private(set) var agentPageContext = true
+    /// Opens a background `@agent` task (Claude Code's) in Terminal.
+    var openAgent: (String) -> Void = { id in MainActor.assumeIsolated { AgentMonitor.shared.open(id) } }
+    /// Opens the settings window on `page`, pointing at `spot` there if given (the self-test records it instead).
+    var openSettings: @MainActor (SettingsPage, SettingsSpot?) -> Void = { SettingsWindow.shared.show(page: $0, spot: $1) }
     /// The browser's process when `@agent`'s page is to be read in `app` (`PageContextReader.applies`; the self-test reads
-    /// none), and reading it: off the main thread.
+    /// none), and reading it: off the main thread (`SessionServices.page`).
     var pageProcess: (String?) -> pid_t? = { app in
         PageContextReader.applies(app: app, enabled: true) ? app.flatMap(PageContextReader.runningPID) : nil
     }
     var readPageContext: @Sendable (pid_t, CGPoint) -> PageContext? = { PageContextReader.read(pid: $0, pointer: $1) }
-    /// A custom `terminal` command: runs its arguments in Terminal (the self-test starts nothing).
-    var launchInTerminal: ([String]) throws -> Void = { try TerminalLauncher.launch($0) }
-    /// `@note`: where the text is saved (`Config.notes`: Apple Notes, a folder, Notion), made for each save (the self-test
-    /// supplies stand-ins, or a folder of its own).
-    var noteDestination: @MainActor (NoteSettings) -> any NoteDestination = { NoteSaving.destination($0) }
-    /// `@reminder`: reads the reminder in a text by the real clock (the self-test may supply its own), and
-    /// adds a confirmed one to Apple Reminders (the self-test adds nothing).
-    var parseReminder: (String) -> ReminderDraft = { ReminderParser().parse($0, now: Date()) }
-    var addReminder: @MainActor (ReminderDraft) async throws -> Void = { _ = try await RemindersBridge.add($0) }
-    /// Counts this controller's activations and deactivations: a save to Notes or Reminders that comes back to
-    /// another count is no longer in the text field it came from (a failed one's text then goes to the
-    /// clipboard instead of back into the draft).
+    /// Counts this controller's activations and deactivations: text inserted once a key is done goes nowhere if the
+    /// field changed meanwhile (`SessionOutput.commitAfterKey`).
     private(set) var fieldSession = 0
     /// The controller of the text field being typed in, if any: where the outcome of a save is told once the
     /// field it came from is gone.
     private(set) static weak var activeController: AllInOneIMEInputController?
-    /// Whether a command's program is on this Mac (the self-test supplies its own). Called off the main thread.
-    var programInstalled: @Sendable (String) -> Bool = { program in
-        if program.isEmpty { return false }  // a custom agent without a command
-        if program == "claude", TerminalLauncher.claudePath != nil { return true }
-        if program.hasSuffix(".app") { return FileManager.default.fileExists(atPath: program) }  // a send command's app
-        return CommandRunner.isInstalled(program, path: ShellEnvironment.current["PATH"])
-    }
-    /// The commands whose programs were last checked (`setCommands`), and those whose program is missing.
-    private var checkedCommands: [Command] = []
-    private var checkedAgent: [String] = []
-    private var missingCommands: Set<String> = []
-    /// A check ended while a command was being written: its result applies once that's done.
-    private var missingCheckWaiting = false
-    /// The latest check (an older one that finishes later is ignored).
-    private var programCheck = 0
-    /// Background `@agent` tasks (Claude Code's): starting one, the list, opening one (the self-test supplies its own).
-    var startAgent: (String) async throws -> String = { try await AgentMonitor.shared.start($0) }
-    var listAgents: () async throws -> [(session: AgentSession, reply: String?)] = { try await AgentMonitor.shared.list() }
-    var openAgent: (String) -> Void = { id in MainActor.assumeIsolated { AgentMonitor.shared.open(id) } }
-    /// A custom `run` command: runs its program in the background (the self-test supplies its own).
-    var runProgram: (CustomCommand, String) -> AsyncThrowingStream<ConversionUpdate, Error> = { CommandRunner.run($0, input: $1) }
-    /// The script extensions for these settings (`rescan`: a text field became active: the index is built
-    /// again in the background, and Spotlight may look for Raycast script folders). The self-test supplies its
-    /// own: never the user's.
-    var loadExtensions: (Config, _ rescan: Bool) -> ExtensionIndex = { config, rescan in
-        if rescan { LiveExtensions.discoverIfDue(config) }
-        return LiveExtensions.current(config, rescan: rescan)
-    }
-    /// The values a bundle's commands get (`LiveExtensions.preferences`, the keychain read for passwords). Called
-    /// off the main thread, never while a key is handled.
-    var extensionPreferences: @Sendable (ExtensionBundle, Config) -> [String: String] = { LiveExtensions.preferences(of: $0, config: $1) }
-    /// The command list as last built from the settings and the extensions (`CatalogCache`).
-    private var catalog = CatalogCache()
     /// Where script extensions run (`ScriptTasks.shared`).
     lazy var scriptTasks: ScriptTasks = MainActor.assumeIsolated { ScriptTasks.shared }
-    /// The script extension run of this field's request (`Composer.Effect.startScript`): its request and run.
-    private var scriptRun: (request: Int, run: Int)?
-    /// A `list` command's text being run (or waiting for its `queryDelay`), and that run.
-    private var listRunKey: String?
-    private var listTask: Task<Void, Never>?
-    /// A script plugin: runs in this program's own child process (`--run-plugin`), told the interface language.
-    var runPlugin: (InstalledPlugin, String, Language) -> AsyncThrowingStream<ConversionUpdate, Error> = {
-        PluginRunner.run($0, input: $1, language: $2)
-    }
-    /// `@search`'s key: the keychain's, else the login shell's (the self-test supplies its own: it never reads
-    /// the user's keychain). Called in the search's own task, off the main thread.
-    var loadSearchKey: @Sendable () -> String? = { WebSearch.loadKey() }
+    /// What the session's work still reaches once this controller is gone (`receivedAfterClose`): its clipboard.
+    private let leftovers = Leftovers()
     /// ⌘C on a result (the self-test leaves the clipboard alone).
-    var copyText: (String) -> Void = { text in
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
+    var copyText: (String) -> Void {
+        get { leftovers.copyText }
+        set { leftovers.copyText = newValue }
     }
     /// ⌘V or ⌃V in a draft: what the clipboard has for it (`clipboardContent`: its text, else an image), read only once
     /// the key is answered and never during secure input (the self-test supplies its own and never reads the real
     /// clipboard).
     var readClipboard: () -> ClipboardContent = { AllInOneIMEInputController.clipboardContent(NSPasteboard.general) }
-    /// What reads a screenshot's text on this Mac (`Platform.current.text`: Vision; the self-test may supply its own).
-    var recognizeText: any TextRecognizer = Platform.current.text
-    /// The notice of the custom commands renamed for the built-in ones, once (`BuiltinRenames`; the self-test keeps its
-    /// own).
-    var takeRenameNotice: (Composer.ReplyMessages) -> String? = { BuiltinRenames.takeNotice($0) }
     /// Whether a draft started with an image on the clipboard warms Vision up (`warmUpScreenshotReading`; not in the
     /// self-test: it would look at the real clipboard's types).
     var warmsUpVision = true
-    /// `@imessage`: the address book (nil: no access), and sending (the self-test supplies stand-ins:
-    /// never the real Contacts or Messages).
-    var loadContacts: () async -> [Contact]? = {
-        if case let .contacts(contacts) = await ContactBook.load() { return contacts }
-        return nil
-    }
-    var messageSender: MessageSender = AppleScriptMessageSender()
-    /// The handles last messaged, and keeping them (the self-test leaves the user's alone).
-    var loadRecentHandles: () -> [String] = { RecentRecipients.handles }
-    var saveRecentHandles: ([String]) -> Void = { RecentRecipients.handles = $0 }
-    /// The recipient text last searched, and the search in flight for it.
-    private var recipientSearchQuery: String?
-    private var recipientSearchTask: Task<Void, Never>?
-    /// The `@open` text last searched as it was typed, and the search in flight for it.
-    private var liveSearchQuery: String?
-    private var liveSearchTask: Task<Void, Never>?
-    /// The default input mode last applied to this session (re-applied when the setting changes).
-    private var appliedDefaultInput: Language?
     /// The keyboard layout this text field was last told to type with (`applyKeyboardLayout`).
     private var appliedLayout: String?
     /// The recording in progress (a `DictationSession`, which needs macOS 26).
     private var voiceSession: AnyObject?
-    /// Identifies the latest press of the voice key (older hold timers are ignored).
-    private var voiceArmToken = 0
     /// Self-test only: recognize this audio file instead of the microphone.
     var voiceFile: (url: URL, speed: Double)?
     /// False in the self-test: the microphone (and its permission prompt) is never touched.
@@ -313,17 +120,78 @@ final class AllInOneIMEInputController: IMKInputController {
     /// to clear it: with nothing marked, NSTextView puts (empty) marked text in place of the selection,
     /// deleting the selected text (a Shift tap, a focus change).
     private var hasMarkedText = false
-    /// The last character the user typed into this text field (`characterBeforeCaret`).
-    private var lastTyped = LastTyped()
-    /// Whether a mouse button, a drag or the scroll wheel was used in the last `seconds`, anywhere: a
-    /// Shift-click or ⌥-click is no tap of the key. The self-test replaces this.
-    var pointerUsedWithin: (_ seconds: TimeInterval) -> Bool = { seconds in
-        let kinds: [CGEventType] = [.leftMouseDown, .leftMouseUp, .leftMouseDragged, .rightMouseDown, .rightMouseUp,
-                                    .rightMouseDragged, .otherMouseDown, .otherMouseUp, .otherMouseDragged, .scrollWheel]
-        return kinds.contains { CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: $0) < seconds }
-    }
+    /// Kept while the session waits for a web page a request takes along (`InputSession.waitsForPage`): the request
+    /// starts even if the field is gone by then.
+    private var keepAlive: AllInOneIMEInputController?
 
     static let notFound = NSRange(location: NSNotFound, length: NSNotFound)
+
+    /// The session, with this Mac's services and those that ask this controller (the page, the keyboard layout, pasting
+    /// into a terminal, Translate as You Type's chip). Its work answers on the main queue: here while this controller is
+    /// there, else where a save's outcome or a notice still has to go (`receivedAfterClose`).
+    private func makeSession() -> InputSession {
+        let box = WeakBox(self)
+        var services = MainActor.assumeIsolated { MainThreadBox(SessionServices.mac) }.value
+        services.pastesInTerminal = { MainActor.assumeIsolated { box.value?.canPasteInTerminal() ?? false } }
+        services.keyTranslator = {
+            MainActor.assumeIsolated { box.value?.appliedLayout.flatMap(KeyboardLayout.init(id:)) ?? KeyboardLayout.current() }
+        }
+        services.translateChip = { MainActor.assumeIsolated { box.value?.translateChip() } }
+        services.page = { app in
+            MainActor.assumeIsolated { () -> MainThreadBox<PageSource?> in
+                guard let controller = box.value, let pid = controller.pageProcess(app) else { return MainThreadBox(nil) }
+                let read = controller.readPageContext
+                return MainThreadBox(PageSource(wake: { PageContextReader.wake(pid: pid) }, release: { PageContextReader.release(pid: pid) }) {
+                    let mouse = NSEvent.mouseLocation, height = NSScreen.screens.first?.frame.height ?? 0
+                    let pointer = CGPoint(x: mouse.x, y: height - mouse.y)  // top-left origin, as Accessibility has it
+                    return {
+                        let context = read(pid, pointer)
+                        PageContextReader.release(pid: pid)
+                        return context
+                    }
+                })
+            }.value
+        }
+        let leftovers = leftovers
+        return InputSession(services: services, deliver: { event in
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    if let controller = box.value {
+                        controller.received(event)
+                    } else {
+                        Self.receivedAfterClose(event, copy: leftovers.copyText)
+                    }
+                }
+            }
+        })
+    }
+
+    /// Hands `event` to the session and does what it answers, in the field being typed in.
+    @MainActor
+    func received(_ event: SessionEvent) {
+        apply(session.handle(event).outputs, client: nil)
+    }
+
+    /// What the session's work answered once this controller was gone: a save's outcome (its text on the clipboard if it
+    /// failed) and a notice, told in the field being typed in now, else near the pointer (a save's).
+    @MainActor
+    static func receivedAfterClose(_ event: SessionEvent, copy: (String) -> Void) {
+        guard case let .task(_, update) = event else { return }
+        switch update {
+        case let .saved(outcome):
+            let (notice, long, text) = outcome.elsewhere
+            if let text { copy(text) }
+            if let target = activeController {
+                target.showNotice(notice, client: nil, long: long)
+            } else {
+                showLooseNotice(notice, long: long)
+            }
+        case let .notice(text):
+            activeController?.showNotice(text, client: nil)
+        default:
+            break
+        }
+    }
 
     // MARK: - IMK entry points
 
@@ -350,22 +218,19 @@ final class AllInOneIMEInputController: IMKInputController {
         MainActor.assumeIsolated {
             markedWatch.reset()  // another text field, maybe another app
             hasMarkedText = false
-            lastTyped.forget()
             appliedLayout = nil  // the layout is told to each text field
             fieldSession += 1
             Self.activeController = self
             let app = (sender as? IMKTextInput)?.bundleIdentifier()
-            activeApp = app
             if let app { recordApp(app) }
-            ensureEngine()
-            applySettings(app: app)  // the app's own starting language, rewrite styles, typing out (`AppProfile`)
+            // The app's own starting language, rewrite styles, typing out (`AppProfile`); a terminal pastes on ⌘V itself.
+            let field = FieldInfo(app: app, terminal: app.map(SecureInput.terminals.contains) ?? false)
+            apply(session.handle(.focus(field)).outputs, client: sender as? IMKTextInput)
+            // Translate as You Type's target removed: the first output language typed text goes into, else off.
+            translateModeFollow(services.loadSettings())
             translateModeActivated(app: app)  // another app leaves Translate as You Type, unless it translates always
-            // Terminals paste on ⌘V whatever the input method does: there ⌘V stays theirs.
-            composer.pastesIntoDraft = !(app.map(SecureInput.terminals.contains) ?? false)
-            // …and don't act on a key after text inserted during it (`Composer.appTakesKeysAfterInsert`).
-            composer.appTakesKeysAfterInsert = composer.pastesIntoDraft
-            // A custom command renamed because a built-in has its name now (`BuiltinRenames`): said once.
-            tellBuiltinRenames(client: sender as? IMKTextInput)
+            // A custom command renamed because a built-in has its name now: said once, last (no notice above covers it)
+            apply(session.tellBuiltinRenames(), client: sender as? IMKTextInput)
             // Once a day at most, in the background: comparing two dates here, never on a keystroke.
             UpdateController.shared.checkIfDue()
         }
@@ -374,17 +239,14 @@ final class AllInOneIMEInputController: IMKInputController {
     override func commitComposition(_ sender: Any!) {
         MainActor.assumeIsolated {
             stopTyping(insertingRest: true)  // the app wants everything in now (a click elsewhere in it)
-            perform(composer.commitAll(), client: sender as? IMKTextInput)
+            apply(session.handle(.commit).outputs, client: sender as? IMKTextInput)
         }
     }
 
     // MARK: - Typing a result out
 
-    /// `Config.typeOutRate`, `typeOutVaries`, `typeOutMistakes`: how fast, and with typos fixed on the way
-    /// (the self-test waits less, and picks the slips).
-    var typeOutRate = TypeOut.defaultRate
-    var typeOutVaries = false
-    var typeOutMistakes = false
+    /// How long typing out waits between steps, and its slips (the self-test waits less, and picks them); how fast and
+    /// with typos fixed on the way is the session's (`Config.typeOutRate`, `typeOutVaries`, `typeOutMistakes`).
     var typeOutSleep: @Sendable (Double) async -> Void = { try? await Task.sleep(nanoseconds: UInt64($0 * 1_000_000_000)) }
     var typeOutRandom: (() -> Double)?
     private var typingTask: Task<Void, Never>?
@@ -394,9 +256,6 @@ final class AllInOneIMEInputController: IMKInputController {
     private var typingClient: IMKTextInput? { typingField?.client }
     /// Line breaks go in as a paste (a terminal; `TerminalPaste`).
     private var typingPastes = false
-    /// The text the last result put in (`.commit`, `.replaceSelection`): a snippet's caret goes back into it
-    /// (`Composer.Effect.moveCaret`).
-    private var lastInserted: String?
     /// A snippet being typed out: where its caret goes once it's all in (`moveCaret`).
     private var caretAfterTyping: Int?
 
@@ -418,45 +277,6 @@ final class AllInOneIMEInputController: IMKInputController {
         }
     }
 
-    /// The selected text of the field a draft starts in (`Composer.readSelection`): with the setting on (`useSelection`),
-    /// never during secure input, nor in a terminal (its selection is no text being edited: what goes back would be typed
-    /// at the prompt). Only how it was read and how long it is are logged.
-    @MainActor
-    private func readSelection() -> Composer.Selection? {
-        let target = keyClient ?? clientOverride ?? client()
-        guard loadSettings().useSelection, !secureInputActive(), !Self.isTerminal(target),
-              let read = SelectedText.read(from: target, accessibility: selectionByAccessibility) else { return nil }
-        log.notice("selection read (\(read.source.rawValue, privacy: .public), \(read.text.count) characters)")
-        selectionReported = target?.selectedRange()
-        return Composer.Selection(text: read.text, range: read.range.map { $0.location..<NSMaxRange($0) })
-    }
-
-    /// The character right before the caret where "@" is typed (`Composer.characterBeforeCaret`): the last one the user
-    /// typed into the field (`lastTyped`), unless the pointer was used since (a click may have moved the caret). A field
-    /// that tells its text (not a terminal) must have that character there, with nothing selected: what the app did with
-    /// its text meanwhile (cleared it, moved the caret) the input method doesn't see.
-    @MainActor
-    private func characterBeforeCaret() -> Character? {
-        guard let typed = lastTyped.character,
-              !pointerUsedWithin(ProcessInfo.processInfo.systemUptime - lastTyped.time) else { return nil }
-        let target = keyClient ?? clientOverride ?? client()
-        guard let target, !Self.isTerminal(target) else { return typed }
-        let caret = target.selectedRange()
-        guard caret.location != NSNotFound else { return typed }  // a field that tells no caret
-        guard caret.length == 0, caret.location > 0 else { return nil }  // a selection (a command may work on it), the start
-        guard let before = target.attributedSubstring(from: NSRange(location: caret.location - 1, length: 1))?.string else {
-            return typed  // a field that reads nothing back
-        }
-        return before == String(typed) ? typed : nil
-    }
-
-    /// Whether the field's selection is no longer what it was when the command started on it (`selectionReported`).
-    @MainActor
-    private func selectionChanged(in client: IMKTextInput?) -> Bool {
-        guard composer.draftInPanel, let reported = selectionReported, let client else { return false }
-        return client.selectedRange() != reported
-    }
-
     /// A result in place of the selection the command worked on (`Composer.Effect.replaceSelection`): by its range, which
     /// the text input protocol has fields honor; one that ignores it still has the text selected, and an insert replaces
     /// what is selected. A result that starts with the selection (`@reply`'s, after the message selected) only has the
@@ -474,13 +294,9 @@ final class AllInOneIMEInputController: IMKInputController {
         log.notice("selection replaced (\(selection.range == nil ? "what is selected" : "its range", privacy: .public), \(text.count) characters)")
     }
 
-    /// What of `text` goes in after `selection` and where (an empty range at its end), when `text` starts with it and the
-    /// field told where it is; nil otherwise (it's replaced).
+    /// What of `text` goes in after `selection` and where (an empty range at its end): `SessionText.afterSelection`.
     static func afterSelection(_ text: String, _ selection: Composer.Selection) -> (String, NSRange)? {
-        guard let range = selection.range, !selection.text.isEmpty, text.hasPrefix(selection.text) else { return nil }
-        let rest = (text as NSString).substring(from: (selection.text as NSString).length)
-        guard !rest.isEmpty else { return nil }
-        return (rest, NSRange(location: range.upperBound, length: 0))
+        SessionText.afterSelection(text, selection).map { ($0.text, NSRange(location: $0.at, length: 0)) }
     }
 
     /// Types `text` into `client` character by character, like a person typing (`TypeOut.plan`), with an
@@ -501,12 +317,12 @@ final class AllInOneIMEInputController: IMKInputController {
         typingPastes = field.pastesLineBreaks
         let caret = field.caret
         let app = client.bundleIdentifier() ?? ""
-        let mistakes = typeOutMistakes && !Self.isTerminal(client) && !TypoMemory.contains(app) && caret != nil
+        let mistakes = session.typeOutMistakes && !Self.isTerminal(client) && !TypoMemory.contains(app) && caret != nil
         // Wrong letters from the keys next to the right one on the keyboard the keys come from (AZERTY, QWERTZ …).
         let layout = appliedLayout.flatMap(KeyboardLayout.init(id:)) ?? KeyboardLayout.current()
         let keyboard = layout.map(TypeOut.Keyboard.init(layout:)) ?? .qwerty
         let random = typeOutRandom ?? { Double.random(in: 0..<1) }
-        typist = TypeOut.Typist(TypeOut.plan(for: text, rate: typeOutRate, varies: typeOutVaries, mistakes: mistakes,
+        typist = TypeOut.Typist(TypeOut.plan(for: text, rate: session.typeOutRate, varies: session.typeOutVaries, mistakes: mistakes,
                                              keyboard: keyboard, random: random), start: caret ?? 0, length: field.length)
         let sleep = typeOutSleep
         log.notice("typing out \(text.count) characters (\(self.typist.typing.runs.filter(\.isSlip).count) typos to fix)")
@@ -593,8 +409,7 @@ final class AllInOneIMEInputController: IMKInputController {
     override func deactivateServer(_ sender: Any!) {
         MainActor.assumeIsolated {
             stopTyping(insertingRest: false)  // another field has the focus now: the rest isn't typed anywhere
-            perform(composer.commitAll(), client: sender as? IMKTextInput)
-            releasePage()  // `@agent` asked for a page it didn't send
+            apply(session.handle(.blur).outputs, client: sender as? IMKTextInput)
             fieldSession += 1
             if Self.activeController === self { Self.activeController = nil }
             hideTranslateChip()  // Translate as You Type's chip is for the field being typed in
@@ -608,14 +423,10 @@ final class AllInOneIMEInputController: IMKInputController {
 
     override func inputControllerWillClose() {
         MainActor.assumeIsolated {
-            conversionTask?.cancel()
-            conversionTask = nil
             cancelVoiceSession()
-            NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(noticeExpired), object: nil)
+            apply(session.handle(.close).outputs, client: nil)
             hidePanelIfOwned()
-            composer.engine = nil
-            session = nil
-            fieldSession += 1  // a save still on its way tells its outcome elsewhere
+            fieldSession += 1  // what is inserted once a key is done goes nowhere now
             if Self.activeController === self { Self.activeController = nil }
         }
         super.inputControllerWillClose()
@@ -626,252 +437,31 @@ final class AllInOneIMEInputController: IMKInputController {
         return MainActor.assumeIsolated { MainThreadBox(makeMenu()) }.value
     }
 
-    // MARK: - Level one engine
+    // MARK: - The session
 
-    /// Creates the Rime session once librime has finished deploying (and again after a re-deploy).
-    /// Without the Chinese pack librime never starts: English letters (`LatinEngine`), so typing and
-    /// commands work; while it deploys, keys go through as before.
-    @MainActor
-    func ensureEngine() {
-        if let session, session.isValid { return }
-        guard let fresh = RimeService.shared.makeSession() else {
-            session = nil
-            if RimeService.shared.isStarted {
-                composer.engine = nil
-            } else if !(composer.primaryEngine is LatinEngine) {  // `engine` is Hindi's while Hindi is typed
-                composer.engine = LatinEngine()
-                appliedDefaultInput = nil
-                applySettings()
-            }
-            return
-        }
-        session = fresh
-        composer.engine = fresh
-        appliedDefaultInput = nil  // a new session starts in the default input mode
-        applySettings()
-    }
-
-    /// Takes over the current settings: voice key, action key, and the default input mode (applied to
-    /// new sessions, and again when the setting changes; a Shift toggle otherwise sticks).
-    /// `app`: the bundle id of the field's app (else the client's), whose profile may start it in another language
-    /// and type results out or not (`AppProfile`).
+    /// Takes over the settings (`InputSession.applySettings`); Translate as You Type follows a target removed from them.
     @MainActor
     func applySettings(app: String? = nil) {
-        let config = loadSettings()
-        let app = app ?? appID
-        composer.voiceEnabled = config.voiceInput && VoiceInput.isSupported
-        composer.actionKey = config.actionKey
-        composer.typesResults = config.applying(app: app).typeOut
-        composer.horizontalCandidates = config.candidateLayout == .horizontal
-        composer.outputLanguages = config.outputLanguages
-        composer.provider = config.provider  // the on-device model gets less of a screenshot (`ReplyContext.Limits`)
-        // `@reportissue`: the versions and settings it shows, read when it runs (the extensions as this field has them).
-        composer.issueDiagnostics = { [weak self] in
-            guard let self else { return IssueReporting.current(config: LiveConfig.current) }
-            let config = self.loadSettings()
-            return IssueReporting.diagnostics(config: config, plugins: LivePlugins.current().count,
-                                              extensions: self.loadExtensions(config, false).commands.count)
-        }
-        (typeOutRate, typeOutVaries, typeOutMistakes) = (config.typeOutRate, config.typeOutVaries, config.typeOutMistakes)
-        applyAgent(config)  // before the program check: it's the agent's program `@agent` needs
-        setCommands(catalog.catalog(config.customCommands, plugins: LivePlugins.current(rescan: true), index: loadExtensions(config, true),
-                                    disabled: config.disabledExtensions).commands, recheck: true)
-        // The interface language (config `uiLanguage`, else the system's) for the panel, notices and menu.
-        UIText.choice = config.uiLanguage
-        composer.messages = .make(language: UIText.language)
-        composer.messages.actionKeyName = UIText.name(config.actionKey)
-        // Where @note saves (named in the interface language): its name in the command list, and whether the note leaves
-        // the Mac (then it isn't saved during secure input). A folder's name is what is remembered of it (never a walk up
-        // its tree here: on a network volume that went away, that can hang); it is looked up in the background.
-        let notes = noteDestination(config.notes)
-        UIText.noteDestinationName = notes.name
-        composer.noteLeavesDevice = notes.leavesDevice
-        nameNoteFolder(notes, settings: config.notes)
-        composer.translateModeMessages = .make(language: UIText.language)
-        translateModeFollow(config)  // Translate as You Type's target removed: the first output language at once
-        nameAgent()  // the messages were just reset
-        applyChatSettings(config)
-        // Only the languages whose pack is installed: Chinese is no input mode while its pack downloads.
-        // The Korean and Hindi packs' data, for their input (nil without the pack).
-        composer.hangulTables = LanguagePackManager.shared.hangulTables()
-        composer.hindiTables = LanguagePackManager.shared.hindiTables()
-        let languages = LanguagePackManager.shared.usable(config.inputLanguages)
-        let defaultInput = config.startingInput(in: app, among: languages)
-        composer.inputLanguages = languages
-        // With one input language, a field is always in it (it may have been switched before it was the only one).
-        let onlyOne = languages.count == 1
-        if appliedDefaultInput != defaultInput || onlyOne, composer.engine != nil, !composer.isComposing {
-            composer.setInputMode(defaultInput)
-            appliedDefaultInput = defaultInput
-        }
-        applyKeyboardLayout(config: config)
+        apply(session.applySettings(app: app), client: nil)
+        translateModeFollow(services.loadSettings())
     }
 
-    /// Types with the keyboard layout of the input language in effect: French with its own (AZERTY by
-    /// default, `Config.keyboardLayouts`), the others with the one the user picked in the system (or for
-    /// English). macOS translates the keys with it for this text field, typing and shortcuts alike.
+    /// Level one's engine, once librime has deployed (`InputSession.ensureEngine`).
     @MainActor
-    private func applyKeyboardLayout(config: Config? = nil, client: IMKTextInput? = nil) {
-        let config = config ?? loadSettings()
-        let language = composer.inputLanguage
-        let id = config.keyboardLayout(for: language.isLatin ? language : .english) ?? Self.systemLayoutID
-        guard let id, id != appliedLayout, let target = client ?? clientOverride ?? self.client() else { return }
-        target.overrideKeyboard(withKeyboardNamed: id)
-        appliedLayout = id
+    func ensureEngine() {
+        apply(session.ensureEngine(), client: nil)
     }
 
-    /// The layout the user types Latin letters with in the system's input sources (U.S., ABC, AZERTY …).
-    private static var systemLayoutID: String? {
-        TISCopyCurrentASCIICapableKeyboardLayoutInputSource().flatMap { KeyboardLayout(source: $0.takeRetainedValue())?.id }
-    }
-
-    /// `@reply`'s message as the composer sent it and with the Chrome page added (`withPage`), for its refines.
-    private var replyWithPage: (input: String, full: String)?
-
-    /// The browser whose page tree `@agent` asked for (`PageContextReader.wake`), until the page is read or the field is
-    /// left; the text field session it was looked for in (once each).
-    private var wokenPage: pid_t?
-    private var pageLookedFor = -1
-
-    /// `@agent …` being written in Chrome: its page tree is asked for now, ready by ⏎; the draft given up (Esc, deleted,
-    /// refused, another command), it's given back.
-    @MainActor
-    private func wakePageIfAgent() {
-        // `@reply` with nothing selected, copied or pasted takes the page too.
-        let writingAgent = composer.draftCommand == .agent || composer.draftCommand == .reply && composer.replyTakesPage
-        if wokenPage != nil, !writingAgent { return releasePage() }
-        guard agentPageContext, wokenPage == nil, pageLookedFor != fieldSession, writingAgent else { return }
-        pageLookedFor = fieldSession
-        guard let pid = pageProcess(appID ?? activeApp) else { return }
-        wokenPage = pid
-        PageContextReader.wake(pid: pid)
-    }
-
-    /// The page tree given back, if `@agent` asked for it.
-    @MainActor
-    private func releasePage() {
-        if let pid = wokenPage { PageContextReader.release(pid: pid) }
-        wokenPage = nil
-        pageLookedFor = -1  // written again in this field, asked for again
-    }
-
-    deinit {
-        // A controller let go while it asked for a page (the release is thread-safe).
-        if let pid = wokenPage { PageContextReader.release(pid: pid) }
-    }
-
-    /// `prompt` with the page `@agent` (or `@reply`) was typed in (`PageContext`) when that applies (Chrome, the setting,
-    /// Accessibility allowed), read off the main thread, as `render` puts them together (`@agent`'s: `PageContext.prompt`);
-    /// `start` then gets it on the main thread, with the page's title (nil: no page taken along, `prompt` as typed — at
-    /// once).
-    @MainActor
-    func withPage(_ prompt: String, render: @escaping @Sendable (PageContext, String) -> String = { $0.prompt(request: $1) },
-                  _ start: @escaping @MainActor (String, String?) -> Void) {
-        guard agentPageContext, let pid = wokenPage ?? pageProcess(appID ?? activeApp) else { return start(prompt, nil) }
-        if wokenPage == nil { PageContextReader.wake(pid: pid) }  // typed fast (or pasted): asked for now
-        wokenPage = nil  // released once read
-        pageLookedFor = -1  // another `@agent` in this field asks again
-        let mouse = NSEvent.mouseLocation, height = NSScreen.screens.first?.frame.height ?? 0
-        let pointer = CGPoint(x: mouse.x, y: height - mouse.y)  // top-left origin, as Accessibility has it
-        let read = readPageContext
-        // A blocking read (up to ~3 s), on a queue of its own rather than the async pool; `start` is kept until then
-        // (it holds this controller), so the request starts even if the field is gone meanwhile.
-        DispatchQueue.global(qos: .userInitiated).async {
-            let context = read(pid, pointer)
-            PageContextReader.release(pid: pid)
-            DispatchQueue.main.async {
-                MainActor.assumeIsolated {
-                    guard let context, !context.isEmpty else {
-                        log.notice("@agent: no page context")
-                        return start(prompt, nil)
-                    }
-                    let full = render(context, prompt)
-                    log.notice("@agent: page context \(full.count - prompt.count) chars")
-                    start(full, context.title.isEmpty ? context.url : context.title)
-                }
-            }
-        }
-    }
-
-    /// The agent picked for `@agent`: only Claude Code runs in the background; the command list's summary names it.
-    @MainActor
-    func applyAgent(_ config: Config) {
-        agent = config.agent
-        agentCommand = config.agentCommand
-        agentPageContext = config.agentPageContext
-        composer.claudeInBackground = config.claudeInBackground && config.agent.supportsBackground
-        UIText.agentName = config.agent.displayName(custom: config.agentCommand)
-        nameAgent()
-    }
-
-    /// "已在终端打开 Claude Code": the agent picked, by name, in the messages; a custom agent by its program's name in a
-    /// hand-off's.
-    @MainActor
-    func nameAgent() {
-        let base = Composer.Messages.make(language: UIText.language)
-        composer.messages.openedTerminal = base.openedTerminal.replacingOccurrences(of: "Claude Code", with: UIText.agentName)
-        composer.messages.secureInputTerminal = base.secureInputTerminal.replacingOccurrences(of: "Claude Code", with: UIText.agentName)
-        // Only once it has a command: otherwise the messages stay the language's own.
-        composer.messages.agentNames = AgentKind.custom.program(custom: agentCommand) == nil
-            ? [:] : [.custom: AgentKind.custom.displayName(custom: agentCommand)]
-    }
-
-    /// Whether the agent changed since its program was last checked (`setCommands`).
-    private var agentChanged: Bool { [agent.rawValue] + agentCommand != checkedAgent }
-
-    /// Takes over the commands "@" offers, without those whose program isn't on this Mac (`@agent`
-    /// without its agent, a custom command's missing `argv[0]`): "@agent …" is then just text, like
-    /// "@name". Which are missing is checked in the background when the commands changed, or with
-    /// `recheck` (a text field became active: something may have been installed meanwhile).
+    /// The commands "@" offers (`InputSession.setCommands`).
     @MainActor
     func setCommands(_ commands: [Command], recheck: Bool = false) {
-        composer.commands = commands.filter { !missingCommands.contains($0.name) }
-        // Another agent picked is checked again too (its program may be missing).
-        let checkedFor = [agent.rawValue] + agentCommand
-        guard recheck || commands != checkedCommands || checkedFor != checkedAgent else { return }
-        checkedCommands = commands
-        checkedAgent = checkedFor
-        programCheck += 1
-        let check = programCheck
-        // A custom agent without a command needs a program that can't be found: `@agent` isn't offered.
-        let needed = commands.compactMap { command in
-            command == .agent ? (command.name, command.program(agent: agent, custom: agentCommand) ?? "")
-                : command.program.map { (command.name, $0) }
-        }
-        let installed = programInstalled
-        DispatchQueue.global().async { [weak self] in
-            // The first check asks the user's shell for its PATH, which takes a moment.
-            let missing = Set(needed.filter { !installed($0.1) }.map(\.0))
-            DispatchQueue.main.async {
-                guard let self, self.programCheck == check else { return }
-                if !missing.isEmpty { log.notice("commands hidden, their program isn't installed: \(missing.count)") }
-                self.missingCommands = missing
-                // Not while a command is being written: the draft keeps the commands it started with, and they're
-                // filtered once it's done (`missingCheckWaiting`).
-                if self.composer.isComposing {
-                    self.missingCheckWaiting = true
-                } else {
-                    self.composer.commands = commands.filter { !missing.contains($0.name) }
-                }
-            }
-        }
+        apply(session.setCommands(commands, recheck: recheck), client: nil)
     }
 
-    /// An `@question` conversation handed to `kind` (`ChatHandoff`): started in Terminal as `@agent` starts it, the
-    /// conversation its first message. A custom agent without a command isn't offered; one emptied meanwhile starts nothing.
+    /// What the composer answered something done to it here (Translate as You Type, the menu, the self-test).
     @MainActor
-    private func handOff(_ prompt: String, to kind: AgentKind, client: IMKTextInput?) {
-        guard let arguments = kind.terminalArguments(custom: agentCommand) else {
-            log.error("@question: no command for the custom agent")
-            return
-        }
-        do {
-            try continueInAgent(arguments, prompt)
-            log.notice("@question: conversation handed to \(kind.rawValue, privacy: .public) (\(prompt.count) chars)")
-        } catch {
-            log.error("@question: could not start Terminal: \(String(describing: error), privacy: .public)")
-            showNotice(UIText.describe(error), client: client)
-        }
+    func perform(_ effects: [Composer.Effect], client: IMKTextInput?) {
+        apply(session.apply(effects), client: client)
     }
 
     // MARK: - Keys
@@ -896,102 +486,133 @@ final class AllInOneIMEInputController: IMKInputController {
             receivedKeys = true
             log.notice("receiving keys (engine ready: \(RimeService.shared.isReady))")
         }
-        // Password fields and prompts turn on secure event input. Never compose (so nothing can be
-        // sent to the model) in the app that turned it on; anything already typed goes in as typed.
         let target: IMKTextInput? = client ?? clientOverride ?? self.client()
-        if SecureInput.blocksComposing(target) {
-            if composer.isComposing {
-                let ended = composer.commitAsTyped()
-                perform(ended, client: client)
-                // A note that couldn't go in as typed says its text is on the clipboard: that notice stays up.
-                if ended.contains(where: { if case .notice = $0 { return true } else { return false } }) { secureNoticeShown = true }
-            }
-            if !secureNoticeShown, let chars = event.characters, !chars.isEmpty,
-               event.modifierFlags.isDisjoint(with: [.command, .control]) {
-                secureNoticeShown = true
-                perform([.notice(tr("安全输入中：输入法暂停，按键直接输入", "Secure input: the input method is paused, keys go straight in"))],
-                        client: client)
-            }
-            lastTyped.forget()
-            return false
-        }
-        secureNoticeShown = false
-        // The app took the text being typed without saying so (Slack, on an "@…"): start over rather than
-        // show the draft again, doubled. This key is dropped, so ⏎ doesn't send half a sentence.
-        // (A command on the selection marks nothing in the field: there's nothing for the app to take.)
-        if composer.isComposing, !composer.draftInPanel, let target,
-           markedWatch.appTookText(expected: composer.markedText, reportedLength: Self.markedLength(target)) {
-            log.notice("the app took the marked text: starting over")
-            perform(composer.appTookMarkedText(), client: client)
-            lastTyped.forget()
-            return true
-        }
-        ensureEngine()
-        // Commands added to the config apply from the next sentence on (the file is re-read only when it changed).
-        if !composer.isComposing {
-            // Built again only when what it's made of changed (`CatalogCache`): not for each key.
-            let config = loadSettings()
-            let (commands, changed) = catalog.catalog(config.customCommands, plugins: LivePlugins.current(),
-                                                      index: loadExtensions(config, false), disabled: config.disabledExtensions)
-            applyAgent(config)
-            translateModeFollow(config)
-            // Another agent picked in Settings: its program is checked (`setCommands` sees it changed).
-            if changed || agentChanged && !checkedCommands.isEmpty {
-                setCommands(changed ? commands : checkedCommands)
-            } else if missingCheckWaiting {
-                // A check of the programs that ended while a command was being written.
-                composer.commands = checkedCommands.filter { !missingCommands.contains($0.name) }
-            }
-            missingCheckWaiting = false
-            composer.commandUsage = loadCommandUsage()  // another text field may have run commands
-            composer.remembersQuestions = loadSettings().rememberQuestions
-            applyChatSettings(loadSettings())
-            composer.questionHistory = loadQuestionHistory()  // asked in another text field, or cleared
-        }
-        // Dead keys aren't composed for an input method: done here, from the layout the keys come from.
-        if composer.pendingAccent == nil { deadKeys.reset() }
-        let key = deadKeys.compose(KeyEvent(
-            keyCode: event.keyCode, usage: MacKeyboard.usage(event.keyCode), characters: event.characters ?? "",
-            charactersIgnoringModifiers: event.charactersIgnoringModifiers ?? "",
-            modifiers: Self.modifiers(event.modifierFlags), isRepeat: event.isARepeat),
-            in: appliedLayout.flatMap(KeyboardLayout.init(id:)) ?? KeyboardLayout.current())
-        // The selection a command is written on changed (a click, the app's own keys): the command is given up, and
-        // the key acts as it would.
-        if selectionChanged(in: target) {
-            log.notice("the selection changed while a command was written on it: given up")
-            perform(composer.selectionMoved(), client: client)
-        }
-        keyClient = client
-        let response = composer.handleKeyDown(key)
-        keyClient = nil
-        if composer.pendingAccent == nil { deadKeys.reset() }
-        perform(response.effects, client: client)
-        warmUpScreenshotReading()  // a command picked with an image on the clipboard: Vision loaded for it
-        let inserted = response.effects.compactMap { if case let .commit(text) = $0 { text } else { nil } }.last
-        lastTyped.answered(key, passedOn: !response.handled, inserted: inserted, at: ProcessInfo.processInfo.systemUptime)
+        let key = KeyEvent(keyCode: event.keyCode, usage: MacKeyboard.usage(event.keyCode), characters: event.characters ?? "",
+                           charactersIgnoringModifiers: event.charactersIgnoringModifiers ?? "",
+                           modifiers: Self.modifiers(event.modifierFlags), isRepeat: event.isARepeat)
+        let context = fieldContext(for: key, in: target)
+        // Translate as You Type's target removed from the settings: the first output language typed text is translated
+        // into (else off), before the key.
+        if !context.secure, !composer.isComposing { translateModeFollow(services.loadSettings()) }
+        let response = session.handle(.key(key, context))
+        apply(response.outputs, client: client)
+        if !context.secure { warmUpScreenshotReading() }  // a command picked with an image on the clipboard: Vision loaded for it
         return response.handled
     }
 
+    /// The latest time of each modifier change handed over, whatever the text field (a copy may reach another one).
+    @MainActor private static var modifierEchoes = ModifierEchoes()
+
     @MainActor
     func handleFlagsChanged(_ event: NSEvent, client: IMKTextInput?) {
-        guard !SecureInput.blocksComposing(client ?? clientOverride ?? self.client()) else {
-            // A password field took over: stop any recording (its release may never arrive here).
-            if composer.voice != .off { perform(composer.commitAsTyped(), client: client) }
+        // Chromium and Electron apps (Slack, VS Code, Chrome) hand every modifier change over twice, the same event,
+        // after the next change too when the page is busy: the copy changes nothing, for the session's composer (a tap
+        // of Shift or ⌥) and the long press of Shift alike.
+        guard !Self.modifierEchoes.isEcho(keyCode: event.keyCode, flags: event.modifierFlags.rawValue,
+                                          timestamp: event.timestamp, now: ProcessInfo.processInfo.systemUptime) else {
+            // Each copy dropped, how long after the event's time it came (`log stream --level debug --predicate
+            // 'subsystem == "com.aipinyin.inputmethod.AIPinyin" AND eventMessage BEGINSWITH "modifier copy"'`): what
+            // shows a real app hands the copy over with the event's own time.
+            let late = (ProcessInfo.processInfo.systemUptime - event.timestamp) * 1000
+            log.debug("""
+                modifier copy dropped: key \(event.keyCode, privacy: .public), flags \
+                \(event.modifierFlags.rawValue, format: .hex(includePrefix: true), privacy: .public), \
+                \(late, format: .fixed(precision: 1), privacy: .public) ms after its time
+                """)
+            return
+        }
+        let target: IMKTextInput? = client ?? clientOverride ?? self.client()
+        // The key was held up to the event; the pointer is asked later, so look back that much further.
+        let change = ModifierChange(key: MacKeyCodes.key(event.keyCode), modifiers: Self.flagsChangedModifiers(event.modifierFlags),
+                                    timestamp: event.timestamp, late: max(ProcessInfo.processInfo.systemUptime - event.timestamp, 0))
+        var context = FieldContext(field: Self.fieldInfo(target))
+        while true {
+            let missing = session.fieldWants(forModifiers: change, given: context).subtracting(context.read)
+            if missing.isEmpty { break }
+            read(missing, of: target, into: &context)
+        }
+        apply(session.handle(.modifiers(change, context)).outputs, client: client)
+        guard !context.secure else {
             // No long press of Shift either, and Shift as it is now: the release isn't missed by the next press.
             translateModeFlagsMissed(shiftDown: event.modifierFlags.contains(.shift))
             return
         }
-        ensureEngine()
-        // The key was held up to the event; the pointer is asked later, so look back that much further.
-        let late = max(ProcessInfo.processInfo.systemUptime - event.timestamp, 0)
-        composer.pointerUsedWithin = { [pointerUsedWithin] in pointerUsedWithin($0 + late) }
-        perform(composer.handleFlagsChanged(keyCode: event.keyCode, modifiers: Self.flagsChangedModifiers(event.modifierFlags),
-                                            timestamp: event.timestamp),
-                client: client)
         // fn held with Shift is no long press of it either (only Translate as You Type is told of fn).
         var modifiers = Self.flagsChangedModifiers(event.modifierFlags)
         if event.modifierFlags.contains(.function) { modifiers.insert(.function) }
         translateModeFlagsChanged(keyCode: event.keyCode, modifiers: modifiers)
+    }
+
+    /// What the field says around the caret as `key` goes down: what the session wants of it (`fieldWants`), asked again
+    /// until it wants nothing more.
+    @MainActor
+    private func fieldContext(for key: KeyEvent, in target: IMKTextInput?) -> FieldContext {
+        var context = FieldContext(field: Self.fieldInfo(target))
+        while true {
+            let missing = session.fieldWants(for: key, given: context).subtracting(context.read)
+            if missing.isEmpty { return context }
+            read(missing, of: target, into: &context)
+        }
+    }
+
+    /// The field a key or a modifier change comes from.
+    static func fieldInfo(_ client: IMKTextInput?) -> FieldInfo {
+        FieldInfo(app: client?.bundleIdentifier(), terminal: isTerminal(client))
+    }
+
+    /// Reads `parts` of what the field says (`FieldContext`). Password fields and prompts turn on secure event input: the
+    /// session composes nothing in the app that turned it on. The selection is read with Accessibility where the field
+    /// doesn't tell it (only how it was read and how long it is are logged); the character before the caret, where "@"
+    /// is typed; the text around the caret for `@reply` (`readFieldText`).
+    @MainActor
+    private func read(_ parts: FieldContext.Parts, of target: IMKTextInput?, into context: inout FieldContext) {
+        if parts.contains(.secure) { context.secure = SecureInput.blocksComposing(target) }
+        if parts.contains(.markedText), let target {
+            context.markedTextTaken = markedWatch.appTookText(expected: composer.markedText, reportedLength: Self.markedLength(target))
+        }
+        if parts.contains(.selectedRange) { context.selectedRange = target.flatMap { Self.range($0.selectedRange()) } }
+        if parts.contains(.selection), let read = SelectedText.read(from: target, accessibility: selectionByAccessibility) {
+            log.notice("selection read (\(read.source.rawValue, privacy: .public), \(read.text.count) characters)")
+            context.selection = Composer.Selection(text: read.text, range: read.range.map { $0.location..<NSMaxRange($0) })
+        }
+        if parts.contains(.beforeCaret) { context.beforeCaret = Self.beforeCaret(in: target) }
+        if parts.contains(.text) { context.text = readFieldText(from: target) }
+        context.read.formUnion(parts)
+    }
+
+    /// `range` as UTF-16 offsets; nil for a field that tells none.
+    static func range(_ range: NSRange) -> Range<Int>? {
+        range.location == NSNotFound || range.length == NSNotFound ? nil : range.location..<NSMaxRange(range)
+    }
+
+    /// What is right before the caret, as `target` tells it (`FieldContext.BeforeCaret`).
+    static func beforeCaret(in target: IMKTextInput?) -> FieldContext.BeforeCaret {
+        guard let target else { return .unknown }
+        let caret = target.selectedRange()
+        guard caret.location != NSNotFound else { return .unknown }  // a field that tells no caret
+        guard caret.length == 0, caret.location > 0 else { return .nothing }  // a selection (a command may work on it), the start
+        guard let before = target.attributedSubstring(from: NSRange(location: caret.location - 1, length: 1))?.string else {
+            return .unknown  // a field that reads nothing back
+        }
+        return .text(before)
+    }
+
+    /// Types with the keyboard layout of the input language in effect: French with its own (AZERTY by
+    /// default, `Config.keyboardLayouts`), the others with the one the user picked in the system (or for
+    /// English). macOS translates the keys with it for this text field, typing and shortcuts alike.
+    @MainActor
+    private func applyKeyboardLayout(config: Config? = nil, client: IMKTextInput? = nil) {
+        let config = config ?? services.loadSettings()
+        let language = composer.inputLanguage
+        let id = config.keyboardLayout(for: language.isLatin ? language : .english) ?? Self.systemLayoutID
+        guard let id, id != appliedLayout, let target = client ?? clientOverride ?? self.client() else { return }
+        target.overrideKeyboard(withKeyboardNamed: id)
+        appliedLayout = id
+    }
+
+    /// The layout the user types Latin letters with in the system's input sources (U.S., ABC, AZERTY …).
+    private static var systemLayoutID: String? {
+        TISCopyCurrentASCIICapableKeyboardLayoutInputSource().flatMap { KeyboardLayout(source: $0.takeRetainedValue())?.id }
     }
 
     static func modifiers(_ flags: NSEvent.ModifierFlags) -> KeyModifiers {
@@ -1019,661 +640,111 @@ final class AllInOneIMEInputController: IMKInputController {
         return result
     }
 
-    /// Whether an Option key is still down with no mouse button pressed, as a sanity check when the
-    /// hold timer fires (the composer tracks which key from the events). The self-test replaces this.
-    var isVoiceKeyHeld: () -> Bool = {
-        NSEvent.modifierFlags.contains(.option) && NSEvent.pressedMouseButtons == 0
-    }
 
-    // MARK: - Effects
+    // MARK: - Outputs
 
+    /// Does what the session answered, in order, in `client` (the field of the key; nil: the one being typed in).
     @MainActor
-    func perform(_ effects: [Composer.Effect], client: IMKTextInput?) {
+    func apply(_ outputs: [SessionOutput], client: IMKTextInput?) {
         let target: IMKTextInput? = client ?? clientOverride ?? self.client()
-        defer {
-            wakePageIfAgent()
-            if !composer.isComposing { replyWithPage = nil }  // the draft is done: the page's text goes with it
-        }
-        for effect in effects {
-            switch effect {
-            case .updateMarkedText:
-                updateMarkedText(target)
-            case .inputLanguageChanged:
-                applyKeyboardLayout(client: target)
+        for output in outputs {
+            switch output {
             case let .commit(text):
                 insert(text, into: target)
-                lastInserted = text
-                lastTyped.forget()  // a key that typed it says so (`handleKeyDown`)
             case let .commitAfterKey(text):
                 // Once this key is done: a terminal would send what is inserted during it in the key's place.
                 let session = fieldSession
                 DispatchQueue.main.async { [weak self] in
                     guard let self, self.fieldSession == session else { return }
                     self.insert(text, into: target)
-                    self.lastTyped.forget()
                 }
-            case let .replaceSelection(text, selection):
-                replaceSelection(text, selection, in: target)
-                lastInserted = text
-                lastTyped.forget()
+            case let .replace(text, range):
+                target?.insertText(text, replacementRange: range.map { NSRange(location: $0.lowerBound, length: $0.count) } ?? Self.notFound)
+            case let .marked(text, cursor, converted):
+                setMarkedText(text, cursor: cursor, converted: converted, in: target)
             case let .typeOut(text):
                 if let target { typeOut(text, into: target) }
-                lastInserted = nil
-                lastTyped.forget()
-            case let .moveCaret(back):
+            case let .moveCaret(back, inserted):
                 // A result being typed out: once it's all in.
-                if isTypingOut { caretAfterTyping = back } else { moveCaret(back: back, after: lastInserted, in: target) }
-            case let .startConversion(input, id):
-                if refusedForSecureInput(id: id, client: target) { break }
-                // @improve / @translate: the mode (and a second one written inside) comes from the command.
-                startConversion(input, id: id, command: composer.activeCommand?.kind == .convert ? composer.activeCommand : nil)
-            case let .startCommand(command, input, id):
-                if refusedForSecureInput(id: id, client: target) { break }
-                // @reply with nothing selected, copied or pasted: the Chrome page as its context, when that applies.
-                if command == .reply, composer.replyTakesPage {
-                    withPage(input, render: { Prompt.replyMessage($1, page: $0) }) { [self] prompt, _ in
-                        // ⌘R and refines send the page again (while the draft is up).
-                        if self.composer.isComposing { self.replyWithPage = (input, prompt) }
-                        self.startConversion(prompt, id: id, command: command)
-                    }
-                    break
+                if isTypingOut { caretAfterTyping = back } else { moveCaret(back: back, after: inserted, in: target) }
+            case let .panel(model):
+                showPanel(model, target)
+            case let .notice(text):
+                // Its own small panel, under Translate as You Type's chip if it's on here.
+                if !showTranslateChip(target), let target {
+                    let panel = CandidatePanel.shared
+                    panel.owner = self
+                    panel.onSelect = nil
+                    panel.show(.notice(text), anchor: anchor(target))
                 }
-                startConversion(input, id: id, command: command)
-            case let .startRefine(refinement, id):
-                // Sent to the model like the request it refines: refused during secure input the same way.
-                if refusedForSecureInput(id: id, client: target) { break }
-                startRefine(refinement, id: id)
-            case let .reask(command, input, id):
-                if refusedForSecureInput(id: id, client: target) { break }
-                startConversion(input, id: id, command: command, fresh: true)
-            case let .startPlan(outer, plan, id):
-                // Inner commands run programs or reach the network: refused during secure input like any.
-                if refusedForSecureInput(id: id, client: target, running: true) { break }
-                // @reply with nothing selected, copied or pasted: the Chrome page goes along with the text the commands
-                // inside it make, as without them.
-                if outer == .reply, composer.replyTakesPage {
-                    withPage("", render: { Prompt.replyMessage($1, page: $0) }) { [self] page, _ in
-                        self.startConversion("", id: id, command: outer, plan: plan, replyPage: page)
-                    }
-                    break
+            case let .noticeElsewhere(text, long, progress):
+                // In the field being typed in now, else near the pointer; the progress notice here goes.
+                let field = Self.activeController
+                if field !== self, let progress { endNotice(progress) }
+                if let field { field.showNotice(text, client: nil, long: long) } else { Self.showLooseNotice(text, long: long) }
+            case let .open(item):
+                openItem(item)
+            case let .openAgent(id):
+                openAgent(id)  // in Terminal
+            case let .openSettings(place):
+                switch place {
+                case .translationLanguages?: openSettings(.writing, .outputLanguages)  // its Add… outlined
+                case nil: SettingsWindow.shared.show()
                 }
-                startConversion("", id: id, command: outer, plan: plan)
-            case let .startRun(command, input, id):
-                if refusedForSecureInput(id: id, client: target, running: true) { break }
-                startConversion(input, id: id, command: command)
-            case let .startScript(command, arguments, query, id, action):
-                if refusedForSecureInput(id: id, client: target, running: true) { break }
-                startScript(command, arguments: arguments, query: query, id: id, action: action)
-            case let .startBackgroundScript(command, arguments, query):
-                startInBackground(command, arguments: arguments, query: query, client: target)
-            case let .detachScript(id):
-                // The field was left while a `show` runs: it goes on, and says when it's done.
-                if let run = scriptRun, run.request == id { scriptTasks.detach(run.run) }
-                scriptRun = nil
-            case .refreshList:
-                listRunKey = nil  // run it now (below), not after its delay
-                scheduleListRun(now: true)
-            case let .search(query, id):
-                conversionTask?.cancel()
-                conversionTask = Task { @MainActor [weak self] in
-                    guard let self else { return }
-                    let results = await self.searchFiles(query, self.loadOpenHistory())
-                    guard !Task.isCancelled else { return }
-                    log.notice("search \(id): \(results.count) results")
-                    self.perform(self.composer.receiveSearch(results, id: id), client: nil)
-                }
-            case let .open(path):
-                if let agent = SearchResult(name: "", path: path).agentID {
-                    openAgent(agent)  // a background task: in Terminal
-                    break
-                }
-                log.notice("opening an @open result")
-                openItem(path)
-                // Listed first by the next searches (files only: a web address is typed again).
-                if SearchResult(name: "", path: path).webURL == nil { recordOpen(path) }
-            case let .openLink(url):
-                // The site is public (a plugin's or the user's own template); the text in it is not.
-                log.notice("link command: opening \(url.isFileURL ? "a file" : url.host ?? "-", privacy: .public)")
-                // A file (a script list's row) by its path, which isn't kept in @open's history.
-                openItem(url.isFileURL ? url.path : url.absoluteString)
-            case let .startBackgroundAgent(prompt):
-                // `self` kept until the page is read: the task starts even if the field is gone by then.
-                withPage(prompt) { [self] prompt, page in
-                    Task { @MainActor [self] in
-                        do {
-                            _ = try await self.startAgent(prompt)
-                            if let page { self.showNotice(self.composer.messages.startedInBackground + UIText.withPage(page), client: nil) }
-                        } catch {
-                            log.error("@agent in the background failed: \(String(describing: error), privacy: .public)")
-                            self.showNotice(UIText.describe(error), client: nil)
-                        }
-                    }
-                }
-            case .openSettings:
-                SettingsWindow.shared.show()
-            case let .listAgents(id):
-                conversionTask?.cancel()
-                conversionTask = Task { @MainActor [weak self] in
-                    guard let self else { return }
-                    let results: [SearchResult]
-                    do {
-                        results = try await self.listAgents().map { session, reply in
-                            let mark = session.progress == .done ? "✓" : session.progress == .needsYou ? "⚠︎" : "…"
-                            return SearchResult(name: "\(mark) \(session.name ?? session.shortID)",
-                                                path: SearchResult.agentPrefix + session.shortID, detail: reply)
-                        }
-                    } catch {
-                        guard !Task.isCancelled else { return }
-                        self.perform(self.composer.fail(UIText.describe(error), id: id), client: nil)
-                        return
-                    }
-                    guard !Task.isCancelled else { return }
-                    self.perform(self.composer.receiveSearch(results, id: id), client: nil)
-                }
-            case let .runInTerminal(prompt):
-                // A custom agent without a command isn't offered; one emptied meanwhile starts nothing.
-                guard let arguments = agent.terminalArguments(custom: agentCommand) else {
-                    log.error("@agent: no command for the custom agent")
-                    break
-                }
-                withPage(prompt) { [self] prompt, page in  // kept until the page is read (see above)
-                    do {
-                        try self.runInTerminal(arguments, prompt)
-                        log.notice("@agent: \(self.agent.rawValue, privacy: .public) started in Terminal (\(prompt.count) chars)")
-                        if let page { self.showNotice(self.composer.messages.openedTerminal + UIText.withPage(page), client: target) }
-                    } catch {
-                        log.error("@agent: could not start Terminal: \(String(describing: error), privacy: .public)")
-                        self.showNotice(UIText.describe(error), client: target)
-                    }
-                }
-            case let .continueInClaudeCode(prompt):
-                handOff(prompt, to: .claude, client: target)
-            case let .continueInAgent(kind, prompt):
-                handOff(prompt, to: kind, client: target)
-            case .commandUsed:
-                saveCommandUsage(composer.commandUsage)
-            case let .rememberQuestion(entry):
-                // Kept only on this Mac, never while secure input is on (the composer checks too).
-                guard loadSettings().rememberQuestions, !secureInputActive() else { break }
-                recordQuestion(entry)
-            case let .launchInTerminal(argv):
-                do {
-                    try launchInTerminal(argv)
-                    log.notice("custom command: Terminal started (\(argv.count) arguments)")
-                } catch {
-                    log.error("custom command: could not start Terminal: \(String(describing: error), privacy: .public)")
-                    showNotice(UIText.describe(error), client: target)
-                }
-            case let .saveNote(text):
-                // Nothing goes to a model: kept on this Mac (Notes, a folder), not refused while secure input is on,
-                // unlike the requests above; to Notion it is (the composer refuses it, and so does `saveToNotes`).
-                saveToNotes(text)
-            case let .previewReminder(input, id):
-                // Read here by the real clock (NSDataDetector and the parser's own rules), quick enough for
-                // a keystroke. Nothing leaves the Mac, so secure input doesn't hold it back either.
-                perform(composer.receiveReminder(parseReminder(input), id: id), client: target)
-            case let .startTranslateMode(input, session, id):
-                if refusedForSecureInput(id: id, client: target) { break }
-                consume(translateModeStream(input, session: session, app: appID, id: id), id: id)
-            case let .addReminder(reminder, input):
-                addToReminders(reminder, input: input)
             case let .copy(text):
                 copyText(text)
-            case let .sendMessage(recipient, text, command):
-                sendMessage(text, to: recipient, command: command, client: target)
             case let .readClipboard(id):
-                // After the key has been answered: if macOS asks whether this may read the clipboard,
-                // the app isn't left waiting for the key (and doesn't paste on its own meanwhile).
+                // After the key has been answered: if macOS asks whether this may read the clipboard, the app isn't left
+                // waiting for the key (and doesn't paste on its own meanwhile).
                 DispatchQueue.main.async { [weak self] in
                     guard let self else { return }
                     // Nothing is read during secure input.
-                    let content = self.secureInputActive() ? .none : self.readClipboard()
+                    let content = self.services.secureInputActive() ? .none : self.readClipboard()
                     // Only how much: never the text or the image itself.
                     log.notice("clipboard for a command: \(Self.logged(content), privacy: .public)")
-                    self.perform(self.composer.pasted(content, id: id), client: nil)
+                    self.received(.clipboard(content, id: id))
                 }
-            case let .recognizeText(image, id):
-                // On this Mac (Vision): the image goes nowhere (ScreenshotAndReply.swift).
-                recognizeScreenshot(image, id: id)
-            case .cancelConversion:
-                conversionTask?.cancel()
-                conversionTask = nil
-                if let run = scriptRun { scriptTasks.cancel(run.run) }
-                scriptRun = nil
-            case .showPanel:
-                showPanel(target)
-            case .hidePanel:
-                if !showTranslateChip(target) { hidePanelIfOwned() }  // Translate as You Type's chip stays
-            case let .notice(text):
-                // A note left unsaved, its text on the clipboard: up as long as the other "on the clipboard" notices.
-                showNotice(text, client: target, long: text == composer.messages.noteNotSaved)
-            case let .armVoice(delay):
-                voiceArmToken += 1
-                let token = voiceArmToken
-                DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-                    guard let self, token == self.voiceArmToken else { return }
-                    self.perform(self.composer.voiceHoldElapsed(stillHeld: self.isVoiceKeyHeld()), client: nil)
+            case .keyboardLayout:
+                applyKeyboardLayout(client: target)
+            case let .startTimer(.notice(token), seconds):
+                // In the run loop's default mode, as a notice always expired: not while a menu is tracked.
+                let box = WeakBox(self)
+                let timer = Timer(timeInterval: seconds, repeats: false) { _ in
+                    MainActor.assumeIsolated { box.value?.received(.timer(.notice(token))) }
                 }
-            case let .startVoice(id, language):
+                RunLoop.main.add(timer, forMode: .default)
+            case let .startTimer(id, seconds):
+                DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { [weak self] in self?.received(.timer(id)) }
+            case let .platform(.startVoice(id, language)):
                 startVoice(id: id, language: language)
-            case let .stopVoice(id):
+            case let .platform(.stopVoice(id)):
                 stopVoice(id: id)
-            case let .cancelVoice(id):
+            case let .platform(.cancelVoice(id)):
                 cancelVoiceSession(id: id)
             }
         }
-        scheduleLiveSearch()
-        scheduleRecipientSearch()
-        scheduleListRun()
-        refreshStatuses()
+        keepAlive = session.waitsForPage ? self : nil
         if composer.translateMode != nil { scheduleChipRefresh() }  // Translate as You Type's chip follows the caret
     }
 
-    // MARK: - Script extensions
-
-    /// What a script extension is told about where it runs (`ScriptContext`).
+    /// The marked text in `client`: nothing of ours (empty) leaves the document, and any selection in it, alone.
     @MainActor
-    private func scriptContext(query: String) -> ScriptContext {
-        ScriptContext(language: UIText.chinese ? "zh" : "en", inputLanguage: composer.inputLanguage.rawValue,
-                      app: (clientOverride ?? client())?.bundleIdentifier(), query: query)
-    }
-
-    /// The environment `command` runs with, or the message that keeps it from running: a required preference
-    /// of its bundle isn't set yet. The keychain (password preferences) and the login shell's PATH are read off
-    /// the main thread: never while a key is handled.
-    @MainActor
-    private func scriptEnvironment(_ command: ScriptCommand, query: String, status: Bool = false,
-                                   action: Bool = false) async -> Result<[String: String], DescribedError> {
-        await environmentMaker(command, query: query, status: status, action: action)()
-    }
-
-    /// What builds `command`'s environment (`scriptEnvironment`), with what it needs of this text field taken now:
-    /// it needs nothing of the field afterwards, which may be gone by the time it runs.
-    @MainActor
-    private func environmentMaker(_ command: ScriptCommand, query: String, status: Bool = false,
-                                  action: Bool = false) -> @Sendable () async -> Result<[String: String], DescribedError> {
-        let config = loadSettings()
-        let bundle = loadExtensions(config, false).bundle(of: command)
-        let context = scriptContext(query: query)
-        let preferences = extensionPreferences
-        let missingMessage = { (missing: ExtensionBundle.Preference, bundle: ExtensionBundle) in
-            tr("先在设置里填好「\(missing.title)」（\(bundle.title)）", "Set “\(missing.title)” for \(bundle.title) in the settings first")
-        }
-        return {
-            await Task.detached(priority: .userInitiated) { () -> Result<[String: String], DescribedError> in
-                let values = bundle.map { preferences($0, config) } ?? [:]
-                if let bundle, let missing = bundle.preferences.first(where: { $0.required && (values[$0.name] ?? "").isEmpty }) {
-                    return .failure(DescribedError(message: missingMessage(missing, bundle)))
-                }
-                return .success(context.environment(for: command, base: ShellEnvironment.current, preferences: values,
-                                                    status: status, action: action))
-            }.value
-        }
-    }
-
-    /// Runs a script extension for this field's request: what it prints goes to the composer as it comes. It
-    /// starts once its environment is ready (the request may be gone by then: Esc, another key).
-    @MainActor
-    private func startScript(_ command: Command, arguments: [String], query: String, id: Int, action: Bool) {
-        guard let script = command.script else { return }
-        if let run = scriptRun { scriptTasks.cancel(run.run) }
-        scriptRun = nil
-        lastElapsed = nil
-        lastFromCache = false
-        lastHidden = 0
-        log.notice("conversion \(id) started (an extension, \(arguments.count) arguments)")
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            let environment: [String: String]
-            switch await self.scriptEnvironment(script, query: query, action: action) {
-            case let .success(env): environment = env
-            case let .failure(error):
-                self.perform(self.composer.fail(error.message, id: id), client: nil)
-                return
-            }
-            guard self.composer.phase == .translating(id: id) else { return }
-            let started = Date()
-            let run = self.scriptTasks.start(script, arguments: arguments, environment: environment, detached: false) { [weak self] event in
-                guard let self else { return }
-                switch event {
-                case let .update(update):
-                    if update.isFinal {
-                        self.lastElapsed = Date().timeIntervalSince(started)
-                        if self.scriptRun?.request == id { self.scriptRun = nil }
-                    }
-                    self.perform(self.composer.receiveScript(update.output, isFinal: update.isFinal, id: id), client: nil)
-                case let .failed(error):
-                    if self.scriptRun?.request == id { self.scriptRun = nil }
-                    log.error("conversion \(id) failed: \(Self.errorKind(error), privacy: .public)")
-                    self.perform(self.composer.fail(UIText.describe(error), id: id), client: nil)
-                }
-            }
-            self.scriptRun = run.map { (id, $0) }
-        }
-    }
-
-    /// A `background` script extension: started on its own; the menu bar panel lists it and a notification says
-    /// how it went. Not during secure input (nothing runs then), nor twice at once, nor more than four.
-    @MainActor
-    private func startInBackground(_ command: Command, arguments: [String], query: String, client: IMKTextInput?) {
-        guard let script = command.script else { return }
-        guard !secureInputActive() else {
-            showNotice(tr("系统安全输入已开启（密码框或锁屏），没有运行命令",
-                          "Secure input is on (a password field or the lock screen): the command was not run"), client: client)
+    private func setMarkedText(_ text: String, cursor: Int, converted: Bool, in client: IMKTextInput?) {
+        guard let client else { return }
+        guard !text.isEmpty else {
+            guard hasMarkedText || (Self.markedLength(client) ?? 0) > 0 else { return }
+            client.setMarkedText("", selectionRange: NSRange(location: 0, length: 0), replacementRange: Self.notFound)
+            hasMarkedText = false
             return
         }
-        // Held by ScriptTasks while the environment is made, not by this field: it starts even if the field is gone
-        // by then. What went wrong is said here, or in the field being typed in then.
-        scriptTasks.startInBackground(script, arguments: arguments, prepare: environmentMaker(script, query: query)) { [weak self] message in
-            (self ?? Self.activeController)?.showNotice(message, client: nil)
-        }
-    }
-
-    /// A `list` command as it's typed: run after its `queryDelay` once the text stops changing (the run before
-    /// stopped), and again after the list's `rerun` while the same text is shown. `now`: without the delay.
-    @MainActor
-    private func scheduleListRun(now: Bool = false) {
-        let query = composer.listQuery
-        let command = composer.draftCommand
-        let key = query.flatMap { query in command.map { $0.name + "\u{0}" + query } }
-        guard key != listRunKey else { return }
-        listRunKey = key
-        listTask?.cancel()
-        listTask = nil
-        guard let query, let command, let script = command.script else { return }
-        guard !secureInputActive(), case let .success(arguments) = script.arguments(from: query) else { return }
-        listTask = Task { @MainActor [weak self] in
-            var delay = now ? 0 : script.queryDelay
-            var environment: [String: String]?
-            while true {
-                if delay > 0 { try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000)) }
-                guard let self, !Task.isCancelled else { return }
-                if environment == nil {
-                    switch await self.scriptEnvironment(script, query: query) {
-                    case let .success(env): environment = env
-                    case let .failure(error):
-                        // A required preference isn't set: the list says so.
-                        if !Task.isCancelled { self.perform(self.composer.receiveList(.text(error.message), for: query), client: nil) }
-                        return
-                    }
-                }
-                guard !Task.isCancelled, let env = environment else { return }
-                var output: ScriptOutput?
-                do {
-                    for try await update in CommandRunner.run(script, arguments: arguments, environment: env) where update.isFinal {
-                        output = update.output
-                    }
-                } catch {
-                    output = .text(UIText.describe(error))
-                }
-                guard !Task.isCancelled, let output else { return }
-                self.perform(self.composer.receiveList(output, for: query), client: nil)
-                guard case let .list(list) = output, let rerun = list.rerun else { return }
-                delay = rerun
-            }
-        }
-    }
-
-    /// The status lines of the commands the list shows, when they're due (`ScriptStatus`); each one that ends
-    /// redraws the list and lets the next due one start.
-    @MainActor
-    private func refreshStatuses() {
-        guard composer.paletteQuery != nil else { return }
-        let shown = composer.paletteVisible.compactMap(\.script).filter { $0.status != nil }
-        guard !shown.isEmpty, !secureInputActive() else { return }
-        ScriptStatus.shared.refresh(shown, environment: { [weak self] command in
-            guard let self, case let .success(env) = await self.scriptEnvironment(command, query: "", status: true) else { return nil }
-            return env
-        }) { [weak self] in
-            guard let self, self.composer.paletteQuery != nil else { return }
-            self.perform([.showPanel], client: nil)
-        }
-    }
-
-    /// A send command's recipient as it is typed: a short pause, then the contacts that match (Contacts
-    /// access is asked for here, the first time).
-    @MainActor
-    private func scheduleRecipientSearch() {
-        let query = composer.recipientQuery
-        guard query != recipientSearchQuery else { return }
-        recipientSearchQuery = query
-        recipientSearchTask?.cancel()
-        guard let query else { return }
-        let recent = loadRecentHandles()
-        recipientSearchTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 80_000_000)
-            guard let self, !Task.isCancelled else { return }
-            let contacts = await self.loadContacts()
-            guard !Task.isCancelled else { return }
-            let found = await Task.detached { RecipientSearch.results(query, contacts: contacts ?? [], recent: recent) }.value
-            guard !Task.isCancelled else { return }
-            let note = contacts == nil
-                ? tr("没有通讯录权限：系统设置 → 隐私与安全性 → 通讯录 → 打开 AllInOneIME；也可以直接输入手机号或邮箱",
-                     "No access to Contacts: System Settings → Privacy & Security → Contacts → turn on AllInOneIME; or type a phone number or email")
-                : found.isEmpty ? (query.isEmpty ? tr("输入名字、拼音、手机号或邮箱", "Type a name, phone number or email")
-                                                 : tr("没有找到联系人；也可以输入完整的手机号或邮箱", "No contact found; or type a full phone number or email"))
-                : nil
-            self.perform(self.composer.receiveRecipients(found, note: note, for: query), client: nil)
-        }
-    }
-
-    /// Sends a confirmed message off the main thread; a notice says how it went. The log keeps no
-    /// names, handles or text.
-    @MainActor
-    private func sendMessage(_ text: String, to recipient: Recipient, command: Command, client: IMKTextInput?) {
-        guard !secureInputActive() else {
-            showNotice(tr("系统安全输入已开启（密码框或锁屏），没有发送", "Secure input is on (a password field or the lock screen): nothing was sent"),
-                       client: client)
-            return
-        }
-        log.notice("@\(command.name, privacy: .public): sending (\(text.count) chars)")
-        let sender = messageSender
-        Task { @MainActor [weak self] in
-            do {
-                try await sender.send(text, to: recipient)
-                log.notice("@\(command.name, privacy: .public): sent")
-                guard let self else { return }
-                self.saveRecentHandles(RecipientSearch.remember(recipient.handle, in: self.loadRecentHandles()))
-                self.showNotice(tr("已发送给 ", "Sent to ") + recipient.displayName, client: nil)
-            } catch {
-                let code: String
-                switch error {
-                case MessageSendError.notPermitted: code = "-1743"
-                case let MessageSendError.failed(number): code = String(number)
-                default: code = String(describing: type(of: error))
-                }
-                log.error("@\(command.name, privacy: .public): sending failed (\(code, privacy: .public))")
-                self?.showNotice(UIText.describe(error), client: nil)
-            }
-        }
-    }
-
-    /// `@open` as you type: a short pause after the text changes, then a search for it. Not for a single
-    /// letter (`FileSearchRanking.searchesAsYouType`): that takes seconds; ⏎ searches it.
-    @MainActor
-    private func scheduleLiveSearch() {
-        let query = composer.liveQuery
-        guard query != liveSearchQuery else { return }
-        liveSearchQuery = query
-        liveSearchTask?.cancel()
-        guard let query, FileSearchRanking.searchesAsYouType(query) else { return }
-        liveSearchTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 120_000_000)
-            guard let self, !Task.isCancelled else { return }
-            let results = await self.searchFiles(query, self.loadOpenHistory())
-            guard !Task.isCancelled else { return }
-            self.perform(self.composer.receiveLive(results, for: query), client: nil)
-        }
-    }
-
-    // MARK: - Notes and Reminders
-
-    /// A folder destination's name ("Obsidian" when it is in a vault, else “Inbox”) looked up off the main thread (a
-    /// second at most, `VaultRoots`): the command list says it once it is known, while the settings still name it.
-    @MainActor
-    private func nameNoteFolder(_ destination: any NoteDestination, settings: NoteSettings) {
-        guard let folder = destination as? MarkdownFolderDestination else { return }
-        Task { @MainActor [weak self] in
-            let name = await Task.detached(priority: .utility) { folder.name }.value
-            guard let self, UIText.noteDestinationName != name, self.loadSettings().notes == settings else { return }
-            UIText.noteDestinationName = name
-        }
-    }
-
-    /// `@note`: the text goes where `Config.notes` says (`noteDestination`: Notes, a folder of Markdown files, Notion) in
-    /// the background (the first time, macOS may ask whether this may control Notes or write to the folder, and the save
-    /// waits for the answer). 「正在存到 Notion…」 at once, up until a notice says where it is saved, or why not
-    /// (`progressNoticeLimit` at most); a text that couldn't be saved is never lost (`SaveOutcome`). A saved note the
-    /// menu bar panel can list is posted (`.allInOneIMENoteSaved`). Only its length is logged.
-    @MainActor
-    private func saveToNotes(_ text: String) {
-        let destination = noteDestination(loadSettings().notes)
-        let name = destination.name
-        // The composer refuses it already; the setting may have changed since it was told.
-        if destination.leavesDevice, secureInputActive() {
-            log.notice("@note: not sent to Notion while secure input is on")
-            if let effects = composer.restoreDraft(.note, text: text) { perform(effects, client: nil) } else { copyText(text) }
-            showNotice(composer.messages.secureInputNote, client: nil)
-            return
-        }
-        // The kind of place, not its name (a folder's may say something of the user).
-        log.notice("@note: saving \(text.count) chars to \(String(describing: type(of: destination)), privacy: .public)")
-        let zhName = UIText.afterChineseWord(name)
-        let progress = tr("正在存到\(zhName)…", "Saving to \(name)…")
-        showNotice(progress, client: nil, lasting: Self.progressNoticeLimit)
-        let outcome = SaveOutcome(from: self, progress: progress)
-        let draft = NoteDraft(text: text)
-        Task { @MainActor in
-            do {
-                let saved = try await destination.save(draft)
-                log.notice("@note: saved")
-                if let id = saved.id {
-                    NotificationCenter.default.post(name: .allInOneIMENoteSaved, object: nil, userInfo: ["id": id, "title": saved.title])
-                }
-                // Where it went as the save found out (off the main thread): a folder in a vault is Obsidian.
-                let went = saved.destinationName ?? name
-                let zhWent = UIText.afterChineseWord(went)
-                outcome.saved(tr("已存到\(zhWent)", "Saved to \(went)"))
-            } catch {
-                log.error("@note: not saved: \(Self.errorKind(error), privacy: .public)")
-                outcome.failed(error, command: .note, text: text)
-            }
-        }
-    }
-
-    /// A confirmed `@reminder`: added to Reminders in the background (the first time, macOS asks for
-    /// access, and this waits for the answer). 「正在加到提醒事项…」 at once, up until the notice says when it is
-    /// due (「已加到提醒事项：明天 15:00」), or why it wasn't added (`progressNoticeLimit` at most): then `input`, the
-    /// text it was read from, comes back (`SaveOutcome`).
-    @MainActor
-    private func addToReminders(_ reminder: ReminderDraft, input: String) {
-        let kind = reminder.due == nil ? "no date" : reminder.hasTime ? "a time" : "a day"
-        log.notice("@reminder: adding one with \(kind, privacy: .public)")
-        let progress = tr("正在加到提醒事项…", "Adding to Reminders…")
-        showNotice(progress, client: nil, lasting: Self.progressNoticeLimit)
-        let (add, outcome) = (addReminder, SaveOutcome(from: self, progress: progress))
-        Task { @MainActor in
-            do {
-                try await add(reminder)
-                log.notice("@reminder: added")
-                let when = reminder.due == nil ? "" : tr("：", ": ") + UIText.when(reminder)
-                outcome.saved(tr("已加到提醒事项", "Added to Reminders") + when)
-            } catch {
-                log.error("@reminder: not added: \(Self.errorKind(error), privacy: .public)")
-                outcome.failed(error, command: .reminder, text: input)
-            }
-        }
-    }
-
-    /// How a save to Notes or Reminders went, told where the user is when it comes back, even if the text field
-    /// it came from (and its controller) is gone by then; made when the save starts, without keeping the
-    /// controller alive. A failed save loses nothing: its text is back in the draft when that field is still
-    /// there with nothing being typed, else on the clipboard; on the clipboard as well when the user has to fix
-    /// something first (`needsTheUser`): going to System Settings takes the focus, which commits the draft.
-    @MainActor
-    struct SaveOutcome {
-        private weak var origin: AllInOneIMEInputController?
-        private let session: Int
-        private let copy: (String) -> Void
-        /// The notice shown while the save is under way (「正在存到备忘录…」), replaced by the outcome.
-        private let progress: String
-
-        init(from controller: AllInOneIMEInputController, progress: String) {
-            origin = controller
-            session = controller.fieldSession
-            copy = controller.copyText
-            self.progress = progress
-        }
-
-        /// The field the save came from, while it is still the same one.
-        private var field: AllInOneIMEInputController? { origin.flatMap { $0.fieldSession == session ? $0 : nil } }
-
-        func saved(_ notice: String) { tell(notice, long: false) }
-
-        func failed(_ error: Error, command: Command, text: String) {
-            let reason = UIText.describe(error)
-            let needsTheUser = AllInOneIMEInputController.needsTheUser(error)
-            if let field, let effects = field.composer.restoreDraft(command, text: text) {
-                field.perform(effects, client: nil)
-                if needsTheUser { copy(text) }
-                field.showNotice(needsTheUser ? tr("原文也复制到了剪贴板。", "The text is on the clipboard too. ") + reason : reason,
-                                 client: nil, long: needsTheUser)
-                return
-            }
-            copy(text)
-            tell(tr("没有存上，原文已复制到剪贴板。", "Not saved; the text is on the clipboard. ") + reason, long: true)
-        }
-
-        /// In the field it came from, else the one being typed in now, else near the pointer. The progress
-        /// notice, if still up where the save started, goes then.
-        private func tell(_ notice: String, long: Bool) {
-            let target = field ?? AllInOneIMEInputController.activeController
-            if let origin, origin !== target { origin.endNotice(progress) }
-            if let target {
-                target.showNotice(notice, client: nil, long: long)
-            } else {
-                AllInOneIMEInputController.showLooseNotice(notice, long: long)
-            }
-        }
-    }
-
-    /// The longest 「正在存到备忘录…」 / 「正在加到提醒事项…」 stays up: the outcome replaces it, but that can take a
-    /// while (Notes launching, the first permission prompt waiting for an answer). The self-test shortens it.
-    static var progressNoticeLimit: TimeInterval = 20
-
-    /// Errors only the user can fix (a permission, an account): their notice stays up longer.
-    static func needsTheUser(_ error: Error) -> Bool {
-        switch error {
-        case NotesBridge.NotesError.notPermitted, RemindersBridge.RemindersError.notPermitted,
-             RemindersBridge.RemindersError.noAccount:
-            return true
-        case let error as NoteError:
-            return error.needsTheUser
-        default:
-            return false
-        }
-    }
-
-    /// Owns the candidate panel while it shows a notice no text field is there for.
-    private static let looseNoticeOwner = NSObject()
-
-    /// A notice with no text field to show it at: on its own, near the pointer.
-    @MainActor
-    static func showLooseNotice(_ text: String, long: Bool) {
-        let panel = CandidatePanel.shared
-        panel.owner = looseNoticeOwner
-        panel.onSelect = nil
-        var model = CandidateView.Model()
-        model.status = .hint(text)
-        panel.show(model, anchor: .zero)  // an empty anchor: at the mouse pointer
-        DispatchQueue.main.asyncAfter(deadline: .now() + noticeDuration(text, long: long)) {
-            if panel.owner === looseNoticeOwner { panel.hide() }
-        }
-    }
-
-    /// How long a notice stays up: by its length, and longer for what the user has to act on.
-    static func noticeDuration(_ text: String, long: Bool) -> TimeInterval {
-        long ? 12 : min(5, 1.2 + Double(text.count) * 0.06)
+        let length = (text as NSString).length
+        let style = converted ? kTSMHiliteSelectedConvertedText : kTSMHiliteRawText
+        let attributed = NSAttributedString(
+            string: text, attributes: markAttributes(style: style, range: NSRange(location: 0, length: length)))
+        client.setMarkedText(
+            attributed, selectionRange: NSRange(location: cursor, length: 0), replacementRange: Self.notFound)
+        hasMarkedText = true
+        markedWatch.didSet(expected: text, reportedLength: Self.markedLength(client))
     }
 
     // MARK: - Voice
@@ -1681,45 +752,40 @@ final class AllInOneIMEInputController: IMKInputController {
     @MainActor
     private func startVoice(id: Int, language: Language) {
         guard #available(macOS 26.0, *), VoiceInput.isSupported else {
-            perform(composer.voiceFailed(UIText.describe(VoiceError.unsupportedSystem), id: id), client: nil)
+            received(.voice(.failed(UIText.describe(VoiceError.unsupportedSystem), id: id)))
             return
         }
         if voiceFile == nil {
             guard Self.microphoneAllowed else {
-                perform(composer.voiceFailed(tr("（自检）没有音频文件，不使用麦克风", "(self-test) no audio file; the microphone stays off"),
-                                             id: id), client: nil)
+                received(.voice(.failed(tr("（自检）没有音频文件，不使用麦克风", "(self-test) no audio file; the microphone stays off"),
+                                        id: id)))
                 return
             }
             switch VoiceInput.microphoneAccess {
             case .granted:
                 break
             case .notDetermined:
-                perform(composer.voiceFailed(tr("请在弹窗里允许使用麦克风，然后再按住右 ⌥ 说话",
-                                                "Allow the microphone in the dialog, then hold right ⌥ again"), id: id),
-                        client: nil)
+                received(.voice(.failed(tr("请在弹窗里允许使用麦克风，然后再按住右 ⌥ 说话",
+                                           "Allow the microphone in the dialog, then hold right ⌥ again"), id: id)))
                 Task { _ = await VoiceInput.requestMicrophoneAccess() }
                 return
             case .denied:
-                perform(composer.voiceFailed(tr("没有麦克风权限：系统设置 → 隐私与安全性 → 麦克风 → 打开 AllInOneIME",
-                                                "No microphone access: System Settings → Privacy & Security → Microphone → turn on AllInOneIME"),
-                                             id: id),
-                        client: nil)
+                received(.voice(.failed(tr("没有麦克风权限：系统设置 → 隐私与安全性 → 麦克风 → 打开 AllInOneIME",
+                                           "No microphone access: System Settings → Privacy & Security → Microphone → turn on AllInOneIME"),
+                                        id: id)))
                 return
             }
         }
         if let progress = VoiceInput.downloads[language] {
-            perform(composer.voiceFailed(String(format: tr("%@语音模型下载中 %.0f%%，好了会提示",
-                                                           "Downloading the %@ speech model: %.0f%%. You'll be told when it's ready"),
-                                                UIText.name(language), progress * 100), id: id), client: nil)
+            received(.voice(.failed(String(format: tr("%@语音模型下载中 %.0f%%，好了会提示",
+                                                      "Downloading the %@ speech model: %.0f%%. You'll be told when it's ready"),
+                                           UIText.name(language), progress * 100), id: id)))
             return
         }
         cancelVoiceSession()  // never two recordings at once
         let session = DictationSession(
             id: id, language: language,
-            onText: { [weak self] text in
-                guard let self else { return }
-                self.perform(self.composer.voiceText(text, id: id), client: nil)
-            },
+            onText: { [weak self] text in self?.received(.voice(.text(text, id: id))) },
             onFinish: { [weak self] result in
                 self?.voiceDidFinish(result, id: id, language: language)
             })
@@ -1748,7 +814,7 @@ final class AllInOneIMEInputController: IMKInputController {
             }
             log.error("voice \(id): no final transcript after \(waited + 5)s")
             self.cancelVoiceSession(id: id)
-            self.perform(self.composer.voiceFinished(now, id: id), client: nil)
+            self.received(.voice(.finished(now, id: id)))
         }
     }
 
@@ -1767,12 +833,12 @@ final class AllInOneIMEInputController: IMKInputController {
         switch result {
         case let .success(text):
             log.notice("voice \(id) finished (\(text.count) chars)")
-            perform(composer.voiceFinished(text, id: id), client: nil)
+            received(.voice(.finished(text, id: id)))
         case let .failure(VoiceError.modelMissing(missing)):
             let name = UIText.name(missing)
-            perform(composer.voiceFailed(tr("首次使用：正在下载\(name)语音模型，好了会提示",
-                                            "First use: downloading the \(name) speech model. You'll be told when it's ready"),
-                                         id: id), client: nil)
+            received(.voice(.failed(tr("首次使用：正在下载\(name)语音模型，好了会提示",
+                                       "First use: downloading the \(name) speech model. You'll be told when it's ready"),
+                                    id: id)))
             VoiceInput.startDownload(missing) { [weak self] error in
                 self?.showNotice(error.map { tr("语音模型下载失败：", "Speech model download failed: ") + UIText.describe($0) }
                                  ?? tr("\(name)语音模型已就绪：按住右 ⌥ 说话", "\(name) speech model ready: hold right ⌥ to talk"),
@@ -1780,31 +846,8 @@ final class AllInOneIMEInputController: IMKInputController {
             }
         case let .failure(error):
             log.error("voice \(id) failed: \(String(describing: error), privacy: .public)")
-            perform(composer.voiceFailed(UIText.describe(error), id: id), client: nil)
+            received(.voice(.failed(UIText.describe(error), id: id)))
         }
-    }
-
-    @MainActor
-    private func updateMarkedText(_ client: IMKTextInput?) {
-        // A command on the selection is written in the panel: the field keeps its selection, nothing marked over it.
-        guard let client, !composer.draftInPanel else { return }
-        let text = composer.markedText
-        guard !text.isEmpty else {
-            // Nothing of ours is marked: leave the document (and any selection in it) alone.
-            guard hasMarkedText || (Self.markedLength(client) ?? 0) > 0 else { return }
-            client.setMarkedText("", selectionRange: NSRange(location: 0, length: 0), replacementRange: Self.notFound)
-            hasMarkedText = false
-            return
-        }
-        let length = (text as NSString).length
-        let style = composer.isLevelTwo ? kTSMHiliteSelectedConvertedText : kTSMHiliteRawText
-        let attributed = NSAttributedString(
-            string: text, attributes: markAttributes(style: style, range: NSRange(location: 0, length: length)))
-        let cursor = String(text.prefix(composer.markedCursor)).utf16.count
-        client.setMarkedText(
-            attributed, selectionRange: NSRange(location: cursor, length: 0), replacementRange: Self.notFound)
-        hasMarkedText = true
-        markedWatch.didSet(expected: text, reportedLength: Self.markedLength(client))
     }
 
     /// The length of the app's marked text, or nil when it reports none.
@@ -1828,251 +871,9 @@ final class AllInOneIMEInputController: IMKInputController {
         return attributes
     }
 
-    // MARK: - Level two
-
-    /// While secure input is on anywhere (a password field or prompt may be active), nothing is sent
-    /// off the Mac: the request fails at once. True if refused.
-    @MainActor
-    private func refusedForSecureInput(id: Int, client: IMKTextInput?, running: Bool = false) -> Bool {
-        guard secureInputActive() else { return false }
-        log.info("conversion \(id) not sent: secure input \(SecureInput.ownerDescription(), privacy: .public)")
-        let message = running
-            ? tr("系统安全输入已开启（密码框或锁屏），没有运行命令",
-                 "Secure input is on (a password field or the lock screen): the command was not run")
-            : tr("系统安全输入已开启（密码框或锁屏），未发送给 AI",
-                 "Secure input is on (a password field or the lock screen): nothing was sent to the AI")
-        perform(composer.fail(message, id: id), client: client)
-        return true
-    }
-
-    /// Streams level two for `input`: the improve conversion, a `.generate` command's answer, or what a
-    /// `.run` command's program printed.
-    /// Whether `config` has a language to translate `input` into other than its own.
-    static func hasTranslationTarget(for input: String, config: Config) -> Bool {
-        let own = OutputLanguage(config.language(of: input))
-        return config.outputLanguages.contains { $0 != own }
-    }
-
-    /// The notice of an AI command in an app with no AI (`AppProfile.noAI`), read when the command starts; nil: AI may run.
-    @MainActor
-    private func aiRefusal() -> String? {
-        guard !loadSettings().allowsAI(in: appID) else { return nil }
-        log.notice("AI command refused: no AI in this app")
-        return AppProfileText.refusal
-    }
-
-    /// Opens the settings window on `page` (the self-test records it instead).
-    var openSettings: @MainActor (SettingsPage) -> Void = { SettingsWindow.shared.show(page: $0) }
-
-    @MainActor
-    /// `replyPage`: `@reply`'s Chrome page (`Prompt.replyMessage(_:page:)` of nothing), added after its message once the
-    /// commands inside it have run (`plan`).
-    private func startConversion(_ input: String, id: Int, command: Command? = nil, plan: CommandPlan? = nil, fresh: Bool = false,
-                                 replyPage: String = "") {
-        conversionTask?.cancel()
-        lastElapsed = nil
-        lastFromCache = false
-        lastHidden = 0
-        lastShortened = false
-        // Plugin names are public (from the library); custom command names are the user's own.
-        func logged(_ command: Command) -> String { command.custom == nil || command.plugin != nil ? command.name : "custom" }
-        let inner = plan.map { ", inside: " + $0.inner.map { "@" + logged($0.command) }.joined(separator: " ") } ?? ""
-        log.notice("conversion \(id) started (\(input.count) chars\(command.map { ", @\(logged($0))" } ?? "")\(inner), privacy: .public))")
-        // @translate with no language to translate into but the sentence's own (a new user whose system has no
-        // other language): nothing is sent; the settings open where languages are added.
-        if command == .translate, !Self.hasTranslationTarget(for: input, config: loadSettings()) {
-            log.notice("conversion \(id): no language to translate into")
-            perform(composer.fail(tr("还没有要翻译成的语言：在设置的「翻译与改写」里加一种", "No language to translate into yet: add one under Translate & Rewrite in the settings"),
-                                  id: id), client: nil)
-            openSettings(.writing)
-            return
-        }
-        let (runPlugin, runProgram, converter, loadSearchKey) = (self.runPlugin, self.runProgram, self.converter, self.loadSearchKey)
-        let improveTranslates = loadSettings().improveTranslates
-        // Script plugins get the language this conversion's own texts are in (read here: `UIText` is main-thread only).
-        let pluginLanguage = UIText.pluginLanguage
-        // The app's own rewrite styles, or no AI at all (`AppProfile`), for the requests below.
-        let app = appID
-        // A terminal runs each line it is given: there @search's list, and any command's output, goes in
-        // as one line.
-        let terminal = Self.isTerminal(clientOverride ?? client())
-        let searchList: WebSearch.Output = terminal ? .line : .list
-        // Not tied to the main actor: the pipeline calls it from its own task.
-        let streamFor: @Sendable (Command?, String) -> AsyncThrowingStream<ConversionUpdate, Error> = { command, input in
-            if command == .read { return WebReader.stream(input) }
-            // @py, @js: the code runs in a child process, like a custom program (never in this one).
-            if let command, let code = InlineCode.definition(for: command) { return runProgram(code, input) }
-            if command == .webSearch { return WebSearch.stream(input, output: searchList, loadKey: loadSearchKey) }
-            // A link opens once the commands inside its text have run: their outputs go in it as they are.
-            if let command, command.kind == .link { return LinkTemplate.passThrough(input) }
-            if command?.kind == .message { return CommandPipeline.unchanged(input) }  // sent as written, after confirming
-            if let command, command.kind == .run, let plugin = command.plugin { return runPlugin(plugin, input, pluginLanguage) }
-            if let command, command.kind == .run, let custom = command.custom { return runProgram(custom, input) }
-            // @improve, @translate, or both written together: one request (`WritingMode`).
-            if command == nil || command?.kind == .convert {
-                let (mode, text) = WritingMode.parse(command, input, improveTranslates: improveTranslates)
-                return converter.convert(text, mode: mode, app: app)
-            }
-            return command.map { converter.generate($0, input: input, app: app, fresh: fresh) } ?? converter.convert(input, app: app)
-        }
-        let stream: AsyncThrowingStream<ConversionUpdate, Error>
-        let replyContext = command == .reply ? composer.replyContext : nil
-        if let plan, !plan.isEmpty {
-            // @search inside a text is context for the AI, but not where the text goes out as written: into a
-            // web page (a link) or to a person (a message).
-            let innerSearch = WebSearch.Output.inside(command)
-            // The commands inside the text first (together), then this one on the text with their outputs.
-            stream = CommandPipeline.run(plan, inner: { command, argument in
-                // Its errors (no key, say) in the interface language.
-                command == .webSearch ? Self.described(WebSearch.stream(argument, output: innerSearch, loadKey: loadSearchKey))
-                    : streamFor(command, argument)
-            }, outer: { text in
-                // @reply: the text with the commands' outputs is what to reply (capped as what's typed is), sent with the
-                // rest of its context, and the page if it goes along.
-                guard let context = replyContext else { return streamFor(command, text) }
-                return streamFor(command, Prompt.replyMessage(context.withIntent(text)) + replyPage)
-            })
-        } else {
-            stream = streamFor(command, input)
-        }
-        // A terminal runs each line it is given: a program's output goes in as one line there, and so does
-        // an answer with line breaks (code) unless they can go in as a paste (`insert`, `TerminalPaste`).
-        let oneLine = terminal && (command?.kind == .run || (command?.kind == .generate && !canPasteInTerminal()))
-        consume(oneLine ? Self.oneLine(stream) : stream, id: id)
-    }
-
-    /// Asks again for the results shown, revised as the refinement's last instruction says ("shorter"): the same
-    /// request as before (`WritingMode` from the command, as `startConversion` works it out), with the conversation
-    /// after it. The new results replace the shown ones as they stream in (`Composer.receive`). In the app's settings
-    /// (`AppProfile`): its rewrite styles, and nothing sent where it has no AI.
-    @MainActor
-    private func startRefine(_ refinement: Refinement, id: Int) {
-        conversionTask?.cancel()
-        lastElapsed = nil
-        lastFromCache = false
-        lastShortened = false
-        let step = composer.isQuestionChat ? "@question round \(refinement.turns.count + 1)" : "refine, step \(refinement.turns.count)"
-        log.notice("conversion \(id) started (\(step, privacy: .public))")
-        let stream: AsyncThrowingStream<ConversionUpdate, Error>
-        var generates = false
-        switch refinement.request {
-        case let .writing(command, input):
-            let (mode, text) = WritingMode.parse(command?.kind == .convert ? command : nil, input,
-                                                 improveTranslates: loadSettings().improveTranslates)
-            stream = converter.convert(text, mode: mode, app: appID, turns: refinement.turns)
-        case let .command(command, input):
-            // @reply with the Chrome page: asked again with it (the composer has the message without it).
-            let sent = command == .reply && replyWithPage?.input == input ? replyWithPage?.full ?? input : input
-            stream = converter.generate(command, input: sent, app: appID, fresh: refinement.fresh, turns: refinement.turns)
-            generates = true
-        }
-        // In a terminal an answer goes in on one line unless it can be pasted, as the first time.
-        let oneLine = generates && Self.isTerminal(clientOverride ?? client()) && !canPasteInTerminal()
-        consume(oneLine ? Self.oneLine(stream) : stream, id: id)
-    }
-
-    /// Hands `stream`'s updates for request `id` to the composer, and its error if it fails.
-    @MainActor
-    private func consume(_ inserted: AsyncThrowingStream<ConversionUpdate, Error>, id: Int) {
-        conversionTask = Task { @MainActor [weak self] in
-            do {
-                for try await update in inserted {
-                    guard let self, !Task.isCancelled else { return }
-                    self.lastHidden = update.hidden
-                    self.lastShortened = update.shortened
-                    if update.isFinal {
-                        self.lastElapsed = update.elapsed
-                        self.lastFromCache = update.fromCache
-                        log.notice("conversion \(id) done in \(update.elapsed, format: .fixed(precision: 2))s cache=\(update.fromCache)")
-                    }
-                    self.perform(self.composer.receive(update.result, isFinal: update.isFinal, id: id), client: nil)
-                }
-            } catch {
-                guard let self, !Task.isCancelled else { return }
-                log.error("conversion \(id) failed: \(Self.errorKind(error), privacy: .public) \(String(describing: error), privacy: .private)")
-                self.perform(self.composer.fail(UIText.describe(error), id: id), client: nil)
-            }
-        }
-    }
-
     /// Whether `client` is a terminal, which runs every line it is given.
     static func isTerminal(_ client: IMKTextInput?) -> Bool {
         client?.bundleIdentifier().map(SecureInput.terminals.contains) ?? false
-    }
-
-    /// `stream` with each result on one line (`CommandRunner.oneLine`): what goes into a terminal.
-    static func oneLine(_ stream: AsyncThrowingStream<ConversionUpdate, Error>) -> AsyncThrowingStream<ConversionUpdate, Error> {
-        AsyncThrowingStream { continuation in
-            let task = Task {
-                do {
-                    for try await update in stream {
-                        var update = update
-                        update.result = CommandRunner.oneLine(update.result)
-                        continuation.yield(update)
-                    }
-                    continuation.finish()
-                } catch {
-                    continuation.finish(throwing: error)
-                }
-            }
-            continuation.onTermination = { _ in task.cancel() }
-        }
-    }
-
-    /// `stream` with its error described in the interface language: inside a text, an inner command's
-    /// error reaches the panel only as its message (`CommandPipelineError.inner`).
-    static func described(_ stream: AsyncThrowingStream<ConversionUpdate, Error>) -> AsyncThrowingStream<ConversionUpdate, Error> {
-        AsyncThrowingStream { continuation in
-            let task = Task {
-                do {
-                    for try await update in stream { continuation.yield(update) }
-                    continuation.finish()
-                } catch {
-                    let message = await MainActor.run { UIText.describe(error) }
-                    continuation.finish(throwing: DescribedError(message: message))
-                }
-            }
-            continuation.onTermination = { _ in task.cancel() }
-        }
-    }
-
-    /// Error category without any server-provided text (safe for the public log).
-    static func errorKind(_ error: Error) -> String {
-        switch error {
-        case let BedrockError.http(status, type, _): return "http \(status) \(type ?? "-")"
-        case let BedrockError.stream(type, _): return "stream \(type)"
-        case BedrockError.invalidResponse: return "invalid response"
-        case BedrockError.invalidRegion: return "invalid region"
-        case let ProviderError.http(provider, status, type, _): return "\(provider.rawValue) http \(status) \(type ?? "-")"
-        case let ProviderError.stream(provider, type, _): return "\(provider.rawValue) stream \(type)"
-        case let ProviderError.missingKey(provider): return "\(provider.rawValue) no key"
-        case let ProviderError.refused(provider): return "\(provider.rawValue) refused"
-        case ProviderError.signedOut: return "hosted signed out"
-        case ProviderError.quotaExhausted: return "hosted quota exhausted"
-        case NotesBridge.NotesError.notPermitted: return "notes not permitted"
-        case let NotesBridge.NotesError.failed(number): return "notes error \(number)"
-        case RemindersBridge.RemindersError.notPermitted: return "reminders not permitted"
-        case RemindersBridge.RemindersError.noAccount: return "reminders no account"
-        case RemindersBridge.RemindersError.notFound: return "reminder not found"
-        case let RemindersBridge.RemindersError.failed(code): return "reminders error \(code)"
-        case let NoteError.notionRefused(code): return "notion refused \(code)"
-        case let NoteError.notionTrouble(status): return "notion http \(status)"
-        case let error as NoteError: return "note \(String(describing: error).prefix { $0 != "(" })"
-        case let urlError as URLError: return "url \(urlError.code.rawValue)"
-        default: return String(describing: type(of: error))
-        }
-    }
-
-    static func describe(_ error: Error) -> String {
-        if let urlError = error as? URLError {
-            switch urlError.code {
-            case .timedOut: return "请求超时"
-            case .notConnectedToInternet, .networkConnectionLost: return "网络连接失败"
-            case .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed: return "无法连接 AI 服务"
-            default: return urlError.localizedDescription
-            }
-        }
-        return (error as? LocalizedError)?.errorDescription ?? String(describing: error)
     }
 
     // MARK: - Candidate panel
@@ -2090,30 +891,24 @@ final class AllInOneIMEInputController: IMKInputController {
     }
 
     @MainActor
-    func showPanel(_ client: IMKTextInput?) {
+    func showPanel(_ model: PanelModel?, _ client: IMKTextInput?) {
         // Nothing to show: Translate as You Type's chip, if it's on here; its list of languages over anything else.
-        guard let client, composer.wantsPanel, !translateChipListShown else {
+        guard let model, let client, !translateChipListShown else {
             if !showTranslateChip(client) { hidePanelIfOwned() }
             return
         }
         let panel = CandidatePanel.shared
         panel.owner = self
-        panel.onSelect = { [weak self] index in
-            guard let self else { return }
-            // A conversation's rows are its questions and answers: a click picks an answer (`chatChoice`).
-            if self.composer.isQuestionChat, !self.composer.refineIsComposing {
-                guard let answer = Self.chatChoice(row: index) else { return }
-                self.perform(self.composer.choose(index: answer), client: nil)
-                return
-            }
-            self.perform(self.composer.choose(index: index), client: nil)
-        }
-        panel.onScroll = { [weak self] steps in
-            guard let self else { return }
-            self.perform(self.composer.scrollPalette(by: steps), client: nil)
-        }
+        panel.onSelect = { [weak self] index in self?.received(.pick(index)) }
+        panel.onScroll = { [weak self] steps in self?.received(.scroll(steps)) }
         panel.onChip = { [weak self] part in self?.translateChipClicked(part) }
-        panel.show(panelModel(), anchor: anchor(client))
+        panel.show(model, anchor: anchor(client))
+    }
+
+    /// The panel as the composer has it now, in `client`.
+    @MainActor
+    func showPanel(_ client: IMKTextInput?) {
+        showPanel(composer.wantsPanel ? session.panelModel() : nil, client)
     }
 
     @MainActor
@@ -2124,758 +919,51 @@ final class AllInOneIMEInputController: IMKInputController {
         }
     }
 
-    /// Short status message ("英" English mode, "已复制" copied, …): its own small
-    /// panel when nothing else is shown, otherwise the right side of the footer. `long`: something the
-    /// user has to act on (a permission), up longer; `lasting`: up this long instead, unless another notice
-    /// replaces it first (a save under way, until its outcome).
+    /// Short status message ("英" English mode, "已复制" copied, …): its own small panel when nothing else is shown,
+    /// otherwise the right side of the footer (`InputSession.showNotice`). `long`: something the user has to act on (a
+    /// permission), up longer; `lasting`: up this long instead, unless another notice replaces it first.
     @MainActor
     func showNotice(_ text: String, client: IMKTextInput?, long: Bool = false, lasting: TimeInterval? = nil) {
-        let client = client ?? clientOverride ?? self.client()
-        notice = text
-        NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(noticeExpired), object: nil)
-        perform(#selector(noticeExpired), with: nil, afterDelay: lasting ?? Self.noticeDuration(text, long: long))
-        if composer.wantsPanel {
-            showPanel(client)
-        } else if !showTranslateChip(client), let client {  // under Translate as You Type's chip, if it's on here
-            let panel = CandidatePanel.shared
-            panel.owner = self
-            panel.onSelect = nil
-            var model = CandidateView.Model()
-            model.status = .hint(text)
-            panel.show(model, anchor: anchor(client))
-        }
+        apply(session.showNotice(text, long: long, lasting: lasting), client: client)
     }
 
     /// Takes `text` down if it is still the notice here: a save's progress, once its outcome is told in another
     /// text field.
     @MainActor
     func endNotice(_ text: String) {
-        guard notice == text else { return }
-        NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(noticeExpired), object: nil)
-        noticeExpired()
+        apply(session.endNotice(text), client: nil)
     }
 
-    @objc private func noticeExpired() {
-        MainActor.assumeIsolated {
-            notice = nil
-            if composer.wantsPanel {
-                showPanel(clientOverride ?? client())
-            } else if !showTranslateChip(clientOverride ?? client()) {
-                hidePanelIfOwned()
-            }
-        }
-    }
-
-    /// What the action key does to a sentence in `input`: "翻译成英文", "英文润色" …, plus " / 改写"
-    /// when rewrite styles are on.
-    static func actionText(input: Language, config: Config) -> String {
-        let output = config.outputLanguage
-        let name = output.name(chinese: true)
-        let action = input.matches(output) ? "\(name)润色" : "翻译成\(name)"
-        return action + (RewriteStyle.resolve(config.rewriteStyles).isEmpty ? "" : " / 改写")
-    }
-
-    /// The hint under a pending draft: "单按 ⌥ → 翻译成英文 / 改写", "Tap ⌥ → translate to English / rewrite" …
+    /// The candidate panel for the composer as it is now (`InputSession.panelModel`).
     @MainActor
-    func draftHint(config: Config) -> String {
-        guard let command = composer.draftCommand else { return "" }  // a draft always starts with one
-        let key = composer.actionKey
-        let how = key != .space ? UIText.name(key)
-            : composer.spaceActs ? UIText.name(ActionKey.space) : tr("连按两次空格", "Space twice")
-        // A snippet: what it will insert, with the blanks typed so far.
-        if let preview = composer.snippetPreview { return "\(how) → “" + Self.selectionPreview(preview, limit: 80) + "”" }
-        // On the selection: what the action key does with it; `@improve` / `@translate` with something typed rewrite it as asked.
-        if let selected = composer.selectionInUse {
-            if command.kind == .convert, !WritingMode.parse(command, composer.sentText).text.isEmpty {
-                return "\(how) → " + tr("按你写的要求改选中的文字", "rewrite the selection as you asked")
-            }
-            let text = composer.sentText.isEmpty ? selected : composer.sentText
-            return "\(how) → " + UIText.action(command, input: config.language(of: text), config: config, draft: composer.draft)
-        }
-        // @reply with nothing to reply to yet: what it takes.
-        if command == .reply, composer.sentText.isEmpty, composer.attachment == nil {
-            return tr("回复对方：⌃V 粘贴消息或截图", "Reply: ⌃V their message or a screenshot")
-        }
-        // A screenshot being read: the action key waits for it.
-        if composer.readingScreenshot { return composer.messages.reply.reading }
-        // A command with nothing after it yet: what to do (the action key alone only hints); with a screenshot or a
-        // message attached, what the action key does with it.
-        if composer.sentText.isEmpty, composer.attachment == nil {
-            return tr("写点内容，或按 ⌃V 粘贴", "Write something, or ⌃V to paste")
-        }
-        return "\(how) → " + UIText.action(command, input: config.language(of: composer.sentText), config: config, draft: composer.draft)
-    }
+    func panelModel() -> PanelModel { session.panelModel() }
 
-    /// The instructions the results shown were refined with, oldest first ("Refined: shorter · more formal"); Esc goes
-    /// back one. Nil before any.
+    /// What the panel is made from besides the composer.
     @MainActor
-    func refineHeader() -> String? {
-        let history = composer.refineHistory
-        guard composer.isLevelTwo, !history.isEmpty, !composer.isQuestionChat else { return nil }
-        let steps = history.map { Self.preview($0, limit: 30) }.joined(separator: " · ")
-        return tr("已修改：", "Refined: ") + steps
+    func panelPresenter() -> PanelPresenter { session.panelPresenter() }
+
+    /// The longest 「正在存到备忘录…」 / 「正在加到提醒事项…」 stays up (`InputSession.progressNoticeLimit`; the self-test
+    /// shortens it).
+    static var progressNoticeLimit: TimeInterval {
+        get { InputSession.progressNoticeLimit }
+        set { InputSession.progressNoticeLimit = newValue }
     }
 
-    /// The line about what the draft has attached (`Composer.attachment`): a screenshot being read or read (on this Mac:
-    /// only its text is sent), or the message copied into `@reply`.
+    /// Error category without any server-provided text (safe for the public log): this Mac's own, else the core's.
+    static func errorKind(_ error: Error) -> String { SessionServices.macErrorKind(error) ?? InputSession.errorKind(error) }
+
+    /// Owns the candidate panel while it shows a notice no text field is there for.
+    private static let looseNoticeOwner = NSObject()
+
+    /// A notice with no text field to show it at: on its own, near the pointer.
     @MainActor
-    func attachmentHeader() -> String? {
-        switch composer.attachment {
-        case .screenshot(.recognizing)?:
-            return composer.messages.reply.reading
-        case let .screenshot(.ready(text))?:
-            let lines = text.lineCount
-            return tr("截图 · \(lines) 行（本机识别）", "Screenshot · \(lines) lines (read on this Mac)") + "\n"
-                + tr("图片不会离开这台 Mac，只发送认出的文字", "The image stays on this Mac; only its text is sent")
-        case let .copiedText(message)?:
-            let count = message.count
-            return tr("复制的消息 · \(count) 字", "Copied message · \(count) characters")
-        case nil:
-            return nil
-        }
-    }
-
-    /// The line under the command being written on the selection (`Composer.selection`): what it works on, with its
-    /// start and length; or that the command doesn't use it, or that it's too long (either way it's left as it is).
-    @MainActor
-    func selectionHeader() -> String? {
-        guard let selection = composer.selection?.text else { return nil }
-        let count = selection.count
-        if composer.selectionTooLong {
-            return tr("选中的文字太长（\(count) 字，最多 \(Composer.maxSelectionLength) 字），命令不用它",
-                      "The selection is too long (\(count) characters, \(Composer.maxSelectionLength) at most): not used")
-        }
-        if let command = composer.draftCommand, !Composer.usesSelection(command) {
-            return tr("@\(command.name) 不用选中的文字，它保持原样", "@\(command.name) doesn't use the selection; it stays as it is")
-        }
-        return tr("对选中的文字：“\(Self.selectionPreview(selection))”（\(count) 字）",
-                  "On the selection: “\(Self.selectionPreview(selection))” (\(count) characters)")
-    }
-
-    /// The command being written on the selection, for the panel's input line: as it would be marked, with its caret
-    /// (`Composer.markedCursor`) while it's written.
-    @MainActor
-    func panelInput() -> String? {
-        guard composer.draftInPanel else { return nil }
-        let text = composer.markedText
-        guard !composer.isLevelTwo else { return text }
-        let at = min(max(composer.markedCursor, 0), text.count)
-        return String(text.prefix(at)) + "▏" + String(text.dropFirst(at))
-    }
-
-    /// The start of a selection on one line, for the panel: its first `limit` characters, line breaks shown as "↵".
-    static func selectionPreview(_ text: String, limit: Int = 60) -> String {
-        let line = text.split(omittingEmptySubsequences: true, whereSeparator: \.isNewline).joined(separator: " ↵ ")
-            .trimmingCharacters(in: .whitespaces)
-        return line.count > limit ? String(line.prefix(limit)) + "…" : line
-    }
-
-    /// A long answer as the panel shows it (the whole text is inserted).
-    static func preview(_ text: String, limit: Int = 280) -> String {
-        text.count > limit ? String(text.prefix(limit)) + "…" : text
-    }
-
-    /// An `@open` result's row, as you type and after ⏎: its name in the interface language (计算器 in a
-    /// Chinese one), and where it is: 「应用」, or its folder (a folder's ends in "/"), after 「内容 · 」 when it
-    /// was found by what is in it. A web address says it opens in the browser.
-    static func openRow(_ result: SearchResult) -> (text: String, comment: String) {
-        if result.webURL != nil { return (result.name, tr("在浏览器中打开", "open in the browser", key: "openRow.inBrowser")) }
-        let folder = ((result.path as NSString).deletingLastPathComponent as NSString).abbreviatingWithTildeInPath
-        let place = result.path.hasSuffix(".app") ? tr("应用", "app")
-            : result.isFolder && !folder.hasSuffix("/") ? folder + "/" : folder
-        // The Chinese name is the simplified one: Traditional Chinese has Finder's name, as the other languages.
-        return (InterfaceLanguage.isSimplifiedChinese(UIText.language) ? result.chineseName ?? result.name : result.name,
-                result.matchedContent ? tr("内容", "content") + " · " + place : place)
-    }
-
-    /// Whether a list row can be picked (a click, the pointer over it): not a row of information.
-    private static func picks(_ choice: Composer.Choice) -> Bool {
-        if case let .item(item) = choice.kind { return item.valid }
-        return true
-    }
-
-    @MainActor
-    func panelModel() -> CandidateView.Model {
-        var model = CandidateView.Model()
-        let config = loadSettings()
-        // An @question conversation: its questions and answers, the next question's line (QuestionChatPanel.swift).
-        if composer.isQuestionChat, !composer.refineIsComposing { return chatPanelModel() }
-        if composer.refineIsComposing {
-            // Pinyin of a refine instruction: its candidates, as when typing (the results come back once it's picked).
-            let state = composer.engineState
-            model.rows = state.candidates.map {
-                CandidateView.Row(label: $0.label, text: $0.text, comment: $0.comment, style: .candidate)
-            }
-            model.highlighted = state.highlighted
-            model.horizontal = composer.horizontalCandidates
-            model.footer = composer.isQuestionChat
-                ? tr("空格 选词 · ⇧⏎ 追问 · ⏎ 上屏答案 · Esc 清除拼音", "Space picks · ⇧⏎ ask · ⏎ insert the answer · Esc clear the pinyin")
-                : tr("空格 选词 · ⇧⏎ 按这句修改结果 · ⏎ 上屏 · Esc 清除拼音", "Space picks · ⇧⏎ refine · ⏎ insert · Esc clear the pinyin")
-        } else if composer.isLevelTwo {
-            let choices = composer.choices
-            model.rows = choices.map { choice in
-                // Long rows (a pasted paragraph and its versions) are shortened here; the full text goes in.
-                switch choice.kind {
-                case .original:
-                    return CandidateView.Row(label: choice.label, text: Self.preview(choice.text), comment: tr("原文", "original"),
-                                             style: .original)
-                case .version:
-                    return CandidateView.Row(label: choice.label, text: Self.preview(choice.text), style: .translation,
-                                             isComplete: choice.isComplete)
-                case let .translation(code):
-                    return CandidateView.Row(label: choice.label, text: Self.preview(choice.text),
-                                             comment: UIText.name(OutputLanguage(code)), style: .translation,
-                                             isComplete: choice.isComplete)
-                case let .rewrite(style):
-                    // A jargon (黑话) line notes what the terms from the user's jargon list in it mean.
-                    let note = style == RewriteStyle.jargonName
-                        ? JargonLibrary.annotation(for: choice.text, entries: LiveJargon.entries(for: config), chinese: UIText.chinese) : nil
-                    let name = RewriteStyle.named(style).map(UIText.name) ?? style
-                    return CandidateView.Row(label: choice.label, text: Self.preview(choice.text),
-                                             comment: note.map { "\(name) · \($0)" } ?? name,
-                                             style: .translation, isComplete: choice.isComplete)
-                case .answer:
-                    // A program's output may have several lines; they are inserted as printed. A script's summary
-                    // has its detail beside it.
-                    let text = choice.text.replacingOccurrences(of: "\n", with: " ↵ ")
-                    return CandidateView.Row(label: choice.label, text: Self.preview(text),
-                                             comment: choice.detail.map { Self.preview($0) } ?? UIText.answerLabel(composer.activeCommand),
-                                             style: .translation, isComplete: choice.isComplete)
-                case .shown:
-                    // What a `show` script printed: shown as it comes, never inserted (nor clicked).
-                    return CandidateView.Row(label: "", text: Self.preview(choice.text), comment: choice.detail.map { Self.preview($0) } ?? "",
-                                             style: .candidate, pickable: false)
-                case let .item(item):
-                    return CandidateView.Row(label: choice.label, text: Self.preview(choice.text),
-                                             comment: choice.detail.map { Self.preview($0) } ?? "", style: .candidate, pickable: item.valid)
-                case let .file(path) where path.hasPrefix(SearchResult.agentPrefix):
-                    // A background task: its last reply, shortened.
-                    let reply = composer.searchResults.first { $0.path == path }?.detail ?? ""
-                    let preview = reply.replacingOccurrences(of: "\n", with: " ")
-                    // Its state as an icon instead of the mark before its name.
-                    let marks: [(String, AgentSession.Progress)] = [("✓ ", .done), ("⚠︎ ", .needsYou), ("… ", .working)]
-                    let state = marks.first { choice.text.hasPrefix($0.0) }
-                    return CandidateView.Row(label: choice.label, text: state.map { String(choice.text.dropFirst($0.0.count)) } ?? choice.text,
-                                             comment: preview.count > 60 ? String(preview.prefix(60)) + "…" : preview, style: .candidate,
-                                             icon: state.map { CommandIcons.icon(for: $0.1) })
-                case .send:
-                    // 「发给 张三（+1 555…）：…」: who it goes to and the text, to confirm.
-                    let to = composer.messageRecipient.map { $0.name.isEmpty ? $0.handle : "\($0.name)（\($0.handle)）" } ?? ""
-                    return CandidateView.Row(label: choice.label,
-                                             text: tr("发给 \(to)：", "Send to \(to): ") + Self.preview(choice.text.replacingOccurrences(of: "\n", with: " ↵ ")),
-                                             style: .translation, isComplete: choice.isComplete,
-                                             icon: composer.activeCommand.map(CommandIcons.icon(for:)))
-                case let .file(path):
-                    // A file, folder, app or web address: drawn as when typing.
-                    let row = Self.openRow(composer.searchResults.first { $0.path == path } ?? SearchResult(name: choice.text, path: path))
-                    return CandidateView.Row(label: choice.label, text: row.text, comment: row.comment, style: .candidate)
-                case let .reminder(reminder):
-                    // To confirm: what to be reminded of, and when as read from the text (「明天 15:00」).
-                    return CandidateView.Row(label: choice.label, text: Self.preview(choice.text),
-                                             comment: UIText.when(reminder), style: .candidate)
-                case .issue:
-                    // To confirm: the issue's title (none: written on GitHub); what goes with it is the status below.
-                    return CandidateView.Row(label: choice.label,
-                                             text: choice.text.isEmpty ? tr("（标题在 GitHub 上写）", "(write the title on GitHub)") : choice.text,
-                                             comment: tr("在 GitHub 上新建问题", "new issue on GitHub"), style: .translation,
-                                             icon: composer.activeCommand.map(CommandIcons.icon(for:)))
-                }
-            }
-            // Only rows a click picks light up under the pointer (not one still coming in).
-            for (index, choice) in choices.enumerated() where model.rows.indices.contains(index) {
-                model.rows[index].pickable = Composer.picks(choice)
-            }
-            model.highlighted = composer.highlighted
-            let command = composer.activeCommand
-            switch composer.phase {
-            case .translating:
-                let polishing = config.language(of: composer.selectionInUse ?? composer.sentText).matches(config.outputLanguage)
-                let loading = command?.kind == .generate ? tr("AI 回答中…", "Answering…")
-                    : command == .webSearch ? tr("搜索中…", "Searching…")
-                    : command?.script.map { tr("正在运行 \($0.title)…", "Running \($0.title)…") }
-                    ?? (command?.kind == .run ? tr("运行中…", "Running…")
-                    : command?.kind == .link ? tr("运行句中的命令，然后在浏览器打开…", "Running the commands inside, then opening the browser…")
-                    : command == .open ? tr("搜索中…", "Searching…")
-                    : command == .tasks ? tr("读取后台任务…", "Reading the background tasks…")
-                    : command?.kind == .message ? tr("运行句中的命令…", "Running the commands in the message…")
-                    : polishing ? tr("AI 润色中…", "Polishing…") : tr("AI 翻译中…", "Translating…"))
-                let refining = composer.refineHistory.last.map {
-                    tr("按「\(Self.preview($0, limit: 40))」修改中…", "Refining: \(Self.preview($0, limit: 40))…")
-                }
-                model.status = choices.count <= 1 ? .loading(composer.isRefining ? refining ?? loading : loading) : .none
-                model.footer = command == .open ? tr("搜索中… · Esc 返回", "Searching… · Esc back")
-                    : command?.kind == .link ? tr("完成后在浏览器打开 · Esc 返回", "Opens in the browser when done · Esc back")
-                    : command?.script?.output == .show
-                    ? tr("运行中… · ⌘C 复制 · Esc 停止 · 离开输入框后在后台继续", "Running… · ⌘C copy · Esc stop · goes on in the background if you leave")
-                    : command?.script != nil ? tr("运行中… · Esc 停止", "Running… · Esc stop")
-                    : composer.isRefining ? tr("修改中… · 可以接着打下一步要求 · Esc 回到上一版",
-                                               "Refining… · type the next step meanwhile · Esc previous results")
-                    : tr("生成中… · 0 原文 · Esc 返回", "Generating… · 0 original · Esc back")
-            case .choosing where command?.kind == .message:
-                model.footer = tr("⏎ 发送 · Esc 返回修改", "⏎ send · Esc back to editing")
-            case .choosing where command?.kind == .report:
-                // Everything the page will hold besides the title, before it opens.
-                if let issue = composer.pendingIssue {
-                    model.status = .hint(tr("会一起填进去（不含你打的其他字、路径、密钥和命令名）：",
-                                            "Also filled in (no other text you typed, no paths, keys or command names):")
-                                         + "\n" + issue.lines.map { "· " + $0 }.joined(separator: "\n"))
-                }
-                model.footer = tr("⏎ 在浏览器打开，在 GitHub 上点提交 · Esc 返回", "⏎ open in the browser, submit it on GitHub · Esc back")
-            case .choosing where composer.offersMoreReplies && composer.refineLine == nil && composer.refineError == nil:
-                // @reply's three: ⌘R three more; a letter starts an instruction for them, as for any AI's results.
-                model.footer = tr("⌘R 再写三条 · 打字后 ⇧⏎ 修改 · 空格 / ⏎ 上屏 · 数字选择 · Esc 返回",
-                                  "⌘R three more · Type, ⇧⏎ refine · Space / ⏎ insert · digits pick · Esc back")
-                model.detail = lastFromCache ? tr("缓存", "cached") : lastElapsed.map { String(format: "%.1fs", $0) }
-            case .choosing where command == .tasks:
-                model.footer = tr("⏎ 在终端打开 · 数字选择 · ⌘C 复制回复 · Esc 返回",
-                                  "⏎ open in Terminal · digits pick · ⌘C copy the reply · Esc back")
-            case .choosing where command?.script != nil:
-                let picks = composer.choices.contains { if case .item = $0.kind { return true } else { return false } }
-                model.footer = command?.script?.output == .show && !picks
-                    ? tr("⏎ 关闭 · ⌘C 复制全部 · Esc 返回", "⏎ close · ⌘C copy all · Esc back")
-                    : picks ? tr("⏎ 选中这一项 · 数字选择 · ⌘C 复制 · Esc 返回", "⏎ pick · digits pick · ⌘C copy · Esc back")
-                    : tr("空格 / ⏎ 上屏 · 数字选择 · ⌘C 复制 · Esc 返回", "Space / ⏎ insert · digits pick · ⌘C copy · Esc back")
-                model.detail = lastElapsed.map { String(format: "%.1fs", $0) }
-            case .choosing:
-                model.footer = command == .open
-                    ? tr("空格 / ⏎ 打开 · 数字选择 · ⌘C 复制路径 · Esc 返回", "Space / ⏎ open · digits pick · ⌘C copy path · Esc back")
-                    : command == .reminder
-                    ? tr("⏎ / 空格 加到提醒事项 · Esc 返回修改 · ⌘C 复制", "⏎ / Space add to Reminders · Esc back to edit · ⌘C copy")
-                    : composer.refineLine != nil
-                    ? tr("⇧⏎ 修改 · ⏎ 上屏 · ⌫ 删字 · Esc 清除 · ↑↓ 选择", "⇧⏎ refine · ⏎ insert · ⌫ delete · Esc clear · ↑↓ choose")
-                    : composer.canRefine
-                    // AI results: a letter starts a follow-up instruction (`Composer.refineText`), ⇧⏎ sends it; 0 still
-                    // picks the original.
-                    ? (composer.refineHistory.isEmpty
-                        ? tr("打字后 ⇧⏎ 修改 · 空格 / ⏎ 上屏 · 数字选择 · 0 原文 · ⌘C 复制 · Esc 返回",
-                             "Type, ⇧⏎ refine · Space / ⏎ insert · digits pick · 0 original · ⌘C copy · Esc back")
-                        : tr("打字后 ⇧⏎ 再改 · 空格 / ⏎ 上屏 · 数字选择 · 0 原文 · Esc 上一版",
-                             "Type, ⇧⏎ refine · Space / ⏎ insert · digits pick · 0 original · Esc previous"))
-                    : tr("空格 / ⏎ 上屏 · 数字选择 · 0 原文 · ⌘C 复制 · Esc 返回",
-                         "Space / ⏎ insert · digits pick · 0 original · ⌘C copy · Esc back")
-                // A refine that failed: the results before it stay, its instruction back in the line.
-                if let error = composer.refineError { model.status = .error(error) }
-                if command != .open && command != .reminder {
-                    model.detail = lastFromCache ? tr("缓存", "cached") : lastElapsed.map { String(format: "%.1fs", $0) }
-                }
-            case let .failed(message):
-                model.status = .error(message)
-                model.highlighted = nil  // Space retries; nothing is selected
-                // A reminder without anything to be reminded of: write it in.
-                model.footer = command == .reminder
-                    ? tr("Esc 返回修改", "Esc back to edit")
-                    : composer.actionKey == .enter
-                    ? tr("空格 / ⏎ 重试 · 0 原文 · Esc 返回", "Space / ⏎ retry · 0 original · Esc back")
-                    : tr("空格 重试 · ⏎ 上屏原文 · Esc 返回", "Space retry · ⏎ insert original · Esc back")
-            case .idle, .drafting:
-                break
-            }
-            // A saved @question answer was sent nowhere now: what the last request hid isn't about it.
-            RedactionPanel.annotate(&model, choices: choices, hidden: composer.showsSavedAnswer ? 0 : lastHidden, phase: composer.phase)
-        } else if composer.voice != .off {
-            let heard = composer.voice.text
-            if case .listening = composer.voice {
-                model.status = .hint("🎙 " + (heard.isEmpty ? tr("正在听…", "Listening…") : heard))
-                // The action key while right ⌥ is still held (⌥Return, or Space = ⌥Space): stop and run it.
-                let key = composer.actionKey
-                let runs = composer.draftCommand != nil
-                model.footer = runs && (key == .optionSpace || key == .enter)
-                    ? (key == .enter ? tr("松开右 ⌥ 结束 · ⏎ 直接执行 · Esc 取消", "Release right ⌥ to stop · ⏎ run now · Esc cancel")
-                                     : tr("松开右 ⌥ 结束 · 空格 直接执行 · Esc 取消", "Release right ⌥ to stop · Space run now · Esc cancel"))
-                    : tr("松开右 ⌥ 结束 · Esc 取消", "Release right ⌥ to stop · Esc cancel")
-            } else {
-                model.status = .hint("🎙 " + (heard.isEmpty ? tr("识别中…", "Recognizing…") : heard))
-                model.footer = composer.actsAfterVoice
-                    ? tr("识别完就发送 · Esc 取消", "Sends once recognized · Esc cancel")
-                    : tr("识别中… · Esc 取消", "Recognizing… · Esc cancel")
-            }
-            model.detail = composer.messages.mode(composer.inputLanguage)
-        } else if composer.engineState.isComposing {
-            let state = composer.engineState
-            model.rows = state.candidates.map {
-                CandidateView.Row(label: $0.label, text: $0.text, comment: $0.comment, style: .candidate)
-            }
-            model.highlighted = state.highlighted
-            // A word's candidates in a row, as macOS's own panel, if set so (every other list is a column); as the
-            // composer takes the arrow keys, from the settings the text field was given.
-            model.horizontal = composer.horizontalCandidates
-            let key = composer.actionKey
-            if let command = composer.draftCommand {
-                // Pinyin (or Hindi) in an @ command: the action key converts it and runs the command.
-                let action = UIText.action(command, input: composer.textLanguage(config: config), config: config, draft: composer.draft)
-                model.footer = tr("空格 选词 · \(UIText.name(key)) \(action)", "Space picks · \(UIText.name(key)) to \(action)")
-            } else {
-                model.footer = translateModeFooter() ?? tr("空格 选词 · 开头打 @ 用命令", "Space picks · type @ first for commands")
-            }
-            if state.pageNumber > 0 || !state.isLastPage {
-                model.detail = tr("第 \(state.pageNumber + 1) 页", "page \(state.pageNumber + 1)")
-            }
-        } else if composer.paletteQuery != nil {
-            // "@…": the commands that start with what was typed.
-            // Five at a time; the rest scroll into view (the position on the right).
-            let first = composer.paletteFirstVisible, total = composer.paletteMatches.count
-            model.rows = composer.paletteVisible.enumerated().map {
-                CandidateView.Row(label: String($0.offset + 1), text: "@" + $0.element.name,
-                                  comment: UIText.summary($0.element, status: $0.element.script.flatMap(ScriptStatus.shared.text(for:))),
-                                  style: .candidate, icon: CommandIcons.icon(for: $0.element))
-            }
-            model.highlighted = composer.paletteHighlighted - first
-            if total > Composer.paletteRows { model.detail = "\(first + 1)–\(first + model.rows.count) / \(total)" }
-            // A script extension that takes no input: the action key runs it, Tab and Space only pick it.
-            let matches = composer.paletteMatches, key = UIText.name(composer.actionKey)
-            model.footer = matches.indices.contains(composer.paletteHighlighted)
-                && matches[composer.paletteHighlighted].script?.input == ScriptCommand.Input.none
-                ? tr("\(key) 运行 · Tab / 空格 选择 · Esc 取消", "\(key) run · Tab / Space choose · Esc cancel")
-                : tr("⏎ / Tab / 空格 选择 · Esc 取消", "⏎ / Tab / Space choose · Esc cancel")
-        } else if let list = composer.currentList {
-            // A script's list as you type: its rows (those of information unnumbered and dimmed).
-            let choices = Composer.itemChoicesForPanel(list.items)
-            model.rows = choices.map {
-                CandidateView.Row(label: $0.label, text: Self.preview($0.text), comment: $0.detail.map { Self.preview($0) } ?? "",
-                                  style: $0.label.isEmpty ? .original : .candidate, pickable: Self.picks($0))
-            }
-            model.highlighted = composer.listItem == nil ? nil : composer.listHighlight
-            if list.items.isEmpty { model.status = .hint(tr("没有结果", "No results")) }
-            model.footer = tr("\(UIText.name(composer.actionKey)) 选中这一项 · ↑↓ 选择 · Tab 补全 · ⌘C 复制 · Esc 取消",
-                              "\(UIText.name(composer.actionKey)) pick · ↑↓ choose · Tab complete · ⌘C copy · Esc cancel")
-        } else if !composer.currentLiveResults.isEmpty {
-            // "@open …" as you type: what matches now.
-            model.rows = composer.currentLiveResults.map { result in
-                let row = Self.openRow(result)
-                return CandidateView.Row(label: result.isFolder ? "›" : "", text: row.text, comment: row.comment, style: .candidate)
-            }
-            model.highlighted = composer.liveHighlight
-            // Only content matches: ⏎ lists them to pick from rather than open the first (`opensLiveResult`).
-            model.footer = composer.opensLiveResult
-                ? tr("⏎ 打开 · Tab 补全路径 · ↑↓ 选择 · ⌘C 复制路径 · Esc 取消",
-                     "⏎ open · Tab complete path · ↑↓ choose · ⌘C copy path · Esc cancel")
-                : tr("⏎ 列出来选 · Tab 补全路径 · ↑↓ 选择 · ⌘C 复制路径 · Esc 取消",
-                     "⏎ pick from a list · Tab complete path · ↑↓ choose · ⌘C copy path · Esc cancel")
-        } else if composer.recipientQuery != nil {
-            // "@imessage zs": the contacts that match, to pick the recipient.
-            let found = composer.currentRecipients
-            model.rows = found.enumerated().map { index, recipient in
-                CandidateView.Row(label: String(index + 1), text: recipient.displayName,
-                                  comment: recipient.name.isEmpty ? tr("直接发送到这个号码 / 邮箱", "send to this number / email") : recipient.handle,
-                                  style: .candidate)
-            }
-            model.highlighted = found.isEmpty ? nil : composer.recipientHighlight
-            if let note = composer.recipientNote { model.status = .hint(note) }
-            model.footer = tr("⏎ / Tab 选择收件人 · ↑↓ · Esc 取消", "⏎ / Tab pick the recipient · ↑↓ · Esc cancel")
-        } else if !composer.questionMatches.isEmpty {
-            // "@question " and nothing (or a few words) after it: the recent questions with them, newest first; one picked
-            // shows its saved answer.
-            let digits = composer.questionDigitsPick, key = UIText.name(composer.actionKey)
-            model.rows = composer.questionMatches.enumerated().map { index, entry in
-                CandidateView.Row(label: digits ? String(index + 1) : "", text: Self.preview(entry.question.replacingOccurrences(of: "\n", with: " ")),
-                                  comment: UIText.ago(entry.date), style: .candidate)
-            }
-            model.highlighted = composer.questionHighlight
-            model.status = .hint(composer.sentText.isEmpty
-                                 ? tr("最近问过的：选一个看当时的答案，或者写新问题", "Recently asked: pick one to see its answer again, or write a new question")
-                                 : draftHint(config: config.applying(app: activeApp)))
-            model.footer = composer.questionHighlight != nil
-                ? tr("\(key) 看保存的答案 · ↑↓ 选择 · Esc 清除", "\(key) show the saved answer · ↑↓ choose · Esc clear")
-                : digits ? tr("数字 / ↑↓ 选一个看答案 · ⌃V 粘贴 · Esc 清除", "Digits / ↑↓ pick one to see its answer · ⌃V paste · Esc clear")
-                : tr("\(key) 问这个新问题 · ↑↓ 选一个看答案 · Esc 清除", "\(key) ask it · ↑↓ pick one to see its answer · Esc clear")
-        } else if !composer.draft.isEmpty {
-            // An @ command with what follows it (a command being typed is the palette, above).
-            model.status = .hint(draftHint(config: config.applying(app: activeApp)))
-            model.footer = composer.selection != nil
-                ? tr("⌃V 粘贴 · ⌫ 删字 · Esc 取消，选中的文字不变", "⌃V paste · ⌫ delete · Esc cancel, the selection stays")
-                : tr("⌃V 粘贴 · ⌫ 删字 · Esc 清除", "⌃V paste · ⌫ delete · Esc clear")
-        }
-        // The refine instruction being typed, as a line of input with its caret, in place of the command's.
-        // (An @question conversation's next question while its pinyin is typed.)
-        let line = composer.isQuestionChat ? tr("追问 › ", "question › ") : tr("修改 › ", "refine › ")
-        model.input = composer.refineLine.map { line + $0 + "▏" } ?? panelInput()
-        let headers = [selectionHeader(), attachmentHeader(), refineHeader()].compactMap { $0 }
-        model.header = headers.isEmpty ? nil : headers.joined(separator: "\n")
-        if let notice { model.detail = notice }
-        // Translate as You Type's pinyin (or dictation): its chip on top.
-        if composer.inModeComposition { model.chip = translateChip()?.panel }
-        return model
-    }
-
-    // MARK: - Menu
-
-    @MainActor
-    private func makeMenu() -> NSMenu {
-        let menu = NSMenu()
-        let config = try? Config.load()
-        UIText.choice = loadSettings().uiLanguage  // the menu can open before any text field in this process
-        let settings = NSMenuItem(title: tr("设置…", "Settings…"), action: #selector(showPreferences(_:)), keyEquivalent: "")
-        settings.target = self
-        menu.addItem(settings)
-        menu.addItem(.separator())
-        let model = config.map { tr("模型：", "Model: ") + ($0.settings(for: $0.provider).model ?? "") } ?? tr("配置文件有误", "The config file has an error")
-        let info = NSMenuItem(title: model, action: nil, keyEquivalent: "")
-        info.isEnabled = false
-        menu.addItem(info)
-
-        menu.addItem(.separator())
-        // Output and input languages in submenus like the styles: each lists only the languages the user
-        // added (a new user has one), with "Add Languages…" opening the settings.
-        let current = config ?? .default
-        // @translate writes in every language added, in this order (one picked here moves to the front).
-        let outputItem = NSMenuItem(title: tr("翻译成：", "Translate to: ") + current.outputLanguages.map(UIText.name).joined(separator: tr("、", ", ")),
-                                    action: nil, keyEquivalent: "")
-        let outputs = NSMenu()
-        for language in current.outputLanguages {
-            let item = NSMenuItem(title: UIText.name(language), action: #selector(setOutputLanguage(_:)), keyEquivalent: "")
-            item.target = self
-            item.representedObject = language.code
-            item.state = .on
-            item.isEnabled = config != nil  // don't overwrite a config file that failed to parse
-            outputs.addItem(item)
-        }
-        outputs.addItem(.separator())
-        let addOutput = NSMenuItem(title: tr("添加 / 排序语言…", "Add or Reorder Languages…"), action: #selector(showPreferences(_:)), keyEquivalent: "")
-        addOutput.target = self
-        addOutput.representedObject = SettingsPage.writing.rawValue
-        outputs.addItem(addOutput)
-        outputItem.submenu = outputs
-        menu.addItem(outputItem)
-
-        let inputItem = NSMenuItem(title: tr("输入：", "Input: ") + current.inputLanguages.map(Self.inputName).joined(separator: " + "),
-                                   action: nil, keyEquivalent: "")
-        let inputs = NSMenu()
-        // The added input languages, the default one checked (a new text field starts in it).
-        for language in current.inputLanguages {
-            // One whose pack isn't there yet can't be typed: shown, greyed, with why.
-            let usable = LanguagePackManager.shared.isUsable(language)
-            let title = Self.inputName(language) + (usable ? "" : tr("（还没有语言包）", " (no language pack yet)"))
-            let item = NSMenuItem(title: title, action: #selector(setDefaultInput(_:)), keyEquivalent: "")
-            item.target = self
-            item.representedObject = language.rawValue
-            item.state = current.defaultInput == language ? .on : .off
-            item.isEnabled = config != nil && usable
-            inputs.addItem(item)
-        }
-        inputs.addItem(.separator())
-        if current.inputLanguages.count > 1 {
-            let shiftNote = NSMenuItem(title: tr("✓ 是默认；Shift 切换", "✓ is the default; Shift switches"), action: nil, keyEquivalent: "")
-            shiftNote.isEnabled = false
-            inputs.addItem(shiftNote)
-        }
-        let addInput = NSMenuItem(title: tr("添加语言…", "Add Languages…"), action: #selector(showPreferences(_:)), keyEquivalent: "")
-        addInput.target = self
-        addInput.representedObject = SettingsPage.input.rawValue
-        inputs.addItem(addInput)
-        inputItem.submenu = inputs
-        menu.addItem(inputItem)
-
-        // The styles in a submenu: six rows with summaries made the menu too long. Its title says which
-        // are on, so the menu still shows the state without opening it.
-        let enabledStyles = RewriteStyle.resolve(config?.rewriteStyles ?? Config.default.rewriteStyles)
-        let enabled = Set(enabledStyles.map(\.name))
-        let on = enabledStyles.map(UIText.name).joined(separator: tr("、", ", "))
-        let stylesItem = NSMenuItem(title: tr("改写风格", "Rewrite Styles") + tr("：", ": ") + (on.isEmpty ? tr("无", "none") : on),
-                                    action: nil, keyEquivalent: "")
-        let styles = NSMenu()
-        for style in RewriteStyle.catalog {
-            let item = NSMenuItem(title: UIText.name(style) + tr("　", "  ") + UIText.summary(style),
-                                  action: #selector(toggleStyle(_:)), keyEquivalent: "")
-            item.target = self
-            item.representedObject = style.name
-            item.state = enabled.contains(style.name) ? .on : .off
-            item.isEnabled = config != nil  // don't overwrite a config file that failed to parse
-            styles.addItem(item)
-        }
-        stylesItem.submenu = styles
-        menu.addItem(stylesItem)
-        let improveTranslates = NSMenuItem(title: tr("@improve 同时翻译", "@improve Also Translates"),
-                                           action: #selector(toggleImproveTranslates(_:)), keyEquivalent: "")
-        improveTranslates.target = self
-        improveTranslates.state = current.improveTranslates ? .on : .off
-        improveTranslates.isEnabled = config != nil
-        menu.addItem(improveTranslates)
-        // The app being typed in: no AI, typing out, the language it starts in (`AppProfile`).
-        if let appItem = appMenuItem(config: config, app: activeApp ?? appID) { menu.addItem(appItem) }
-        menu.addItem(.separator())
-        let rimeDir = NSMenuItem(title: tr("打开 Rime 用户目录", "Open Rime User Folder"), action: #selector(openRimeDirectory(_:)),
-                                 keyEquivalent: "")
-        rimeDir.target = self
-        menu.addItem(rimeDir)
-        let deploy = NSMenuItem(title: tr("重新部署词库", "Redeploy Dictionaries"), action: #selector(redeploy(_:)), keyEquivalent: "")
-        deploy.target = self
-        menu.addItem(deploy)
-        menu.addItem(.separator())
-        // GitHub's page for a new issue, with the versions and settings that help (`IssueReport`).
-        let report = NSMenuItem(title: tr("报告问题…", "Report an Issue…"), action: #selector(reportIssue(_:)), keyEquivalent: "")
-        report.target = self
-        menu.addItem(report)
-        // Settings → About, checking there (or, with a new version known, offering it).
-        let newer = UpdateController.shared.available?.version
-        let update = NSMenuItem(title: newer.map { tr("更新到 \($0)…", "Update to \($0)…") } ?? tr("检查更新…", "Check for Updates…"),
-                                action: #selector(checkForUpdates(_:)), keyEquivalent: "")
-        update.target = self
-        menu.addItem(update)
-        return menu
-    }
-
-    /// IMK hands menu actions an info dictionary holding the chosen item (a plain NSMenuItem when
-    /// called directly).
-    static func menuItem(from sender: Any?) -> NSMenuItem? {
-        if let item = sender as? NSMenuItem { return item }
-        guard let info = sender as? NSDictionary else { return nil }
-        return info[kIMKCommandMenuItemName as Any] as? NSMenuItem
-    }
-
-    @objc func toggleStyle(_ sender: Any?) {
-        MainActor.assumeIsolated {
-            guard let name = Self.menuItem(from: sender)?.representedObject as? String else {
-                log.error("style menu action without a style")
-                return
-            }
-            do {
-                var config = try Config.load()
-                config.rewriteStyles = Self.toggled(name, in: config.rewriteStyles)
-                try config.write()
-                NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
-                log.notice("rewrite styles now \(config.rewriteStyles.joined(separator: ","), privacy: .public)")
-            } catch {
-                log.error("could not update rewrite styles: \(String(describing: error), privacy: .public)")
-            }
-        }
-    }
-
-    /// Turns a preset on or off, keeping the user's order: one turned on goes last.
-    static func toggled(_ name: String, in current: [String]) -> [String] {
-        let enabled = RewriteStyle.resolve(current).map(\.name)
-        if enabled.contains(name) { return enabled.filter { $0 != name } }
-        return enabled + [name]
-    }
-
-    @objc func setOutputLanguage(_ sender: Any?) {
-        MainActor.assumeIsolated {
-            guard let raw = Self.menuItem(from: sender)?.representedObject as? String else {
-                log.error("output menu action without a language")
-                return
-            }
-            do {
-                var config = try Config.load()
-                config.outputLanguage = OutputLanguage(raw)
-                config.normalizeLanguages()
-                try config.write()
-                NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
-                log.notice("output language now \(raw, privacy: .public)")
-            } catch {
-                log.error("could not update the output language: \(String(describing: error), privacy: .public)")
-            }
-        }
-    }
-
-    /// An input language as the menu and the settings name it: "中文（拼音）", "英文".
-    static func inputName(_ language: Language) -> String {
-        language == .chinese ? tr("中文（拼音）", "Chinese (pinyin)") : UIText.name(language)
-    }
-
-    @objc func toggleImproveTranslates(_ sender: Any?) {
-        MainActor.assumeIsolated {
-            do {
-                var config = try Config.load()
-                config.improveTranslates.toggle()
-                try config.write()
-                NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
-                log.notice("@improve also translates: \(config.improveTranslates, privacy: .public)")
-            } catch {
-                log.error("could not update @improve: \(String(describing: error), privacy: .public)")
-            }
-        }
-    }
-
-    /// Makes an added input language the default: a new text field starts in it.
-    @objc func setDefaultInput(_ sender: Any?) {
-        MainActor.assumeIsolated {
-            guard let raw = Self.menuItem(from: sender)?.representedObject as? String, let language = Language(rawValue: raw) else {
-                log.error("input menu action without a language")
-                return
-            }
-            do {
-                var config = try Config.load()
-                config.defaultInput = language
-                config.normalizeLanguages()
-                try config.write()
-                NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
-                log.notice("default input now \(config.defaultInput.rawValue, privacy: .public)")
-                applySettings()
-            } catch {
-                log.error("could not update the default input: \(String(describing: error), privacy: .public)")
-            }
-        }
-    }
-
-    /// `languages` with `language` removed, or added at the end; the last one stays.
-    static func toggled(_ language: Language, in languages: [Language]) -> [Language] {
-        if languages.contains(language) { return languages == [language] ? languages : languages.filter { $0 != language } }
-        return languages + [language]
-    }
-
-    @objc func openConfig(_ sender: Any?) {
-        MainActor.assumeIsolated { Self.openConfigFile() }
-    }
-
-    override func showPreferences(_ sender: Any!) {
-        MainActor.assumeIsolated {
-            perform(composer.commitAll(), client: nil)  // the window takes focus from the text field
-            // "Add Languages…" opens the page with the languages; Settings… opens on Assistant.
-            if let page = (Self.menuItem(from: sender)?.representedObject as? String).flatMap(SettingsPage.init(rawValue:)) {
-                SettingsWindow.shared.show(page: page)
-            } else {
-                SettingsWindow.shared.show()
-            }
-        }
-    }
-
-    /// The input menu's "Check for Updates…": Settings → About, which checks (or shows the update already found).
-    @objc func checkForUpdates(_ sender: Any?) {
-        MainActor.assumeIsolated {
-            perform(composer.commitAll(), client: nil)  // the window takes focus from the text field
-            SettingsWindow.shared.show(page: .about)
-            if UpdateController.shared.available == nil { UpdateController.shared.check(userInitiated: true) }
-        }
-    }
-
-    /// The input menu's "Report an Issue…": the new-issue page in the browser (the browser takes the focus).
-    @objc func reportIssue(_ sender: Any?) {
-        MainActor.assumeIsolated {
-            perform(composer.commitAll(), client: nil)
-            let config = loadSettings()
-            NSWorkspace.shared.open(IssueReport(title: "", diagnostics: IssueReporting.diagnostics(
-                config: config, plugins: LivePlugins.current().count, extensions: loadExtensions(config, false).commands.count)).url)
-        }
-    }
-
-    @objc func openRimeDirectory(_ sender: Any?) {
-        MainActor.assumeIsolated {
-            if let dir = RimeService.shared.userDataDir { NSWorkspace.shared.open(dir) }
-        }
-    }
-
-    @objc func redeploy(_ sender: Any?) {
-        MainActor.assumeIsolated {
-            perform(composer.commitAll(), client: nil)
-            composer.engine = nil
-            session = nil
-            RimeService.shared.redeploy()
-        }
-    }
-
-    @MainActor
-    static func openConfigFile() {
-        let url = Config.defaultURL
-        if !FileManager.default.fileExists(atPath: url.path) {
-            do {
-                try Config.default.write(to: url)
-            } catch {
-                log.error("could not create config: \(String(describing: error), privacy: .public)")
-            }
-        }
-        if let textEdit = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.TextEdit") {
-            NSWorkspace.shared.open([url], withApplicationAt: textEdit, configuration: NSWorkspace.OpenConfiguration())
-        } else {
-            NSWorkspace.shared.open(url)
+    static func showLooseNotice(_ text: String, long: Bool) {
+        let panel = CandidatePanel.shared
+        panel.owner = looseNoticeOwner
+        panel.onSelect = nil
+        panel.show(.notice(text), anchor: .zero)  // an empty anchor: at the mouse pointer
+        DispatchQueue.main.asyncAfter(deadline: .now() + SessionText.noticeDuration(text, long: long)) {
+            if panel.owner === looseNoticeOwner { panel.hide() }
         }
     }
 }

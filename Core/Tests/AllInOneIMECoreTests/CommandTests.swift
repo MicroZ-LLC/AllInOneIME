@@ -1,6 +1,9 @@
 import Foundation
 import Testing
 @testable import AllInOneIMECore
+#if os(Windows)
+import WinSDK
+#endif
 
 struct CommandTests {
     @Test func parse() {
@@ -146,7 +149,53 @@ struct CommandTests {
             #expect(C.arguments(fromCommandLine: C.commandLine(argv)) == argv)
         }
         #expect(C.commandLine(["python3", "-c", "{input}"]) == "python3 -c {input}")
+        // The Mac's rules: a backslash escapes, also in what looks like a Windows path.
+        #expect(C.arguments(fromCommandLine: #"C:\Tools\run.exe"#) == ["C:Toolsrun.exe"])
     }
+
+    /// Windows' rules (`CommandLineToArgvW`'s), for the settings made for Windows: a path's backslashes are its own, a
+    /// `"` quotes, `\"` is a `"`; the program is read as Windows reads a program's path.
+    @Test func windowsCommandLines() {
+        typealias C = CustomCommand
+        func split(_ line: String) -> [String]? { C.arguments(fromCommandLine: line, rules: .windows) }
+        #expect(split(#"C:\Tools\run.exe {input}"#) == [#"C:\Tools\run.exe"#, "{input}"])
+        #expect(split(#""C:\Program Files\Tool\t.exe" -f "C:\My Files\a b.txt" \\server\share\x"#)
+                == [#"C:\Program Files\Tool\t.exe"#, "-f", #"C:\My Files\a b.txt"#, #"\\server\share\x"#])
+        #expect(split(#"run "a\"b" c\\\"d "C:\dir\\" 'a b'"#) == ["run", #"a"b"#, #"c\"d"#, #"C:\dir\"#, "'a", "b'"])
+        #expect(split(#"run x"y z"w "" """"#) == ["run", "xy zw", "", #"""#])  // three in a row: a `"`
+        #expect(split("  run\t-q  ") == ["run", "-q"])
+        #expect(split("   ") == [] && split("") == [])
+        #expect(split(#"run "open"#) == nil && split(#""C:\Tools\run.exe"#) == nil)
+        // One line and back gives the same arguments; a path needs no quotes nor doubled backslashes.
+        let lists = [[#"C:\Tools\run.exe"#, "{input}"], [#"C:\Program Files\x.exe"#, #"a "quoted" word"#, #"C:\dir\"#, ""],
+                     ["py", #"\\"#, #"\"#, #"a\\"b"#, "tab\there", #"x\y\"#], [#"C:\My Tools\"#, "-c", "{input}; exit"]]
+        for argv in lists {
+            #expect(split(C.commandLine(argv, rules: .windows)) == argv, "\(argv)")
+        }
+        #expect(C.commandLine([#"C:\Tools\run.exe"#, #"C:\My Files\a.txt"#, "{input}"], rules: .windows)
+                == #"C:\Tools\run.exe "C:\My Files\a.txt" {input}"#)
+        #expect(C.commandLine([#"C:\Program Files\x.exe"#, #"say "hi""#, #"C:\dir\"#], rules: .windows)
+                == #""C:\Program Files\x.exe" "say \"hi\"" C:\dir\"#)
+        #expect(C.commandLine(["run", #"C:\My Files\"#], rules: .windows) == #"run "C:\My Files\\""#)
+        #if os(Windows)
+        // As Windows itself splits them.
+        for line in [#"C:\Tools\run.exe {input}"#, #""C:\Program Files\t.exe" -f "C:\My Files\a b.txt""#,
+                     #"run "a\"b" c\\\"d "C:\dir\\" 'a b'"#, #"run x"y z"w "" """"#, #"run "a""b" "a"""b" a"""b"""#,
+                     #"run \\\\"x y" \\\x"#, "run\t-q  a", #"\\server\share\run.exe "\\server\share\a b""#]
+            + lists.map { C.commandLine($0, rules: .windows) } {
+            #expect(split(line) == Self.commandLineToArgv(line), "\(line)")
+        }
+        #endif
+    }
+
+    #if os(Windows)
+    static func commandLineToArgv(_ line: String) -> [String] {
+        var count: Int32 = 0
+        guard let argv = line.withCString(encodedAs: UTF16.self, { CommandLineToArgvW($0, &count) }) else { return [] }
+        defer { LocalFree(argv) }
+        return (0..<Int(count)).map { String(decodingCString: argv[$0]!, as: UTF16.self) }
+    }
+    #endif
 
     @Test func editorProblems() {
         let ok = CustomCommand(name: "respond", type: .prompt, prompt: "Reply politely.")

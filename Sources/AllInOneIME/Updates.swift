@@ -670,7 +670,7 @@ enum UpdateText {
 
     static func checked(_ date: Date?, now: Date) -> String {
         guard let date else { return tr("还没检查过", "Not checked yet") }
-        let ago = DashboardText.ago(date, now: now, language: UIText.language)
+        let ago = RelativeTime.ago(date, now: now, language: UIText.language, style: .short)
         return tr("上次检查：\(ago)", "Last checked: \(ago)")
     }
 }

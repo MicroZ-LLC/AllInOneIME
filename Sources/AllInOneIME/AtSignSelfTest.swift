@@ -51,8 +51,8 @@ extension SelfTest {
     /// method knows the word from what it typed; in a text view the field must also have it before the caret.
     static func testAtAfterAWord(_ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
         section("@ after a word, and ← → on a lone @, in a terminal and a text view", needs: .composing)
-        let pointerBefore = controller.pointerUsedWithin
-        controller.pointerUsedWithin = { _ in false }  // the user's own clicks meanwhile
+        let pointerBefore = controller.services.pointerUsedWithin
+        controller.services.pointerUsedWithin = { _ in false }  // the user's own clicks meanwhile
         let terminal = FakeTextClient()
         terminal.bundleIDOverride = "com.mitchellh.ghostty"
         terminal.knowsRanges = false
@@ -60,7 +60,7 @@ extension SelfTest {
         controller.composer.setInputMode(.english)  // a shell command, typed as letters
         defer {
             controller.composer.setInputMode(settings.defaultInput)
-            controller.pointerUsedWithin = pointerBefore
+            controller.services.pointerUsedWithin = pointerBefore
             controller.activateServer(client)
         }
         let line = GhosttyLine(controller, terminal)

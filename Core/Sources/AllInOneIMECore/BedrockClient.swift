@@ -93,7 +93,8 @@ public struct BedrockClient: Sendable {
         return url
     }
 
-    /// Builds the signed HTTP request. Exposed so tools can capture raw responses.
+    /// Builds the signed HTTP request, signed at the real time (`SigV4Signer.sign`). Exposed so tools can capture raw
+    /// responses.
     public static func makeRequest(
         _ body: ConverseRequest, modelId: String, region: String,
         credentials: AWSCredentials, timeout: TimeInterval, date: Date = Date()

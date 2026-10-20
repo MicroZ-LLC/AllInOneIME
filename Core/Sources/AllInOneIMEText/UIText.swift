@@ -1,0 +1,165 @@
+import Foundation
+
+/// Interface language (settings window, candidate panel, notices, input menu): the one picked in the
+/// settings (config `uiLanguage`), else the first of the system's preferred languages that the app ships
+/// (`InterfaceLanguage.pick`; on the Mac, System Settings → General → Language & Region). Simplified Chinese and English
+/// come from the code (`tr`), the others from the String Catalogs (`InterfaceText.lookup`).
+///
+/// The process's own: what every text the shell and the core make reads (`tr`). The core's texts that name its types
+/// (commands, providers, errors …) are in AllInOneIMECore's extensions of it (UIText+Names.swift, UIText+Errors.swift).
+/// Safe from any thread; a shell changes it from one (the Mac: the main thread), and a change is told on the main queue
+/// (`.allInOneIMEInterfaceLanguageChanged`).
+public enum UIText {
+    private struct State {
+        var choice: String?
+        var app: Bundle
+        var shipped: [String]
+        var language: String
+        var chinese: Bool
+        /// What "follow the system" picks: `systemLanguage`, or the one `useCatalog` worked out.
+        var system: String
+    }
+
+    /// Worked out once, on the first read: `language` is read on the candidate panel's hot path (`tr`), so it is worked
+    /// out when `choice` or `app` changes, not per text. The first read hands the core the app's translations
+    /// (`InterfaceText.bundleLookup`), unless the shell installed its own (`InterfaceText.lookup`, a shell without
+    /// `.lproj` bundles).
+    private static let state: Locked<State> = {
+        let app = Bundle.main
+        let shipped = InterfaceLanguage.shipped(in: app)
+        if !InterfaceText.lookupInstalled { InterfaceText.lookup = InterfaceText.bundleLookup(app: app) }
+        let language = picked(choice: nil, shipped: shipped, system: systemLanguage)
+        return Locked(initialState: State(choice: nil, app: app, shipped: shipped, language: language,
+                                          chinese: InterfaceLanguage.isChinese(language), system: systemLanguage))
+    }()
+
+    /// Picked in the settings (config `uiLanguage`: "zh", "en" or a shipped code; applied from the config when a
+    /// text field or the window opens); nil follows the system. A change posts `.allInOneIMEInterfaceLanguageChanged` on
+    /// the main queue: at once when it is changed there, else soon after.
+    public static var choice: String? {
+        get { state.withLock { $0.choice } }
+        set {
+            let changed = state.withLock { state -> Bool in
+                guard state.choice != newValue else { return false }
+                state.choice = newValue
+                state.language = picked(choice: newValue, shipped: state.shipped, system: state.system)
+                state.chinese = InterfaceLanguage.isChinese(state.language)
+                return true
+            }
+            if changed { languageChanged() }
+        }
+    }
+
+    /// Tells a panel on screen all along (the Mac's menu bar panel) to redraw in the new language, on the main queue,
+    /// where it draws: at once from there, else soon after (a session on a thread of its own changed it).
+    static func languageChanged() {
+        if MainQueue.isCurrent {
+            NotificationCenter.default.post(name: .allInOneIMEInterfaceLanguageChanged, object: nil)
+        } else {
+            DispatchQueue.main.async { NotificationCenter.default.post(name: .allInOneIMEInterfaceLanguageChanged, object: nil) }
+        }
+    }
+
+    /// Where the translations are (`<code>.lproj`): the app; a stand-in while the self-test checks them.
+    public static var app: Bundle {
+        get { state.withLock { $0.app } }
+        set {
+            state.withLock { state in
+                state.app = newValue
+                state.shipped = InterfaceLanguage.shipped(in: newValue)
+                state.language = picked(choice: state.choice, shipped: state.shipped, system: state.system)
+                state.chinese = InterfaceLanguage.isChinese(state.language)
+            }
+            InterfaceText.lookup = InterfaceText.bundleLookup(app: newValue)
+        }
+    }
+
+    /// The languages `app` ships: "en", "zh-Hans" and its other `.lproj` folders.
+    public static var shipped: [String] { state.withLock { $0.shipped } }
+
+    /// The system's pick among what the app ships, read once per process (macOS relaunches apps after a language change).
+    public static let systemLanguage = InterfaceLanguage.pick(preferred: Locale.preferredLanguages,
+                                                               shipped: InterfaceLanguage.shipped(in: .main))
+
+    /// The interface language's code: "zh-Hans", "en", … (`scopedLanguage`, where one is set).
+    public static var language: String { scopedLanguage ?? state.withLock { $0.language } }
+
+    /// Whether the interface is Chinese: what only comes in Chinese and English (key names, …) is Chinese then.
+    public static var chinese: Bool { scopedLanguage.map(InterfaceLanguage.isChinese) ?? state.withLock { $0.chinese } }
+
+    /// The interface language of what one task makes (or one synchronous scope: `$scopedLanguage.withValue`), the
+    /// process's left as it is: a settings document in the language its settings say, for a window in another process
+    /// (`SettingsService`). Nil: the process's.
+    @TaskLocal public static var scopedLanguage: String?
+
+    /// The interface text in the interface language as it is now (`language`): what a shell hands the core's text that
+    /// takes its language (`PanelPresenter`, `SessionText`), and what `UIText`'s own texts are made with.
+    public static var words: InterfaceWords { InterfaceWords(language: language) }
+
+    private static func picked(choice: String?, shipped: [String], system: String) -> String {
+        InterfaceLanguage.code(forSetting: choice, shipped: shipped) ?? system
+    }
+
+    /// For a shell without `.lproj` bundles (Windows): the String Catalog's tables (`StringCatalog.tables`) as the
+    /// translations (`InterfaceText.tableLookup`), the languages they have as the ones shipped, and the system's own
+    /// languages, in its order (`preferred`: Windows' `GetUserPreferredUILanguages`, which `Locale.preferredLanguages`
+    /// doesn't read there), as what "follow the system" picks from.
+    public static func useCatalog(_ tables: [String: [String: String]], preferred: [String]) {
+        InterfaceText.lookup = InterfaceText.tableLookup(tables)
+        let others = tables.keys.filter { code in
+            code != "Base" && !InterfaceLanguage.builtIn.contains { $0.caseInsensitiveCompare(code) == .orderedSame }
+        }
+        let shipped = InterfaceLanguage.builtIn + others.sorted()
+        let changed = state.withLock { state -> Bool in
+            let system = InterfaceLanguage.pick(preferred: preferred, shipped: shipped)
+            let before = state.language
+            state.shipped = shipped
+            state.system = system
+            state.language = picked(choice: state.choice, shipped: shipped, system: system)
+            state.chinese = InterfaceLanguage.isChinese(state.language)
+            return state.language != before
+        }
+        if changed { languageChanged() }
+    }
+
+    /// Text written only in Simplified Chinese and English, without a catalog entry (an error's Chinese, a short
+    /// language name), for the Chinese interface: as it is in Simplified Chinese, in Traditional characters in
+    /// Traditional Chinese (ICU's Hans-Hant transform), never Simplified Chinese there.
+    public static func chineseOnly(_ text: String) -> String { words.chineseOnly(text) }
+}
+
+extension Notification.Name {
+    /// The interface language changed (`UIText.choice`): a panel on screen all along redraws in it. Posted on the main
+    /// queue (on Apple platforms, the main thread).
+    public static let allInOneIMEInterfaceLanguageChanged = Notification.Name("AllInOneIMEInterfaceLanguageChanged")
+}
+
+/// Whether the caller runs on the main queue, where a shell draws. On Apple platforms that is the main thread. Elsewhere
+/// another thread may run the main queue's work: on Linux `dispatchMain()` ends the main thread and the main queue runs on
+/// a worker thread, as under swift-testing. So the queue is asked (a mark on it, which its work sees on whatever thread),
+/// and the main thread counts too (a shell's run loop there drains the main queue).
+enum MainQueue {
+    private struct Mark: @unchecked Sendable {
+        let key = DispatchSpecificKey<Bool>()
+    }
+
+    /// Put on the main queue on first use.
+    private static let mark: Mark = {
+        let mark = Mark()
+        DispatchQueue.main.setSpecific(key: mark.key, value: true)
+        return mark
+    }()
+
+    static var isCurrent: Bool { Thread.isMainThread || DispatchQueue.getSpecific(key: mark.key) == true }
+}
+
+/// Interface text in the interface language (see `UIText`): `chinese` for Simplified Chinese, `english` for English,
+/// else the translation of `english` in the String Catalogs (through `InterfaceText.lookup`: on the Mac the app's
+/// `<language>.lproj`, compiled from them), or `english` without one. The English text, as `UIString.format`
+/// ("%@ items"), is the catalog's key.
+///
+/// `key`: where the same English text means something else elsewhere (`make strings` reports those), a key of its
+/// own: a short dotted name for where or how it is used ("remove.delete"), whose English in the catalog is `english`.
+public func tr(_ chinese: UIString, _ english: UIString, key: String? = nil) -> String {
+    InterfaceText.text(chinese, english, key: key, language: UIText.language)
+}

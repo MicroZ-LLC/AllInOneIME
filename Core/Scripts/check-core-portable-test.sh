@@ -193,6 +193,48 @@ fresh
 printf '#if (os(Windows) && DEBUG) || true\nfunc leaked() {}\n#endif\n' | put Platform/Windows/OrTrue.swift
 expect fail "Platform/Windows/: an && form || true"
 
+# MARK: - FoundationNetworking (URLSession and its kin: Foundation's on Apple platforms only)
+
+caught "URLSession without FoundationNetworking" 'import Foundation\npublic var session: URLSession = .shared\n'
+caught "URLRequest without FoundationNetworking" 'import Foundation\nlet r = URLRequest(url: url)\n'
+caught "HTTPURLResponse in a cast" 'import Foundation\nlet code = (response as? HTTPURLResponse)?.statusCode\n'
+caught "Foundation.URLSession, qualified" 'import Foundation\nlet s = Foundation.URLSession.shared\n'
+caught "a URLSessionTaskDelegate conformance" 'import Foundation\nfinal class D: NSObject, URLSessionTaskDelegate {}\n'
+caught "URLSession in a string's interpolation" 'import Foundation\nlet s = "\\(URLSession.shared)"\n'
+caught "FoundationNetworking under os(Linux) only (not Windows)" \
+    '#if os(Linux)\nimport FoundationNetworking\n#endif\nlet s = URLSession.shared\n'
+caught "FoundationNetworking under a negated guard" \
+    '#if !canImport(FoundationNetworking)\nimport FoundationNetworking\n#endif\nlet s = URLSession.shared\n'
+caught "FoundationNetworking in an #else" \
+    '#if canImport(Darwin)\n#else\nimport FoundationNetworking\n#endif\nlet s = URLSession.shared\n'
+caught "URLSession outside the Apple-only branch it is also in" \
+    '#if canImport(Darwin)\nlet a = URLSession.shared\n#endif\nlet b = URLSession.shared\n'
+fresh
+printf 'import Foundation\nlet s = URLSession.shared\n' | put Settings/Deep.swift
+expect fail "URLSession in a subfolder of the core"
+# Other targets of the package, tests too: Linux and Windows build them all.
+fresh
+mkdir -p "$root/Sources/AllInOneIMEWire"
+printf 'import Foundation\nlet s = URLSession.shared\n' > "$root/Sources/AllInOneIMEWire/Wire.swift"
+expect fail "URLSession in another target of the package"
+fresh
+mkdir -p "$root/Tests/SomeTests"
+printf 'import Foundation\nlet s = URLSession.shared\n' > "$root/Tests/SomeTests/A.swift"
+expect fail "URLSession in a test target that doesn't re-export FoundationNetworking"
+rm -rf "$root/Tests"
+fresh
+mkdir -p "$root/Tests/SomeTests"
+printf '#if canImport(FoundationNetworking)\nimport FoundationNetworking\n#endif\n' > "$root/Tests/SomeTests/Modules.swift"
+printf 'import Foundation\nlet s = URLSession.shared\n' > "$root/Tests/SomeTests/A.swift"
+expect fail "a plain import in another file of the target (only @_exported carries over)"
+rm -rf "$root/Tests"
+fresh
+printf '#if canImport(FoundationNetworking)\n@_exported import FoundationNetworking\n#endif\n' | put Modules.swift
+mkdir -p "$root/Sources/AllInOneIMEWire"
+printf 'import Foundation\nlet s = URLSession.shared\n' > "$root/Sources/AllInOneIMEWire/Wire.swift"
+expect fail "re-exported by another target (the core's), not its own"
+rm -rf "$root/Sources/AllInOneIMEWire"
+
 # MARK: - What passes
 
 allowed "an ordinary core file" <<'EOF'
@@ -266,6 +308,45 @@ import Darwin
 import AllInOneIMEQuickJS
 #endif
 EOF
+allowed "URLSession with FoundationNetworking under its guard" <<'EOF'
+import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
+public var session: URLSession = .shared
+let r = URLRequest(url: URL(string: "https://example.com")!)
+let code = (response as? HTTPURLResponse)?.statusCode
+EOF
+allowed "URLSession's names in comments and strings, and names that only start alike" <<'EOF'
+import Foundation
+// URLSession.shared, URLRequest(url:)
+let a = "URLSession"
+let b = #"HTTPURLResponse"#
+let fetcher = URLSessionFetcher(hosts: [])
+let urlSession = 1
+struct MyURLRequest {}
+let c = notionSession
+EOF
+allowed "URLSession in Apple-only branches" <<'EOF'
+import Foundation
+#if canImport(Darwin)
+let a = URLSession.shared
+#elseif os(macOS)
+let b = URLSession.shared
+#endif
+#if os(iOS) || os(macOS)
+let c = URLRequest(url: url)
+#endif
+EOF
+fresh
+mkdir -p "$root/Tests/SomeTests"
+printf '#if canImport(FoundationNetworking)\n@_exported import FoundationNetworking\n#endif\n' > "$root/Tests/SomeTests/Modules.swift"
+printf 'import Foundation\nlet s = URLSession.shared\n' > "$root/Tests/SomeTests/A.swift"
+expect pass "a target that re-exports FoundationNetworking (@_exported, in another of its files)"
+rm -rf "$root/Tests"
+fresh
+printf '#if canImport(Security)\nimport Security\nlet s = URLSession.shared\n#endif\n' | put Platform/Apple/Session.swift
+expect pass "URLSession in Platform/Apple/"
 fresh
 put Prompt.swift <<'EOF'
 enum Prompt {

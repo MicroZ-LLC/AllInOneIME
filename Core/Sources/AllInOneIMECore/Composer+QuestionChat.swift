@@ -28,8 +28,9 @@ extension Composer {
                                   "Secure input is on (a password field or the lock screen): the conversation wasn't sent"))
         }
 
-        public static let chinese = make(language: "zh-Hans")
-        public static let english = make(language: "en")
+        /// Made each time, as `ReplyMessages`' are.
+        public static var chinese: ChatMessages { make(language: "zh-Hans") }
+        public static var english: ChatMessages { make(language: "en") }
     }
 
     /// The results shown are an @question conversation (asked, or a saved one picked), up and answering or answered.

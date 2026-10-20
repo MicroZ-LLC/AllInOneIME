@@ -23,7 +23,7 @@ final class PanelStandIns {
     /// The transcripts' last replies (session id → reply): one changed is a transcript changed.
     var replies: [String: String] = [:]
     var monitorWatching = false
-    let defaults = MemoryDefaults()
+    let defaults = MemoryKeyValueStore()
 
     /// `transcriptReads`: the transcripts read (not those the panel already read as they are).
     private(set) var noteLists = 0, reminderReads = 0, agentLooks = 0, transcriptReads = 0
@@ -410,13 +410,13 @@ extension SelfTest {
               && stand.reminders.contains { $0.id == firstReminder }
               && panel.swipedRow == nil,
               "a row swiped away stays away after a refresh, and is left as it is in Reminders and Claude Code")
-        stand.defaults.set(nil, forKey: FloatingPanel.dismissedRemindersKey)
-        stand.defaults.set(nil, forKey: FloatingPanel.dismissedTasksKey)
+        stand.defaults.removeValue(forKey: FloatingPanel.dismissedRemindersKey)
+        stand.defaults.removeValue(forKey: FloatingPanel.dismissedTasksKey)
 
         // Nothing at all: the empty states.
         stand.sessions = []
         stand.reminders = []
-        stand.defaults.set(nil, forKey: SavedNotesStore.key)
+        stand.defaults.removeValue(forKey: SavedNotesStore.key)
         panel.refresh()
         check(pump(timeout: 2) { panel.tasks == .list([]) && panel.reminders == .list([]) } && panel.notes.isEmpty
               && panel.counts.isEmpty, "nothing yet: the three empty lines, no counts")

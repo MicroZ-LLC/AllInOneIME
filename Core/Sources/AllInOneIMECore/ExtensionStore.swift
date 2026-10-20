@@ -551,6 +551,55 @@ public enum ExtensionStore {
     public static func abbreviated(_ path: String, home: String = NSHomeDirectory()) -> String {
         path == home ? "~" : path.hasPrefix(home + "/") ? "~" + path.dropFirst(home.count) : path
     }
+
+    /// Whether `a` and `b`, folders as the config writes them ("~/…" or a path), are the same folder: the same path once
+    /// written out, in any case on Windows.
+    public static func isSameFolder(_ a: String, _ b: String) -> Bool {
+        let (x, y) = (Folder(path: a, found: false).url.standardizedFileURL.path, Folder(path: b, found: false).url.standardizedFileURL.path)
+        #if os(Windows)
+        return x.caseInsensitiveCompare(y) == .orderedSame
+        #else
+        return x == y
+        #endif
+    }
+
+    /// A folder as Windows' settings window shows it: one in the home folder with `%USERPROFILE%` for "~" and Windows'
+    /// backslashes ("~/.config/allinoneime/extensions" → "%USERPROFILE%\.config\allinoneime\extensions"), another as
+    /// it is.
+    public static func windowsShown(_ path: String) -> String {
+        guard path == "~" || path.hasPrefix("~/") else { return path }
+        return "%USERPROFILE%" + path.dropFirst().replacingOccurrences(of: "/", with: "\\")
+    }
+
+    /// A folder typed in Windows' settings window, as the config keeps it: its `%NAME%`s written out from `environment`
+    /// (Windows' names, in any case; one it lacks stays as it is), then, in the home folder (`home`, in any case, written
+    /// with either slash), with "~" and forward slashes as the Mac's are: "%USERPROFILE%\Scripts" → "~/Scripts". The
+    /// placeholder (`windowsShown`) typed as it is is the default folder.
+    public static func typedOnWindows(_ path: String, home: String, environment: [String: String]) -> String {
+        var expanded = "", rest = Substring(path)
+        while let start = rest.firstIndex(of: "%"), let end = rest[rest.index(after: start)...].firstIndex(of: "%") {
+            let name = String(rest[rest.index(after: start)..<end])
+            expanded += rest[..<start]
+            if let value = environment.first(where: { !name.isEmpty && $0.key.caseInsensitiveCompare(name) == .orderedSame })?.value {
+                expanded += value
+                rest = rest[rest.index(after: end)...]
+            } else {
+                expanded += "%"
+                rest = rest[rest.index(after: start)...]
+            }
+        }
+        expanded += rest
+        func slashed(_ text: String) -> String {
+            var out = text.replacingOccurrences(of: "\\", with: "/")
+            while out.count > 1, out.hasSuffix("/") { out.removeLast() }
+            return out
+        }
+        let folder = slashed(expanded), base = slashed(home)
+        guard !base.isEmpty else { return expanded }
+        if folder.caseInsensitiveCompare(base) == .orderedSame { return "~" }
+        if folder.lowercased().hasPrefix(base.lowercased() + "/") { return "~" + folder.dropFirst(base.count) }
+        return expanded
+    }
 }
 
 /// What the index needs of the files it read, by path, kept while their size, modification date and

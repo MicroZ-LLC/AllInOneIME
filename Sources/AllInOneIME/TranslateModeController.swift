@@ -35,7 +35,7 @@ enum TranslateModeShared {
     static var defaults = UserDefaults.standard
     static let lastTargetKey = "translateModeTarget"
     /// The language picked last on the chip, for every app and across launches (nil: none yet): what it translates
-    /// into while that's an output language (`TranslateMode.target(last:outputs:)`).
+    /// into while that's an output language (`TranslateMode.target(last:outputs:inputs:)`).
     static var lastTarget: OutputLanguage? {
         get { defaults.string(forKey: lastTargetKey).map(OutputLanguage.init) }
         set { defaults.set(newValue?.code, forKey: lastTargetKey) }
@@ -63,15 +63,6 @@ enum TranslateModeShared {
     /// comes after the next app's activation, and maybe after its text field's, is stale.
     nonisolated static func isOtherApp(pid: pid_t, id: String?, frontmost: pid_t?) -> Bool {
         pid != ProcessInfo.processInfo.processIdentifier && id != Updater.settingsBundleID && frontmost == pid
-    }
-}
-
-extension TranslateMode.Chip {
-    /// As the panel draws it: 「中 → 英」 in the Chinese interface (「中 → 韓」 in Traditional Chinese), the language codes
-    /// ("ZH → EN") in the others.
-    var panel: CandidateView.Chip {
-        UIText.chinese ? CandidateView.Chip(source: UIText.chineseOnly(sourceText), target: UIText.chineseOnly(targetText))
-            : CandidateView.Chip(source: sourceTag, target: targetTag)
     }
 }
 
@@ -118,7 +109,7 @@ extension AllInOneIMEInputController {
         guard composer.translateMode != nil else { return }
         TranslateModeShared.listOpen = false  // a key closes the chip's list, and does what it does
         scheduleChipRefresh()
-        guard secureInputActive() else {
+        guard services.secureInputActive() else {
             TranslateModeShared.toldSecureInput = false
             return
         }
@@ -137,7 +128,7 @@ extension AllInOneIMEInputController {
             Self.endHoldHint()
             return
         }
-        switch TranslateModeShared.hold.poll(pointerUsed: pointerUsedWithin(held)) {
+        switch TranslateModeShared.hold.poll(pointerUsed: services.pointerUsedWithin(held)) {
         case .hint?:
             // Up until about when the toggle would come; the press ended before it, nothing happens and it goes then.
             let hint = holdHint()
@@ -167,7 +158,9 @@ extension AllInOneIMEInputController {
         if TranslateModeShared.state.isOn {
             return tr("继续按住 → 关闭边打边译", "Keep holding → Translate as You Type off")
         }
-        guard TranslateMode.target(last: TranslateModeShared.lastTarget, outputs: loadSettings().outputLanguages) != nil else {
+        let config = services.loadSettings()
+        guard config.hasLanguageToTranslateInto,
+              TranslateMode.target(last: TranslateModeShared.lastTarget, outputs: config.outputLanguages) != nil else {
             return noTargetText
         }
         return tr("继续按住 → 边打边译", "Keep holding → Translate as You Type")
@@ -181,11 +174,12 @@ extension AllInOneIMEInputController {
         if TranslateModeShared.state.isOn { leaveTranslateMode() } else { enterTranslateMode() }
     }
 
-    /// On, for every field: into the language picked last on the chip (at first, the first output language), whatever
-    /// is being typed, in the app's tone. In an app with no AI it's on but does nothing there, and says so.
+    /// On, for every field: into the language picked last on the chip (at first, the first output language other than
+    /// the only one typed), whatever is being typed, in the app's tone. In an app with no AI it's on but does nothing
+    /// there, and says so.
     @MainActor
     private func enterTranslateMode() {
-        let config = loadSettings()
+        let config = services.loadSettings()
         guard let session = TranslateModeShared.state.enter(last: TranslateModeShared.lastTarget, config: config) else {
             showNotice(noTargetText, client: nil)
             return
@@ -217,7 +211,7 @@ extension AllInOneIMEInputController {
         TranslateModeShared.hold.resync(shiftDown: TranslateModeShared.shiftDown())
         Self.endHoldHint()
         TranslateModeShared.listOpen = false
-        let config = loadSettings()
+        let config = services.loadSettings()
         let transition = TranslateModeShared.state.activated(app: app, last: TranslateModeShared.lastTarget, config: config)
         let allowed = config.allowsAI(in: app)
         perform(composer.setTranslateMode(TranslateModeShared.state.session.flatMap { allowed ? $0 : nil }), client: nil)
@@ -242,7 +236,7 @@ extension AllInOneIMEInputController {
         TranslateModeShared.hold.resync(shiftDown: TranslateModeShared.shiftDown())
         endHoldHint()
         let field = activeController
-        let config = field?.loadSettings() ?? LiveConfig.current
+        let config = field?.services.loadSettings() ?? LiveConfig.current
         guard case .left = TranslateModeShared.state.appActivated(app, config: config) else { return }
         log.notice("Translate as You Type off (another app)")
         TranslateModeShared.listOpen = false
@@ -253,15 +247,20 @@ extension AllInOneIMEInputController {
     }
 
     /// The settings read again (`applySettings`, a key): a target no longer among the output languages (removed in the
-    /// settings) gives way at once to the first of them (`State.follow`), in this field and on its chip.
+    /// settings) gives way at once to the one it would come on into with none picked (`State.follow`), in this field
+    /// and on its chip. With none (English alone typed, English left), it goes off and says where to add one, as a long
+    /// press says when it can't come on.
     @MainActor
     func translateModeFollow(_ config: Config) {
-        guard TranslateModeShared.state.follow(outputs: config.outputLanguages) else { return }
+        guard TranslateModeShared.state.follow(outputs: config.outputLanguages, inputs: config.inputLanguages) else { return }
         let session = TranslateModeShared.state.session
-        log.notice("Translate as You Type: into \(session?.target.code ?? "-", privacy: .public) (the target was removed)")
+        let now = session.map { "into " + $0.target.code } ?? "off"
+        log.notice("Translate as You Type: \(now, privacy: .public) (the target was removed)")
+        if session == nil { TranslateModeShared.listOpen = false }
         perform(composer.setTranslateMode(session.flatMap { config.allowsAI(in: modeApp) ? $0 : nil }), client: nil)
         MenuBarIcon.shared.setTranslating(TranslateModeShared.state.isOn)
         refreshTranslateChip()
+        if session == nil { showNotice(noTargetText, client: nil) }
     }
 
     /// 「边打边译 已开启：中文 → 日语 · 再长按 Shift 关闭」, into the target, from the language typed (when that's the
@@ -272,13 +271,16 @@ extension AllInOneIMEInputController {
         let from = typed.matches(session.target) ? composer.inputLanguages.first { !$0.matches(session.target) } : typed
         let languages = (from.map { UIText.name(OutputLanguage($0)) + " → " } ?? "") + UIText.name(session.target)
         let why = !allowed ? tr(" · 这个 App 里关了 AI，照原样上屏", " · AI is off in this app, text goes in as typed")
-            : secureInputActive() ? tr(" · 系统安全输入开着，暂时照原样上屏", " · secure input is on, text goes in as typed for now") : ""
+            : services.secureInputActive() ? tr(" · 系统安全输入开着，暂时照原样上屏", " · secure input is on, text goes in as typed for now") : ""
         let text = tr("边打边译 已开启：\(languages) · 再长按 Shift 关闭", "Translate as You Type on: \(languages) · hold Shift again to turn off")
         showNotice(text + why, client: nil, lasting: why.isEmpty ? TranslateModeShared.noticeLasting : nil)
     }
 
+    /// Nothing to translate into but the languages typed (`Config.hasLanguageToTranslateInto`): where one is added, the
+    /// page named as the settings' sidebar names it.
     private var noTargetText: String {
-        tr("没有要翻译成的语言：在设置的「翻译与改写」里加一种", "No language to translate into: add one under Translate & Rewrite in the settings")
+        let page = SettingsPage.writing.title
+        return tr("没有要翻译成的语言：在设置 →「\(page)」里加一种", "No language to translate into: add one in Settings → \(page)")
     }
 
     // MARK: The chip
@@ -289,7 +291,7 @@ extension AllInOneIMEInputController {
     func translateChip() -> TranslateMode.Chip? {
         guard composer.translateMode != nil, Self.activeController === self,
               !SecureInput.blocksComposing(clientOverride ?? client()) else { return nil }
-        return composer.translateModeChip(choices: TranslateModeShared.listOpen ? loadSettings().outputLanguages : nil)
+        return composer.translateModeChip(choices: TranslateModeShared.listOpen ? services.loadSettings().outputLanguages : nil)
     }
 
     /// The chip's list is what the panel shows here (it's open and the chip is here), over anything else.
@@ -301,15 +303,14 @@ extension AllInOneIMEInputController {
     @MainActor
     func showTranslateChip(_ client: IMKTextInput?) -> Bool {
         guard let client, let chip = translateChip() else { return false }
-        var model = CandidateView.Model()
-        model.chip = chip.panel
-        model.rows = (chip.choices ?? []).map {
-            CandidateView.Row(label: chip.checks($0) ? "✓" : "", text: UIText.name($0), style: .candidate)
-        }
-        if let notice { model.status = .hint(notice) }
+        let model = PanelPresenter.chipModel(chip, notice: notice, language: UIText.language)
         let panel = CandidatePanel.shared
         panel.owner = self
-        panel.onSelect = { [weak self] index in self?.pickTranslateTarget(row: index) }
+        // A click picks the clicked row's choice (`PanelModel.Row.choice`): its language's place in the chip's list.
+        panel.onSelect = { [weak self] index in
+            guard model.rows.indices.contains(index), let choice = model.rows[index].choice else { return }
+            self?.pickTranslateTarget(choice)
+        }
         panel.onChip = { [weak self] part in self?.translateChipClicked(part) }
         let anchor = anchor(client)
         if !panel.shows(model, anchor: anchor) { panel.show(model, anchor: anchor) }  // nothing changed, nothing moved: as it is
@@ -331,10 +332,10 @@ extension AllInOneIMEInputController {
         refreshTranslateChip()
     }
 
-    /// A language clicked in the chip's list (its row `index`): the target at once (the chip, the next translation), and
+    /// A language clicked in the chip's list (`index` in it): the target at once (the chip, the next translation), and
     /// from then on, everywhere (`TranslateModeShared.lastTarget`).
     @MainActor
-    func pickTranslateTarget(row index: Int) {
+    func pickTranslateTarget(_ index: Int) {
         guard let language = translateChip()?.choice(at: index) else { return }
         TranslateModeShared.listOpen = false
         TranslateModeShared.lastTarget = language
@@ -373,29 +374,5 @@ extension AllInOneIMEInputController {
         TranslateModeShared.listOpen = false
         let panel = CandidatePanel.shared
         if panel.isVisible, panel.owner === self, panel.view.model.chip != nil { panel.hide() }
-    }
-
-    // MARK: The request
-
-    /// Translate as You Type's request for `input` (`Composer.Effect.startTranslateMode`), in `app`'s settings; in a terminal
-    /// on one line.
-    @MainActor
-    func translateModeStream(_ input: String, session: TranslateMode.Session, app: String?, id: Int)
-        -> AsyncThrowingStream<ConversionUpdate, Error> {
-        conversionTask?.cancel()
-        (lastElapsed, lastFromCache, lastHidden, lastShortened) = (nil, false, 0, false)
-        log.notice("conversion \(id) started (Translate as You Type, \(input.count) chars, into \(session.target.code, privacy: .public))")
-        let stream = converter.translateMode(input, target: session.target, app: app)
-        return Self.isTerminal(clientOverride ?? client()) ? Self.oneLine(stream) : stream
-    }
-
-    // MARK: The footer
-
-    /// The candidate panel's footer while pinyin is typed in the mode: what ⏎ and ⇧⏎ do.
-    @MainActor
-    func translateModeFooter() -> String? {
-        guard composer.inModeComposition, let target = composer.translateMode?.target else { return nil }
-        let name = UIText.name(target)
-        return tr("空格 选词 · ⏎ 翻译成\(name)上屏 · ⇧⏎ 原文上屏", "Space picks · ⏎ translate to \(name) and insert · ⇧⏎ as typed")
     }
 }

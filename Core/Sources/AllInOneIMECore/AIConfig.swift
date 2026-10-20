@@ -423,7 +423,7 @@ public enum AIConfig {
     /// Reads the config file, makes `edits` and writes back the keys they changed (`writing`): the input method and the
     /// settings window read it again from there; every other key of the file, one this version doesn't know too, stays
     /// as it was. What undoes them, with now.
-    public static func applying(_ edits: [Edit], at url: URL = Config.defaultURL, now: Date = Date()) throws -> Applied {
+    public static func applying(_ edits: [Edit], at url: URL = Config.defaultURL, now: Date = Platform.current.clock.now) throws -> Applied {
         let before = try Config.load(from: url)
         var config = before
         let recorded = applyRecording(edits, to: &config)
@@ -440,7 +440,7 @@ public enum AIConfig {
 
     /// Puts back what `applied` changed, if it is recent enough (nil: nothing to undo): each key still holding what was
     /// written; one changed since (in Settings, by hand) is left as it is, and reported.
-    public static func undoing(_ applied: Applied, at url: URL = Config.defaultURL, now: Date = Date()) throws -> UndoReport? {
+    public static func undoing(_ applied: Applied, at url: URL = Config.defaultURL, now: Date = Platform.current.clock.now) throws -> UndoReport? {
         guard applied.canUndo(at: now) else { return nil }
         let before = try Config.load(from: url)
         var config = before
@@ -458,7 +458,7 @@ public enum AIConfig {
     }
 
     /// Puts back what `applied` changed, if it is recent enough (false: nothing to undo).
-    public static func undo(_ applied: Applied, at url: URL = Config.defaultURL, now: Date = Date()) throws -> Bool {
+    public static func undo(_ applied: Applied, at url: URL = Config.defaultURL, now: Date = Platform.current.clock.now) throws -> Bool {
         try undoing(applied, at: url, now: now) != nil
     }
 

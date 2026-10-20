@@ -893,15 +893,19 @@ struct TranslateModeAcceptanceTypingTests {
 
 @Suite("TranslateModeAcceptance: the target language")
 struct TranslateModeAcceptanceTargetTests {
-    @Test func target_beforeAnyPickItIsTheFirstOutputLanguage() throws {
+    @Test func target_beforeAnyPickItIsTheFirstOutputLanguageTheTypedLanguageCanBeTranslatedInto() throws {
         #expect(TranslateMode.target(last: nil, outputs: [tmJapanese, .english]) == tmJapanese)
         var state = TranslateMode.State()
         let entered = state.enter(last: nil, config: tmConfig([tmJapanese, .english]))
         let session = try #require(entered)
         #expect(session.target == tmJapanese)
         #expect(state.isOn)
+        // English alone typed, English first among the outputs: the first output it can translate into (spec, 0.6.5.1).
         var other = TranslateMode.State()
-        #expect(other.enter(last: nil, config: tmConfig([.english, .chinese]))?.target == .english)
+        #expect(other.enter(last: nil, config: tmConfig([.english, .chinese]))?.target == .chinese)
+        // Chinese and English typed: the first output, as before.
+        var bilingual = TranslateMode.State()
+        #expect(bilingual.enter(last: nil, config: tmConfig([.english, .chinese]) { $0.inputLanguages = [.chinese, .english] })?.target == .english)
     }
 
     @Test func target_theLastPickIsRemembered() throws {
@@ -1005,10 +1009,12 @@ struct TranslateModeAcceptanceChipTests {
     }
 
     @Test func chip_aLanguageClickedIsTheTargetAtOnceAndRemembered() throws {
-        let config = tmConfig([.english, tmJapanese, tmFrench])
+        // Chinese and English typed (pinyin below): the first output, English, until Japanese is clicked.
+        let config = tmConfig([.english, tmJapanese, tmFrench]) { $0.inputLanguages = [.chinese, .english] }
         var state = TranslateMode.State()
         let rig = TMAccRig(target: nil)
         let entered = state.enter(last: nil, config: config)
+        #expect(entered?.target == .english)
         rig.setMode(try #require(entered).target)
         rig.pick("nihao")
         // The target part clicked, then Japanese in its list (as the controller does with the row clicked).

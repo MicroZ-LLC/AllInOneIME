@@ -1,63 +1,19 @@
 import AllInOneIMECore
 import AppKit
 
-/// The icons of the command list, like the colored squares of iOS Settings: one for each built-in
-/// command, one for each kind of custom command, a plugin's own (or a puzzle piece), a script extension's
-/// own (an emoji, an image or a symbol). A custom command, a bundle's snippet or a plugin may name its own SF Symbol
-/// and color.
+/// The icons of the command list, like the colored squares of iOS Settings, as the Mac draws them: the core's tokens
+/// (`IconToken`: one for each built-in command, one for each kind of custom command, a plugin's own or a puzzle piece,
+/// a script extension's own emoji, image or symbol, each with the built-in one it falls back to), and the settings
+/// window's sections.
 enum CommandIcons {
-    static func icon(for command: Command) -> CandidateView.Icon {
-        if let plugin = command.plugin { return icon(for: plugin) }
-        if let custom = command.custom { return icon(for: custom) }
-        if let script = command.script { return icon(for: script) }
-        switch command {
-        case .improve: return CandidateView.Icon(symbol: "wand.and.stars", color: .systemPurple)
-        case .translate: return CandidateView.Icon(symbol: "translate", color: .systemBlue)
-        case .question: return CandidateView.Icon(symbol: "questionmark.bubble.fill", color: .systemBlue)
-        case .reply: return CandidateView.Icon(symbol: "arrowshape.turn.up.left.fill", color: .systemGreen)
-        case .agent: return CandidateView.Icon(symbol: "sparkles", color: .systemOrange)
-        case .open: return CandidateView.Icon(symbol: "magnifyingglass", color: .systemGray)
-        case .read: return CandidateView.Icon(symbol: "doc.richtext.fill", color: .systemTeal)
-        case .note: return CandidateView.Icon(symbol: "note.text", color: .systemYellow)
-        case .reminder: return CandidateView.Icon(symbol: "bell.fill", color: .systemRed)
-        case .py: return CandidateView.Icon(symbol: "chevron.left.forwardslash.chevron.right", color: .systemBlue)
-        case .js: return CandidateView.Icon(symbol: "curlybraces", color: .systemYellow)
-        case .webSearch: return CandidateView.Icon(symbol: "globe", color: .systemCyan)
-        case .tasks: return CandidateView.Icon(symbol: "checklist", color: .systemGreen)
-        case .settings: return CandidateView.Icon(symbol: "gearshape.fill", color: .systemGray)
-        case .imessage: return CandidateView.Icon(symbol: "message.fill", color: .systemGreen)
-        case .reportIssue: return CandidateView.Icon(symbol: "exclamationmark.bubble.fill", color: .systemOrange)
-        default: return CandidateView.Icon(symbol: "command", color: .systemGray)
-        }
-    }
+    static func icon(for command: Command) -> CandidateView.Icon { CandidateView.Icon(IconToken.command(command)) }
 
     /// A plugin's own icon, or a puzzle piece (a chain link for a link plugin).
-    static func icon(for plugin: InstalledPlugin) -> CandidateView.Icon {
-        CandidateView.Icon(symbol: plugin.manifest.icon ?? (plugin.manifest.type == .link ? "link" : "puzzlepiece.extension.fill"),
-                           color: color(plugin.manifest.color) ?? .systemPink)
-    }
+    static func icon(for plugin: InstalledPlugin) -> CandidateView.Icon { CandidateView.Icon(IconToken.plugin(plugin)) }
 
     /// A script extension's icon: its emoji, its image file, or its SF Symbol; else one for what it does, in
     /// teal (Raycast's red for a Raycast script).
-    static func icon(for script: ScriptCommand) -> CandidateView.Icon {
-        let color: NSColor = script.source == .raycast ? .systemRed : .systemTeal
-        let symbol = script.background ? "clock.arrow.circlepath" : script.status != nil ? "gauge.with.dots.needle.33percent" : {
-            switch script.output {
-            case .insert: return "text.cursor"
-            case .show: return "text.alignleft"
-            case .list: return "list.bullet"
-            case .silent: return "bolt.fill"
-            }
-        }()
-        switch script.icon {
-        case let .emoji(emoji)?: return CandidateView.Icon(symbol: symbol, color: color, emoji: emoji)
-        case let .image(url)? where image(url.path) != nil:
-            return CandidateView.Icon(symbol: symbol, color: color, image: url.path)
-        case let .symbol(name)? where NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil:
-            return CandidateView.Icon(symbol: name, color: color)
-        default: return CandidateView.Icon(symbol: symbol, color: color)
-        }
-    }
+    static func icon(for script: ScriptCommand) -> CandidateView.Icon { CandidateView.Icon(IconToken.script(script)) }
 
     static let scripts = CandidateView.Icon(symbol: "terminal.fill", color: .systemTeal)
 
@@ -74,17 +30,7 @@ enum CommandIcons {
     }
 
     /// A custom command's own icon, or one for its type.
-    static func icon(for custom: CustomCommand) -> CandidateView.Icon {
-        let (symbol, fallback): (String, NSColor)
-        switch custom.type {
-        case .prompt: (symbol, fallback) = ("text.bubble.fill", .systemIndigo)
-        case .run: (symbol, fallback) = ("chevron.left.forwardslash.chevron.right", .systemBrown)
-        case .terminal: (symbol, fallback) = ("apple.terminal.fill", NSColor(white: 0.25, alpha: 1))
-        case .link: (symbol, fallback) = ("link", .systemBlue)
-        case .snippet: (symbol, fallback) = ("text.insert", .systemMint)
-        }
-        return CandidateView.Icon(symbol: custom.icon ?? symbol, color: color(custom.color) ?? fallback)
-    }
+    static func icon(for custom: CustomCommand) -> CandidateView.Icon { CandidateView.Icon(IconToken.custom(custom)) }
 
     /// The settings window's sections, like System Settings: a colored square with a symbol.
     static let input = CandidateView.Icon(symbol: "keyboard.fill", color: .systemGray)
@@ -102,27 +48,51 @@ enum CommandIcons {
     static let webSearch = CandidateView.Icon(symbol: "globe", color: .systemCyan)
 
     /// A background task's state in `@tasks`.
-    static func icon(for progress: AgentSession.Progress) -> CandidateView.Icon {
-        switch progress {
-        case .done: return CandidateView.Icon(symbol: "checkmark", color: .systemGreen)
-        case .working: return CandidateView.Icon(symbol: "hourglass", color: .systemOrange)
-        case .needsYou: return CandidateView.Icon(symbol: "exclamationmark", color: .systemYellow)
+    static func icon(for progress: AgentSession.Progress) -> CandidateView.Icon { CandidateView.Icon(IconToken.progress(progress)) }
+
+    /// "blue", "systemBlue" or "#34C759"; nil for anything else (`IconToken.Color.named`).
+    static func color(_ name: String?) -> NSColor? { IconToken.Color.named(name).map(NSColor.icon) }
+}
+
+extension CandidateView.Icon {
+    /// `token` as the Mac draws it: a built-in icon as its SF Symbol; a symbol the Mac doesn't have (one a custom command,
+    /// a plugin or a script extension named) as the token's fallback; an emoji instead of the square; an image file, or
+    /// the fallback when it can't be read.
+    init(_ token: IconToken) {
+        let color = NSColor.icon(token.color), fallback = token.fallback.appleSymbol
+        switch token.glyph {
+        case let .builtin(builtin):
+            self.init(symbol: builtin.appleSymbol, color: color)
+        case let .symbol(name, _):
+            self.init(symbol: NSImage(systemSymbolName: name, accessibilityDescription: nil) == nil ? fallback : name, color: color)
+        case let .emoji(emoji, _):
+            self.init(symbol: fallback, color: color, emoji: emoji)
+        case let .image(path, _):
+            self.init(symbol: fallback, color: color, image: CommandIcons.image(path) != nil ? path : nil)
         }
     }
+}
 
-    /// "blue", "systemBlue" or "#34C759"; nil for anything else.
-    static func color(_ name: String?) -> NSColor? {
-        guard let name = name?.trimmingCharacters(in: .whitespaces).lowercased(), !name.isEmpty else { return nil }
-        if name.hasPrefix("#"), name.count == 7, let value = Int(name.dropFirst(), radix: 16) {
-            return NSColor(srgbRed: CGFloat((value >> 16) & 0xFF) / 255, green: CGFloat((value >> 8) & 0xFF) / 255,
-                           blue: CGFloat(value & 0xFF) / 255, alpha: 1)
+extension NSColor {
+    /// An icon's color: the system's colors (they follow the appearance), a gray, or an exact sRGB one.
+    static func icon(_ color: IconToken.Color) -> NSColor {
+        switch color {
+        case .red: return .systemRed
+        case .orange: return .systemOrange
+        case .yellow: return .systemYellow
+        case .green: return .systemGreen
+        case .mint: return .systemMint
+        case .teal: return .systemTeal
+        case .cyan: return .systemCyan
+        case .blue: return .systemBlue
+        case .indigo: return .systemIndigo
+        case .purple: return .systemPurple
+        case .pink: return .systemPink
+        case .brown: return .systemBrown
+        case .gray: return .systemGray
+        case let .grayscale(white): return NSColor(white: CGFloat(white), alpha: 1)
+        case let .rgb(red, green, blue):
+            return NSColor(srgbRed: CGFloat(red) / 255, green: CGFloat(green) / 255, blue: CGFloat(blue) / 255, alpha: 1)
         }
-        let named: [String: NSColor] = [
-            "red": .systemRed, "orange": .systemOrange, "yellow": .systemYellow, "green": .systemGreen,
-            "mint": .systemMint, "teal": .systemTeal, "cyan": .systemCyan, "blue": .systemBlue,
-            "indigo": .systemIndigo, "purple": .systemPurple, "pink": .systemPink, "brown": .systemBrown,
-            "gray": .systemGray, "grey": .systemGray, "black": NSColor(white: 0.15, alpha: 1),
-        ]
-        return named[name.hasPrefix("system") ? String(name.dropFirst(6)) : name]
     }
 }

@@ -244,7 +244,7 @@ enum SelfTest {
     }
 
     /// The hint shown under a draft in `input`, for the current action key and interface language.
-    static func draftHint(_ c: AllInOneIMEInputController, input: Language) -> CandidateView.Status {
+    static func draftHint(_ c: AllInOneIMEInputController, input: Language) -> PanelModel.Status {
         let key = c.composer.actionKey
         let how = key != .space ? UIText.name(key) : c.composer.spaceActs ? UIText.name(ActionKey.space) : tr("连按两次空格", "Space twice")
         return .hint("\(how) → " + UIText.action(input: input, config: settings))
@@ -274,9 +274,9 @@ enum SelfTest {
         controller.activateServer(client)
         check(client.document == "hello world" && client.selection != nil, "so does a field change (\(client.document))")
         // Shift held for a click that extends the selection: no switch.
-        controller.pointerUsedWithin = { _ in true }
+        controller.services.pointerUsedWithin = { _ in true }
         tapShift(controller, client)
-        controller.pointerUsedWithin = { _ in false }
+        controller.services.pointerUsedWithin = { _ in false }
         check(controller.composer.engineState.isAsciiMode == latin && client.document == "hello world",
               "a Shift-click doesn't switch Chinese and English")
         // Typing still replaces it, as typing over a selection does.
@@ -294,10 +294,10 @@ enum SelfTest {
     /// the selected text (`@js` here; `@improve` live on Bedrock).
     static func testCommandsOnSelection(_ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
         section("commands on the selected text", needs: .composing)
-        let (document, inserted, secureBefore) = (client.document, client.inserted, controller.secureInputActive)
+        let (document, inserted, secureBefore) = (client.document, client.inserted, controller.services.secureInputActive)
         defer {
             (client.document, client.inserted, client.selection, client.insertionPoint, client.ignoresRanges) = (document, inserted, nil, nil, false)
-            controller.secureInputActive = secureBefore
+            controller.services.secureInputActive = secureBefore
         }
         let text = "Dear team, this sentance have a error. Thanks!"
         let part = "this sentance have a error."
@@ -328,14 +328,14 @@ enum SelfTest {
         let model = controller.panelModel()
         check(controller.composer.draft == "@improve " && controller.composer.draftInPanel && untouched(),
               "\"@improve\" on the selection: nothing marked, the text and its selection untouched ('\(client.document)', marked '\(client.marked)')")
-        check(model.input == "improve › ▏" && (model.header ?? "").contains(part) && (model.header ?? "").contains("27"),
-              "the panel shows the command as typed, then the selection (\(model.input ?? "-") / \(model.header ?? "-"))")
+        check(model.inputText == "improve › ▏" && (model.headerText ?? "").contains(part) && (model.headerText ?? "").contains("27"),
+              "the panel shows the command as typed, then the selection (\(model.inputText ?? "-") / \(model.headerText ?? "-"))")
         // Pinyin in the command's text: in the panel's input line, its candidates below; Space picks.
         type("nihao", controller, client)
         let pinyin = controller.panelModel()
-        check(untouched() && pinyin.input?.hasPrefix("improve › ") == true && pinyin.input?.contains("ni") == true
+        check(untouched() && pinyin.inputText?.hasPrefix("improve › ") == true && pinyin.inputText?.contains("ni") == true
               && pinyin.rows.contains { $0.text == "你好" },
-              "pinyin is shown in the panel's input line with its candidates, not in the field (\(pinyin.input ?? "-"))")
+              "pinyin is shown in the panel's input line with its candidates, not in the field (\(pinyin.inputText ?? "-"))")
         _ = space(controller, client)
         check(controller.composer.draft == "@improve 你好" && untouched(), "Space picks 你好 into the command (\(controller.composer.draft))")
         _ = escape(controller, client)
@@ -368,10 +368,10 @@ enum SelfTest {
 
         // Never read during secure input, nor with the setting off: "@" is marked over it as before.
         select()
-        controller.secureInputActive = { true }
+        controller.services.secureInputActive = { true }
         press(controller, client, "@", code: 0x13, flags: .shift)
         check(controller.composer.selection == nil && client.marked == "@", "not read while secure input is on (marked '\(client.marked)')")
-        controller.secureInputActive = secureBefore
+        controller.services.secureInputActive = secureBefore
         _ = escape(controller, client)
         select()
         settings.useSelection = false
@@ -799,8 +799,8 @@ enum SelfTest {
         let before = versions(), beforeResult = controller.composer.result
         type("shorter", controller, client)
         let typing = controller.panelModel()
-        check(controller.composer.refineLine == "shorter" && typing.input == "修改 › shorter▏" && controller.composer.phase == .choosing,
-              "letters start the refine line, the results stay (\(typing.input ?? "no line"))")
+        check(controller.composer.refineLine == "shorter" && typing.inputText == "修改 › shorter▏" && controller.composer.phase == .choosing,
+              "letters start the refine line, the results stay (\(typing.inputText ?? "no line"))")
         check(typing.footer.hasPrefix("⇧⏎ 修改 · ⏎ 上屏"), "the footer says ⇧⏎ refines, ⏎ inserts (\(typing.footer))")
         readmeSnapshot("refine-typing", controller, client, in: snapshotDirectory)  // release notes
         check(shiftEnter(controller, client) && controller.composer.isRefining, "⇧⏎ runs the refine")
@@ -808,7 +808,7 @@ enum SelfTest {
             let after = versions()
             check(after.count >= 2 && average(after) < average(before),
                   String(format: "the refined versions are shorter (%.0f → %.0f characters on average)", average(before), average(after)))
-            let header = controller.panelModel().header ?? ""
+            let header = controller.panelModel().headerText ?? ""
             check(header == "已修改：shorter", "the header names the step (\(header))")
             readmeSnapshot("refine", controller, client, in: snapshotDirectory)  // release notes
             check(controller.panelModel().footer.contains("Esc 上一版"), "the footer offers the step back (\(controller.panelModel().footer))")
@@ -822,13 +822,13 @@ enum SelfTest {
             _ = pump(timeout: 2) { controller.composer.phase == .choosing }
             check(controller.composer.phase == .choosing && versions() == after, "the same refine again is answered from the cache")
             // Secure input refuses a refine like any request: the results stay, the instruction comes back.
-            controller.secureInputActive = { true }
+            controller.services.secureInputActive = { true }
             type("warmer", controller, client)
             _ = shiftEnter(controller, client)
             let refusal = controller.composer.refineError ?? ""
             check(refusal.contains("安全输入") && versions() == after && controller.composer.refineText == "warmer"
                   && controller.panelModel().status == .error(refusal), "secure input refuses the refine (\(refusal))")
-            controller.secureInputActive = { false }
+            controller.services.secureInputActive = { false }
             _ = escape(controller, client)  // clears the line
             let first = controller.composer.choices[controller.composer.highlighted].text
             _ = press(controller, client, "1", code: 0x12)
@@ -847,7 +847,7 @@ enum SelfTest {
         section("English input → English polish + 黑话 (live Bedrock)", needs: [.composing, .bedrock])
         settings.rewriteStyles = ["润色", "简洁", "黑话"]
         let english = settings
-        controller.converter = Converter(loadConfig: { english })
+        controller.services.converter = Converter(loadConfig: { english })
         tapShift(controller, client)
         let sentence = "this is a blocker bug your team need fix it asap"
         improve(controller, client)
@@ -896,7 +896,7 @@ enum SelfTest {
         settings.outputLanguage = .chinese
         settings.rewriteStyles = ["简洁", "黑话"]
         let chinese = settings
-        controller.converter = Converter(loadConfig: { chinese })
+        controller.services.converter = Converter(loadConfig: { chinese })
         improve(controller, client)
         type("zhegexiangmudejindutaimanle", controller, client)
         _ = space(controller, client)
@@ -938,10 +938,10 @@ enum SelfTest {
             return
         }
         settings.rewriteStyles = RewriteStyle.defaultNames
-        controller.loadSettings = { SelfTest.settings }
+        controller.services.loadSettings = { SelfTest.settings }
         controller.applySettings()
         let voiced = settings
-        controller.converter = Converter(loadConfig: { voiced })
+        controller.services.converter = Converter(loadConfig: { voiced })
         for language in [Language.chinese, .english] {
             if runAsync(5, { await VoiceInput.isModelInstalled(language) }) == true {
                 check(true, "\(language.displayName) speech model installed")
@@ -970,8 +970,8 @@ enum SelfTest {
             return say.terminationStatus == 0 ? url : nil
         }
         var holding = false
-        controller.isVoiceKeyHeld = { holding }
-        defer { controller.isVoiceKeyHeld = { NSEvent.modifierFlags.contains(.option) && NSEvent.pressedMouseButtons == 0 } }
+        controller.services.isVoiceKeyHeld = { holding }
+        defer { controller.services.isVoiceKeyHeld = { NSEvent.modifierFlags.contains(.option) && NSEvent.pressedMouseButtons == 0 } }
         func optionKey(down: Bool) {
             holding = down
             // As the system reports it: the Option flag plus the right-Option device bit.
@@ -1100,18 +1100,18 @@ enum SelfTest {
     static func testCommands(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
         section("@ commands (live Bedrock, Spotlight)", needs: .composing)
         var opened: [String] = [], terminal: [String] = [], copied: [String] = []
-        let saved = (openItem: controller.openItem, runInTerminal: controller.runInTerminal, copyText: controller.copyText)
+        let saved = (openItem: controller.openItem, runInTerminal: controller.services.runInTerminal, copyText: controller.copyText)
         controller.openItem = { opened.append($0) }
         var agentArguments: [[String]] = []
-        controller.runInTerminal = { agentArguments.append($0); terminal.append($1) }
-        controller.startAgent = { _ in "selftest" }  // never a real background task
+        controller.services.runInTerminal = { agentArguments.append($0); terminal.append($1) }
+        controller.services.startAgent = { _ in "selftest" }  // never a real background task
         controller.copyText = { copied.append($0) }
-        controller.programInstalled = { _ in true }  // @agent runs here even without its agent
-        controller.setCommands(Command.catalog(controller.loadSettings().customCommands), recheck: true)
-        controller.composer.commands = Command.catalog(controller.loadSettings().customCommands)
+        controller.services.programInstalled = { _ in true }  // @agent runs here even without its agent
+        controller.setCommands(Command.catalog(controller.services.loadSettings().customCommands), recheck: true)
+        controller.composer.commands = Command.catalog(controller.services.loadSettings().customCommands)
         defer {
             controller.openItem = saved.openItem
-            controller.runInTerminal = saved.runInTerminal
+            controller.services.runInTerminal = saved.runInTerminal
             controller.copyText = saved.copyText
         }
         func at() { _ = press(controller, client, "@", code: 0x13, flags: .shift) }  // ⇧2
@@ -1159,8 +1159,8 @@ enum SelfTest {
               "@agent starts a Claude Code session with the text, inserts nothing (\(terminal) | \(controller.panelModel().detail ?? "-"))")
         check(agentArguments.first == ["claude", "--"], "…as `claude -- <text>` (\(agentArguments))")
         // While secure input is on it doesn't start: the text stays in the draft until it is off.
-        let secureInput = controller.secureInputActive
-        controller.secureInputActive = { true }
+        let secureInput = controller.services.secureInputActive
+        controller.services.secureInputActive = { true }
         at()
         type("ag", controller, client)
         _ = space(controller, client)
@@ -1168,14 +1168,14 @@ enum SelfTest {
         _ = enter(controller, client)
         check(terminal.count == 1 && client.marked == "agent › 你好",
               "@agent doesn't start Claude Code while secure input is on (\(client.marked))")
-        controller.secureInputActive = secureInput
+        controller.services.secureInputActive = secureInput
         _ = enter(controller, client)
         check(terminal.count == 2 && terminal.last == "你好" && client.marked.isEmpty,
               "…and starts it once secure input is off (\(terminal))")
         // Another agent picked in Settings whose program isn't on this Mac: @agent goes with the next key, without the
         // text field becoming active again; picked back, it's there again.
-        let installedBefore = controller.programInstalled
-        controller.programInstalled = { $0 == "claude" }
+        let installedBefore = controller.services.programInstalled
+        controller.services.programInstalled = { $0 == "claude" }
         func nextKey() {
             type("a", controller, client)
             controller.commitComposition(client)
@@ -1187,7 +1187,7 @@ enum SelfTest {
         nextKey()
         let backForClaude = pump(timeout: 3) { controller.composer.commands.contains(.agent) }
         check(goneForGemini && backForClaude, "@agent is offered for the agent picked: not for Gemini CLI missing, again for Claude Code")
-        controller.programInstalled = installedBefore
+        controller.services.programInstalled = installedBefore
         check(TerminalLauncher.shellQuote("it's $HOME `x`") == "'it'\\''s $HOME `x`'", "the prompt is passed as one quoted word")
 
         settle()
@@ -1209,7 +1209,7 @@ enum SelfTest {
         _ = enter(controller, client)
         check(opened == ["/System/Applications/Calculator.app"] && client.marked.isEmpty
               && !controller.composer.engineState.isAsciiMode, "⏎ opens it, inserts nothing, and Chinese is back")
-        check(controller.loadOpenHistory().entries.map(\.path) == ["/System/Applications/Calculator.app"]
+        check(controller.services.loadOpenHistory().entries.map(\.path) == ["/System/Applications/Calculator.app"]
               && UserDefaults.standard.data(forKey: OpenHistoryStore.key) == userHistory,
               "…and keeps it in the test's own @open history, not the user's")
 
@@ -1246,7 +1246,7 @@ enum SelfTest {
         check(web.map(\.path) == ["https://example.com"] && controller.panelModel().rows.first?.comment == "在浏览器中打开",
               "a web address is the only row, to open in the browser (\(web.map(\.path)))")
         _ = enter(controller, client)
-        check(opened.last == "https://example.com" && !controller.loadOpenHistory().entries.contains { $0.path.hasPrefix("https:") },
+        check(opened.last == "https://example.com" && !controller.services.loadOpenHistory().entries.contains { $0.path.hasPrefix("https:") },
               "⏎ opens it in the browser, not kept in the history")
 
         // Apps by their Chinese names (Spotlight knows them by the system language's only), several keywords
@@ -1293,10 +1293,10 @@ enum SelfTest {
         _ = escape(controller, client)
         // One letter isn't searched as it is typed (most paths have an "a" in them: seconds of Spotlight); ⏎ searches it.
         // The rows after ⏎ are drawn as when typing: a web address opens in the browser, a content match says so.
-        let searchFiles = controller.searchFiles
+        let searchFiles = controller.services.searchFiles
         var searched: [String] = []
         let mention = SearchResult(name: "notes.txt", path: "/tmp/notes.txt", matchedContent: true)
-        controller.searchFiles = { query, _ in
+        controller.services.searchFiles = { @MainActor query, _ in
             searched.append(query)
             return query == "a" ? [SearchResult.web("example.com")!, mention] : [mention]
         }
@@ -1329,7 +1329,7 @@ enum SelfTest {
               "only content matches: ⏎ lists them to pick from, opens nothing (\(liveFooter))")
         _ = escape(controller, client)
         _ = escape(controller, client)
-        controller.searchFiles = searchFiles
+        controller.services.searchFiles = searchFiles
         check(client.marked.isEmpty, "…Esc twice: nothing left")
 
         // "@" with a letter no command starts with is a mention: it goes in as typed.
@@ -1351,17 +1351,17 @@ enum SelfTest {
         var notes: [String] = [], reminders: [ReminderDraft] = [], copied: [String] = []
         var failure: Error?
         var held = false  // a save waits while this is set (something is typed meanwhile)
-        let saved = (controller.noteDestination, controller.addReminder, controller.parseReminder, controller.secureInputActive,
+        let saved = (controller.services.noteDestination, controller.services.addReminder, controller.services.parseReminder, controller.services.secureInputActive,
                      controller.readClipboard, controller.copyText)
         // Notes, as the settings have it by default: a stand-in for it.
-        controller.noteDestination = { _ in
+        controller.services.noteDestination = { _ in
             StandInNotes { text in
                 while held { try await Task.sleep(nanoseconds: 10_000_000) }
                 if let failure { throw failure }
                 notes.append(text)
             }
         }
-        controller.addReminder = { reminder in
+        controller.services.addReminder = { @MainActor reminder in
             while held { try await Task.sleep(nanoseconds: 10_000_000) }
             if let failure { throw failure }
             reminders.append(reminder)
@@ -1376,7 +1376,7 @@ enum SelfTest {
             }
         }
         defer {
-            (controller.noteDestination, controller.addReminder, controller.parseReminder, controller.secureInputActive,
+            (controller.services.noteDestination, controller.services.addReminder, controller.services.parseReminder, controller.services.secureInputActive,
              controller.readClipboard, controller.copyText) = saved
             observers.forEach { NotificationCenter.default.removeObserver($0) }
         }
@@ -1415,11 +1415,11 @@ enum SelfTest {
         check(pump(timeout: 2) { notice() == "已存到备忘录" } && notes == ["你好"],
               "the text goes to Notes, then 「已存到备忘录」 (\(notes), \(notice() ?? "no notice"))")
         // Secure input on (a password field elsewhere) doesn't hold it back: nothing goes to a model.
-        controller.secureInputActive = { true }
+        controller.services.secureInputActive = { true }
         note("nihao", in: controller, client)
         _ = enter(controller, client)  // converts the pinyin and saves
         check(pump(timeout: 2) { notes.count == 2 } && notes.last == "你好", "…also while secure input is on (\(notes))")
-        controller.secureInputActive = saved.3
+        controller.services.secureInputActive = saved.3
         // ⌃V takes the clipboard's text, its lines too, shown with 「 ↵ 」; ⏎ saves it as it was.
         controller.readClipboard = { .text("牛奶\n鸡蛋\n面包") }
         note("", in: controller, client)
@@ -1504,8 +1504,8 @@ enum SelfTest {
 
         // How the row shows a day, no date and a time that is over (stand-ins for the parser); Space, 1
         // and ⏎ add it; secure input doesn't hold it back.
-        func confirmRow(_ reminder: ReminderDraft) -> CandidateView.Row? {
-            controller.parseReminder = { _ in reminder }
+        func confirmRow(_ reminder: ReminderDraft) -> PanelModel.Row? {
+            controller.services.parseReminder = { _ in reminder }
             at()
             type("rem", controller, client)
             tab()
@@ -1513,12 +1513,12 @@ enum SelfTest {
             _ = enter(controller, client)
             return controller.composer.phase == .choosing ? controller.panelModel().rows.first : nil
         }
-        controller.secureInputActive = { true }
+        controller.services.secureInputActive = { true }
         let noDate = ReminderDraft(title: "买牛奶")
         check(confirmRow(noDate)?.comment == "未设时间", "no date: 「未设时间」, also while secure input is on")
-        controller.secureInputActive = saved.3
+        controller.services.secureInputActive = saved.3
         _ = press(controller, client, "1", code: 0x12)
-        check(pump(timeout: 2) { reminders.count == 2 } && reminders.last == noDate && notice() == "已加到提醒事项",
+        check(pump(timeout: 2) { reminders.count == 2 && notice() == "已加到提醒事项" } && reminders.last == noDate,
               "1 adds it: \(notice() ?? "no notice")")
         let yesterday = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: Date()))!
         let yesterday9 = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: yesterday)!
@@ -1527,7 +1527,7 @@ enum SelfTest {
         let overText = "昨天 \(clock(9)) · 已过"
         check(confirmRow(over)?.comment == overText, "a time that is over: 「已过」 (\(controller.panelModel().rows.first?.comment ?? "-"))")
         _ = space(controller, client)
-        check(pump(timeout: 2) { reminders.count == 3 } && notice() == "已加到提醒事项：" + overText, "Space adds it: \(notice() ?? "-")")
+        check(pump(timeout: 2) { reminders.count == 3 && notice() == "已加到提醒事项：" + overText }, "Space adds it: \(notice() ?? "-")")
         let later = calendar.date(byAdding: .day, value: 5, to: calendar.startOfDay(for: Date()))!
         let day = ReminderDraft(title: "交房租", due: calendar.dateComponents([.year, .month, .day], from: later))
         let dayComment = confirmRow(day)?.comment ?? ""
@@ -1614,13 +1614,13 @@ enum SelfTest {
         weak let closed = other
         if let field = other {
             field.clientOverride = otherClient
-            field.loadSettings = { SelfTest.settings }
-            field.loadCommandUsage = { CommandUsage() }
-            field.saveCommandUsage = { _ in }
-            field.secureInputActive = { false }
+            field.services.loadSettings = { SelfTest.settings }
+            field.services.loadCommandUsage = { CommandUsage() }
+            field.services.saveCommandUsage = { _ in }
+            field.services.secureInputActive = { false }
             field.readClipboard = { .text("买牛奶") }
             field.copyText = { copied.append($0) }
-            field.noteDestination = controller.noteDestination
+            field.services.noteDestination = controller.services.noteDestination
             field.ensureEngine()
             field.applySettings()
             note("", in: field, otherClient)
@@ -1643,14 +1643,14 @@ enum SelfTest {
         if let terminal = AllInOneIMEInputController(server: controller.server(), delegate: nil, client: nil) {
             let lines = "cd ~/project\nrm -rf build\nmake install"
             terminal.clientOverride = terminalClient
-            terminal.loadSettings = { SelfTest.settings }
-            terminal.loadCommandUsage = { CommandUsage() }
-            terminal.saveCommandUsage = { _ in }
-            terminal.secureInputActive = { false }
+            terminal.services.loadSettings = { SelfTest.settings }
+            terminal.services.loadCommandUsage = { CommandUsage() }
+            terminal.services.saveCommandUsage = { _ in }
+            terminal.services.secureInputActive = { false }
             terminal.readClipboard = { .text(lines) }
             terminal.copyText = { copied.append($0) }
-            terminal.noteDestination = controller.noteDestination
-            terminal.addReminder = controller.addReminder
+            terminal.services.noteDestination = controller.services.noteDestination
+            terminal.services.addReminder = controller.services.addReminder
             terminal.activateServer(terminalClient)
             /// ⌃V in an empty @note: the clipboard's lines in the draft.
             func pending() -> Bool {
@@ -1744,8 +1744,8 @@ enum SelfTest {
         check(client.marked == "reportissue › panel stuck", "@reporti Tab picks @reportissue, the title after it (\(client.marked))")
         _ = enter(controller, client)
         let model = controller.panelModel()
-        var shown = ""
-        if case let .hint(text) = model.status { shown = text }
+        // What it fills in besides the title, as the panel says it (a list under the hint).
+        let shown = model.statusText ?? ""
         check(controller.composer.phase == .choosing && opened.isEmpty && model.rows.first?.text == "panel stuck",
               "⏎ shows the issue first, nothing opened (\(model.rows.map(\.text)))")
         check(shown.contains("AllInOneIME: \(AppVersion.string)") && shown.contains("macOS: ") && shown.contains("Input languages: ")
@@ -1769,18 +1769,18 @@ enum SelfTest {
         var recent: [String] = []
         var contacts: [Contact]? = [Contact(name: "张三", handles: ["+1 555 0100", "zhangsan@example.com"]),
                                     Contact(name: "李四", handles: ["+86 139 0000 2222"])]
-        controller.loadContacts = { contacts }
-        controller.messageSender = sender
-        controller.loadRecentHandles = { recent }
-        controller.saveRecentHandles = { recent = $0 }
-        controller.programInstalled = { _ in true }
+        controller.services.loadContacts = { @MainActor in contacts }
+        controller.services.messageSender = sender
+        controller.services.loadRecentHandles = { recent }
+        controller.services.saveRecentHandles = { recent = $0 }
+        controller.services.programInstalled = { _ in true }
         controller.setCommands(Command.catalog([]), recheck: true)
         controller.composer.commands = Command.catalog([])
         defer {
-            controller.loadContacts = { [] }
-            controller.messageSender = StandInSender()
-            controller.loadRecentHandles = { [] }
-            controller.saveRecentHandles = { _ in }
+            controller.services.loadContacts = { [] }
+            controller.services.messageSender = StandInSender()
+            controller.services.loadRecentHandles = { [] }
+            controller.services.saveRecentHandles = { _ in }
         }
         func at() { _ = press(controller, client, "@", code: 0x13, flags: .shift) }
         func start() {
@@ -1849,8 +1849,8 @@ enum SelfTest {
 
         // Secure input: not sent.
         contacts = []
-        let secureInput = controller.secureInputActive
-        controller.secureInputActive = { true }
+        let secureInput = controller.services.secureInputActive
+        controller.services.secureInputActive = { true }
         start()
         type("+15550199", controller, client)
         _ = found()
@@ -1859,7 +1859,7 @@ enum SelfTest {
         _ = space(controller, client)
         _ = enter(controller, client)
         check(controller.composer.phase == .drafting && sender.sent.count == 1, "nothing is sent while secure input is on")
-        controller.secureInputActive = secureInput
+        controller.services.secureInputActive = secureInput
         _ = escape(controller, client)
         controller.commitComposition(client)
         check(client.inserted == insertedBefore, "nothing went into the text field")
@@ -1916,8 +1916,8 @@ enum SelfTest {
         check(fitted.string.hasSuffix("…") && width <= CandidateView.Metrics.maxCellTextWidth
               && width > CandidateView.Metrics.maxCellTextWidth - CandidateView.Fonts.candidate.pointSize * 2,
               "a long candidate is cut to fit, no gap after the … (\(Int(width)) of \(Int(CandidateView.Metrics.maxCellTextWidth)) pt)")
-        panel.show(CandidateView.Model(rows: ["你好", long, "拟好"].enumerated().map {
-            CandidateView.Row(label: "\($0.offset + 1)", text: $0.element, style: .candidate)
+        panel.show(PanelModel(rows: ["你好", long, "拟好"].enumerated().map {
+            PanelModel.Row(label: "\($0.offset + 1)", text: $0.element, kind: .candidate)
         }, highlighted: 1, footer: "空格 选词 · 开头打 @ 用命令", horizontal: true), anchor: client.caretRect)
         snapshot("1c-pinyin-horizontal-long", in: snapshotDirectory)
         // The setting is on the Input page (with the input languages), and the search finds it there.
@@ -1951,42 +1951,6 @@ enum SelfTest {
         }
     }
 
-    /// @translate with nothing to translate into but the sentence's own language (a new user whose system
-    /// has no other language): no request, a notice, and the settings open on Translate & Rewrite.
-    static func testNothingToTranslateInto(_ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
-        section("@translate with nothing to translate into", needs: .composing)
-        let (settingsBefore, loadBefore, openBefore) = (settings, controller.loadSettings, controller.openSettings)
-        var opened: [SettingsPage] = []
-        defer {
-            controller.commitComposition(client)
-            (settings, controller.loadSettings, controller.openSettings) = (settingsBefore, loadBefore, openBefore)
-            controller.applySettings()
-            controller.composer.setInputMode(settings.defaultInput)
-        }
-        settings = (try? Config.load()) ?? .default
-        (settings.typeOut, settings.typeOutMistakes) = (false, false)  // inserted at once, no typos
-        settings.setOrder([Language.english])
-        settings.setOrder([OutputLanguage.english])
-        settings.uiLanguage = "en"
-        controller.loadSettings = { SelfTest.settings }
-        controller.openSettings = { opened.append($0) }
-        controller.applySettings()
-        controller.composer.setInputMode(.english)
-        press(controller, client, "@", code: 0x13, flags: .shift)
-        type("t", controller, client)
-        press(controller, client, "\t", code: VirtualKey.tab)
-        type("good morning", controller, client)
-        _ = enter(controller, client)
-        _ = pump(timeout: 0.5) { !opened.isEmpty }
-        let shown = controller.panelModel()
-        check(opened == [.writing] && !controller.composer.choices.contains { $0.kind == .version },
-              "@translate with nothing to translate into opens the settings on Translate & Rewrite, no request (\(opened))")
-        let text = [shown.footer, shown.detail ?? "", "\(shown.status)"].joined(separator: " | ")
-        check(text.contains("No language to translate into"), "…and says why (\(text))")
-        _ = escape(controller, client)
-        _ = escape(controller, client)
-    }
-
     /// The English README's images (docs/en, `en-*`): what someone who writes English sees, not the
     /// Chinese scenes with the interface in English. English is the only input language, @translate goes
     /// into Spanish, French and German, and the interface is English. Live requests; the settings it
@@ -1994,10 +1958,10 @@ enum SelfTest {
     static func englishReadmeScenes(_ controller: AllInOneIMEInputController, _ client: FakeTextClient,
                                     in snapshotDirectory: URL) {
         section("the English README's scenes (live Bedrock)", needs: [.composing, .bedrock])
-        let (converterBefore, settingsBefore, loadBefore) = (controller.converter, settings, controller.loadSettings)
+        let (converterBefore, settingsBefore, loadBefore) = (controller.services.converter, settings, controller.services.loadSettings)
         defer {
             controller.commitComposition(client)
-            (controller.converter, settings, controller.loadSettings) = (converterBefore, settingsBefore, loadBefore)
+            (controller.services.converter, settings, controller.services.loadSettings) = (converterBefore, settingsBefore, loadBefore)
             controller.applySettings()
             controller.composer.setInputMode(settings.defaultInput)
         }
@@ -2008,9 +1972,9 @@ enum SelfTest {
         settings.setOrder(languages)
         settings.uiLanguage = "en"
         settings.actionKey = .enter
-        controller.loadSettings = { SelfTest.settings }
+        controller.services.loadSettings = { SelfTest.settings }
         controller.applySettings()
-        controller.converter = Converter(loadConfig: {
+        controller.services.converter = Converter(loadConfig: {
             var config = try Config.load()
             config.setOrder([Language.english])
             config.setOrder(languages)
@@ -2265,14 +2229,14 @@ enum SelfTest {
         // These commands run nothing while secure input is on, and a locked screen holds it. Nothing typed
         // here is secret, and the secure input refusal has its own checks, so this section runs without it.
         let (secureInput, installed, commands, searchKey) =
-            (controller.secureInputActive, controller.programInstalled, controller.composer.commands, controller.loadSearchKey)
-        controller.secureInputActive = { false }
-        controller.programInstalled = { CommandRunner.isInstalled($0, path: ShellEnvironment.current["PATH"]) }
-        controller.loadSearchKey = { nil }
+            (controller.services.secureInputActive, controller.services.programInstalled, controller.composer.commands, controller.services.loadSearchKey)
+        controller.services.secureInputActive = { false }
+        controller.services.programInstalled = { CommandRunner.isInstalled($0, path: ShellEnvironment.current["PATH"]) }
+        controller.services.loadSearchKey = { nil }
         defer {
-            controller.secureInputActive = secureInput
-            controller.programInstalled = installed
-            controller.loadSearchKey = searchKey
+            controller.services.secureInputActive = secureInput
+            controller.services.programInstalled = installed
+            controller.services.loadSearchKey = searchKey
             controller.setCommands(commands)
         }
         // Only the built-in commands, so the user's own can't come first in the list.
@@ -2281,7 +2245,7 @@ enum SelfTest {
         check(pump(timeout: 10) { controller.composer.commands.contains(.py) == python },
               "@py is offered only with python3 installed (python3: \(python))")
         // A check of the programs that ends while a command is being written applies once that's done.
-        controller.programInstalled = { $0 != Command.py.program }
+        controller.services.programInstalled = { $0 != Command.py.program }
         press(controller, client, "@", code: 0x13, flags: .shift)  // composing: the list is up
         controller.setCommands(Command.catalog([]), recheck: true)
         _ = pump(timeout: 1) { false }  // the check runs in the background meanwhile
@@ -2291,7 +2255,7 @@ enum SelfTest {
         check(keptWhileComposing && !controller.composer.commands.contains(.py),
               "a program check that ended while a command was written hides @py once it's done")
         _ = escape(controller, client)
-        controller.programInstalled = { CommandRunner.isInstalled($0, path: ShellEnvironment.current["PATH"]) }
+        controller.services.programInstalled = { CommandRunner.isInstalled($0, path: ShellEnvironment.current["PATH"]) }
         controller.setCommands(Command.catalog([]), recheck: true)
         _ = pump(timeout: 10) { controller.composer.commands.contains(.py) == python }
 
@@ -2446,10 +2410,10 @@ enum SelfTest {
         section("script extensions (a temporary folder)", needs: .composing)
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-selftest-\(UUID().uuidString)")
         try? FileManager.default.createDirectory(at: folder.appendingPathComponent("stbundle"), withIntermediateDirectories: true)
-        let (loadExtensions, notify, ask) = (controller.loadExtensions, controller.scriptTasks.notify, controller.scriptTasks.askToNotify)
+        let (loadExtensions, notify, ask) = (controller.services.loadExtensions, controller.scriptTasks.notify, controller.scriptTasks.askToNotify)
         // Preferences that take a while to read (as the keychain may): a key never waits for them.
-        let preferences = controller.extensionPreferences
-        controller.extensionPreferences = { bundle, _ in
+        let preferences = controller.services.extensionPreferences
+        controller.services.extensionPreferences = { bundle, _ in
             Thread.sleep(forTimeInterval: 0.3)
             return bundle.values([:])
         }
@@ -2458,10 +2422,10 @@ enum SelfTest {
         controller.scriptTasks.askToNotify = {}
         defer {
             try? FileManager.default.removeItem(at: folder)
-            controller.loadExtensions = loadExtensions
+            controller.services.loadExtensions = loadExtensions
             controller.scriptTasks.notify = notify
             controller.scriptTasks.askToNotify = ask
-            controller.extensionPreferences = preferences
+            controller.services.extensionPreferences = preferences
             controller.composer.setInputMode(settings.defaultInput)
         }
         func add(_ name: String, _ prefix: String, _ metadata: [String], _ body: String) {
@@ -2494,7 +2458,7 @@ enum SelfTest {
         check(withCopy.commands == index.commands && withCopy.bundles == index.bundles && withCopy.skipped.isEmpty
               && withCopy.identical.map(\.path) == [copy.appendingPathComponent("stquiet.sh").path],
               "a found copy of the folder adds nothing and warns of nothing (\(withCopy.identical.map(\.lastPathComponent)), \(withCopy.skipped.count) skipped)")
-        controller.loadExtensions = { _, _ in index }
+        controller.services.loadExtensions = { _, _ in index }
         controller.composer.setInputMode(.english)  // the texts below are typed as letters
 
         let before = client.inserted.count
@@ -2646,7 +2610,7 @@ enum SelfTest {
         }
         // The self-test's config, but results inserted at once: checks read what went in right away (the
         // typing-out section turns it on for itself).
-        controller.loadSettings = {
+        controller.services.loadSettings = {
             var config = LiveConfig.current
             config.typeOut = false
             return config
@@ -2656,13 +2620,13 @@ enum SelfTest {
         // check pastes them itself.
         controller.canPasteInTerminal = { false }
         controller.pasteInTerminal = { _ in }
-        controller.pointerUsedWithin = { _ in false }  // the user's own clicks meanwhile aren't Shift-clicks
+        controller.services.pointerUsedWithin = { _ in false }  // the user's own clicks meanwhile aren't Shift-clicks
         controller.selectionByAccessibility = false  // the fake field's selection only, never the user's frontmost app's
-        controller.loadCommandUsage = { CommandUsage() }  // leave the user's command order alone
-        controller.loadExtensions = { _, _ in .empty }  // never the user's own extensions (the extension check makes its own)
-        controller.saveCommandUsage = { _ in }
+        controller.services.loadCommandUsage = { CommandUsage() }  // leave the user's command order alone
+        controller.services.loadExtensions = { _, _ in .empty }  // never the user's own extensions (the extension check makes its own)
+        controller.services.saveCommandUsage = { _ in }
         controller.recordApp = { _ in }  // the user's recent apps (Settings → Apps) left alone
-        controller.takeRenameNotice = { _ in nil }  // the user's own rename notice left for them (the @reply section has its own)
+        controller.services.takeRenameNotice = { _ in nil }  // the user's own rename notice left for them (the @reply section has its own)
         controller.warmsUpVision = false  // the real clipboard's types left alone (the @reply section reads its own)
         giveUp = { for _ in 0..<4 where controller.composer.isComposing { _ = escape(controller, client) } }
         // @translate: into the output languages but the sentence's own; with @improve, one request. For the
@@ -2670,15 +2634,15 @@ enum SelfTest {
         // It runs before `settings` is pinned below: its own settings here (the README's Chinese interface,
         // English only), and the self-test's back afterwards.
         section("@translate for the README (live Bedrock)", needs: [.composing, .bedrock])
-        let (converterBefore, settingsBefore, loadBefore) = (controller.converter, settings, controller.loadSettings)
+        let (converterBefore, settingsBefore, loadBefore) = (controller.services.converter, settings, controller.services.loadSettings)
         settings = (try? Config.load()) ?? .default
         (settings.typeOut, settings.typeOutMistakes) = (false, false)  // inserted at once, no typos
         settings.setOrder([OutputLanguage.english])  // the hint under the draft says the same
         settings.setOrder([Language.chinese, .english])  // pinyin first
         settings.uiLanguage = "zh"
-        controller.loadSettings = { SelfTest.settings }
+        controller.services.loadSettings = { SelfTest.settings }
         controller.applySettings()
-        controller.converter = Converter(loadConfig: {
+        controller.services.converter = Converter(loadConfig: {
             var config = try Config.load()
             config.setOrder([OutputLanguage.english])
             return config
@@ -2703,21 +2667,21 @@ enum SelfTest {
             _ = escape(controller, client)
         }
         controller.commitComposition(client)
-        (controller.converter, settings, controller.loadSettings) = (converterBefore, settingsBefore, loadBefore)
+        (controller.services.converter, settings, controller.services.loadSettings) = (converterBefore, settingsBefore, loadBefore)
         controller.applySettings()
         englishReadmeScenes(controller, client, in: snapshotDirectory)
-        testNothingToTranslateInto(controller, client)
+        testNothingToTranslateInto(controller, client, in: snapshotDirectory)
         // @open's history in memory: the user's is neither read (it would reorder the results checked
         // here) nor changed (what the test opens would come first in their searches).
         var openHistory = OpenHistory()
-        controller.loadOpenHistory = { openHistory }
-        controller.recordOpen = { openHistory.record($0) }
+        controller.services.loadOpenHistory = { openHistory }
+        controller.services.recordOpen = { openHistory.record($0) }
         controller.readClipboard = { .none }  // never the real clipboard; the ⌘V section supplies its text
         // Never the real Contacts or Messages, nor the user's recent recipients (the @imessage section has its own).
-        controller.loadContacts = { [] }
-        controller.messageSender = StandInSender()
-        controller.loadRecentHandles = { [] }
-        controller.saveRecentHandles = { _ in }
+        controller.services.loadContacts = { [] }
+        controller.services.messageSender = StandInSender()
+        controller.services.loadRecentHandles = { [] }
+        controller.services.saveRecentHandles = { _ in }
         // The self-test's config (Bedrock with the user's AWS profile and region, all else the defaults) with the
         // options the checks rely on pinned; sections below change `settings` and the controller follows (nothing
         // is written to disk).
@@ -2733,8 +2697,8 @@ enum SelfTest {
         // In a column (horizontal is the default): the checks and README images below read the candidates one under
         // the other; `testHorizontalCandidates` tries the row.
         settings.candidateLayout = .vertical
-        controller.loadSettings = { SelfTest.settings }
-        controller.converter = liveConverter
+        controller.services.loadSettings = { SelfTest.settings }
+        controller.services.converter = liveConverter
         // README images read the same on every Mac: times with the 24-hour clock, whatever this one uses.
         let clockBefore = UIText.clock24
         UIText.clock24 = true
@@ -2778,6 +2742,9 @@ enum SelfTest {
         }
         controller.commitComposition(client)  // start the next section from a clean state
         client.inserted.removeAll()
+        // Its notice goes by itself (its timer, in the run loop's default mode), as any notice does. Nothing below runs the
+        // run loop before the README scene of the next sentence (1b-sentence-pinyin): the notice would still be on its footer.
+        check(pump(timeout: 5) { controller.notice == nil }, "the secure input notice goes by itself (\(controller.notice ?? "-"))")
 
         section("pass-through when idle", needs: .composing)
         check(!press(controller, client, "1", code: 0x12), "digit passes through")
@@ -2939,6 +2906,9 @@ enum SelfTest {
               "in a command ⇧Space picks, then types a space ('\(controller.composer.draft)')")
         _ = escape(controller, client)
 
+        testEnglishWords(controller, client, snapshotDirectory: snapshotDirectory)
+        testEnglishWordsSettings(snapshotDirectory: snapshotDirectory)
+
         section("Shift switches Chinese / English", needs: .composing)
         tapShift(controller, client)
         check(controller.composer.engineState.isAsciiMode, "Shift alone switches to English")
@@ -2956,7 +2926,7 @@ enum SelfTest {
         check(!controller.composer.engineState.isAsciiMode, "Shift alone switches back to Chinese")
 
         section("no AI while secure input is on", needs: .composing)
-        controller.secureInputActive = { true }
+        controller.services.secureInputActive = { true }
         improve(controller, client)
         type("nihao", controller, client)
         act(controller, client)
@@ -2967,7 +2937,7 @@ enum SelfTest {
         }
         check(press(controller, client, "0", code: 0x1D) && client.inserted.last == "你好", "0 still inserts the Chinese")
         // The rest exercises the normal state (the real flag may be on now, e.g. while the screen is locked).
-        controller.secureInputActive = { false }
+        controller.services.secureInputActive = { false }
         _ = pump(timeout: 3) { controller.panelModel().detail == nil }  // the 中/英 (Chinese/English) notice, not in the README images
 
         section("level two: translate + polish (live Bedrock)", needs: [.composing, .bedrock])
@@ -3118,8 +3088,8 @@ enum SelfTest {
 
         testEnglishAndOutput(controller, client, snapshotDirectory: snapshotDirectory)
         testVoice(controller, client, snapshotDirectory: snapshotDirectory)
-        controller.loadSettings = { SelfTest.settings }
-        controller.converter = liveConverter
+        controller.services.loadSettings = { SelfTest.settings }
+        controller.services.converter = liveConverter
         controller.applySettings()
         testCommands(controller, client, snapshotDirectory: snapshotDirectory)
         testNotesAndReminders(controller, client, snapshotDirectory: snapshotDirectory)
@@ -3133,6 +3103,7 @@ enum SelfTest {
         testSnippets(controller, client)
         testAppProfiles(controller, client, snapshotDirectory: snapshotDirectory)
         testTranslateMode(controller, client, snapshotDirectory: snapshotDirectory)
+        testShiftHoldInElectron(controller, client)
         testRecentQuestions(controller, client, snapshotDirectory: snapshotDirectory)
         testQuestionChat(controller, client, snapshotDirectory: snapshotDirectory)
         testContinueListKeepsAgentsNotInstalled(snapshotDirectory: snapshotDirectory)
@@ -3141,13 +3112,14 @@ enum SelfTest {
         testReply(controller, client)
         testReleaseImages(controller, client, snapshotDirectory: snapshotDirectory)
         testAIConfig(snapshotDirectory: snapshotDirectory)
+        testAssistantOnDevice(snapshotDirectory: snapshotDirectory)
         testDoctor(snapshotDirectory: snapshotDirectory)
         testAssistantPage(snapshotDirectory: snapshotDirectory)
         testAWSCredentials(snapshotDirectory: snapshotDirectory)
         testSnippetEditorAndReview(snapshotDirectory: snapshotDirectory)
 
         section("error display (an invalid Bedrock model)", needs: [.composing, .bedrock])
-        controller.converter = Converter(loadConfig: {
+        controller.services.converter = Converter(loadConfig: {
             var config = try Config.load()
             config.modelId = "allinoneime.invalid-model-for-selftest"
             return config

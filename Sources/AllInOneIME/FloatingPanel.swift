@@ -5,39 +5,16 @@ import Carbon
 import EventKit
 import SwiftUI
 
-extension Notification.Name {
-    /// The interface language changed (`UIText.choice`): the menu bar panel redraws in it. Main thread.
-    static let allInOneIMEInterfaceLanguageChanged = Notification.Name("AllInOneIMEInterfaceLanguageChanged")
-}
-
-/// What the panel remembers between launches (its frame, whether it's collapsed, the notes @note
-/// saved): UserDefaults; memory in the self-test, which leaves the user's alone.
-protocol PanelDefaults: AnyObject {
-    func data(forKey key: String) -> Data?
-    func string(forKey key: String) -> String?
-    func bool(forKey key: String) -> Bool
-    func set(_ value: Any?, forKey key: String)
-}
-
-extension UserDefaults: PanelDefaults {}
-
-final class MemoryDefaults: PanelDefaults {
-    private(set) var values: [String: Any] = [:]
-    func data(forKey key: String) -> Data? { values[key] as? Data }
-    func string(forKey key: String) -> String? { values[key] as? String }
-    func bool(forKey key: String) -> Bool { values[key] as? Bool ?? false }
-    func set(_ value: Any?, forKey key: String) { values[key] = value }
-}
-
-/// The notes @note saved (`SavedNotes`), as JSON under `savedNotes`.
+/// The notes @note saved (`SavedNotes`), as JSON under `savedNotes`, in what the panel remembers between launches
+/// (`DashboardSources.defaults`).
 enum SavedNotesStore {
     static let key = "savedNotes"
 
-    static func load(_ defaults: PanelDefaults) -> SavedNotes {
+    static func load(_ defaults: any KeyValueStore) -> SavedNotes {
         defaults.data(forKey: key).flatMap { try? JSONDecoder().decode(SavedNotes.self, from: $0) } ?? SavedNotes()
     }
 
-    static func save(_ notes: SavedNotes, to defaults: PanelDefaults) {
+    static func save(_ notes: SavedNotes, to defaults: any KeyValueStore) {
         if let data = try? JSONEncoder().encode(notes) { defaults.set(data, forKey: key) }
     }
 }
@@ -126,7 +103,9 @@ struct DashboardSources {
     /// The prompt @agent started a task with (short id), for one Claude Code hasn't named yet.
     var prompt: @MainActor (_ id: String) -> String?
     var openAgent: @MainActor (_ id: String) -> Void
-    var defaults: PanelDefaults
+    /// What the panel remembers between launches (the notes @note saved, the rows dismissed): the platform's store
+    /// (`Platform.defaults`, UserDefaults on the Mac); memory in the self-test, which leaves the user's alone.
+    var defaults: any KeyValueStore
     var now: @MainActor () -> Date
 
     @MainActor static var live: DashboardSources {
@@ -163,7 +142,7 @@ struct DashboardSources {
             monitorWatching: { AgentMonitor.shared.isWatching },
             prompt: { AgentMonitor.shared.prompt(for: $0) },
             openAgent: { AgentMonitor.shared.open($0) },
-            defaults: UserDefaults.standard,
+            defaults: Platform.current.defaults,
             now: { Date() })
     }
 }
@@ -1122,7 +1101,7 @@ struct FloatingPanelView: View {
                     HStack(spacing: 6) {
                         Text(title).font(.system(size: 13)).lineLimit(1)
                         Spacer(minLength: 6)
-                        Text(DashboardText.ago(note.saved, now: panel.now, language: UIText.language))
+                        Text(RelativeTime.ago(note.saved, now: panel.now, language: UIText.language, style: .short))
                             .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
                     }
                     .rowHover()
@@ -1251,7 +1230,7 @@ struct FloatingPanelView: View {
     private static let taskRowHeight: CGFloat = 38
 
     private func taskRow(_ row: AgentTaskRow) -> some View {
-        let ago = row.started.map { DashboardText.ago($0, now: panel.now, language: UIText.language) }
+        let ago = row.started.map { RelativeTime.ago($0, now: panel.now, language: UIText.language, style: .short) }
         return swipeable(.task(row.id)) { taskButton(row, ago: ago) }
     }
 
@@ -1285,7 +1264,7 @@ struct FloatingPanelView: View {
     private var scriptRuns: some View {
         ForEach(panel.scriptRuns) { run in
             let progress: AgentSession.Progress = run.outcome == .running ? .working : run.outcome == .done ? .done : .needsYou
-            let ago = DashboardText.ago(run.finished ?? run.started, now: panel.now, language: UIText.language)
+            let ago = RelativeTime.ago(run.finished ?? run.started, now: panel.now, language: UIText.language, style: .short)
             let line: String? = {
                 if case let .failed(message) = run.outcome { return message }
                 return run.output?.headline
