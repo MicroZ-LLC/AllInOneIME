@@ -45,6 +45,10 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         public var executable: String = CommandLine.arguments.first ?? ""
         /// The requests' converter; nil: one on `settings` and the platform's API keys.
         public var converter: Converter?
+        /// The Settings app `@settings` opens (AllInOneIMESettings.exe), and what it is given (a test engine's pipe);
+        /// nil: the folder of `config.json`.
+        public var settingsApp: String?
+        public var settingsAppArguments: [String] = []
 
         public init(system: SystemActions, systemQueue: SystemQueue, clipboardQueue: SystemQueue) {
             self.system = system
@@ -67,11 +71,17 @@ public final class EngineHost: WireHost, @unchecked Sendable {
     let clipboardQueue: SystemQueue
     let executable: String
     public let converter: Converter
+    /// The Settings app `@settings` opens, and its arguments (`Options`); set before the engine serves.
+    public var settingsApp: String?
+    public var settingsAppArguments: [String]
 
     private let lock = NSLock()
     private var scripted: ScriptedProvider?
     private var language: Language?
     private var states: [ObjectIdentifier: SessionState] = [:]
+    private var recent: [String] = []
+    /// The script extensions' files as last read: read again only when they changed.
+    private let extensionCache = ExtensionCache()
 
     public init(clock: WireClock = SystemClock(), options: Options, log: @escaping @Sendable (String) -> Void) {
         testMode = options.testMode
@@ -87,6 +97,8 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         systemQueue = options.systemQueue
         clipboardQueue = options.clipboardQueue
         executable = options.executable
+        settingsApp = options.settingsApp
+        settingsAppArguments = options.settingsAppArguments
         let settings = options.settings
         converter = options.converter ?? Converter(loadConfig: { settings.current })
     }
@@ -132,6 +144,23 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         return state
     }
 
+    /// The apps typed in lately, latest first (at most 12): the Settings app offers them when an app is added to the
+    /// per-app settings.
+    public var recentApps: [String] {
+        lock.lock()
+        defer { lock.unlock() }
+        return recent
+    }
+
+    func noteApp(_ app: String) {
+        guard !app.isEmpty else { return }
+        lock.lock()
+        recent.removeAll { $0 == app }
+        recent.insert(app, at: 0)
+        if recent.count > 12 { recent.removeLast(recent.count - 12) }
+        lock.unlock()
+    }
+
     /// The sessions alive now.
     var liveSessions: [ComposerSession] {
         lock.lock()
@@ -152,6 +181,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
 
     public func sessionFocused(_ session: ComposerSession) {
         let state = state(session)
+        noteApp(session.field.app)
         guard !testMode else { return }
         attachRime(to: session, state: state)
         apply(settings.current, to: session, state: state)
@@ -183,8 +213,8 @@ public final class EngineHost: WireHost, @unchecked Sendable {
     }
 
     /// The settings on the Composer, as the Mac's `applySettings`: the action key, the candidates' layout, the
-    /// languages, the commands, the interface language; the default input mode for a new session (and again when it
-    /// changed in the settings).
+    /// languages, the commands (custom ones, plugins, script extensions), the interface language; the default input
+    /// mode for a new session (and again when it changed in the settings).
     func apply(_ config: Config, to session: ComposerSession, state: SessionState) {
         let composer = session.composer
         let app = session.field.app
@@ -194,7 +224,12 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         composer.horizontalCandidates = config.candidateLayout == .horizontal
         composer.outputLanguages = config.outputLanguages
         composer.provider = config.provider
-        composer.commands = Command.catalog(config.customCommands, plugins: plugins.current)
+        // Script extensions from the folders the settings name, each on or off as they say (the Settings app's
+        // switches); their programs run through the core's runner (`startScript`).
+        let extensions = ExtensionStore.load(ExtensionStore.folders(config, found: []), cache: extensionCache)
+        composer.commands = Command.catalog(config.customCommands, plugins: plugins.current,
+                                            scripts: extensions.enabled(config.disabledExtensions),
+                                            snippets: extensions.enabledSnippets(config.disabledExtensions))
         let language = settings.interfaceLanguage(config)
         var messages = Composer.Messages.make(language: language)
         messages.actionKeyName = PanelBuilder(config: config, chinese: InterfaceLanguage.isChinese(language)).name(config.actionKey)
@@ -379,7 +414,16 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         case let .saveNote(text):
             saveNote(text, in: session)
         case .openSettings:
-            // No settings window yet: the folder with config.json, and a notice that says so.
+            // The Settings app; without one (a build of the engine alone), the folder with config.json, and a notice
+            // that says so.
+            if let app = settingsApp {
+                let (log, sid, arguments) = (self.log, session.sid, settingsAppArguments)
+                onSystem(session) { system in
+                    try system.start(app, arguments: arguments)
+                    log("session \(sid): started the Settings app")
+                }
+                break
+            }
             let folder = settings.url.deletingLastPathComponent()
             onSystem(session) { system in
                 try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)

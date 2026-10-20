@@ -14,16 +14,19 @@ import WinSDK
 //
 //   AllInOneIMEEngine [--test [--provider FILE] [--clock manual|system]] [--config FILE] [--no-keychain]
 //                     [--rime-data DIR] [--rime-user DIR] [--no-rime] [--no-panel] [--instances N] [--quiet]
+//                     [--pipe NAME] [--settings-app FILE]
 //
 //   --test        test mode: Latin letters, a manual clock, level two from a golden's scripted provider, `x-test`
-//                 directives accepted (`allinoneime-cli wire-replay` drives it), clients taken to own the foreground
+//                 directives accepted (`allinoneime-cli wire-replay` drives it), clients taken to own the foreground;
+//                 with --config, the Settings app's settings are that file's, their keys in memory
 //   --provider    test mode: level two from this scripted provider (a golden's fixture) from the start, as
 //                 `#! provider` sets it
 //   --clock       test mode: `manual` (the default: time moves only with `x-test advance` and `run tasks`) or
 //                 `system`, so a scripted stream plays out in real time for a real app (the end-to-end test)
 //   --config      the settings from FILE instead of %APPDATA%\AllInOneIME\config.json
-//   --no-keychain API keys only from the environment (ANTHROPIC_API_KEY, ...), never the Credential Manager: for tests,
-//                 which must neither read the user's keys nor tie them to a stub's address
+//   --no-keychain API keys only from the environment (ANTHROPIC_API_KEY, ...) and those saved while it runs, in memory,
+//                 never the Credential Manager: for tests, which must neither read the user's keys nor tie them to a
+//                 stub's address
 //   --rime-data   rime-ice's data (default: rime-data beside the program, else ThirdParty's); only a build (in .build)
 //                 does: any other engine, the installed one first, takes librime and its data from beside itself
 //   --rime-user   librime's user folder (default: %APPDATA%\AllInOneIME\rime): tests use their own, so that what they
@@ -32,6 +35,9 @@ import WinSDK
 //   --no-panel    no candidate window
 //   --instances   pipe instances kept waiting for a client (at least 4)
 //   --quiet       log only the engine's start, its errors and its end
+//   --pipe        for tests: this pipe (\\.\pipe\NAME) instead of the user's, with a single-instance mutex of its own,
+//                 so that a test engine runs beside the installed one; @settings gives the Settings app the same pipe
+//   --settings-app the Settings app @settings opens (default: Settings\AllInOneIMESettings.exe beside the program)
 //
 // It is also the child process `@js` code (`--run-js`) and script plugins (`--run-plugin DIR`) run in, and the process
 // of each console window it opens (`--run-in-console`, `ConsoleHold`).
@@ -39,6 +45,7 @@ import WinSDK
 let usage = """
     usage: AllInOneIMEEngine [--test [--provider FILE] [--clock manual|system]] [--config FILE] [--no-keychain]
                              [--rime-data DIR] [--rime-user DIR] [--no-rime] [--no-panel] [--instances N] [--quiet]
+                             [--pipe NAME] [--settings-app FILE]
     """
 
 struct EngineOptions {
@@ -53,6 +60,8 @@ struct EngineOptions {
     var noPanel = false
     var instances = 4
     var quiet = false
+    var pipe: String?
+    var settingsApp: String?
 }
 
 func parseOptions() -> EngineOptions {
@@ -79,6 +88,8 @@ func parseOptions() -> EngineOptions {
         case "--rime-user": options.rimeUser = value(arg)
         case "--no-rime": options.noRime = true
         case "--no-panel": options.noPanel = true
+        case "--pipe": options.pipe = value(arg)
+        case "--settings-app": options.settingsApp = value(arg)
         case "--instances":
             guard let n = args.popFirst().flatMap(Int.init), n >= 4 else { fail("--instances needs a number, 4 or more") }
             options.instances = n
@@ -166,8 +177,10 @@ func runEngine(_ options: EngineOptions) -> Never {
     let stale = ConsoleCommand.removeStalePrompts()
     if !stale.isEmpty { log("deleted \(stale.count) prompt files no console needs any more", always: true) }
 
-    // One engine per user and session (§2.5).
-    let mutex = PipeNames.mutex(sid: sid).withCString(encodedAs: UTF16.self) { CreateMutexW(nil, true, $0) }
+    // One engine per user and session (§2.5); a test's on a pipe of its own, one per pipe.
+    let pipe = options.pipe.map(PipeNames.full)
+    let mutexName = pipe.map { PipeNames.mutex(sid: sid, pipe: $0) } ?? PipeNames.mutex(sid: sid)
+    let mutex = mutexName.withCString(encodedAs: UTF16.self) { CreateMutexW(nil, true, $0) }
     if mutex == nil || GetLastError() == Win32Code.alreadyExists {
         log("another engine is running for this user: exiting", always: true)
         exit(1)
@@ -175,10 +188,10 @@ func runEngine(_ options: EngineOptions) -> Never {
 
     // The candidate window is laid out per monitor, in physical pixels, as the caret reports come.
     _ = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)
-    if options.noKeychain {
-        // Keys from the environment only (`APIKeys.load` falls back to it when the store has none).
-        APIKeys.keychain = .inMemory()
-    }
+    // Keys from the environment (`APIKeys.load` falls back to it when the store has none) and the ones the Settings
+    // app saves meanwhile, in memory: the same store for the requests and for the settings.
+    let memoryKeys: APIKeys.Keychain? = options.noKeychain || options.test ? .inMemory() : nil
+    if options.noKeychain, let memoryKeys { APIKeys.keychain = memoryKeys }
 
     let clock: WireClock = options.test && !options.systemClock ? ManualClock() : SystemClock()
     let shellThread = SystemThread(name: "AllInOneIME shell")
@@ -190,8 +203,29 @@ func runEngine(_ options: EngineOptions) -> Never {
     hostOptions.caretBounds = { Foreground.caretBounds(hwnd: $0, pid: $1) }
     hostOptions.settings = EngineSettings(url: options.config.map { URL(fileURLWithPath: $0) } ?? Config.userURL)
     hostOptions.executable = executablePath()
+    // The interface in the settings' language, or the system's: the catalog's nine.
+    let executable = URL(fileURLWithPath: hostOptions.executable)
+    if let catalog = EngineLanguage.catalog(executable: executable) {
+        let started = ProcessInfo.processInfo.systemUptime
+        do {
+            try EngineLanguage.use(catalog: catalog)
+            let ms = Int((ProcessInfo.processInfo.systemUptime - started) * 1000)
+            log("interface text: \(UIText.shipped.count) languages, read in \(ms) ms")
+        } catch {
+            log("interface text: can't read \(catalog.path): \(error): Simplified Chinese and English only", always: true)
+        }
+    } else {
+        log("interface text: no \(EngineLanguage.catalogName) beside the program: Simplified Chinese and English only", always: true)
+    }
+    let startConfig = hostOptions.settings.current
+    EngineLanguage.apply(startConfig)
+    // @settings: the Settings app, given this engine's pipe when it isn't the user's.
+    let folder = executable.deletingLastPathComponent()
+    let besides = [folder.appendingPathComponent("Settings/AllInOneIMESettings.exe"), folder.appendingPathComponent("AllInOneIMESettings.exe")]
+    hostOptions.settingsApp = options.settingsApp
+        ?? besides.first { FileManager.default.fileExists(atPath: $0.path) }.map { $0.path.replacingOccurrences(of: "/", with: "\\") }
+    hostOptions.settingsAppArguments = pipe.map { ["--pipe", $0] } ?? []
     if !options.test, !options.noRime {
-        let executable = URL(fileURLWithPath: hostOptions.executable)
         let data = options.rimeData.map { URL(fileURLWithPath: $0, isDirectory: true) }
         if data != nil, !EngineRime.isBuild(executable) {
             log("rime: an engine that isn't a build takes rime-data from beside itself only: --rime-data ignored", always: true)
@@ -199,6 +233,7 @@ func runEngine(_ options: EngineOptions) -> Never {
         if let location = EngineRime.locate(executable: executable, sharedData: data) {
             let userData = options.rimeUser.map { URL(fileURLWithPath: $0, isDirectory: true) } ?? EngineRime.defaultUserData
             let rime = EngineRime(location: location, userData: userData, log: { log($0, always: true) })
+            rime.applyFuzzyPinyin(startConfig.fuzzyPinyin)  // deployed with the rest
             do {
                 try rime.start()
                 hostOptions.rime = rime
@@ -252,19 +287,47 @@ func runEngine(_ options: EngineOptions) -> Never {
     let server = WireServer(configuration: configuration, environment: environment)
     server.testDirective = { host.testDirective($0, $1) }
     // The settings for a settings window (§12): the file the engine reads, through the core's rules, the keys in the
-    // Credential Manager (with --no-keychain, in memory). In test mode a golden gives its own (`#! settings`).
-    if !options.test {
+    // Credential Manager (with --no-keychain, in memory). In test mode a golden gives its own (`#! settings`), or
+    // --config does: that file, its keys in memory (none from the environment), its plugins in its folder.
+    if !options.test || options.config != nil {
         let store = SettingsStore(configURL: hostOptions.settings.url, fresh: { EngineSettings.fresh })
-        let service = SettingsService(store: store, platform: .windows, secrets: options.noKeychain ? .inMemory() : nil)
+        let service: SettingsService
+        if options.test, let memoryKeys {
+            let plugins = hostOptions.settings.url.deletingLastPathComponent().appendingPathComponent("plugins", isDirectory: true)
+            service = SettingsService(store: store, platform: .windows, library: PluginLibrary(directory: plugins), secrets: memoryKeys)
+            service.keySource = { APIKeys.hasKeychainKey(account: $0.rawValue, in: memoryKeys) ? .keychain : .none }
+        } else {
+            service = SettingsService(store: store, platform: .windows, secrets: memoryKeys)
+        }
         // The document in the language the panel speaks: the config's, else Windows' own list.
-        let engineSettings = hostOptions.settings
-        service.interfaceLanguage = { engineSettings.interfaceLanguage($0) }
+        let settings = hostOptions.settings
+        service.interfaceLanguage = { settings.interfaceLanguage($0) }
+        service.recentApps = { host.recentApps }
         server.settings = service
+        // After each change, wherever it was made (the Settings app, another program, a hand edit): the interface
+        // language, and fuzzy pinyin in librime, as the Mac's settings window and iCloud sync apply them.
+        let told = service.changed
+        let rime = hostOptions.rime
+        let fuzzy = Locked(initialState: startConfig.fuzzyPinyin)
+        service.changed = { revision in
+            let config = settings.current
+            EngineLanguage.apply(config)
+            let changed = fuzzy.withLock { applied -> Bool in
+                defer { applied = config.fuzzyPinyin }
+                return applied != config.fuzzyPinyin
+            }
+            if changed, let rime {
+                // Deployed again: the fields get their new sessions once it is done.
+                rime.applyFuzzyPinyin(config.fuzzyPinyin, deployed: { host.rimeBecameReady() })
+            }
+            told(revision)
+        }
     }
     runningServer = server
 
     var listenerOptions = PipeListener.Options()
     listenerOptions.pendingInstances = options.instances
+    listenerOptions.pipeName = pipe
     let listener: PipeListener
     do {
         listener = try PipeListener(server: server, sid: sid, options: listenerOptions, log: { log($0) })

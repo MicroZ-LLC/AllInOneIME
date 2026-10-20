@@ -177,6 +177,15 @@ public enum PipeNames {
     /// The engine's single-instance mutex, `Local\AllInOneIME-Engine-<SID>`.
     public static func mutex(sid: String) -> String { #"Local\AllInOneIME-Engine-"# + sid }
 
+    /// A test engine's, on a pipe of its own (`--pipe`): one per pipe, so that it runs beside the user's engine.
+    public static func mutex(sid: String, pipe: String) -> String {
+        let name = pipe.split(separator: "\\").last.map(String.init) ?? pipe
+        return mutex(sid: sid) + "-" + String(name.map { $0.isLetter || $0.isNumber || $0 == "-" ? $0 : "_" })
+    }
+
+    /// A pipe's full name: `NAME` → `\\.\pipe\NAME`; a full one as it is.
+    public static func full(_ pipe: String) -> String { pipe.hasPrefix(#"\\"#) ? pipe : #"\\.\pipe\"# + pipe }
+
     /// The pipe's security descriptor: the user as its owner, the user and SYSTEM full access, AppContainers (all and
     /// restricted) read/write, and a low mandatory label so that low-integrity processes can write. The owner is named
     /// because the DLL's server check (§2.1) requires it to be the user, and without it the owner is the token's

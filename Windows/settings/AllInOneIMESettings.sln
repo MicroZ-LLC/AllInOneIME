@@ -1,0 +1,40 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AllInOneIMESettings.Core", "AllInOneIMESettings.Core\AllInOneIMESettings.Core.csproj", "{ED538A98-9D07-43CA-8318-8391FF9D09E9}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AllInOneIMESettings", "AllInOneIMESettings\AllInOneIMESettings.csproj", "{102EBB7D-11C7-49D1-8BF4-74CF498AD5D6}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AllInOneIMESettings.Tests", "AllInOneIMESettings.Tests\AllInOneIMESettings.Tests.csproj", "{BF12C787-6332-440A-8780-46CA11BE9C25}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AllInOneIMESettings.UITests", "AllInOneIMESettings.UITests\AllInOneIMESettings.UITests.csproj", "{069017CD-CE48-4097-B8DE-15A3E7347CCA}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{ED538A98-9D07-43CA-8318-8391FF9D09E9}.Debug|Any CPU.ActiveCfg = Debug|x64
+		{ED538A98-9D07-43CA-8318-8391FF9D09E9}.Debug|Any CPU.Build.0 = Debug|x64
+		{ED538A98-9D07-43CA-8318-8391FF9D09E9}.Release|Any CPU.ActiveCfg = Release|x64
+		{ED538A98-9D07-43CA-8318-8391FF9D09E9}.Release|Any CPU.Build.0 = Release|x64
+		{102EBB7D-11C7-49D1-8BF4-74CF498AD5D6}.Debug|Any CPU.ActiveCfg = Debug|x64
+		{102EBB7D-11C7-49D1-8BF4-74CF498AD5D6}.Debug|Any CPU.Build.0 = Debug|x64
+		{102EBB7D-11C7-49D1-8BF4-74CF498AD5D6}.Release|Any CPU.ActiveCfg = Release|x64
+		{102EBB7D-11C7-49D1-8BF4-74CF498AD5D6}.Release|Any CPU.Build.0 = Release|x64
+		{BF12C787-6332-440A-8780-46CA11BE9C25}.Debug|Any CPU.ActiveCfg = Debug|x64
+		{BF12C787-6332-440A-8780-46CA11BE9C25}.Debug|Any CPU.Build.0 = Debug|x64
+		{BF12C787-6332-440A-8780-46CA11BE9C25}.Release|Any CPU.ActiveCfg = Release|x64
+		{BF12C787-6332-440A-8780-46CA11BE9C25}.Release|Any CPU.Build.0 = Release|x64
+		{069017CD-CE48-4097-B8DE-15A3E7347CCA}.Debug|Any CPU.ActiveCfg = Debug|x64
+		{069017CD-CE48-4097-B8DE-15A3E7347CCA}.Debug|Any CPU.Build.0 = Debug|x64
+		{069017CD-CE48-4097-B8DE-15A3E7347CCA}.Release|Any CPU.ActiveCfg = Release|x64
+		{069017CD-CE48-4097-B8DE-15A3E7347CCA}.Release|Any CPU.Build.0 = Release|x64
+	EndGlobalSection
+EndGlobal

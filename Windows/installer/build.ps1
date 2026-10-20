@@ -6,16 +6,18 @@
 #    MSBuild, into Windows\installer\build\ (not the tip's build folder, whose DLL a test may have left loaded in an app);
 # 2. the engine and the command line, `swift build -c release --product AllInOneIMEEngine` and `allinoneime-cli` in
 #    Windows\, on librime and rime-ice's data in ThirdParty (Windows\Scripts\build-rime-data.sh makes them, run here
-#    with Git Bash when they aren't there);
+#    with Git Bash when they aren't there); the Settings app, `dotnet publish` of Windows\settings\AllInOneIMESettings
+#    (self-contained and trimmed: .NET 8 and the Windows App SDK in its folder, nothing to install first);
 # 3. the stage, Windows\installer\build\stage\: the four programs, the engine made a GUI-subsystem program (editbin),
 #    so that started at logon it opens no console window; librime (rime.dll) and its data (rime-data\: rime-ice's
-#    schemas and prebuilt dictionaries) beside the engine; and in runtime\ the DLLs the engine and the command line
-#    need (dumpbin, transitively) from the Swift runtime and the VC++ redistributable;
+#    schemas and prebuilt dictionaries) beside the engine, with the interface text's String Catalog; in runtime\ the DLLs
+#    the engine and the command line need (dumpbin, transitively) from the Swift runtime and the VC++ redistributable;
+#    and the Settings app in Settings\;
 # 4. Windows\installer\build\AllInOneIME-<version>-x64.msi, with `wix build`. The version is the app's
 #    (Resources\Info.plist, CFBundleShortVersionString).
 #
-# Needs Visual Studio Build Tools 2022 (MSVC, a Windows SDK), Swift 6.4 for Windows, and WiX 5 as a .NET tool
-# (`dotnet tool install --global wix --version 5.0.2`; the UI and Util extensions are added here if missing).
+# Needs Visual Studio Build Tools 2022 (MSVC, a Windows SDK), Swift 6.4 for Windows, the .NET 8 SDK, and WiX 5 as a .NET
+# tool (`dotnet tool install --global wix --version 5.0.2`; the UI and Util extensions are added here if missing).
 # -SkipBuild packages what was built last. Each package gets a product code of its own, so a second one of the same
 # version installs over the first as an upgrade (the install test does that, with -Output).
 
@@ -89,6 +91,7 @@ Write-Host "AllInOneIME $version"
 # ---- 1, 2: build ----
 
 $tipOut = Join-Path $out 'x64\Release\'
+$settingsBuilt = Join-Path $out 'settings'
 if (-not $SkipBuild) {
     $env:VSLANG = '1033'
     Write-Host '== the text service and the setup helper (MSBuild, Release x64)'
@@ -102,6 +105,11 @@ if (-not $SkipBuild) {
         Run 'swift' @('build', '-c', 'release', '--product', 'AllInOneIMEEngine')
         Run 'swift' @('build', '-c', 'release', '--product', 'allinoneime-cli')
     } finally { Pop-Location }
+    Write-Host '== the Settings app (dotnet publish, Release, self-contained)'
+    $env:DOTNET_CLI_UI_LANGUAGE = 'en'
+    if (Test-Path $settingsBuilt) { Remove-Item $settingsBuilt -Recurse -Force }
+    Run 'dotnet' @('publish', (Join-Path $windows 'settings\AllInOneIMESettings\AllInOneIMESettings.csproj'), '-nologo',
+        '-c', 'Release', '-r', 'win-x64', '--self-contained', "-p:AllInOneIMEVersion=$version", '-o', $settingsBuilt)
 }
 
 # ---- 3: the stage ----
@@ -119,6 +127,13 @@ foreach ($file in (Join-Path $tipOut 'AllInOneTIP.dll'), (Join-Path $tipOut 'All
 }
 $engine = Join-Path $stage 'AllInOneIMEEngine.exe'
 Run $editbin @('/nologo', '/SUBSYSTEM:WINDOWS', $engine)
+# The interface text: the engine reads the core's catalog itself (no .lproj on Windows).
+Copy-Item (Join-Path $repo 'Core\Resources\Localizable.xcstrings') $stage
+# The Settings app, its folder whole.
+if (-not (Test-Path (Join-Path $settingsBuilt 'AllInOneIMESettings.exe'))) { Fail "not built: $settingsBuilt\AllInOneIMESettings.exe" }
+Copy-Item $settingsBuilt (Join-Path $stage 'Settings') -Recurse
+$settingsFiles = Get-ChildItem (Join-Path $stage 'Settings') -Recurse -File
+Write-Host ("  Settings: {0} files, {1:N1} MB" -f $settingsFiles.Count, (($settingsFiles | Measure-Object Length -Sum).Sum / 1MB))
 # rime-ice's data, whole: the schemas, the dictionaries' sources and the dictionaries prebuilt from them (build\), which
 # librime uses as they are once it has checked them against the sources.
 if (-not (Test-Path (Join-Path $rimeData 'build\rime_ice.table.bin'))) { Fail "no prebuilt rime-data in $rimeData" }

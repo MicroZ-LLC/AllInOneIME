@@ -23,20 +23,35 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
     /// Why the last save failed.
     public var saveError: String?
     public var sections: [Section]
+    /// The words of the window's own controls, in the interface language, by name (`SettingsText.windowStrings`): its
+    /// title, the buttons an action or a list has ("action.setKey": "Save", "moveUp": "Move up"), a confirmation
+    /// ("confirm.remove": "Remove “%@”?"). A client keeps its own words for what isn't here.
+    public var strings: [String: String]?
 
     public init(language: String, platform: SettingsPlatform, loadError: String? = nil, saveError: String? = nil,
-                sections: [Section]) {
+                sections: [Section], strings: [String: String]? = nil) {
         self.language = language
         self.platform = platform
         self.loadError = loadError
         self.saveError = saveError
         self.sections = sections
+        self.strings = strings
     }
 
-    /// The field `id`, wherever it is.
+    /// The field `id`, wherever it is: in a section, or one of an item's own fields (an app's settings, an extension's).
     public func field(_ id: String) -> Field? {
         for section in sections {
-            if let field = section.fields.first(where: { $0.id == id }) { return field }
+            if let field = Self.field(id, in: section.fields) { return field }
+        }
+        return nil
+    }
+
+    static func field(_ id: String, in fields: [Field]) -> Field? {
+        for field in fields {
+            if field.id == id { return field }
+            for item in field.items ?? [] {
+                if let found = Self.field(id, in: item.fields ?? []) { return found }
+            }
         }
         return nil
     }
@@ -120,12 +135,16 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
         public var items: [Item]?
         /// One of its actions that takes a while (`test`, `browse`) runs now: `cancel` (then among `actions`) stops it.
         public var running: Bool?
+        /// A `words` field's list as one line of text, as the field shows it (", " between the words, or a command line):
+        /// `settingsSet` takes such a line too, split the same way.
+        public var text: String?
         /// A text of several lines (an AI instruction, a snippet).
         public var multiline: Bool?
-        /// A path, picked with the system's open panel: a file's (`jargonFile`) or a folder's (`notes.folder`).
+        /// A path, picked with the system's open panel: a file's (`jargonFile`) or a folder's (`notes.folder`); on an
+        /// `items` field, the one its `add` action takes (`extensions.folders`).
         public var picker: Picker?
-        /// Its actions that take a text the user types (`value`, a string: the Notion link for `test`): a text box goes
-        /// with them, `placeholder` its hint.
+        /// Its actions that take a text the user types (`value`, a string: the Notion link for `test`, the app or the
+        /// folder for `add`): a text box goes with them, `placeholder` its hint.
         public var textActions: [String]?
         /// What its items' `value` is, as an editor shows it (a custom command's): a field for each key of it, by `id`.
         /// One with `when` only applies while the other fields named there have one of those values (`type`: `run`).
@@ -179,13 +198,18 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
         public var actions: [String]?
         /// One of its actions that takes a while (`install`) runs now: `cancel` (then among `actions`) stops it.
         public var running: Bool?
+        /// Its own settings (an app's, an extension's switch and preferences): fields as any other, set and acted on by
+        /// their `id`.
+        public var fields: [Field]?
 
-        public init(id: String, title: String, detail: String? = nil, value: AIConfig.JSONValue? = nil, actions: [String]? = nil) {
+        public init(id: String, title: String, detail: String? = nil, value: AIConfig.JSONValue? = nil, actions: [String]? = nil,
+                    fields: [Field]? = nil) {
             self.id = id
             self.title = title
             self.detail = detail
             self.value = value
             self.actions = actions
+            self.fields = fields
         }
     }
 }
@@ -225,7 +249,7 @@ public struct SettingsProblem: Error, Codable, Equatable, Sendable {
 /// What `settingsAction` asks of a field: one of its `actions`.
 public struct SettingsAction: Equatable, Sendable {
     public var field: String
-    /// "setKey", "removeKey", "test", "browse", "install", "remove", "save", "delete", "cancel".
+    /// "setKey", "removeKey", "test", "browse", "install", "remove", "save", "delete", "add", "hide", "show", "cancel".
     public var name: String
     /// The item it is about (a plugin's name, a command's).
     public var item: String?
@@ -250,6 +274,9 @@ public struct SettingsAction: Equatable, Sendable {
     public static let remove = "remove"
     public static let save = "save"
     public static let delete = "delete"
+    public static let add = "add"
+    public static let hide = "hide"
+    public static let show = "show"
     /// Stops what a field (or, with `item`, one of its items) runs: an action that takes a while.
     public static let cancel = "cancel"
 }

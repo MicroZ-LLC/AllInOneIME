@@ -1505,6 +1505,53 @@
         }
       }
     },
+    "@improve, @translate, @question, @agent and the like send nothing to the AI; typing and the other commands work." : {
+      "comment" : "@improve、@translate、@question、@agent 等不会发给 AI，打字和别的命令照常。 — Sources/AllInOneIMECore/Settings/SettingsSchema+Apps.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@improve, @translate, @question, @agent usw. senden nichts an die KI; Tippen und die anderen Befehle funktionieren."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@improve, @translate, @question, @agent y similares no envían nada a la IA; la escritura y los demás comandos funcionan."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@improve, @translate, @question, @agent et autres n’envoient rien à l’IA ; la saisie et les autres commandes fonctionnent."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@improve、@translate、@question、@agentなどはAIに何も送信しません。入力とほかのコマンドは使えます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@improve, @translate, @question, @agent 등은 AI로 아무것도 보내지 않으며, 입력과 다른 명령은 그대로 작동합니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@improve, @translate, @question, @agent e afins não enviam nada à IA; a digitação e os outros comandos funcionam."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@improve、@translate、@question、@agent 等不會傳送任何內容給 AI；打字和其他指令照常運作。"
+          }
+        }
+      }
+    },
     "@py, @js and the like in pasted or dictated text weren't run: kept as text" : {
       "comment" : "粘贴或语音来的文字里的 @py、@js 等没有运行，当作文字 — Sources/AllInOneIMECore/Composer.swift",
       "localizations" : {
@@ -5829,6 +5876,106 @@
         }
       }
     },
+    "action.removeKey" : {
+      "comment" : "删除… — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entfernen…"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eliminar…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supprimer…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "삭제…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remover…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刪除…"
+          }
+        }
+      }
+    },
+    "Add" : {
+      "comment" : "添加 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hinzufügen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Añadir"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajouter"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "追加"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "추가"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adicionar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加入"
+          }
+        }
+      }
+    },
     "Add to Reminders; write the time in it" : {
       "comment" : "加到提醒事项，时间直接写在里面 — Sources/AllInOneIMECore/UIText+Names.swift",
       "localizations" : {
@@ -5872,6 +6019,100 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "加入「提醒事項」；時間直接寫在內容裡"
+          }
+        }
+      }
+    },
+    "Add…" : {
+      "comment" : "添加… — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hinzufügen …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Añadir…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajouter…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "追加…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "추가…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adicionar…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加入⋯"
+          }
+        }
+      }
+    },
+    "added" : {
+      "comment" : "添加的 — Sources/AllInOneIMECore/Settings/SettingsSchema+Extensions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "hinzugefügt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "añadido"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ajouté"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "追加済み"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "추가됨"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "adicionado"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已加入"
           }
         }
       }
@@ -6681,6 +6922,53 @@
         }
       }
     },
+    "AllInOneIME Settings" : {
+      "comment" : "AllInOneIME 设置 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AllInOneIME-Einstellungen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajustes de AllInOneIME"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réglages d’AllInOneIME"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AllInOneIME設定"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AllInOneIME 설정"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajustes do AllInOneIME"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AllInOneIME 設定"
+          }
+        }
+      }
+    },
     "allow it under Automation" : {
       "comment" : "在「自动化」里允许 — Sources/AllInOneIMECore/Doctor.swift",
       "localizations" : {
@@ -6912,6 +7200,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "也隱藏這些詞"
+          }
+        }
+      }
+    },
+    "Always Translate as You Type" : {
+      "comment" : "总是边打边译 — Sources/AllInOneIMECore/Settings/SettingsSchema+Apps.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Immer beim Tippen übersetzen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Traducir siempre al escribir"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toujours traduire en tapant"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "常に入力しながら翻訳"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "항상 입력하며 번역"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sempre Traduzir ao Digitar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一律邊打邊譯"
           }
         }
       }
@@ -7617,6 +7952,106 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法使用 Apple Intelligence"
+          }
+        }
+      }
+    },
+    "appProfile.sameAsEverywhere" : {
+      "comment" : "和全局设置一样 — Sources/AllInOneIMECore/Settings/SettingsSchema+Apps.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wie in allen Apps"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Same as everywhere"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajuste general"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comme partout ailleurs"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全体の設定と同じ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "전체 설정과 동일"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Como em todos os apps"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "與全域設定相同"
+          }
+        }
+      }
+    },
+    "Apps" : {
+      "comment" : "按 App 设置 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apps"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apps"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apps"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App別設定"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "앱별 설정"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apps"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "各 App 設定"
           }
         }
       }
@@ -9266,6 +9701,53 @@
         }
       }
     },
+    "Cancel" : {
+      "comment" : "取消 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abbrechen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancelar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Annuler"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キャンセル"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "취소"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancelar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消"
+          }
+        }
+      }
+    },
     "Cancelled" : {
       "comment" : "已取消 — Sources/AllInOneIMECore/Settings/SettingsService.swift",
       "localizations" : {
@@ -10159,6 +10641,100 @@
         }
       }
     },
+    "Choose a folder of scripts or extension bundles" : {
+      "comment" : "选择放脚本或扩展包的文件夹 — Sources/AllInOneIMECore/Settings/SettingsSchema+Extensions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ordner mit Skripten oder Erweiterungs-Bundles auswählen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elige una carpeta de scripts o paquetes de extensiones"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisissez un dossier de scripts ou de paquets d’extension"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スクリプトまたは拡張機能バンドルのフォルダを選択"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "스크립트 또는 확장 프로그램 번들이 있는 폴더 선택"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escolha uma pasta de scripts ou de pacotes de extensão"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇存放腳本或擴充套件的檔案夾"
+          }
+        }
+      }
+    },
+    "Choose…" : {
+      "comment" : "选择… — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auswählen…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elegir…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisir…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "선택…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escolher…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇…"
+          }
+        }
+      }
+    },
     "Claude (web)" : {
       "comment" : "Claude 网页版 — Sources/AllInOneIMECore/Session/SessionText.swift",
       "localizations" : {
@@ -10437,6 +11013,59 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "config.json 正常"
+          }
+        }
+      }
+    },
+    "confirm.removeItem" : {
+      "comment" : "移除「{name}」？ — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„{name}“ entfernen?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove “{name}”?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Quitar «{name}»?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retirer « {name} » ?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「{name}」を取り除きますか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "‘{name}’을(를) 제거할까요?"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remover “{name}”?"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除「{name}」？"
           }
         }
       }
@@ -11804,6 +12433,100 @@
         }
       }
     },
+    "Delete “{name}”?" : {
+      "comment" : "删除「{name}」？ — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„{name}“ löschen?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Eliminar «{name}»?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supprimer « {name} » ?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「{name}」を削除しますか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "‘{name}’을(를) 삭제할까요?"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Excluir “{name}”?"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刪除「{name}」？"
+          }
+        }
+      }
+    },
+    "Delete…" : {
+      "comment" : "删除… — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Löschen …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eliminar…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supprimer…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "삭제…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apagar…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刪除⋯"
+          }
+        }
+      }
+    },
     "Description" : {
       "comment" : "说明 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
@@ -11894,6 +12617,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "沒聽清楚，請再說一次"
+          }
+        }
+      }
+    },
+    "Different settings in different apps: say Slack starts in English with casual rewrites, Mail rewrites formally, and one app gets no AI at all. Anything not set follows the settings for every app." : {
+      "comment" : "在不同的 App 里用不同的设置：比如 Slack 里用英文开始、改写得口语一些，邮件里改写得正式一些，某个 App 里完全不用 AI。没设的跟全局设置一样。 — Sources/AllInOneIMECore/Settings/SettingsSchema+Apps.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unterschiedliche Einstellungen in verschiedenen Apps: z. B. startet Slack auf Englisch mit lockeren Umformulierungen, Mail formuliert förmlich um, und eine App nutzt gar keine KI. Alles, was nicht festgelegt ist, folgt den Einstellungen für alle Apps."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajustes distintos en apps distintas: por ejemplo, Slack empieza en inglés con reescrituras informales, Mail reescribe con tono formal y una app no usa IA en absoluto. Lo que no se configure sigue los ajustes generales."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Des réglages différents selon l’app : par exemple, Slack démarre en anglais avec des réécritures décontractées, Mail réécrit de façon formelle, et une app n’utilise pas du tout l’IA. Tout ce qui n’est pas défini suit les réglages communs à toutes les apps."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appごとに異なる設定を使えます。たとえば、Slackでは英語で始めてカジュアルに書き換え、メールではフォーマルに書き換え、特定のAppではAIをまったく使わない、といった設定です。設定していない項目は全体の設定に従います。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "앱마다 다른 설정을 사용할 수 있습니다. 예를 들어 Slack은 영어로 시작하고 캐주얼하게 다시 쓰며, Mail은 격식 있게 다시 쓰고, 어떤 앱에서는 AI를 전혀 사용하지 않을 수 있습니다. 설정하지 않은 항목은 모든 앱에 공통인 설정을 따릅니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajustes diferentes em apps diferentes: por exemplo, o Slack começa em inglês com reescritas casuais, o Mail com reescritas formais e um app fica sem IA nenhuma. O que não for definido segue os ajustes de todos os apps."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在不同的 App 中使用不同的設定：例如 Slack 以英文開始、改寫得口語一些，「郵件」改寫得正式一些，某個 App 完全不使用 AI。未設定的項目會沿用所有 App 的設定。"
           }
         }
       }
@@ -12180,6 +12950,53 @@
         }
       }
     },
+    "Each script is an @ command named after its file (convert-timestamp.sh → @converttimestamp). Write its arguments after it, with commas between: @flights beijing, new york. A script can insert its result, show progress, offer a list to pick from, or run in the background and notify you. See docs/extensions.md for how to write one." : {
+      "comment" : "每个脚本是一个 @ 命令，名字取自文件名（convert-timestamp.sh → @converttimestamp）。参数写在命令后面，多个用逗号隔开：@flights beijing, new york。脚本可以上屏结果、显示进度、给出列表来选，或在后台运行，完成后通知你。写法见 docs/extensions.md。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jedes Skript ist ein @-Befehl, benannt nach seiner Datei (convert-timestamp.sh → @converttimestamp). Schreib die Argumente dahinter, durch Kommas getrennt: @flights beijing, new york. Ein Skript kann sein Ergebnis einfügen, Fortschritt anzeigen, eine Liste zur Auswahl anbieten oder im Hintergrund laufen und dich benachrichtigen. Wie man eines schreibt, steht in docs/extensions.md."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cada script es un comando @ con el nombre de su archivo (convert-timestamp.sh → @converttimestamp). Escribe sus argumentos después, separados por comas: @flights beijing, new york. Un script puede insertar su resultado, mostrar el progreso, ofrecer una lista para elegir o ejecutarse en segundo plano y avisarte. Consulta docs/extensions.md para saber cómo escribir uno."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chaque script est une commande @ portant le nom de son fichier (convert-timestamp.sh → @converttimestamp). Écrivez ses arguments après, séparés par des virgules : @flights beijing, new york. Un script peut insérer son résultat, afficher une progression, proposer une liste où choisir, ou s’exécuter en arrière-plan et vous avertir. Consultez docs/extensions.md pour savoir comment en écrire un."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "各スクリプトはファイル名にちなんだ@コマンドになります（convert-timestamp.sh → @converttimestamp）。引数はコマンドのあとにカンマ区切りで書きます：@flights beijing, new york。スクリプトは結果の挿入、進行状況の表示、選択肢リストの表示、バックグラウンドでの実行と完了通知などができます。書き方はdocs/extensions.mdを参照してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "각 스크립트는 파일 이름을 딴 @ 명령이 됩니다 (convert-timestamp.sh → @converttimestamp). 인수는 명령 뒤에 쉼표로 구분해 입력합니다: @flights beijing, new york. 스크립트는 결과를 입력하거나, 진행 상황을 보여 주거나, 선택할 목록을 제공하거나, 백그라운드에서 실행한 후 알림을 보낼 수 있습니다. 작성 방법은 docs/extensions.md를 참고하세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cada script é um comando @ com o nome do arquivo (convert-timestamp.sh → @converttimestamp). Escreva os argumentos depois dele, separados por vírgulas: @flights beijing, new york. Um script pode inserir o resultado, mostrar o progresso, oferecer uma lista para escolher ou ser executado em segundo plano e notificar você. Veja docs/extensions.md para saber como escrever um."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每個腳本都是一個 @ 指令，以檔名命名（convert-timestamp.sh → @converttimestamp）。參數寫在指令後面，以逗號分隔：@flights beijing, new york。腳本可以插入結果、顯示進度、提供列表供選擇，或在背景執行並通知你。寫法請參閱 docs/extensions.md。"
+          }
+        }
+      }
+    },
     "earlier rounds shortened" : {
       "comment" : "前面几轮已缩短 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
       "localizations" : {
@@ -12317,6 +13134,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ECS 容器憑證只存在於 ECS 任務中，Mac 上沒有"
+          }
+        }
+      }
+    },
+    "Edit…" : {
+      "comment" : "编辑… — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bearbeiten…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Editar…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modifier…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編集…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "편집…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Editar…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編輯…"
           }
         }
       }
@@ -13032,6 +13896,53 @@
         }
       }
     },
+    "Folders" : {
+      "comment" : "文件夹 — Sources/AllInOneIMECore/Settings/SettingsSchema+Extensions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ordner"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Carpetas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dossiers"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フォルダ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "폴더"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pastas"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檔案夾"
+          }
+        }
+      }
+    },
     "Follow the system" : {
       "comment" : "跟随系统 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
@@ -13216,6 +14127,100 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選字時（拼音、印地語）：候選字並排（預設），和系統內建的輸入法一樣；← → 選擇，↑↓ 或 - = 翻頁。@ 列表和結果仍是直向排列。從下一個文字欄位開始生效。"
+          }
+        }
+      }
+    },
+    "found" : {
+      "comment" : "自动找到 — Sources/AllInOneIMECore/Settings/SettingsSchema+Extensions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "gefunden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "encontrado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "trouvé"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動検出"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "찾음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "encontrado"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動找到"
+          }
+        }
+      }
+    },
+    "found · hidden" : {
+      "comment" : "自动找到 · 已隐藏 — Sources/AllInOneIMECore/Settings/SettingsSchema+Extensions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "gefunden · ausgeblendet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "encontrado · oculto"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "trouvé · masqué"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動検出 · 非表示"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "찾음 · 숨김"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "encontrado · oculto"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動找到 · 已隱藏"
           }
         }
       }
@@ -13827,6 +14832,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在背景交給 %@"
+          }
+        }
+      }
+    },
+    "Hide" : {
+      "comment" : "隐藏 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ausblenden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ocultar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Masquer"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "非表示にする"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "숨기기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ocultar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隱藏"
           }
         }
       }
@@ -15241,6 +16293,53 @@
         }
       }
     },
+    "Its program, e.g. notepad.exe" : {
+      "comment" : "程序名，比如 notepad.exe — Sources/AllInOneIMECore/Settings/SettingsSchema+Apps.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sein Programm, z. B. notepad.exe"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Su programa, p. ej. notepad.exe"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Son programme, p. ex. notepad.exe"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プログラム名（例：notepad.exe）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "프로그램 이름 (예: notepad.exe)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O programa, por ex. notepad.exe"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "程式名稱，例如 notepad.exe"
+          }
+        }
+      }
+    },
     "Jargon list" : {
       "comment" : "黑话库 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
@@ -16563,6 +17662,100 @@
         }
       }
     },
+    "Move down" : {
+      "comment" : "下移 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nach unten"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bajar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descendre"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下へ移動"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "아래로 이동"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mover para baixo"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下移"
+          }
+        }
+      }
+    },
+    "Move up" : {
+      "comment" : "上移 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nach oben"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Subir"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Monter"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上へ移動"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "위로 이동"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mover para cima"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上移"
+          }
+        }
+      }
+    },
     "Name" : {
       "comment" : "名字 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
@@ -17033,6 +18226,53 @@
         }
       }
     },
+    "New…" : {
+      "comment" : "新建… — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neu…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nuevo…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nouveau…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新規…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "새로 만들기…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Novo…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增…"
+          }
+        }
+      }
+    },
     "No %@ credit left: see the usage and limits in its dashboard" : {
       "comment" : "%@ 的额度用完了：在它的控制台里看看用量和上限 — Sources/AllInOneIMECore/UIText+Errors.swift",
       "localizations" : {
@@ -17123,6 +18363,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "沒有「聯絡人」的取用權限：系統設定 → 隱私權與安全性 → 聯絡人 → 開啟 AllInOneIME；或直接輸入電話號碼或電子郵件"
+          }
+        }
+      }
+    },
+    "No AI" : {
+      "comment" : "不用 AI — Sources/AllInOneIMECore/Settings/SettingsSchema+Apps.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine KI"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sin IA"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pas d’IA"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AIなし"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 사용 안 함"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sem IA"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不使用 AI"
           }
         }
       }
@@ -17452,6 +18739,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未設定日期"
+          }
+        }
+      }
+    },
+    "No extensions yet. Put scripts, extension bundles or Raycast Script Commands in a folder above." : {
+      "comment" : "还没有扩展。把脚本、扩展包或 Raycast 的脚本命令放进上面的文件夹就行。 — Sources/AllInOneIMECore/Settings/SettingsSchema+Extensions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noch keine Erweiterungen. Lege Skripte, Erweiterungs-Bundles oder Raycast Script Commands in einen der Ordner oben."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aún no hay extensiones. Pon scripts, paquetes de extensiones o Script Commands de Raycast en una de las carpetas de arriba."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pas encore d’extensions. Placez des scripts, des paquets d’extension ou des Script Commands Raycast dans un dossier ci-dessus."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拡張機能はまだありません。スクリプト、拡張機能バンドル、またはRaycast Script Commandsを上のフォルダに入れてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "아직 확장 프로그램이 없습니다. 위의 폴더에 스크립트, 확장 프로그램 번들 또는 Raycast Script Commands를 넣으세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nenhuma extensão ainda. Coloque scripts, pacotes de extensão ou Script Commands do Raycast em uma pasta acima."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒有擴充功能。把腳本、擴充套件或 Raycast 腳本指令放進上方的檔案夾即可。"
           }
         }
       }
@@ -18490,6 +19824,53 @@
         }
       }
     },
+    "None" : {
+      "comment" : "无 — Sources/AllInOneIMECore/Settings/SettingsSchema+Apps.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ninguno"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "なし"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "없음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nenhum"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無"
+          }
+        }
+      }
+    },
     "not a model the app knows: enter it in Settings" : {
       "comment" : "不在已知的模型里，请在设置里填 — Sources/AllInOneIMECore/AIConfigText.swift",
       "localizations" : {
@@ -19055,7 +20436,7 @@
       }
     },
     "Not set yet" : {
-      "comment" : "还没有设置 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "comment" : "还没有设置 — Sources/AllInOneIMECore/Settings/SettingsSchema+Extensions.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -19332,6 +20713,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未翻譯：{reason}（%@ 重試）"
+          }
+        }
+      }
+    },
+    "Not typed out" : {
+      "comment" : "不逐字上屏 — Sources/AllInOneIMECore/Settings/SettingsSchema+Apps.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht eingetippt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De una vez"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pas tapé lettre par lettre"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1文字ずつ入力しない"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "한 글자씩 입력 안 함"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não digitado letra a letra"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不逐字打出"
           }
         }
       }
@@ -19994,6 +21422,53 @@
         }
       }
     },
+    "Off" : {
+      "comment" : "关 — Sources/AllInOneIMECore/Settings/SettingsSchema+Apps.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aus"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desactivado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Désactivé"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オフ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "끔"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desativado"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉"
+          }
+        }
+      }
+    },
     "Offline: not saved to Notion" : {
       "comment" : "没有联网：没有存到 Notion — Sources/AllInOneIMECore/NoteDestination.swift",
       "localizations" : {
@@ -20078,6 +21553,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ativado"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟"
+          }
+        }
+      }
+    },
+    "On" : {
+      "comment" : "开 — Sources/AllInOneIMECore/Settings/SettingsSchema+Apps.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activé"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オン"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "켬"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ativado"
           }
         },
         "zh-Hant" : {
@@ -20695,6 +22217,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "打開系統設定 → 隱私權與安全性 → 麥克風"
+          }
+        }
+      }
+    },
+    "Open the Library" : {
+      "comment" : "打开插件库 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bibliothek öffnen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir la biblioteca"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrir la bibliothèque"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ライブラリを開く"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "라이브러리 열기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir a biblioteca"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打開外掛庫"
           }
         }
       }
@@ -21457,6 +23026,53 @@
         }
       }
     },
+    "Paste it" : {
+      "comment" : "粘贴 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einsetzen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pegar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collez-la"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ペースト"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "붙여넣기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cole aqui"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "貼上"
+          }
+        }
+      }
+    },
     "Payment card numbers" : {
       "comment" : "银行卡号 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
@@ -21500,6 +23116,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "付款卡號"
+          }
+        }
+      }
+    },
+    "Per-App Settings" : {
+      "comment" : "按 App 设置 — Sources/AllInOneIMECore/Settings/SettingsSchema+Apps.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App-spezifische Einstellungen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajustes por app"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réglages par app"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App別設定"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "앱별 설정"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajustes por App"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "各 App 設定"
           }
         }
       }
@@ -23948,6 +25611,100 @@
         }
       }
     },
+    "Remove" : {
+      "comment" : "移除 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entfernen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quitar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retirer"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "제거"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remover"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除"
+          }
+        }
+      }
+    },
+    "Remove “{name}”?" : {
+      "comment" : "删除「{name}」？ — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„{name}“ entfernen?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Eliminar «{name}»?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supprimer « {name} » ?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「{name}」を削除しますか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "‘{name}’을(를) 삭제할까요?"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remover “{name}”?"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刪除「{name}」？"
+          }
+        }
+      }
+    },
     "Remove the repeated languages from config.json (nothing else changes)" : {
       "comment" : "去掉 config.json 里重复的语言（别的不动） — Sources/AllInOneIMECore/Doctor.swift",
       "localizations" : {
@@ -24371,6 +26128,53 @@
         }
       }
     },
+    "Rewrite styles of its own" : {
+      "comment" : "自己的改写风格 — Sources/AllInOneIMECore/Settings/SettingsSchema+Apps.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eigene Stile zum Umformulieren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estilos de reescritura propios"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Styles de réécriture propres"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "独自の書き換えスタイル"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자체 다시 쓰기 스타일"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estilos de reescrita próprios"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自己的改寫風格"
+          }
+        }
+      }
+    },
     "rewrite the selection as you asked" : {
       "comment" : "按你写的要求改选中的文字 — Sources/AllInOneIMECore/Session/SessionText.swift",
       "localizations" : {
@@ -24414,6 +26218,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "依你的要求改寫選取的文字"
+          }
+        }
+      }
+    },
+    "Rewrites: " : {
+      "comment" : "改写： — Sources/AllInOneIMECore/Settings/SettingsSchema+Apps.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Umformulierungen: "
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reescrituras: "
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réécritures : "
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き換え："
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다시 쓰기: "
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reescritas: "
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "改寫："
           }
         }
       }
@@ -25734,6 +27585,147 @@
         }
       }
     },
+    "Same as everywhere (%@)" : {
+      "comment" : "跟全局一样（%@） — Sources/AllInOneIMECore/Settings/SettingsSchema+Apps.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wie in allen Apps (%@)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajuste general (%@)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comme partout ailleurs (%@)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全体の設定と同じ（%@）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "전체 설정과 동일 (%@)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Como em todos os apps (%@)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "與全域設定相同（%@）"
+          }
+        }
+      }
+    },
+    "Same as everywhere (off)" : {
+      "comment" : "跟全局一样（关） — Sources/AllInOneIMECore/Settings/SettingsSchema+Apps.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wie in allen Apps (aus)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajuste general (desactivado)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comme partout ailleurs (désactivé)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全体の設定と同じ（オフ）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "전체 설정과 동일 (끔)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Como em todos os apps (desativado)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "與全域設定相同（關閉）"
+          }
+        }
+      }
+    },
+    "Same as everywhere (on)" : {
+      "comment" : "跟全局一样（开） — Sources/AllInOneIMECore/Settings/SettingsSchema+Apps.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wie in allen Apps (ein)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajuste general (activado)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comme partout ailleurs (activé)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全体の設定と同じ（オン）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "전체 설정과 동일 (켬)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Como em todos os apps (ativado)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "與全域設定相同（開啟）"
+          }
+        }
+      }
+    },
     "Same name as a built-in command: rename it to use it" : {
       "comment" : "和内置命令重名，不会生效，请改名 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
@@ -25824,6 +27816,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "語氣不變，更自然通順"
+          }
+        }
+      }
+    },
+    "Save" : {
+      "comment" : "保存 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sichern"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guardar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrer"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "저장"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Salvar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存"
           }
         }
       }
@@ -26247,6 +28286,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "截圖 · %@ 行（在這台電腦上辨識）"
+          }
+        }
+      }
+    },
+    "Script Extensions" : {
+      "comment" : "脚本扩展 — Sources/AllInOneIMECore/Settings/SettingsSchema+Extensions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skripterweiterungen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Extensiones de script"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Extensions de script"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スクリプト拡張機能"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "스크립트 확장 프로그램"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Extensões de Script"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "腳本擴充功能"
           }
         }
       }
@@ -27661,6 +29747,53 @@
         }
       }
     },
+    "Show" : {
+      "comment" : "显示 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einblenden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Afficher"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "表示"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "보기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示"
+          }
+        }
+      }
+    },
     "Show in Menu Bar" : {
       "comment" : "在菜单栏显示图标 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
@@ -28883,6 +31016,53 @@
         }
       }
     },
+    "Starts in %@" : {
+      "comment" : "用%@开始 — Sources/AllInOneIMECore/Settings/SettingsSchema+Apps.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Startet mit %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Empieza en %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Démarre en %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@で開始"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@(으)로 시작"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Começa em %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以%@開始"
+          }
+        }
+      }
+    },
     "Static keys" : {
       "comment" : "静态密钥 — Sources/AllInOneIMECore/AWSProfiles.swift",
       "localizations" : {
@@ -29761,6 +31941,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "告訴 AI 如何處理指令後面的文字，例如「為對方的訊息寫一則簡短、有禮貌的回覆。」答案會出現在候選中；按 ⏎ 插入。"
+          }
+        }
+      }
+    },
+    "Test" : {
+      "comment" : "测试 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Testen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Probar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tester"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "テスト"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "테스트"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Testar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "測試"
           }
         }
       }
@@ -33625,6 +35852,53 @@
         }
       }
     },
+    "Typed out" : {
+      "comment" : "逐字上屏 — Sources/AllInOneIMECore/Settings/SettingsSchema+Apps.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eingetippt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Letra a letra"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tapé lettre par lettre"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1文字ずつ入力"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "한 글자씩 입력"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Digitado letra a letra"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "逐字打出"
+          }
+        }
+      }
+    },
     "Typing speed" : {
       "comment" : "打字速度 — Sources/AllInOneIMECore/AIConfigText.swift",
       "localizations" : {
@@ -34330,6 +36604,53 @@
         }
       }
     },
+    "Working…" : {
+      "comment" : "正在进行… — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wird ausgeführt…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En curso…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En cours…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "実行中…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "진행 중…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Em andamento…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在進行…"
+          }
+        }
+      }
+    },
     "Write something, or %@ to paste" : {
       "comment" : "写点内容，或按 %@ 粘贴 — Sources/AllInOneIMECore/Session/SessionText.swift",
       "localizations" : {
@@ -34420,6 +36741,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "填寫要打開的網址"
+          }
+        }
+      }
+    },
+    "Write the app's program name, without spaces" : {
+      "comment" : "写上 App 的程序名，不带空格 — Sources/AllInOneIMECore/Settings/SettingsSchema+Apps.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gib den Programmnamen der App ohne Leerzeichen ein"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escribe el nombre del programa de la app, sin espacios"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saisissez le nom du programme de l’app, sans espaces"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アプリのプログラム名をスペースなしで入力してください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "앱의 프로그램 이름을 공백 없이 입력하세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escreva o nome do programa do app, sem espaços"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "寫上 App 的程式名稱，不含空格"
           }
         }
       }

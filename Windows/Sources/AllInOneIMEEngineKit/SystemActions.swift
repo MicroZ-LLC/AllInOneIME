@@ -21,6 +21,13 @@ public protocol SystemActions: Sendable {
     func launchInTerminal(_ argv: [String], prompt: String?) throws
     /// Files and apps named like `query` (`@open`).
     func search(_ query: String) -> [SearchResult]
+    /// Starts the program at `program` with `arguments`, in the foreground (the Settings app).
+    func start(_ program: String, arguments: [String]) throws
+}
+
+extension SystemActions {
+    /// Opened as a file is, without arguments.
+    public func start(_ program: String, arguments: [String]) throws { try open(program) }
 }
 
 /// Where the engine uses `SystemActions`: threads of its own (`SystemThread` on Windows: the shell's, the clipboard's),
@@ -147,8 +154,10 @@ public struct WindowsSystem: SystemActions {
     ///   then;
     /// - then to the process the shell started, if it started one (there is no starting it suspended through the
     ///   shell, so it is given right after: programs take longer than that to show a window).
+    ///
+    /// `parameters`: a program's arguments, as its command line takes them (`start`).
     @discardableResult
-    static func shellOpen(_ target: String, handler: (String) -> DWORD? = runningHandler,
+    static func shellOpen(_ target: String, parameters: String? = nil, handler: (String) -> DWORD? = runningHandler,
                           allowForeground: (DWORD) -> Void = { _ = AllowSetForegroundWindow($0) }) throws -> Opened {
         var opened = Opened(started: nil, allowed: [])
         if let running = handler(target) {
@@ -162,9 +171,12 @@ public struct WindowsSystem: SystemActions {
         info.nShow = SW_SHOWNORMAL
         let ok = target.withCString(encodedAs: UTF16.self) { file in
             "open".withCString(encodedAs: UTF16.self) { verb in
-                info.lpVerb = verb
-                info.lpFile = file
-                return ShellExecuteExW(&info)
+                (parameters ?? "").withCString(encodedAs: UTF16.self) { arguments in
+                    info.lpVerb = verb
+                    info.lpFile = file
+                    info.lpParameters = parameters == nil ? nil : arguments
+                    return ShellExecuteExW(&info)
+                }
             }
         }
         guard ok else { throw SystemActionError("Couldn't open \(target) (error \(GetLastError()))") }
@@ -175,6 +187,23 @@ public struct WindowsSystem: SystemActions {
         opened.started = pid
         opened.allowed.append(pid)
         return opened
+    }
+
+    /// Starts `program` with `arguments` as `open` opens a file, on the shell's thread: the right to take the foreground
+    /// goes to the program's own window already on the screen, if it has one (a second start hands over to the first
+    /// and quits, as the Settings app does), then to the process started, and to no other.
+    public func start(_ program: String, arguments: [String]) throws {
+        let parameters = arguments.isEmpty ? nil : Self.commandLine(arguments)
+        _ = try shell.syncThrowing { try Self.shellOpen(program, parameters: parameters, handler: Self.windowProcess(image:)) }
+    }
+
+    /// Arguments as a program's command line takes them: one that is empty or has a space or a quote in quotes, its
+    /// quotes escaped.
+    static func commandLine(_ arguments: [String]) -> String {
+        arguments.map { argument in
+            argument.isEmpty || argument.contains(" ") || argument.contains("\"")
+                ? "\"" + argument.replacingOccurrences(of: "\"", with: "\\\"") + "\"" : argument
+        }.joined(separator: " ")
     }
 
     /// The program already running that the shell would hand `target` to (`handlerExecutable`), if a process of it

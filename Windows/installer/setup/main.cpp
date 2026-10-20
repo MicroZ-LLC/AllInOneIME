@@ -5,7 +5,8 @@
 //   AllInOneIMESetup remove-keyboard                take it out of this user's list, and drop this user's TSF state
 //                                                   for it
 //   AllInOneIMESetup start-engine                   start this user's engine in this session, never elevated
-//   AllInOneIMESetup stop-engines                   end every engine run from Program Files\AllInOneIME (any user)
+//   AllInOneIMESetup stop-engines                   end every engine and Settings app run from Program Files\AllInOneIME
+//                                                   (any user)
 //   AllInOneIMESetup status                         what is registered, in this user's list, and running
 //
 // add-keyboard picks the language: Chinese (Simplified) when it is in the user's list, else English (US). It never
@@ -40,6 +41,8 @@ constexpr LANGID kLangChinese = 0x0804;
 constexpr LANGID kLanguages[] = {kLangEnglish, kLangChinese};
 
 constexpr wchar_t kEngineExe[] = L"AllInOneIMEEngine.exe";
+// The Settings app, in Settings\ beside the engine: its files are replaced or removed with the engine's.
+constexpr wchar_t kSettingsExe[] = L"AllInOneIMESettings.exe";
 
 // input.dll's export (no header, no import library): see "InstallLayoutOrTip".
 constexpr DWORD ILOT_UNINSTALL = 0x00000001;
@@ -248,13 +251,13 @@ struct Engine {
     std::wstring path;
 };
 
-std::vector<Engine> RunningEngines() {
+std::vector<Engine> RunningEngines(const wchar_t* exe = kEngineExe) {
     std::vector<Engine> engines;
     HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (snapshot == INVALID_HANDLE_VALUE) return engines;
     PROCESSENTRY32W entry = {sizeof entry};
     for (BOOL more = Process32FirstW(snapshot, &entry); more; more = Process32NextW(snapshot, &entry)) {
-        if (_wcsicmp(entry.szExeFile, kEngineExe) != 0) continue;
+        if (_wcsicmp(entry.szExeFile, exe) != 0) continue;
         Engine engine;
         engine.pid = entry.th32ProcessID;
         ProcessIdToSessionId(engine.pid, &engine.session);
@@ -462,7 +465,9 @@ int StartEngine() {
 int StopEngines() {
     const std::wstring root = InstallRoot();
     int failures = 0, stopped = 0;
-    for (const auto& engine : RunningEngines()) {
+    std::vector<Engine> running = RunningEngines(kEngineExe);
+    for (const auto& window : RunningEngines(kSettingsExe)) running.push_back(window);
+    for (const auto& engine : running) {
         if (!StartsWithNoCase(engine.path, root)) {
             Say("stop-engines: left pid %lu alone (%ls)", engine.pid,
                 engine.path.empty() ? L"path unknown" : engine.path.c_str());

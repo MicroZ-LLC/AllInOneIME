@@ -1,0 +1,1068 @@
+{
+ "document": {
+  "language": "ja",
+  "platform": "windows",
+  "sections": [
+   {
+    "fields": [
+     {
+      "choices": [
+       {
+        "label": "⏎ Return",
+        "value": "enter"
+       },
+       {
+        "label": "スペース",
+        "value": "space"
+       }
+      ],
+      "help": "Returnで@コマンドを実行します。ピンインが未確定でも実行できます。@がなければReturnは通常どおり動作します。",
+      "id": "actionKey",
+      "kind": "choice",
+      "label": "実行キー",
+      "value": "enter"
+     },
+     {
+      "help": "コマンドの結果を、人がタイプするように1文字ずつ入力します。ピンインで選んだ語はすぐに入力されます。Escで停止し、ほかのキーを押すと残りを一度に入力します。",
+      "id": "typeOut",
+      "kind": "toggle",
+      "label": "結果を1文字ずつ入力",
+      "value": true
+     },
+     {
+      "id": "typeOutRate",
+      "kind": "number",
+      "label": "入力速度",
+      "max": 40,
+      "min": 0.16666666666666666,
+      "status": "毎秒16文字",
+      "value": 16
+     },
+     {
+      "id": "typeOutVaries",
+      "kind": "toggle",
+      "label": "緩急をつける（人のように）",
+      "value": false
+     },
+     {
+      "help": "ときどき隣のキーを押したり、文字やスペースを重ねたり、単語を打ち直したりして、途中で修正します。最後まで入力すれば、テキストは結果と完全に一致します。コード、アドレス、数字ではすぐに修正します。ターミナルではタイプミスしません。",
+      "id": "typeOutMistakes",
+      "kind": "toggle",
+      "label": "ときどきタイプミスをして直す",
+      "value": false
+     },
+     {
+      "help": "テキストを選択してから@improve、@translate、@questionなどを入力して⏎を押すと、コマンドが選択したテキストに対して動作し（入力中も選択されたまま変わりません）、選んだ結果で置き換えます。Escでは何も変わりません。Appで正しく動作しない場合はオフにしてください。",
+      "id": "useSelection",
+      "kind": "toggle",
+      "label": "選択したテキストを使う",
+      "value": true
+     },
+     {
+      "id": "rememberQuestions",
+      "kind": "toggle",
+      "label": "最近の質問を記憶",
+      "value": true
+     },
+     {
+      "choices": [
+       {
+        "label": "システムに従う",
+        "value": null
+       },
+       {
+        "label": "English",
+        "value": "en"
+       },
+       {
+        "label": "简体中文",
+        "value": "zh-Hans"
+       },
+       {
+        "label": "Deutsch",
+        "value": "de"
+       },
+       {
+        "label": "Español",
+        "value": "es"
+       },
+       {
+        "label": "Français",
+        "value": "fr"
+       },
+       {
+        "label": "日本語",
+        "value": "ja"
+       },
+       {
+        "label": "한국어",
+        "value": "ko"
+       },
+       {
+        "label": "Português (Brasil)",
+        "value": "pt-BR"
+       },
+       {
+        "label": "繁體中文",
+        "value": "zh-Hant"
+       }
+      ],
+      "id": "uiLanguage",
+      "kind": "choice",
+      "label": "表示言語",
+      "value": "ja"
+     }
+    ],
+    "id": "general",
+    "title": "一般"
+   },
+   {
+    "fields": [
+     {
+      "choices": [
+       {
+        "label": "中国語（ピンイン）",
+        "value": "zh"
+       },
+       {
+        "label": "英語",
+        "value": "en"
+       },
+       {
+        "label": "フランス語",
+        "value": "fr"
+       },
+       {
+        "label": "韓国語",
+        "value": "ko"
+       },
+       {
+        "label": "ヒンディー語",
+        "value": "hi"
+       }
+      ],
+      "id": "inputLanguages",
+      "kind": "choices",
+      "label": "入力言語",
+      "maxCount": 5,
+      "minCount": 1,
+      "ordered": true,
+      "value": [
+       "en",
+       "zh"
+      ]
+     },
+     {
+      "choices": [
+       {
+        "label": "縦並び",
+        "value": "vertical"
+       },
+       {
+        "label": "横並び",
+        "value": "horizontal"
+       }
+      ],
+      "help": "語の選択（ピンイン、ヒンディー語）：システム標準の入力メソッドと同じく横に並べます（デフォルト）。← →で選択、↑↓または- =でページ送り。@リストと結果は縦並びのままです。次のテキストフィールドから反映されます。",
+      "id": "candidateLayout",
+      "kind": "choice",
+      "label": "候補の並び",
+      "value": "horizontal"
+     },
+     {
+      "choices": [
+       {
+        "label": "z ↔ zh",
+        "value": "z-zh"
+       },
+       {
+        "label": "c ↔ ch",
+        "value": "c-ch"
+       },
+       {
+        "label": "s ↔ sh",
+        "value": "s-sh"
+       },
+       {
+        "label": "n ↔ l",
+        "value": "n-l"
+       },
+       {
+        "label": "f ↔ h",
+        "value": "f-h"
+       },
+       {
+        "label": "r ↔ l",
+        "value": "r-l"
+       },
+       {
+        "label": "an ↔ ang",
+        "value": "an-ang"
+       },
+       {
+        "label": "en ↔ eng",
+        "value": "en-eng"
+       },
+       {
+        "label": "in ↔ ing",
+        "value": "in-ing"
+       },
+       {
+        "label": "ian ↔ iang",
+        "value": "ian-iang"
+       },
+       {
+        "label": "uan ↔ uang",
+        "value": "uan-uang"
+       }
+      ],
+      "help": "区別しない音をどちらの綴りでも入力できます。例：zhとz（ziでも之が候補に出ます）",
+      "id": "fuzzyPinyin",
+      "kind": "choices",
+      "label": "あいまいピンイン",
+      "value": [
+       "z-zh",
+       "en-eng"
+      ]
+     }
+    ],
+    "id": "input",
+    "title": "入力"
+   },
+   {
+    "fields": [
+     {
+      "choices": [
+       {
+        "label": "英語",
+        "value": "en"
+       },
+       {
+        "label": "中国語",
+        "value": "zh"
+       },
+       {
+        "label": "繁体中国語",
+        "value": "zh-Hant"
+       },
+       {
+        "label": "日本語",
+        "value": "ja"
+       },
+       {
+        "label": "韓国語",
+        "value": "ko"
+       },
+       {
+        "label": "フランス語",
+        "value": "fr"
+       },
+       {
+        "label": "ドイツ語",
+        "value": "de"
+       },
+       {
+        "label": "スペイン語",
+        "value": "es"
+       },
+       {
+        "label": "ポルトガル語",
+        "value": "pt"
+       },
+       {
+        "label": "イタリア語",
+        "value": "it"
+       },
+       {
+        "label": "ロシア語",
+        "value": "ru"
+       },
+       {
+        "label": "ベトナム語",
+        "value": "vi"
+       },
+       {
+        "label": "タイ語",
+        "value": "th"
+       },
+       {
+        "label": "インドネシア語",
+        "value": "id"
+       },
+       {
+        "label": "アラビア語",
+        "value": "ar"
+       },
+       {
+        "label": "ヒンディー語",
+        "value": "hi"
+       },
+       {
+        "label": "ベンガル語",
+        "value": "bn"
+       },
+       {
+        "label": "テルグ語",
+        "value": "te"
+       },
+       {
+        "label": "マラーティー語",
+        "value": "mr"
+       },
+       {
+        "label": "タミル語",
+        "value": "ta"
+       },
+       {
+        "label": "グジャラート語",
+        "value": "gu"
+       },
+       {
+        "label": "カンナダ語",
+        "value": "kn"
+       },
+       {
+        "label": "マラヤーラム語",
+        "value": "ml"
+       },
+       {
+        "label": "パンジャブ語",
+        "value": "pa"
+       },
+       {
+        "label": "ウルドゥー語",
+        "value": "ur"
+       }
+      ],
+      "help": "言語ごとに1行。ドラッグで並べ替え",
+      "id": "outputLanguages",
+      "kind": "choices",
+      "label": "翻訳言語",
+      "minCount": 1,
+      "ordered": true,
+      "value": [
+       "en",
+       "zh"
+      ]
+     },
+     {
+      "choices": [
+       {
+        "label": "推敲",
+        "note": "トーンはそのまま、より自然に",
+        "value": "润色"
+       },
+       {
+        "label": "簡潔",
+        "note": "短く、余計な言葉なし",
+        "value": "简洁"
+       },
+       {
+        "label": "フォーマル",
+        "note": "上司や取引先向け",
+        "value": "正式"
+       },
+       {
+        "label": "カジュアル",
+        "note": "友だちとおしゃべりするように",
+        "value": "口语"
+       },
+       {
+        "label": "婉曲",
+        "note": "より丁寧で柔らかく",
+        "value": "委婉"
+       },
+       {
+        "label": "業界用語",
+        "note": "大手IT企業風の言い回し（英語はAmazon流）",
+        "value": "黑话"
+       }
+      ],
+      "help": "書いた言語のまま。ドラッグで並べ替え",
+      "id": "rewriteStyles",
+      "kind": "choices",
+      "label": "スタイル",
+      "ordered": true,
+      "value": [
+       "润色",
+       "简洁",
+       "正式"
+      ]
+     },
+     {
+      "id": "improveTranslates",
+      "kind": "toggle",
+      "label": "@improveで翻訳もする",
+      "value": false
+     },
+     {
+      "help": "チーム独自の用語",
+      "id": "jargonFile",
+      "kind": "text",
+      "label": "業界用語リスト",
+      "optional": true,
+      "pick": "file",
+      "placeholder": "C:/Users/zwj10/AppData/Roaming/AllInOneIME/jargon.txt"
+     }
+    ],
+    "id": "writing",
+    "title": "翻訳と書き換え"
+   },
+   {
+    "fields": [
+     {
+      "choices": [
+       {
+        "label": "Amazon Bedrock",
+        "value": "bedrock"
+       },
+       {
+        "label": "Claude API",
+        "value": "anthropic"
+       },
+       {
+        "label": "Gemini API",
+        "value": "gemini"
+       },
+       {
+        "label": "OpenAI互換API",
+        "value": "openai"
+       }
+      ],
+      "id": "provider",
+      "kind": "choice",
+      "label": "プロバイダ",
+      "value": "bedrock"
+     },
+     {
+      "choices": [
+       {
+        "label": "Claude Haiku 4.5",
+        "note": "おすすめ：約1.3秒、高品質",
+        "value": "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+       },
+       {
+        "label": "Claude Sonnet 4.6",
+        "note": "約2.2秒、最も丁寧な書き換え",
+        "value": "us.anthropic.claude-sonnet-4-6"
+       },
+       {
+        "label": "Amazon Nova 2 Lite",
+        "note": "約1秒、最安、推敲はやや弱め",
+        "value": "us.amazon.nova-2-lite-v1:0"
+       }
+      ],
+      "id": "bedrock.modelId",
+      "kind": "text",
+      "label": "モデル",
+      "value": "us.anthropic.claude-haiku-5-5"
+     },
+     {
+      "choices": [
+       {
+        "label": "default",
+        "value": "default"
+       }
+      ],
+      "id": "bedrock.awsProfile",
+      "kind": "choice",
+      "label": "AWS Profile",
+      "value": "default"
+     },
+     {
+      "id": "bedrock.region",
+      "kind": "text",
+      "label": "リージョン",
+      "optional": true,
+      "placeholder": "空欄：プロファイルのリージョン（us-east-1）"
+     },
+     {
+      "actions": [
+       "test"
+      ],
+      "id": "provider.test",
+      "kind": "button",
+      "label": "接続をテスト"
+     }
+    ],
+    "id": "provider",
+    "title": "AIプロバイダ"
+   },
+   {
+    "fields": [
+     {
+      "id": "maxTokens",
+      "kind": "integer",
+      "label": "出力トークンは最大1000",
+      "max": 4000,
+      "min": 200,
+      "step": 100,
+      "value": 1000
+     },
+     {
+      "id": "temperature",
+      "kind": "number",
+      "label": "temperatureを送信（対応していないモデルもあります。リクエストが失敗する場合はオフにしてください）",
+      "max": 1,
+      "min": 0,
+      "optional": true,
+      "step": 0.1,
+      "value": 0.5
+     },
+     {
+      "id": "timeoutSeconds",
+      "kind": "integer",
+      "label": "タイムアウト15秒",
+      "max": 60,
+      "min": 5,
+      "step": 5,
+      "value": 15
+     }
+    ],
+    "id": "request",
+    "title": "モデル設定"
+   },
+   {
+    "fields": [
+     {
+      "help": "メールアドレス、番号、キーは、AIに渡す前に[EMAIL_1]のようなプレースホルダに置き換えられ、結果では元に戻されます。",
+      "id": "redaction.enabled",
+      "kind": "toggle",
+      "label": "送信前に機密情報を隠す",
+      "value": true
+     },
+     {
+      "id": "redaction.emails",
+      "kind": "toggle",
+      "label": "メールアドレス",
+      "value": true
+     },
+     {
+      "id": "redaction.phones",
+      "kind": "toggle",
+      "label": "電話番号",
+      "value": true
+     },
+     {
+      "id": "redaction.cards",
+      "kind": "toggle",
+      "label": "カード番号",
+      "value": true
+     },
+     {
+      "id": "redaction.keys",
+      "kind": "toggle",
+      "label": "APIキーとトークン",
+      "value": true
+     },
+     {
+      "id": "redaction.ips",
+      "kind": "toggle",
+      "label": "IPアドレス",
+      "value": true
+     },
+     {
+      "help": "大文字と小文字を区別しない",
+      "id": "redaction.customWords",
+      "kind": "words",
+      "label": "これらの単語も隠す",
+      "placeholder": "コードネーム、名前など（カンマ区切り）",
+      "text": "Project X, Jane",
+      "value": [
+       "Project X",
+       "Jane"
+      ]
+     }
+    ],
+    "id": "privacy",
+    "title": "プライバシー"
+   },
+   {
+    "fields": [
+     {
+      "choices": [
+       {
+        "label": "Claude Code",
+        "value": "claude"
+       },
+       {
+        "label": "Gemini CLI",
+        "value": "gemini"
+       },
+       {
+        "label": "Kiro CLI",
+        "value": "kiro"
+       },
+       {
+        "label": "カスタム",
+        "value": "custom"
+       }
+      ],
+      "help": "ターミナルで開き、入力した内容が最初のメッセージになります。",
+      "id": "agent",
+      "kind": "choice",
+      "label": "@agentの渡し先",
+      "value": "custom"
+     },
+     {
+      "help": "入力した内容は最後の引数として追加されます。",
+      "id": "agentCommand",
+      "kind": "words",
+      "label": "コマンド",
+      "placeholder": "例：muse --",
+      "text": "muse --model \"big one\"",
+      "value": [
+       "muse",
+       "--model",
+       "big one"
+      ]
+     }
+    ],
+    "id": "agent",
+    "title": "エージェント"
+   },
+   {
+    "fields": [
+     {
+      "actions": [
+       "add"
+      ],
+      "help": "Appごとに異なる設定を使えます。たとえば、Slackでは英語で始めてカジュアルに書き換え、メールではフォーマルに書き換え、特定のAppではAIをまったく使わない、といった設定です。設定していない項目は全体の設定に従います。",
+      "id": "apps.profiles",
+      "items": [
+       {
+        "actions": [
+         "remove"
+        ],
+        "detail": "中国語（ピンイン）で開始 · 書き換え：フォーマル · AIなし",
+        "fields": [
+         {
+          "choices": [
+           {
+            "label": "全体の設定と同じ（英語）",
+            "value": null
+           },
+           {
+            "label": "英語",
+            "value": "en"
+           },
+           {
+            "label": "中国語（ピンイン）",
+            "value": "zh"
+           }
+          ],
+          "id": "apps.win:notepad.exe.inputLanguage",
+          "kind": "choice",
+          "label": "開始時の入力言語",
+          "value": "zh"
+         },
+         {
+          "id": "apps.win:notepad.exe.ownStyles",
+          "kind": "toggle",
+          "label": "独自の書き換えスタイル",
+          "value": true
+         },
+         {
+          "choices": [
+           {
+            "label": "推敲",
+            "note": "トーンはそのまま、より自然に",
+            "value": "润色"
+           },
+           {
+            "label": "簡潔",
+            "note": "短く、余計な言葉なし",
+            "value": "简洁"
+           },
+           {
+            "label": "フォーマル",
+            "note": "上司や取引先向け",
+            "value": "正式"
+           },
+           {
+            "label": "カジュアル",
+            "note": "友だちとおしゃべりするように",
+            "value": "口语"
+           },
+           {
+            "label": "婉曲",
+            "note": "より丁寧で柔らかく",
+            "value": "委婉"
+           },
+           {
+            "label": "業界用語",
+            "note": "大手IT企業風の言い回し（英語はAmazon流）",
+            "value": "黑话"
+           }
+          ],
+          "id": "apps.win:notepad.exe.rewriteStyles",
+          "kind": "choices",
+          "label": "書き換えスタイル",
+          "value": [
+           "formal"
+          ]
+         },
+         {
+          "help": "@improve、@translate、@question、@agentなどはAIに何も送信しません。入力とほかのコマンドは使えます。",
+          "id": "apps.win:notepad.exe.noAI",
+          "kind": "toggle",
+          "label": "このAppではAIを使わない",
+          "value": true
+         }
+        ],
+        "id": "win:notepad.exe",
+        "title": "notepad.exe"
+       }
+      ],
+      "kind": "items",
+      "label": "App別設定",
+      "placeholder": "プログラム名（例：notepad.exe）"
+     }
+    ],
+    "id": "apps",
+    "title": "App別設定"
+   },
+   {
+    "fields": [
+     {
+      "help": "プラグインはまだありません。プラグインは株価を調べる@stockのような既製の@コマンドで、インストールするとほかのコマンドと同じように使えます。",
+      "id": "plugins.installed",
+      "items": [],
+      "kind": "items",
+      "label": "プラグイン"
+     },
+     {
+      "actions": [
+       "browse"
+      ],
+      "help": "ライブラリのプラグインは審査・署名済みです。ライブラリは開いたときにのみ取得されます（plugins.allinoneime.com）。",
+      "id": "plugins.library",
+      "kind": "items",
+      "label": "プラグインライブラリ"
+     }
+    ],
+    "id": "plugins",
+    "title": "プラグイン"
+   },
+   {
+    "fields": [
+     {
+      "actions": [
+       "add"
+      ],
+      "help": "スクリプトまたは拡張機能バンドルのフォルダを選択",
+      "id": "extensions.folders",
+      "items": [
+       {
+        "actions": [
+         "remove"
+        ],
+        "detail": "追加済み",
+        "id": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-450dvbdn",
+        "title": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-450dvbdn"
+       }
+      ],
+      "kind": "items",
+      "label": "フォルダ",
+      "pick": "folder",
+      "placeholder": "~/.config/allinoneime/extensions"
+     },
+     {
+      "id": "extensions.installed",
+      "items": [
+       {
+        "detail": "1.2.0 · Someone · Commands for the team",
+        "fields": [
+         {
+          "help": "Commands for the team",
+          "id": "extensions.on.tools",
+          "kind": "toggle",
+          "label": "Team Tools",
+          "value": true
+         },
+         {
+          "actions": [
+           "setKey"
+          ],
+          "id": "extensions.preference.tools.apiToken",
+          "isSet": false,
+          "kind": "secret",
+          "label": "API token *",
+          "status": "未設定"
+         },
+         {
+          "choices": [
+           {
+            "label": "Europe",
+            "value": "eu"
+           },
+           {
+            "label": "Asia",
+            "value": "asia"
+           }
+          ],
+          "id": "extensions.preference.tools.region",
+          "kind": "choice",
+          "label": "Region",
+          "value": "eu"
+         },
+         {
+          "id": "extensions.preference.tools.verbose",
+          "kind": "toggle",
+          "label": "Verbose",
+          "value": false
+         },
+         {
+          "id": "extensions.preference.tools.host",
+          "kind": "text",
+          "label": "Host",
+          "placeholder": "example.com",
+          "value": "example.com"
+         },
+         {
+          "help": "Find someone · Team Tools",
+          "id": "extensions.on.tools/find",
+          "kind": "toggle",
+          "label": "@find",
+          "value": true
+         }
+        ],
+        "id": "bundle:tools",
+        "title": "Team Tools"
+       },
+       {
+        "detail": "Say hi",
+        "fields": [
+         {
+          "help": "Say hi",
+          "id": "extensions.on.C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-450dvbdn/hello.sh",
+          "kind": "toggle",
+          "label": "@hello",
+          "value": true
+         }
+        ],
+        "id": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-450dvbdn/hello.sh",
+        "title": "@hello"
+       }
+      ],
+      "kind": "items",
+      "label": "スクリプト拡張機能"
+     }
+    ],
+    "footer": "各スクリプトはファイル名にちなんだ@コマンドになります（convert-timestamp.sh → @converttimestamp）。引数はコマンドのあとにカンマ区切りで書きます：@flights beijing, new york。スクリプトは結果の挿入、進行状況の表示、選択肢リストの表示、バックグラウンドでの実行と完了通知などができます。書き方はdocs/extensions.mdを参照してください。",
+    "id": "extensions",
+    "title": "スクリプト拡張機能"
+   },
+   {
+    "fields": [
+     {
+      "choices": [
+       {
+        "label": "Notion",
+        "value": "notion"
+       },
+       {
+        "label": "フォルダ（Obsidianなど）",
+        "value": "folder"
+       }
+      ],
+      "id": "notes.destination",
+      "kind": "choice",
+      "label": "保存先",
+      "value": "folder"
+     },
+     {
+      "id": "notes.folder",
+      "kind": "text",
+      "label": "フォルダ（Obsidianなど）",
+      "optional": true,
+      "pick": "folder",
+      "value": "C:\\Notes"
+     }
+    ],
+    "id": "notes",
+    "title": "メモ（@note）"
+   },
+   {
+    "fields": [
+     {
+      "actions": [
+       "save"
+      ],
+      "form": [
+       {
+        "id": "name",
+        "kind": "text",
+        "label": "名前",
+        "placeholder": "英字のみ。例：py"
+       },
+       {
+        "choices": [
+         {
+          "label": "AIへの指示",
+          "value": "prompt"
+         },
+         {
+          "label": "プログラムを実行",
+          "value": "run"
+         },
+         {
+          "label": "ターミナルで実行",
+          "value": "terminal"
+         },
+         {
+          "label": "Webページを開く",
+          "value": "link"
+         },
+         {
+          "label": "テキストを挿入",
+          "value": "snippet"
+         }
+        ],
+        "id": "type",
+        "kind": "choice",
+        "label": "動作",
+        "value": "prompt"
+       },
+       {
+        "help": "コマンドリストに表示（省略可）",
+        "id": "summary",
+        "kind": "text",
+        "label": "説明",
+        "optional": true
+       },
+       {
+        "id": "prompt",
+        "kind": "text",
+        "label": "AIへの指示",
+        "multiline": true,
+        "when": {
+         "type": [
+          "prompt"
+         ]
+        }
+       },
+       {
+        "id": "argv",
+        "kind": "words",
+        "label": "コマンド",
+        "placeholder": "python3 convert.py {input}",
+        "text": "",
+        "when": {
+         "type": [
+          "run",
+          "terminal"
+         ]
+        }
+       },
+       {
+        "id": "url",
+        "kind": "text",
+        "label": "URL",
+        "placeholder": "https://www.google.com/search?q={input}",
+        "when": {
+         "type": [
+          "link"
+         ]
+        }
+       },
+       {
+        "id": "text",
+        "kind": "text",
+        "label": "テキストを挿入",
+        "multiline": true,
+        "when": {
+         "type": [
+          "snippet"
+         ]
+        }
+       }
+      ],
+      "id": "commands.custom",
+      "items": [
+       {
+        "actions": [
+         "save",
+         "delete"
+        ],
+        "detail": "独自のAI指示",
+        "id": "polite",
+        "title": "@polite",
+        "value": {
+         "name": "polite",
+         "prompt": "Make it polite",
+         "type": "prompt"
+        }
+       },
+       {
+        "actions": [
+         "save",
+         "delete"
+        ],
+        "detail": "実行：python3",
+        "id": "upper",
+        "title": "@upper",
+        "value": {
+         "argv": [
+          "python3",
+          "-c",
+          "print(input().upper())"
+         ],
+         "name": "upper",
+         "type": "run"
+        }
+       }
+      ],
+      "kind": "items",
+      "label": "カスタム@コマンド"
+     }
+    ],
+    "footer": "保存後は、@improveと同じように、任意のテキストフィールドの先頭で@と名前を入力して使います。",
+    "id": "commands",
+    "title": "カスタム@コマンド"
+   },
+   {
+    "fields": [
+     {
+      "id": "configFile",
+      "kind": "info",
+      "label": "設定ファイル",
+      "value": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-q3fvlf0q/config.json"
+     }
+    ],
+    "footer": "変更はすぐに反映され、再起動は不要です。",
+    "id": "advanced",
+    "title": "詳細"
+   }
+  ],
+  "strings": {
+   "action.add": "追加",
+   "action.browse": "ライブラリを開く",
+   "action.delete": "削除…",
+   "action.hide": "非表示にする",
+   "action.install": "インストール",
+   "action.remove": "削除",
+   "action.removeKey": "削除…",
+   "action.save": "新規…",
+   "action.save.item": "編集…",
+   "action.setKey": "保存",
+   "action.show": "表示",
+   "action.test": "テスト",
+   "add": "追加…",
+   "cancel": "キャンセル",
+   "choose": "選択…",
+   "confirm.delete": "「{name}」を削除しますか？",
+   "confirm.remove": "「{name}」を取り除きますか？",
+   "confirm.removeKey": "「{name}」を削除しますか？",
+   "moveDown": "下へ移動",
+   "moveUp": "上へ移動",
+   "paste": "ペースト",
+   "remove": "削除",
+   "save": "保存",
+   "window.title": "AllInOneIME設定",
+   "working": "実行中…"
+  }
+ },
+ "revision": 1,
+ "type": "settings"
+}

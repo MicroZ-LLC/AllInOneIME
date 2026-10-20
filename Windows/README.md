@@ -14,16 +14,15 @@ The Windows shell of AllInOneIME, on the core in `../Core` (the same Swift packa
   protocol's goldens over the real pipe.
 - The tests of level one's engine, the core's librime binding (`AllInOneIMERime`), on librime's Windows build with
   rime-ice's data (see "Level one: librime and rime-ice").
+- AllInOneIME Settings, in `settings/`, with its own README: a C# WinUI 3 app on the engine's pipe that draws the
+  settings the engine serves (wire protocol §12, see "Settings over the wire").
 - The installer, in `installer/`: an MSI that makes AllInOneIME an input method like any other (see "Installing").
-
-The settings window comes next, a C# WinUI 3 app on the engine's pipe: the engine already serves the settings to it
-(wire protocol §12, see "Settings over the wire").
 
 ```
 Scripts/build-rime-data.sh                    # in Git Bash: librime and rime-ice's data, in ThirdParty (once)
 swift build                                   # Swift 6.4 for Windows, with Visual Studio's MSVC and Windows SDK
 swift run allinoneime-cli --help
-swift test                                    # the pipe's security (2), the Rime tests (24), the engine's (72)
+swift test                                    # the pipe's security (2), the Rime tests (24), the engine's (76)
 ```
 
 The engine and the command line link librime (`rime.lib`, `Scripts/fetch-librime.sh`); the engine finds `rime.dll`
@@ -73,7 +72,7 @@ In every app that loads TSF text services (the classic Win32 ones, and WinUI one
   its page; `@agent` and a `terminal` command start a console window (below); a custom `run` command runs its program
   through the core's Windows process launcher (a job object); `@js` runs in QuickJS in a child process of the engine, as
   script plugins do; `@py` runs Python if `python3` is on the PATH; `@note` saves to a folder of Markdown files or Notion
-  when `config.json` says so. `@settings` opens the folder of `config.json`.
+  when `config.json` says so. `@settings` opens AllInOneIME Settings.
 - **A console window (`@agent`, `@question`'s hand-off, a `terminal` command)** starts the program itself, in the home
   folder, with no shell in between, so nothing in a prompt is ever run: the program as cmd.exe finds it (on the PATH,
   PATHEXT's extensions added, never the current folder; a relative path is the home folder's), a .exe with its
@@ -95,9 +94,9 @@ In every app that loads TSF text services (the classic Win32 ones, and WinUI one
 
 ## Settings: a provider and its key
 
-There is no settings window on Windows yet (the engine serves one already: "Settings over the wire"). The settings are the core's `config.json`, in
-`%APPDATA%\AllInOneIME\config.json` (the same format as the Mac's `~/.config/allinoneime/config.json`; edit it by hand
-for the rest), and the command line, installed beside the engine, sets the ones that matter first:
+AllInOneIME Settings (the Start menu, or `@settings`; `settings/`) sets them all. The settings are the core's
+`config.json`, in `%APPDATA%\AllInOneIME\config.json` (the same format as the Mac's `~/.config/allinoneime/config.json`;
+it can be edited by hand too), and the command line, installed beside the engine, sets the ones that matter first:
 
 ```
 cd "C:\Program Files\AllInOneIME\0.6.4"
@@ -132,14 +131,21 @@ looks about once a second). The core's `SettingsService` does all of it; the eng
 (`--config`, else `%APPDATA%\AllInOneIME\config.json`) and, with `--no-keychain`, keeps its keys in memory. In test
 mode the goldens bring their own (`#! settings`); `settings.jsonl` replays over the pipe as the others do.
 
-Not done yet: the engine doesn't take its interface language from the settings when it starts, so the document's text
-is in the process's language (English, or Simplified Chinese), and other languages need the engine to read the String
-Catalog's translations (`InterfaceText.tableLookup`). The interface language changed in the settings applies to the
-engine's process at once.
+- **The interface language:** the engine reads the core's String Catalog (`Localizable.xcstrings` beside it, else the
+  checkout's `Core/Resources`; `UIText.useCatalog`), and takes its language from the settings at its start and after
+  every change, wherever it was made (`UIText.choice`), else from Windows' own languages: the document, the notices and
+  the panel's messages are in any of the nine languages the core has.
+- **Fuzzy pinyin** changed in the settings reaches librime as on the Mac (`RimeFuzzy`): the schema's patch in the user
+  folder, deployed again once a deployment under way is done, the fields given new sessions.
+- **More of the store:** the per-app settings (an app added by its program), the script extensions' folders, switches,
+  preferences and passwords, the custom command editor's form, the window's own words (§12.3).
+- **Tests:** an engine on a pipe of its own (`--pipe`) with `--test --config FILE` serves that file's settings, its keys
+  in memory: the Settings app's end-to-end test (`settings/Scripts/run-e2e.sh`).
+
 ## What's still missing
 
-- **The settings window**, and with it the sign-in to AllInOneIME Cloud, the language packs (Korean, Hindi: their
-  input isn't offered), the plugin library and the extensions' settings, app profiles edited other than by hand.
+- **In AllInOneIME Settings:** the sign-in to AllInOneIME Cloud, the language packs (Korean, Hindi: their input isn't
+  offered), the Git extension sources.
 - **What only macOS has:** Apple Notes (`@note`'s default destination: the text goes on the clipboard instead, and a
   notice says so; a folder or Notion works), Reminders (`@reminder`), Messages (`@imessage`), dictation (the right
   Alt key), reading a screenshot's text (`@reply` with an image), Claude Code background tasks (`@tasks`, `@agent` in
@@ -170,8 +176,10 @@ What the MSI does:
 
 - **Files:** `Program Files\AllInOneIME\<version>\`: `AllInOneTIP.dll`, `AllInOneIMEEngine.exe` (made a GUI program,
   so it opens no console at logon), `rime.dll` (librime) and `rime-data\` (rime-ice's schemas and dictionaries, 85
-  files, 120 MB) beside it, `allinoneime-cli.exe` (the command line), `AllInOneIMESetup.exe` (the helper), and the 20
-  DLLs the engine and the command line import from the Swift runtime and the VC++ redistributable, next to them. A
+  files, 120 MB) beside it, `allinoneime-cli.exe` (the command line), `AllInOneIMESetup.exe` (the helper), the 20
+  DLLs the engine and the command line import from the Swift runtime and the VC++ redistributable, next to them, and
+  the interface text's String Catalog (`Localizable.xcstrings`). AllInOneIME Settings in `Settings\`, self-contained
+  (.NET and the Windows App SDK in its folder, 284 files), with "AllInOneIME Settings" in the Start menu. A
   version has its own folder, so an app that loaded an older DLL keeps it until it restarts while new apps load the new
   one.
 - **Registration:** the DLL's own `DllRegisterServer`, run as SelfReg: the COM server in HKLM, the en-US and zh-CN
@@ -186,8 +194,8 @@ What the MSI does:
   needs it), and an `AllInOneIME` value under `HKLM\...\CurrentVersion\Run` starts each user's engine at logon, in
   their session. The installer starts it for the installing user right away, never elevated (through Explorer when
   the installer is elevated); not from an SSH session (session 0), where it would only hold the pipe's name.
-- **Uninstall:** AllInOneIME out of the user's language list (and TSF's state for it in their HKCU), every engine from
-  `Program Files\AllInOneIME` stopped, `DllUnregisterServer`, the files, the folder and the registry values gone. An
+- **Uninstall:** AllInOneIME out of the user's language list (and TSF's state for it in their HKCU), every engine and
+  Settings window from `Program Files\AllInOneIME` stopped, `DllUnregisterServer`, the files, the folder and the registry values gone. An
   upgrade keeps the keyboard in the list. `%APPDATA%\AllInOneIME`, the user's data (`config.json`, librime's learned
   words in `rime\`), is never touched, nor the keys in the Credential Manager.
 - **A DLL in use:** an installed input method's DLL is loaded, as a module or for its icon, by Explorer and every app
@@ -286,7 +294,14 @@ prove is its own and in front. The 0.6.4 package from before those fixes, run wi
 ```
 .build\debug\AllInOneIMEEngine.exe [--test [--provider FILE] [--clock manual|system]] [--config FILE] [--no-keychain]
                                     [--rime-data DIR] [--rime-user DIR] [--no-rime] [--no-panel] [--instances N] [--quiet]
+                                    [--pipe NAME] [--settings-app FILE]
 ```
+
+- **For the Settings app:** `--settings-app`, the app `@settings` starts (default: `Settings\AllInOneIMESettings.exe`
+  beside the engine; without one, the folder of `config.json`); `--pipe NAME`, for tests, an engine on a pipe of its own
+  with a single-instance mutex of its own, so that it runs beside the installed one (`@settings` gives the app the same
+  pipe); with `--test`, `--config` gives the Settings app that file's settings, their keys in memory, shared with the
+  requests (so are `--no-keychain`'s: a key the app saves is the one Test Connection sends).
 
 - **Settings:** `--config FILE` instead of `%APPDATA%\AllInOneIME\config.json`; `--no-keychain`, API keys from the
   environment only (the tests: the user's Credential Manager is neither read nor tied to a stub's address); librime's

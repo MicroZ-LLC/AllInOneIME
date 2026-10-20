@@ -2,12 +2,21 @@ import Foundation
 
 /// The settings document's sections and fields (`SettingsDocument`), made from the settings as they are now: which fields
 /// apply (on this platform, and now: a provider's own fields only while it is the one in use), their text (as the Mac's
-/// window says it, in the interface language), and how each one that can be changed is set (`setters`, given a value
-/// already checked against the field: `SettingsService.check`). Each change goes through the store, with its rules.
+/// window says it, in the interface language), how each one that can be changed is set (`setters`, given a value
+/// already checked against the field: `SettingsService.check`), and the actions only the schema knows how to do
+/// (`handlers`: an app added, a folder removed, an extension's password saved). Each change goes through the store, with
+/// its rules.
 struct SettingsSchema {
     typealias JSON = AIConfig.JSONValue
     typealias Field = SettingsDocument.Field
     typealias Choice = SettingsDocument.Choice
+    typealias Handler = (SettingsAction) -> Result<SettingsActionOutcome, SettingsProblem>
+
+    /// The apps added in the window without a setting of their own yet (a profile that sets nothing isn't saved): kept
+    /// by the service, listed until they are removed.
+    final class AddedApps {
+        var apps: [String] = []
+    }
 
     let store: SettingsStore
     let platform: SettingsPlatform
@@ -17,6 +26,13 @@ struct SettingsSchema {
     let library: PluginLibrary
     /// How each changeable field is set.
     private(set) var setters: [String: (JSON) throws -> Void] = [:]
+    /// The actions done here, by field.
+    var handlers: [String: Handler] = [:]
+    /// The apps typed in lately, latest first (the engine's): offered when one is added.
+    var recentApps: [String] = []
+    var addedApps = AddedApps()
+    /// The script extensions in the folders the config names.
+    var extensions = ExtensionIndex.empty
 
     init(store: SettingsStore, platform: SettingsPlatform, keySource: @escaping (Provider) -> APIKeys.Source,
          tests: [String: SettingsStore.TestStatus], libraryEntries: [PluginIndex.Entry]?, library: PluginLibrary) {
@@ -39,7 +55,12 @@ struct SettingsSchema {
             SettingsDocument.Section(id: "request", title: tr("模型参数", "Model Settings"), fields: request()),
             SettingsDocument.Section(id: "privacy", title: tr("隐私", "Privacy"), fields: privacy()),
             SettingsDocument.Section(id: "agent", title: tr("Agent", "Agent"), fields: agent()),
+            SettingsDocument.Section(id: "apps", title: tr("按 App 设置", "Apps"), fields: apps()),
             SettingsDocument.Section(id: "plugins", title: tr("插件", "Plugins"), fields: plugins()),
+            SettingsDocument.Section(id: "extensions", title: tr("脚本扩展", "Script Extensions"),
+                                     footer: tr("每个脚本是一个 @ 命令，名字取自文件名（convert-timestamp.sh → @converttimestamp）。参数写在命令后面，多个用逗号隔开：@flights beijing, new york。脚本可以上屏结果、显示进度、给出列表来选，或在后台运行，完成后通知你。写法见 docs/extensions.md。",
+                                                "Each script is an @ command named after its file (convert-timestamp.sh → @converttimestamp). Write its arguments after it, with commas between: @flights beijing, new york. A script can insert its result, show progress, offer a list to pick from, or run in the background and notify you. See docs/extensions.md for how to write one."),
+                                     fields: scriptExtensions()),
             SettingsDocument.Section(id: "search", title: tr("网页搜索（@search）", "Web Search (@search)"), fields: search()),
             SettingsDocument.Section(id: "notes", title: tr("笔记（@note）", "Notes (@note)"), fields: notes()),
             SettingsDocument.Section(id: "commands", title: tr("自定义 @ 命令", "Custom @ Commands"),
@@ -392,8 +413,10 @@ struct SettingsSchema {
         var words = Field(id: "redaction.customWords", kind: .words, label: tr("也隐藏这些词", "Also hide these words"),
                           help: tr("不分大小写", "In any case"), value: .array(redaction.customWords.map(JSON.string)))
         words.placeholder = tr("项目代号、名字…，用逗号分开", "A codename, a name…, separated by commas")
+        words.text = redaction.customWords.joined(separator: ", ")
         add(words, to: &fields) { value in
-            let list = Self.strings(value).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+            let list = (value.string.map(RedactionSettings.words(from:)) ?? Self.strings(value))
+                .map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
             store.config.redaction.customWords = list.reduce(into: []) { if !$0.contains($1) { $0.append($1) } }
         }
         return fields
@@ -418,7 +441,17 @@ struct SettingsSchema {
                                 value: .array(config.agentCommand.map(JSON.string)))
             command.placeholder = tr("例如 ", "e.g. ") + "muse --"
             command.ordered = true  // a command's arguments, in order
-            add(command, to: &fields) { store.config.agentCommand = Self.strings($0) }
+            command.text = CustomCommand.commandLine(config.agentCommand)
+            add(command, to: &fields) { value in
+                guard let line = value.string else {
+                    store.config.agentCommand = Self.strings(value)
+                    return
+                }
+                guard let argv = CustomCommand.arguments(fromCommandLine: line) else {
+                    throw SettingsProblem(.badValue, field: "agentCommand", message: UIText.describe(.unbalancedQuote))
+                }
+                store.config.agentCommand = argv
+            }
         }
         if config.agent == .claude {
             add(toggle("claudeInBackground", tr("在后台运行，做完通知我", "Runs in the background and notifies me"), nil,

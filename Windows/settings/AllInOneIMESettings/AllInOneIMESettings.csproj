@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- AllInOneIME Settings: a WinUI 3 window over the engine's settings document (the core's wire-protocol-v1.md §12).
+       Unpackaged and self-contained, .NET and the Windows App SDK both, so that the MSI installs it as files, with no
+       runtime to install first (see ../README.md); trimmed when published. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <RootNamespace>AllInOneIME.Settings</RootNamespace>
+    <AssemblyName>AllInOneIMESettings</AssemblyName>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <UseWinUI>true</UseWinUI>
+    <WindowsPackageType>None</WindowsPackageType>
+    <!-- So that `dotnet publish` brings the app's resources (its .pri, App.xbf) along, as a build does. -->
+    <EnableMsixTooling>true</EnableMsixTooling>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <SelfContained>true</SelfContained>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\..\tip\res\tip.ico</ApplicationIcon>
+    <Product>AllInOneIME</Product>
+    <AssemblyTitle>AllInOneIME Settings</AssemblyTitle>
+    <Version>$(AllInOneIMEVersion)</Version>
+    <Version Condition="'$(AllInOneIMEVersion)' == ''">0.0.0</Version>
+    <PublishTrimmed>true</PublishTrimmed>
+    <DebugType Condition="'$(Configuration)' == 'Release'">none</DebugType>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK.WinUI" Version="1.8.260803003" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AllInOneIMESettings.Core\AllInOneIMESettings.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="..\..\tip\res\tip.ico" Link="AllInOneIME.ico" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

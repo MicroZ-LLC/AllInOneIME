@@ -86,6 +86,11 @@ public final class SettingsService: @unchecked Sendable {
     /// The secret store its keys go to, when not the platform's (`Platform.secrets`): an engine's test mode keeps them
     /// in memory, never in the user's.
     private let secrets: APIKeys.Keychain?
+    /// Apps added in the window that have no setting of their own yet: listed until one is set, or they are removed
+    /// (a profile that sets nothing isn't saved).
+    private let addedApps = SettingsSchema.AddedApps()
+    /// The script extensions' files as last read: read again only when they changed.
+    private let extensionCache = ExtensionCache()
 
     /// Called after each change (here, or found in the file by `checkForChanges`), with the new revision, on the thread
     /// that made it, outside the lock; one at a time, the revisions in order (one passed by a later one is left out).
@@ -102,6 +107,11 @@ public final class SettingsService: @unchecked Sendable {
     public var pluginsChanged: @Sendable () -> Void {
         get { hooks.withLock { $0.pluginsChanged } }
         set { hooks.withLock { $0.pluginsChanged = newValue } }
+    }
+    /// The apps typed in lately (`win:notepad.exe`, a bundle id), latest first: offered when an app is added.
+    public var recentApps: @Sendable () -> [String] {
+        get { hooks.withLock { $0.recentApps } }
+        set { hooks.withLock { $0.recentApps = newValue } }
     }
     /// Bedrock's credentials for Test Connection, fetched again through the profile's whole chain.
     public var loadCredentials: Converter.CredentialLoader {
@@ -126,6 +136,7 @@ public final class SettingsService: @unchecked Sendable {
         var changed: @Sendable (UInt64) -> Void = { _ in }
         var keySource: @Sendable (Provider) -> APIKeys.Source = { APIKeys.source($0) }
         var pluginsChanged: @Sendable () -> Void = {}
+        var recentApps: @Sendable () -> [String] = { [] }
         var loadCredentials: Converter.CredentialLoader = { try await AWSCredentialResolver.shared.resolve(profile: $0, forceRefresh: true) }
         var notionSession: URLSession = NotionAPI.session
         var interfaceLanguage: @Sendable (Config) -> String = { config in
@@ -303,6 +314,26 @@ public final class SettingsService: @unchecked Sendable {
 
     /// The actions done at once.
     private func now(_ action: SettingsAction) -> Result<SettingsActionOutcome, SettingsProblem> {
+        // The schema's own (an app added or removed, a folder, an extension's password), else the service's: saved as
+        // the service's are, and, but for a password, nothing changed while the file can't be read.
+        if let done = changing({ () -> Result<SettingsActionOutcome, SettingsProblem>? in
+            guard let handler = build().handlers[action.field] else { return nil }
+            if let error = store.loadError, ![SettingsAction.setKey, SettingsAction.removeKey].contains(action.name) {
+                return .failure(Self.broken(error, action.field))
+            }
+            var outcome = SettingsActionOutcome()
+            let done = saving(action.field) { () -> SettingsProblem? in
+                switch handler(action) {
+                case let .success(done): outcome = done
+                case let .failure(problem): return problem
+                }
+                return nil
+            }
+            if case .success = done { revisionValue += 1 }  // the document changed (an app added: the store didn't)
+            return done.map { outcome }
+        }) {
+            return done
+        }
         switch action.name {
         case SettingsAction.setKey, SettingsAction.removeKey: return changing { secret(action) }
         case SettingsAction.remove: return changing { remove(action) }
@@ -382,7 +413,7 @@ public final class SettingsService: @unchecked Sendable {
         let setting = action.name == SettingsAction.setKey
         let key = action.key ?? ""
         if setting, key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return .failure(SettingsProblem(.badValue, field: action.field, message: tr("没有 key，什么都没保存", "No key: nothing was saved")))
+            return .failure(SettingsProblem(.badValue, field: action.field, message: Self.noKey))
         }
         let error: String?
         switch action.field {
@@ -491,7 +522,16 @@ public final class SettingsService: @unchecked Sendable {
                 return nil
             }.map { SettingsActionOutcome() }
         }
-        guard let value = action.value, let data = try? JSONEncoder().encode(value),
+        // The form's command (`argv`) as typed, a command line: split as the Mac's editor splits it.
+        var definition = action.value
+        if case var .object(keys)? = definition, case let .string(line)? = keys["argv"] {
+            guard let argv = CustomCommand.arguments(fromCommandLine: line) else {
+                return .failure(SettingsProblem(.badValue, field: action.field, message: UIText.describe(.unbalancedQuote)))
+            }
+            keys["argv"] = argv.isEmpty ? nil : .array(argv.map(AIConfig.JSONValue.string))
+            definition = .object(keys)
+        }
+        guard let value = definition, let data = try? JSONEncoder().encode(value),
               let command = try? JSONDecoder().decode(CustomCommand.self, from: data) else {
             return .failure(SettingsProblem(.badValue, field: action.field, message: Self.badValue))
         }
@@ -509,6 +549,7 @@ public final class SettingsService: @unchecked Sendable {
     // MARK: Checks
 
     static var notChangeable: String { tr("这个设置不能这样改", "This setting isn't changed this way") }
+    static var noKey: String { tr("没有 key，什么都没保存", "No key: nothing was saved") }
     static var badValue: String { tr("这个设置不接受这个值", "This setting doesn't take that value") }
 
     static func cancelled(_ id: String?) -> SettingsProblem {
@@ -570,6 +611,8 @@ public final class SettingsService: @unchecked Sendable {
             }
             return nil
         case .words:
+            // The list, or the line its `text` shows (split by the field's setter).
+            if field.text != nil, value.string != nil { return nil }
             guard case let .array(values) = value, values.allSatisfy({ $0.string != nil }) else { return bad() }
             return nil
         case .secret, .items, .info, .button:
@@ -584,15 +627,24 @@ public final class SettingsService: @unchecked Sendable {
     /// elsewhere meanwhile stays (taken out elsewhere, it stays out). Words (`redaction.customWords`) by the Mac's rule
     /// (`RedactionSettings.edited`); a list of choices keeps the window's order of what it showed (`merged`). A list
     /// whose order is its meaning (`agentCommand`, a command's arguments) isn't merged: changed since, it is `stale`.
+    /// A `words` field with a line (`text`) may be sent as lines: the one it showed, and the one edited.
     static func edited(_ value: AIConfig.JSONValue, shown: AIConfig.JSONValue,
                        of field: SettingsDocument.Field) -> Result<AIConfig.JSONValue, SettingsProblem> {
         let now = field.value?.strings ?? []
-        guard [.words, .choices].contains(field.kind), let list = value.strings, let shown = shown.strings else {
+        /// The list a value stands for: a line split as the field's setter splits it.
+        func list(_ value: AIConfig.JSONValue) -> [String]? {
+            guard field.kind == .words, field.text != nil, let line = value.string else { return value.strings }
+            return field.ordered == true ? CustomCommand.arguments(fromCommandLine: line) : RedactionSettings.words(from: line)
+        }
+        guard [.words, .choices].contains(field.kind), let shown = list(shown) else {
             return .failure(SettingsProblem(.badValue, field: field.id, message: badValue))
         }
-        switch field.kind {
-        case .words where field.ordered == true:
+        // Not merged: the value as it came (a line too, which the setter splits), if nothing changed since.
+        if field.kind == .words, field.ordered == true {
             return now == shown ? .success(value) : .failure(stale(field.id))
+        }
+        guard let list = list(value) else { return .failure(SettingsProblem(.badValue, field: field.id, message: badValue)) }
+        switch field.kind {
         case .words:
             return .success(.array(RedactionSettings.edited(now, to: list, shown: shown).map(AIConfig.JSONValue.string)))
         default:
@@ -619,13 +671,18 @@ public final class SettingsService: @unchecked Sendable {
 
     // MARK: The document
 
-    /// The document, and how each changeable field is set (its value already checked against the field).
-    private func build() -> (document: SettingsDocument, setters: [String: (AIConfig.JSONValue) throws -> Void]) {
+    /// The document, how each changeable field is set (its value already checked against the field), and the schema's
+    /// own actions.
+    private func build() -> (document: SettingsDocument, setters: [String: (AIConfig.JSONValue) throws -> Void],
+                             handlers: [String: SettingsSchema.Handler]) {
         var builder = SettingsSchema(store: store, platform: platform, keySource: keySource, tests: tests,
                                      libraryEntries: libraryEntries, library: library)
+        builder.recentApps = recentApps()
+        builder.addedApps = addedApps
+        builder.extensions = ExtensionStore.load(ExtensionStore.folders(store.config, found: []), cache: extensionCache)
         let sections = builder.sections()
         var document = SettingsDocument(language: UIText.language, platform: platform, loadError: store.loadError,
-                                        saveError: store.saveError, sections: sections)
+                                        saveError: store.saveError, sections: sections, strings: UIText.settingsWindowStrings)
         // What runs now: `running`, and `cancel` to stop it.
         for s in document.sections.indices {
             for f in document.sections[s].fields.indices {
@@ -643,13 +700,22 @@ public final class SettingsService: @unchecked Sendable {
         }
         if store.loadError != nil {
             for s in document.sections.indices {
-                for f in document.sections[s].fields.indices where [.toggle, .integer, .number, .text, .choice, .choices, .words]
-                    .contains(document.sections[s].fields[f].kind) {
-                    document.sections[s].fields[f].readOnly = true
-                }
+                document.sections[s].fields = document.sections[s].fields.map(Self.readOnly)
             }
         }
-        return (document, builder.setters)
+        return (document, builder.setters, builder.handlers)
+    }
+
+    /// A field shown, not changed (the file can't be read), and so are an item's own fields.
+    static func readOnly(_ field: SettingsDocument.Field) -> SettingsDocument.Field {
+        var field = field
+        if [.toggle, .integer, .number, .text, .choice, .choices, .words].contains(field.kind) { field.readOnly = true }
+        field.items = field.items?.map { item in
+            var item = item
+            item.fields = item.fields?.map(readOnly)
+            return item
+        }
+        return field
     }
 }
 

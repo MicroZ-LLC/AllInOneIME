@@ -560,23 +560,36 @@ given and sends back what the user did. It opens no sessions.
 - **Document:** `language` (the text's: "zh-Hans", "en", "fr" …: the settings' `uiLanguage`, else the system's, as the
   engine's panel picks it; changed, the answer's document is in the new one already), `platform` (`windows`, `mac`),
   `loadError` (the config file can't be read: every field is `readOnly`, nothing is changed, the file stays as it is),
-  `saveError`, `sections`.
+  `saveError`, `sections`, `strings`.
+- **`strings`:** the words of the window's own controls, in the interface language, by name, so that a client has no
+  text of its own: `window.title`; the button of each action, `action.<action>` ("action.setKey": "Save",
+  "action.cancel": "Cancel"), and `action.<action>.item` where an item's differs from the field's (`action.save.item`:
+  "Edit…", `action.save`: "New…"); the question an action that deletes asks first, `confirm.<action>` with `{name}`
+  for what it deletes ("Delete “{name}”?"; `confirm.removeItem` for an item's `remove`); `save`, `cancel`, `choose` (a
+  `picker`'s), `moveUp`, `moveDown`, `remove`, `add` (an ordered list's), `paste` (an empty secret's box), `working`
+  (an action under way, `running`). A client keeps its own words for a name that isn't there (an older engine).
 - **Section:** `id`, `title`, `footer` (a note under it), `fields`. Sections without fields are left out.
 - **Field:** `id` (what `settingsSet` and `settingsAction` name), `kind`, `label`, and as it has them: `help`, `value`,
   `placeholder` (what an empty text stands for: the default), `choices` (`{value, label, note, disabled}`), `ordered`,
   `minCount`, `maxCount`, `min`, `max`, `step`, `optional`, `readOnly`, `platforms`, `status`, `isSet`, `actions`,
-  `items` (`{id, title, detail, value, actions, running}`), `running` (an action that takes a while runs now, §12.5),
-  `multiline` (a text of several lines), `picker` (`file` or `folder`: a path, picked with the system's open panel;
-  `jargonFile`, `notes.folder`), `textActions` (its actions that take a text the user types, sent as the action's
-  `value`: `notes.notion`'s `test` takes the link, `placeholder` the box's hint), `schema` (what its items' `value`
-  is, below), `when` (in a `schema`).
+  `items` (`{id, title, detail, value, actions, running, fields}`), `running` (an action that takes a while runs now,
+  §12.5), `text`, `multiline` (a text of several lines), `picker` (`file` or `folder`: a path, picked with the system's
+  open panel; `jargonFile`, `notes.folder`; on an `items` field, the path its `add` takes: `extensions.folders`),
+  `textActions` (its actions that take a text the user types, sent as the action's `value`: `notes.notion`'s `test`
+  takes the link, `add` the app or the folder; `placeholder` the box's hint), `schema` (what its items' `value` is,
+  below), `when` (in a `schema`).
+  - `items[].fields`: an item's own settings (an app's, an extension's switch and preferences), fields as any other:
+    set and acted on by their `id`, which is unique in the document.
+  - `text` (`words`): the list as the one line the field shows (", " between the words, or a command line); `settingsSet`
+    takes such a line as well as the list, and splits it the same way (`shown` too, §12.4).
 - **`schema`** (`commands.custom`): the fields of a custom command's definition, the `value` its items carry and `save`
   takes, as the Mac's command editor shows them. Each field's `id` is a key of that object, its `kind`, `label`,
   `help`, `placeholder`, `choices`, bounds and `optional` as for any field, its `value` what a new command starts with.
   `when` (`{"type": ["run", "terminal"]}`) says which values other fields of the definition must have for it to apply:
   leave the others out of the `value` sent. An `info` field in it is text to show (the warning about programs). A
-  definition is checked when saved (§12.5). Send back the keys of the item's `value` the schema doesn't name (`icon`,
-  `color`) as they were: what isn't sent isn't kept.
+  `words` field of it (`argv`) may be sent as the line typed, a command line. A definition is checked when saved
+  (§12.5). Send back the keys of the item's `value` the schema doesn't name (`icon`, `color`) as they were: what isn't
+  sent isn't kept.
 - **Canonical form** (§1): what a field doesn't have is left out, and so is a `value` that is null: no `value` means
   null (a text not set, "follow the system").
 
@@ -619,7 +632,9 @@ given and sends back what the user did. It opens no sessions.
 | `request` | `maxTokens`, `temperature` (Bedrock), `timeoutSeconds` |
 | `privacy` | `redaction.enabled`, `redaction.emails`, `.phones`, `.cards`, `.keys`, `.ips`, `redaction.customWords` |
 | `agent` | `agent`, `agentCommand` (a custom agent), `claudeInBackground` (Claude Code); the Mac's: `agentPageContext` |
+| `apps` | `apps.profiles`: an item per app with settings of its own (`win:notepad.exe`), its fields `apps.<app>.inputLanguage`, `.ownStyles`, `.rewriteStyles` (with its own styles), `.noAI`; the Mac's: `.typeOut`, `.translateAlways` |
 | `plugins` | `plugins.installed`, `plugins.library` |
+| `extensions` | `extensions.folders` (an item per folder), `extensions.installed`: an item per bundle (`bundle:<name>`) or script, its fields `extensions.on.<id>` (its switch; a bundle's commands' too, `<bundle>/<command>`) and a bundle's preferences `extensions.preference.<bundle>.<name>` (a password is a `secret`) |
 | `search` | `search.key` |
 | `notes` | `notes.destination`, `notes.folder`, `notes.notionToken`, `notes.notion` |
 | `commands` | `commands.custom` |
@@ -642,7 +657,8 @@ given and sends back what the user did. It opens no sessions.
     `words` follow the Mac's rule (`RedactionSettings.edited`: the words added go at the end); `choices` keep the
     window's order of what it showed, and an item added elsewhere goes back after the one it came after. A `words`
     list whose order is its meaning (`ordered`: `agentCommand`, a command's arguments) isn't merged: changed since it
-    was shown, it is `stale`. `shown` on any other field is `badValue`.
+    was shown, it is `stale`. A `words` field with a line (`text`) may send lines for both, the one it showed and the
+    one edited, split as `settingsSet` splits a line. `shown` on any other field is `badValue`.
   - **Neither** (what a client of before sends): `value` is the field's new value, whatever changed since. A list
     then replaces the list as it is, additions made elsewhere since included: send `shown` (or `revision`) to keep them.
 - **Revisions and restarts:** the revision is the engine process's own count, from 1. After the engine restarts (`bye`,
@@ -664,18 +680,22 @@ given and sends back what the user did. It opens no sessions.
 
 | `action` | On | Takes | Does |
 |---|---|---|---|
-| `setKey` | a `secret` | `key` | saves the key, for a provider's base URL as it is now (§12.8) |
+| `setKey` | a `secret` | `key` | saves the key, for a provider's base URL as it is now (§12.8); an extension's password, in the same store |
 | `removeKey` | a `secret` with it | — | removes the saved key |
 | `test` | `provider.test`, `search.key`, `notes.notion` | `value`: the link, for `notes.notion` (none: the page kept) | Test Connection, a web search, the Notion link (found: @note saves there) |
 | `browse` | `plugins.library` | — | downloads the library's signed index; the field's `items` are then what it offers |
 | `install` | `plugins.library` | `item` (a plugin's name) | installs or updates it |
 | `remove` | `plugins.installed` | `item` | removes the plugin |
-| `save` | `commands.custom` | `value` (the command's definition, as `config.json` has it and the field's `schema` describes), `item` (its name before; none for a new one) | saves it with the command editor's rules: a name taken, an empty prompt … are `badValue` |
+| `save` | `commands.custom` | `value` (the command's definition, as `config.json` has it and the field's `schema` describes; `argv` may be the command line as typed), `item` (its name before; none for a new one) | saves it with the command editor's rules: a name taken, an empty prompt … are `badValue` |
 | `delete` | `commands.custom` | `item` | deletes the command |
+| `add` | `apps.profiles`, `extensions.folders` | `value`: the app (its program, "notepad.exe", or its id), the folder's path | an app listed with its own fields (saved once one is set), a folder read for extensions |
+| `remove` | `apps.profiles`, `extensions.folders` | `item` | the app's settings, the folder |
+| `hide`, `show` | `extensions.folders` | `item` | a folder the Mac found (Spotlight), hidden or shown again |
 | `cancel` | a field with `test`, `browse` or `install` (and `item`, an install's plugin) | — | stops what runs there (§12.5, "Takes a while") |
 
 - An action must be in the field's `actions` (or its item's).
-- **Done at once:** `setKey`, `removeKey`, `remove`, `save`, `delete`, `cancel`: the answer comes as any other.
+- **Done at once:** `setKey`, `removeKey`, `remove`, `save`, `delete`, `add`, `hide`, `show`, `cancel`: the answer comes
+  as any other.
 - **Takes a while:** `test`, `browse`, `install` (a request to an AI provider, a download): the answer comes when it is
   done, perhaps after other frames; match it by `re`. The connection goes on meanwhile. A failed test is a `problem`
   (`failed`, "✗ …"); a test that passed says so in `message` ("✓ …"). Either is also the field's `status` from then on.
@@ -727,7 +747,11 @@ given and sends back what the user did. It opens no sessions.
 - **Wire:** the messages in `WireMessages.swift`; `WireServer.settings` (a `SettingsService`; nil: none), its settings
   queue (§12.7), `checkSettings` (the file checked on that queue), and `useTestSettings` (`#! settings`, test mode).
 - **Windows engine:** one `SettingsService` over its config file (`--config`, else `%APPDATA%\AllInOneIME\config.json`),
-  checked for changes about once a second (`checkSettings`, from the watchdog's loop, which never waits for it).
+  checked for changes about once a second (`checkSettings`, from the watchdog's loop, which never waits for it). Its
+  interface text in the nine languages of the core's String Catalog (`Localizable.xcstrings` beside it,
+  `UIText.useCatalog`), in the language the settings pick (`UIText.choice`, applied after each change wherever it was
+  made), else Windows' own.
+- **Settings app (Windows/settings):** AllInOneIMESettings.exe, a C# WinUI 3 client that draws any document it is given.
 - **Golden:** `settings.jsonl`, its documents and messages as the engine sends them (its config says English), but for
   what is the engine's own (`"$any"`): the config file's path, the jargon list's default path, the interface languages
   it ships. The document is in the language the settings say (`uiLanguage`, else the system's), whatever the

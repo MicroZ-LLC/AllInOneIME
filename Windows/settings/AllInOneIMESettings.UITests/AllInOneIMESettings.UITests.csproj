@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The Settings app end to end, through UI Automation, without a human (and without a key pressed): run by
+       ../Scripts/run-e2e.sh in the logged-on user's session, against a test engine on a pipe of its own. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <RootNamespace>AllInOneIME.Settings.UITests</RootNamespace>
+    <AssemblyName>AllInOneIMESettings.UITests</AssemblyName>
+    <!-- FlaUI's own: System.Drawing for its captures, here PrintWindow's. -->
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="FlaUI.UIA3" Version="4.0.0" />
+    <PackageReference Include="System.Drawing.Common" Version="8.0.10" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AllInOneIMESettings.Core\AllInOneIMESettings.Core.csproj" />
+  </ItemGroup>
+</Project>

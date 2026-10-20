@@ -16,6 +16,8 @@ public enum UIText {
         var shipped: [String]
         var language: String
         var chinese: Bool
+        /// What "follow the system" picks: `systemLanguage`, or the one `useCatalog` worked out.
+        var system: String
     }
 
     /// Worked out once, on the first read: `language` is read on the candidate panel's hot path (`tr`), so it is worked
@@ -26,9 +28,9 @@ public enum UIText {
         let app = Bundle.main
         let shipped = InterfaceLanguage.shipped(in: app)
         if !InterfaceText.lookupInstalled { InterfaceText.lookup = InterfaceText.bundleLookup(app: app) }
-        let language = picked(choice: nil, shipped: shipped)
+        let language = picked(choice: nil, shipped: shipped, system: systemLanguage)
         return Locked(initialState: State(choice: nil, app: app, shipped: shipped, language: language,
-                                          chinese: InterfaceLanguage.isChinese(language)))
+                                          chinese: InterfaceLanguage.isChinese(language), system: systemLanguage))
     }()
 
     /// Picked in the settings (config `uiLanguage`: "zh", "en" or a shipped code; applied from the config when a
@@ -40,7 +42,7 @@ public enum UIText {
             let changed = state.withLock { state -> Bool in
                 guard state.choice != newValue else { return false }
                 state.choice = newValue
-                state.language = picked(choice: newValue, shipped: state.shipped)
+                state.language = picked(choice: newValue, shipped: state.shipped, system: state.system)
                 state.chinese = InterfaceLanguage.isChinese(state.language)
                 return true
             }
@@ -65,7 +67,7 @@ public enum UIText {
             state.withLock { state in
                 state.app = newValue
                 state.shipped = InterfaceLanguage.shipped(in: newValue)
-                state.language = picked(choice: state.choice, shipped: state.shipped)
+                state.language = picked(choice: state.choice, shipped: state.shipped, system: state.system)
                 state.chinese = InterfaceLanguage.isChinese(state.language)
             }
             InterfaceText.lookup = InterfaceText.bundleLookup(app: newValue)
@@ -94,8 +96,30 @@ public enum UIText {
     /// takes its language (`PanelPresenter`, `SessionText`), and what `UIText`'s own texts are made with.
     public static var words: InterfaceWords { InterfaceWords(language: language) }
 
-    private static func picked(choice: String?, shipped: [String]) -> String {
-        InterfaceLanguage.code(forSetting: choice, shipped: shipped) ?? systemLanguage
+    private static func picked(choice: String?, shipped: [String], system: String) -> String {
+        InterfaceLanguage.code(forSetting: choice, shipped: shipped) ?? system
+    }
+
+    /// For a shell without `.lproj` bundles (Windows): the String Catalog's tables (`StringCatalog.tables`) as the
+    /// translations (`InterfaceText.tableLookup`), the languages they have as the ones shipped, and the system's own
+    /// languages, in its order (`preferred`: Windows' `GetUserPreferredUILanguages`, which `Locale.preferredLanguages`
+    /// doesn't read there), as what "follow the system" picks from.
+    public static func useCatalog(_ tables: [String: [String: String]], preferred: [String]) {
+        InterfaceText.lookup = InterfaceText.tableLookup(tables)
+        let others = tables.keys.filter { code in
+            code != "Base" && !InterfaceLanguage.builtIn.contains { $0.caseInsensitiveCompare(code) == .orderedSame }
+        }
+        let shipped = InterfaceLanguage.builtIn + others.sorted()
+        let changed = state.withLock { state -> Bool in
+            let system = InterfaceLanguage.pick(preferred: preferred, shipped: shipped)
+            let before = state.language
+            state.shipped = shipped
+            state.system = system
+            state.language = picked(choice: state.choice, shipped: shipped, system: system)
+            state.chinese = InterfaceLanguage.isChinese(state.language)
+            return state.language != before
+        }
+        if changed { languageChanged() }
     }
 
     /// Text written only in Simplified Chinese and English, without a catalog entry (an error's Chinese, a short
