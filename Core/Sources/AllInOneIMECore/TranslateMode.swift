@@ -173,7 +173,10 @@ public enum TranslateMode {
     /// (`flagsChanged` says so), and the controller asks `poll` after `hintAfter` and after `toggleAfter`: the hint
     /// ("keep holding") is due once it has been held `hintAfter`, the toggle once `toggleAfter`, each once per press.
     /// Any key, another modifier (fn too), the release, or the pointer used or moved meanwhile (a Shift-click, aimed)
-    /// ends the press. With Sticky Keys on there is none: a Shift it latches looks held.
+    /// ends the press. With Sticky Keys on there is none: a Shift it latches looks held. A modifier change handed over
+    /// twice counts once: Chromium and Electron apps (Slack, VS Code, Chrome) hand the input method every one twice. The
+    /// shell drops such a copy before it gets here (`ModifierEchoes`); of those, this drops again only the one right
+    /// after its original, whatever its time.
     public struct ShiftHold {
         public static let hintAfter: TimeInterval = 0.5
         public static let toggleAfter: TimeInterval = 1.0
@@ -197,6 +200,8 @@ public enum TranslateMode {
         /// Whether Shift was down after the last modifier change: the other Shift pressed or let go meanwhile starts
         /// no press.
         private var shiftDown = false
+        /// The last modifier change: its key and the modifiers down after it (nil: none since `resync`).
+        private var lastChange: (key: Key, modifiers: Modifiers)?
         private var hinted = false
         private var toggled = false
 
@@ -214,13 +219,23 @@ public enum TranslateMode {
 
         /// A modifier changed: `keyCode` the key, `modifiers` those down now (fn as `.function`). True when Shift went
         /// down on its own (no Shift before, nothing else held but Caps Lock) and Sticky Keys is off: poll after
-        /// `hintAfter` and `toggleAfter`. Anything else ends a press.
+        /// `hintAfter` and `toggleAfter`. Anything else ends a press, but the same change again (the same key, the same
+        /// modifiers after it), which is the last one handed over a second time and changes nothing.
         public mutating func flagsChanged(keyCode: UInt16, modifiers: KeyModifiers) -> Bool {
             flagsChanged(key: MacKeyCodes.key(keyCode), modifiers: modifiers)
         }
 
         /// `flagsChanged(keyCode:modifiers:)` with the key that changed as a `Key`.
         public mutating func flagsChanged(key: Key, modifiers: Modifiers) -> Bool {
+            // Chromium sends a key event the page let go by through the app again, and AppKit hands a modifier change
+            // to the input method there: Shift's down comes a second time 5–20 ms later, as if Shift were already held
+            // (the other Shift). Nothing changed: the press goes on. The shell drops such copies first by their time
+            // (`ModifierEchoes`), after other changes too. This is a narrower check under it, for the long press only:
+            // the copy right after its original, even with no time (0) or another one. One after other changes (the
+            // page busy) gets by it, and the composer (a tap of Shift or ⌥) has none: should a copy come with a time
+            // other than its original's, the shell lets it by and a tap acts twice.
+            if let last = lastChange, last.key == key, last.modifiers == modifiers { return false }
+            lastChange = (key, modifiers)
             let isShift = key.modifierKind == .shift
             let wasDown = shiftDown
             shiftDown = modifiers.contains(.shift)
@@ -239,10 +254,11 @@ public enum TranslateMode {
 
         /// Modifier changes may have gone unseen (another field, another app, secure input): no press, and Shift down
         /// or not as it really is (`shiftDown`), so a release missed doesn't make the next press look like the other
-        /// Shift's.
+        /// Shift's; the next change counts, even one like the last seen.
         public mutating func resync(shiftDown: Bool) {
             cancel()
             self.shiftDown = shiftDown
+            lastChange = nil
         }
 
         /// What is due now (a timer went off): the hint, then the toggle, each once. `pointerUsed`: a mouse button, a

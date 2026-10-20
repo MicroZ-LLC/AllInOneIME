@@ -1,0 +1,42 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline'">
+<title>AllInOneIME Electron harness</title>
+<style>
+  body { font: 14px -apple-system, sans-serif; margin: 16px; }
+  .composer { border: 1px solid #888; border-radius: 6px; min-height: 40px; padding: 8px; margin-bottom: 12px; }
+  textarea { width: 100%; height: 60px; }
+</style>
+</head>
+<body>
+<!-- Like Slack's composer: a contenteditable with role textbox (Quill's ql-editor). -->
+<div class="composer ql-editor" id="composer" contenteditable="true" role="textbox" aria-multiline="true"
+     data-qa="message_input" spellcheck="true"></div>
+<textarea id="textarea"></textarea>
+<script>
+  // What the page sees, on the harness's stderr. Nothing here handles Shift: the page lets it go by, as Slack's does.
+  const log = (...a) => console.log(...a);
+  for (const type of ['keydown', 'keyup', 'compositionstart', 'compositionend', 'beforeinput', 'focus', 'blur']) {
+    document.addEventListener(type, e => log(type, e.key ?? '', e.code ?? '', e.target.id || e.target.nodeName,
+                                             e.shiftKey ? 'shift' : '', e.repeat ? 'repeat' : ''), true);
+  }
+  window.addEventListener('focus', () => log('window focus'));
+  window.addEventListener('blur', () => log('window blur'));
+  // Slack listens to keys at the document level for its shortcuts: a handler that looks at Shift and lets it go by.
+  document.addEventListener('keydown', e => { if (e.key === 'Shift') { document.body.dataset.shift = '1' } });
+  document.addEventListener('keyup', e => { if (e.key === 'Shift') { delete document.body.dataset.shift } });
+  // A busy page (Slack's often is, for 100 ms and more): each key down takes `busy` ms, and the app sends it through
+  // again only after that, after the keys that came meanwhile.
+  const query = new URLSearchParams(location.search);
+  const busy = Number(query.get('busy')) || 0;
+  if (busy > 0) {
+    document.addEventListener('keydown', () => { const end = performance.now() + busy; while (performance.now() < end) {} });
+  }
+  const target = query.get('field') || 'composer';
+  document.getElementById(target).focus();
+  log('focused', document.activeElement.id, 'hasFocus', document.hasFocus());
+</script>
+</body>
+</html>

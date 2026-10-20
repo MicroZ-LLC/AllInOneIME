@@ -902,3 +902,193 @@ extension ShiftHoldTests {
         #expect(!k.flags(VirtualKey.leftShift, [.shift, .leftShift, .command, .leftCommand]))
     }
 }
+
+// MARK: - Every modifier change twice (Chromium and Electron apps)
+
+/// What Slack, VS Code or Chrome hand the input method for Shift, as the Electron harness recorded it
+/// (Sources/AllInOneIME/ElectronSelfTest.swift): every modifier change twice, the second 5–20 ms after the first and the
+/// same (Chromium sends a key event the page didn't handle through the app again, and AppKit hands a modifier change to
+/// the input method there). With the side bits the Mac's shell passes.
+extension HoldProbe {
+    /// A modifier change as such an app hands it over: once, then again a moment later. Whether each armed a press.
+    @discardableResult
+    func twice(_ keyCode: UInt16, _ modifiers: KeyModifiers) -> (first: Bool, again: Bool) {
+        let first = flags(keyCode, modifiers)
+        wait(0.015)
+        return (first, flags(keyCode, modifiers))
+    }
+    func downTwice(_ keyCode: UInt16 = VirtualKey.leftShift) -> (first: Bool, again: Bool) {
+        twice(keyCode, keyCode == VirtualKey.rightShift ? [.shift, .rightShift] : [.shift, .leftShift])
+    }
+    func upTwice(_ keyCode: UInt16 = VirtualKey.leftShift) -> (first: Bool, again: Bool) { twice(keyCode, []) }
+}
+
+extension ShiftHoldTests {
+    /// Held: the second Shift down, the same as the first, changes nothing: the hint at 0.5 s and the toggle at 1.0 s,
+    /// once; the release twice ends it, and nothing comes later.
+    @Test func aLongPressInAnElectronApp() {
+        let h = HoldProbe()
+        #expect(h.downTwice() == (true, false))
+        #expect(h.hold.held != nil)
+        h.wait(0.485)  // 0.5 s
+        #expect(h.poll() == .hint)
+        h.wait(0.5)  // 1.0 s
+        #expect(h.poll() == .toggle)
+        h.wait(0.28)
+        #expect(h.poll() == nil)
+        #expect(h.upTwice() == (false, false))
+        #expect(h.hold.held == nil)
+        h.wait(1)
+        #expect(h.poll() == nil)
+        // And again, the same: the next long press toggles too.
+        #expect(h.downTwice() == (true, false))
+        h.wait(1.0)
+        #expect(h.poll() == .toggle)
+    }
+
+    /// A tap, each change twice: no long press; through the composer too, the input language switched once.
+    @Test func aTapInAnElectronApp() {
+        let h = HoldProbe()
+        let c = Composer(engine: FakeEngine(), actionKey: .enter)
+        var switches = 0
+        func both(_ keyCode: UInt16, _ modifiers: KeyModifiers, at timestamp: TimeInterval) {
+            _ = h.flags(keyCode, modifiers)
+            switches += c.handleFlagsChanged(keyCode: keyCode, modifiers: modifiers, timestamp: timestamp)
+                .filter { if case .inputLanguageChanged = $0 { return true } else { return false } }.count
+        }
+        let pressed = h.clock.now
+        both(VirtualKey.leftShift, [.shift, .leftShift], at: pressed)
+        h.wait(0.015)
+        both(VirtualKey.leftShift, [.shift, .leftShift], at: pressed)  // the same event again
+        h.wait(0.1)
+        let released = h.clock.now
+        both(VirtualKey.leftShift, [], at: released)
+        h.wait(0.015)
+        both(VirtualKey.leftShift, [], at: released)
+        h.wait(1)
+        #expect(h.poll() == nil && h.hold.held == nil)
+        #expect(switches == 1 && c.inputLanguage == .english)
+    }
+
+    /// Shift with a letter (a capital), the Shift down handed over again before or after the letter: no toggle.
+    @Test func shiftWithALetterInAnElectronApp() {
+        let h = HoldProbe()
+        #expect(h.downTwice() == (true, false))
+        h.wait(0.2)
+        h.key()
+        h.wait(1)
+        #expect(h.poll() == nil)
+        _ = h.upTwice()
+        // The letter typed before Shift's down came the second time.
+        #expect(h.down())
+        h.key()
+        #expect(!h.down())
+        h.wait(1.2)
+        #expect(h.poll() == nil && h.hold.held == nil)
+        _ = h.upTwice()
+    }
+
+    /// A Shift-click (the pointer used, or moved to where the click goes) while Shift is held, each change twice: no
+    /// toggle.
+    @Test func aShiftClickInAnElectronApp() {
+        let h = HoldProbe()
+        _ = h.downTwice()
+        h.wait(1.0)
+        #expect(h.poll(pointerUsed: true) == nil)
+        #expect(h.poll() == nil)
+        _ = h.upTwice()
+        _ = h.downTwice()
+        h.move(60, 10)
+        h.wait(0.5)
+        #expect(h.poll() == nil && h.hold.held == nil)
+        h.wait(0.5)
+        #expect(h.poll() == nil)
+        _ = h.upTwice()
+    }
+
+    /// ⌘ with Shift, each change twice, in either order, and ⌘ let go while Shift is still held: a shortcut, no toggle.
+    @Test func shortcutsInAnElectronApp() {
+        let leftCommand: UInt16 = 0x37
+        let h = HoldProbe()
+        _ = h.downTwice()
+        #expect(h.twice(leftCommand, [.shift, .leftShift, .command, .leftCommand]) == (false, false))
+        #expect(h.twice(leftCommand, [.shift, .leftShift]) == (false, false))  // ⌘ up, Shift still held
+        h.wait(1.2)
+        #expect(h.poll() == nil && h.hold.held == nil)
+        _ = h.upTwice()
+        // ⌘ first, then Shift.
+        #expect(h.twice(leftCommand, [.command, .leftCommand]) == (false, false))
+        #expect(h.twice(VirtualKey.leftShift, [.shift, .leftShift, .command, .leftCommand]) == (false, false))
+        h.wait(1.2)
+        #expect(h.poll() == nil)
+        #expect(h.twice(leftCommand, [.shift, .leftShift]) == (false, false))
+        h.wait(1.2)
+        #expect(h.poll() == nil)
+    }
+
+    /// Sticky Keys on: a Shift it latches, handed over twice, is no press either.
+    @Test func stickyKeysInAnElectronApp() {
+        let h = HoldProbe()
+        h.clock.stickyKeys = true
+        #expect(h.downTwice() == (false, false))
+        h.wait(1.5)
+        #expect(h.poll() == nil)
+        _ = h.upTwice()
+    }
+
+    /// The other Shift pressed and let go while one is held, each change twice: no press; both let go, the next one
+    /// counts again.
+    @Test func theOtherShiftInAnElectronApp() {
+        let h = HoldProbe()
+        _ = h.downTwice()
+        #expect(h.twice(VirtualKey.rightShift, [.shift, .leftShift, .rightShift]) == (false, false))
+        #expect(h.twice(VirtualKey.rightShift, [.shift, .leftShift]) == (false, false))
+        h.wait(1.2)
+        #expect(h.poll() == nil && h.hold.held == nil)
+        _ = h.upTwice()
+        #expect(h.downTwice(VirtualKey.rightShift) == (true, false))
+        h.wait(1.0)
+        #expect(h.poll() == .toggle)
+    }
+
+    /// The page slow to let a tap go by: Shift's down and up come again after the release, with their times. On its
+    /// own, the press they seem to start ends with the second release; nothing toggles. As the shell hands them on (the
+    /// copies dropped first, `ModifierFeed`), the composer too: the input language switched once, not back again.
+    @Test func aTapHandedOverAgainLate() {
+        let h = HoldProbe()
+        #expect(h.flags(VirtualKey.leftShift, [.shift, .leftShift]))
+        h.wait(0.1)
+        #expect(!h.up())
+        h.wait(0.2)
+        _ = h.flags(VirtualKey.leftShift, [.shift, .leftShift])
+        h.wait(0.01)
+        #expect(!h.up())
+        h.wait(1.2)
+        #expect(h.poll() == nil && h.hold.held == nil)
+
+        let f = ModifierFeed()
+        let (pressed, released) = (f.now, f.now + 0.1)
+        #expect(f.change(VirtualKey.leftShift, [.shift, .leftShift], at: pressed) == [])
+        #expect(f.hold.hold.held != nil)
+        f.wait(0.1)
+        #expect(f.change(VirtualKey.leftShift, [], at: released)?.contains(.inputLanguageChanged(.english)) == true)
+        f.wait(0.2)
+        #expect(f.change(VirtualKey.leftShift, [.shift, .leftShift], at: pressed) == nil)
+        f.wait(0.01)
+        #expect(f.change(VirtualKey.leftShift, [], at: released) == nil)
+        f.wait(1.2)
+        #expect(f.hold.poll() == nil && f.hold.hold.held == nil)
+        #expect(f.switches == 1 && f.composer.inputLanguage == .english)
+    }
+
+    /// Modifier changes gone unseen (another field, another app, secure input: `resync`): the next change counts, even
+    /// one that looks like the last one seen.
+    @Test func aChangeAfterAResyncCountsEvenTheSameAgain() {
+        let h = HoldProbe()
+        #expect(h.flags(VirtualKey.leftShift, [.shift, .leftShift]))
+        h.hold.resync(shiftDown: false)  // let go where it went unseen
+        #expect(h.flags(VirtualKey.leftShift, [.shift, .leftShift]))
+        h.wait(1.0)
+        #expect(h.poll() == .toggle)
+    }
+}

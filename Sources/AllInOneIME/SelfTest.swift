@@ -3133,6 +3133,7 @@ enum SelfTest {
         testSnippets(controller, client)
         testAppProfiles(controller, client, snapshotDirectory: snapshotDirectory)
         testTranslateMode(controller, client, snapshotDirectory: snapshotDirectory)
+        testShiftHoldInElectron(controller, client)
         testRecentQuestions(controller, client, snapshotDirectory: snapshotDirectory)
         testQuestionChat(controller, client, snapshotDirectory: snapshotDirectory)
         testContinueListKeepsAgentsNotInstalled(snapshotDirectory: snapshotDirectory)
