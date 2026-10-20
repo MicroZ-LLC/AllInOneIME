@@ -505,6 +505,49 @@ struct AIConfigContextTests {
         }
     }
 
+    /// The request cancelled while the page says where it goes instead (another request asked, the page closed): it goes
+    /// nowhere. The user's provider is never asked, its key or AWS credentials never loaded.
+    @Test(arguments: [Provider.openai, .bedrock])
+    func cancelledAsItWouldGoInsteadGoesNowhere(provider: Provider) async throws {
+        let host = "assistant-cancelled-\(provider.rawValue).test"
+        let model = ContextLimitedModel(overflows: true)
+        var (_, config) = try Self.openAIService(model, host: host, answer: #"{"changes": []}"#)
+        config.provider = provider
+        let loaded = Locked<[String]>(initialState: [])
+        func service(_ apple: any AppleModelBackend) -> AIConfigService {
+            AIConfigService(client: ChatClient(bedrock: BedrockClient(session: StubURLProtocol.session()), apple: apple),
+                            loadCredentials: { profile in
+                                loaded.withLock { $0.append("credentials \(profile)") }
+                                throw AWSConfigError.profileNotFound(profile)
+                            },
+                            loadKey: { provider, _ in
+                                loaded.withLock { $0.append("key \(provider.rawValue)") }
+                                return "sk-test"
+                            })
+        }
+        let told = Locked<[Provider]>(initialState: [])
+        let onDevice = service(model)
+        let request = Task {
+            try await onDevice.ask("candidates in a column", context: Self.context(config), tools: Self.tools) { provider in
+                told.withLock { $0.append(provider) }
+                withUnsafeCurrentTask { $0?.cancel() }
+            }
+        }
+        await #expect(throws: CancellationError.self) { _ = try await request.value }
+        // Without Apple Intelligence, cancelled before the provider is asked: the same.
+        let cloud = service(AIConfigTests.GuidedStub(.deviceNotEligible, answer: ""))
+        let cancelled = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try await cloud.ask("candidates in a column", context: Self.context(config), tools: Self.tools)
+        }
+        await #expect(throws: CancellationError.self) { _ = try await cancelled.value }
+        // Anything started would have loaded them by now.
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(told.withLock { $0 } == [provider] && model.sent.count == 1)
+        #expect(loaded.withLock { $0 }.isEmpty, "\(loaded.withLock { $0 })")
+        #expect(StubURLProtocol.lastRequest(host: host) == nil)
+    }
+
     /// A setting the sentence is about is never left out to fit: a sentence about nine of them doesn't fit a 4096-token
     /// context whatever else is left out, so the user's own provider gets it whole, and the on-device model nothing.
     @Test(arguments: [true, false])

@@ -140,6 +140,8 @@ public final class AIConfigService: Sendable {
             context.showsAWSProfile = AIConfig.mentionsAWS(([sentence] + turns.map(\.instruction)).joined(separator: "\n"))
             if !context.showsAWSProfile { context.awsProfiles = [] }
             await sendingInstead?(config.provider)
+            // Cancelled meanwhile (another request, the page closed): it goes nowhere.
+            try Task.checkCancellation()
             do {
                 return try await askProvider(sentence, turns: turns, context: context, hiding: hiding, instead: true)
             } catch let error where !(error is CancellationError) {
@@ -174,6 +176,8 @@ public final class AIConfigService: Sendable {
         if let hit = cache.withLock({ $0.get(key) }), let text = hit.versions.first?.text {
             return Answer(text: text, fromCache: true, onDevice: false, hidden: hiding.count, instead: provider)
         }
+        // Cancelled: no key or credentials loaded, nothing sent.
+        try Task.checkCancellation()
         let text = try await collect(client.stream(hiding.protect(request), config: config, loadCredentials: loadCredentials, loadKey: loadKey))
         return keep(accounts.restoring(hiding.restore(text)), key: key,
                     Answer(text: "", fromCache: false, onDevice: false, hidden: hiding.count, instead: provider))
