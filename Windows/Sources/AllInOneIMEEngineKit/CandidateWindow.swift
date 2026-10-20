@@ -1,6 +1,29 @@
 #if os(Windows)
 import CAllInOneIMEPanel
 import Foundation
+import WinSDK
+
+/// Who owns the foreground, and where a client's caret may be (§8): the candidate window's own checks, for the engine.
+public enum Foreground {
+    /// Whether process `pid` is the app in front: the foreground window is its own (a classic console's, its
+    /// conhost's), or the focus is in a window of its own, or a window inside the foreground window is (a WebView2's, a
+    /// UWP app's in the frame around it).
+    public static func isOwned(by pid: UInt32) -> Bool { aio_owns_foreground(pid) != 0 }
+
+    /// `isOwned(by:)` with `foreground` as the foreground window and `focus` its thread's focus window.
+    static func isInFront(_ pid: UInt32, foreground: HWND?, focus: HWND? = nil) -> Bool {
+        aio_in_front(UnsafeMutableRawPointer(foreground), UnsafeMutableRawPointer(focus), pid) != 0
+    }
+
+    /// The rectangle a caret that process `pid` reports in window `hwnd` must be in: that window's, if it is the
+    /// process's; with no window, the foreground window's, if the process owns it. Nil if neither.
+    public static func caretBounds(hwnd: UInt64?, pid: UInt32?) -> CaretRect? {
+        guard let pid else { return nil }
+        var bounds = AioCaret()
+        guard aio_caret_bounds(hwnd ?? 0, pid, &bounds) != 0 else { return nil }
+        return CaretRect(x: Int(bounds.x), y: Int(bounds.y), width: Int(bounds.width), height: Int(bounds.height))
+    }
+}
 
 /// The engine's candidate window (M6), the `PanelPresenter` on Windows: the C++ window of `CAllInOneIMEPanel` (a
 /// layered, no-activate, topmost tool window drawn with Direct2D and DirectWrite, on a thread of its own), given each

@@ -2,9 +2,9 @@
 // TSF and SendInput need an interactive desktop, see README), starts the real engine and real, registered DLL, and
 // types into real Notepad through AllInOneIME, reading the result back through UI Automation.
 //
-//   e2edriver --engine <AllInOneIMEEngine.exe> [--scenario improve|plain|pinyin|ai] [--fixture <provider.json>]
+//   e2edriver --engine <AllInOneIMEEngine.exe> [--scenario improve|plain|pinyin|ai|terminal] [--fixture <provider.json>]
 //             [--plain <text>] [--engine-arg <arg>]... [--shots <dir>] [--engine-log <file>] [--langid 0x0409]
-//             [--timeout-ms 60000] [--expect-tip <dll>] [--probe] [--host]
+//             [--timeout-ms 60000] [--expect-tip <dll>] [--probe] [--host | --console | --webview2 <host.exe> <data dir>]
 //
 // The scenarios (what is typed, and what the document must then hold):
 //   improve  "hi @improve helo", Return, "1" with the engine in test mode and the scripted provider (--fixture):
@@ -12,7 +12,11 @@
 //   plain    the --plain text, as typed;
 //   pinyin   a tap of Shift (typing starts in English, as for a new user), "nihao", Space, "nihao", "1": "你好你好";
 //   ai       "@improve hello", Return, the versions streamed from the provider the engine's settings name (the run's
-//            stub on localhost), "1": "Hello there.".
+//            stub on localhost), "1": "Hello there.";
+//   terminal "@aioterm hello", Return: the run's `terminal` command (a batch file that prints what it is given and ends
+//            with exit code 3) in a console window of the engine's, which must come to the front, show the output and
+//            "exited with code 3", stay open after the program, and close on a key written into that console only; the
+//            field ends empty.
 // For all but plain it checks the engine's candidate window: up while the candidates or the results are, a no-activate
 // topmost tool window that never took the foreground from the target, and captured as a PNG into --shots.
 //
@@ -32,7 +36,10 @@
 //
 // At the end it puts Notepad back on the session's input method, closes its own tab, stops the engine, and restores
 // the per-thread input setting. --probe stops after step 4 and reports what it found (used to settle how the switch
-// works on this machine); it changes nothing lasting either. --host types into an EDIT control of its own instead.
+// works on this machine); it changes nothing lasting either. --host types into an EDIT control of its own instead;
+// --console into a classic console of its own (`conhost.exe cmd.exe`: TSF runs in the conhost that draws the window,
+// which says it is cmd's); --webview2 into the text field of a WebView2 in a window of its own (tip/test/webview2host:
+// TSF runs in msedgewebview2.exe, whose window is inside the host's).
 
 #include <windows.h>
 #include <msctf.h>
@@ -43,6 +50,8 @@
 
 #include <cstdio>
 #include <cstdarg>
+#include <fstream>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -237,11 +246,17 @@ void TakeForeground(HWND window) {
     }
 }
 
-// The foreground window belongs to `pid` (our Notepad): the guard before every SendInput, so a key can only ever go
-// to the Notepad this driver started.
+// The window the keys go to, when it is one of this driver's own that doesn't say it is its process's (a classic
+// console's says it is cmd's) or whose keys go to another process inside it (a WebView2's): the guard then wants that
+// window in front.
+HWND g_target = nullptr;
+
+// The foreground window belongs to `pid` (our Notepad), or is `g_target`: the guard before every SendInput, so a key can
+// only ever go to the window this driver started.
 bool ForegroundIsNotepad(DWORD pid) {
     HWND fg = GetForegroundWindow();
     if (!fg) return false;
+    if (g_target) return fg == g_target;
     DWORD fgPid = 0;
     GetWindowThreadProcessId(fg, &fgPid);
     return fgPid == pid;
@@ -461,7 +476,7 @@ bool CheckPanel(DWORD enginePid, DWORD targetPid, const std::wstring& shot, cons
     HWND fg = GetForegroundWindow();
     DWORD fgPid = 0;
     if (fg) GetWindowThreadProcessId(fg, &fgPid);
-    Check(fg != panel && fgPid == targetPid, "it never took the foreground from the window typed in");
+    Check(fg != panel && (g_target ? fg == g_target : fgPid == targetPid), "it never took the foreground from the window typed in");
     if (!shot.empty()) {
         bool saved = CaptureWindowPng(panel, shot);
         Check(saved, "captured it as a PNG");
@@ -485,6 +500,7 @@ struct Scenario {
         if (name == "plain") return plain;
         if (name == "pinyin") return L"你好你好";  // 你好你好
         if (name == "ai") return L"Hello there.";
+        if (name == "terminal") return L"";
         return L"hi Hello.";
     }
 
@@ -492,10 +508,17 @@ struct Scenario {
 };
 
 bool TapShift(DWORD pid);
+bool CheckTerminal(const Scenario& s);
 
 // Types the scenario's keys into the foreground (`pid`'s window), checking the candidate window on the way.
 bool TypeScenario(const Scenario& s, DWORD pid) {
     if (s.name == "plain") return TypeText(s.plain, pid);
+    if (s.name == "terminal") {
+        if (!TypeText(L"@aioterm hello", pid) || !TapKey(VK_RETURN, pid)) return false;
+        // No key after this one: the console is in front now, and only its own input gets one.
+        CheckTerminal(s);
+        return true;
+    }
     if (s.name == "pinyin") {
         // librime deploys as the engine starts (a second or so, longer in a new user folder): until then the field types
         // Latin letters only.
@@ -769,6 +792,396 @@ int HostEditRun(IUIAutomation* uia, ITfInputProcessorProfileMgr* profileMgr, con
     return 0;
 }
 
+// ---- consoles: what a console shows, a key into it, the window that shows it --------------------------------------
+//
+// Through AttachConsole: the driver leaves its own console for a moment (its output goes to a file, run-in-session.sh's),
+// attaches to the other one, and leaves it again.
+
+// The processes `parent` started, with the image `image` if given (its file name, in any case).
+std::vector<DWORD> ChildProcesses(DWORD parent, const wchar_t* image) {
+    std::vector<DWORD> found;
+    HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (snap == INVALID_HANDLE_VALUE) return found;
+    PROCESSENTRY32W entry = {sizeof entry};
+    for (BOOL more = Process32FirstW(snap, &entry); more; more = Process32NextW(snap, &entry)) {
+        if (entry.th32ParentProcessID == parent && (!image || _wcsicmp(entry.szExeFile, image) == 0)) {
+            found.push_back(entry.th32ProcessID);
+        }
+    }
+    CloseHandle(snap);
+    return found;
+}
+
+// The thread of process `pid` that made the top-level `window` (its real one: a console's window says it is its
+// client's), 0 if none did.
+DWORD WindowThreadOf(DWORD pid, HWND window) {
+    DWORD found = 0;
+    HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+    if (snap == INVALID_HANDLE_VALUE) return 0;
+    THREADENTRY32 entry = {sizeof entry};
+    for (BOOL more = Thread32First(snap, &entry); more && !found; more = Thread32Next(snap, &entry)) {
+        if (entry.th32OwnerProcessID != pid) continue;
+        struct Search { HWND window; bool found; } search = {window, false};
+        EnumThreadWindows(entry.th32ThreadID, [](HWND made, LPARAM lp) -> BOOL {
+            auto* s = reinterpret_cast<Search*>(lp);
+            s->found = made == s->window;
+            return !s->found;
+        }, reinterpret_cast<LPARAM>(&search));
+        if (search.found) found = entry.th32ThreadID;
+    }
+    CloseHandle(snap);
+    return found;
+}
+
+// `work` attached to process `pid`'s console. False if it couldn't attach.
+template <class Work>
+bool InConsoleOf(DWORD pid, Work work) {
+    FreeConsole();
+    if (!AttachConsole(pid)) return false;
+    work();
+    FreeConsole();
+    return true;
+}
+
+// The lines of process `pid`'s console up to the cursor's, trailing blanks dropped: what its screen shows. A wide
+// character (Han) takes two cells, its second marked COMMON_LVB_TRAILING_BYTE, which isn't read twice.
+std::vector<std::wstring> ConsoleLines(DWORD pid) {
+    std::vector<std::wstring> lines;
+    InConsoleOf(pid, [&] {
+        HANDLE out = CreateFileW(L"CONOUT$", GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                                 OPEN_EXISTING, 0, nullptr);
+        if (out == INVALID_HANDLE_VALUE) return;
+        CONSOLE_SCREEN_BUFFER_INFO info = {};
+        if (GetConsoleScreenBufferInfo(out, &info)) {
+            std::vector<CHAR_INFO> cells(info.dwSize.X);
+            for (SHORT y = 0; y <= info.dwCursorPosition.Y; ++y) {
+                SMALL_RECT region = {0, y, (SHORT)(info.dwSize.X - 1), y};
+                std::wstring line;
+                if (ReadConsoleOutputW(out, cells.data(), COORD{info.dwSize.X, 1}, COORD{0, 0}, &region)) {
+                    for (const CHAR_INFO& cell : cells) {
+                        if (!(cell.Attributes & COMMON_LVB_TRAILING_BYTE)) line.push_back(cell.Char.UnicodeChar);
+                    }
+                }
+                while (!line.empty() && (line.back() == L' ' || line.back() == 0)) line.pop_back();
+                lines.push_back(line);
+            }
+        }
+        CloseHandle(out);
+    });
+    return lines;
+}
+
+std::wstring ConsoleText(DWORD pid) {
+    std::wstring text;
+    for (const auto& line : ConsoleLines(pid)) text += line + L"\n";
+    return text;
+}
+
+// A key (x, down and up) into process `pid`'s console's input, written there (WriteConsoleInputW): it goes to that
+// console only, wherever the foreground is.
+bool PressKeyInConsole(DWORD pid) {
+    bool written = false;
+    InConsoleOf(pid, [&] {
+        HANDLE in = CreateFileW(L"CONIN$", GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                                OPEN_EXISTING, 0, nullptr);
+        if (in == INVALID_HANDLE_VALUE) return;
+        INPUT_RECORD keys[2] = {};
+        for (int i = 0; i < 2; ++i) {
+            keys[i].EventType = KEY_EVENT;
+            keys[i].Event.KeyEvent.bKeyDown = i == 0;
+            keys[i].Event.KeyEvent.wRepeatCount = 1;
+            keys[i].Event.KeyEvent.wVirtualKeyCode = 'X';
+            keys[i].Event.KeyEvent.wVirtualScanCode = (WORD)MapVirtualKeyW('X', MAPVK_VK_TO_VSC);
+            keys[i].Event.KeyEvent.uChar.UnicodeChar = L'x';
+        }
+        DWORD count = 0;
+        written = WriteConsoleInputW(in, keys, 2, &count) && count == 2;
+        CloseHandle(in);
+    });
+    return written;
+}
+
+// The window that shows process `pid`'s console: its console window (conhost's), or the window that owns it when it is
+// a pseudo console's (Windows Terminal's). Nil if there is none yet.
+HWND ConsoleShownWindow(DWORD pid) {
+    HWND shown = nullptr;
+    InConsoleOf(pid, [&] {
+        HWND console = GetConsoleWindow();
+        if (!console) return;
+        wchar_t name[64] = {};
+        GetClassNameW(console, name, 64);
+        if (wcscmp(name, L"PseudoConsoleWindow") != 0) {
+            shown = console;
+        } else {
+            HWND owner = GetAncestor(console, GA_ROOTOWNER);
+            if (owner && owner != console) shown = owner;
+        }
+    });
+    return shown;
+}
+
+std::string WindowClass(HWND window) {
+    wchar_t name[64] = {};
+    if (window) GetClassNameW(window, name, 64);
+    return Narrow(name);
+}
+
+// The terminal scenario after its Return: the engine's console for the run's `terminal` command (the engine's own
+// process, `--run-in-console`), in front, showing the program's output and how it ended, open after it, closed by a
+// key written into it.
+bool CheckTerminal(const Scenario& s) {
+    DWORD console = 0;
+    for (int i = 0; i < 100 && !console; ++i) {
+        auto found = ChildProcesses(s.enginePid, L"AllInOneIMEEngine.exe");
+        if (!found.empty()) console = found.front();
+        else Pump(100);
+    }
+    Check(console != 0, "the engine opened a console window (its process, a child of the engine's)");
+    if (!console) return false;
+    HANDLE process = OpenProcess(SYNCHRONIZE | PROCESS_TERMINATE, FALSE, console);
+    HWND shown = nullptr;
+    for (int i = 0; i < 100 && !shown; ++i) {
+        shown = ConsoleShownWindow(console);
+        if (!shown) Pump(50);
+    }
+    HWND fg = nullptr;
+    for (int i = 0; i < 100 && shown && (fg = GetForegroundWindow()) != shown; ++i) Pump(50);
+    Log("  console %lu shown in %p (%s); the foreground: %p (%s)", console, (void*)shown, WindowClass(shown).c_str(),
+        (void*)fg, WindowClass(fg).c_str());
+    Check(shown && fg == shown, "the console's window came to the front");
+    std::wstring text;
+    for (int i = 0; i < 100; ++i) {
+        text = ConsoleText(console);
+        if (text.find(L"exited with code 3]") != std::wstring::npos || text.find(L"\u9000\u51fa\u7801 3]") != std::wstring::npos) break;
+        Pump(100);
+    }
+    Log("  the console shows: \"%s\"", Narrow(text).c_str());
+    Check(text.find(L"AllInOneIME e2e terminal hello") != std::wstring::npos, "it shows the program's output");
+    Check(text.find(L"exited with code 3]") != std::wstring::npos || text.find(L"\u9000\u51fa\u7801 3]") != std::wstring::npos,
+          "it shows how the program ended: exit code 3");
+    Check(process && WaitForSingleObject(process, 500) == WAIT_TIMEOUT, "it stays open after the program");
+    Check(PressKeyInConsole(console), "a key written into that console");
+    bool closed = process && WaitForSingleObject(process, 5000) == WAIT_OBJECT_0;
+    Check(closed, "the key closed it");
+    if (process) {
+        if (!closed) TerminateProcess(process, 1);
+        CloseHandle(process);
+    }
+    return closed;
+}
+
+// ---- a target window of the driver's own, in another process ------------------------------------------------------
+
+// AllInOneIME engaged in process `client`, whose thread `thread` (made `window`, or has it inside its own) runs TSF: the
+// hook activates the profile there, for that process only, then the focus goes away and back (TSF loads a TIP on a
+// focus transition), until the engine sees `client` connect.
+bool EngageIn(Injection& injection, HWND top, HWND window, DWORD thread, DWORD client, const std::wstring& hookDll,
+              LANGID lang, const SessionState& state, const std::wstring& engineLog) {
+    Log("  injecting e2ehook into thread %lu of process %lu", thread, client);
+    if (!Inject(injection, window, thread, hookDll, lang, state.havePrevious ? &state.previous : nullptr)) return false;
+    WNDCLASSEXW wc = {sizeof wc};
+    wc.lpfnWndProc = DefWindowProcW;
+    wc.hInstance = GetModuleHandleW(nullptr);
+    wc.lpszClassName = L"AioE2EScratch";
+    RegisterClassExW(&wc);
+    HWND scratch = CreateWindowExW(WS_EX_TOOLWINDOW, L"AioE2EScratch", L"", WS_POPUP, -200, -200, 1, 1, nullptr, nullptr,
+                                   wc.hInstance, nullptr);
+    bool engaged = false;
+    for (int i = 0; i < 4 && !engaged; ++i) {
+        if (scratch) { TakeForeground(scratch); Pump(200); }
+        TakeForeground(top);
+        Pump(300);
+        engaged = WaitForEngineConnection(engineLog, client, 2500);
+    }
+    if (scratch) DestroyWindow(scratch);
+    Log("  AllInOneTIP.dll in process %lu: %s; the engine saw it connect: %s", client, TipModulesText(client).c_str(),
+        engaged ? "yes" : "no");
+    return engaged;
+}
+
+// A classic console of the driver's own (`conhost.exe cmd.exe`, so never Windows Terminal, whatever the default
+// terminal is): AllInOneIME engaged in its conhost, the scenario typed at cmd's prompt, what the console then shows
+// read back (never run: no Return), the console closed.
+int ConsoleRun(const std::wstring& engineLog, const std::wstring& hookDll, LANGID lang, const SessionState& state,
+               const std::wstring& expectTip, const Scenario& scenario) {
+    Log("console: cmd.exe in a conhost of our own");
+    wchar_t system[MAX_PATH] = {};
+    GetSystemDirectoryW(system, MAX_PATH);
+    std::wstring command = L"\"" + std::wstring(system) + L"\\conhost.exe\" cmd.exe /d /k prompt AIO$G";
+    std::vector<wchar_t> line(command.begin(), command.end());
+    line.push_back(0);
+    STARTUPINFOW si = {sizeof si};
+    PROCESS_INFORMATION host = {};
+    bool started = CreateProcessW(nullptr, line.data(), nullptr, nullptr, FALSE, 0, nullptr, nullptr, &si, &host) != 0;
+    Check(started, "started conhost.exe cmd.exe");
+    if (!started) return 1;
+    DWORD client = 0;
+    HWND window = nullptr;
+    for (int i = 0; i < 100 && !window; ++i) {
+        Pump(100);
+        for (DWORD pid : ChildProcesses(host.dwProcessId, L"cmd.exe")) {
+            client = pid;
+            struct Hunt { DWORD pid; HWND found; } hunt = {pid, nullptr};
+            EnumWindows([](HWND w, LPARAM lp) -> BOOL {
+                auto* h = reinterpret_cast<Hunt*>(lp);
+                DWORD owner = 0;
+                GetWindowThreadProcessId(w, &owner);
+                if (owner == h->pid && WindowClass(w) == "ConsoleWindowClass") { h->found = w; return FALSE; }
+                return TRUE;
+            }, reinterpret_cast<LPARAM>(&hunt));
+            window = hunt.found;
+        }
+    }
+    DWORD thread = window ? WindowThreadOf(host.dwProcessId, window) : 0;
+    DWORD reported = 0;
+    if (window) GetWindowThreadProcessId(window, &reported);
+    Log("  conhost %lu, cmd %lu, the console's window %p (says it is process %lu's), made by conhost's thread %lu",
+        host.dwProcessId, client, (void*)window, reported, thread);
+    Check(window && thread, "found the console's window and conhost's thread that made it");
+    int result = 1;
+    Injection injection;
+    if (window && thread) {
+        g_target = window;
+        TakeForeground(window);
+        Pump(300);
+        Check(ForegroundIsNotepad(0), "our console has the foreground");
+        bool engaged = EngageIn(injection, window, window, thread, host.dwProcessId, hookDll, lang, state, engineLog);
+        Check(engaged, "AllInOneIME engaged in the console's conhost (the DLL reached the engine)");
+        if (!expectTip.empty()) {
+            bool found = false;
+            for (const auto& path : TipModules(host.dwProcessId)) found = found || _wcsicmp(path.c_str(), expectTip.c_str()) == 0;
+            Check(found, "the DLL loaded in conhost is the expected copy");
+        }
+        if (engaged) {
+            TakeForeground(window);
+            Pump(200);
+            Log("typing (%s)", scenario.name.c_str());
+            Check(TypeScenario(scenario, host.dwProcessId), "typed the keys into the console");
+            Pump(500);
+            auto lines = ConsoleLines(client);
+            std::wstring prompt;
+            for (auto it = lines.rbegin(); it != lines.rend(); ++it) {
+                if (it->rfind(L"AIO>", 0) == 0) { prompt = *it; break; }
+            }
+            Log("  the console's prompt line: \"%s\"", Narrow(prompt).c_str());
+            Check(prompt == L"AIO>" + scenario.Expected(), ("the console shows \"AIO>" + Narrow(scenario.Expected()) + "\"").c_str());
+            result = 0;
+        }
+        Uninject(injection, window, host.dwProcessId);
+    }
+    g_target = nullptr;
+    if (HANDLE cmd = OpenProcess(PROCESS_TERMINATE, FALSE, client)) { TerminateProcess(cmd, 0); CloseHandle(cmd); }
+    if (WaitForSingleObject(host.hProcess, 5000) != WAIT_OBJECT_0) TerminateProcess(host.hProcess, 0);
+    CloseHandle(host.hProcess);
+    CloseHandle(host.hThread);
+    Pump(100);
+    return result;
+}
+
+// The window of process `pid` that has a descendant of class `name` (made by any process), and that descendant.
+struct Nested {
+    HWND top = nullptr;
+    HWND inner = nullptr;
+};
+Nested FindNested(DWORD pid, const wchar_t* name) {
+    struct Hunt { DWORD pid; const wchar_t* name; Nested found; } hunt = {pid, name, {}};
+    EnumWindows([](HWND w, LPARAM lp) -> BOOL {
+        auto* h = reinterpret_cast<Hunt*>(lp);
+        DWORD owner = 0;
+        GetWindowThreadProcessId(w, &owner);
+        if (owner != h->pid || !IsWindowVisible(w)) return TRUE;
+        struct Inner { const wchar_t* name; HWND found; } inner = {h->name, nullptr};
+        EnumChildWindows(w, [](HWND c, LPARAM lp2) -> BOOL {
+            auto* in = reinterpret_cast<Inner*>(lp2);
+            wchar_t cls[64] = {};
+            GetClassNameW(c, cls, 64);
+            if (wcscmp(cls, in->name) == 0 && IsWindowVisible(c)) { in->found = c; return FALSE; }
+            return TRUE;
+        }, reinterpret_cast<LPARAM>(&inner));
+        if (inner.found) { h->found = {w, inner.found}; return FALSE; }
+        return TRUE;
+    }, reinterpret_cast<LPARAM>(&hunt));
+    return hunt.found;
+}
+
+std::wstring ReadUtf8File(const std::wstring& path) {
+    std::ifstream file(path, std::ios::binary);
+    std::stringstream data;
+    data << file.rdbuf();
+    std::string bytes = data.str();
+    int n = MultiByteToWideChar(CP_UTF8, 0, bytes.data(), (int)bytes.size(), nullptr, 0);
+    std::wstring text(n, L'\0');
+    MultiByteToWideChar(CP_UTF8, 0, bytes.data(), (int)bytes.size(), text.data(), n);
+    return text;
+}
+
+// A WebView2 in a window of the driver's own (webview2host): AllInOneIME engaged in the browser process whose window
+// is inside the host's (msedgewebview2.exe, as in the new Outlook or Teams), the scenario typed in the page's text field
+// (the host's window in front), the field's text read back from the host's file.
+int WebView2Run(const std::wstring& hostExe, const std::wstring& dataDir, const std::wstring& engineLog,
+                const std::wstring& hookDll, LANGID lang, const SessionState& state, const std::wstring& expectTip,
+                const Scenario& scenario) {
+    Log("webview2: a WebView2 in a window of our own (%ls)", hostExe.c_str());
+    std::wstring valueFile = dataDir + L"\\value.txt";
+    DeleteFileW(valueFile.c_str());
+    DeleteFileW((valueFile + L".ready").c_str());
+    std::wstring command = L"\"" + hostExe + L"\" --user-data \"" + dataDir + L"\\profile\" --value-file \"" + valueFile + L"\"";
+    std::vector<wchar_t> line(command.begin(), command.end());
+    line.push_back(0);
+    STARTUPINFOW si = {sizeof si};
+    PROCESS_INFORMATION host = {};
+    bool started = CreateProcessW(nullptr, line.data(), nullptr, nullptr, FALSE, 0, nullptr, nullptr, &si, &host) != 0;
+    Check(started, "started the WebView2 host");
+    if (!started) return 1;
+    bool ready = false;
+    for (int i = 0; i < 300 && !(ready = GetFileAttributesW((valueFile + L".ready").c_str()) != INVALID_FILE_ATTRIBUTES); ++i) Pump(100);
+    Check(ready, "the page is up and its field has the focus");
+    Nested nested;
+    for (int i = 0; i < 100 && !nested.inner; ++i) {
+        nested = FindNested(host.dwProcessId, L"Chrome_RenderWidgetHostHWND");
+        if (!nested.inner) Pump(100);
+    }
+    DWORD browser = 0;
+    DWORD thread = nested.inner ? GetWindowThreadProcessId(nested.inner, &browser) : 0;
+    Log("  the host %lu, its window %p; the WebView2's window %p, of process %lu (%ls), thread %lu", host.dwProcessId,
+        (void*)nested.top, (void*)nested.inner, browser, ImageName(browser).c_str(), thread);
+    Check(nested.inner && browser != host.dwProcessId, "the WebView2's window is another process's, inside the host's");
+    int result = 1;
+    Injection injection;
+    if (ready && nested.inner && thread) {
+        g_target = nested.top;
+        TakeForeground(nested.top);
+        Pump(300);
+        Check(ForegroundIsNotepad(0), "the host's window has the foreground");
+        bool engaged = EngageIn(injection, nested.top, nested.inner, thread, browser, hookDll, lang, state, engineLog);
+        Check(engaged, "AllInOneIME engaged in the WebView2's process (the DLL reached the engine)");
+        if (!expectTip.empty()) {
+            bool found = false;
+            for (const auto& path : TipModules(browser)) found = found || _wcsicmp(path.c_str(), expectTip.c_str()) == 0;
+            Check(found, "the DLL loaded in the WebView2's process is the expected copy");
+        }
+        if (engaged) {
+            TakeForeground(nested.top);
+            Pump(300);
+            Log("typing (%s)", scenario.name.c_str());
+            Check(TypeScenario(scenario, browser), "typed the keys into the WebView2's field");
+            Pump(800);
+            std::wstring value = ReadUtf8File(valueFile);
+            Log("  the field: \"%s\"", Narrow(value).c_str());
+            Check(value == scenario.Expected(), ("the field holds \"" + Narrow(scenario.Expected()) + "\"").c_str());
+            result = 0;
+        }
+        Uninject(injection, nested.inner, browser);
+    }
+    g_target = nullptr;
+    if (nested.top) PostMessageW(nested.top, WM_CLOSE, 0, 0);
+    if (WaitForSingleObject(host.hProcess, 10000) != WAIT_OBJECT_0) TerminateProcess(host.hProcess, 0);
+    CloseHandle(host.hProcess);
+    CloseHandle(host.hThread);
+    Pump(100);
+    return result;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -783,6 +1196,8 @@ int main(int argc, char** argv) {
     bool scenarioGiven = false;
     bool probe = false;
     bool host = false;
+    bool console = false;
+    std::wstring webview2Host, webview2Data;
     for (int i = 1; i < argc; ++i) {
         auto wide = [](const char* s) {
             int n = MultiByteToWideChar(CP_UTF8, 0, s, -1, nullptr, 0);
@@ -803,17 +1218,19 @@ int main(int argc, char** argv) {
         else if (a == "--scenario" && i + 1 < argc) { scenario.name = argv[++i]; scenarioGiven = true; }
         else if (a == "--probe") probe = true;
         else if (a == "--host") host = true;
+        else if (a == "--console") console = true;
+        else if (a == "--webview2" && i + 2 < argc) { webview2Host = wide(argv[++i]); webview2Data = wide(argv[++i]); }
     }
     if (!scenarioGiven && !plain.empty()) scenario.name = "plain";
     scenario.plain = plain;
     scenario.engineLog = engineLog;
     const bool known = scenario.name == "improve" || scenario.name == "plain" || scenario.name == "pinyin" ||
-                       scenario.name == "ai";
+                       scenario.name == "ai" || scenario.name == "terminal";
     if (enginePath.empty() || !known || (scenario.name == "improve" && fixturePath.empty()) ||
         (scenario.name == "plain" && plain.empty())) {
-        printf("usage: e2edriver --engine <exe> [--scenario improve|plain|pinyin|ai] [--fixture <json>] [--plain <text>]\n"
-               "       [--engine-arg <arg>]... [--shots <dir>] [--engine-log <file>] [--langid 0xNNNN] [--timeout-ms N]\n"
-               "       [--expect-tip <dll>] [--probe] [--host]\n");
+        printf("usage: e2edriver --engine <exe> [--scenario improve|plain|pinyin|ai|terminal] [--fixture <json>]\n"
+               "       [--plain <text>] [--engine-arg <arg>]... [--shots <dir>] [--engine-log <file>] [--langid 0xNNNN]\n"
+               "       [--timeout-ms N] [--expect-tip <dll>] [--probe] [--host | --console | --webview2 <host.exe> <dir>]\n");
         return 2;
     }
 
@@ -908,9 +1325,17 @@ int main(int argc, char** argv) {
     CoCreateInstance(__uuidof(CUIAutomation), nullptr, CLSCTX_INPROC_SERVER, __uuidof(IUIAutomation), (void**)&uia);
     Check(uia != nullptr, "UI Automation is available");
 
-    if (host) {
-        // The hosted-edit end-to-end: the full real stack through an EDIT control in our own process.
-        HostEditRun(uia, profileMgr, engineLog, lang, expectTip, scenario);
+    if (host || console || !webview2Host.empty()) {
+        if (console) {
+            // A classic console: TSF in conhost.exe, the window cmd's.
+            ConsoleRun(engineLog, hookDll, lang, state, expectTip, scenario);
+        } else if (!webview2Host.empty()) {
+            // A WebView2: TSF in msedgewebview2.exe, its window inside the host's.
+            WebView2Run(webview2Host, webview2Data, engineLog, hookDll, lang, state, expectTip, scenario);
+        } else {
+            // The hosted-edit end-to-end: the full real stack through an EDIT control in our own process.
+            HostEditRun(uia, profileMgr, engineLog, lang, expectTip, scenario);
+        }
         Release(uia);
         RestoreSession(state, profileMgr);
         if (threadMgr) { threadMgr->Deactivate(); threadMgr->Release(); }

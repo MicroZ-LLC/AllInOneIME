@@ -27,11 +27,11 @@ extension WithKeys {
         }
 
         /// "@improve hello", Return, the versions streamed in, "1": what goes in.
-        func improve(through provider: Provider, path: String = "", key: String? = "stub-key") throws
+        func improve(through provider: Provider, path: String = "", key: String? = "stub-key", delayMs: Int = 30) throws
             -> (client: EngineClient, stub: StubProvider, folder: URL) {
             _ = memoryKeychain
             let folder = try temporaryFolder("ai-\(provider.rawValue)")
-            let stub = try StubProvider(folder: folder)
+            let stub = try StubProvider(folder: folder, delayMs: delayMs)
             let settings = try Self.settings(provider.rawValue, base: stub.baseURL + path, in: folder)
             if let key { try APIKeys.save(key, for: provider, host: "127.0.0.1") } else { try? APIKeys.remove(provider) }
             let client = EngineClient(settings: settings, rime: nil)
@@ -54,7 +54,8 @@ extension WithKeys {
             #expect(client.committed == "Hello there.")
             #expect(client.panel.model == nil)
             let requests = stub.requests
-            #expect(requests.count == 1)
+            #expect(requests.count == 1, "\(stub.logText)")
+            #expect(client.wait { stub.events == ["complete"] }, "\(stub.logText)")
             #expect(requests.first?["keyOk"] as? Bool == true)
             #expect(requests.first?["kind"] as? String == provider.rawValue)
             if provider != .gemini { #expect(requests.first?["model"] as? String == "stub-model") }
@@ -114,15 +115,24 @@ extension WithKeys {
             #expect(message == ProviderError.signedOut.errorDescription)
         }
 
+        /// Esc mid-stream cancels the request itself, not only its results: the engine closes the connection, and the
+        /// provider sees it go before the end of its stream (a slow one here: 200 ms a piece, two seconds or so).
         @Test func escapeDuringTheStreamStopsIt() throws {
-            let (client, _, folder) = try improve(through: .anthropic)
+            let (client, stub, folder) = try improve(through: .anthropic, delayMs: 200)
             defer { try? FileManager.default.removeItem(at: folder) }
+            // The request is under way: the stub has it, and is streaming.
+            #expect(client.wait { stub.requests.count == 1 })
+            let session = try #require(client.host.liveSessions.first)
+            #expect(client.host.state(session).task != nil)
             client.escape()
             #expect(client.composer.phase != .choosing)
-            Thread.sleep(forTimeInterval: 0.5)
+            #expect(client.host.state(session).task == nil)
+            // The provider saw the client go before the stream's end.
+            #expect(client.wait(10) { !stub.events.isEmpty })
+            #expect(stub.events == ["client-gone"], "\(stub.logText)")
             client.runQueues()
             client.applyPushes()
-            // The stream's later updates went nowhere: still the draft, nothing committed.
+            // Nothing of it came in: still the draft, nothing committed.
             #expect(client.committed == "")
             #expect(client.composer.phase == .drafting)
         }

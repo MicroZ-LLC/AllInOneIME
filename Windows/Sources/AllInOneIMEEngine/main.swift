@@ -24,7 +24,8 @@ import WinSDK
 //   --config      the settings from FILE instead of %APPDATA%\AllInOneIME\config.json
 //   --no-keychain API keys only from the environment (ANTHROPIC_API_KEY, ...), never the Credential Manager: for tests,
 //                 which must neither read the user's keys nor tie them to a stub's address
-//   --rime-data   rime-ice's data (default: rime-data beside the program, else ThirdParty's)
+//   --rime-data   rime-ice's data (default: rime-data beside the program, else ThirdParty's); only a build (in .build)
+//                 does: any other engine, the installed one first, takes librime and its data from beside itself
 //   --rime-user   librime's user folder (default: %APPDATA%\AllInOneIME\rime): tests use their own, so that what they
 //                 type isn't learned in the user's
 //   --no-rime     Latin letters only
@@ -32,7 +33,8 @@ import WinSDK
 //   --instances   pipe instances kept waiting for a client (at least 4)
 //   --quiet       log only the engine's start, its errors and its end
 //
-// It is also the child process `@js` code (`--run-js`) and script plugins (`--run-plugin DIR`) run in.
+// It is also the child process `@js` code (`--run-js`) and script plugins (`--run-plugin DIR`) run in, and the process
+// of each console window it opens (`--run-in-console`, `ConsoleHold`).
 
 let usage = """
     usage: AllInOneIMEEngine [--test [--provider FILE] [--clock manual|system]] [--config FILE] [--no-keychain]
@@ -159,6 +161,11 @@ func runEngine(_ options: EngineOptions) -> Never {
         exit(1)
     }
 
+    // The prompts an earlier run left in files for its consoles, which no console needs any more (one whose program
+    // still runs holds its own), even when this engine goes again at once.
+    let stale = ConsoleCommand.removeStalePrompts()
+    if !stale.isEmpty { log("deleted \(stale.count) prompt files no console needs any more", always: true) }
+
     // One engine per user and session (§2.5).
     let mutex = PipeNames.mutex(sid: sid).withCString(encodedAs: UTF16.self) { CreateMutexW(nil, true, $0) }
     if mutex == nil || GetLastError() == Win32Code.alreadyExists {
@@ -174,14 +181,21 @@ func runEngine(_ options: EngineOptions) -> Never {
     }
 
     let clock: WireClock = options.test && !options.systemClock ? ManualClock() : SystemClock()
-    var hostOptions = EngineHost.Options(system: WindowsSystem())
+    let shellThread = SystemThread(name: "AllInOneIME shell")
+    let clipboardThread = SystemThread(name: "AllInOneIME clipboard")
+    let system = WindowsSystem(clipboard: clipboardThread, shell: shellThread, holder: executablePath())
+    var hostOptions = EngineHost.Options(system: system, systemQueue: shellThread, clipboardQueue: clipboardThread)
     hostOptions.testMode = options.test
-    hostOptions.foreground = { peer in peer.pid != nil && Win32.foregroundProcess() == peer.pid }
+    hostOptions.foreground = { peer in peer.pid.map(Foreground.isOwned(by:)) ?? false }
+    hostOptions.caretBounds = { Foreground.caretBounds(hwnd: $0, pid: $1) }
     hostOptions.settings = EngineSettings(url: options.config.map { URL(fileURLWithPath: $0) } ?? Config.userURL)
     hostOptions.executable = executablePath()
     if !options.test, !options.noRime {
         let executable = URL(fileURLWithPath: hostOptions.executable)
         let data = options.rimeData.map { URL(fileURLWithPath: $0, isDirectory: true) }
+        if data != nil, !EngineRime.isBuild(executable) {
+            log("rime: an engine that isn't a build takes rime-data from beside itself only: --rime-data ignored", always: true)
+        }
         if let location = EngineRime.locate(executable: executable, sharedData: data) {
             let userData = options.rimeUser.map { URL(fileURLWithPath: $0, isDirectory: true) } ?? EngineRime.defaultUserData
             let rime = EngineRime(location: location, userData: userData, log: { log($0, always: true) })
@@ -312,6 +326,10 @@ if arguments.first == InlineCode.javaScriptHostOption {
 if arguments.first == "--run-plugin" {
     guard let invocation = PluginHost.invocation(Array(arguments.dropFirst())) else { exit(2) }
     exit(PluginHost.run(directory: invocation.directory, language: invocation.language))
+}
+// And the process of each console window it opens, which stays open after the program in it ends.
+if arguments.first == ConsoleHold.option {
+    exit(ConsoleHold.run())
 }
 runEngine(parseOptions())
 

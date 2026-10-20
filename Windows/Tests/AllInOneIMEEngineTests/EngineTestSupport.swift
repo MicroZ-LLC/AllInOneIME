@@ -9,6 +9,10 @@ import WinSDK
 /// Windows/, the package.
 let packageRoot = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
+/// The suites that show windows or start programs with windows of their own (which may take the foreground, and the
+/// candidate window hides when another process does), one after the other: suites run side by side.
+@Suite(.serialized) enum OnTheDesktop {}
+
 /// A folder of its own for a test, removed by the caller (`defer`).
 func temporaryFolder(_ name: String) throws -> URL {
     let folder = FileManager.default.temporaryDirectory
@@ -54,12 +58,14 @@ final class RecordingPanel: PanelPresenter, @unchecked Sendable {
     private var _notices: [String] = []
     private var _caret: CaretRect?
     private var _shows = 0
+    private var _moves = 0
 
     var model: PanelModel? { lock.lock(); defer { lock.unlock() }; return _model }
     var owner: PanelOwner? { lock.lock(); defer { lock.unlock() }; return _owner }
     var notices: [String] { lock.lock(); defer { lock.unlock() }; return _notices }
     var caret: CaretRect? { lock.lock(); defer { lock.unlock() }; return _caret }
     var shows: Int { lock.lock(); defer { lock.unlock() }; return _shows }
+    var moves: Int { lock.lock(); defer { lock.unlock() }; return _moves }
 
     func show(_ model: PanelModel, owner: PanelOwner, caret: CaretRect?) {
         lock.lock()
@@ -79,6 +85,7 @@ final class RecordingPanel: PanelPresenter, @unchecked Sendable {
     func move(owner: PanelOwner, caret: CaretRect) {
         lock.lock()
         _caret = caret
+        _moves += 1
         lock.unlock()
     }
 
@@ -89,37 +96,77 @@ final class RecordingPanel: PanelPresenter, @unchecked Sendable {
     }
 }
 
-/// The system as the host used it: nothing is opened or started, the clipboard is a string here.
+/// The engine's system threads, the shell's and the clipboard's, one each for the whole test process (they live as long
+/// as the process, as the engine's).
+let testShellThread = SystemThread(name: "AllInOneIME shell (tests)")
+let testClipboardThread = SystemThread(name: "AllInOneIME clipboard (tests)")
+
+/// The debug build of the engine (`swift build`), which the tests start as `@js`'s host and as a console's process.
+let debugEngine = packageRoot.appendingPathComponent(".build/debug/AllInOneIMEEngine.exe")
+
+/// The engine's `WindowsSystem`, on those, its consoles' process the debug engine.
+func testWindowsSystem() -> WindowsSystem {
+    WindowsSystem(clipboard: testClipboardThread, shell: testShellThread,
+                  holder: debugEngine.withUnsafeFileSystemRepresentation { String(cString: $0!) })
+}
+
+/// The system as the host used it: nothing is opened or started, the clipboard is a string here. Each call notes the
+/// thread it came on; with `gate` set, each waits for it to be signalled first (a share that is offline, a clipboard
+/// whose owner doesn't answer), with `shellGate` set, opening and terminals do (the shell alone hanging).
 final class RecordingSystem: SystemActions, @unchecked Sendable {
     private let lock = NSLock()
     private var _clipboard: String?
     private var _opened: [String] = []
-    private var _launched: [[String]] = []
+    private var _launched: [(argv: [String], prompt: String?)] = []
+    private var _clipboardThreads: Set<DWORD> = []
+    private var _shellThreads: Set<DWORD> = []
     var searchResults: [SearchResult] = []
+    var gate: DispatchSemaphore?
+    var shellGate: DispatchSemaphore?
 
     var clipboard: String? {
         get { lock.lock(); defer { lock.unlock() }; return _clipboard }
         set { lock.lock(); _clipboard = newValue; lock.unlock() }
     }
     var opened: [String] { lock.lock(); defer { lock.unlock() }; return _opened }
-    var launched: [[String]] { lock.lock(); defer { lock.unlock() }; return _launched }
+    var launched: [(argv: [String], prompt: String?)] { lock.lock(); defer { lock.unlock() }; return _launched }
+    /// The threads the clipboard was used on.
+    var clipboardThreads: Set<DWORD> { lock.lock(); defer { lock.unlock() }; return _clipboardThreads }
+    /// The threads opening and terminals were used on.
+    var shellThreads: Set<DWORD> { lock.lock(); defer { lock.unlock() }; return _shellThreads }
+    /// Both.
+    var threads: Set<DWORD> { clipboardThreads.union(shellThreads) }
+
+    private func called(shell: Bool) {
+        gate?.wait()
+        if shell { shellGate?.wait() }
+        lock.lock()
+        if shell { _shellThreads.insert(GetCurrentThreadId()) } else { _clipboardThreads.insert(GetCurrentThreadId()) }
+        lock.unlock()
+    }
 
     func copy(_ text: String) -> Bool {
+        called(shell: false)
         clipboard = text
         return true
     }
 
-    func readClipboard() -> String? { clipboard }
+    func readClipboard() -> String? {
+        called(shell: false)
+        return clipboard
+    }
 
     func open(_ target: String) throws {
+        called(shell: true)
         lock.lock()
         _opened.append(target)
         lock.unlock()
     }
 
-    func launchInTerminal(_ argv: [String]) throws {
+    func launchInTerminal(_ argv: [String], prompt: String?) throws {
+        called(shell: true)
         lock.lock()
-        _launched.append(argv)
+        _launched.append((argv, prompt))
         lock.unlock()
     }
 
@@ -176,22 +223,26 @@ final class EngineClient: @unchecked Sendable {
     /// The composition as the outputs left it.
     private(set) var composition = ""
 
+    /// `peer`: who the client is (the pipe's client check, §2.1, §8); `configure`: the host's options besides.
     init(settings: EngineSettings, rime: EngineRime?, converter: Converter? = nil, executable: String? = nil,
-         field: FieldInfo = FieldInfo(app: "win:notepad.exe", process: "notepad.exe", scopes: [0], layout: "00000409")) {
+         field: FieldInfo = FieldInfo(app: "win:notepad.exe", process: "notepad.exe", scopes: [0], layout: "00000409"),
+         peer: WirePeer = WirePeer(pid: GetCurrentProcessId(), integrity: .medium),
+         configure: (inout EngineHost.Options) -> Void = { _ in }) {
         panel = RecordingPanel()
         system = RecordingSystem()
-        var options = EngineHost.Options(system: system)
+        var options = EngineHost.Options(system: system, systemQueue: testShellThread, clipboardQueue: testClipboardThread)
         options.settings = settings
         options.rime = rime
         options.panel = panel
         options.converter = converter
         if let executable { options.executable = executable }
+        configure(&options)
         let host = EngineHost(options: options, log: { _ in })
         self.host = host
         let box = queues
         let environment = WireEnvironment(host: host, makeQueue: { _ in box.make() }, makeComposer: { host.makeComposer($0, $1) })
         server = WireServer(environment: environment)
-        connection = server.connect(WirePeer(pid: GetCurrentProcessId(), integrity: .medium))!
+        connection = server.connect(peer)!
         server.push = { [weak self] _, data in
             guard let self else { return }
             self.lock.lock()
@@ -346,6 +397,17 @@ final class QueueBox: @unchecked Sendable {
     }
 }
 
+/// A flag the tests flip while the engine reads it from other threads.
+final class Flag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _value: Bool
+    init(_ value: Bool) { _value = value }
+    var value: Bool {
+        get { lock.lock(); defer { lock.unlock() }; return _value }
+        set { lock.lock(); _value = newValue; lock.unlock() }
+    }
+}
+
 /// The stub provider (Scripts/stub-provider.py) on a port of its own: the AI tests' only server. Never a paid API.
 final class StubProvider {
     let process: Process
@@ -353,7 +415,9 @@ final class StubProvider {
     let log: URL
     let key: String
 
-    init(folder: URL, key: String = "stub-key", versions: String = "Hello there.|Hi!|Greetings.", status: Int = 200) throws {
+    /// `delayMs`: the pause after each piece of the stream.
+    init(folder: URL, key: String = "stub-key", versions: String = "Hello there.|Hi!|Greetings.", status: Int = 200,
+         delayMs: Int = 30) throws {
         let portFile = folder.appendingPathComponent("stub.port")
         log = folder.appendingPathComponent("stub.log")
         self.key = key
@@ -361,7 +425,7 @@ final class StubProvider {
         process = Process()
         process.executableURL = try Self.python()
         process.arguments = ["-I", script.path, "--port-file", portFile.path, "--log", log.path, "--key", key,
-                             "--versions", versions, "--status", String(status), "--lifetime", "300"]
+                             "--versions", versions, "--status", String(status), "--delay-ms", String(delayMs), "--lifetime", "300"]
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
         try process.run()
@@ -383,9 +447,18 @@ final class StubProvider {
     var baseURL: String { "http://127.0.0.1:\(port)" }
 
     /// The requests it got, one JSON object each.
-    var requests: [[String: Any]] {
+    var requests: [[String: Any]] { entries.filter { $0["event"] == nil } }
+
+    /// How each stream ended: "complete", or "client-gone" (the client closed the connection before the end).
+    var events: [String] { entries.compactMap { $0["event"] as? String } }
+
+    /// Its log as it is, for a failure's message.
+    var logText: String { (try? String(contentsOf: log, encoding: .utf8)) ?? "(no log)" }
+
+    private var entries: [[String: Any]] {
         guard let text = try? String(contentsOf: log, encoding: .utf8) else { return [] }
-        return text.split(separator: "\n").compactMap {
+        // One object a line, "\r\n" at their ends on Windows: one Character to Swift, so split on any line break.
+        return text.split(whereSeparator: \.isNewline).compactMap {
             try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any]
         }
     }

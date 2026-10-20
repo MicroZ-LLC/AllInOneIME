@@ -10,13 +10,14 @@ It answers as the real ones stream (server-sent events), in each one's own forma
 What it answers is the core's level-two format, one "EN:" line per version (`CandidateParser`), sent in small pieces a
 few milliseconds apart so that the engine sees a stream. Each request is logged as one JSON line to --log: the path, the
 key header it came with, the model, the last message's length (never the key itself: only whether it is the expected
-one).
+one). Then, as an "event" line, how its stream ended: "complete", or "client-gone" when the client closed the
+connection before the end (a request cancelled mid-stream), with the pieces sent until then.
 
     python stub-provider.py [--port N] [--port-file FILE] [--log FILE] [--key KEY]
-                            [--versions "Hello there.|Hi!|Greetings."] [--status 200] [--lifetime 900]
+                            [--versions "Hello there.|Hi!|Greetings."] [--status 200] [--delay-ms 30] [--lifetime 900]
 
 --key: the key a request must carry (else 401, as the real APIs answer). --status: answer every request with this
-status and an error body instead. It exits after --lifetime seconds, so a test that died never leaves it running.
+status and an error body instead. --delay-ms: the pause after each piece. It exits after --lifetime seconds, so a test that died never leaves it running.
 """
 import argparse
 import json
@@ -104,6 +105,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Connection", "close")
         self.end_headers()
         text = answer_text()
+        self.sent = 0
         try:
             if kind == "anthropic":
                 self.event("message_start", {"type": "message_start", "message": {"id": "msg_stub", "type": "message",
@@ -125,8 +127,14 @@ class Handler(BaseHTTPRequestHandler):
                 for piece in pieces(text):
                     self.data({"candidates": [{"content": {"parts": [{"text": piece}], "role": "model"}}]})
                 self.data({"candidates": [{"content": {"parts": [], "role": "model"}, "finishReason": "STOP"}]})
+            # The client may have closed its end after the last piece went out: one more write finds it out.
+            time.sleep(0.05)
+            self.wfile.write(b": end\n\n")
+            self.wfile.flush()
+            log({"event": "complete", "pieces": self.sent})
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
-            pass  # the engine stopped reading (Esc)
+            # The engine closed the connection mid-stream: the request was cancelled (Esc).
+            log({"event": "client-gone", "pieces": self.sent})
         time.sleep(0.05)
         self.close_connection = True
 
@@ -154,6 +162,7 @@ class Handler(BaseHTTPRequestHandler):
     def raw_data(self, text):
         self.wfile.write(("data: %s\n\n" % text).encode("utf-8"))
         self.wfile.flush()
+        self.sent += 1
         time.sleep(ARGS.delay_ms / 1000.0)
 
     def send_error_json(self, status, kind, message):

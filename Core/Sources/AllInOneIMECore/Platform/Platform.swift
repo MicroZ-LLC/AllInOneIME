@@ -7,7 +7,8 @@ import AllInOneIMEQuickJS
 /// Android ones) installs its own at launch (`Platform.current = …`); tests may give stand-ins to the code they test, or
 /// scope one to what they run (`Platform.$override.withValue(fake) { … }`).
 /// By default the core uses what it is built with: Apple's frameworks on Apple platforms (`Platform/Apple/`), Windows'
-/// own calls on Windows (`Platform/Windows/`: the Credential Manager, programs in job objects, the Recycle Bin),
+/// own calls on Windows (`Platform/Windows/`: the Credential Manager, programs in job objects, the Recycle Bin, the
+/// user's languages),
 /// QuickJS-ng for JavaScript off Apple platforms (AllInOneIMEQuickJS), and elsewhere neutral stand-ins: a heuristic
 /// language guess, the date rules alone, values kept in memory only, and no on-device model, PDF text, text recognition
 /// or secret store ("not supported on this platform").
@@ -36,6 +37,8 @@ public struct Platform: Sendable {
     public var clock: any WallClock
     /// What the interface calls the keys and places (⌘C or Ctrl+C, "this Mac" or "this PC" …).
     public var terms: PlatformTerms
+    /// The user's languages, in their order (`Config.fresh`'s translation language).
+    public var userLanguages: any UserLanguages
 
     public init(secrets: SecretStore = Platform.systemSecrets, scripts: any ScriptEngine = Platform.systemScripts,
                 onDeviceModel: any OnDeviceModel = Platform.systemOnDeviceModel,
@@ -43,7 +46,8 @@ public struct Platform: Sendable {
                 pdf: any PDFTextExtractor = Platform.systemPDF, text: any TextRecognizer = Platform.systemText,
                 processes: any ProcessLauncher = Platform.systemProcesses, files: any FileOps = SystemFileOps(),
                 defaults: any KeyValueStore = Platform.systemDefaults, clock: any WallClock = SystemWallClock(),
-                terms: PlatformTerms = Platform.systemTerms) {
+                terms: PlatformTerms = Platform.systemTerms,
+                userLanguages: any UserLanguages = Platform.systemUserLanguages) {
         self.secrets = secrets
         self.scripts = scripts
         self.onDeviceModel = onDeviceModel
@@ -56,6 +60,7 @@ public struct Platform: Sendable {
         self.defaults = defaults
         self.clock = clock
         self.terms = terms
+        self.userLanguages = userLanguages
     }
 
     /// The platform in use: the task's `override` if it has one, else the installed one. Set (installed) at launch,

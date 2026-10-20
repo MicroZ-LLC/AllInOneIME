@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # The installer's test, without a human: a silent install, the checks, an upgrade over it, the e2e harness against real
 # Notepad through the installed copy (English, @improve with the test provider, pinyin through librime and the candidate
-# window, a real AI request to a stub provider on localhost), a silent uninstall and its checks; then, if everything
-# passed, the package installed again for the user to try.
+# window, a real AI request to a stub provider on localhost), pinyin and the candidate window in a classic console and in
+# a WebView2 of the driver's own, a terminal command's console window, a silent uninstall and its checks; then, if
+# everything passed, the package installed again for the user to try.
 #
 #   bash Windows/installer/test/run-install-test.sh [--keep-uninstalled]
 #
@@ -192,6 +193,12 @@ check "real Notepad, pinyin through librime: Shift, \"nihao\", Space, \"nihao\",
   e2e notepad-pinyin --notepad --pinyin
 check "real Notepad, a real AI request (the Claude API's format, a stub on localhost): \"@improve hello\", 1 give \"Hello there.\"" \
   e2e notepad-ai --notepad --ai
+check "a classic console of the driver's own (conhost.exe cmd.exe): pinyin at cmd's prompt, the candidate window up" \
+  e2e console-pinyin --console --pinyin
+check "a WebView2 in a window of the driver's own (its field in msedgewebview2.exe): pinyin, the candidate window up" \
+  e2e webview2-pinyin --webview2 --pinyin
+check "a terminal command's console window: in front, its output and exit code shown, open after it, closed by a key" \
+  e2e terminal --terminal
 if grep -qF "AllInOneTIP.dll in Notepad: $INSTALL_DIR_WIN\\AllInOneTIP.dll" "$LOGS/e2e-notepad-improve.driver.log"; then
   pass "Notepad used the installed DLL"
 else

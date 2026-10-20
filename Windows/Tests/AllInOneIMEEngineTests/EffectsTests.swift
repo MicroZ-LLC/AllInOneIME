@@ -22,15 +22,24 @@ struct EffectsTests {
         defer { try? FileManager.default.removeItem(at: folder) }
         let session = try #require(client.host.liveSessions.first)
         client.host.perform(.copy("copied text"), in: session)
-        #expect(client.system.clipboard == "copied text")
+        #expect(client.wait { client.system.clipboard == "copied text" })
         client.host.perform(.open(path: #"C:\Users\Public"#), in: session)
         client.host.perform(.open(path: "https://example.com/"), in: session)
         client.host.perform(.openLink(URL(string: "https://example.com/search?q=a%20b")!), in: session)
+        #expect(client.wait { client.system.opened.count == 3 })
         #expect(client.system.opened == [#"C:\Users\Public"#, "https://example.com/", "https://example.com/search?q=a%20b"])
         client.host.perform(.launchInTerminal(argv: ["git", "status"]), in: session)
         client.host.perform(.runInTerminal(prompt: "fix the bug"), in: session)
-        #expect(client.system.launched.first == ["git", "status"])
-        #expect(client.system.launched.last?.last == "fix the bug")
+        client.host.perform(.continueInClaudeCode(prompt: "-the conversation"), in: session)
+        #expect(client.wait { client.system.launched.count == 3 })
+        // All of it on the engine's system threads, none on the session's queue: the clipboard on its own, opening and
+        // terminals on the shell's.
+        #expect(client.system.clipboardThreads == [testClipboardThread.threadId])
+        #expect(client.system.shellThreads == [testShellThread.threadId])
+        let launched = client.system.launched
+        #expect(launched.map(\.argv) == [["git", "status"], ["claude", "--"], ["claude", "--"]])
+        // The prompt is the agent's first message, after "--": never read as an option.
+        #expect(launched.map(\.prompt) == [nil, "fix the bug", "-the conversation"])
     }
 
     @Test func pasteReadsTheClipboardIntoTheDraft() throws {
@@ -116,7 +125,7 @@ struct EffectsTests {
         defer { try? FileManager.default.removeItem(at: folder) }
         let session = try #require(client.host.liveSessions.first)
         client.host.perform(.openSettings, in: session)
-        #expect(client.system.opened.count == 1)
+        #expect(client.wait { client.system.opened.count == 1 })
         #expect(client.panel.notices.last?.contains("config.json") == true)
     }
 
@@ -131,6 +140,70 @@ struct EffectsTests {
         client.enter()
         #expect(client.wait { client.system.opened == [#"C:\Windows\notepad.exe"#] })
         #expect(client.committed == "")
+    }
+
+    /// A key's reply never waits on the system (§5.4): `@open`'s pick, Ctrl+C and Ctrl+V are answered while what they
+    /// asked of the system (a share that is offline, a clipboard owner that doesn't answer) still hangs, and it goes on
+    /// on the system's thread, its result coming back to the session afterwards.
+    @Test(.timeLimit(.minutes(1))) func theKeysReplyNeverWaitsOnTheSystem() throws {
+        let (client, folder) = try client()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let gate = DispatchSemaphore(value: 0)
+        client.system.gate = gate
+        client.system.searchResults = [SearchResult(name: "Share", path: #"\\offline\share"#)]
+        client.type("@open share")
+        client.enter()
+        #expect(client.wait { client.composer.phase == .choosing })
+        // The pick's key is answered at once, with the system still hanging.
+        let answered = DispatchSemaphore(value: 0)
+        DispatchQueue.global().async {
+            client.enter()
+            answered.signal()
+        }
+        #expect(answered.wait(timeout: .now() + 5) == .success)
+        #expect(client.system.opened.isEmpty)
+        // Ctrl+V in a draft: answered too; the text comes in once the clipboard could be read.
+        client.system.clipboard = "pasted"
+        client.type("@improve ")
+        let pasted = DispatchSemaphore(value: 0)
+        DispatchQueue.global().async {
+            client.press(vk: 0x56, scan: 0x2F, text: "\u{16}", ignoringModifiers: "v", modifiers: [.control, .leftControl])
+            pasted.signal()
+        }
+        #expect(pasted.wait(timeout: .now() + 5) == .success)
+        #expect(!client.composer.draft.contains("pasted"))
+        gate.signal()
+        gate.signal()
+        #expect(client.wait { client.system.opened == [#"\\offline\share"#] })
+        #expect(client.wait { client.composer.draft.contains("pasted") })
+        #expect(client.system.clipboardThreads == [testClipboardThread.threadId])
+        #expect(client.system.shellThreads == [testShellThread.threadId])
+        client.system.gate = nil
+    }
+
+    /// The clipboard never waits on the shell: with `@open` hanging on a share that is offline (or ShellExecuteExW on a
+    /// DDE conversation), Ctrl+C copies and Ctrl+V pastes at once, on the clipboard's own thread.
+    @Test(.timeLimit(.minutes(1))) func theClipboardNeverWaitsOnTheShell() throws {
+        let (client, folder) = try client()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let session = try #require(client.host.liveSessions.first)
+        let shell = DispatchSemaphore(value: 0)
+        client.system.shellGate = shell
+        defer {
+            client.system.shellGate = nil
+            shell.signal()
+        }
+        client.host.perform(.open(path: #"\\offline\share"#), in: session)
+        client.host.perform(.copy("copied while the shell hangs"), in: session)
+        #expect(client.wait(5) { client.system.clipboard == "copied while the shell hangs" })
+        client.system.clipboard = "pasted while the shell hangs"
+        client.type("@improve ")
+        client.press(vk: 0x56, scan: 0x2F, text: "\u{16}", ignoringModifiers: "v", modifiers: [.control, .leftControl])
+        #expect(client.wait(5) { client.composer.draft.contains("pasted while the shell hangs") })
+        #expect(client.system.opened.isEmpty)
+        shell.signal()
+        #expect(client.wait { client.system.opened == [#"\\offline\share"#] })
+        #expect(client.system.clipboardThreads == [testClipboardThread.threadId])
     }
 
     @Test func fileSearchFindsAddressesAndPaths() {

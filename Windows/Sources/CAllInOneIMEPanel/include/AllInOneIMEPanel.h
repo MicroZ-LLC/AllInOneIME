@@ -81,14 +81,16 @@ typedef struct AioPanelState {
 /// Starts the window's thread and creates the window there (hidden). Nil if it couldn't (no desktop, no Direct2D).
 AioPanel *aio_panel_create(AioPanelCallbacks callbacks);
 /// Shows `model` for `owner` (drawn again if it is up), at `caret` if given, else where the last caret was. `ownerPid`
-/// is the owner's process: when another one takes the foreground, the panel hides.
+/// is the owner's process: the panel is drawn only while it owns the foreground (`aio_owns_foreground`), and hides when
+/// another process takes it. 0: no process (tests).
 void aio_panel_show(AioPanel *panel, const AioPanelModel *model, const AioCaret *caret, uint64_t owner, uint32_t ownerPid);
 /// Hides the panel if `owner`'s is up (0: whosever it is).
 void aio_panel_hide(AioPanel *panel, uint64_t owner);
 /// The caret moved: the panel follows if it is `owner`'s.
 void aio_panel_move(AioPanel *panel, uint64_t owner, const AioCaret *caret);
 /// A notice for `durationMs`: beside the footer if `owner`'s panel is up, else on its own at `caret` (nil: the last
-/// caret, else where the foreground window's caret is).
+/// caret, else where the foreground window's caret is). Only while `ownerPid` owns the foreground, and never over
+/// another owner's panel.
 void aio_panel_notice(AioPanel *panel, const uint16_t *text, uint64_t owner, uint32_t ownerPid, const AioCaret *caret,
                       int32_t durationMs);
 /// Waits until the window's thread has done what was asked before, then reads its state.
@@ -101,6 +103,23 @@ int32_t aio_panel_row_rect(AioPanel *panel, int32_t row, int32_t *x, int32_t *y,
 int32_t aio_panel_save_png(AioPanel *panel, const uint16_t *path);
 /// Closes the window and ends its thread.
 void aio_panel_destroy(AioPanel *panel);
+
+/// Whether the process `pid` is the app in front (`aio_in_front` with the foreground window and its thread's focus).
+int32_t aio_owns_foreground(uint32_t pid);
+/// Whether the process `pid` is the app in front when `foreground` is the foreground window and `focus` (nullable) the
+/// focus window of its thread: the foreground window is the process's (a classic console's window is its conhost's,
+/// though the window says it is its client's), or the focus is in a window of the process's (a WebView2's, in its
+/// host's window), or a window inside the foreground window is (a UWP app's in ApplicationFrameHost's frame).
+int32_t aio_in_front(void *foreground, void *focus, uint32_t pid);
+/// Where a caret that the process `pid` reports in `hwnd` may be (§6 `caret`): that window's rectangle, in physical
+/// screen pixels, if the window is the process's (a classic console's, its conhost's); with no window (0), the
+/// foreground window's, if the process is the app in front (`aio_owns_foreground`). 0 if neither: the report isn't the
+/// process's to make.
+int32_t aio_caret_bounds(uint64_t hwnd, uint32_t pid, AioCaret *bounds);
+/// A rectangle in `window`'s client coordinates (its own pixels: logical ones for an app that isn't per-monitor aware)
+/// in physical screen pixels: how the panel places itself at a system caret when the DLL hasn't reported one. 0 if it
+/// can't be mapped.
+int32_t aio_client_rect_on_screen(void *window, int32_t left, int32_t top, int32_t right, int32_t bottom, AioCaret *out);
 
 #ifdef __cplusplus
 }

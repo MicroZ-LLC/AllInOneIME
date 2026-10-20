@@ -12,28 +12,44 @@ import Foundation
 /// - **Level two:** the AI requests through the core's `Converter` and the provider the settings name, the API key from
 ///   the Credential Manager (`APIKeys`); programs, scripts, plugins and `@js` through the core's runners (the Windows
 ///   process launcher, QuickJS in a child process of this program).
-/// - **The rest:** the clipboard, opening addresses and files, terminal windows (`SystemActions`). What only macOS has
-///   (Apple Notes, Reminders, Messages, dictation) says so in a notice.
+/// - **The rest:** the clipboard, opening addresses and files, terminal windows (`SystemActions`), on threads of the
+///   system's (`SystemQueue`: the clipboard's, the shell's), never on the session's queue: a key's reply never waits on
+///   them (§5.4); what comes of them goes back through `ComposerSession.feed`. What only macOS has (Apple Notes, Reminders, Messages, dictation) says
+///   so in a notice.
 ///
 /// In test mode (`--test`) the Composer types Latin letters, level two comes from a golden's `ScriptedProvider`, and
 /// the client is taken to own the foreground, as the goldens expect.
 public final class EngineHost: WireHost, @unchecked Sendable {
     public struct Options {
         public var testMode = false
-        /// Whether the client's process owns the foreground window (§8).
+        /// Whether the client's process owns the foreground window (§8): what a privileged effect from a key, and the
+        /// panel and its notices, need.
         public var foreground: @Sendable (WirePeer) -> Bool = { _ in true }
+        /// The rectangle a client's caret report (§6) must be in: the window it names, if that is the client's process's
+        /// (`Foreground.caretBounds`); nil, a report to ignore. Nil: no check (the tests).
+        public var caretBounds: (@Sendable (_ hwnd: UInt64?, _ pid: UInt32?) -> CaretRect?)?
         public var settings = EngineSettings()
+        /// The installed plugins, read again only when their folder changed (`PluginCatalog`).
+        public var plugins = PluginCatalog()
         /// Level one's pinyin; nil: Latin letters only.
         public var rime: EngineRime?
         public var panel: PanelPresenter = NoPanel()
         public var system: SystemActions
+        /// Where `system` opens and starts programs: a thread of its own, never a session's queue nor a key's way
+        /// (§5.4).
+        public var systemQueue: SystemQueue
+        /// Where `system`'s clipboard is used: another thread, which never waits on the first's (the shell can take
+        /// tens of seconds, and another app's Ctrl+C waits on the clipboard's owner).
+        public var clipboardQueue: SystemQueue
         /// This program, for `@js` and script plugins, which run in a child process of it (`--run-js`, `--run-plugin`).
         public var executable: String = CommandLine.arguments.first ?? ""
         /// The requests' converter; nil: one on `settings` and the platform's API keys.
         public var converter: Converter?
 
-        public init(system: SystemActions) {
+        public init(system: SystemActions, systemQueue: SystemQueue, clipboardQueue: SystemQueue) {
             self.system = system
+            self.systemQueue = systemQueue
+            self.clipboardQueue = clipboardQueue
         }
     }
 
@@ -41,10 +57,14 @@ public final class EngineHost: WireHost, @unchecked Sendable {
     public let clock: WireClock
     let log: @Sendable (String) -> Void
     let foreground: @Sendable (WirePeer) -> Bool
+    let caretBounds: (@Sendable (UInt64?, UInt32?) -> CaretRect?)?
     public let settings: EngineSettings
+    let plugins: PluginCatalog
     public let rime: EngineRime?
     public let panelPresenter: PanelPresenter
     let system: SystemActions
+    let systemQueue: SystemQueue
+    let clipboardQueue: SystemQueue
     let executable: String
     public let converter: Converter
 
@@ -58,10 +78,14 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         self.clock = clock
         self.log = log
         foreground = options.foreground
+        caretBounds = options.caretBounds
         settings = options.settings
+        plugins = options.plugins
         rime = options.rime
         panelPresenter = options.panel
         system = options.system
+        systemQueue = options.systemQueue
+        clipboardQueue = options.clipboardQueue
         executable = options.executable
         let settings = options.settings
         converter = options.converter ?? Converter(loadConfig: { settings.current })
@@ -170,8 +194,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         composer.horizontalCandidates = config.candidateLayout == .horizontal
         composer.outputLanguages = config.outputLanguages
         composer.provider = config.provider
-        let plugins = PluginStore.load().plugins
-        composer.commands = Command.catalog(config.customCommands, plugins: plugins)
+        composer.commands = Command.catalog(config.customCommands, plugins: plugins.current)
         let language = settings.interfaceLanguage(config)
         var messages = Composer.Messages.make(language: language)
         messages.actionKeyName = PanelBuilder(config: config, chinese: InterfaceLanguage.isChinese(language)).name(config.actionKey)
@@ -208,17 +231,27 @@ public final class EngineHost: WireHost, @unchecked Sendable {
 
     // MARK: - The panel
 
+    /// The panel, for a client whose process owns the foreground only (§8): a background or sandboxed process can't
+    /// put the engine's topmost window, with its own text, over another app. (The window checks again as it draws.)
     public func panel(shown: Bool, in session: ComposerSession) {
         let state = state(session)
-        guard shown else {
+        guard shown, session.composer.wantsPanel, ownsForeground(session.peer) else {
             panelPresenter.hide(owner: state.owner)
             return
         }
-        guard session.composer.wantsPanel else {
-            panelPresenter.hide(owner: state.owner)
-            return
+        panelPresenter.show(model(for: session), owner: state.owner, caret: reportedCaret(session))
+    }
+
+    /// The caret `session` reported, if it is in a window of the client's process, cut to that window (§6, §8): a
+    /// client can't place the panel over another app. Nil when there is none, or the window isn't the client's.
+    func reportedCaret(_ session: ComposerSession) -> CaretRect? {
+        guard let reported = session.caret, let rect = CaretRect(reported.rect, exact: reported.exact) else { return nil }
+        guard let caretBounds else { return rect }
+        guard let bounds = caretBounds(reported.hwnd, session.peer.pid) else {
+            log("session \(session.sid): a caret report outside the client's windows: ignored")
+            return nil
         }
-        panelPresenter.show(model(for: session), owner: state.owner, caret: session.caret.flatMap { CaretRect($0.rect, exact: $0.exact) })
+        return rect.clamped(to: bounds)
     }
 
     /// What the panel shows for `session` now.
@@ -231,7 +264,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
     }
 
     public func caretMoved(in session: ComposerSession) {
-        guard let reported = session.caret, let caret = CaretRect(reported.rect, exact: reported.exact) else { return }
+        guard let caret = reportedCaret(session) else { return }
         let state = state(session)
         state.caret = caret
         panelPresenter.move(owner: state.owner, caret: caret)
@@ -241,8 +274,12 @@ public final class EngineHost: WireHost, @unchecked Sendable {
 
     // MARK: - Effects
 
-    /// A notice, in the interface language.
+    /// A notice, in the interface language: for a client whose process owns the foreground only, as the panel.
     func notice(_ text: String, in session: ComposerSession) {
+        guard ownsForeground(session.peer) else {
+            log("session \(session.sid): a notice for a client not in the foreground: not shown")
+            return
+        }
         let state = state(session)
         panelPresenter.notice(text, owner: state.owner, caret: state.caret)
     }
@@ -318,41 +355,36 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         case let .openLink(url):
             open(url.isFileURL ? url.path : url.absoluteString, in: session)
         case let .copy(text):
-            if !system.copy(text) { notice(tr("没能复制到剪贴板", "Couldn't copy to the clipboard"), in: session) }
+            let failed = tr("没能复制到剪贴板", "Couldn't copy to the clipboard")
+            onSystem(session, clipboardQueue) { system in
+                guard system.copy(text) else { throw SystemActionError(failed) }
+            }
         case let .readClipboard(id):
-            // After the key has been answered, never on its way (§5.4: no I/O on the key path): the feed runs on the
-            // session's queue once this key's work is done. The clipboard may be another program's for a moment.
+            // On the clipboard's thread, never on the session's queue: the program that put the text there may render
+            // it only when asked (WM_RENDERFORMAT), and that may be the app whose key waits for this queue.
             let (system, log, sid) = (self.system, self.log, session.sid)
-            session.feed { composer in
+            clipboardQueue.async { [weak session] in
                 let text = system.readClipboard()
                 log("session \(sid): clipboard for a command: \(text.map { "\($0.count) characters" } ?? "nothing")")
-                return composer.pasted(text, id: id)
+                session?.feed { $0.pasted(text, id: id) }
             }
         case let .runInTerminal(prompt):
-            let config = settings.current
-            guard let argv = config.agent.terminalArguments(custom: config.agentCommand) else {
-                notice(tr("还没有设置编程助手的命令", "No command set for the coding agent"), in: session)
-                break
-            }
-            launch(argv + [prompt], in: session)
+            launch(settings.current.agent, prompt: prompt, in: session)
         case let .continueInClaudeCode(prompt):
-            launch(["claude", prompt], in: session)
+            launch(.claude, prompt: prompt, in: session)
         case let .continueInAgent(agent, prompt):
-            let config = settings.current
-            guard let argv = agent.terminalArguments(custom: config.agentCommand) else {
-                notice(tr("还没有设置编程助手的命令", "No command set for the coding agent"), in: session)
-                break
-            }
-            launch(argv + [prompt], in: session)
+            launch(agent, prompt: prompt, in: session)
         case let .launchInTerminal(argv):
-            launch(argv, in: session)
+            launch(argv, prompt: nil, in: session)
         case let .saveNote(text):
             saveNote(text, in: session)
         case .openSettings:
             // No settings window yet: the folder with config.json, and a notice that says so.
             let folder = settings.url.deletingLastPathComponent()
-            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            open(folder.path, in: session)
+            onSystem(session) { system in
+                try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                try system.open(folder.path)
+            }
             notice(tr("Windows 版还没有设置窗口：设置在 config.json 里", "No settings window on Windows yet: the settings are in config.json"), in: session)
         case let .previewReminder(_, id), let .listAgents(id):
             session.feed { [notOnWindows] in $0.fail(notOnWindows, id: id) }
@@ -370,21 +402,47 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         }
     }
 
-    func open(_ target: String, in session: ComposerSession) {
-        do {
-            try system.open(target)
-            log("session \(session.sid): opened \(target.hasPrefix("http") ? "an address" : "a file")")
-        } catch {
-            notice(Self.describe(error), in: session)
+    /// `work` on one of the system's threads (`queue`; the shell's, `systemQueue`, if not given); its error, if it
+    /// throws, a notice in `session`'s panel, through the session's queue.
+    func onSystem(_ session: ComposerSession, _ queue: SystemQueue? = nil,
+                  _ work: @escaping @Sendable (SystemActions) throws -> Void) {
+        let system = self.system
+        (queue ?? systemQueue).async { [weak self, weak session] in
+            do {
+                try work(system)
+            } catch {
+                let message = Self.describe(error)
+                session?.feed { [weak self, weak session] _ in
+                    if let self, let session { self.notice(message, in: session) }
+                    return []
+                }
+            }
         }
     }
 
-    func launch(_ argv: [String], in session: ComposerSession) {
-        do {
-            try system.launchInTerminal(argv)
-            log("session \(session.sid): started a terminal window (\(argv.count) arguments)")
-        } catch {
-            notice(Self.describe(error), in: session)
+    func open(_ target: String, in session: ComposerSession) {
+        let (log, sid) = (self.log, session.sid)
+        onSystem(session) { system in
+            try system.open(target)
+            log("session \(sid): opened \(target.hasPrefix("http") ? "an address" : "a file")")
+        }
+    }
+
+    /// `agent` (`AgentKind.terminalArguments`: "claude --", the custom agent's command) in a console window, `prompt`
+    /// its first message, as the Mac's `@agent` and `@question`'s hand-off start it.
+    func launch(_ agent: AgentKind, prompt: String, in session: ComposerSession) {
+        guard let argv = agent.terminalArguments(custom: settings.current.agentCommand) else {
+            notice(tr("还没有设置编程助手的命令", "No command set for the coding agent"), in: session)
+            return
+        }
+        launch(argv, prompt: prompt, in: session)
+    }
+
+    func launch(_ argv: [String], prompt: String?, in session: ComposerSession) {
+        let (log, sid) = (self.log, session.sid)
+        onSystem(session) { system in
+            try system.launchInTerminal(argv, prompt: prompt)
+            log("session \(sid): started a terminal window (\(argv.count) arguments\(prompt.map { ", a prompt of \($0.count) characters" } ?? ""))")
         }
     }
 
@@ -392,7 +450,6 @@ public final class EngineHost: WireHost, @unchecked Sendable {
     /// Mac's default, isn't on Windows: the text goes on the clipboard, so it isn't lost, and a notice says so.
     func saveNote(_ text: String, in session: ComposerSession) {
         let destination = NoteDestinations.make(settings.current.notes, system: UnavailableNotes())
-        let system = self.system
         let saved = tr("已保存到 ", "Saved to ")
         let unsaved = tr("Windows 版还不能存到 Apple 备忘录：文字已复制到剪贴板", "Apple Notes isn't on Windows: the note is on the clipboard")
         Task { [weak self, weak session] in
@@ -400,9 +457,12 @@ public final class EngineHost: WireHost, @unchecked Sendable {
                 _ = try await destination.save(NoteDraft(text: text))
                 if let self, let session { self.notice(saved + destination.name, in: session) }
             } catch {
-                _ = system.copy(text)
-                if let self, let session {
-                    self.notice(error is UnavailableNotes.Unavailable ? unsaved : Self.describe(error), in: session)
+                guard let self, let session else { return }
+                let message = error is UnavailableNotes.Unavailable ? unsaved : Self.describe(error)
+                // On the clipboard (on its thread), then the notice that says so.
+                self.onSystem(session, self.clipboardQueue) { system in
+                    _ = system.copy(text)
+                    throw SystemActionError(message)
                 }
             }
         }
