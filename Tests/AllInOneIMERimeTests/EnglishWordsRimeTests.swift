@@ -44,8 +44,22 @@ extension RimeEngineTests {
         #expect(syllables.count > 400)
         #expect(syllables.subtracting(Pinyin.syllables).isEmpty, "\(syllables.subtracting(Pinyin.syllables).sorted())")
         let schema = try String(contentsOf: RimeFixture.sharedData.appendingPathComponent("rime_ice.schema.yaml"), encoding: .utf8)
-        let derived = spellerDerivations(schema)
-        #expect(derived.count == Pinyin.algebra.count && zip(derived, Pinyin.algebra).allSatisfy { $0 == $1 }, "\(derived)")
+        #expect(unmodeledRules(schema).isEmpty, "\(unmodeledRules(schema))")
+        // What it catches: rules of a kind Pinyin doesn't model (fuzz/: spellings only for whole words; xform/: one
+        // spelling turned into another), and those of its kinds it lacks.
+        let more = schema.replacingOccurrences(of: "\n  algebra:\n", with: "\n  algebra:\n    - fuzz/^zh/z/\n    - xform/^([nl])ue$/$1ve/\n")
+        #expect(unmodeledRules(more) == ["fuzz/^zh/z/", "xform/^([nl])ue$/$1ve/"])
+        let fewer = schema.replacingOccurrences(of: "    - erase/^m$/", with: "    # - erase/^m$/")
+        #expect(unmodeledRules(fewer) == ["lacks erase/^m$/"])
+        // Its abbreviations are what Pinyin reads as initials (or spellings: a, e, o).
+        for (pattern, template) in Pinyin.abbreviations {
+            let regex = try NSRegularExpression(pattern: pattern)
+            for spelling in Pinyin.spellings {
+                let abbreviated = regex.stringByReplacingMatches(in: spelling, range: NSRange(location: 0, length: spelling.utf16.count),
+                                                                 withTemplate: template)
+                #expect(Pinyin.initials.contains(abbreviated) || Pinyin.spellings.contains(abbreviated), "\(spelling): \(abbreviated)")
+            }
+        }
     }
 
     @Test func bedrockComesUpOnceLearned() throws {
@@ -135,18 +149,19 @@ extension RimeEngineTests {
     }
 }
 
-/// The rules of a Rime schema's `speller/algebra` that derive a spelling ("- derive/([nl])ve$/$1ue/  # comment"), in
-/// order, the commented-out ones left out.
-private func spellerDerivations(_ schema: String) -> [(pattern: String, template: String)] {
-    var out: [(pattern: String, template: String)] = [], speller = false, algebra = false
-    for line in schema.split(whereSeparator: \.isNewline).map(String.init) {
-        if !line.hasPrefix(" ") && !line.hasPrefix("#") { speller = line.hasPrefix("speller:"); algebra = false; continue }
-        let trimmed = line.trimmingCharacters(in: .whitespaces)
-        if speller, trimmed.hasPrefix("algebra:") { algebra = true; continue }
-        guard speller, algebra, trimmed.hasPrefix("- derive/") else { continue }
-        let rule = trimmed.dropFirst("- derive/".count).split(separator: "/", omittingEmptySubsequences: false)
-        if rule.count >= 2 { out.append((String(rule[0]), String(rule[1]))) }
-    }
+/// The rules of a Rime schema's `speller/algebra` (`FuzzyPinyin.algebra`: as written, the commented-out ones left out)
+/// that `Pinyin` doesn't model, and those it models that the schema lacks ("lacks …"). It models the derivations
+/// (`Pinyin.algebra`: the same, in the same order, each applied to what the ones before it gave), the interjections
+/// erased (`Pinyin.erased`) and the abbreviations (`Pinyin.abbreviations`); any other kind (fuzz/, xform/, xlit/ …)
+/// isn't.
+private func unmodeledRules(_ schema: String) -> [String] {
+    let rules = FuzzyPinyin.algebra(ofSchema: schema)
+    let derived = Pinyin.algebra.map { "derive/\($0.pattern)/\($0.template)/" }
+    let others = Pinyin.erased.sorted().map { "erase/^\($0)$/" } + Pinyin.abbreviations.map { "abbrev/\($0.pattern)/\($0.template)/" }
+    let modeled = Set(derived + others)
+    var out = rules.filter { !modeled.contains($0) }
+    out += others.filter { !rules.contains($0) }.map { "lacks " + $0 }
+    if rules.filter({ $0.hasPrefix("derive/") }) != derived { out.append("derive/ rules other than Pinyin.algebra's, in its order") }
     return out
 }
 

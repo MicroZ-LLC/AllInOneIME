@@ -304,9 +304,14 @@ public struct EnglishDictionary: Sendable {
 /// what isn't learned as one.
 enum Pinyin {
     /// The syllables: the system's list with those rime-ice spells and it lacks (这个 zhei, 得 dei, 忒 tei, 𰻞 biang; its
-    /// character table's, which `EnglishWordsRimeTests` checks), without the interjections that are consonants alone (m,
-    /// ng, hm; rime-ice's speller erases them): "mm" isn't two syllables.
-    static let syllables = RedactionWords.pinyin.union(["biang", "cei", "dei", "nia", "tei", "zhei"]).subtracting(["m", "ng", "hm"])
+    /// character table's, which `EnglishWordsRimeTests` checks), without those its speller erases (`erased`): "mm" isn't
+    /// two syllables.
+    static let syllables = RedactionWords.pinyin.union(["biang", "cei", "dei", "nia", "tei", "zhei"]).subtracting(erased)
+    /// The interjections that are consonants alone, which rime-ice's speller erases (`erase/^hm$/` …).
+    static let erased: Set<String> = ["hm", "m", "n", "ng"]
+    /// rime-ice's abbreviations (`abbrev/^([a-z]).+$/$1/`: a syllable typed as its first letter, zh ch sh whole), which
+    /// `initials` reads. Its speller has no rules but these, `erased` and `algebra` (`EnglishWordsRimeTests` checks).
+    static let abbreviations: [(pattern: String, template: String)] = [("^([a-z]).+$", "$1"), ("^([zcs]h).+$", "$1")]
     /// The spellings rime-ice's speller derives from a syllable (its `speller/algebra` in rime_ice.schema.yaml, in order;
     /// `EnglishWordsRimeTests` checks them): ü typed as u or v, and its corrections of letters typed in the wrong order
     /// ("hzi" and "zih" for zhi, "wie" for wei, "zhogn" for zhong) or left out ("do" for dou).
