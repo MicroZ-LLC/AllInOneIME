@@ -161,6 +161,11 @@ AllInOneIMESettings.exe [--pipe NAME] [--engine EXE [--engine-args "ARGS"]] [--t
   on a menu that closed at once: a full-screen game had the foreground, and WinUI closes a flyout when its window loses
   it. The window then came up behind other windows (no capture), so the look is the app's own drawings.
 
+  Run again on 2026-10-20 with the English words (the switch, the line, a refusal, the longest list in one frame) and
+  Windows' wording in the document: **75 of 75 passed**, with the debug builds and with the installer's published app
+  and release engine; the Input page's capture (`e2e-shots/input-english-words.png`) shows the two fields after fuzzy
+  pinyin, and the refusal under the line.
+
 ## Not done yet
 
 - The plugin library is tested through the document and the client, not clicked end to end (it needs the network); a

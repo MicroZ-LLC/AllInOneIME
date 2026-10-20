@@ -22,7 +22,7 @@ The Windows shell of AllInOneIME, on the core in `../Core` (the same Swift packa
 Scripts/build-rime-data.sh                    # in Git Bash: librime and rime-ice's data, in ThirdParty (once)
 swift build                                   # Swift 6.4 for Windows, with Visual Studio's MSVC and Windows SDK
 swift run allinoneime-cli --help
-swift test                                    # the pipe's security (2), the Rime tests (24), the engine's (89)
+swift test                                    # the pipe's security (2), the Rime tests (30), the engine's (102)
 ```
 
 The engine and the command line link librime (`rime.lib`, `Scripts/fetch-librime.sh`); the engine finds `rime.dll`
@@ -279,6 +279,12 @@ warnings**, and the package is installed; `tip/test/run-e2e.sh --installed` afte
 captures (`installer/build/test-logs/e2e-*-shots/`) show the core's model drawn as the Mac's panel is: the rule above
 the footer, the results with "原文", the row of candidates with the "中" notice.
 
+Run again on 2026-10-20 with the package of the second round (English words among pinyin's candidates, Windows' wording
+in the settings, a settings window's 1 MiB frames, the review's lows), the English words' check added: **64 passed, 0
+failed, 0 warnings**, and the package is installed; `tip/test/run-e2e.sh --installed` after it: PASS, the session's
+input method (the user's own, AllInOneIME) the same before and after. The English words' capture shows "frobnicate"
+second among the candidates of "frobn", after librime's first.
+
 - **Install and upgrade:** the files (librime, rime-data, the command line, which runs on the runtime beside it), the
   20 runtime DLLs, the COM server at the installed path, both profiles and the
   5 categories, TSF enumerating both profiles as enabled in the user's session, AllInOneIME in the list under
@@ -294,6 +300,10 @@ the footer, the results with "原文", the row of candidates with the "中" noti
   - in real Notepad, pinyin through librime (`--pinyin`): a tap of Shift, "nihao", Space, "nihao", "1" give
     "你好你好"; the candidate window up under the caret while the candidates are, a no-activate, topmost tool window,
     Notepad keeping the foreground, gone with the commit;
+  - in real Notepad, English words among pinyin's candidates (`--english`, typing starting in Chinese): "frobnicate"
+    and Return twice put the letters in as typed and learn the word the second time, into the run's own settings
+    file (never the user's), then "frobn" shows it among the candidates, second, and "2" picks it:
+    "frobnicatefrobnicatefrobnicate";
   - in real Notepad, a real AI request (`--ai`): "@improve hello", Return, the versions streamed over HTTP from the
     stub provider on localhost in the Claude API's format, "1" gives "Hello there." (the stub saw one request, with the
     right key);
@@ -482,7 +492,7 @@ The same versions as the macOS shell (the root `Makefile`), downloaded, checked 
 
 ```
 Scripts/build-rime-data.sh    # librime (Scripts/fetch-librime.sh), then rime-ice, its dictionaries prebuilt
-swift test                    # the Rime tests (Tests/AllInOneIMERimeTests): 24, in 5 s to a minute
+swift test                    # the Rime tests (Tests/AllInOneIMERimeTests): 30, in 5 s to a minute
 ```
 
 `Scripts/fetch-librime.sh` alone fetches librime only. Both do nothing when `ThirdParty` already has what they would

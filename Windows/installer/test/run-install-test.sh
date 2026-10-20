@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # The installer's test, without a human: a silent install, the checks, an upgrade over it, the e2e harness against real
 # Notepad through the installed copy (English, @improve with the test provider, pinyin through librime and the candidate
-# window, a real AI request to a stub provider on localhost), pinyin and the candidate window in a classic console and in
+# window, an English word learned and offered among pinyin's candidates, a real AI request to a stub provider on
+# localhost), pinyin and the candidate window in a classic console and in
 # a WebView2 of the driver's own, a terminal command's console window, a silent uninstall and its checks; then, if
 # everything passed, the package installed again for the user to try.
 #
@@ -207,6 +208,8 @@ check "real Notepad, English through the engine as it runs for a user: \"Hello w
 check "real Notepad, @improve with the test provider: \"hi Hello.\"" e2e notepad-improve --notepad
 check "real Notepad, pinyin through librime: Shift, \"nihao\", Space, \"nihao\", 1 give \"你好你好\", the candidate window up" \
   e2e notepad-pinyin --notepad --pinyin
+check "real Notepad, English words among pinyin's candidates: \"frobnicate\" and Return twice, learned (the run's settings), \"frobn\" and 2 give it" \
+  e2e notepad-english --notepad --english
 check "real Notepad, a real AI request (the Claude API's format, a stub on localhost): \"@improve hello\", 1 give \"Hello there.\"" \
   e2e notepad-ai --notepad --ai
 check "a classic console of the driver's own (conhost.exe cmd.exe): pinyin at cmd's prompt, the candidate window up" \
