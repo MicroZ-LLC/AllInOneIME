@@ -2,13 +2,6 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
-## Unreleased
-
-### Fixed
-
-- `@translate` with nothing to translate into but the sentence's own language (English alone, as on a new Mac with no other language) no longer opens Settings by itself. Opened from the key, the window either took the focus at once, which hid the notice and put `@translate …` into your text as typed, or, where macOS kept the focus in your text, came up without it, with nothing on the notice saying so. Now the notice stays and names the page: "No language to translate into yet: ⏎ opens Settings → Translate & Rewrite to add one". ⏎ (or Space) on it puts the sentence in as typed and opens that page with its Add… outlined; a language picked there works at once. While no language other than the ones you type is added, the page says so under Languages.
-- Translate as You Type with only the languages you type to translate into (English alone) no longer turns on and then does nothing: it says there's no language to translate into, and where to add one.
-
 ## 0.6.5.1 (2026-10-19)
 
 ### Fixed
@@ -16,6 +9,8 @@ English | [中文](CHANGELOG.zh-CN.md)
 - Slack and other apps built on Electron or Chromium: holding Shift turns Translate as You Type on and off there too, a tap of Shift switches the input language once (it could switch twice when the page was busy), and a tap of ⌥ runs the action key. These apps hand each press of a modifier key to the input method twice; the copy is now told apart (tested with an Electron app built like Slack's).
 - Settings → Assistant on Apple Intelligence: no more "context too long" error. The request is fitted to the on-device model's context (only the settings the sentence is about when the whole doesn't fit); when even that doesn't fit, your own AI provider answers instead and the page says so before sending, or the page says what to do. When you ask for a provider by name ("use Bedrock") and the on-device model answers with another, that change isn't offered. An AWS account number in a Bedrock model or profile name is not sent to other providers.
 - Apple Intelligence's "too long" message in every interface language.
+- `@translate` with nothing to translate into but the sentence's own language (English alone, as on a new Mac with no other language): Settings no longer opens by itself. Opened from the key, the window either took the focus at once, which hid the notice and put `@translate …` into your text as typed, or, where macOS kept the focus in your text, came up without it, with nothing on the notice saying so. Now the notice stays and names the page: "No language to translate into yet: ⏎ opens Settings → Translate & Rewrite to add one". ⏎ (or Space) on it puts the sentence in as typed and opens that page with its Add… outlined; a language picked there works at once. While no language other than the ones you type is added, the page says so under Languages.
+- Translate as You Type with only the languages you type to translate into (English alone): it no longer turns on and then does nothing, but says there's no language to translate into, and where to add one.
 
 ## 0.6.5 (2026-10-18)
 
