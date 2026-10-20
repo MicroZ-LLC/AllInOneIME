@@ -48,7 +48,7 @@ extension UIText {
             "action.cancel": tr("取消", "Cancel"),
             "confirm.removeKey": tr("删除「{name}」？", "Remove “{name}”?"),
             "confirm.delete": tr("删除「{name}」？", "Delete “{name}”?"),
-            "confirm.remove": tr("移除「{name}」？", "Remove “{name}”?", key: "confirm.removeItem"),
+            "confirm.removeItem": tr("移除「{name}」？", "Remove “{name}”?", key: "confirm.removeItem"),
             "save": tr("保存", "Save"),
             "cancel": tr("取消", "Cancel"),
             "choose": tr("选择…", "Choose…"),

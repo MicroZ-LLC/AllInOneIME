@@ -192,5 +192,11 @@ struct SettingsAppsExtensionsTests {
             #expect(strings[name]?.isEmpty == false, "\(name)")
         }
         #expect(strings["confirm.delete"]?.contains("{name}") == true)
+        // The confirmations by the names §12.3 gives them (a client looks an item's `remove` up as confirm.removeItem).
+        for name in ["confirm.removeKey", "confirm.delete", "confirm.removeItem"] {
+            #expect(strings[name]?.contains("{name}") == true, "\(name)")
+        }
+        let chinese = try service(#"{"uiLanguage": "zh-Hans", "extensionFolders": []}"#).0.document().strings
+        #expect(chinese?["confirm.removeItem"] == "移除「{name}」？")
     }
 }

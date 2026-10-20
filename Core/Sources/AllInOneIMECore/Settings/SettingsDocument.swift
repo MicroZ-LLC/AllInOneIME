@@ -25,7 +25,7 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
     public var sections: [Section]
     /// The words of the window's own controls, in the interface language, by name (`SettingsText.windowStrings`): its
     /// title, the buttons an action or a list has ("action.setKey": "Save", "moveUp": "Move up"), a confirmation
-    /// ("confirm.remove": "Remove “%@”?"). A client keeps its own words for what isn't here.
+    /// ("confirm.removeItem": "Remove “{name}”?"). A client keeps its own words for what isn't here.
     public var strings: [String: String]?
 
     public init(language: String, platform: SettingsPlatform, loadError: String? = nil, saveError: String? = nil,
