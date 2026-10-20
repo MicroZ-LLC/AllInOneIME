@@ -248,6 +248,18 @@ prove is its own and in front. The 0.6.4 package from before those fixes, run wi
 --pinyin` and `--webview2 --pinyin`, typed "你好你好" in both but never showed the candidate window there, and with
 `--terminal` the console was gone before it could be read.
 
+Run on 2026-10-20 with the 0.6.6 integration's package (AllInOneIME-0.6.5-x64.msi, the version `Info.plist` has):
+first **52 passed, 11 failed**. The user's own input method was AllInOneIME (the 0.6.4 copy installed before), so
+uninstalling it first recorded only Windows' fallback, and reinstalling the profile brought theirs back ("the session's
+input method is as recorded" failed three times); and with AllInOneIME active in the app in front, its text service
+started the user's engine again in the second between `stop-engines` and the driver starting its own, which then
+exited ("another engine is running"): every typing check failed before typing anything (each run saved and closed its
+own Notepad tab). The test now records the session's input method before taking an installed copy out, and the driver
+ends such an engine and starts its own again (one to three tries per run). The run after: **63 passed, 0 failed, 0
+warnings**, and the package is installed; `tip/test/run-e2e.sh --installed` after it: PASS. The candidate window's
+captures (`installer/build/test-logs/e2e-*-shots/`) show the core's model drawn as the Mac's panel is: the rule above
+the footer, the results with "原文", the row of candidates with the "中" notice.
+
 - **Install and upgrade:** the files (librime, rime-data, the command line, which runs on the runtime beside it), the
   20 runtime DLLs, the COM server at the installed path, both profiles and the
   5 categories, TSF enumerating both profiles as enabled in the user's session, AllInOneIME in the list under

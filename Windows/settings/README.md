@@ -7,7 +7,7 @@ what the user did. Labels, help, which fields show, validation and the window's 
 
 ```
 dotnet build AllInOneIMESettings.sln                    # .NET 8 SDK; the Windows App SDK comes from NuGet
-dotnet test AllInOneIMESettings.Tests                   # 104 tests, no window, no engine
+dotnet test AllInOneIMESettings.Tests                   # 106 tests, no window, no engine
 Scripts/run-e2e.sh                                      # the end-to-end test, in Git Bash, with the user logged on
 python Scripts/make-test-documents.py <AllInOneIMEEngine.exe>   # the tests' documents, again (after the core changed)
 ```
@@ -112,7 +112,7 @@ AllInOneIMESettings.exe [--pipe NAME] [--engine EXE [--engine-args "ARGS"]] [--t
 
 ## Tests
 
-- **Unit** (`dotnet test AllInOneIMESettings.Tests`): 104.
+- **Unit** (`dotnet test AllInOneIMESettings.Tests`): 106.
   - The protocol client against the settings golden (`Core/Tests/AllInOneIMEWireTests/WireGoldens/settings.jsonl`),
     replayed by a stand-in engine: each frame the client sends is the golden's (`shown` and `revision` too), and each
     answer and notification comes back as the golden has it, with the documents the engine really sent for those
@@ -126,6 +126,8 @@ AllInOneIMESettings.exe [--pipe NAME] [--engine EXE [--engine-args "ARGS"]] [--t
     text, a line of words and lists with what they showed, check boxes, an ordered list, a key, a button with its value
     when it takes one, lists, the command editor from its schema, running and cancelled, stale), values of another type.
   - A command line written as Windows reads it back (`CommandLineToArgvW` itself).
+  - The server check against real pipes: one this user's process serves passes, one a low-integrity process made first
+    (a squatter, started with this token at S-1-16-4096) is refused before anything is sent.
   - The window's session (revisions, one fetch at a time, reconnecting), starting the engine (none to start, started
     and waited for, already starting, won't start), the options, the names.
 - **End to end** (`Scripts/run-e2e.sh`): the driver runs in the user's session (`../tip/test/run-in-session.sh`), starts
@@ -148,6 +150,12 @@ AllInOneIMESettings.exe [--pipe NAME] [--engine EXE [--engine-args "ARGS"]] [--t
   when it was in front; `app-shots/`: each section drawn by the app, light and dark). Looked at: nothing clipped, the
   cards and lists laid out at 1040×760 and 125 %, dark mode, the French window. (In the app's own drawings a check box
   shows a dash whatever its state: RenderTargetBitmap draws its animated glyph so; on the screen it is a check mark.)
+
+  Run on 2026-10-20 on the merged protocol: **67 of 67 passed**, with the debug builds and with the installer's
+  published app and release engine (the custom command saved through the schema's editor, the cancel, the disabled
+  window while it connects again, the announcements, the note's name: the ten new checks). Two runs before it failed
+  on a menu that closed at once: a full-screen game had the foreground, and WinUI closes a flyout when its window loses
+  it. The window then came up behind other windows (no capture), so the look is the app's own drawings.
 
 ## Not done yet
 
