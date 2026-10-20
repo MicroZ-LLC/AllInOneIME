@@ -94,8 +94,9 @@ public enum ConsoleHold {
     /// console, waits for it, deletes its prompt's file (held open meanwhile, so that `ConsoleCommand.removeStalePrompts`
     /// leaves it), says how it ended and waits for a key. Ctrl+C and Ctrl+Break are the program's: this process stays to
     /// say so. The window closed meanwhile (its X, the terminal's tab), or the user logging off: the program goes with
-    /// the console, and so does the prompt's file. Its exit code: 0 once the key is pressed (the program's is on the
-    /// screen), 2 without a program.
+    /// the console, and so does the prompt's file (the window: the control handler's CTRL_CLOSE_EVENT; logoff and
+    /// shutdown: `EndSession`'s window, as a process that loads user32 is never told of them through the handler). Its
+    /// exit code: 0 once the key is pressed (the program's is on the screen), 2 without a program.
     public static func run() -> Int32 {
         guard let application = take(applicationVariable), let commandLine = take(commandLineVariable) else { return 2 }
         let title = take(titleVariable)
@@ -112,13 +113,17 @@ public enum ConsoleHold {
             }
             return handle == INVALID_HANDLE_VALUE ? nil : handle
         }
-        if let promptFile { HeldPrompt.shared.hold(promptFile, handle: held) }
+        if let promptFile {
+            HeldPrompt.shared.hold(promptFile, handle: held)
+            EndSession.watch { HeldPrompt.shared.remove() }
+        }
         SetConsoleCtrlHandler({ event in
             switch event {
             case DWORD(CTRL_C_EVENT), DWORD(CTRL_BREAK_EVENT):
                 return true  // the program's
             case DWORD(CTRL_CLOSE_EVENT), DWORD(CTRL_LOGOFF_EVENT), DWORD(CTRL_SHUTDOWN_EVENT):
-                // The window going (Windows ends this process when the handler returns): the file first.
+                // The window going (Windows ends this process when the handler returns): the file first. (Logoff and
+                // shutdown never come here in this process, which loads user32: `EndSession`.)
                 HeldPrompt.shared.remove()
                 return false
             default:
@@ -243,6 +248,47 @@ public enum ConsoleHold {
 
     /// The prompt's file a console holds, deleted once, by whichever comes first: the program's end, or the console's
     /// control handler (a C function, which has no context of its own) as its window closes.
+    /// The session ending (logoff, shutdown), told to a hidden top-level window on a thread of its own
+    /// (`WM_ENDSESSION`): a console's control handler gets CTRL_LOGOFF_EVENT and CTRL_SHUTDOWN_EVENT only in a process
+    /// that loads neither user32 nor gdi32, which this one does. (A message-only window gets no broadcast.) `ended` runs
+    /// there, before Windows ends the process.
+    enum EndSession {
+        static let className = "AllInOneIME.ConsoleEndSession"
+        private static let ended = Locked<(@Sendable () -> Void)?>(initialState: nil)
+
+        static func watch(_ ended: @escaping @Sendable () -> Void) {
+            self.ended.withLock { $0 = ended }
+            Thread.detachNewThread {
+                let instance = GetModuleHandleW(nil)
+                let window: HWND? = className.withCString(encodedAs: UTF16.self) { name in
+                    var windowClass = WNDCLASSEXW()
+                    windowClass.cbSize = UINT(MemoryLayout<WNDCLASSEXW>.size)
+                    windowClass.lpfnWndProc = { window, message, wParam, lParam in
+                        switch message {
+                        case UINT(WM_QUERYENDSESSION):
+                            return 1  // never in the way
+                        case UINT(WM_ENDSESSION):
+                            if wParam != 0 { EndSession.ended.withLock { $0 }?() }
+                            return 0
+                        default:
+                            return DefWindowProcW(window, message, wParam, lParam)
+                        }
+                    }
+                    windowClass.hInstance = instance
+                    windowClass.lpszClassName = name
+                    _ = RegisterClassExW(&windowClass)
+                    return CreateWindowExW(0, name, name, DWORD(WS_OVERLAPPED), 0, 0, 0, 0, nil, nil, instance, nil)
+                }
+                guard window != nil else { return }
+                var message = MSG()
+                while GetMessageW(&message, nil, 0, 0) {  // (-1 only for a window or range that is wrong)
+                    TranslateMessage(&message)
+                    DispatchMessageW(&message)
+                }
+            }
+        }
+    }
+
     final class HeldPrompt: @unchecked Sendable {
         static let shared = HeldPrompt()
         private let lock = NSLock()
