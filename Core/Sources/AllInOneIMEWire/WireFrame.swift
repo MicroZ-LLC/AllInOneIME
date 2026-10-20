@@ -8,6 +8,10 @@ public enum WireFrame {
     public static let prefixSize = 4
     /// The largest body a client may send (DLL → engine).
     public static let clientLimit = 64 * 1024
+    /// The largest body a settings window may send once it has the settings (§12: a trusted client that asked for them
+    /// in `hello`): a list as long as the settings keep (the user's English words, 2,000 of up to 40 characters) with
+    /// the list it showed (`shown`), escaped as a client may escape them. As much as the engine may send.
+    public static let settingsClientLimit = 1024 * 1024
     /// The largest body the engine may send (engine → DLL): a long answer committed in one frame.
     public static let engineLimit = 1024 * 1024
     /// The deepest a body's JSON may nest (§8): objects and arrays, the body itself one.

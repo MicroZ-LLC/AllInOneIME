@@ -154,6 +154,18 @@ static class Program
                   refused.Name.Contains("come up among the candidates") && !refused.Name.Contains("iCloud"),
                   refused.Name);
             Check("nothing changed", Words(Config(config), "englishWords") == "Bedrock,Frobnicate", Config(config).ToJsonString());
+            // As many words as the settings keep (2,000 of 40 characters), sent as the window sends its line, with the line
+            // it showed: a frame over a DLL's 64 KiB, which the engine takes from a settings window (§2.2).
+            var longest = string.Join(", ", Enumerable.Range(0, 2000).Select(i =>
+                $"Frob{(char)('a' + i % 26)}{(char)('a' + i / 26 % 26)}{(char)('a' + i / 676 % 26)} Toolkit Engine Platform Studio Pro"[..40]));
+            var shownLine = client.GetAsync(cancellation.Token).GetAwaiter().GetResult().Document.Find("englishWords")?.Text ?? "";
+            var longAnswer = client.SetAsync("englishWords", JsonValue.Create(longest), cancellation.Token, shown: JsonValue.Create(shownLine))
+                .GetAwaiter().GetResult();
+            Check("the longest list of English words, with the line shown, taken in one frame",
+                  longAnswer.Problem is null && Config(config)["englishWords"]?.AsArray().Count == 2000,
+                  longAnswer.Problem?.Message ?? $"{Config(config)["englishWords"]?.AsArray().Count} words");
+            Check("the window shows it", Eventually(() =>
+                window.FindFirstDescendant(c => c.ByAutomationId("englishWords"))?.Patterns.Value.Pattern.Value.Value.Length > 64 * 1024 / 2));
             Capture(window, Path.Combine(shots, "input-english-words.png"));
             var moveUp = WaitFor("move Chinese up", () => window.FindFirstDescendant(c => c.ByAutomationId("inputLanguages/up/zh")));
             moveUp.AsButton().Invoke();

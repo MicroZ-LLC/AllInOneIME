@@ -167,13 +167,14 @@ public final class PipeListener: @unchecked Sendable {
             server.disconnect(id)
             log("connection \(id): closed")
         }
-        let limit = WireFrame.clientLimit + WireFrame.prefixSize
         while true {
             let answers: [Data]
+            // A DLL's frames are 64 KiB at most, a settings window's larger once it has the settings (§2.2).
+            let limit = server.clientLimit(on: id)
             do {
-                let message = try channel.readMessage(limit: limit)
+                let message = try channel.readMessage(limit: limit + WireFrame.prefixSize)
                 do {
-                    answers = server.receive(try WireFrame.body(ofMessage: message, limit: WireFrame.clientLimit), on: id)
+                    answers = server.receive(try WireFrame.body(ofMessage: message, limit: limit), on: id)
                 } catch {
                     answers = server.refuse(error, on: id)
                 }
@@ -197,7 +198,7 @@ public final class PipeListener: @unchecked Sendable {
         let deadline = Date().addingTimeInterval(Double(ms) / 1000)
         while case let left = deadline.timeIntervalSinceNow, left > 0 {
             do {
-                _ = try channel.readMessage(limit: WireFrame.clientLimit + WireFrame.prefixSize, timeout: DWORD(left * 1000) + 1)
+                _ = try channel.readMessage(limit: WireFrame.settingsClientLimit + WireFrame.prefixSize, timeout: DWORD(left * 1000) + 1)
             } catch PipeChannel.Failure.tooLarge {
                 continue
             } catch {

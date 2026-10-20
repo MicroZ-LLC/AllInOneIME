@@ -266,4 +266,21 @@ public class SettingsClientTests
         Assert.Equal("tooLarge", Assert.Throws<WireException>(() => WireFrame.Encode(big)).Code);
         Assert.Equal("{\"a\":1}", Encoding.UTF8.GetString(WireFrame.Encode(new JsonObject { ["a"] = 1 })[4..]));
     }
+
+    [Fact]
+    public void TheLongestListOfEnglishWordsGoesInOneFrame()
+    {
+        // As many words as the settings keep (2,000), each as long as one may be (40), the line edited with the line
+        // shown (§12.4), escaped as this client escapes them (+ & ' as \u002B …): over a DLL's 64 KiB, within a settings
+        // window's limit (§2.2).
+        var words = Enumerable.Range(0, 2000).Select(i => $"C++ & Rock'n'Roll {i:D4} Toolkit Engine Pro"[..40]).ToList();
+        Assert.All(words, w => Assert.Equal(40, w.Length));
+        var line = string.Join(", ", words);
+        var frame = WireFrame.Encode(new JsonObject
+        {
+            ["v"] = 1, ["id"] = 2, ["type"] = "settingsSet", ["field"] = "englishWords", ["value"] = line, ["shown"] = line,
+        });
+        Assert.InRange(frame.Length, 64 * 1024 + 1, WireFrame.MaxClientBody);
+        Assert.Equal(line, (string?)WireFrame.Decode(frame)["shown"]);
+    }
 }

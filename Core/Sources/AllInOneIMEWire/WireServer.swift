@@ -172,7 +172,7 @@ public final class WireServer: @unchecked Sendable {
     public func receive(_ body: Data, on id: ConnectionID) -> [Data] {
         guard let connection = lock.guarded({ connections[id] }), connection.isOpen else { return [] }
         do {
-            guard body.count <= WireFrame.clientLimit else { throw WireFrame.Failure.tooLarge(body.count) }
+            guard body.count <= Self.clientLimit(connection) else { throw WireFrame.Failure.tooLarge(body.count) }
             try WireFrame.check(body)
         } catch {
             return refusing(error, on: connection)
@@ -203,6 +203,16 @@ public final class WireServer: @unchecked Sendable {
             return receiveSettings(frame, service: service, on: connection)
         }
         return connection.queue.sync { deliver(handle(frame, on: connection), on: connection) }
+    }
+
+    /// The largest body connection `id` may send now (§2.2): a settings window's once it has the settings
+    /// (`WireFrame.settingsClientLimit`), else a DLL's (`clientLimit`). The transport reads its next frame up to it.
+    public func clientLimit(on id: ConnectionID) -> Int {
+        lock.guarded({ connections[id] }).map(Self.clientLimit) ?? WireFrame.clientLimit
+    }
+
+    private static func clientLimit(_ connection: Connection) -> Int {
+        connection.settings ? WireFrame.settingsClientLimit : WireFrame.clientLimit
     }
 
     /// A frame the transport refused before reading it (§2.2: its length, its size): the error, and the connection

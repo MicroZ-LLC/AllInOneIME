@@ -45,6 +45,9 @@
 - **Why the prefix:** message mode makes it redundant on Windows. It is kept so the same bytes work over byte streams (replay CLI, sockets in tests). Transports that delimit calls themselves (JNI, `aio_send(handle, json, len)`) pass the body without the prefix.
 - **Maximum frame size:**
   - DLL → engine: 64 KiB.
+  - A settings window → engine, once it has the settings (§12: a trusted client that asked for them in `hello`):
+    1 MiB, a list as long as the settings keep (2,000 English words of up to 40 characters) sent with the list the
+    window showed (`shown`, §12.4). Its `hello` is within 64 KiB, the limit until then.
   - Engine → DLL: 1 MiB (a long answer committed in one frame).
 - **Reading:** the reader grows its buffer on `ERROR_MORE_DATA` up to the maximum. Anything bigger gets `tooLarge` and the connection closes.
 - **An answer the engine can't fit** in 1 MiB (a settings document with a huge word list) isn't sent; in its place,
@@ -748,7 +751,8 @@ given and sends back what the user did. It opens no sessions.
   reads the client's token (§2.1) and says its integrity and AppContainer flag; a transport added later that checks
   nothing (`WirePeer`'s default) gives no client the settings, nor what runs and sends (§8).
 - **Logs:** the field and the action's name, never a value.
-- **Limits:** `field` and `action` ≤ 256 units (over: `badMessage`); the frame limit (64 KiB, §2.2) bounds the rest.
+- **Limits:** `field` and `action` ≤ 256 units (over: `badMessage`); the frame limit (a settings window's 1 MiB,
+  §2.2) bounds the rest.
 
 ### 12.9 What lives where
 

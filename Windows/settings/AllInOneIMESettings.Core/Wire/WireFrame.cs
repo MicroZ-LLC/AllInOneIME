@@ -7,12 +7,15 @@ namespace AllInOneIME.Settings.Wire;
 
 /// <summary>
 /// One frame of wire protocol v1 (§2.2): a u32 little-endian body length, then that many bytes of UTF-8 JSON, one
-/// object. A client writes at most 64 KiB and reads at most 1 MiB.
+/// object. A settings window writes at most 1 MiB once it has the settings (a DLL 64 KiB), and reads at most 1 MiB.
 /// </summary>
 public static class WireFrame
 {
     public const int Version = 1;
-    public const int MaxClientBody = 64 * 1024;
+    /// <summary>What a settings window may write (§2.2): a list as long as the settings keep (2,000 English words of up
+    /// to 40 characters) with the list it showed, escaped as this client escapes them. Its <c>hello</c> is far
+    /// smaller than a DLL's limit, 64 KiB, which holds until the engine grants the settings.</summary>
+    public const int MaxClientBody = 1024 * 1024;
     public const int MaxEngineBody = 1024 * 1024;
 
     static readonly JsonSerializerOptions Compact = new() { WriteIndented = false };
