@@ -116,7 +116,8 @@ public struct AIConfigFit: Sendable {
 
     /// The words that point to each part: English, Simplified and Traditional Chinese, Japanese, Korean, German, French,
     /// Spanish and Portuguese, lowercased. A Latin word matches at the start of a word of the text (one of three letters
-    /// or fewer only as a whole word); a phrase, at the start of a word; Chinese, Japanese or Korean anywhere.
+    /// or fewer only as a whole word); a phrase, at the start of a word, its last word as a word alone does; Chinese,
+    /// Japanese or Korean anywhere.
     static let words: [AIConfigPrompt.Part: [String]] = [
         .outputLanguages: ["translat", "output", "target language", "翻译", "翻譯", "译成", "譯成", "译为", "譯為", "输出", "輸出", "翻訳", "出力",
                            "번역", "출력", "übersetz", "ausgabe", "tradu", "sortie", "salida", "saída"],
@@ -144,16 +145,20 @@ public struct AIConfigFit: Sendable {
         .iCloudSync: ["icloud", "sync", "同步", "同期", "동기화", "synchron", "sincroniz"],
         .provider: ["provider", "model", "claude", "anthropic", "haiku", "sonnet", "opus", "gemini", "google", "openai", "gpt", "chatgpt",
                     "deepseek", "qwen", "kimi", "moonshot", "glm", "zhipu", "siliconflow", "openrouter", "ollama", "bedrock", "amazon",
-                    "aws", "nova", "base url", "baseurl", "url", "endpoint", "apple intelligence", "on-device", "on this mac", "cloud",
+                    "aws", "base url", "baseurl", "url", "endpoint", "apple intelligence", "on-device", "on this mac", "cloud",
                     "ai service", "服务", "服務", "模型", "亚马逊", "亞馬遜", "谷歌", "深度求索", "通义", "千问", "智谱", "月之暗面", "硅基", "本机",
                     "本機", "云", "雲", "智能", "プロバイダ", "モデル", "サービス", "アマゾン", "グーグル", "クロード", "ジェミニ", "제공", "모델",
                     "서비스", "아마존", "구글", "클로드", "제미나이", "오픈ai", "anbieter", "modell", "dienst", "fournisseur", "modèle",
-                    "servic", "proveedor", "modelo", "provedor"],
-        .aws: ["aws", "bedrock", "amazon", "nova", "region", "profile", "亚马逊", "亞馬遜", "区域", "區域", "地区", "地區", "アマゾン",
-               "リージョン", "プロファイル", "아마존", "리전", "프로필", "profil", "región", "região"],
+                    "servic", "proveedor", "modelo", "provedor"] + novaModels,
+        .aws: ["aws", "bedrock", "amazon", "region", "profile", "亚马逊", "亞馬遜", "区域", "區域", "地区", "地區", "アマゾン",
+               "リージョン", "プロファイル", "아마존", "리전", "프로필", "profil", "región", "região"] + novaModels,
         .apps: ["app", "apps", "application", "program", "应用", "應用", "软件", "軟體", "軟件", "程序", "程式", "アプリ", "앱", "anwendung", "appli",
                 "aplicación", "aplicativo", "programa"],
     ]
+
+    /// Amazon's Nova models by their names without "Amazon" (with it, "amazon" says it; their IDs have it too): "nova"
+    /// alone is Portuguese's "new" ("uma nova conversa", "novamente").
+    static let novaModels = ["nova lite", "nova pro", "nova micro", "nova premier", "nova 2"]
 
     /// The interface's languages, whose words name the languages and styles (`languageNames`, `styleNames`).
     static let interfaceLanguages = ["en", "zh-Hans", "zh-Hant", "ja", "ko", "de", "fr", "es", "pt-BR"]
@@ -224,7 +229,11 @@ public struct AIConfigFit: Sendable {
             // Chinese, Japanese, Korean (and anything else past Latin's blocks): anywhere.
             if word.unicodeScalars.contains(where: { $0.value >= 0x2E80 }) { return lowered.contains(word) }
             let parts = word.split { !$0.isLetter && !$0.isNumber }
-            if parts.count > 1 { return joined.contains(" " + parts.joined(separator: " ")) }
+            if parts.count > 1 {
+                // Its last word whole when it is three letters or fewer: "nova pro" isn't "nova proposta".
+                let phrase = " " + parts.joined(separator: " ")
+                return parts[parts.count - 1].count <= 3 ? (joined + " ").contains(phrase + " ") : joined.contains(phrase)
+            }
             if word.count <= 3 { return words.contains(word) }
             return words.contains { $0.hasPrefix(word) }
         }

@@ -260,6 +260,20 @@ struct AIConfigContextTests {
         }
     }
 
+    /// Portuguese "nova" (new) is no Amazon Nova: a sentence with it is about what else it names, and fits a 4096-token
+    /// context without the model's count (macOS 26.0 to 26.3) as its English one does, whatever the config.
+    @Test(arguments: [0, 60, 250])
+    func portugueseNovaIsNotAmazonNova(apps: Int) async throws {
+        let context = Self.context(Self.bigConfig(apps: apps))
+        for sentence in ["use inglês no WeChat para uma nova conversa", "nova regra: inglês no Slack e candidatos em coluna"] {
+            let parts = AIConfigFit.relevance([sentence], context: context).parts
+            #expect(!parts.contains(.provider) && !parts.contains(.aws), "\(sentence): \(parts)")
+            let model = ContextLimitedModel(contextSize: 4096, counts: false)
+            let outcome = await Result { try await Self.service(model).ask(sentence, context: context, tools: Self.tools) }
+            #expect((try? outcome.get())?.onDevice == true, "\(sentence), \(apps) apps: \(outcome)")
+        }
+    }
+
     /// A refine's conversation: its latest turn always (the last answer holds what the earlier instructions asked for),
     /// older ones while there is room, the oldest left out first.
     @Test func olderTurnsGoFirst() async throws {
@@ -596,6 +610,13 @@ struct AIConfigContextTests {
             #expect(parts(sentence).contains(.provider) && parts(sentence).contains(.aws), "\(sentence)")
         }
         #expect(parts("用English").contains(.inputLanguages) && parts("改成vertical") == [.candidateLayout])
+        // Nova as Amazon's models' name: with Amazon, or a model's ("Nova Lite", "nova-2-lite-v1"); not Portuguese's "new".
+        for sentence in ["use Nova Pro", "switch to nova-2-lite-v1", "Nova Liteにして", "us.amazon.nova-2-lite-v1:0", "usar o Nova Micro"] {
+            #expect(parts(sentence).contains(.provider) && parts(sentence).contains(.aws), "\(sentence)")
+        }
+        for sentence in ["uma nova conversa", "novamente em coluna", "nova proposta", "a nova programação", "nova versão 2026"] {
+            #expect(!parts(sentence).contains(.provider) && !parts(sentence).contains(.aws), "\(sentence): \(parts(sentence))")
+        }
         #expect(AIConfigFit.relevance(["在Slack里用中文"], context: context).apps == ["com.tinyspeck.slackmacgap"])
         for sentence in ["用谷歌的模型", "グーグルに切り替えて", "클로드로 바꿔", "ジェミニを使う", "제미나이로", "用深度求索"] {
             #expect(parts(sentence).contains(.provider), "\(sentence)")
