@@ -34,7 +34,14 @@ extension SettingsSchema {
                                                                                  environment: ProcessInfo.processInfo.environment)
                                                  : ExtensionStore.abbreviated(path))
             case SettingsAction.remove, SettingsAction.hide, SettingsAction.show:
-                guard let folder = ExtensionStore.folders(store.config, found: []).first(where: { $0.path == action.item }) else {
+                // By its id (its path as the config keeps it), or the folder however it was written when it was added
+                // (on Windows a path in the home folder is kept from "~").
+                let listed = ExtensionStore.folders(store.config, found: [])
+                let item = windows ? action.item.map {
+                    ExtensionStore.typedOnWindows($0, home: NSHomeDirectory(), environment: ProcessInfo.processInfo.environment)
+                } : action.item
+                guard let folder = listed.first(where: { $0.path == action.item })
+                    ?? listed.first(where: { item != nil && ExtensionStore.isSameFolder($0.path, item!) }) else {
                     return .failure(SettingsProblem(.badValue, field: action.field, message: SettingsService.badValue))
                 }
                 store.removeExtensionFolder(folder)

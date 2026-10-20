@@ -83,6 +83,26 @@ extension SettingsServiceTests {
         #expect(typed(#"C:\Users\Li Mingo\x"#) == #"C:\Users\Li Mingo\x"#, "another folder that begins the same")
     }
 
+    @Test func aFolderInTheHomeFolderIsKeptFromItAndRemovedHoweverItIsWritten() throws {
+        let (service, url) = try service(#"{"extensionFolders": []}"#, platform: .windows)
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let name = "aio-wording-\(UUID().uuidString)"
+        let folder = (NSHomeDirectory() as NSString).appendingPathComponent(name)
+        guard case .success = service.performNow(SettingsAction(field: "extensions.folders", name: "add", value: .string(folder))) else {
+            Issue.record("not added")
+            return
+        }
+        #expect(try Config.load(from: url).extensionFolders == ["~/" + name])
+        let item = try #require(service.document().field("extensions.folders")?.items?.first)
+        #expect(item.id == "~/" + name && item.title == #"%USERPROFILE%\"# + name)
+        // Removed by the path it was added with, as by its id.
+        guard case .success = service.performNow(SettingsAction(field: "extensions.folders", name: "remove", item: folder)) else {
+            Issue.record("not removed")
+            return
+        }
+        #expect(try Config.load(from: url).extensionFolders.isEmpty)
+    }
+
     @Test func theKeyStoreIsNamedForThePlatform() {
         let windows = Platform(terms: .windows)
         let saved = withInterfaceLanguage("en") { Platform.$override.withValue(windows) { SettingsStore.couldntSaveKey } }

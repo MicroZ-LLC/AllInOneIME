@@ -552,6 +552,17 @@ public enum ExtensionStore {
         path == home ? "~" : path.hasPrefix(home + "/") ? "~" + path.dropFirst(home.count) : path
     }
 
+    /// Whether `a` and `b`, folders as the config writes them ("~/…" or a path), are the same folder: the same path once
+    /// written out, in any case on Windows.
+    public static func isSameFolder(_ a: String, _ b: String) -> Bool {
+        let (x, y) = (Folder(path: a, found: false).url.standardizedFileURL.path, Folder(path: b, found: false).url.standardizedFileURL.path)
+        #if os(Windows)
+        return x.caseInsensitiveCompare(y) == .orderedSame
+        #else
+        return x == y
+        #endif
+    }
+
     /// A folder as Windows' settings window shows it: one in the home folder with `%USERPROFILE%` for "~" and Windows'
     /// backslashes ("~/.config/allinoneime/extensions" → "%USERPROFILE%\.config\allinoneime\extensions"), another as
     /// it is.
