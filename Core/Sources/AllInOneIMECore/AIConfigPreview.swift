@@ -99,6 +99,24 @@ extension AIConfig {
         return named.count == 1 ? named[0] : nil
     }
 
+    /// `namedProvider(text)` when the sentence names it by the service itself, not by a family of models another provider
+    /// also serves ("use Bedrock", "改用谷歌", not "use Claude" or "use DeepSeek", which Bedrock has too).
+    static func namedService(_ text: String) -> Provider? {
+        guard let named = namedProvider(text) else { return nil }
+        let words = AIConfigFit.Words(text)
+        return (serviceNames[named] ?? []).contains(where: words.contains) ? named : nil
+    }
+
+    /// The words of `providerNames` that name only the service, lowercased.
+    static let serviceNames: [Provider: [String]] = [
+        .bedrock: ["bedrock", "aws", "amazon", "亚马逊", "亞馬遜", "アマゾン", "아마존"],
+        .anthropic: ["anthropic"],
+        .gemini: ["gemini", "google", "谷歌", "グーグル", "ジェミニ", "구글", "제미나이"],
+        .openai: ["openai", "openrouter", "ollama", "siliconflow", "硅基", "오픈ai"],
+        .hosted: ["allinoneime cloud"],
+        .apple: ["apple intelligence", "on-device", "本机", "本機"],
+    ]
+
     /// Whether `lowered` (what the user typed, lowercased) may be about leaving a provider rather than choosing it: a
     /// negation, "stop", "instead", "other", "from", "too slow" … anywhere in it, in the interface's languages. On the safe
     /// side: such a word about anything else in the sentence leaves the provider to the other checks too.
@@ -538,8 +556,12 @@ extension AIConfig {
             }
             guard env.offeredProviders.contains(provider) else { return refused(text.notOffered) }
             // The one in use, unchanged: no row ("use Claude" on Bedrock answered with a Claude model there, the provider
-            // as it is).
-            guard provider != config.provider else { return nil }
+            // as it is), unless the sentence asked for another by the service's own name ("use Bedrock" answered with
+            // Claude API as it is): refused, not taken for already so.
+            guard provider != config.provider else {
+                guard let named = namedService(env.typedText), named != provider else { return nil }
+                return refused(text.notTheOneNamed(named, chosen: provider))
+            }
             // The sentence asks for one provider, the answer chooses another (the on-device model has answered "use
             // Bedrock" with Claude API): the model's slip, never applied.
             if let named = namedProvider(env.typedText), named != provider { return refused(text.notTheOneNamed(named, chosen: provider)) }

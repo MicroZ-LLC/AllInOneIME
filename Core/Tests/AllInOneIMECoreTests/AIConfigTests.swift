@@ -257,9 +257,14 @@ struct AIConfigTests {
         let onlyGemini = #"{"changes": [{"key": "provider", "value": "gemini"}]}"#
         #expect(AIConfig.failureLine(.notAllowed, proposal: try AIConfig.parse(onlyGemini), config: config, environment: bedrock)
             == "✕ AI provider: you asked for Amazon Bedrock, not Gemini API")
-        // The provider in use, in the answer unchanged: nothing refused, nothing changed (already so).
+        // The provider in use, in the answer unchanged, the sentence asking for another by the service's name: refused
+        // with why, not taken for already so (the on-device model answers "use Bedrock" so).
         let same = #"{"changes": [{"key": "provider", "value": "anthropic"}]}"#
-        #expect(try preview("use Bedrock", same) == .failure(.alreadySet))
+        #expect(try preview("use Bedrock", same) == .failure(.notAllowed))
+        #expect(AIConfig.failureLine(.notAllowed, proposal: try AIConfig.parse(same), config: config, environment: bedrock)
+            == "✕ AI provider: you asked for Amazon Bedrock, not Claude API")
+        // Named by a family of models the one in use serves too ("use Claude" on Claude API): already so.
+        #expect(try preview("use Claude", same) == .failure(.alreadySet))
         for (sentence, answer) in [("switch to Gemini", "openai"), ("改用谷歌的模型", "bedrock"), ("用 Claude", "bedrock"), ("use DeepSeek", "gemini"),
                                    ("AWS로 바꿔 줘", "openai"), ("use Nova Pro", "openai")] {
             let json = #"{"changes": [{"key": "provider", "value": "\#(answer)"}]}"#
