@@ -328,8 +328,11 @@ prove is its own and in front. The 0.6.4 package from before those fixes, run wi
   `low, untrusted`, and the goldens pass.
 - **The foreground (§8):** what runs, opens, reads the clipboard or sends, from a key, and the candidate window and its
   notices need the client's process to be the app in front: the foreground window is its own, or the focus window of
-  that window's thread is (`GetGUIThreadInfo`), or a window inside the foreground window is (a WebView2's, a UWP app's
-  in ApplicationFrameHost's frame). A classic console's window (`ConsoleWindowClass`) says it is its client's (cmd.exe):
+  that window's thread is (`GetGUIThreadInfo`), or a window inside the foreground window is: in ApplicationFrameHost's
+  frame (a UWP app's, in an AppContainer), or, for a trusted client only, anywhere (a WebView2's, a browser's). An
+  untrusted client's window inside another app's would be one it put there to show its panel over that app; UIPI
+  stops that anyway (a low-integrity process's CreateWindowEx with a medium window as the parent, and its SetParent
+  into one, fail with error 5: tried on 2026-10-19 in the desktop session). A classic console's window (`ConsoleWindowClass`) says it is its client's (cmd.exe):
   it is System32's conhost.exe's when a thread of that conhost made it (`EnumThreadWindows`), and caret reports in it
   are that conhost's to make, no other's. The right to take the foreground the client gives the engine
   (`allowForeground`) goes on to what shows the window, never to any process (`ASFW_ANY`): to a console's process

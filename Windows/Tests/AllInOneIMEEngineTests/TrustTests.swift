@@ -48,7 +48,7 @@ struct TrustTests {
         let bounds = CaretRect(x: 100, y: 100, width: 400, height: 300)
         let pid = GetCurrentProcessId()
         let (client, folder) = try client { options in
-            options.caretBounds = { hwnd, owner in hwnd == clientWindow && owner == pid ? bounds : nil }
+            options.caretBounds = { hwnd, peer in hwnd == clientWindow && peer.pid == pid ? bounds : nil }
         }
         defer { try? FileManager.default.removeItem(at: folder) }
         client.type("@")

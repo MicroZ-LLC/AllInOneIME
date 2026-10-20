@@ -199,8 +199,8 @@ func runEngine(_ options: EngineOptions) -> Never {
     let system = WindowsSystem(clipboard: clipboardThread, shell: shellThread, holder: executablePath())
     var hostOptions = EngineHost.Options(system: system, systemQueue: shellThread, clipboardQueue: clipboardThread)
     hostOptions.testMode = options.test
-    hostOptions.foreground = { peer in peer.pid.map(Foreground.isOwned(by:)) ?? false }
-    hostOptions.caretBounds = { Foreground.caretBounds(hwnd: $0, pid: $1) }
+    hostOptions.foreground = { peer in peer.pid.map { Foreground.isOwned(by: $0, trusted: peer.trusted) } ?? false }
+    hostOptions.caretBounds = { hwnd, peer in Foreground.caretBounds(hwnd: hwnd, pid: peer.pid, trusted: peer.trusted) }
     hostOptions.settings = EngineSettings(url: options.config.map { URL(fileURLWithPath: $0) } ?? Config.userURL)
     hostOptions.executable = executablePath()
     // The interface in the settings' language, or the system's: the catalog's nine.

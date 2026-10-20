@@ -33,13 +33,18 @@ public struct CaretRect: Equatable, Sendable {
 public final class PanelOwner: @unchecked Sendable {
     /// The client's process: the panel hides when another process takes the foreground.
     public let pid: UInt32?
+    /// Whether the client is trusted (§8: medium integrity or higher, no AppContainer): only a trusted client's window
+    /// inside another app's (but a UWP app's frame) makes it the app in front.
+    public let trusted: Bool
     /// A row clicked, by its index in the model shown: the session picks the row's `choice`.
     public let choose: @Sendable (Int) -> Void
     /// The wheel over the panel, in rows (down is positive).
     public let scroll: @Sendable (Int) -> Void
 
-    public init(pid: UInt32?, choose: @escaping @Sendable (Int) -> Void, scroll: @escaping @Sendable (Int) -> Void = { _ in }) {
+    public init(pid: UInt32?, trusted: Bool = false, choose: @escaping @Sendable (Int) -> Void,
+                scroll: @escaping @Sendable (Int) -> Void = { _ in }) {
         self.pid = pid
+        self.trusted = trusted
         self.choose = choose
         self.scroll = scroll
     }

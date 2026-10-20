@@ -185,7 +185,7 @@ extension OnTheDesktop {
         @Test func aProcessWithoutTheForegroundDrawsNothing() throws {
             let window = try window()
             let background = GetCurrentProcessId()
-            try #require(!Foreground.isOwned(by: background), "this test process has the foreground")
+            try #require(!Foreground.isOwned(by: background, trusted: true), "this test process has the foreground")
             let owner = PanelOwner(pid: background, choose: { _ in })
             window.show(Self.model, owner: owner, caret: Self.caret)
             var state = window.state
@@ -269,18 +269,18 @@ extension OnTheDesktop {
             let pid = GetCurrentProcessId()
             var rect = RECT()
             GetWindowRect(window, &rect)
-            let bounds = try #require(Foreground.caretBounds(hwnd: hwnd, pid: pid))
+            let bounds = try #require(Foreground.caretBounds(hwnd: hwnd, pid: pid, trusted: true))
             #expect(bounds == CaretRect(x: Int(rect.left), y: Int(rect.top), width: Int(rect.right - rect.left),
                                         height: Int(rect.bottom - rect.top)))
             #expect(bounds.width == 300 && bounds.height == 200)
             // Another process's window, a window that isn't there, another process for this window.
             let desktop = UInt64(UInt(bitPattern: GetDesktopWindow()))
-            #expect(Foreground.caretBounds(hwnd: desktop, pid: pid) == nil)
-            #expect(Foreground.caretBounds(hwnd: 0x7FFF_FFF0, pid: pid) == nil)
-            #expect(Foreground.caretBounds(hwnd: hwnd, pid: pid + 4) == nil)
-            #expect(Foreground.caretBounds(hwnd: hwnd, pid: nil) == nil)
+            #expect(Foreground.caretBounds(hwnd: desktop, pid: pid, trusted: true) == nil)
+            #expect(Foreground.caretBounds(hwnd: 0x7FFF_FFF0, pid: pid, trusted: true) == nil)
+            #expect(Foreground.caretBounds(hwnd: hwnd, pid: pid + 4, trusted: true) == nil)
+            #expect(Foreground.caretBounds(hwnd: hwnd, pid: nil, trusted: true) == nil)
             // No window: the foreground window's, if the client owns it (this test process doesn't).
-            if !Foreground.isOwned(by: pid) { #expect(Foreground.caretBounds(hwnd: nil, pid: pid) == nil) }
+            if !Foreground.isOwned(by: pid, trusted: true) { #expect(Foreground.caretBounds(hwnd: nil, pid: pid, trusted: true) == nil) }
         }
     }
 }

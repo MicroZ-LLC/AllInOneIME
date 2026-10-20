@@ -28,7 +28,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         public var foreground: @Sendable (WirePeer) -> Bool = { _ in true }
         /// The rectangle a client's caret report (§6) must be in: the window it names, if that is the client's process's
         /// (`Foreground.caretBounds`); nil, a report to ignore. Nil: no check (the tests).
-        public var caretBounds: (@Sendable (_ hwnd: UInt64?, _ pid: UInt32?) -> CaretRect?)?
+        public var caretBounds: (@Sendable (_ hwnd: UInt64?, _ peer: WirePeer) -> CaretRect?)?
         public var settings = EngineSettings()
         /// The installed plugins, read again only when their folder changed (`PluginCatalog`).
         public var plugins = PluginCatalog()
@@ -62,7 +62,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
     public let clock: WireClock
     let log: @Sendable (String) -> Void
     let foreground: @Sendable (WirePeer) -> Bool
-    let caretBounds: (@Sendable (UInt64?, UInt32?) -> CaretRect?)?
+    let caretBounds: (@Sendable (UInt64?, WirePeer) -> CaretRect?)?
     public let settings: EngineSettings
     let plugins: PluginCatalog
     public let rime: EngineRime?
@@ -136,7 +136,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
             self.session = session
             let choices = Locked(initialState: [Int?]())
             self.choices = choices
-            owner = PanelOwner(pid: session.peer.pid,
+            owner = PanelOwner(pid: session.peer.pid, trusted: session.peer.trusted,
                                choose: { [weak session] row in
                                    guard let choice = choices.withLock({ $0.indices.contains(row) ? $0[row] : nil }) else { return }
                                    session?.choose(row: choice)
@@ -294,7 +294,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
     func reportedCaret(_ session: ComposerSession) -> CaretRect? {
         guard let reported = session.caret, let rect = CaretRect(reported.rect, exact: reported.exact) else { return nil }
         guard let caretBounds else { return rect }
-        guard let bounds = caretBounds(reported.hwnd, session.peer.pid) else {
+        guard let bounds = caretBounds(reported.hwnd, session.peer) else {
             log("session \(session.sid): a caret report outside the client's windows: ignored")
             return nil
         }

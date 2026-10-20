@@ -7,21 +7,22 @@ import WinSDK
 /// Who owns the foreground, and where a client's caret may be (§8): the candidate window's own checks, for the engine.
 public enum Foreground {
     /// Whether process `pid` is the app in front: the foreground window is its own (a classic console's, its
-    /// conhost's), or the focus is in a window of its own, or a window inside the foreground window is (a WebView2's, a
-    /// UWP app's in the frame around it).
-    public static func isOwned(by pid: UInt32) -> Bool { aio_owns_foreground(pid) != 0 }
+    /// conhost's), or the focus is in a window of its own, or a window inside the foreground window is: a UWP app's in
+    /// the frame around it, or, for a `trusted` client (§8), any (a browser's, a plugin's).
+    public static func isOwned(by pid: UInt32, trusted: Bool) -> Bool { aio_owns_foreground(pid, trusted ? 1 : 0) != 0 }
 
-    /// `isOwned(by:)` with `foreground` as the foreground window and `focus` its thread's focus window.
-    static func isInFront(_ pid: UInt32, foreground: HWND?, focus: HWND? = nil) -> Bool {
-        aio_in_front(UnsafeMutableRawPointer(foreground), UnsafeMutableRawPointer(focus), pid) != 0
+    /// `isOwned(by:trusted:)` with `foreground` as the foreground window and `focus` its thread's focus window.
+    static func isInFront(_ pid: UInt32, foreground: HWND?, focus: HWND? = nil, trusted: Bool = true) -> Bool {
+        aio_in_front(UnsafeMutableRawPointer(foreground), UnsafeMutableRawPointer(focus), pid, trusted ? 1 : 0) != 0
     }
 
     /// The rectangle a caret that process `pid` reports in window `hwnd` must be in: that window's, if it is the
-    /// process's; with no window, the foreground window's, if the process owns it. Nil if neither.
-    public static func caretBounds(hwnd: UInt64?, pid: UInt32?) -> CaretRect? {
+    /// process's; with no window, the foreground window's, if the process owns it (`trusted` as `isOwned`). Nil if
+    /// neither.
+    public static func caretBounds(hwnd: UInt64?, pid: UInt32?, trusted: Bool) -> CaretRect? {
         guard let pid else { return nil }
         var bounds = AioCaret()
-        guard aio_caret_bounds(hwnd ?? 0, pid, &bounds) != 0 else { return nil }
+        guard aio_caret_bounds(hwnd ?? 0, pid, trusted ? 1 : 0, &bounds) != 0 else { return nil }
         return CaretRect(x: Int(bounds.x), y: Int(bounds.y), width: Int(bounds.width), height: Int(bounds.height))
     }
 }
@@ -93,9 +94,9 @@ public final class CandidateWindow: PanelWindow, @unchecked Sendable {
         Self.withModel(model) { flat in
             if let caret {
                 var c = Self.flat(caret)
-                aio_panel_show(panel, flat, &c, token, owner.pid ?? 0)
+                aio_panel_show(panel, flat, &c, token, owner.pid ?? 0, owner.trusted ? 1 : 0)
             } else {
-                aio_panel_show(panel, flat, nil, token, owner.pid ?? 0)
+                aio_panel_show(panel, flat, nil, token, owner.pid ?? 0, owner.trusted ? 1 : 0)
             }
         }
     }
@@ -114,9 +115,9 @@ public final class CandidateWindow: PanelWindow, @unchecked Sendable {
         Self.withUTF16(text) { text in
             if let caret {
                 var c = Self.flat(caret)
-                aio_panel_notice(panel, text, token, owner.pid ?? 0, &c, noticeDuration)
+                aio_panel_notice(panel, text, token, owner.pid ?? 0, owner.trusted ? 1 : 0, &c, noticeDuration)
             } else {
-                aio_panel_notice(panel, text, token, owner.pid ?? 0, nil, noticeDuration)
+                aio_panel_notice(panel, text, token, owner.pid ?? 0, owner.trusted ? 1 : 0, nil, noticeDuration)
             }
         }
     }

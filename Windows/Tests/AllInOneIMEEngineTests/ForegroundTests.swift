@@ -116,7 +116,7 @@ extension OnTheDesktop {
             let hwnd = UInt64(UInt(bitPattern: console.window))
             var rect = RECT()
             GetWindowRect(console.window, &rect)
-            let bounds = try #require(Foreground.caretBounds(hwnd: hwnd, pid: host))
+            let bounds = try #require(Foreground.caretBounds(hwnd: hwnd, pid: host, trusted: true))
             #expect(bounds == CaretRect(x: Int(rect.left), y: Int(rect.top), width: Int(rect.right - rect.left),
                                         height: Int(rect.bottom - rect.top)))
             // Asked again (the answer kept for a second): the same.
@@ -125,12 +125,12 @@ extension OnTheDesktop {
             // The other console's conhost: not in front, and its reports in this window are ignored; nor this one in the
             // other's window.
             #expect(!Foreground.isInFront(other.host.dwProcessId, foreground: console.window))
-            #expect(Foreground.caretBounds(hwnd: hwnd, pid: other.host.dwProcessId) == nil)
+            #expect(Foreground.caretBounds(hwnd: hwnd, pid: other.host.dwProcessId, trusted: true) == nil)
             #expect(!Foreground.isInFront(host, foreground: other.window))
-            #expect(Foreground.caretBounds(hwnd: UInt64(UInt(bitPattern: other.window)), pid: host) == nil)
+            #expect(Foreground.caretBounds(hwnd: UInt64(UInt(bitPattern: other.window)), pid: host, trusted: true) == nil)
             // A process that isn't a conhost.
             #expect(!Foreground.isInFront(GetCurrentProcessId(), foreground: console.window))
-            #expect(Foreground.caretBounds(hwnd: hwnd, pid: GetCurrentProcessId()) == nil)
+            #expect(Foreground.caretBounds(hwnd: hwnd, pid: GetCurrentProcessId(), trusted: true) == nil)
         }
 
         /// A window of another process inside the app's window (a WebView2's in its host app, a UWP app's in its frame):
@@ -210,6 +210,12 @@ extension OnTheDesktop {
             // The app itself is in front of course; a third process isn't.
             #expect(Foreground.isInFront(GetCurrentProcessId(), foreground: app))
             #expect(!Foreground.isInFront(pid &+ 4, foreground: app))
+            // An untrusted client (low integrity, an AppContainer) with a window inside another app's (not
+            // ApplicationFrameHost's frame) isn't in front: it could have put it there to show its panel over that app.
+            // Its window with the focus still makes it so, and so does its own window in front.
+            #expect(!Foreground.isInFront(pid, foreground: app, trusted: false))
+            #expect(Foreground.isInFront(pid, foreground: another, focus: child, trusted: false))
+            #expect(Foreground.isInFront(GetCurrentProcessId(), foreground: app, trusted: false))
         }
     }
 }
