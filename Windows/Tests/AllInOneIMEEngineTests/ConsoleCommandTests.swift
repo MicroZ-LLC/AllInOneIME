@@ -91,15 +91,18 @@ extension OnTheDesktop {
                 try ConsoleCommand.make(["no-such-agent", "--"], prompt: "hi", path: Self.path(folder), promptFolder: folder)
             }
             // Never the current folder: a program planted where the engine runs isn't taken, nor in the folder the
-            // program would run in.
-            let planted = try self.folder(with: ["agent.exe", "agent.cmd"])
+            // program would run in. The current folder as it is (this process's: changed, it would be for the suites
+            // running beside this one too), the program a name of its own.
+            let name = "aio-planted-\(UInt32.random(in: 0...UInt32.max))"
+            let planted = try self.folder(with: [name + ".exe", name + ".cmd"])
             defer { try? FileManager.default.removeItem(at: planted) }
-            let current = FileManager.default.currentDirectoryPath
-            #expect(FileManager.default.changeCurrentDirectoryPath(planted.path))
+            let current = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
+            let here = [current.appendingPathComponent(name + ".exe"), current.appendingPathComponent(name + ".cmd")]
+            for file in here { try Data("MZ".utf8).write(to: file) }
+            defer { for file in here { try? FileManager.default.removeItem(at: file) } }
             #expect(throws: SystemActionError.self) {
-                try ConsoleCommand.make(["agent"], prompt: nil, path: "", directory: planted, promptFolder: folder)
+                try ConsoleCommand.make([name], prompt: nil, path: "", directory: planted, promptFolder: folder)
             }
-            _ = FileManager.default.changeCurrentDirectoryPath(current)
             // A custom `terminal` command too long for any command line is refused (it has no prompt to put in a file).
             let program = try self.folder(with: ["tool.exe"])
             defer { try? FileManager.default.removeItem(at: program) }
