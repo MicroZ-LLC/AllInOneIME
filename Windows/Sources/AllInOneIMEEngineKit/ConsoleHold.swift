@@ -172,14 +172,22 @@ public enum ConsoleHold {
         let deadline = GetTickCount64() + 5000
         repeat {
             if let window = GetConsoleWindow(), let shown = shownWindow(of: window) {
-                var pid: DWORD = 0
-                GetWindowThreadProcessId(shown, &pid)
-                SetForegroundWindow(shown)
-                if pid != GetCurrentProcessId() { AllowSetForegroundWindow(pid) }
+                handOff(to: shown)
                 return
             }
             Sleep(20)
         } while GetTickCount64() < deadline
+    }
+
+    /// The right to take the foreground passed on to the process of `shown` (Windows Terminal's), while this process
+    /// still has it, then `shown` brought to the front: once the foreground has moved this process may have lost the
+    /// right to pass on.
+    static func handOff(to shown: HWND, allow: (DWORD) -> Void = { _ = AllowSetForegroundWindow($0) },
+                        foreground: (HWND) -> Void = { _ = SetForegroundWindow($0) }) {
+        var pid: DWORD = 0
+        GetWindowThreadProcessId(shown, &pid)
+        if pid != GetCurrentProcessId() { allow(pid) }
+        foreground(shown)
     }
 
     /// The window that shows the console whose window is `console`: itself (conhost's), or the window that owns it if it

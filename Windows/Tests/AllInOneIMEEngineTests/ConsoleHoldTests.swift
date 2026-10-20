@@ -184,6 +184,15 @@ extension OnTheDesktop {
                     == ["\(ConsoleHold.promptFileVariable)=\(file.withUnsafeFileSystemRepresentation { String(cString: $0!) })"])
         }
 
+        /// The right to take the foreground goes on to the window's process (Windows Terminal's) before the window is
+        /// brought to the front, while this process still has it.
+        @Test func theRightGoesOnBeforeTheWindowComesToTheFront() throws {
+            var calls: [String] = []
+            let other = try #require(GetShellWindow() ?? GetDesktopWindow())  // a window of another process
+            ConsoleHold.handOff(to: other, allow: { _ in calls.append("allow") }, foreground: { _ in calls.append("foreground") })
+            #expect(calls == ["allow", "foreground"])
+        }
+
         /// The program starts at once, whatever the window that shows the console is doing: in a pseudo console that no
         /// terminal takes (its window, `GetConsoleWindow`'s, never gets an owner), as a default terminal that is slow to
         /// show it, or never says, would leave it, the console's process brings the window to the front only once the
