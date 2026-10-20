@@ -436,7 +436,8 @@ public enum ICloudSync {
     /// (`changedAt`, at most `now`; `now` when not known), and always after the value it replaces (a stamp from a Mac
     /// whose clock is ahead is accepted, and a change here is stamped 1 ms after it); a key gone is a tombstone, except
     /// for keys in `ignoringLocalAbsence` (a file never created, or deleted, on this Mac); a key new since the last sync
-    /// is stamped the same way. Then the newer stamp wins. A Mac that has synced before never lets joining stamps (a
+    /// is stamped the same way. Then the newer stamp wins. A key every Mac of this version has that the record lacks (an
+    /// older version's) joins instead while it is at its default, or is a collection iCloud has. A Mac that has synced before never lets joining stamps (a
     /// fresh Mac's values, put up while iCloud had lost its settings) over a value it synced: it puts its own back up,
     /// with a real stamp; so it does for any value iCloud no longer has. A value of iCloud's refused here (`refused`, by its
     /// stamp) is checked again each run, and this Mac's never goes over it unless changed here.
@@ -447,6 +448,8 @@ public enum ICloudSync {
         var plan = Plan()
         var all = Set(local.keys).union(known.keys)
         if let remote { all.formUnion(remote.keys) }
+        // What this version's values are on a Mac that never set them: the keys every Mac of it has.
+        let defaults = values(of: .default, in: categories)
         func real(_ entry: Entry) -> Entry {
             entry.stamp.isJoining ? Entry(value: entry.value, stamp: Stamp(modified: now, by: mac)) : entry
         }
@@ -460,7 +463,18 @@ public enum ICloudSync {
             let record = known[key]
             let theirs = remote?[key]
             let absent = value == nil && ignoringLocalAbsence.contains(key)
-            switch modes[category] ?? .normal {
+            // A key every Mac of this version has (`defaults`) that this Mac has no record of, in a category it synced:
+            // the record was made by an older version, which didn't sync it (0.6.5: the English words, the switch that
+            // learns them). Its value here at the default (never set here), or a collection iCloud has, joins as a
+            // joining Mac's values do: never over a change made elsewhere (this version's defaults over the words another
+            // Mac added, or its learning turned off), the collection merged. Any other value set here since is a change,
+            // and the newer wins, as for a key both Macs set for the first time (an app's settings, the jargon list).
+            var mode = modes[category] ?? .normal
+            if mode != .joining, record == nil, let value, let unset = defaults[key],
+               value == unset || mergedOnJoin.contains(key) && theirs != nil {
+                mode = .joining
+            }
+            switch mode {
             case .joining:
                 // Nothing recorded until iCloud can be read: the category stays joining.
                 guard remote != nil else { continue }

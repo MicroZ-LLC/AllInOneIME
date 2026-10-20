@@ -788,6 +788,78 @@ struct EnglishWordsSyncTests {
         #expect(ICloudSync.category(of: ICloudSync.addedEnglishWordsKey) == .learnedWords)
     }
 
+    /// The keys this version syncs that 0.6.5, which synced the settings and the learned words, didn't know.
+    static let keysSince065: Set<String> = [ICloudSync.englishWordsKey, ICloudSync.addedEnglishWordsKey, "learnsEnglishWords"]
+
+    /// Macs that synced on 0.6.5, then upgraded: their records, and iCloud, without the keys 0.6.5 didn't know. `own`:
+    /// the config file last written by sync on those (a change there is then stamped now).
+    func upgradedFrom065(_ rig: SyncRig, _ macs: [SyncMac], configWrittenBySync own: [SyncMac] = []) throws {
+        for mac in macs {
+            var state = mac.state
+            for key in Self.keysSince065 { state.entries[key] = nil }
+            if own.contains(where: { $0.dir == mac.dir }) { state.ownConfigWrite = ICloudSyncEngine.modificationDate(mac.configURL) }
+            try state.write(to: mac.engine.stateURL)
+        }
+        let url = rig.folder.url.appendingPathComponent(ICloudSync.settingsFile)
+        var settings = try rig.settingsJSON()
+        for key in Self.keysSince065 { settings[key] = nil }
+        try JSONSerialization.data(withJSONObject: settings).write(to: url)
+    }
+
+    @Test func aMacUpgradedFrom065KeepsTheWordsAddedOnAnother() throws {
+        let rig = try SyncRig()
+        let a = try rig.mac("A"), b = try rig.mac("B")
+        a.sync(at: t(0))
+        b.sync(at: t(1))
+        // A, upgraded with no English words, its config last written by sync.
+        try upgradedFrom065(rig, [a, b], configWrittenBySync: [a])
+        // B, upgraded, adds two words and syncs them; then A, which changed nothing, syncs once.
+        try b.edit(at: t(10)) { EnglishWords.add("Bedrock, Kubeflow", to: &$0) }
+        b.sync(at: t(11))
+        a.sync(at: t(20))
+        b.sync(at: t(21))
+        for mac in [a, b] {
+            let config = try mac.config()
+            #expect(config.englishWords == ["Bedrock", "Kubeflow"] && config.addedEnglishWords == ["Bedrock", "Kubeflow"])
+        }
+        #expect((try rig.settingsJSON()[ICloudSync.englishWordsKey] as? [String: Any])?["value"] as? [String] == ["Bedrock", "Kubeflow"])
+    }
+
+    @Test func aMacUpgradedFrom065NeverTurnsLearningBackOn() throws {
+        let rig = try SyncRig()
+        let a = try rig.mac("A"), b = try rig.mac("B")
+        a.sync(at: t(0))
+        b.sync(at: t(1))
+        try upgradedFrom065(rig, [a, b])
+        try b.edit(at: t(10)) { $0.learnsEnglishWords = false }
+        b.sync(at: t(11))
+        // A's config changed since (another setting), or last written by sync: either way after B's change.
+        try a.edit(at: t(15)) { $0.typeOut = true }
+        a.sync(at: t(20))
+        b.sync(at: t(21))
+        for mac in [a, b] { #expect(try !mac.config().learnsEnglishWords) }
+        #expect(try a.config().typeOut && b.config().typeOut, "A's own change went over")
+    }
+
+    @Test func aChangeMadeOnAMacUpgradedFrom065StillGoesOver() throws {
+        let rig = try SyncRig()
+        let a = try rig.mac("A"), b = try rig.mac("B")
+        a.sync(at: t(0))
+        b.sync(at: t(1))
+        try upgradedFrom065(rig, [a, b], configWrittenBySync: [b])
+        // A, upgraded, turns learning off and learns a word; B, upgraded with nothing changed, syncs first (now).
+        try a.edit(at: t(5)) { $0.learnsEnglishWords = false }
+        try EnglishWords.learn("zorblax", at: a.configURL)
+        try a.touch(a.configURL, at: t(6))
+        b.sync(at: t(11))
+        a.sync(at: t(20))
+        b.sync(at: t(21))
+        for mac in [a, b] {
+            let config = try mac.config()
+            #expect(!config.learnsEnglishWords && config.englishWords == ["zorblax"])
+        }
+    }
+
     @Test func notWithTheLearnedWordsOff() throws {
         let rig = try SyncRig()
         let a = try rig.mac("A") {
