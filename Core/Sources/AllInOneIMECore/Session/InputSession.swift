@@ -276,10 +276,12 @@ public final class InputSession {
     }
 
     /// Letters put in as they were typed while typing pinyin ("bedrock" and ⏎), learned as an English word when they may
-    /// be one (`EnglishWords.learnable`): never during secure input, in an app with no AI, or with learning off
-    /// (`Config.learnsEnglishWords`). Offered in this field at once; kept for every field (`SessionServices.learnEnglishWord`).
+    /// be one (`EnglishWords.learnable`): never during secure input, in a terminal (a password prompt of sudo's or ssh's
+    /// doesn't turn secure input on in every one), in a remote desktop or a virtual machine (`EnglishWords.isRemote`), in an
+    /// app with no AI, or with learning off (`Config.learnsEnglishWords`). Offered in this field at once; kept for every
+    /// field (`SessionServices.learnEnglishWord`).
     private func learnEnglishWord(_ typed: String) {
-        guard let englishWords, !secureInputActive() else { return }
+        guard let englishWords, !secureInputActive(), !terminal, !EnglishWords.isRemote(app) else { return }
         let config = services.loadSettings()
         guard config.learnsEnglishWords, config.allowsAI(in: app),
               EnglishWords.learnable(typed, known: Set(englishWords.words.map(EnglishWords.key)), dictionary: englishWords.dictionary,

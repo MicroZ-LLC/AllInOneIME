@@ -5,7 +5,7 @@ extension SelfTest {
     /// English words among pinyin's candidates (`EnglishWordsEngine`) in the fake text field, on the real librime: a
     /// word rime-ice lacks ("bedrock", from the curated list) first when all its letters are typed, second while longer;
     /// letters put in as typed learned (into the self-test's own config file) and offered at once; nothing learned
-    /// during secure input or in an app with no AI; rime-ice's own English words as they were.
+    /// during secure input, in an app with no AI, a terminal or a remote desktop; rime-ice's own English words as they were.
     static func testEnglishWords(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
         section("English words among pinyin's candidates", needs: .composing)
         let settingsBefore = settings
@@ -49,25 +49,31 @@ extension SelfTest {
         }
         _ = escape(controller, client)
 
-        // Never during secure input, nor in an app with no AI; pinyin never.
+        // Never during secure input, in an app with no AI, a terminal, a remote desktop; pinyin never. Each put in twice.
+        func putInTwice(_ letters: String) {
+            for _ in 0..<2 {
+                type(letters, controller, client)
+                _ = enter(controller, client)
+            }
+        }
         controller.services.secureInputActive = { true }
-        type("quuxify", controller, client)
-        _ = enter(controller, client)
+        putInTwice("quuxify")
         controller.services.secureInputActive = { false }
         let noAI = "com.example.noai"
         settings.appProfiles[noAI] = AppProfile(noAI: true)
-        client.bundleIDOverride = noAI
-        controller.activateServer(client)
-        controller.composer.setInputMode(.chinese)
-        type("quuxify", controller, client)
-        check(enter(controller, client) && client.inserted.last == "quuxify", "⏎ in an app with no AI puts it in as typed")
+        for app in [noAI, "com.apple.Terminal", "com.microsoft.rdc.macos"] {
+            client.bundleIDOverride = app
+            controller.activateServer(client)
+            controller.composer.setInputMode(.chinese)
+            putInTwice("quuxify")
+            check(client.inserted.last == "quuxify", "⏎ in \(app) puts it in as typed (\(client.inserted.last ?? "-"))")
+        }
         client.bundleIDOverride = nil
         controller.activateServer(client)
         controller.composer.setInputMode(.chinese)
-        type("nihao", controller, client)
-        _ = enter(controller, client)
+        putInTwice("nihao")
         check(!learned().contains("quuxify") && !learned().contains("nihao"),
-              "nothing learned during secure input, in an app with no AI, or of pinyin (\(learned()))")
+              "nothing learned during secure input, in an app with no AI, a terminal or a remote desktop, or of pinyin (\(learned()))")
     }
 
     /// Settings → Input → Chinese → English Words: words added and removed are saved at once (a config file of its own),

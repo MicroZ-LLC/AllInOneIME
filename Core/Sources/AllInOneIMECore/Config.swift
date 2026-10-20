@@ -110,7 +110,8 @@ public struct Config: Codable, Equatable, Sendable {
     /// written ("Bedrock"): added in Settings, or learned (`learnsEnglishWords`). Oldest first; none by default.
     public var englishWords: [String]
     /// Letters put in as typed while typing pinyin ("bedrock" and ⏎) are learned as an English word (`EnglishWords.
-    /// learnable`): never during secure input, in an app with no AI, or for what looks like a secret. On by default.
+    /// learnable`): never during secure input, in a terminal, a remote desktop or a virtual machine, in an app with no AI,
+    /// or for what looks like a secret. On by default.
     public var learnsEnglishWords: Bool
     /// The keyboard layout each input language types with, by language code ("fr": "com.apple.keylayout.French"),
     /// where it isn't the language's default (`Language.defaultKeyboardLayout`).

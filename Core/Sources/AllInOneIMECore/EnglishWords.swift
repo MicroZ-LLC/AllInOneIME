@@ -52,6 +52,23 @@ public enum EnglishWords {
             && k.contains(where: { "aeiouy".contains($0) }) && !looksSecret(typed, hidden: hidden)
     }
 
+    /// Remote desktops and virtual machines, by the beginning of their bundle ids (the Mac's): what is typed there goes to
+    /// another computer, whose password fields this one can't tell (secure input stays off), so nothing is learned there.
+    /// Microsoft's Remote Desktop (Windows App), Apple's Screen Sharing, Screens, Jump Desktop, Parallels Desktop (and the
+    /// Windows apps it shows), VMware Fusion, UTM, VirtualBox, Citrix Workspace, AnyDesk, TeamViewer, RealVNC's viewer,
+    /// Chrome Remote Desktop's app (in a browser's tab it goes by the browser's id, and can't be told).
+    static let remoteApps = [
+        "com.microsoft.rdc", "com.apple.screensharing", "com.edovia.screens", "com.p5sys.jump", "com.parallels.",
+        "com.vmware.fusion", "com.utmapp.", "org.virtualbox.app.", "com.citrix.", "com.philandro.anydesk", "com.teamviewer.",
+        "com.realvnc.", "com.google.chromeremotedesktop",
+    ]
+
+    /// Whether `app` (a bundle id, in any case) is a remote desktop or a virtual machine (`remoteApps`).
+    public static func isRemote(_ app: String?) -> Bool {
+        guard let app = app?.lowercased() else { return false }
+        return remoteApps.contains { app.hasPrefix($0) }
+    }
+
     /// What is never learned or taken from the jargon list: what hiding sensitive information would hide from the AI
     /// (`Redaction`, every detector on: a key or token, a card or phone number, an address; the user's hidden words too),
     /// or what looks random: as many digits as letters (three or more), six consonants in a row, a letter three times in a

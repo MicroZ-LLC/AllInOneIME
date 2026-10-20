@@ -327,6 +327,18 @@ struct EnglishWordsTests {
         }
     }
 
+    @Test func remoteDesktopsAndVirtualMachinesByTheirBundleIds() {
+        for app in ["com.microsoft.rdc.macos", "com.microsoft.rdc.osx.beta", "com.apple.ScreenSharing", "com.edovia.screens5.mac",
+                    "com.p5sys.jump.mac.viewer.web", "com.parallels.desktop.console", "com.parallels.winapp.notepad",
+                    "com.vmware.fusion", "com.utmapp.UTM", "org.virtualbox.app.VirtualBoxVM", "com.citrix.receiver.icaviewer.mac",
+                    "com.philandro.anydesk", "com.teamviewer.TeamViewer", "com.realvnc.vncviewer", "COM.MICROSOFT.RDC.MACOS"] {
+            #expect(EnglishWords.isRemote(app), "\(app)")
+        }
+        for app in ["com.microsoft.VSCode", "com.apple.TextEdit", "com.google.Chrome", "com.vmware.horizonx", nil] {
+            #expect(!EnglishWords.isRemote(app), "\(app ?? "none")")
+        }
+    }
+
     @Test func offeredAreTheUsersThenTheJargonListsThenTheCurated() {
         var config = Config.default
         config.englishWords = ["bedrock", "北京", "Frobnicate"]
@@ -406,7 +418,8 @@ struct EnglishWordsSessionTests {
     final class Learned: @unchecked Sendable { var words: [String] = [] }
 
     func host(_ config: Config = Self.settings, learned: Learned = Learned(), dictionary: Bool = true,
-              secure: @escaping () -> Bool = { false }, jargon: [JargonEntry] = []) -> FakeHost {
+              secure: @escaping () -> Bool = { false }, jargon: [JargonEntry] = [], app: String? = "com.example.editor",
+              terminal: Bool = false) -> FakeHost {
         let engine = FakeEngine()
         var services = SessionServices(loadSettings: { config })
         services.levelOne = { .engine(engine) }
@@ -415,8 +428,18 @@ struct EnglishWordsSessionTests {
         services.secureInputActive = secure
         services.jargon = { _ in jargon }
         let host = FakeHost(services: services)
+        host.app = app
+        host.terminal = terminal
         host.focus()
         return host
+    }
+
+    /// `letters` put in as typed twice, as a word is learned.
+    func putInTwice(_ letters: String, _ host: FakeHost) {
+        for _ in 0..<2 {
+            host.type(letters)
+            host.press(FakeHost.enter)
+        }
     }
 
     static var settings: Config {
@@ -474,6 +497,26 @@ struct EnglishWordsSessionTests {
             notLearning.type("frobnicate")
             notLearning.press(FakeHost.enter)
             #expect(app.document == "frobnicate" && notLearning.document == "frobnicate" && learned.words.isEmpty)
+        }
+    }
+
+    @Test func neverInATerminalARemoteDesktopOrAVirtualMachine() {
+        withInterfaceLanguage("en") {
+            let learned = Learned()
+            // A terminal's password prompts (sudo, ssh, git) don't turn secure input on in every terminal.
+            let terminal = host(learned: learned, app: "com.googlecode.iterm2", terminal: true)
+            putInTwice("frobnicate", terminal)
+            #expect(terminal.document == "frobnicatefrobnicate")
+            // What is typed there goes to another computer, whose password fields this one can't tell.
+            for app in ["com.microsoft.rdc.macos", "com.parallels.desktop.console", "com.vmware.fusion", "com.utmapp.UTM",
+                        "com.citrix.receiver.icaviewer.mac", "com.teamviewer.TeamViewer"] {
+                let remote = host(learned: learned, app: app)
+                putInTwice("frobnicate", remote)
+                #expect(remote.document == "frobnicatefrobnicate", "\(app)")
+            }
+            #expect(learned.words.isEmpty)
+            putInTwice("frobnicate", host(learned: learned))
+            #expect(learned.words == ["frobnicate"], "anywhere else")
         }
     }
 
