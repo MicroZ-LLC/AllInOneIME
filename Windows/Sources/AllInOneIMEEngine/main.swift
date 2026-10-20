@@ -41,6 +41,11 @@ import WinSDK
 //
 // It is also the child process `@js` code (`--run-js`) and script plugins (`--run-plugin DIR`) run in, and the process
 // of each console window it opens (`--run-in-console`, `ConsoleHold`).
+//
+//   AllInOneIMEEngine --render-panel DIR [--dpi N]... [--image FILE]
+//
+// draws the candidate window's sample panels (`PanelSamples`) into PNG files in DIR, as the window draws them, light
+// and dark, at each DPI (96 and 120 by default), without a window: to look at what it draws.
 
 let usage = """
     usage: AllInOneIMEEngine [--test [--provider FILE] [--clock manual|system]] [--config FILE] [--no-keychain]
@@ -160,6 +165,61 @@ func executablePath() -> String {
     var buffer = [WCHAR](repeating: 0, count: 32_768)
     let count = GetModuleFileNameW(nil, &buffer, DWORD(buffer.count))
     return count > 0 ? String(decoding: buffer.prefix(Int(count)), as: UTF16.self) : CommandLine.arguments[0]
+}
+
+/// `--render-panel DIR [--dpi N]... [--image FILE]`: each sample panel in DIR, "NN-name-light-96.png" …, and a line
+/// each saying what was drawn. The checkout's app icon is the icons' image unless one is given.
+func renderPanels(_ arguments: [String]) -> Int32 {
+    guard let folder = arguments.first, !folder.hasPrefix("--") else {
+        writeStandardError("usage: AllInOneIMEEngine --render-panel DIR [--dpi N]... [--image FILE]\n")
+        return 2
+    }
+    var dpis: [Int] = []
+    var image: String?
+    var rest = arguments.dropFirst()
+    while let option = rest.popFirst() {
+        switch option {
+        case "--dpi": if let value = rest.popFirst().flatMap(Int.init) { dpis.append(value) }
+        case "--image": image = rest.popFirst()
+        default: break
+        }
+    }
+    if dpis.isEmpty { dpis = [96, 120] }
+    if image == nil {
+        // Resources/AppIcon.png, up from the program (a build in the checkout).
+        var url = URL(fileURLWithPath: executablePath()).deletingLastPathComponent()
+        for _ in 0..<6 {
+            let icon = url.appendingPathComponent("Resources/AppIcon.png")
+            if FileManager.default.fileExists(atPath: icon.path) {
+                image = icon.withUnsafeFileSystemRepresentation { String(cString: $0!) }
+                break
+            }
+            url.deleteLastPathComponent()
+        }
+    }
+    let out = URL(fileURLWithPath: folder, isDirectory: true)
+    try? FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
+    var failures = 0
+    for (index, sample) in PanelSamples.all(image: image).enumerated() {
+        for dpi in dpis {
+            for (theme, dark) in [("light", false), ("dark", true)] {
+                let name = String(format: "%02d-", index + 1) + "\(sample.name)-\(theme)-\(dpi).png"
+                let maxHeight = sample.maxHeight * dpi / 96
+                guard let state = CandidateWindow.renderPNG(sample.model, dpi: dpi, dark: dark, maxHeight: maxHeight,
+                                                             to: out.appendingPathComponent(name)) else {
+                    print("\(name): not drawn")
+                    failures += 1
+                    continue
+                }
+                var line = "\(name): \(state.width)x\(state.height)"
+                if state.caretX >= 0 { line += ", caret at \(state.caretX),\(state.caretY)" }
+                if state.scrolled > 0 { line += ", rows scrolled \(state.scrolled) px" }
+                if maxHeight > 0 { line += " (at most \(maxHeight) high)" }
+                print(line)
+            }
+        }
+    }
+    return failures == 0 ? 0 : 1
 }
 
 func runEngine(_ options: EngineOptions) -> Never {
@@ -401,6 +461,10 @@ if arguments.first == "--run-plugin" {
 // And the process of each console window it opens, which stays open after the program in it ends.
 if arguments.first == ConsoleHold.option {
     exit(ConsoleHold.run())
+}
+// The candidate window's samples, drawn into files.
+if arguments.first == "--render-panel" {
+    exit(renderPanels(Array(arguments.dropFirst())))
 }
 runEngine(parseOptions())
 

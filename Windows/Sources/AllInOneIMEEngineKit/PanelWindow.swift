@@ -71,37 +71,6 @@ extension PanelWindow {
     public func forget(owner: PanelOwner) {}
 }
 
-/// The core's panel as a window draws it with a line each for the input, the header and the status (the candidate
-/// window's flat copy, `AioPanelModel`).
-extension PanelModel {
-    /// The line of input: its prompt, then its text with "▏" at the caret (none: only shown).
-    var inputLine: String? {
-        guard let input else { return nil }
-        var text = input.text
-        if let caret = input.caret {
-            text.insert("▏", at: text.index(text.startIndex, offsetBy: min(max(caret, 0), text.count)))
-        }
-        return input.prompt + text
-    }
-
-    /// The header's line: where a conversation can go on ("Continue in Claude or another AI · Ctrl+1 Claude Code ·
-    /// Ctrl+2 Claude"), then the header's lines, one after the other.
-    var headerLine: String? {
-        let handoff = self.handoff.map { [$0.title] + $0.choices.map { $0.shortcut + " " + $0.name } } ?? []
-        let parts = (handoff + header).filter { !$0.isEmpty }
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
-    }
-
-    /// The status's text: a list's items after its hint.
-    var statusLine: String? {
-        switch status {
-        case .none: return nil
-        case let .hint(text), let .loading(text), let .error(text): return text
-        case let .list(hint, items): return ([hint] + items).joined(separator: " · ")
-        }
-    }
-}
-
 /// No panel: what a test without a window, or the engine without a desktop, uses.
 public final class NoPanel: PanelWindow {
     public init() {}

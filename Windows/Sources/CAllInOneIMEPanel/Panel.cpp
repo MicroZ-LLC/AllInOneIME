@@ -55,22 +55,48 @@ void SafeRelease(T *&p) {
 
 std::wstring Copy(const uint16_t *s) { return s ? std::wstring(reinterpret_cast<const wchar_t *>(s)) : std::wstring(); }
 
+std::vector<std::wstring> CopyAll(const uint16_t *const *strings, int32_t count) {
+    std::vector<std::wstring> all;
+    for (int32_t i = 0; strings && i < count; ++i) all.push_back(Copy(strings[i]));
+    return all;
+}
+
+struct Icon {
+    int kind = AIO_ICON_NONE;
+    std::wstring text, fallback;
+    uint32_t color = 0;
+};
+
 struct Row {
     std::wstring label, text, comment;
     int style = 0;
     bool pickable = true;
     bool complete = true;
+    Icon icon;
+};
+
+struct Chip {
+    std::wstring shortcut, name;
 };
 
 struct Model {
     std::vector<Row> rows;
     int highlighted = -1;
     bool horizontal = false;
+    bool transcript = false;
     int statusKind = AIO_STATUS_NONE;
-    std::wstring status, input, header, footer, detail;
+    std::wstring status;
+    std::vector<std::wstring> statusItems;
+    bool hasInput = false;
+    std::wstring inputPrompt, inputText;
+    int inputCaret = -1;  // in inputText, UTF-16
+    std::vector<std::wstring> header;
+    std::wstring handoffTitle;
+    std::vector<Chip> handoff;
+    std::wstring footer, detail;
     bool empty() const {
-        return rows.empty() && statusKind == AIO_STATUS_NONE && input.empty() && header.empty() && footer.empty() &&
-               detail.empty();
+        return rows.empty() && statusKind == AIO_STATUS_NONE && !hasInput && header.empty() && handoffTitle.empty() &&
+               handoff.empty() && footer.empty() && detail.empty();
     }
 };
 
@@ -86,14 +112,27 @@ Model CopyModel(const AioPanelModel *m) {
         row.style = r.style;
         row.pickable = r.pickable != 0;
         row.complete = r.complete != 0;
+        row.icon.kind = r.icon.kind;
+        row.icon.text = Copy(r.icon.text);
+        row.icon.fallback = Copy(r.icon.fallback);
+        row.icon.color = r.icon.color;
         model.rows.push_back(std::move(row));
     }
     model.highlighted = m->highlighted;
     model.horizontal = m->horizontal != 0;
+    model.transcript = m->transcript != 0;
     model.statusKind = m->statusKind;
     model.status = Copy(m->status);
-    model.input = Copy(m->input);
-    model.header = Copy(m->header);
+    model.statusItems = CopyAll(m->statusItems, m->statusItemCount);
+    model.hasInput = m->inputText != nullptr;
+    model.inputPrompt = Copy(m->inputPrompt);
+    model.inputText = Copy(m->inputText);
+    model.inputCaret = m->inputCaret >= 0 ? std::min<int>(m->inputCaret, (int)model.inputText.size()) : -1;
+    model.header = CopyAll(m->headerLines, m->headerCount);
+    model.handoffTitle = Copy(m->handoffTitle);
+    std::vector<std::wstring> shortcuts = CopyAll(m->handoffShortcuts, m->handoffCount);
+    std::vector<std::wstring> names = CopyAll(m->handoffNames, m->handoffCount);
+    for (size_t i = 0; i < shortcuts.size() && i < names.size(); ++i) model.handoff.push_back({shortcuts[i], names[i]});
     model.footer = Copy(m->footer);
     model.detail = Copy(m->detail);
     return model;
@@ -121,7 +160,7 @@ const UINT_PTR kCaretTimer = 2;
 const wchar_t kClassName[] = L"AllInOneIME.CandidateWindow";
 
 struct Colors {
-    D2D1_COLOR_F background, border, text, secondary, highlight, highlightText, error;
+    D2D1_COLOR_F background, border, text, secondary, highlight, highlightText, error, chip;
 };
 
 D2D1_COLOR_F Rgb(uint32_t rgb, float alpha = 1.0f) {
@@ -141,10 +180,10 @@ bool DarkTheme() {
 Colors ThemeColors(bool dark) {
     if (dark) {
         return {Rgb(0x2B2B2B, 0.98f), Rgb(0x454545), Rgb(0xFFFFFF), Rgb(0xA6A6A6), Rgb(0x4CC2FF), Rgb(0x000000),
-                Rgb(0xFF99A4)};
+                Rgb(0xFF99A4), Rgb(0x3C3C3C)};
     }
     return {Rgb(0xF9F9F9, 0.98f), Rgb(0xD5D5D5), Rgb(0x1A1A1A), Rgb(0x6B6B6B), Rgb(0x0067C0), Rgb(0xFFFFFF),
-            Rgb(0xC42B1C)};
+            Rgb(0xC42B1C), Rgb(0xEAEAEA)};
 }
 
 }  // namespace
@@ -161,8 +200,11 @@ struct AioPanel {
     IDWriteFactory *dwrite = nullptr;
     ID2D1DCRenderTarget *target = nullptr;
     IDWriteTextFormat *textFormat = nullptr, *labelFormat = nullptr, *commentFormat = nullptr, *footerFormat = nullptr,
-                      *statusFormat = nullptr;
+                      *statusFormat = nullptr, *iconFormat = nullptr, *emojiFormat = nullptr;
     UINT formatsDpi = 0;
+    // The rows' images (a script extension's), read once, as WIC's device-independent bitmaps (nil: unreadable).
+    IWICImagingFactory *wic = nullptr;
+    std::vector<std::pair<std::wstring, IWICBitmapSource *>> images;
 
     HDC memoryDC = nullptr;
     HBITMAP bitmap = nullptr;
@@ -183,6 +225,10 @@ struct AioPanel {
     bool noticeAlone = false;  // the notice is all there is
     std::vector<RECT> rowRects;
     std::vector<bool> rowPickable;
+    // Where the first row's text starts (placed under the caret), the input's caret was drawn, the rows are scrolled.
+    float textInset = 0;
+    POINT caretDrawn = {-1, -1};
+    int scrolled = 0;
     POINT position = {};
     SIZE size = {};
     bool visible = false;
@@ -215,6 +261,33 @@ IDWriteTextFormat *MakeFormat(AioPanel *p, float size, DWRITE_FONT_WEIGHT weight
     return format;
 }
 
+// The icons' font: Segoe Fluent Icons (Windows 11), else Segoe MDL2 Assets (Windows 10), whose code points it keeps.
+const wchar_t *IconFont(AioPanel *p) {
+    static const wchar_t *font = nullptr;
+    if (font) return font;
+    font = L"Segoe MDL2 Assets";
+    IDWriteFontCollection *fonts = nullptr;
+    if (SUCCEEDED(p->dwrite->GetSystemFontCollection(&fonts, FALSE)) && fonts) {
+        UINT32 index = 0;
+        BOOL exists = FALSE;
+        if (SUCCEEDED(fonts->FindFamilyName(L"Segoe Fluent Icons", &index, &exists)) && exists) font = L"Segoe Fluent Icons";
+        fonts->Release();
+    }
+    return font;
+}
+
+IDWriteTextFormat *MakeCentered(AioPanel *p, const wchar_t *family, float size) {
+    IDWriteTextFormat *format = nullptr;
+    p->dwrite->CreateTextFormat(family, nullptr, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL,
+                                size * Scale(p), L"en-us", &format);
+    if (format) {
+        format->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
+        format->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
+        format->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+    }
+    return format;
+}
+
 void MakeFormats(AioPanel *p) {
     if (p->formatsDpi == p->dpi && p->textFormat) return;
     SafeRelease(p->textFormat);
@@ -222,11 +295,15 @@ void MakeFormats(AioPanel *p) {
     SafeRelease(p->commentFormat);
     SafeRelease(p->footerFormat);
     SafeRelease(p->statusFormat);
+    SafeRelease(p->iconFormat);
+    SafeRelease(p->emojiFormat);
     p->textFormat = MakeFormat(p, 16.0f);
     p->labelFormat = MakeFormat(p, 12.0f, DWRITE_FONT_WEIGHT_SEMI_BOLD);
     p->commentFormat = MakeFormat(p, 12.0f);
     p->footerFormat = MakeFormat(p, 11.5f);
     p->statusFormat = MakeFormat(p, 13.5f);
+    p->iconFormat = MakeCentered(p, IconFont(p), 12.0f);
+    p->emojiFormat = MakeCentered(p, L"Segoe UI Emoji", 15.0f);
     p->formatsDpi = p->dpi;
 }
 
@@ -453,6 +530,9 @@ void PublishState(AioPanel *p) {
     p->state.highlighted = p->model.highlighted;
     p->state.dpi = (int32_t)p->dpi;
     p->state.notice = p->notice.empty() ? 0 : 1;
+    p->state.caretX = p->caretDrawn.x;
+    p->state.caretY = p->caretDrawn.y;
+    p->state.scrolled = p->scrolled;
 }
 
 bool EnsureBitmap(AioPanel *p, int width, int height) {
@@ -488,8 +568,463 @@ void HideWindow(AioPanel *p) {
     PublishState(p);
 }
 
+// A text layout of `text` in `format`, `width` wide: on one line ending in an ellipsis, or wrapped (`wrap`).
+IDWriteTextLayout *MakeLayout(AioPanel *p, const std::wstring &text, IDWriteTextFormat *format, float width, bool wrap) {
+    if (!format) return nullptr;
+    IDWriteTextLayout *layout = nullptr;
+    p->dwrite->CreateTextLayout(text.c_str(), (UINT32)text.size(), format, std::max(width, 1.0f), 100000.0f, &layout);
+    if (layout && wrap) {
+        layout->SetWordWrapping(DWRITE_WORD_WRAPPING_WRAP);
+        DWRITE_TRIMMING none = {DWRITE_TRIMMING_GRANULARITY_NONE, 0, 0};
+        layout->SetTrimming(&none, nullptr);
+    }
+    return layout;
+}
+
+// A layout's size in pixels, at most `maxWidth` wide.
+D2D1_SIZE_F LayoutSize(IDWriteTextLayout *layout, float maxWidth) {
+    if (!layout) return D2D1::SizeF(0, 0);
+    DWRITE_TEXT_METRICS metrics = {};
+    layout->GetMetrics(&metrics);
+    return D2D1::SizeF(std::min(std::ceil(metrics.widthIncludingTrailingWhitespace), maxWidth), std::ceil(metrics.height));
+}
+
+// `colorFonts`: emoji in color (rime-ice's candidates, a row's); off, all of it in `color` (the status's ⚠).
+void DrawLayout(AioPanel *p, IDWriteTextLayout *layout, float x, float y, const D2D1_COLOR_F &color, bool colorFonts = true) {
+    if (!layout) return;
+    ID2D1SolidColorBrush *brush = nullptr;
+    p->target->CreateSolidColorBrush(color, &brush);
+    if (!brush) return;
+    p->target->DrawTextLayout(D2D1::Point2F(x, y), layout, brush,
+                              colorFonts ? D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT : D2D1_DRAW_TEXT_OPTIONS_NONE);
+    brush->Release();
+}
+
+void Fill(AioPanel *p, D2D1_RECT_F rect, const D2D1_COLOR_F &color) {
+    ID2D1SolidColorBrush *brush = nullptr;
+    p->target->CreateSolidColorBrush(color, &brush);
+    if (!brush) return;
+    p->target->FillRectangle(rect, brush);
+    brush->Release();
+}
+
+// The image at `path` as WIC reads it (premultiplied BGRA, at most 128 pixels a side), kept for the next draws: nil when
+// it can't be read.
+IWICBitmapSource *Image(AioPanel *p, const std::wstring &path) {
+    for (const auto &image : p->images) {
+        if (image.first == path) return image.second;
+    }
+    if (!p->wic) {
+        CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, __uuidof(IWICImagingFactory),
+                         reinterpret_cast<void **>(&p->wic));
+    }
+    IWICBitmapSource *source = nullptr;
+    IWICBitmapDecoder *decoder = nullptr;
+    IWICBitmapFrameDecode *frame = nullptr;
+    IWICBitmapScaler *scaler = nullptr;
+    IWICFormatConverter *converter = nullptr;
+    UINT width = 0, height = 0;
+    if (p->wic && SUCCEEDED(p->wic->CreateDecoderFromFilename(path.c_str(), nullptr, GENERIC_READ,
+                                                               WICDecodeMetadataCacheOnDemand, &decoder)) &&
+        SUCCEEDED(decoder->GetFrame(0, &frame)) && SUCCEEDED(frame->GetSize(&width, &height)) && width && height) {
+        IWICBitmapSource *frameSource = frame;
+        const UINT most = 128;
+        if ((width > most || height > most) && SUCCEEDED(p->wic->CreateBitmapScaler(&scaler))) {
+            float ratio = std::min(most / (float)width, most / (float)height);
+            if (SUCCEEDED(scaler->Initialize(frame, std::max(1u, (UINT)(width * ratio)), std::max(1u, (UINT)(height * ratio)),
+                                             WICBitmapInterpolationModeFant))) {
+                frameSource = scaler;
+            }
+        }
+        IWICBitmap *bitmap = nullptr;
+        if (SUCCEEDED(p->wic->CreateFormatConverter(&converter)) &&
+            SUCCEEDED(converter->Initialize(frameSource, GUID_WICPixelFormat32bppPBGRA, WICBitmapDitherTypeNone, nullptr, 0,
+                                            WICBitmapPaletteTypeMedianCut)) &&
+            SUCCEEDED(p->wic->CreateBitmapFromSource(converter, WICBitmapCacheOnLoad, &bitmap))) {
+            source = bitmap;  // read now: the file may change or go
+        }
+    }
+    SafeRelease(converter);
+    SafeRelease(scaler);
+    SafeRelease(frame);
+    SafeRelease(decoder);
+    if (p->images.size() >= 64) {
+        for (auto &image : p->images) SafeRelease(image.second);
+        p->images.clear();
+    }
+    p->images.push_back({path, source});
+    return source;
+}
+
+// A row's icon in `box`: an image or an emoji in the square's place, else the glyph white on its colored rounded square
+// (the fallback glyph where the image can't be read).
+void DrawIcon(AioPanel *p, const Icon &icon, D2D1_RECT_F box) {
+    const float side = box.right - box.left;
+    if (icon.kind == AIO_ICON_IMAGE) {
+        if (IWICBitmapSource *source = Image(p, icon.text)) {
+            ID2D1Bitmap *bitmap = nullptr;
+            if (SUCCEEDED(p->target->CreateBitmapFromWicBitmap(source, nullptr, &bitmap)) && bitmap) {
+                D2D1_SIZE_F size = bitmap->GetSize();
+                float ratio = std::min(side / std::max(size.width, 1.0f), side / std::max(size.height, 1.0f));
+                float w = size.width * ratio, h = size.height * ratio;
+                float x = box.left + (side - w) / 2, y = box.top + (side - h) / 2;
+                p->target->DrawBitmap(bitmap, D2D1::RectF(x, y, x + w, y + h), 1.0f, D2D1_BITMAP_INTERPOLATION_MODE_LINEAR);
+                bitmap->Release();
+                return;
+            }
+        }
+    } else if (icon.kind == AIO_ICON_EMOJI && !icon.text.empty()) {
+        float grow = std::round(side * 0.2f);
+        DrawText(p, icon.text, p->emojiFormat, box.left - grow, box.top - grow, side + 2 * grow, side + 2 * grow, Rgb(0x000000),
+                 DWRITE_TEXT_ALIGNMENT_CENTER);
+        return;
+    }
+    const std::wstring &glyph = icon.kind == AIO_ICON_GLYPH ? icon.text : icon.fallback;
+    FillRounded(p, box, std::round(side * 0.24f), Rgb(icon.color));
+    DrawText(p, glyph, p->iconFormat, box.left, box.top, side, side, Rgb(0xFFFFFF), DWRITE_TEXT_ALIGNMENT_CENTER);
+}
+
+// Lays `model` out at the panel's DPI and draws it into the panel's bitmap, in the dark or the light theme: its size, the
+// rows' rectangles (clicks), where the first row's text starts (the caret goes under it), where the input's caret was
+// drawn and how far a conversation's rows are scrolled. A conversation (`transcript`) is no taller than `maxHeight`
+// pixels (0: no limit). From top to bottom: the hand-off, the input, the header's lines, the rows, the status, the
+// footer.
+bool Paint(AioPanel *p, const Model &model, bool dark, float maxHeight) {
+    MakeFormats(p);
+    const float s = Scale(p);
+    const Colors colors = ThemeColors(dark);
+    const float padding = std::round(6 * s), insetX = std::round(8 * s), insetY = std::round(4 * s);
+    const float labelGap = std::round(8 * s), commentGap = std::round(12 * s), lineGap = std::round(4 * s);
+    const float maxText = std::round(520 * s), minWidth = std::round(260 * s), maxRow = std::round(600 * s);
+    const float radius = std::round(8 * s);
+    const float iconSize = std::round(20 * s), iconGap = std::round(8 * s);
+    const float chipGap = std::round(6 * s), chipPadX = std::round(9 * s), chipPadY = std::round(3 * s);
+    const float shortcutGap = std::round(5 * s), bulletIndent = std::round(8 * s);
+
+    const float textHeight = Measure(p, L"Ag中", p->textFormat, maxText).height;
+    const float rowHeight = textHeight + 2 * insetY;
+    const float footerHeight = Measure(p, L"Ag中", p->footerFormat, maxText).height;
+    const float statusHeight = Measure(p, L"Ag中", p->statusFormat, maxText).height;
+    const float digitHeight = Measure(p, L"0", p->labelFormat, maxText).height;
+    float labelWidth = 0;
+    for (const Row &row : model.rows) labelWidth = std::max(labelWidth, Measure(p, row.label, p->labelFormat, maxText).width);
+    const bool icons = !model.horizontal && std::any_of(model.rows.begin(), model.rows.end(),
+                                                        [](const Row &row) { return row.icon.kind != AIO_ICON_NONE; });
+    const float iconColumn = icons ? iconSize + iconGap : 0;
+    const float lead = insetX + labelWidth + labelGap + iconColumn;  // a vertical row's text starts here
+
+    // Laid out in the content's coordinates (x from the panel's padding, y from its top), then drawn.
+    float contentWidth = 0, y = padding;
+    auto widen = [&](float w) { contentWidth = std::max(contentWidth, w); };
+
+    // Where a conversation can go on: its title, then a chip per destination, wrapping.
+    float handoffTitleY = -1;
+    struct PlacedChip {
+        float x, y, w, h, shortcutW;
+    };
+    std::vector<PlacedChip> chips;
+    if (!model.handoffTitle.empty()) {
+        widen(Measure(p, model.handoffTitle, p->statusFormat, maxRow).width + 2 * insetX);
+        handoffTitleY = y;
+        y += statusHeight + lineGap;
+    }
+    if (!model.handoff.empty()) {
+        const float chipH = statusHeight + 2 * chipPadY;
+        float x = insetX, top = y;
+        for (const Chip &chip : model.handoff) {
+            float sw = Measure(p, chip.shortcut, p->labelFormat, maxRow).width;
+            float nw = Measure(p, chip.name, p->statusFormat, maxRow).width;
+            float w = chipPadX + sw + (sw > 0 ? shortcutGap : 0) + nw + chipPadX;
+            if (x > insetX && x + w > maxRow + insetX) {
+                x = insetX;
+                top += chipH + chipGap;
+            }
+            chips.push_back({x, top, w, chipH, sw});
+            x += w + chipGap;
+            widen(x - chipGap + insetX);
+        }
+        y = top + chipH + lineGap;
+    }
+
+    // The input: its prompt and its text, wrapped.
+    IDWriteTextLayout *input = nullptr;
+    float inputY = -1;
+    if (model.hasInput) {
+        input = MakeLayout(p, model.inputPrompt + model.inputText, p->textFormat, maxRow, true);
+        if (input) {
+            D2D1_SIZE_F size = LayoutSize(input, maxRow);
+            widen(size.width + 2 * insetX + std::round(2 * s));  // room for the caret after the last character
+            inputY = y;
+            y += std::max(size.height, textHeight) + lineGap;
+        }
+    }
+    // The header's lines, each its own.
+    std::vector<float> headerY;
+    for (const std::wstring &line : model.header) {
+        widen(Measure(p, line, p->statusFormat, maxRow).width + 2 * insetX);
+        headerY.push_back(y);
+        y += statusHeight + lineGap;
+    }
+
+    // The rows: side by side, one under the other, or a conversation's, wrapped.
+    struct Placed {
+        float x, y, w, h, textW, commentW;
+        IDWriteTextLayout *wrapped;
+    };
+    std::vector<Placed> placed;
+    const float rowsTop = y;
+    float rowsHeight = 0;
+    if (model.horizontal) {
+        float x = 0, lineY = y;
+        for (const Row &row : model.rows) {
+            float w = Measure(p, row.text, p->textFormat, std::round(280 * s)).width;
+            float lw = Measure(p, row.label, p->labelFormat, maxText).width;
+            float cell = insetX + lw + std::round(4 * s) + w + insetX;
+            if (x > 0 && x + cell > maxRow) {
+                x = 0;
+                lineY += rowHeight;
+            }
+            placed.push_back({x, lineY, cell, rowHeight, w, 0, nullptr});
+            x += cell + std::round(2 * s);
+            widen(x);
+        }
+        if (!model.rows.empty()) rowsHeight = lineY + rowHeight - y;
+    } else {
+        float top = y;
+        for (const Row &row : model.rows) {
+            float cw = row.comment.empty() ? 0 : Measure(p, row.comment, p->commentFormat, std::round(200 * s)).width;
+            if (model.transcript) {
+                float room = std::min(maxText, maxRow - lead - insetX - (cw > 0 ? commentGap + cw : 0));
+                IDWriteTextLayout *wrapped = MakeLayout(p, row.text, p->textFormat, room, true);
+                D2D1_SIZE_F size = LayoutSize(wrapped, room);
+                float h = std::max(size.height, textHeight) + 2 * insetY;
+                float rowWidth = lead + size.width + (cw > 0 ? commentGap + cw : 0) + insetX;
+                placed.push_back({0, top, rowWidth, h, size.width, cw, wrapped});
+                widen(rowWidth);
+                top += h;
+            } else {
+                float w = Measure(p, row.text, p->textFormat, maxText).width;
+                float rowWidth = lead + w + (cw > 0 ? commentGap + cw : 0) + insetX;
+                placed.push_back({0, top, rowWidth, rowHeight, w, cw, nullptr});
+                widen(rowWidth);
+                top += rowHeight;
+            }
+        }
+        rowsHeight = top - y;
+    }
+    y += rowsHeight;
+    if (!model.rows.empty()) y += lineGap;
+
+    // The status: a hint, a wait, an error (after ⚠), or a hint and its list's items, a line each; wrapped (a message
+    // from elsewhere may have several lines).
+    IDWriteTextLayout *status = nullptr;
+    std::vector<IDWriteTextLayout *> items;
+    std::vector<float> itemY;
+    float statusY = -1;
+    if (model.statusKind != AIO_STATUS_NONE) {
+        std::wstring text = model.statusKind == AIO_STATUS_ERROR && !model.status.empty() ? L"⚠︎ " + model.status : model.status;
+        if (!text.empty()) {
+            status = MakeLayout(p, text, p->statusFormat, maxRow, true);
+            D2D1_SIZE_F size = LayoutSize(status, maxRow);
+            widen(size.width + 2 * insetX);
+            statusY = y;
+            y += std::max(size.height, statusHeight) + lineGap;
+        }
+        if (model.statusKind == AIO_STATUS_LIST) {
+            for (const std::wstring &item : model.statusItems) {
+                IDWriteTextLayout *layout = MakeLayout(p, L"•  " + item, p->statusFormat, maxRow - bulletIndent, true);
+                D2D1_SIZE_F size = LayoutSize(layout, maxRow);
+                widen(bulletIndent + size.width + 2 * insetX);
+                items.push_back(layout);
+                itemY.push_back(y);
+                y += std::max(size.height, statusHeight) + std::round(2 * s);
+            }
+            if (!items.empty()) y += lineGap;
+        }
+    }
+    // The footer, the detail on its right.
+    float footerY = -1;
+    const bool footerRule = y > padding;
+    if (!model.footer.empty() || !model.detail.empty()) {
+        float fw = Measure(p, model.footer, p->footerFormat, maxRow).width;
+        float dw = Measure(p, model.detail, p->footerFormat, maxText).width;
+        widen(insetX + fw + (dw > 0 ? commentGap + dw : 0) + insetX);
+        if (footerRule) y += std::round(3 * s);
+        footerY = y;
+        y += footerHeight + insetY;
+    }
+    float height = y + padding - (footerY < 0 && statusY < 0 && items.empty() && !model.rows.empty() ? lineGap : 0);
+
+    // A conversation no taller than `maxHeight`: its rows scrolled to show the last one, or the highlighted one when it
+    // is above; what comes after the rows moves up.
+    float scroll = 0, rowsView = rowsHeight;
+    if (model.transcript && maxHeight > 0 && height > maxHeight && rowsHeight > 0) {
+        rowsView = std::max(rowHeight, rowsHeight - (height - maxHeight));
+        scroll = rowsHeight - rowsView;
+        if (model.highlighted >= 0 && model.highlighted < (int)placed.size()) {
+            float top = placed[model.highlighted].y - rowsTop;
+            if (top < scroll) scroll = top;
+        }
+        float cut = rowsHeight - rowsView;
+        height -= cut;
+        if (statusY >= 0) statusY -= cut;
+        for (float &v : itemY) v -= cut;
+        if (footerY >= 0) footerY -= cut;
+    }
+
+    // A notice on its own is only as wide as it needs.
+    const float width = std::ceil(std::min(std::max(contentWidth, p->noticeAlone ? 0.0f : minWidth), maxRow + 2 * insetX) +
+                                  2 * padding);
+    height = std::ceil(height);
+    const int w = (int)width, h = (int)height;
+    auto release = [&]() {
+        SafeRelease(input);
+        SafeRelease(status);
+        for (auto *layout : items) SafeRelease(layout);
+        for (auto &row : placed) SafeRelease(row.wrapped);
+    };
+    if (!EnsureBitmap(p, w, h)) {
+        release();
+        return false;
+    }
+
+    // Draw.
+    D2D1_RENDER_TARGET_PROPERTIES props = D2D1::RenderTargetProperties(
+        D2D1_RENDER_TARGET_TYPE_DEFAULT, D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED), 96, 96);
+    if (!p->target) p->d2d->CreateDCRenderTarget(&props, &p->target);
+    if (!p->target) {
+        release();
+        return false;
+    }
+    RECT bind = {0, 0, w, h};
+    p->target->BindDC(p->memoryDC, &bind);
+    p->target->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
+    p->target->BeginDraw();
+    p->target->Clear(D2D1::ColorF(0, 0, 0, 0));
+    FillRounded(p, D2D1::RectF(0.5f, 0.5f, width - 0.5f, height - 0.5f), radius, colors.border);
+    FillRounded(p, D2D1::RectF(1.5f, 1.5f, width - 1.5f, height - 1.5f), radius - 1, colors.background);
+    const float left = padding, inner = width - 2 * padding;
+
+    if (handoffTitleY >= 0) {
+        DrawText(p, model.handoffTitle, p->statusFormat, left + insetX, handoffTitleY, inner - 2 * insetX, statusHeight,
+                 colors.secondary);
+    }
+    for (size_t i = 0; i < chips.size(); ++i) {
+        const PlacedChip &chip = chips[i];
+        FillRounded(p, D2D1::RectF(left + chip.x, chip.y, left + chip.x + chip.w, chip.y + chip.h), chip.h / 2, colors.chip);
+        float x = left + chip.x + chipPadX;
+        DrawText(p, model.handoff[i].shortcut, p->labelFormat, x, chip.y + chipPadY + (statusHeight - digitHeight) / 2,
+                 chip.shortcutW + 1, statusHeight, colors.highlight);
+        x += chip.shortcutW + (chip.shortcutW > 0 ? shortcutGap : 0);
+        DrawText(p, model.handoff[i].name, p->statusFormat, x, chip.y + chipPadY, left + chip.x + chip.w - chipPadX - x + 1,
+                 statusHeight, colors.text);
+    }
+
+    // The input, its prompt dimmed; its caret where DirectWrite puts that position.
+    p->caretDrawn = {-1, -1};
+    if (input) {
+        ID2D1SolidColorBrush *dim = nullptr;
+        p->target->CreateSolidColorBrush(colors.secondary, &dim);
+        if (dim && !model.inputPrompt.empty()) input->SetDrawingEffect(dim, {0, (UINT32)model.inputPrompt.size()});
+        DrawLayout(p, input, left + insetX, inputY, colors.text);
+        if (model.inputCaret >= 0) {
+            FLOAT cx = 0, cy = 0;
+            DWRITE_HIT_TEST_METRICS hit = {};
+            input->HitTestTextPosition((UINT32)(model.inputPrompt.size() + model.inputCaret), FALSE, &cx, &cy, &hit);
+            float x = std::round(left + insetX + cx), top = std::round(inputY + cy);
+            float caretHeight = hit.height > 0 ? hit.height : textHeight;
+            Fill(p, D2D1::RectF(x, top, x + std::max(1.0f, std::round(1.5f * s)), top + caretHeight), colors.highlight);
+            p->caretDrawn = {(LONG)x, (LONG)top};
+        }
+        SafeRelease(dim);
+    }
+    for (size_t i = 0; i < model.header.size(); ++i) {
+        DrawText(p, model.header[i], p->statusFormat, left + insetX, headerY[i], inner - 2 * insetX, statusHeight, colors.secondary);
+    }
+
+    // The rows (a conversation's clipped to what is shown of them).
+    const bool clipped = model.transcript && rowsView < rowsHeight;
+    if (clipped) p->target->PushAxisAlignedClip(D2D1::RectF(0, rowsTop, width, rowsTop + rowsView), D2D1_ANTIALIAS_MODE_ALIASED);
+    p->rowRects.clear();
+    p->rowPickable.clear();
+    for (size_t i = 0; i < model.rows.size(); ++i) {
+        const Row &row = model.rows[i];
+        const Placed &pl = placed[i];
+        const float x = left + pl.x, top = pl.y - scroll;
+        const float rowW = model.horizontal ? pl.w : inner;
+        const bool lit = (int)i == model.highlighted;
+        if (lit) FillRounded(p, D2D1::RectF(x, top, x + rowW, top + pl.h), std::round(5 * s), colors.highlight);
+        D2D1_COLOR_F textColor = lit ? colors.highlightText : (row.style == 1 || !row.complete) ? colors.secondary : colors.text;
+        D2D1_COLOR_F dim = lit ? colors.highlightText : colors.secondary;
+        float lw = model.horizontal ? Measure(p, row.label, p->labelFormat, maxText).width : labelWidth;
+        DrawText(p, row.label, p->labelFormat, x + insetX, top + insetY + (textHeight - digitHeight) / 2, lw + 1, textHeight, dim);
+        float tx = x + insetX + lw + (model.horizontal ? std::round(4 * s) : labelGap);
+        if (icons) {
+            if (row.icon.kind != AIO_ICON_NONE) {
+                float iy = top + insetY + (textHeight - iconSize) / 2;
+                DrawIcon(p, row.icon, D2D1::RectF(tx, iy, tx + iconSize, iy + iconSize));
+            }
+            tx += iconColumn;
+        }
+        if (pl.wrapped) {
+            DrawLayout(p, pl.wrapped, tx, top + insetY, textColor);
+        } else {
+            float textRoom = model.horizontal ? pl.textW + 1 : std::min(pl.textW + 1, x + rowW - insetX - tx);
+            DrawText(p, row.text, p->textFormat, tx, top + insetY, textRoom, textHeight, textColor);
+        }
+        if (!model.horizontal && pl.commentW > 0) {
+            float cx = std::max(x + rowW - insetX - pl.commentW, tx + pl.textW + commentGap);
+            float cy = top + insetY + (textHeight - Measure(p, L"Ag", p->commentFormat, maxText).height) / 2;
+            DrawText(p, row.comment, p->commentFormat, cx, cy, x + rowW - insetX - cx + 1, textHeight, dim);
+        }
+        // Where a click picks it: what is shown of it.
+        float visibleTop = clipped ? std::max(top, rowsTop) : top;
+        float visibleBottom = clipped ? std::min(top + pl.h, rowsTop + rowsView) : top + pl.h;
+        RECT r = visibleBottom > visibleTop ? RECT{(LONG)x, (LONG)visibleTop, (LONG)(x + rowW), (LONG)visibleBottom} : RECT{0, 0, 0, 0};
+        p->rowRects.push_back(r);
+        p->rowPickable.push_back(row.pickable && visibleBottom > visibleTop);
+    }
+    if (clipped) {
+        p->target->PopAxisAlignedClip();
+        if (scroll > 0.5f) Fill(p, D2D1::RectF(left + insetX, rowsTop, width - padding - insetX, rowsTop + 1), colors.border);
+        if (scroll < rowsHeight - rowsView - 0.5f) {
+            Fill(p, D2D1::RectF(left + insetX, rowsTop + rowsView - 1, width - padding - insetX, rowsTop + rowsView), colors.border);
+        }
+    }
+
+    if (status) {
+        D2D1_COLOR_F color = model.statusKind == AIO_STATUS_ERROR     ? colors.error
+                             : model.statusKind == AIO_STATUS_LOADING ? colors.secondary
+                                                                      : colors.text;
+        DrawLayout(p, status, left + insetX, statusY, color, model.statusKind != AIO_STATUS_ERROR);
+    }
+    for (size_t i = 0; i < items.size(); ++i) DrawLayout(p, items[i], left + insetX + bulletIndent, itemY[i], colors.secondary);
+    if (footerY >= 0) {
+        if (footerRule) {
+            float ruleY = std::round(footerY - std::round(3 * s)) + 0.5f;
+            Fill(p, D2D1::RectF(left + insetX, ruleY - 0.5f, width - padding - insetX, ruleY + 0.5f), colors.border);
+        }
+        float dw = Measure(p, model.detail, p->footerFormat, maxText).width;
+        DrawText(p, model.footer, p->footerFormat, left + insetX, footerY, inner - 2 * insetX - (dw > 0 ? dw + commentGap : 0),
+                 footerHeight, colors.secondary);
+        if (dw > 0) {
+            DrawText(p, model.detail, p->footerFormat, width - padding - insetX - dw - 1, footerY, dw + 1, footerHeight,
+                     p->notice.empty() ? colors.secondary : colors.text);
+        }
+    }
+    HRESULT hr = p->target->EndDraw();
+    if (hr == D2DERR_RECREATE_TARGET) SafeRelease(p->target);
+    release();
+
+    p->textInset = padding + insetX + (model.horizontal ? 0 : labelWidth + labelGap + iconColumn);
+    p->scrolled = (int)std::round(scroll);
+    p->size = {w, h};
+    return true;
+}
+
 // Lays the panel out at the caret's monitor's DPI, draws it and puts it on screen: only while its owner owns the
-// foreground (which may have changed since it was asked, while the panel waited for the caret).
+// foreground (which may have changed since it was asked, while the panel waited for the caret). A conversation is no
+// taller than half that monitor's work area.
 void Render(AioPanel *p) {
     if (p->ownerPid && !OwnsForeground(p->ownerPid, p->ownerTrusted)) {
         p->model = Model();
@@ -511,166 +1046,18 @@ void Render(AioPanel *p) {
     RECT work = {};
     POINT anchor = {p->caret.x, p->caret.y + p->caret.height};
     p->dpi = DpiAt(anchor, &work);
-    MakeFormats(p);
+    if (!Paint(p, model, DarkTheme(), (work.bottom - work.top) / 2.0f)) return;
     const float s = Scale(p);
-    const bool dark = DarkTheme();
-    const Colors colors = ThemeColors(dark);
-
-    const float padding = std::round(6 * s), insetX = std::round(8 * s), insetY = std::round(4 * s);
-    const float labelGap = std::round(8 * s), commentGap = std::round(12 * s), lineGap = std::round(4 * s);
-    const float maxText = std::round(520 * s), minWidth = std::round(260 * s), maxRow = std::round(600 * s);
-    const float radius = std::round(8 * s);
-
-    // Measure.
-    float labelWidth = 0;
-    for (const Row &row : model.rows) labelWidth = std::max(labelWidth, Measure(p, row.label, p->labelFormat, maxText).width);
-    float textHeight = Measure(p, L"Ag中", p->textFormat, maxText).height;
-    float rowHeight = textHeight + 2 * insetY;
-    float footerHeight = Measure(p, L"Ag中", p->footerFormat, maxText).height;
-    float statusHeight = Measure(p, L"Ag中", p->statusFormat, maxText).height;
-
-    struct Placed {
-        float x, y, w, h;
-        float textW, commentW;
-    };
-    std::vector<Placed> placed;
-    float contentWidth = 0, y = padding;
-    std::vector<std::pair<std::wstring, float>> topLines;  // input, header, status
-    auto addLine = [&](const std::wstring &text, IDWriteTextFormat *format, float height) {
-        if (text.empty()) return;
-        D2D1_SIZE_F size = Measure(p, text, format, maxRow);
-        contentWidth = std::max(contentWidth, size.width + 2 * insetX);
-        topLines.push_back({text, y});
-        y += height + lineGap;
-    };
-    addLine(model.input, p->textFormat, textHeight);
-    addLine(model.header, p->statusFormat, statusHeight);
-    float statusY = -1;
-    if (model.statusKind != AIO_STATUS_NONE && !model.status.empty()) {
-        // The status may have several lines (a hint): measured wrapped at the widest row.
-        D2D1_SIZE_F size = Measure(p, model.status, p->statusFormat, maxRow);
-        statusY = y;
-        contentWidth = std::max(contentWidth, size.width + 2 * insetX);
-        y += statusHeight + lineGap;
-    }
-    if (model.horizontal) {
-        float x = 0, lineY = y;
-        for (const Row &row : model.rows) {
-            float w = Measure(p, row.text, p->textFormat, std::round(280 * s)).width;
-            float lw = Measure(p, row.label, p->labelFormat, maxText).width;
-            float cell = insetX + lw + std::round(4 * s) + w + insetX;
-            if (x > 0 && x + cell > maxRow) {
-                x = 0;
-                lineY += rowHeight;
-            }
-            placed.push_back({x, lineY, cell, rowHeight, w, 0});
-            x += cell + std::round(2 * s);
-            contentWidth = std::max(contentWidth, x);
-        }
-        if (!model.rows.empty()) y = lineY + rowHeight + lineGap;
-    } else {
-        for (const Row &row : model.rows) {
-            float w = Measure(p, row.text, p->textFormat, maxText).width;
-            float cw = row.comment.empty() ? 0 : Measure(p, row.comment, p->commentFormat, std::round(200 * s)).width;
-            float rowWidth = insetX + labelWidth + labelGap + w + (cw > 0 ? commentGap + cw : 0) + insetX;
-            placed.push_back({0, y, rowWidth, rowHeight, w, cw});
-            contentWidth = std::max(contentWidth, rowWidth);
-            y += rowHeight;
-        }
-        if (!model.rows.empty()) y += lineGap;
-    }
-    float footerY = -1;
-    if (!model.footer.empty() || !model.detail.empty()) {
-        float fw = Measure(p, model.footer, p->footerFormat, maxRow).width;
-        float dw = Measure(p, model.detail, p->footerFormat, maxText).width;
-        contentWidth = std::max(contentWidth, insetX + fw + (dw > 0 ? commentGap + dw : 0) + insetX);
-        footerY = y;
-        y += footerHeight + insetY;
-    }
-    // A notice on its own is only as wide as it needs.
-    float width = std::ceil(std::min(std::max(contentWidth, p->noticeAlone ? 0.0f : minWidth), maxRow + 2 * insetX) + 2 * padding);
-    float height = std::ceil(y + padding - (footerY < 0 && !model.rows.empty() ? lineGap : 0));
-    int w = (int)width, h = (int)height;
-    if (!EnsureBitmap(p, w, h)) return;
-
-    // Draw.
-    D2D1_RENDER_TARGET_PROPERTIES props = D2D1::RenderTargetProperties(
-        D2D1_RENDER_TARGET_TYPE_DEFAULT, D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED), 96, 96);
-    if (!p->target) p->d2d->CreateDCRenderTarget(&props, &p->target);
-    if (!p->target) return;
-    RECT bind = {0, 0, w, h};
-    p->target->BindDC(p->memoryDC, &bind);
-    p->target->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
-    p->target->BeginDraw();
-    p->target->Clear(D2D1::ColorF(0, 0, 0, 0));
-    D2D1_RECT_F outer = D2D1::RectF(0.5f, 0.5f, width - 0.5f, height - 0.5f);
-    FillRounded(p, outer, radius, colors.border);
-    FillRounded(p, D2D1::RectF(1.5f, 1.5f, width - 1.5f, height - 1.5f), radius - 1, colors.background);
-    const float inner = width - 2 * padding;
-    size_t line = 0;
-    if (!model.input.empty()) {
-        DrawText(p, model.input, p->textFormat, padding + insetX, topLines[line++].second, inner - 2 * insetX, textHeight, colors.text);
-    }
-    if (!model.header.empty()) {
-        DrawText(p, model.header, p->statusFormat, padding + insetX, topLines[line++].second, inner - 2 * insetX, statusHeight,
-                 colors.secondary);
-    }
-    if (statusY >= 0) {
-        D2D1_COLOR_F color = model.statusKind == AIO_STATUS_ERROR ? colors.error : model.statusKind == AIO_STATUS_LOADING
-                                                                                       ? colors.secondary
-                                                                                       : colors.text;
-        DrawText(p, model.status, p->statusFormat, padding + insetX, statusY, inner - 2 * insetX, statusHeight, color);
-    }
-    p->rowRects.clear();
-    p->rowPickable.clear();
-    for (size_t i = 0; i < model.rows.size(); ++i) {
-        const Row &row = model.rows[i];
-        const Placed &pl = placed[i];
-        float x = padding + pl.x, top = pl.y;
-        float rowW = model.horizontal ? pl.w : inner;
-        bool lit = (int)i == model.highlighted;
-        if (lit) FillRounded(p, D2D1::RectF(x, top, x + rowW, top + pl.h), std::round(5 * s), colors.highlight);
-        D2D1_COLOR_F textColor = lit ? colors.highlightText
-                                     : (row.style == 1 || !row.complete) ? colors.secondary : colors.text;
-        D2D1_COLOR_F dim = lit ? colors.highlightText : colors.secondary;
-        float lw = model.horizontal ? Measure(p, row.label, p->labelFormat, maxText).width : labelWidth;
-        float labelY = top + insetY + (textHeight - Measure(p, L"0", p->labelFormat, maxText).height) / 2;
-        DrawText(p, row.label, p->labelFormat, x + insetX, labelY, lw + 1, textHeight, dim);
-        float tx = x + insetX + lw + (model.horizontal ? std::round(4 * s) : labelGap);
-        float textRoom = model.horizontal ? pl.textW + 1 : std::min(pl.textW + 1, x + rowW - insetX - tx);
-        DrawText(p, row.text, p->textFormat, tx, top + insetY, textRoom, textHeight, textColor);
-        if (!model.horizontal && pl.commentW > 0) {
-            float cx = x + rowW - insetX - pl.commentW;
-            cx = std::max(cx, tx + pl.textW + commentGap);
-            float cy = top + insetY + (textHeight - Measure(p, L"Ag", p->commentFormat, maxText).height) / 2;
-            DrawText(p, row.comment, p->commentFormat, cx, cy, x + rowW - insetX - cx + 1, textHeight, dim);
-        }
-        RECT r = {(LONG)x, (LONG)top, (LONG)(x + rowW), (LONG)(top + pl.h)};
-        p->rowRects.push_back(r);
-        p->rowPickable.push_back(row.pickable);
-    }
-    if (footerY >= 0) {
-        float dw = Measure(p, model.detail, p->footerFormat, maxText).width;
-        DrawText(p, model.footer, p->footerFormat, padding + insetX, footerY, inner - 2 * insetX - (dw > 0 ? dw + commentGap : 0),
-                 footerHeight, colors.secondary);
-        if (dw > 0) {
-            DrawText(p, model.detail, p->footerFormat, width - padding - insetX - dw - 1, footerY, dw + 1, footerHeight,
-                     p->notice.empty() ? colors.secondary : colors.text);
-        }
-    }
-    HRESULT hr = p->target->EndDraw();
-    if (hr == D2DERR_RECREATE_TARGET) SafeRelease(p->target);
+    const int w = p->size.cx, h = p->size.cy;
 
     // Place it: the first row's text under the caret, below the caret line, or above it when there is no room; inside
     // the monitor's work area.
-    float textInset = padding + insetX + (model.horizontal ? 0 : labelWidth + labelGap);
-    int x = p->caret.x - (int)textInset;
+    int x = p->caret.x - (int)p->textInset;
     int top = p->caret.y + p->caret.height + (int)std::round(4 * s);
     if (top + h > work.bottom) top = p->caret.y - h - (int)std::round(4 * s);
     x = std::max<int>(work.left, std::min<int>(x, work.right - w));
     top = std::max<int>(work.top, std::min<int>(top, work.bottom - h));
     p->position = {x, top};
-    p->size = {w, h};
 
     POINT source = {0, 0};
     BLENDFUNCTION blend = {AC_SRC_OVER, 0, 255, AC_SRC_ALPHA};
@@ -872,6 +1259,27 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
     return DefWindowProcW(hwnd, message, wParam, lParam);
 }
 
+// What drawing made: the render target, the formats, the images, the factories, the bitmap.
+void ReleaseDrawing(AioPanel *p) {
+    SafeRelease(p->target);
+    for (IDWriteTextFormat **format : {&p->textFormat, &p->labelFormat, &p->commentFormat, &p->footerFormat, &p->statusFormat,
+                                       &p->iconFormat, &p->emojiFormat}) {
+        SafeRelease(*format);
+    }
+    for (auto &image : p->images) SafeRelease(image.second);
+    p->images.clear();
+    SafeRelease(p->wic);
+    SafeRelease(p->dwrite);
+    SafeRelease(p->d2d);
+    if (p->bitmap) {
+        SelectObject(p->memoryDC, p->oldBitmap);
+        DeleteObject(p->bitmap);
+        p->bitmap = nullptr;
+    }
+    if (p->memoryDC) DeleteDC(p->memoryDC);
+    p->memoryDC = nullptr;
+}
+
 DWORD WINAPI ThreadMain(void *arg) {
     AioPanel *p = static_cast<AioPanel *>(arg);
     g_panel = p;
@@ -906,19 +1314,7 @@ DWORD WINAPI ThreadMain(void *arg) {
         DispatchMessageW(&msg);
     }
     if (p->foregroundHook) UnhookWinEvent(p->foregroundHook);
-    SafeRelease(p->target);
-    SafeRelease(p->textFormat);
-    SafeRelease(p->labelFormat);
-    SafeRelease(p->commentFormat);
-    SafeRelease(p->footerFormat);
-    SafeRelease(p->statusFormat);
-    SafeRelease(p->dwrite);
-    SafeRelease(p->d2d);
-    if (p->bitmap) {
-        SelectObject(p->memoryDC, p->oldBitmap);
-        DeleteObject(p->bitmap);
-    }
-    if (p->memoryDC) DeleteDC(p->memoryDC);
+    ReleaseDrawing(p);
     CoUninitialize();
     return 0;
 }
@@ -1059,6 +1455,7 @@ int32_t aio_panel_row_rect(AioPanel *panel, int32_t row, int32_t *x, int32_t *y,
     Sync(panel);
     if (row < 0 || (size_t)row >= panel->rowRects.size()) return 0;
     const RECT &r = panel->rowRects[(size_t)row];
+    if (r.bottom <= r.top) return 0;  // scrolled out of sight
     if (x) *x = r.left;
     if (y) *y = r.top;
     if (width) *width = r.right - r.left;
@@ -1072,6 +1469,29 @@ int32_t aio_panel_save_png(AioPanel *panel, const uint16_t *path) {
     // Drawn on the window's thread, read here once it is idle: the bitmap isn't touched meanwhile.
     CoInitializeEx(nullptr, COINIT_MULTITHREADED);
     bool ok = SavePng(panel, reinterpret_cast<const wchar_t *>(path));
+    return ok ? 1 : 0;
+}
+
+int32_t aio_panel_render_png(const AioPanelModel *model, int32_t dpi, int32_t dark, int32_t maxHeight, const uint16_t *path,
+                             AioPanelState *state) {
+    if (!path) return 0;
+    const HRESULT init = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+    AioPanel panel;
+    D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, __uuidof(ID2D1Factory), nullptr, reinterpret_cast<void **>(&panel.d2d));
+    DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory), reinterpret_cast<IUnknown **>(&panel.dwrite));
+    bool ok = false;
+    if (panel.d2d && panel.dwrite) {
+        panel.dpi = dpi > 0 ? (UINT)dpi : 96;
+        panel.model = CopyModel(model);
+        if (Paint(&panel, panel.model, dark != 0, (float)std::max(maxHeight, 0))) {
+            ok = SavePng(&panel, reinterpret_cast<const wchar_t *>(path));
+            panel.visible = true;
+            PublishState(&panel);
+            if (state) *state = panel.state;
+        }
+    }
+    ReleaseDrawing(&panel);
+    if (SUCCEEDED(init)) CoUninitialize();
     return ok ? 1 : 0;
 }
 

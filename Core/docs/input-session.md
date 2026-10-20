@@ -155,22 +155,25 @@ The engine (merged in 0.6.6/integration) drives a `Composer` through `AllInOneIM
    `pastesInTerminal` false, `keyTranslator` nil (the DLL sends the dead key's text). Its `startConversion`, `consume`,
    `startScript`, `scriptEnvironment`, `oneLine` and `errorKind` go: they are `SessionTasks`'. Test mode's
    `ScriptedProvider` answers through a `converter` and `runProgram` of its own.
-4. **The candidate window** (`CandidateWindow.swift`, `CAllInOneIMEPanel`) draws the core's `PanelModel` through its
-   flat copy, `AioPanelModel`, unchanged so far: a line each for the input (its prompt and text, "▏" at the caret), the
-   header (the hand-off's title and choices, then the header's lines, joined with " · ") and the status (a list's items
-   after its hint), and no icons (`PanelModel.inputLine`, `headerLine`, `statusLine` in `PanelWindow.swift`). To draw
-   the core's model as it is meant, it needs:
-   - `input` as its prompt, text and caret (`inputPrompt`, `inputText`, `inputCaret` in UTF-16, from the caret in
-     characters), the caret drawn where DirectWrite puts that position (`HitTestTextPosition`), not a "▏" in the text;
-   - `header` as its lines (joined with line breaks, or an array);
-   - `handoff`: its title and each choice's shortcut and name, drawn as chips that wrap;
-   - `Status.list`: a kind of its own (`AIO_STATUS_LIST`) and its items, drawn as a list;
-   - a row's `icon`: the glyph's kind, the built-in's name (mapped to Segoe Fluent Icons), a symbol's name (the ones
-     it knows mapped, the others drawn as `fallback`), an emoji (Segoe UI Emoji), an image's path (read with WIC, else
-     `fallback`), and the color; a row's `choice` needs nothing there, the click's row index goes to `.pick` as it is;
-   - `transcript`: no taller than half the monitor, the rows scrolled to the last one (or the highlighted one above);
-   - the footers' symbols (↑↓ › – ✓ ⚠︎; Return, Shift and Delete are words there) come from DirectWrite's font
-     fallback (Segoe UI Symbol). `chip` stays empty: Translate as You Type is the Mac shell's.
+4. **The candidate window** (done; `CandidateWindow.swift`, `PanelIcons.swift`, `CAllInOneIMEPanel`) draws the
+   core's `PanelModel` as it is meant, through its flat copy `AioPanelModel`:
+   - `input` as its prompt (dimmed), text and caret (`inputPrompt`, `inputText`, `inputCaret` in UTF-16, from the
+     caret in characters: `Input.utf16Caret`), the text wrapped, the caret drawn where DirectWrite puts that position
+     (`HitTestTextPosition`);
+   - `header` as its lines (`headerLines`), each its own;
+   - `handoff`: its title, then each choice's shortcut and name as a chip, the chips wrapping;
+   - `Status.list`: `AIO_STATUS_LIST`, its items a line each under the hint; an error after "⚠", in its color;
+   - a row's `icon` (`PanelIcons`): a built-in as a glyph of Segoe Fluent Icons (Segoe MDL2 Assets' code points, for
+     Windows 10) white on a rounded square of its color (the Mac's system colors), a symbol's name mapped where Windows
+     has one (else its `fallback`), an emoji drawn in the square's place (Segoe UI Emoji), an image read with WIC (else
+     `fallback`); a row's `choice` needs nothing there, the click's row index goes to `.pick` as it is;
+   - `transcript`: the rows' text wrapped, the panel no taller than half the monitor's work area, the rows scrolled to
+     the last one (or the highlighted one above), a rule where they are cut; a row out of sight takes no click;
+   - from top to bottom as the model says (the status under the rows), a rule above the footer as the Mac's panel
+     has; the footers' symbols come from DirectWrite's font fallback. `chip` stays empty: Translate as You Type is the
+     Mac shell's.
+   `AllInOneIMEEngine --render-panel DIR` draws `PanelSamples` (each of these) into PNG files, light and dark, at 96
+   and 120 DPI, without a window (`aio_panel_render_png`).
 5. **Its tests**: the wire goldens (`AllInOneIMEWireTests`) and the engine's (`AllInOneIMEEngineTests`) run on Windows
    against the session; where an output's order changes (a panel shown, then hidden, in one answer), the golden is the
    spec, not the code.

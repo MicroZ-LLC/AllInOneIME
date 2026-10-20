@@ -146,6 +146,19 @@ public final class CandidateWindow: PanelWindow, @unchecked Sendable {
         }
     }
 
+    /// `model` drawn as the window draws it, at `dpi`, in the dark or light theme, a conversation no taller than
+    /// `maxHeight` pixels (0: no limit), into a PNG file, without a window (`aio_panel_render_png`): what was drawn (its
+    /// size, the input's caret, the scroll), or nil.
+    public static func renderPNG(_ model: PanelModel, dpi: Int = 96, dark: Bool = false, maxHeight: Int = 0, to url: URL) -> AioPanelState? {
+        var state = AioPanelState()
+        var ok: Int32 = 0
+        let path = url.withUnsafeFileSystemRepresentation { String(cString: $0!) }.replacingOccurrences(of: "/", with: "\\")
+        withUTF16(path) { path in
+            withModel(model) { flat in ok = aio_panel_render_png(flat, Int32(dpi), dark ? 1 : 0, Int32(maxHeight), path, &state) }
+        }
+        return ok != 0 ? state : nil
+    }
+
     // MARK: - Flat copies for C
 
     static func flat(_ caret: CaretRect) -> AioCaret {
@@ -158,45 +171,63 @@ public final class CandidateWindow: PanelWindow, @unchecked Sendable {
         return units.withUnsafeBufferPointer { body($0.baseAddress!) }
     }
 
-    /// `model` as `AioPanelModel`, its strings alive for `body`: a line each for the input, the header and the status
-    /// (`PanelModel.inputLine`, `headerLine`, `statusLine`), and no icons. A conversation's rows (`transcript`) are drawn
-    /// as any others; a row's `choice` stays with the engine (`PanelOwner.choose`).
+    /// `model` as `AioPanelModel`, its strings alive for `body`: the input's prompt, text and caret (in UTF-16 units),
+    /// the header's lines, the hand-off's title and chips, the status (a list's items), each row's icon
+    /// (`PanelIcons`), and whether the rows are a conversation. A row's `choice` stays with the engine
+    /// (`PanelOwner.choose`); Translate as You Type's chip is the Mac's.
     static func withModel(_ model: PanelModel, _ body: (UnsafePointer<AioPanelModel>) -> Void) {
-        var storage: [[UInt16]] = []
-        func keep(_ text: String?) -> Int? {
-            guard let text, !text.isEmpty else { return nil }
-            storage.append(Array(text.utf16) + [0])
-            return storage.count - 1
+        var strings: [UnsafeMutablePointer<UInt16>] = []
+        var arrays: [UnsafeMutablePointer<UnsafePointer<UInt16>?>] = []
+        defer {
+            strings.forEach { $0.deallocate() }
+            arrays.forEach { $0.deallocate() }
         }
-        struct RowIndices { var label, text, comment: Int? }
-        let rowIndices = model.rows.map { RowIndices(label: keep($0.label), text: keep($0.text), comment: keep($0.comment)) }
-        let kind: Int32
-        switch model.status {
-        case .none: kind = Int32(AIO_STATUS_NONE)
-        case .hint, .list: kind = Int32(AIO_STATUS_HINT)
-        case .loading: kind = Int32(AIO_STATUS_LOADING)
-        case .error: kind = Int32(AIO_STATUS_ERROR)
-        }
-        let statusIndex = keep(model.statusLine), inputIndex = keep(model.inputLine), headerIndex = keep(model.headerLine)
-        let footerIndex = keep(model.footer), detailIndex = keep(model.detail)
-        // The strings' addresses stay put while `pointers` is in scope (arrays of arrays, none of them changed).
-        let pointers: [UnsafeMutablePointer<UInt16>] = storage.map { units in
+        func c(_ text: String?) -> UnsafePointer<UInt16>? {
+            guard let text else { return nil }
+            let units = Array(text.utf16) + [0]
             let pointer = UnsafeMutablePointer<UInt16>.allocate(capacity: units.count)
             pointer.initialize(from: units, count: units.count)
-            return pointer
+            strings.append(pointer)
+            return UnsafePointer(pointer)
         }
-        defer { pointers.forEach { $0.deallocate() } }
-        func pointer(_ index: Int?) -> UnsafePointer<UInt16>? { index.map { UnsafePointer(pointers[$0]) } }
-        var rows = zip(model.rows, rowIndices).map { row, indices in
-            AioPanelRow(label: pointer(indices.label), text: pointer(indices.text), comment: pointer(indices.comment),
-                        style: row.kind == .candidate ? 0 : row.kind == .original ? 1 : 2,
-                        pickable: row.pickable ? 1 : 0, complete: row.isComplete ? 1 : 0)
+        func some(_ text: String) -> UnsafePointer<UInt16>? { text.isEmpty ? nil : c(text) }
+        func all(_ texts: [String]) -> UnsafePointer<UnsafePointer<UInt16>?>? {
+            guard !texts.isEmpty else { return nil }
+            let array = UnsafeMutablePointer<UnsafePointer<UInt16>?>.allocate(capacity: texts.count)
+            for (index, text) in texts.enumerated() { (array + index).initialize(to: c(text)) }
+            arrays.append(array)
+            return UnsafePointer(array)
         }
+        let (kind, status, items): (Int32, String?, [String])
+        switch model.status {
+        case .none: (kind, status, items) = (Int32(AIO_STATUS_NONE), nil, [])
+        case let .hint(text): (kind, status, items) = (Int32(AIO_STATUS_HINT), text, [])
+        case let .loading(text): (kind, status, items) = (Int32(AIO_STATUS_LOADING), text, [])
+        case let .error(text): (kind, status, items) = (Int32(AIO_STATUS_ERROR), text, [])
+        case let .list(hint, list): (kind, status, items) = (Int32(AIO_STATUS_LIST), hint, list)
+        }
+        var rows = model.rows.map { row in
+            let icon = row.icon.map(PanelIcons.flat)
+            return AioPanelRow(label: some(row.label), text: some(row.text), comment: some(row.comment),
+                               style: row.kind == .candidate ? 0 : row.kind == .original ? 1 : 2,
+                               pickable: row.pickable ? 1 : 0, complete: row.isComplete ? 1 : 0,
+                               icon: AioPanelIcon(kind: icon?.kind ?? Int32(AIO_ICON_NONE), text: icon.flatMap { c($0.text) },
+                                                  fallback: icon.flatMap { c($0.fallback) }, color: icon?.color ?? 0))
+        }
+        let handoff = model.handoff
         rows.withUnsafeMutableBufferPointer { buffer in
-            var flat = AioPanelModel(rows: UnsafePointer(buffer.baseAddress), rowCount: Int32(buffer.count),
-                                     highlighted: Int32(model.highlighted ?? -1), horizontal: model.horizontal ? 1 : 0,
-                                     statusKind: kind, status: pointer(statusIndex), input: pointer(inputIndex),
-                                     header: pointer(headerIndex), footer: pointer(footerIndex), detail: pointer(detailIndex))
+            var flat = AioPanelModel(
+                rows: UnsafePointer(buffer.baseAddress), rowCount: Int32(buffer.count),
+                highlighted: Int32(model.highlighted ?? -1), horizontal: model.horizontal ? 1 : 0,
+                transcript: model.transcript ? 1 : 0, statusKind: kind, status: status.flatMap(some),
+                statusItems: all(items), statusItemCount: Int32(items.count),
+                inputPrompt: model.input.flatMap { some($0.prompt) }, inputText: model.input.flatMap { c($0.text) },
+                inputCaret: Int32(model.input?.utf16Caret ?? -1),
+                headerLines: all(model.header), headerCount: Int32(model.header.count),
+                handoffTitle: handoff.flatMap { some($0.title) },
+                handoffShortcuts: all(handoff?.choices.map(\.shortcut) ?? []),
+                handoffNames: all(handoff?.choices.map(\.name) ?? []), handoffCount: Int32(handoff?.choices.count ?? 0),
+                footer: some(model.footer), detail: model.detail.flatMap(some))
             withUnsafePointer(to: &flat) { body($0) }
         }
     }

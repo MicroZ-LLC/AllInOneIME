@@ -22,7 +22,7 @@ The Windows shell of AllInOneIME, on the core in `../Core` (the same Swift packa
 Scripts/build-rime-data.sh                    # in Git Bash: librime and rime-ice's data, in ThirdParty (once)
 swift build                                   # Swift 6.4 for Windows, with Visual Studio's MSVC and Windows SDK
 swift run allinoneime-cli --help
-swift test                                    # the pipe's security (2), the Rime tests (24), the engine's (76)
+swift test                                    # the pipe's security (2), the Rime tests (24), the engine's (89)
 ```
 
 The engine and the command line link librime (`rime.lib`, `Scripts/fetch-librime.sh`); the engine finds `rime.dll`
@@ -52,7 +52,11 @@ In every app that loads TSF text services (the classic Win32 ones, and WinUI one
 - **The candidate window (M6).** The engine's own window, under the caret the DLL reports (above it near the bottom of
   the screen), on that monitor at its DPI, in the apps' light or dark theme: the candidates with their numbers (in a
   row, or one under the other with `"candidateLayout": "vertical"`), the highlight, the command list after "@", level
-  two's results as they stream in, a hint, an error, the footer with the keys and a notice beside it. It never takes the
+  two's results as they stream in, a hint, an error, the footer with the keys and a notice beside it; the command list's
+  icons (Segoe Fluent Icons on the core's colors, a script extension's emoji or image), a draft's line of input with its
+  caret, the header's lines, where an `@question` conversation can go on (chips), what an issue report attaches (a
+  list), and a conversation no taller than half the monitor, scrolled to its last answer (`--render-panel` below draws
+  each into a PNG). It never takes the
   focus; a click on a row picks it. It hides when the field loses the focus or another app takes the foreground. It is
   drawn, and its notices shown, only for the app in front, and only inside that app's window: a caret the DLL reports in
   a window of another process is ignored, one outside the app's window is cut to it (§8: a background or sandboxed app
@@ -300,6 +304,11 @@ prove is its own and in front. The 0.6.4 package from before those fixes, run wi
                                     [--rime-data DIR] [--rime-user DIR] [--no-rime] [--no-panel] [--instances N] [--quiet]
                                     [--pipe NAME] [--settings-app FILE]
 ```
+
+- **The candidate window's drawings:** `AllInOneIMEEngine --render-panel DIR [--dpi N]... [--image FILE]` draws its
+  sample panels (`PanelSamples`: candidates in a row and a column, the command list with its icons, a draft, results,
+  a conversation, an issue report's list, an error, every icon, a notice) into PNG files in DIR, light and dark, as the
+  window draws them but without one (any session): to look at.
 
 - **For the Settings app:** `--settings-app`, the app `@settings` starts (default: `Settings\AllInOneIMESettings.exe`
   beside the engine; without one, the folder of `config.json`); `--pipe NAME`, for tests, an engine on a pipe of its own
