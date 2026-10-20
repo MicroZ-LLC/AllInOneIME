@@ -7,8 +7,10 @@ import Testing
 /// `ModifierEchoes` through a class (its mutating call inside `#expect`).
 final class EchoProbe {
     var echoes = ModifierEchoes()
+    /// The clock's time as the change is handed over (the shell's `systemUptime`).
+    var now: TimeInterval = 10
     func echo(_ keyCode: UInt16, _ flags: UInt, at timestamp: TimeInterval) -> Bool {
-        echoes.isEcho(keyCode: keyCode, flags: flags, timestamp: timestamp)
+        echoes.isEcho(keyCode: keyCode, flags: flags, timestamp: timestamp, now: now)
     }
 }
 
@@ -84,6 +86,35 @@ struct ModifierEchoesTests {
         #expect(!e.echo(58, Self.optionDown, at: 2))
         #expect(!e.echo(56, Self.shiftDown, at: 1))
     }
+
+    /// A synthesized change at a time still to come (another unit, another clock), its key and flags the keyboard's:
+    /// neither a copy nor kept, so it never takes the keyboard's changes after it for its copies. A hundred taps of
+    /// Shift after it, every change new.
+    @Test func aChangeFromTheFutureDoesntSwallowTheKeyboards() {
+        let e = EchoProbe()
+        e.now = 100
+        #expect(!e.echo(56, Self.shiftDown, at: 1e9))
+        #expect(!e.echo(56, Self.shiftUp, at: 1e9))
+        #expect(!e.echo(56, Self.shiftDown, at: 1e9))
+        for tap in 1...100 {
+            e.now = 100 + Double(tap)
+            #expect(!e.echo(56, Self.shiftDown, at: e.now - 0.1), "tap \(tap)")
+            #expect(!e.echo(56, Self.shiftUp, at: e.now), "tap \(tap)")
+            #expect(e.echo(56, Self.shiftUp, at: e.now), "tap \(tap)")  // its copy, still dropped
+        }
+    }
+
+    /// Only a change within `window` seconds of the latest of its key and flags is taken for a copy: one from longer
+    /// before (a tool's event at an old time of its own) is new, and the latest stays the latest.
+    @Test func aChangeLongBeforeTheLatestIsNoCopy() {
+        let e = EchoProbe()
+        e.now = 100
+        #expect(!e.echo(56, Self.shiftDown, at: 99))
+        #expect(e.echo(56, Self.shiftDown, at: 99.5 - ModifierEchoes.window))
+        #expect(!e.echo(56, Self.shiftDown, at: 98.5 - ModifierEchoes.window))
+        #expect(!e.echo(56, Self.shiftDown, at: 10))
+        #expect(e.echo(56, Self.shiftDown, at: 99))
+    }
 }
 
 /// The composer and the long press of Shift as the Mac's shell hands them a modifier change
@@ -105,7 +136,7 @@ final class ModifierFeed {
     /// What the composer did (nil: dropped, a copy).
     @discardableResult
     func change(_ keyCode: UInt16, _ modifiers: KeyModifiers, at time: TimeInterval) -> [Composer.Effect]? {
-        guard !echoes.isEcho(keyCode: keyCode, flags: UInt(modifiers.rawValue), timestamp: time) else { return nil }
+        guard !echoes.isEcho(keyCode: keyCode, flags: UInt(modifiers.rawValue), timestamp: time, now: now) else { return nil }
         let done = composer.handleFlagsChanged(keyCode: keyCode, modifiers: modifiers, timestamp: time)
         effects += done
         _ = hold.flags(keyCode, modifiers)

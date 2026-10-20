@@ -981,7 +981,7 @@ final class AllInOneIMEInputController: IMKInputController {
         // the next change too when the page is busy: the copy changes nothing, for the composer (a tap of Shift or ⌥)
         // and the long press of Shift alike.
         guard !Self.modifierEchoes.isEcho(keyCode: event.keyCode, flags: event.modifierFlags.rawValue,
-                                          timestamp: event.timestamp) else {
+                                          timestamp: event.timestamp, now: ProcessInfo.processInfo.systemUptime) else {
             // Each copy dropped, how long after the event's time it came (`log stream --level debug --predicate
             // 'subsystem == "com.aipinyin.inputmethod.AIPinyin" AND eventMessage BEGINSWITH "modifier copy"'`): what
             // shows a real app hands the copy over with the event's own time.
