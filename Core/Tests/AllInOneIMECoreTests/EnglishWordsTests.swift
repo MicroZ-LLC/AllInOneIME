@@ -452,8 +452,7 @@ struct EnglishWordsSessionTests {
 
     func host(_ config: Config = Self.settings, learned: Learned = Learned(), dictionary: Bool = true,
               secure: @escaping () -> Bool = { false }, jargon: [JargonEntry] = [], app: String? = "com.example.editor",
-              terminal: Bool = false) -> FakeHost {
-        let engine = FakeEngine()
+              terminal: Bool = false, engine: PinyinEngine = FakeEngine()) -> FakeHost {
         var services = SessionServices(loadSettings: { config })
         services.levelOne = { .engine(engine) }
         if dictionary { services.englishDictionary = { EnglishDictionary(["hello"]) } }
@@ -593,6 +592,26 @@ struct EnglishWordsSessionTests {
             #expect(learned.words.isEmpty)
             putInTwice("frobnicate", host(learned: learned))
             #expect(learned.words == ["frobnicate"], "anywhere else")
+        }
+    }
+
+    @Test func secretsInLettersAloneAreNeverLearned() {
+        withInterfaceLanguage("en") {
+            // Letters only, a vowel, no six consonants in a row nor a letter three times, not pinyin: only what hiding
+            // sensitive information hides (`Redaction`'s keys, the user's hidden words) tells them from a word.
+            let secrets = ["XoBuKiVaZeNu", "hTqeWobAsuKelPimRaVo", "kTzQaWmPeLvR", "Phoenix"]
+            for secret in secrets {
+                #expect(!EnglishWords.looksRandom(secret) && !Pinyin.isPinyin(EnglishWords.key(secret)), "\(secret)")
+            }
+            let learned = Learned()
+            var config = Self.settings
+            config.redaction.customWords = ["phoenix"]
+            let host = host(config, learned: learned, engine: PagedEngine())
+            for secret in secrets { putInTwice(secret, host) }
+            #expect(host.document == secrets.map { $0 + $0 }.joined())
+            #expect(learned.words.isEmpty)
+            putInTwice("frobnicate", host)
+            #expect(learned.words == ["frobnicate"], "a word is")
         }
     }
 

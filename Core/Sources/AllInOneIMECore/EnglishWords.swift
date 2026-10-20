@@ -71,11 +71,15 @@ public enum EnglishWords {
 
     /// What is never learned or taken from the jargon list: what hiding sensitive information would hide from the AI
     /// (`Redaction`, every detector on: a key or token, a card or phone number, an address; the user's hidden words too),
-    /// or what looks random: as many digits as letters (three or more), six consonants in a row, a letter three times in a
-    /// row.
+    /// or what looks random (`looksRandom`).
     static func looksSecret(_ text: String, hidden: [String]) -> Bool {
         if !Redaction.find(text, settings: RedactionSettings(enabled: true, customWords: hidden)).isEmpty { return true }
-        if Redaction.isKey(text) { return true }
+        return Redaction.isKey(text) || looksRandom(text)
+    }
+
+    /// Whether `text` looks random: as many digits as letters (three or more), six consonants in a row, a letter three
+    /// times in a row.
+    static func looksRandom(_ text: String) -> Bool {
         let k = key(text)
         let digits = k.filter(\.isNumber).count
         if digits >= 3, digits * 2 >= k.count { return true }
