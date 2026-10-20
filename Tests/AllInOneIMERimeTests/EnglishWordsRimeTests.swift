@@ -67,6 +67,26 @@ extension RimeEngineTests {
         #expect(learned == ["bedrock"])
     }
 
+    /// librime's preedit follows its highlighted candidate's syllables: ↓↓ from Bedrock to librime's second candidate
+    /// changes it, and Space picks that candidate, not Bedrock.
+    @Test func arrowsOntoLibrimesCandidatesStayThere() throws {
+        let engine = EnglishWordsEngine(base: try RimeFixture.session(), dictionary: try englishDictionary(),
+                                        words: EnglishWords.offered(.default, jargon: []))
+        let composer = Composer(engine: engine, actionKey: .enter)
+        typeLetters("bedrock", composer)
+        #expect(shown(composer).first == "Bedrock" && composer.engineState.highlighted == 0, "\(shown(composer))")
+        let down = KeyEvent(keyCode: VirtualKey.down, characters: "\u{F701}")
+        _ = composer.handleKeyDown(down)
+        _ = composer.handleKeyDown(down)
+        #expect(composer.engineState.highlighted == 2, "\(composer.engineState.preedit)")
+        let second = try #require(composer.engineState.candidates.dropFirst(2).first?.text)
+        let response = composer.handleKeyDown(space)
+        // Picked: put in, or the start of the composition when it reads only some of the letters.
+        let picked = commits(response).first ?? composer.engineState.preedit
+        #expect(picked.hasPrefix(second) && !picked.contains("Bedrock"), "\(second): \(picked)")
+        _ = composer.handleKeyDown(KeyEvent(keyCode: VirtualKey.escape, characters: "\u{1B}"))
+    }
+
     @Test func theCuratedWordsAmongLibrimesOwn() throws {
         let engine = EnglishWordsEngine(base: try RimeFixture.session(), dictionary: try englishDictionary(),
                                         words: EnglishWords.offered(.default, jargon: []))

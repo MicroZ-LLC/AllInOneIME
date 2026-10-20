@@ -34,7 +34,7 @@ public final class EnglishWordsEngine: PinyinEngine {
     }
     /// The word highlighted, by its place on the page as shown; nil: librime's own highlight.
     private var cursor: Int?
-    /// The input, page and preedit the page was last laid out for: a change sets the highlight anew.
+    /// The input, page and preedit (without its spaces) the page was last laid out for: a change sets the highlight anew.
     private var laidOutFor: String?
     /// The word picked, for `takeCommit`.
     private var picked: String?
@@ -99,11 +99,12 @@ public final class EnglishWordsEngine: PinyinEngine {
     }
 
     /// librime's state and the page as shown, the highlight set for a new input: on a word that comes first, else
-    /// librime's.
+    /// librime's. librime's preedit splits the letters as its highlighted candidate reads them ("bei d rock", "bed rock"):
+    /// without its spaces, so that moving onto its candidates doesn't set the highlight anew (back on the word).
     private func current() -> (snap: EngineSnapshot, entries: [Entry]) {
         let snap = base.snapshot()
         let entries = layout(snap)
-        let laidOut = "\(base.rawInput)\u{0}\(snap.pageNumber)\u{0}\(snap.preedit)"
+        let laidOut = "\(base.rawInput)\u{0}\(snap.pageNumber)\u{0}\(snap.preedit.filter { $0 != " " })"
         if laidOut != laidOutFor {
             laidOutFor = laidOut
             cursor = entries.first.map(Self.isWord) == true ? 0 : nil

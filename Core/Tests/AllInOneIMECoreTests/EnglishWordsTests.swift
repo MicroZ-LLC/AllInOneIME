@@ -18,6 +18,8 @@ final class PagedEngine: PinyinEngine {
     var ascii = false
     /// Something picked of the input already, as librime shows it ("你好ma"): the preedit isn't the letters any more.
     var confirmed = ""
+    /// The preedit split as the highlighted candidate reads the letters, as librime's is ("be drock", "bed rock").
+    var preeditFollowsHighlight = false
     private var commit: String?
     static let pageSize = 5
 
@@ -68,7 +70,11 @@ final class PagedEngine: PinyinEngine {
 
     func snapshot() -> EngineSnapshot {
         guard !input.isEmpty else { return EngineSnapshot(isAsciiMode: ascii) }
-        return EngineSnapshot(isComposing: true, preedit: confirmed + input, cursor: input.count,
+        var preedit = input
+        if preeditFollowsHighlight, highlighted + 2 < input.count {
+            preedit.insert(" ", at: preedit.index(preedit.startIndex, offsetBy: highlighted + 2))
+        }
+        return EngineSnapshot(isComposing: true, preedit: confirmed + preedit, cursor: input.count,
                               candidates: onPage.enumerated().map { EngineCandidate(label: String($0.offset + 1), text: $0.element) },
                               highlighted: highlighted, pageNumber: page, isLastPage: (page + 1) * Self.pageSize >= all.count,
                               isAsciiMode: ascii)
@@ -241,6 +247,33 @@ struct EnglishWordsTests {
         type("bedro", e)
         for _ in 0..<6 { _ = e.processKey(RimeKey.down, mask: 0) }
         #expect(e.snapshot().pageNumber == 1 && texts(e) == ["壁", "闭"])
+    }
+
+    @Test func theHighlightStaysOnLibrimesCandidateItWasMovedTo() {
+        // librime's preedit follows its highlighted candidate's syllables: moved onto its second, the preedit changes, and
+        // the highlight stays there (it went back to the word, and Space put Bedrock in).
+        let (e, base) = engine(["Bedrock"])
+        base.preeditFollowsHighlight = true
+        type("bedrock", e)
+        #expect(texts(e).first == "Bedrock" && e.snapshot().highlighted == 0)
+        _ = e.processKey(RimeKey.down, mask: 0)
+        _ = e.processKey(RimeKey.down, mask: 0)
+        #expect(base.highlighted == 1 && e.snapshot().highlighted == 2 && texts(e)[2] == "笔")
+        _ = e.processKey(RimeKey.space, mask: 0)
+        #expect(e.takeCommit() == "笔")
+        // Back up onto the word, and the highlight set anew for new letters.
+        type("bedrock", e)
+        _ = e.processKey(RimeKey.down, mask: 0)
+        _ = e.processKey(RimeKey.down, mask: 0)
+        _ = e.processKey(RimeKey.up, mask: 0)
+        _ = e.processKey(RimeKey.up, mask: 0)
+        #expect(e.snapshot().highlighted == 0)
+        _ = e.processKey(RimeKey.down, mask: 0)
+        _ = e.processKey(RimeKey.down, mask: 0)
+        _ = e.processKey(RimeKey.backSpace, mask: 0)
+        type("k", e)
+        #expect(e.snapshot().highlighted == 0)
+        #expect(e.commitComposition() == "Bedrock")
     }
 
     @Test func aPunctuationMarkPutsTheWordInFirst() {
