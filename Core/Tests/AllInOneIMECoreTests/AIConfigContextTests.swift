@@ -474,6 +474,45 @@ struct AIConfigContextTests {
         }
     }
 
+    /// A Bedrock model that names the AWS account (an inference profile's ARN, an account ID in it) goes to no provider
+    /// but Amazon Bedrock: not to the user's provider answering instead of the on-device model, even on a sentence about
+    /// AWS, nor to it without Apple Intelligence; the on-device model (nothing leaves this Mac) has it.
+    @Test func aBedrockModelThatNamesTheAccountGoesToNoOtherProvider() async throws {
+        let account = "123456789012"
+        for (index, modelId) in ["arn:aws:bedrock:us-east-1:\(account):application-inference-profile/abc123",
+                                 "\(account).custom-model"].enumerated() {
+            #expect(AIConfig.namesAWSAccount(modelId))
+            for (turn, sentence) in ["use the AWS profile personal", "candidates in a column"].enumerated() {
+                let host = "assistant-account-\(index)-\(turn).test"
+                let (service, chosen) = try Self.openAIService(ContextLimitedModel(overflows: true), host: host, answer: #"{"changes": []}"#)
+                var config = chosen
+                config.modelId = modelId
+                _ = try await service.ask(sentence, context: Self.context(config), tools: Self.tools)
+                let body = RedactionTests.body(StubURLProtocol.lastRequest(host: host))
+                #expect(!body.contains(account) && body.contains("not shown: it names the AWS account"), "\(sentence)")
+            }
+            // Without Apple Intelligence.
+            let host = "assistant-account-\(index)-cloud.test"
+            let (_, chosen) = try Self.openAIService(ContextLimitedModel(), host: host, answer: #"{"changes": []}"#)
+            var config = chosen
+            config.modelId = modelId
+            let cloud = AIConfigService(client: ChatClient(bedrock: BedrockClient(session: StubURLProtocol.session()),
+                                                           apple: AIConfigTests.GuidedStub(.deviceNotEligible, answer: "")),
+                                        loadCredentials: { _ in throw AWSConfigError.profileNotFound("none") },
+                                        loadKey: { provider, keyHost in provider == .openai && keyHost == host ? "sk-test" : nil })
+            _ = try await cloud.ask("use the AWS profile personal", context: Self.context(config), tools: Self.tools)
+            #expect(!RedactionTests.body(StubURLProtocol.lastRequest(host: host)).contains(account))
+            // On the device.
+            let model = ContextLimitedModel(contextSize: 8192)
+            var small = Config.default
+            small.provider = .anthropic
+            small.modelId = modelId
+            _ = try await Self.service(model).ask("use Bedrock", context: Self.context(small), tools: Self.tools)
+            #expect(try #require(model.sent.last).request.instructions.contains(modelId))
+        }
+        #expect(!AIConfig.namesAWSAccount("us.anthropic.claude-haiku-4-5-20251001-v1:0") && !AIConfig.namesAWSAccount("us.amazon.nova-2-lite-v1:0"))
+    }
+
     /// With the on-device model as the provider chosen there is nothing else to ask: the line says what to do, in the
     /// interface language; never the model's own error.
     @Test func tooLongWithoutAProviderSaysWhatToDo() async throws {

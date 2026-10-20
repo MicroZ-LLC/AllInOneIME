@@ -65,6 +65,12 @@ extension AIConfig {
         return names.map { AWSProfile(name: $0, region: regions[$0] ?? nil) }
     }
 
+    /// Whether a Bedrock model ID names the AWS account: an ARN (an inference profile's, a custom model's), or an account ID
+    /// (twelve digits) in it. It goes to no provider but Amazon Bedrock (`AIConfigPrompt.Context.showsAWSAccount`).
+    public static func namesAWSAccount(_ modelId: String) -> Bool {
+        modelId.lowercased().hasPrefix("arn:") || modelId.range(of: #"(?<![0-9])[0-9]{12}(?![0-9])"#, options: .regularExpression) != nil
+    }
+
     /// Whether `text` is about AWS or Bedrock, by its words (not letters inside others: "draws", "laws"): only then are
     /// the profiles' names sent to a cloud provider.
     public static func mentionsAWS(_ text: String) -> Bool {

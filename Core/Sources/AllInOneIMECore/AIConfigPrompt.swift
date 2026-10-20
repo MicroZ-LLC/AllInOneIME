@@ -18,6 +18,9 @@ public enum AIConfigPrompt {
         /// The AWS profile in use may be named (false for a cloud provider when the sentence isn't about AWS or Bedrock:
         /// `mentionsAWS`).
         public var showsAWSProfile: Bool
+        /// Bedrock's model in use may be shown when it names the AWS account (an ARN, an account ID: `namesAWSAccount`);
+        /// false when the request goes to a provider other than Amazon Bedrock (`AIConfigService` sees to it).
+        public var showsAWSAccount = true
         /// The apps on this Mac and their names, never sent: which apps with settings of their own the sentence names, for
         /// the on-device model's small context (`AIConfigFit`).
         public var apps: AIConfig.AppCatalog
@@ -202,9 +205,11 @@ public enum AIConfigPrompt {
         for provider in [Provider.bedrock, .anthropic, .gemini, .openai] {
             guard let setting = AIConfig.Setting.model(of: provider) else { continue }
             let known = context.knownModels[provider] ?? []
+            let model = config.settings(for: provider).model
+            let hidden = provider == .bedrock && !context.showsAWSAccount && model.map(AIConfig.namesAWSAccount) == true
             lines.append((.of(setting), line(setting.path, "the model for \(provider.displayName)",
                                              known.isEmpty ? "none known: set it in Settings" : known.map { "\"\($0)\"" }.joined(separator: ", "),
-                                             json(config.settings(for: provider).model))))
+                                             hidden ? "(not shown: it names the AWS account)" : json(model))))
         }
         lines.append((.provider, line("openai.baseURL", "the base URL of an OpenAI-compatible service, or null for OpenAI's", "an https:// URL",
                                       json(config.openai.baseURL.map(shownURL)))))

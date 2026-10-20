@@ -157,9 +157,11 @@ public final class AIConfigService: Sendable {
     }
 
     /// The configured provider's answer, with every setting in the instructions; `instead` of the on-device model, the
-    /// request being too long for it.
+    /// request being too long for it. A Bedrock model that names the AWS account goes to Bedrock only.
     private func askProvider(_ sentence: String, turns: [Refinement.Turn], context: AIConfigPrompt.Context, hiding: Hiding,
                              instead: Bool) async throws -> Answer {
+        var context = context
+        if context.config.provider != .bedrock { context.showsAWSAccount = false }
         let config = context.config
         let request = AIConfigPrompt.request(sentence, context: context, turns: turns)
         let key = "@config|\(AIConfigPrompt.version)|\(config.activeModel)|\(request.system.map(\.text).joined())|\(sentence)"
