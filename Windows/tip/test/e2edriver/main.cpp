@@ -45,6 +45,7 @@
 #include <msctf.h>
 #include <tlhelp32.h>
 #include <uiautomation.h>
+#include <winternl.h>
 
 #include <wincodec.h>
 
@@ -63,6 +64,49 @@ namespace {
 
 int g_failures = 0;
 FILE* g_out = stdout;
+
+// Whether process `process`'s command line has `text` (NtQueryInformationProcess, ProcessCommandLineInformation).
+bool CommandLineHas(HANDLE process, const wchar_t* text) {
+    using Query = NTSTATUS(NTAPI*)(HANDLE, PROCESSINFOCLASS, PVOID, ULONG, PULONG);
+    static const auto query = reinterpret_cast<Query>(GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "NtQueryInformationProcess"));
+    if (!query) return false;
+    ULONG size = 0;
+    query(process, static_cast<PROCESSINFOCLASS>(60), nullptr, 0, &size);
+    if (size < sizeof(UNICODE_STRING)) return false;
+    std::vector<unsigned char> buffer(size);
+    if (query(process, static_cast<PROCESSINFOCLASS>(60), buffer.data(), size, &size) < 0) return false;
+    const auto* line = reinterpret_cast<const UNICODE_STRING*>(buffer.data());
+    return std::wstring(line->Buffer, line->Length / sizeof(wchar_t)).find(text) != std::wstring::npos;
+}
+
+// Ends the other processes of `path` in this session (the user's engines: one a text service started again after
+// run-e2e.sh stopped them, as an app whose input method is AllInOneIME does), but a console window's
+// (`--run-in-console`, whose program still runs). How many it ended.
+int EndOtherEngines(const std::wstring& path) {
+    DWORD session = 0;
+    ProcessIdToSessionId(GetCurrentProcessId(), &session);
+    int ended = 0;
+    HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (snapshot == INVALID_HANDLE_VALUE) return 0;
+    PROCESSENTRY32W entry = {sizeof entry};
+    for (BOOL more = Process32FirstW(snapshot, &entry); more; more = Process32NextW(snapshot, &entry)) {
+        if (_wcsicmp(entry.szExeFile, L"AllInOneIMEEngine.exe") != 0) continue;
+        DWORD theirs = 0;
+        if (!ProcessIdToSessionId(entry.th32ProcessID, &theirs) || theirs != session) continue;
+        HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE | SYNCHRONIZE, FALSE, entry.th32ProcessID);
+        if (!process) continue;
+        wchar_t image[MAX_PATH * 2] = {};
+        DWORD length = MAX_PATH * 2;
+        if (QueryFullProcessImageNameW(process, 0, image, &length) && _wcsicmp(image, path.c_str()) == 0 &&
+            !CommandLineHas(process, L" --run-in-console") && TerminateProcess(process, 0)) {
+            WaitForSingleObject(process, 3000);
+            ++ended;
+        }
+        CloseHandle(process);
+    }
+    CloseHandle(snapshot);
+    return ended;
+}
 
 void Log(const char* format, ...) {
     char line[1024];
@@ -1290,6 +1334,25 @@ int main(int argc, char** argv) {
     cmdBuf.push_back(0);
     bool engineStarted = CreateProcessW(nullptr, cmdBuf.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW, nullptr,
                                         nullptr, &si, &engine) != 0;
+    // Ours exits at once while another engine of the user's holds the engine's mutex: one a text service started again
+    // since run-e2e.sh stopped them (an app whose input method is AllInOneIME starts the engine it lost, at once, then
+    // after a growing pause). That one ended, ours started again, a few tries.
+    for (int attempt = 1; engineStarted && attempt <= 10 && WaitForSingleObject(engine.hProcess, 400) == WAIT_OBJECT_0; ++attempt) {
+        DWORD code = 0;
+        GetExitCodeProcess(engine.hProcess, &code);
+        CloseHandle(engine.hThread);
+        CloseHandle(engine.hProcess);
+        int ended = EndOtherEngines(enginePath);
+        Log("  the engine exited at once (code %lu): another engine of the user's runs; ended %d, starting again (%d)", code,
+            ended, attempt);
+        Pump(attempt * 100);
+        std::vector<wchar_t> again(cmd.begin(), cmd.end());
+        again.push_back(0);
+        engine = {};
+        engineStarted = CreateProcessW(nullptr, again.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW, nullptr, nullptr, &si,
+                                       &engine) != 0;
+    }
+    engineStarted = engineStarted && WaitForSingleObject(engine.hProcess, 0) == WAIT_TIMEOUT;
     Check(engineStarted, "the engine started");
     if (!engineStarted) { Log("  CreateProcess failed: %lu", GetLastError()); return 1; }
     scenario.enginePid = engine.dwProcessId;
