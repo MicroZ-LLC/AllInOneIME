@@ -900,8 +900,12 @@ struct TranslateModeAcceptanceTargetTests {
         let session = try #require(entered)
         #expect(session.target == tmJapanese)
         #expect(state.isOn)
+        // English alone typed, English first among the outputs: the first output it can translate into (spec, 0.6.5.1).
         var other = TranslateMode.State()
-        #expect(other.enter(last: nil, config: tmConfig([.english, .chinese]))?.target == .english)
+        #expect(other.enter(last: nil, config: tmConfig([.english, .chinese]))?.target == .chinese)
+        // Chinese and English typed: the first output, as before.
+        var bilingual = TranslateMode.State()
+        #expect(bilingual.enter(last: nil, config: tmConfig([.english, .chinese]) { $0.inputLanguages = [.chinese, .english] })?.target == .english)
     }
 
     @Test func target_theLastPickIsRemembered() throws {

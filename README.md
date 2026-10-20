@@ -605,7 +605,7 @@ In the settings:
 - **Language packs**: the app comes with English (and French, which needs only macOS's layout). Chinese, Korean and Hindi are packs you download when you add them: adding Chinese (pinyin) downloads its dictionaries (about 34 MB, 125 MB unpacked) with a progress bar, and pinyin works as soon as it's done, without a restart; Korean's pack (its key table and how jamo make syllables) and Hindi's (its letters and common words) are a few kilobytes. A pack is data only (dictionaries, tables and schemas, never code), listed in a signed index and checked against its SHA-256 before it's used, like plugins. Each language's card shows its pack (version, size, where it came from) with Delete…, and removing the language offers to delete its pack. Updating from 0.6.1 or earlier keeps Chinese without a download: the installer keeps the dictionaries the old version came with.
 - **Candidate layout**: for picking words, pinyin and Hindi candidates are side by side by default (Horizontal), like the system's own input methods: ← → choose and ↑↓ (or - =) turn the page. Choose Vertical on the Input page, under the input languages, for one under the other (↑↓ choose). The @ command list and the results are always vertical.
 - **Fuzzy pinyin** (with Chinese input): sounds you don't tell apart typed either way, e.g. z ↔ zh, n ↔ l, in ↔ ing. On the Input page, pick Chinese (pinyin) in the bar of input languages, turn on "Fuzzy pinyin" and pick the pairs; the dictionaries are deployed again in a second or two. It writes `rime_ice.custom.yaml` in the Rime user folder, and never over a file of your own there.
-- **Translate (@translate)**: add the languages to translate into (Spanish, French, German, Japanese, Korean, Chinese, Hindi, Bengali, Tamil and the other main Indian languages…) and drag them into order. Hindi typed in Latin letters ("aap kaise ho") comes back in Devanagari. `@translate` writes a line in each, in this order (three versions with only one); the sentence's own language is skipped. A new install translates into the first language in your Mac's preferred languages that isn't English; with English alone, `@translate` opens this page to add one.
+- **Translate (@translate)**: add the languages to translate into (Spanish, French, German, Japanese, Korean, Chinese, Hindi, Bengali, Tamil and the other main Indian languages…) and drag them into order. Hindi typed in Latin letters ("aap kaise ho") comes back in Devanagari. `@translate` writes a line in each, in this order (three versions with only one); the sentence's own language is skipped. A new install translates into the first language in your Mac's preferred languages that isn't English; with English alone, `@translate` says there's nothing to translate into yet, and ⏎ on that notice opens this page with its Add… outlined (the sentence goes in as typed). Translate as You Type doesn't turn on then, and says where to add one.
 - **Keyboard layouts**: French types with the layout picked on its card (`keyboardLayouts` in the config). For the other languages, under the input method macOS keeps your last Latin layout (AZERTY, QWERTZ, Spanish, US International…), so you type as usual, `@` included wherever your layout has it, and dead keys compose in a command's text too (⌥E then E → é, ^ then e → ê). Layouts without Latin letters (Russian, Hindi InScript) can't be used under an input method: switch to them with ⌃Space, or paste (⌃V) or dictate text into a command.
 - `@improve` polishes and rewrites without translating; `@translate @improve` together translates and rewrites in one request. Turn on "@improve also translates" in the settings to make `@improve` always do that.
 
@@ -655,12 +655,13 @@ dot. There is no command for it.
 While it's on, what you type collects into a draft, with the languages on the chip by it ("ZH → EN"; 「中 → 英」 in the
 Chinese interface). It translates into the language you picked last on its chip (below), in every app and after a
 restart; until you pick one, into your first translation language in Settings (and back to that one when the language
-picked is no longer among them). The language you're typing when it comes on doesn't change it. ⏎ translates the draft
-and the translation goes in at once, with no candidates to pick: the draft says "Translating…" meanwhile, and nothing is
-sent (⏎ again is the app's own). ⇧⏎ inserts the draft as typed; Esc while it's translating stops it and keeps the draft
-(⌫ stops it too, and deletes a character as on the draft); if it fails (the network, a refusal, secure input), the draft
-stays with a one-line notice and ⏎ tries again. Text typed in the language it translates into (tap Shift to English)
-goes in as typed.
+picked is no longer among them). If you type only one language, it's passed over: typing English alone, with English
+then French to translate into, it's French. The language you're typing when it comes on doesn't change it. ⏎ translates
+the draft and the translation goes in at once, with no candidates to pick: the draft says "Translating…" meanwhile, and
+nothing is sent (⏎ again is the app's own). ⇧⏎ inserts the draft as typed; Esc while it's translating stops it and keeps
+the draft (⌫ stops it too, and deletes a character as on the draft); if it fails (the network, a refusal, secure input),
+the draft stays with a one-line notice and ⏎ tries again. Text typed in the language it translates into (tap Shift to
+English) goes in as typed.
 
 While it's on, a small chip "ZH → EN" (「中 → 英」 in the Chinese interface) shows under the line you're typing in, in the
 input method's own panel (the candidate panel: on top of the candidates while you type pinyin), so it never takes the
