@@ -1,15 +1,15 @@
 {
-  "build" : "11",
-  "generated" : "2026-10-19T06:18:55Z",
+  "build" : "13",
+  "generated" : "2026-10-20T22:37:06Z",
   "minimumSystemVersion" : "14.0",
-  "notesURL" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/tag/v0.6.5",
+  "notesURL" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/tag/v0.6.6",
   "schema" : 1,
-  "sha256" : "652f0f5dc09e87460e9567f6294e25b46fc2c08ccf00b98dd1e0cd2326698419",
-  "size" : 22468337,
+  "sha256" : "bcc07acdb5b3695e147727b1da2746b638732fd593640895f238c4f0b895f967",
+  "size" : 24043316,
   "summary" : {
-    "en" : "Reply to a message with @reply (paste a screenshot, read on your Mac), save snippets, send notes to Notion or a folder, translate as you type, sync settings and (if you choose) API keys through iCloud, and use the interface in nine languages. @config and @doctor moved to Settings → Assistant.",
-    "zh" : "用 @reply 回复消息（可以粘贴截图，在本机识别）、保存片段、把笔记存到 Notion 或文件夹、边打边译、通过 iCloud 同步设置和（可选的）API 密钥，界面支持九种语言。@config 和 @doctor 搬到了设置 →「助手」。"
+    "en" : "English words in pinyin (bedr → Bedrock), learned as you type; fixes for Slack's Shift and ⌥, Settings → Assistant on Apple Intelligence, and @translate with no language to translate into.",
+    "zh" : "拼音里能打英文词（bedr → Bedrock），打过的会自动学会；修好 Slack 里的 Shift 和 ⌥、设置 →「助手」用 Apple Intelligence 时的报错，以及没有翻译语言时的 @translate。"
   },
-  "url" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/download/v0.6.5/AllInOneIME-0.6.5-update.zip",
-  "version" : "0.6.5"
+  "url" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/download/v0.6.6/AllInOneIME-0.6.6-update.zip",
+  "version" : "0.6.6"
 }
