@@ -425,25 +425,53 @@ struct EnglishWordsTests {
     }
 
     @Test func theListInSettings() {
-        var list = EnglishWords.adding("Bedrock, SageMaker；北京\nbedrock", to: [])
-        #expect(list == ["Bedrock", "SageMaker"])
-        list = EnglishWords.removing("BEDROCK", from: list)
-        #expect(list == ["SageMaker"])
-        let full = (0..<EnglishWords.maxWords).map { "word\($0)x" }
-        #expect(EnglishWords.adding("newest", to: full).count == EnglishWords.maxWords)
-        #expect(EnglishWords.adding("newest", to: full).last == "newest" && EnglishWords.adding("newest", to: full).first == "word1x")
+        var config = Config.default
+        #expect(EnglishWords.add("Bedrock, SageMaker；北京\nbedrock", to: &config) == ["Bedrock", "SageMaker"])
+        #expect(config.englishWords == ["Bedrock", "SageMaker"] && config.addedEnglishWords == ["Bedrock", "SageMaker"])
+        #expect(EnglishWords.add("BEDROCK", to: &config).isEmpty, "there already")
+        EnglishWords.remove("BEDROCK", from: &config)
+        #expect(config.englishWords == ["SageMaker"] && config.addedEnglishWords == ["SageMaker"])
+    }
+
+    @Test func overTheLimitTheOldestLearnedGoFirst() throws {
+        // Words learned, but for the second one: added in Settings.
+        var config = Config.default
+        config.englishWords = (0..<EnglishWords.maxWords).map { "word\($0)x" }
+        config.addedEnglishWords = ["word1x"]
+        EnglishWords.add("Bedrock", to: &config)
+        #expect(config.englishWords.count == EnglishWords.maxWords && config.englishWords.prefix(2) == ["word1x", "word2x"])
+        #expect(config.englishWords.last == "Bedrock" && config.addedEnglishWords == ["word1x", "Bedrock"])
+        // Learned into the file: an added word stays there too.
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("englishwords-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let url = folder.appendingPathComponent("config.json")
+        try config.write(to: url)
+        #expect(try EnglishWords.learn("frobnicate", at: url))
+        let learned = try Config.load(from: url)
+        #expect(learned.englishWords.count == EnglishWords.maxWords && learned.englishWords.prefix(2) == ["word1x", "word3x"])
+        #expect(learned.englishWords.suffix(2) == ["Bedrock", "frobnicate"] && learned.addedEnglishWords == ["word1x", "Bedrock"])
+        // All added: the oldest go.
+        let all = (0..<EnglishWords.maxWords).map { "word\($0)x" }
+        #expect(EnglishWords.capped(all + ["newest"], added: all + ["newest"]) == Array(all.dropFirst()) + ["newest"])
+        #expect(EnglishWords.capped(["a", "b"], added: []) == ["a", "b"])
     }
 
     @Test func theSettingsKeepTheWords() throws {
         var config = Config.default
         #expect(config.englishWords.isEmpty && config.learnsEnglishWords)
-        config.englishWords = ["Bedrock"]
+        config.englishWords = ["Bedrock", "frobnicate"]
+        config.addedEnglishWords = ["Bedrock"]
         config.learnsEnglishWords = false
         let read = try JSONDecoder().decode(Config.self, from: JSONEncoder().encode(config))
-        #expect(read.englishWords == ["Bedrock"] && !read.learnsEnglishWords)
-        let odd = try JSONDecoder().decode(Config.self, from: Data(#"{"englishWords": "Bedrock"}"#.utf8))
-        #expect(odd.englishWords.isEmpty && odd.learnsEnglishWords)
-        #expect(Config.allKeys.contains("englishWords") && Config.allKeys.contains("learnsEnglishWords"))
+        #expect(read.englishWords == ["Bedrock", "frobnicate"] && read.addedEnglishWords == ["Bedrock"] && !read.learnsEnglishWords)
+        let odd = try JSONDecoder().decode(Config.self, from: Data(#"{"englishWords": "Bedrock", "addedEnglishWords": 1}"#.utf8))
+        #expect(odd.englishWords.isEmpty && odd.addedEnglishWords.isEmpty && odd.learnsEnglishWords)
+        // Written only when there are some.
+        let none = try JSONSerialization.jsonObject(with: JSONEncoder().encode(Config.default)) as? [String: Any]
+        #expect(none?["englishWords"] == nil && none?["addedEnglishWords"] == nil && none?["learnsEnglishWords"] == nil)
+        #expect(Config.allKeys.contains("englishWords") && Config.allKeys.contains("addedEnglishWords")
+            && Config.allKeys.contains("learnsEnglishWords"))
     }
 
     @Test func rimeIcesDictionaryIsReadFromItsTables() throws {
@@ -691,10 +719,41 @@ struct EnglishWordsSyncTests {
         a.sync(at: t(4))
         b.sync(at: t(5))
         #expect(try b.config().englishWords == ["Bedrock", "frobnicate", "zorblax", "quuxify"])
-        try b.edit(at: t(6)) { $0.englishWords = EnglishWords.removing("bedrock", from: $0.englishWords) }
+        try b.edit(at: t(6)) { EnglishWords.remove("bedrock", from: &$0) }
         b.sync(at: t(7))
         a.sync(at: t(8))
         #expect(try a.config().englishWords == ["frobnicate", "zorblax", "quuxify"])
+    }
+
+    @Test func mergedByTheirLettersWithinTheLimitTheAddedKept() throws {
+        let rig = try SyncRig()
+        // Each Mac with words learned (more than the limit together) and some added in Settings; one spelled two ways.
+        let half = EnglishWords.maxWords * 3 / 4
+        let a = try rig.mac("A") {
+            $0.englishWords = (0..<half).map { "alpha\($0)x" } + ["Hugging Face", "Bedrock"]
+            $0.addedEnglishWords = ["Hugging Face", "Bedrock"]
+        }
+        a.sync(at: t(0))
+        let b = try rig.mac("B") {
+            $0.englishWords = ["Kiro"] + (0..<half).map { "beta\($0)x" } + ["HuggingFace"]
+            $0.addedEnglishWords = ["Kiro", "HuggingFace"]
+        }
+        b.sync(at: t(1))
+        a.sync(at: t(2))
+        b.sync(at: t(3))
+        let configs = try [a, b].map { try $0.config() }
+        #expect(configs[0].englishWords == configs[1].englishWords, "settled")
+        #expect((try rig.settingsJSON()[ICloudSync.englishWordsKey] as? [String: Any])?["value"] as? [String] == configs[0].englishWords)
+        for config in configs {
+            #expect(config.englishWords.count == EnglishWords.maxWords)
+            #expect(config.englishWords.filter { EnglishWords.key($0) == "huggingface" } == ["Hugging Face"], "once, iCloud's")
+            #expect(Set(config.addedEnglishWords) == ["Hugging Face", "Bedrock", "Kiro"])
+            #expect(config.englishWords.contains("Bedrock") && config.englishWords.contains("Kiro"), "the added kept")
+            // The learned words iCloud lacked gave way, the oldest first.
+            #expect(config.englishWords.contains("alpha0x") && !config.englishWords.contains("beta0x")
+                && config.englishWords.contains("beta\(half - 1)x"))
+        }
+        #expect(ICloudSync.category(of: ICloudSync.addedEnglishWordsKey) == .learnedWords)
     }
 
     @Test func notWithTheLearnedWordsOff() throws {

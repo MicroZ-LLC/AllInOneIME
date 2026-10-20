@@ -91,11 +91,13 @@ extension SelfTest {
         try? Config.default.write(to: url)
         func saved() -> Config? { try? Config.load(from: url) }
         let model = SettingsModel(configURL: url)
-        check(model.addEnglishWords("Bedrock, frobnicate") && saved()?.englishWords == ["Bedrock", "frobnicate"],
-              "Add saves the words at once (\(saved()?.englishWords ?? []))")
+        check(model.addEnglishWords("Bedrock, frobnicate") && saved()?.englishWords == ["Bedrock", "frobnicate"]
+                && saved()?.addedEnglishWords == ["Bedrock", "frobnicate"],
+              "Add saves the words at once, as added (\(saved()?.englishWords ?? []), \(saved()?.addedEnglishWords ?? []))")
         check(!model.addEnglishWords("BEDROCK") && !model.addEnglishWords("北京"), "a word there already, or not English, isn't added")
         model.removeEnglishWord("FROBNICATE")
-        check(saved()?.englishWords == ["Bedrock"], "✕ removes it (\(saved()?.englishWords ?? []))")
+        check(saved()?.englishWords == ["Bedrock"] && saved()?.addedEnglishWords == ["Bedrock"],
+              "✕ removes it (\(saved()?.englishWords ?? []), \(saved()?.addedEnglishWords ?? []))")
         model.config.learnsEnglishWords = false
         model.save()
         check(saved()?.learnsEnglishWords == false, "learning turned off is saved")

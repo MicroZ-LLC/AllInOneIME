@@ -205,24 +205,25 @@ final class SettingsModel: ObservableObject {
         return config.redaction.customWords
     }
 
-    /// Settings → Input → English Words' Add: the words of `text` added to the English words pinyin offers
-    /// (`EnglishWords.adding`), on the list as the file has it now. Whether one was (it isn't there yet, and is a word).
+    /// Settings → Input → English Words' Add: the words of `text` added to the English words pinyin offers, marked as the
+    /// user's (`EnglishWords.add`), on the list as the file has it now. Whether one was (it isn't there yet, and is a word).
     @discardableResult
     func addEnglishWords(_ text: String) -> Bool {
         refresh()
-        let list = EnglishWords.adding(text, to: config.englishWords)
-        guard list != config.englishWords else { return false }
-        config.englishWords = list
+        var changed = config
+        guard !EnglishWords.add(text, to: &changed).isEmpty else { return false }
+        config = changed
         save()
         return true
     }
 
-    /// A word's ✕: `word` gone from the English words (`EnglishWords.removing`), wherever it is in the list now.
+    /// A word's ✕: `word` gone from the English words (`EnglishWords.remove`), wherever it is in the list now.
     func removeEnglishWord(_ word: String) {
         refresh()
-        let list = EnglishWords.removing(word, from: config.englishWords)
-        guard list != config.englishWords else { return }
-        config.englishWords = list
+        var changed = config
+        EnglishWords.remove(word, from: &changed)
+        guard changed != config else { return }
+        config = changed
         save()
     }
 

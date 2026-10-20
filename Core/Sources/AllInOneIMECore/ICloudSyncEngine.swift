@@ -196,8 +196,14 @@ public struct ICloudSyncEngine: @unchecked Sendable {  // used from one queue at
                 let result = ICloudSync.mergedCommands(icloud, mine)
                 merged[key] = result.value
                 report.replacedCommands = result.replaced
+            } else if key == ICloudSync.englishWordsKey {
+                // Those added on either Mac stay within the limit before the words learned.
+                let addedKey = ICloudSync.addedEnglishWordsKey
+                let added = (local[addedKey]?.strings ?? []) + (theirs?[addedKey]?.value?.strings ?? [])
+                merged[key] = ICloudSync.mergedEnglishWords(icloud, mine, added: added)
             } else {
-                merged[key] = ICloudSync.mergedWords(icloud, mine)
+                merged[key] = key == ICloudSync.addedEnglishWordsKey
+                    ? ICloudSync.mergedWords(icloud, mine, key: EnglishWords.key) : ICloudSync.mergedWords(icloud, mine)
             }
         }
 

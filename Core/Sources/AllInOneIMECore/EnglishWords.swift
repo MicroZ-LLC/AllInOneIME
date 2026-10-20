@@ -12,7 +12,8 @@ public enum EnglishWords {
         String(word.lowercased().filter { $0.isASCII && ($0.isLetter || $0.isNumber) })
     }
 
-    /// The most words `Config.englishWords` keeps: beyond it, the oldest go first.
+    /// The most words `Config.englishWords` keeps: beyond it, the oldest learned go first, then the oldest added
+    /// (`capped`).
     public static let maxWords = 2000
     /// The longest word, in characters.
     public static let maxLength = 40
@@ -121,13 +122,13 @@ public enum EnglishWords {
     }
 
     /// `typed` learned into the config file at `url` (`Config.englishWords`): added at the end unless a word with its
-    /// letters is there, the oldest going beyond `maxWords`. Only that key of the file changes; a missing file is
-    /// written with this Mac's new user's settings. Whether it was added.
+    /// letters is there, within `maxWords` (`capped`, by the file's `addedEnglishWords`). Only that key of the file changes;
+    /// a missing file is written with this Mac's new user's settings. Whether it was added.
     @discardableResult
     public static func learn(_ typed: String, at url: URL) throws -> Bool {
         guard FileManager.default.fileExists(atPath: url.path) else {
             var config = try Config.load(from: url)
-            let list = adding(typed, to: config.englishWords)
+            let list = learning(typed, into: config.englishWords, added: config.addedEnglishWords)
             guard list != config.englishWords else { return false }
             config.englishWords = list
             try config.write(to: url)
@@ -136,7 +137,7 @@ public enum EnglishWords {
         var added = false
         try AIConfig.patchingFile(at: url) { file in
             let list = file[Config.englishWordsKey]?.strings ?? []
-            let new = adding(typed, to: list)
+            let new = learning(typed, into: list, added: file[Config.addedEnglishWordsKey]?.strings ?? [])
             guard new != list else { return }
             file[Config.englishWordsKey] = .array(new.map { .string($0) })
             added = true
@@ -144,18 +145,54 @@ public enum EnglishWords {
         return added
     }
 
-    // MARK: The list in Settings
+    /// `list` with `typed` learned: at the end unless a word with its letters is there, within `maxWords`.
+    static func learning(_ typed: String, into list: [String], added: [String]) -> [String] {
+        let new = newWords(typed, besides: list)
+        return new.isEmpty ? list : capped(list + new, added: added)
+    }
 
-    /// `list` with the words of `text` (separated by commas, semicolons or lines: `RedactionSettings.words`) added at the
-    /// end, each that is a word (`word`) and whose letters no word of the list has; the oldest go beyond `maxWords`.
-    public static func adding(_ text: String, to list: [String]) -> [String] {
-        var keys = Set(list.map(key))
-        var out = list
-        for part in RedactionSettings.words(from: text) {
-            guard let word = word(part), keys.insert(key(word)).inserted else { continue }
-            out.append(word)
+    /// `list` within `maxWords`: beyond it the oldest learned words go first (those whose letters `added`, the words the
+    /// user added, lacks), then the oldest added.
+    public static func capped(_ list: [String], added: [String]) -> [String] {
+        var excess = list.count - maxWords
+        guard excess > 0 else { return list }
+        let kept = Set(added.map(key))
+        let out = list.filter { word in
+            guard excess > 0, !kept.contains(key(word)) else { return true }
+            excess -= 1
+            return false
         }
         return Array(out.suffix(maxWords))
+    }
+
+    // MARK: The list in Settings
+
+    /// The words of `text` (separated by commas, semicolons or lines: `RedactionSettings.words`) that are words (`word`)
+    /// and whose letters neither `list` nor one before them has.
+    static func newWords(_ text: String, besides list: [String]) -> [String] {
+        var keys = Set(list.map(key))
+        return RedactionSettings.words(from: text).compactMap(word).filter { keys.insert(key($0)).inserted }
+    }
+
+    /// Settings' Add: the words of `text` (`newWords`) added at the end of `config`'s English words and marked as the
+    /// user's (`Config.addedEnglishWords`), within `maxWords` (`capped`: the oldest learned go first). The words added.
+    @discardableResult
+    public static func add(_ text: String, to config: inout Config) -> [String] {
+        let new = newWords(text, besides: config.englishWords)
+        guard !new.isEmpty else { return [] }
+        let added = config.addedEnglishWords + new
+        config.englishWords = capped(config.englishWords + new, added: added)
+        // Each once, and only those the list still has.
+        var keys = Set(config.englishWords.map(key))
+        config.addedEnglishWords = added.filter { keys.remove(key($0)) != nil }
+        return new
+    }
+
+    /// A word's ✕ in Settings: `word` gone from `config`'s English words (by its letters, as it is matched), added or
+    /// learned.
+    public static func remove(_ word: String, from config: inout Config) {
+        config.englishWords = removing(word, from: config.englishWords)
+        config.addedEnglishWords = removing(word, from: config.addedEnglishWords)
     }
 
     /// `list` without `word` (by its letters, as it is matched).
