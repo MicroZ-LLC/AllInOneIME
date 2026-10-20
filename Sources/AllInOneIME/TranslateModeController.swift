@@ -295,7 +295,11 @@ extension AllInOneIMEInputController {
         let model = PanelPresenter.chipModel(chip, notice: notice, language: UIText.language)
         let panel = CandidatePanel.shared
         panel.owner = self
-        panel.onSelect = { [weak self] index in self?.pickTranslateTarget(row: index) }
+        // A click picks the clicked row's choice (`PanelModel.Row.choice`): its language's place in the chip's list.
+        panel.onSelect = { [weak self] index in
+            guard model.rows.indices.contains(index), let choice = model.rows[index].choice else { return }
+            self?.pickTranslateTarget(choice)
+        }
         panel.onChip = { [weak self] part in self?.translateChipClicked(part) }
         let anchor = anchor(client)
         if !panel.shows(model, anchor: anchor) { panel.show(model, anchor: anchor) }  // nothing changed, nothing moved: as it is
@@ -317,10 +321,10 @@ extension AllInOneIMEInputController {
         refreshTranslateChip()
     }
 
-    /// A language clicked in the chip's list (its row `index`): the target at once (the chip, the next translation), and
+    /// A language clicked in the chip's list (`index` in it): the target at once (the chip, the next translation), and
     /// from then on, everywhere (`TranslateModeShared.lastTarget`).
     @MainActor
-    func pickTranslateTarget(row index: Int) {
+    func pickTranslateTarget(_ index: Int) {
         guard let language = translateChip()?.choice(at: index) else { return }
         TranslateModeShared.listOpen = false
         TranslateModeShared.lastTarget = language

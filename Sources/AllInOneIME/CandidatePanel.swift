@@ -208,6 +208,7 @@ final class CandidateView: NSView {
     var model = PanelModel() {
         didSet {
             guard model != oldValue else { return }
+            icons = model.rows.map { $0.icon.map(Icon.init) }
             // The newest rows (or the highlighted one) come into view again, unless the wheel moved a conversation up
             // from its end and only what the rows say changed (an answer coming in): they stay where the user put them.
             if !keepsScroll(from: oldValue) { scrolled = nil }
@@ -253,6 +254,9 @@ final class CandidateView: NSView {
     /// Where the first candidate's text starts, from the left edge: under the caret (`CandidatePanel.origin`).
     private(set) var textInset = Metrics.textInsetX
     private var rowLayouts: [RowLayout] = []
+    /// The rows' icons as the Mac draws them (`Icon(_:)`: a symbol looked up, an image file's date read), once per model,
+    /// not on each draw.
+    private var icons: [Icon?] = []
     private var statusFrame: NSRect?
     private var headerFrame: NSRect?
     private var inputFrame: NSRect?
@@ -590,7 +594,7 @@ final class CandidateView: NSView {
             }
             let (label, text) = strings(for: model.rows[index], highlighted: highlighted)
             label.draw(at: layout.labelOrigin)
-            if let icon = model.rows[index].icon, let frame = layout.iconFrame { Self.draw(Icon(icon), in: frame) }
+            if icons.indices.contains(index), let icon = icons[index], let frame = layout.iconFrame { Self.draw(icon, in: frame) }
             // A candidate in a row keeps to its one line, cut short with "…" (as measured: `layoutCells`).
             if model.horizontal {
                 Self.fitted(text, width: Metrics.maxCellTextWidth).draw(with: layout.textFrame, options: [.usesLineFragmentOrigin, .usesFontLeading])
