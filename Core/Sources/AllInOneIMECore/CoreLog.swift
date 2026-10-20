@@ -23,12 +23,12 @@ public struct CoreLog: Sendable {
     /// Hears every message logged from now on, as written, until the returned closure is called: the tests', that no
     /// key, token or text typed is ever in one.
     static func listen(_ listener: @escaping @Sendable (String) -> Void) -> @Sendable () -> Void {
-        let id = UUID()
+        let id = Foundation.UUID()
         listeners.withLock { $0[id] = listener }
         return { listeners.withLock { $0[id] = nil } }
     }
 
-    private static let listeners = Locked<[UUID: @Sendable (String) -> Void]>(initialState: [:])
+    private static let listeners = Locked<[Foundation.UUID: @Sendable (String) -> Void]>(initialState: [:])
 
     private static func heard(_ message: String) {
         let listening = listeners.withLock { $0.isEmpty ? [] : Array($0.values) }
