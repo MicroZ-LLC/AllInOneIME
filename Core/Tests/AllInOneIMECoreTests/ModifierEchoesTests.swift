@@ -45,6 +45,18 @@ struct ModifierEchoesTests {
         #expect(!e.echo(56, Self.shiftDown, at: 0))
     }
 
+    /// Synthesized changes needn't have times of their own, or in order (a tool posting one CGEvent again, giving its
+    /// events one time or an earlier one): a change like one handed over, at its time or before, is taken for a copy.
+    /// Two taps at one time: the second's down and up dropped.
+    @Test func synthesizedChangesAtOneTimeAreTakenForCopies() {
+        let e = EchoProbe()
+        #expect(!e.echo(56, Self.shiftDown, at: 1))
+        #expect(!e.echo(56, Self.shiftUp, at: 1))
+        #expect(e.echo(56, Self.shiftDown, at: 1))
+        #expect(e.echo(56, Self.shiftUp, at: 1))
+        #expect(e.echo(56, Self.shiftDown, at: 0.5))
+    }
+
     /// However many changes came between (a busy page's copies after nine capitals: eighteen changes), a change no
     /// later than the latest of its key and flags is a copy; the key pressed again is new.
     @Test func aCopyAfterManyChangesIsStillAnEcho() {

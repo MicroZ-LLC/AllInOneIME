@@ -12,6 +12,11 @@ import Foundation
 ///
 /// A copy is a change no later than the latest one of its key with the same flags: the same change again, or one from
 /// before a later press of that key. No window of the last few changes: however many came between, a copy is one.
+/// This never takes a new change for a copy while each key's changes come in the order of their times, each at a time
+/// of its own, as the keyboard's do (the clock ticks every few tens of nanoseconds). Synthesized ones needn't: a tool
+/// that posts the same CGEvent again, gives its events one time (`NSEvent.keyEvent(…timestamp:…)` with a constant) or
+/// an earlier one has the later change taken for a copy and dropped; two taps of Shift sent at one time switch the
+/// input language once.
 public struct ModifierEchoes: Equatable, Sendable {
     /// How many keys with their flags it keeps the latest time of: far more than come between a change and its copy
     /// (Shift's down and up are two, however many capitals are typed); past that, the one seen longest ago is forgotten.
