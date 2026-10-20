@@ -20,15 +20,15 @@ public enum ConsoleHold {
     static let commandLineVariable = "ALLINONEIME_CONSOLE_COMMAND_LINE"
     static let titleVariable = "ALLINONEIME_CONSOLE_TITLE"
     static let promptFileVariable = "ALLINONEIME_CONSOLE_PROMPT_FILE"
+    /// All four: none of them goes to a console's process but as this launch sets it.
+    static let variables = [applicationVariable, commandLineVariable, titleVariable, promptFileVariable]
 
     /// `command` in a console window of its own that stays open after it (`run`): `holder`, this program, started
     /// there with `option`, suspended, in `directory`, the right to take the foreground the client gave the engine
     /// given to it (`allowForeground`), then running. `title`: the window's. The console process's id.
     static func start(_ command: ConsoleCommand, title: String, holder: String, directory: URL,
                       allowForeground: (DWORD) -> Void = { _ = AllowSetForegroundWindow($0) }) throws -> DWORD {
-        var variables = [applicationVariable: command.application, commandLineVariable: command.commandLine, titleVariable: title]
-        if let file = command.promptFile { variables[promptFileVariable] = file.withUnsafeFileSystemRepresentation { String(cString: $0!) } }
-        var environment = environmentBlock(adding: variables)
+        var environment = environment(for: command, title: title)
         var commandLine = Array("\"\(holder)\" \(option)".utf16) + [0]
         var startup = STARTUPINFOW()
         startup.cb = DWORD(MemoryLayout<STARTUPINFOW>.size)
@@ -56,10 +56,22 @@ public enum ConsoleHold {
         return info.dwProcessId
     }
 
-    /// This process's environment with `variables` set (`CREATE_UNICODE_ENVIRONMENT`'s block: "NAME=VALUE" each, NUL
-    /// after each and one more at the end, in order of the names, the drives' current folders ("=C:=C:\…") first).
-    static func environmentBlock(adding variables: [String: String]) -> [WCHAR] {
+    /// The console's process's environment for `command`: this process's, the four variables as this launch sets them.
+    /// One this process has itself (the engine's environment is the app's that started it, which may be a console's
+    /// process: started from a console's program) never goes on: a prompt's file left over in it would be deleted by a
+    /// console that has none.
+    static func environment(for command: ConsoleCommand, title: String) -> [WCHAR] {
+        var variables = [applicationVariable: command.application, commandLineVariable: command.commandLine, titleVariable: title]
+        if let file = command.promptFile { variables[promptFileVariable] = file.withUnsafeFileSystemRepresentation { String(cString: $0!) } }
+        return environmentBlock(adding: variables, removing: Self.variables)
+    }
+
+    /// This process's environment without `removing` and with `variables` set (`CREATE_UNICODE_ENVIRONMENT`'s block:
+    /// "NAME=VALUE" each, NUL after each and one more at the end, in order of the names, the drives' current folders
+    /// ("=C:=C:\…") first).
+    static func environmentBlock(adding variables: [String: String], removing: [String] = []) -> [WCHAR] {
         var entries: [String] = []
+        let gone = Set((Array(variables.keys) + removing).map { $0.uppercased() })
         if let block = GetEnvironmentStringsW() {
             defer { FreeEnvironmentStringsW(block) }
             var at = block
@@ -67,7 +79,7 @@ public enum ConsoleHold {
                 let entry = String(decodingCString: at, as: UTF16.self)
                 at += entry.utf16.count + 1
                 let name = entry.dropFirst().split(separator: "=", maxSplits: 1).first.map { entry.prefix(1) + $0 } ?? Substring(entry)
-                if !variables.keys.contains(where: { $0.uppercased() == name.uppercased() }) { entries.append(entry) }
+                if !gone.contains(name.uppercased()) { entries.append(entry) }
             }
         }
         entries += variables.map { "\($0.key)=\($0.value)" }

@@ -122,6 +122,31 @@ extension OnTheDesktop {
             #expect(WaitForSingleObject(process, 5000) == WAIT_OBJECT_0)
         }
 
+        /// The four variables a console's process reads are this launch's only: one the engine has in its own
+        /// environment (inherited from the app that started it) never goes on, so a console without a prompt's file
+        /// can't delete a file it names.
+        @Test func onlyThisLaunchsVariablesGoToTheConsole() throws {
+            func set(_ name: String, _ value: String?) {
+                _ = name.withCString(encodedAs: UTF16.self) { name in
+                    if let value { _ = value.withCString(encodedAs: UTF16.self) { SetEnvironmentVariableW(name, $0) } }
+                    else { _ = SetEnvironmentVariableW(name, nil) }
+                }
+            }
+            for name in ConsoleHold.variables { set(name, #"C:\elsewhere\agent-prompt-stale.txt"#) }
+            defer { for name in ConsoleHold.variables { set(name, nil) } }
+            func entries(_ command: ConsoleCommand) -> [String] {
+                String(decoding: ConsoleHold.environment(for: command, title: "git"), as: UTF16.self).split(separator: "\0").map(String.init)
+            }
+            let plain = entries(ConsoleCommand(application: #"C:\Tools\git.exe"#, commandLine: #""C:\Tools\git.exe" status"#))
+            #expect(!plain.contains { $0.uppercased().hasPrefix(ConsoleHold.promptFileVariable + "=") })
+            #expect(plain.contains("\(ConsoleHold.applicationVariable)=C:\\Tools\\git.exe") && plain.contains("\(ConsoleHold.titleVariable)=git"))
+            #expect(plain.filter { $0.uppercased().hasPrefix(ConsoleHold.commandLineVariable + "=") }.count == 1)
+            let file = URL(fileURLWithPath: #"C:\Temp\AllInOneIME\agent-prompt-1.txt"#)
+            let withFile = entries(ConsoleCommand(application: #"C:\Tools\agent.exe"#, commandLine: "agent", promptFile: file))
+            #expect(withFile.filter { $0.uppercased().hasPrefix(ConsoleHold.promptFileVariable + "=") }
+                    == ["\(ConsoleHold.promptFileVariable)=\(file.withUnsafeFileSystemRepresentation { String(cString: $0!) })"])
+        }
+
         /// The program starts at once, whatever the window that shows the console is doing: in a pseudo console that no
         /// terminal takes (its window, `GetConsoleWindow`'s, never gets an owner), as a default terminal that is slow to
         /// show it, or never says, would leave it, the console's process brings the window to the front only once the
