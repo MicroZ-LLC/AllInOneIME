@@ -137,6 +137,9 @@ struct EnglishWordsTests {
         _ = e.processKey(RimeKey.space, mask: 0)
         #expect(e.takeCommit() == "Bedrock")
         #expect(!e.snapshot().isComposing)
+        type("bedrock", e)
+        _ = e.processKey(RimeKey.space, mask: RimeKey.shiftMask)
+        #expect(e.takeCommit() == "Bedrock", "⇧Space as Space")
         // In any case.
         type("BedRock", e)
         #expect(texts(e).first == "Bedrock")
@@ -245,6 +248,10 @@ struct EnglishWordsTests {
         type("bedrock", e)
         _ = e.processKey(0x2C, mask: 0)  // ,
         #expect(e.takeCommit() == "Bedrock，")
+        // ' between syllables is librime's.
+        type("bedrock", e)
+        _ = e.processKey(0x27, mask: 0)
+        #expect(e.takeCommit() == nil && e.rawInput == "bedrock")
     }
 
     @Test func theWordHighlightedIsTheComposition() {

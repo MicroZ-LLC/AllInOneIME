@@ -157,9 +157,10 @@ public final class EnglishWordsEngine: PinyinEngine {
         let at = cursor ?? entries.firstIndex(of: .base(snap.highlighted)) ?? 0
         let word: String? = cursor.flatMap { if case let .word(word) = entries[$0] { return word } else { return nil } }
         if mask == RimeKey.shiftMask {
-            // ⇧ and a punctuation key ("!", "?"): the word highlighted goes in before it.
-            guard let word, Self.isPunctuation(keycode) else { return nil }
-            return pick(word, then: keycode, mask: mask)
+            // ⇧Space picks as Space does; ⇧ and a punctuation key ("!", "?"): the word highlighted goes in before it.
+            guard let word else { return nil }
+            if keycode == RimeKey.space { return pick(word) }
+            return Self.isPunctuation(keycode) ? pick(word, then: keycode, mask: mask) : nil
         }
         switch keycode {
         case RimeKey.down: return move(to: at + 1, in: entries)
