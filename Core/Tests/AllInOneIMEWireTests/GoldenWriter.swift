@@ -71,12 +71,12 @@ struct Document {
         caret(start + units.count)
     }
 
-    var context: FieldContext {
+    var context: WireContext {
         let anchor = composition?.lowerBound ?? selection.lowerBound
         var start = max(0, anchor - contextBefore)
         if start > 0, start < text.count, UTF16.isTrailSurrogate(text[start]) { start += 1 }
         let selected = composition == nil && !selection.isEmpty ? String(decoding: text[selection], as: UTF16.self) : ""
-        return FieldContext(sel: [selection.lowerBound, selection.upperBound],
+        return WireContext(sel: [selection.lowerBound, selection.upperBound],
                             before: String(decoding: text[start..<anchor], as: UTF16.self),
                             selText: selected, comp: composition?.count)
     }
@@ -213,14 +213,14 @@ final class GoldenWriter {
               "pid": .any, "tid": .any, "capabilities": .array(capabilities.map(JSONValue.string))])
     }
 
-    static let notepad = FieldInfo(app: "win:notepad.exe", process: "notepad.exe", scopes: [0], layout: "00000409")
+    static let notepad = WireField(app: "win:notepad.exe", process: "notepad.exe", scopes: [0], layout: "00000409")
 
-    func open(_ sid: UInt32, field: FieldInfo = notepad) {
+    func open(_ sid: UInt32, field: WireField = notepad) {
         if documents[sid] == nil { documents[sid] = Document() }
         send(["type": "open", "sid": .number(Double(sid)), "field": Self.json(field)])
     }
 
-    func focus(_ sid: UInt32, serial: UInt32, field: FieldInfo? = nil) {
+    func focus(_ sid: UInt32, serial: UInt32, field: WireField? = nil) {
         var fields: [String: JSONValue] = ["type": "focus", "sid": .number(Double(sid)), "focus": .number(Double(serial))]
         if let field { fields["field"] = Self.json(field) }
         send(fields, applyTo: sid)

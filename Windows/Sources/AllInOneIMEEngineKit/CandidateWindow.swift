@@ -1,4 +1,5 @@
 #if os(Windows)
+import AllInOneIMECore
 import CAllInOneIMEPanel
 import Foundation
 import WinSDK
@@ -25,11 +26,11 @@ public enum Foreground {
     }
 }
 
-/// The engine's candidate window (M6), the `PanelPresenter` on Windows: the C++ window of `CAllInOneIMEPanel` (a
-/// layered, no-activate, topmost tool window drawn with Direct2D and DirectWrite, on a thread of its own), given each
-/// `PanelModel` as a flat copy. A click on a row comes back on the window's thread and goes to the owner's session
-/// (`PanelOwner.choose`: its connection's queue).
-public final class CandidateWindow: PanelPresenter, @unchecked Sendable {
+/// The engine's candidate window (M6), the `PanelWindow` on Windows: the C++ window of `CAllInOneIMEPanel` (a layered,
+/// no-activate, topmost tool window drawn with Direct2D and DirectWrite, on a thread of its own), given each of the
+/// core's `PanelModel`s as a flat copy. A click on a row comes back on the window's thread and goes to the owner's
+/// session (`PanelOwner.choose`: its connection's queue).
+public final class CandidateWindow: PanelWindow, @unchecked Sendable {
     private var panel: OpaquePointer?
     private let lock = NSLock()
     /// The owners by the token the window knows them by.
@@ -156,7 +157,9 @@ public final class CandidateWindow: PanelPresenter, @unchecked Sendable {
         return units.withUnsafeBufferPointer { body($0.baseAddress!) }
     }
 
-    /// `model` as `AioPanelModel`, its strings alive for `body`.
+    /// `model` as `AioPanelModel`, its strings alive for `body`: a line each for the input, the header and the status
+    /// (`PanelModel.inputLine`, `headerLine`, `statusLine`), and no icons. A conversation's rows (`transcript`) are drawn
+    /// as any others; a row's `choice` stays with the engine (`PanelOwner.choose`).
     static func withModel(_ model: PanelModel, _ body: (UnsafePointer<AioPanelModel>) -> Void) {
         var storage: [[UInt16]] = []
         func keep(_ text: String?) -> Int? {
@@ -166,15 +169,14 @@ public final class CandidateWindow: PanelPresenter, @unchecked Sendable {
         }
         struct RowIndices { var label, text, comment: Int? }
         let rowIndices = model.rows.map { RowIndices(label: keep($0.label), text: keep($0.text), comment: keep($0.comment)) }
-        let status: String?
         let kind: Int32
         switch model.status {
-        case .none: (status, kind) = (nil, Int32(AIO_STATUS_NONE))
-        case let .hint(text): (status, kind) = (text, Int32(AIO_STATUS_HINT))
-        case let .loading(text): (status, kind) = (text, Int32(AIO_STATUS_LOADING))
-        case let .error(text): (status, kind) = (text, Int32(AIO_STATUS_ERROR))
+        case .none: kind = Int32(AIO_STATUS_NONE)
+        case .hint, .list: kind = Int32(AIO_STATUS_HINT)
+        case .loading: kind = Int32(AIO_STATUS_LOADING)
+        case .error: kind = Int32(AIO_STATUS_ERROR)
         }
-        let statusIndex = keep(status), inputIndex = keep(model.input), headerIndex = keep(model.header)
+        let statusIndex = keep(model.statusLine), inputIndex = keep(model.inputLine), headerIndex = keep(model.headerLine)
         let footerIndex = keep(model.footer), detailIndex = keep(model.detail)
         // The strings' addresses stay put while `pointers` is in scope (arrays of arrays, none of them changed).
         let pointers: [UnsafeMutablePointer<UInt16>] = storage.map { units in
@@ -186,8 +188,8 @@ public final class CandidateWindow: PanelPresenter, @unchecked Sendable {
         func pointer(_ index: Int?) -> UnsafePointer<UInt16>? { index.map { UnsafePointer(pointers[$0]) } }
         var rows = zip(model.rows, rowIndices).map { row, indices in
             AioPanelRow(label: pointer(indices.label), text: pointer(indices.text), comment: pointer(indices.comment),
-                        style: row.style == .candidate ? 0 : row.style == .original ? 1 : 2,
-                        pickable: row.pickable ? 1 : 0, complete: row.complete ? 1 : 0)
+                        style: row.kind == .candidate ? 0 : row.kind == .original ? 1 : 2,
+                        pickable: row.pickable ? 1 : 0, complete: row.isComplete ? 1 : 0)
         }
         rows.withUnsafeMutableBufferPointer { buffer in
             var flat = AioPanelModel(rows: UnsafePointer(buffer.baseAddress), rowCount: Int32(buffer.count),

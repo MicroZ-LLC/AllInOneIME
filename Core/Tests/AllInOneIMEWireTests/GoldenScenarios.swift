@@ -79,7 +79,7 @@ enum GoldenScenarios {
             "turns secure while a draft is pending (its input scope changed) gets the draft as typed, pushed.",
         ])
         w.hello()
-        let password = FieldInfo(app: "win:notepad.exe", process: "notepad.exe", secure: true, scopes: [31], layout: "00000409")
+        let password = WireField(app: "win:notepad.exe", process: "notepad.exe", secure: true, scopes: [31], layout: "00000409")
         w.open(1, field: password)
         w.focus(1, serial: 1)
         w.unsentKeys(1, "@improve")
@@ -192,7 +192,7 @@ enum GoldenScenarios {
         improveHello(w)
         w.directive("advance 150")
         w.comment("A new keyboard layout under the same field: the same serial, the new field")
-        let chineseLayout = FieldInfo(app: "win:notepad.exe", process: "notepad.exe", scopes: [0], layout: "00000804")
+        let chineseLayout = WireField(app: "win:notepad.exe", process: "notepad.exe", scopes: [0], layout: "00000804")
         w.focus(1, serial: 1, field: chineseLayout)
         w.directive("run tasks")
         w.directive("click row 1")

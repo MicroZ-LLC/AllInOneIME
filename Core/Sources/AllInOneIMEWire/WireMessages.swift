@@ -17,8 +17,9 @@ public enum WireVersion {
 
 // MARK: - Fields
 
-/// The text field a session is (§4): `open`'s and `focus`'s `field`.
-public struct FieldInfo: Codable, Equatable, Sendable {
+/// The text field a session is (§4's FieldInfo): `open`'s and `focus`'s `field`. Not the core's `FieldInfo`, what an
+/// `InputSession` is told of its field.
+public struct WireField: Codable, Equatable, Sendable {
     /// `win:<exe>`, or `win:<AUMID>` for packaged apps. The Windows engine derives it from the client's process.
     public var app: String
     /// The process's executable name.
@@ -64,8 +65,9 @@ public struct FieldInfo: Codable, Equatable, Sendable {
     }
 }
 
-/// The document around the caret when a key is sent (§5.1 `ctx`, and `applied`'s). Offsets in UTF-16 units.
-public struct FieldContext: Codable, Equatable, Sendable {
+/// The document around the caret when a key is sent (§5.1's FieldContext, `ctx`, and `applied`'s). Offsets in UTF-16
+/// units. Not the core's `FieldContext`.
+public struct WireContext: Codable, Equatable, Sendable {
     /// The selection `[start, end]` in absolute ACP; nil when unknown.
     public var sel: [Int]?
     /// Up to `limits.contextBefore` units before the selection start, or before our composition if one exists.
@@ -387,9 +389,9 @@ public struct KeyFrame: Codable, Equatable, Sendable {
     /// `GetTickCount64()` in ms at the event: consistent within a connection.
     public var t: UInt64
     public var key: WireKey
-    public var ctx: FieldContext?
+    public var ctx: WireContext?
 
-    public init(sid: UInt32, t: UInt64, key: WireKey, ctx: FieldContext? = nil) {
+    public init(sid: UInt32, t: UInt64, key: WireKey, ctx: WireContext? = nil) {
         self.sid = sid
         self.t = t
         self.key = key
@@ -401,9 +403,9 @@ public struct KeyFrame: Codable, Equatable, Sendable {
 /// response (`applied`), or a notification.
 public enum ClientMessage: Equatable, Sendable {
     case hello(Hello)
-    case open(sid: UInt32, field: FieldInfo)
+    case open(sid: UInt32, field: WireField)
     /// `focus`: a serial per session, higher with each focus; re-sent with a new `field` while focused.
-    case focus(sid: UInt32, focus: UInt32, field: FieldInfo?)
+    case focus(sid: UInt32, focus: UInt32, field: WireField?)
     case blur(sid: UInt32)
     case close(sid: UInt32)
     case keyDown(KeyFrame)
@@ -414,7 +416,7 @@ public enum ClientMessage: Equatable, Sendable {
     /// The caret's rectangle `[x, y, width, height]` in physical screen pixels (§6).
     case caret(sid: UInt32, rect: [Int], hwnd: UInt64?, exact: Bool)
     /// The answer to the engine's `apply` `re`: `ok`, or why not (`reason`), and the document after it.
-    case applied(re: UInt32, ok: Bool, reason: String?, ctx: FieldContext?)
+    case applied(re: UInt32, ok: Bool, reason: String?, ctx: WireContext?)
     /// The settings as a document (§12).
     case settingsGet
     /// One setting changed (§12.4): the field's id and its new value (null is one); made on the document of `revision`
@@ -503,10 +505,10 @@ extension ClientFrame: Codable {
         case "hello":
             message = .hello(try Hello(from: decoder))
         case "open":
-            message = .open(sid: try sid(), field: try c.decodeIfPresent(FieldInfo.self, forKey: .field) ?? FieldInfo())
+            message = .open(sid: try sid(), field: try c.decodeIfPresent(WireField.self, forKey: .field) ?? WireField())
         case "focus":
             message = .focus(sid: try sid(), focus: try c.decodeIfPresent(UInt32.self, forKey: .focus) ?? 0,
-                             field: try c.decodeIfPresent(FieldInfo.self, forKey: .field))
+                             field: try c.decodeIfPresent(WireField.self, forKey: .field))
         case "blur":
             message = .blur(sid: try sid())
         case "close":
@@ -514,7 +516,7 @@ extension ClientFrame: Codable {
         case "keyDown", "keyUp":
             let frame = KeyFrame(sid: try sid(), t: try c.decodeIfPresent(UInt64.self, forKey: .t) ?? 0,
                                  key: try c.decode(WireKey.self, forKey: .key),
-                                 ctx: try c.decodeIfPresent(FieldContext.self, forKey: .ctx))
+                                 ctx: try c.decodeIfPresent(WireContext.self, forKey: .ctx))
             message = type == "keyDown" ? .keyDown(frame) : .keyUp(frame)
         case "endComposition":
             message = .endComposition(sid: try sid(), reason: try c.decodeIfPresent(String.self, forKey: .reason) ?? "")
@@ -527,7 +529,7 @@ extension ClientFrame: Codable {
         case "applied":
             message = .applied(re: try c.decode(UInt32.self, forKey: .re), ok: try c.decode(Bool.self, forKey: .ok),
                                reason: try c.decodeIfPresent(String.self, forKey: .reason),
-                               ctx: try c.decodeIfPresent(FieldContext.self, forKey: .ctx))
+                               ctx: try c.decodeIfPresent(WireContext.self, forKey: .ctx))
         case "settingsGet":
             message = .settingsGet
         case "settingsSet":

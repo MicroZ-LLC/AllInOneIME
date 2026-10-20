@@ -71,12 +71,12 @@ public final class ComposerSession: @unchecked Sendable {
     public let peer: WirePeer
     public let composer: Composer
     /// The field, with the engine's own `app` and `process` where it knows them.
-    public private(set) var field: FieldInfo
+    public private(set) var field: WireField
     /// The latest `focus` serial.
     public private(set) var focusSerial: UInt32 = 0
     public private(set) var isFocused = false
     /// The document as the last key or `applied` told it.
-    public private(set) var context: FieldContext?
+    public private(set) var context: WireContext?
     /// The latest caret report: `[x, y, width, height]` in physical screen pixels, and whether it is the caret's own.
     public private(set) var caret: (rect: [Int], hwnd: UInt64?, exact: Bool)?
     /// The client asked for the `allowForeground` op (`hello.capabilities`).
@@ -102,7 +102,7 @@ public final class ComposerSession: @unchecked Sendable {
 
     static let noComposition = Output.composition(text: "")
 
-    public init(sid: UInt32, field: FieldInfo, peer: WirePeer, composer: Composer, host: WireHost, allowsForeground: Bool,
+    public init(sid: UInt32, field: WireField, peer: WirePeer, composer: Composer, host: WireHost, allowsForeground: Bool,
                 enqueue: @escaping @Sendable (@escaping @Sendable () -> Void) -> Void,
                 log: @escaping @Sendable (String) -> Void = { _ in }) {
         self.sid = sid
@@ -126,7 +126,7 @@ public final class ComposerSession: @unchecked Sendable {
     // MARK: - Focus
 
     /// `focus`: the session takes the focus (or keeps it, with a new field).
-    func focus(serial: UInt32, field newField: FieldInfo?) -> [Output] {
+    func focus(serial: UInt32, field newField: WireField?) -> [Output] {
         var outputs: [Output] = []
         if let newField {
             let wasSecure = field.secure
@@ -182,7 +182,7 @@ public final class ComposerSession: @unchecked Sendable {
     }
 
     /// `applied`'s document.
-    func applied(context: FieldContext?) {
+    func applied(context: WireContext?) {
         if let context { self.context = context }
     }
 

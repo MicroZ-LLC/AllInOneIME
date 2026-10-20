@@ -51,7 +51,7 @@ final class ManualQueue: WireQueue, @unchecked Sendable {
 }
 
 /// The panel as the host asked for it: the last model shown, hidden or not, the notices.
-final class RecordingPanel: PanelPresenter, @unchecked Sendable {
+final class RecordingPanel: PanelWindow, @unchecked Sendable {
     private let lock = NSLock()
     private var _model: PanelModel?
     private var _owner: PanelOwner?
@@ -225,7 +225,7 @@ final class EngineClient: @unchecked Sendable {
 
     /// `peer`: who the client is (the pipe's client check, §2.1, §8); `configure`: the host's options besides.
     init(settings: EngineSettings, rime: EngineRime?, converter: Converter? = nil, executable: String? = nil,
-         field: FieldInfo = FieldInfo(app: "win:notepad.exe", process: "notepad.exe", scopes: [0], layout: "00000409"),
+         field: WireField = WireField(app: "win:notepad.exe", process: "notepad.exe", scopes: [0], layout: "00000409"),
          peer: WirePeer = WirePeer(pid: GetCurrentProcessId(), integrity: .medium),
          configure: (inout EngineHost.Options) -> Void = { _ in }) {
         panel = RecordingPanel()
@@ -312,9 +312,9 @@ final class EngineClient: @unchecked Sendable {
     }
 
     /// What the DLL would say of the document.
-    var context: FieldContext {
+    var context: WireContext {
         let units = committed.utf16.count
-        return FieldContext(sel: [units, units], before: String(committed.suffix(32)),
+        return WireContext(sel: [units, units], before: String(committed.suffix(32)),
                             comp: composition.isEmpty ? nil : composition.utf16.count)
     }
 

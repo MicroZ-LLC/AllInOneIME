@@ -12,13 +12,13 @@ public struct WireEnvironment: Sendable {
     /// A serial queue for each connection.
     public var makeQueue: @Sendable (_ label: String) -> WireQueue
     /// A field's Composer, made when the field first takes the focus (§4): its level-one engine, languages, commands.
-    public var makeComposer: @Sendable (_ field: FieldInfo, _ peer: WirePeer) -> Composer
+    public var makeComposer: @Sendable (_ field: WireField, _ peer: WirePeer) -> Composer
     /// Sizes and kinds only, never a payload (§8).
     public var log: @Sendable (String) -> Void
 
     public init(host: WireHost, clock: WireClock = SystemClock(),
                 makeQueue: @escaping @Sendable (String) -> WireQueue = { DispatchWireQueue(label: $0) },
-                makeComposer: @escaping @Sendable (FieldInfo, WirePeer) -> Composer = WireEnvironment.latinComposer,
+                makeComposer: @escaping @Sendable (WireField, WirePeer) -> Composer = WireEnvironment.latinComposer,
                 log: @escaping @Sendable (String) -> Void = { _ in }) {
         self.host = host
         self.clock = clock
@@ -28,7 +28,7 @@ public struct WireEnvironment: Sendable {
     }
 
     /// A Composer typing Latin letters (`LatinEngine`: no language pack, as on Windows until librime comes), in English.
-    public static let latinComposer: @Sendable (FieldInfo, WirePeer) -> Composer = { _, _ in
+    public static let latinComposer: @Sendable (WireField, WirePeer) -> Composer = { _, _ in
         let composer = Composer(engine: LatinEngine())
         composer.setInputMode(.english)
         return composer
@@ -574,7 +574,7 @@ public final class WireServer: @unchecked Sendable {
         return nil
     }
 
-    static func check(_ field: FieldInfo) -> String? {
+    static func check(_ field: WireField) -> String? {
         if field.app.utf16.count > FieldLimits.app { return "field.app over \(FieldLimits.app) units" }
         if field.process.utf16.count > FieldLimits.app { return "field.process over \(FieldLimits.app) units" }
         if field.layout.utf16.count > FieldLimits.app { return "field.layout over \(FieldLimits.app) units" }
@@ -590,7 +590,7 @@ public final class WireServer: @unchecked Sendable {
         return frame.ctx.flatMap(check)
     }
 
-    func check(_ ctx: FieldContext) -> String? {
+    func check(_ ctx: WireContext) -> String? {
         if ctx.before.utf16.count > FieldLimits.before { return "ctx.before over \(FieldLimits.before) units" }
         if ctx.selText.utf16.count > configuration.limits.selection {
             return "ctx.selText over \(configuration.limits.selection) units"
@@ -738,10 +738,10 @@ struct Envelope: Decodable {
 
 /// A session the client opened: its field, and its Composer once it has had the focus.
 final class SessionRecord {
-    var field: FieldInfo
+    var field: WireField
     var session: ComposerSession?
 
-    init(field: FieldInfo) { self.field = field }
+    init(field: WireField) { self.field = field }
 }
 
 /// One client connection. Its state is only touched on its queue (`isOpen` also from the transport's thread, `settings`

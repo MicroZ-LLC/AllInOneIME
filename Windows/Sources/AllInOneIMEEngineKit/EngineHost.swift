@@ -7,8 +7,9 @@ import Foundation
 ///
 /// - **Level one:** each field's Composer types pinyin with librime (`EngineRime`) once it has deployed, in the
 ///   settings' input languages (Shift switches), and Latin letters without it.
-/// - **The panel:** what the Composer would show (`PanelBuilder`), drawn by the engine's candidate window
-///   (`PanelPresenter`) at the caret the DLL reports; a click on a row picks it (`ComposerSession.choose`).
+/// - **The panel:** the core's `PanelModel` of the Composer (`PanelPresenter`, in the interface language and with
+///   Windows' names of the keys), drawn by the engine's candidate window (`PanelWindow`) at the caret the DLL reports;
+///   a click on a row picks the row's choice (`ComposerSession.choose`).
 /// - **Level two:** the AI requests through the core's `Converter` and the provider the settings name, the API key from
 ///   the Credential Manager (`APIKeys`); programs, scripts, plugins and `@js` through the core's runners (the Windows
 ///   process launcher, QuickJS in a child process of this program).
@@ -33,7 +34,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         public var plugins = PluginCatalog()
         /// Level one's pinyin; nil: Latin letters only.
         public var rime: EngineRime?
-        public var panel: PanelPresenter = NoPanel()
+        public var panel: PanelWindow = NoPanel()
         public var system: SystemActions
         /// Where `system` opens and starts programs: a thread of its own, never a session's queue nor a key's way
         /// (§5.4).
@@ -65,7 +66,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
     public let settings: EngineSettings
     let plugins: PluginCatalog
     public let rime: EngineRime?
-    public let panelPresenter: PanelPresenter
+    public let panelWindow: PanelWindow
     let system: SystemActions
     let systemQueue: SystemQueue
     let clipboardQueue: SystemQueue
@@ -92,7 +93,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         settings = options.settings
         plugins = options.plugins
         rime = options.rime
-        panelPresenter = options.panel
+        panelWindow = options.panel
         system = options.system
         systemQueue = options.systemQueue
         clipboardQueue = options.clipboardQueue
@@ -126,11 +127,20 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         var fromCache = false
         var caret: CaretRect?
         var appliedDefaultInput: Language?
+        /// What a click on each row of the panel shown last picks (`PanelModel.Row.choice`): the row's own index, in a
+        /// conversation an answer's round, nil for a question.
+        let choices: Locked<[Int?]>
         let owner: PanelOwner
 
         init(session: ComposerSession) {
             self.session = session
-            owner = PanelOwner(pid: session.peer.pid, choose: { [weak session] row in session?.choose(row: row) },
+            let choices = Locked(initialState: [Int?]())
+            self.choices = choices
+            owner = PanelOwner(pid: session.peer.pid,
+                               choose: { [weak session] row in
+                                   guard let choice = choices.withLock({ $0.indices.contains(row) ? $0[row] : nil }) else { return }
+                                   session?.choose(row: choice)
+                               },
                                scroll: { [weak session] steps in session?.feed(from: .click) { $0.scrollPalette(by: steps) } })
         }
     }
@@ -172,7 +182,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
     /// start, a second or so, longer the first time in a user folder or with the disk busy), so English and the
     /// commands work from the first key; Latin letters only without librime, and in test mode, as the goldens have them.
     /// Its settings are applied as it takes the focus (`sessionFocused`).
-    public func makeComposer(_ field: FieldInfo, _ peer: WirePeer) -> Composer {
+    public func makeComposer(_ field: WireField, _ peer: WirePeer) -> Composer {
         let engine: PinyinEngine = testMode ? LatinEngine() : rime?.makeEngine() ?? LatinEngine()
         let composer = Composer(engine: engine)
         if testMode { composer.setInputMode(inputLanguage ?? .english) }
@@ -231,8 +241,8 @@ public final class EngineHost: WireHost, @unchecked Sendable {
                                             scripts: extensions.enabled(config.disabledExtensions),
                                             snippets: extensions.enabledSnippets(config.disabledExtensions))
         let language = settings.interfaceLanguage(config)
-        var messages = Composer.Messages.make(language: language)
-        messages.actionKeyName = PanelBuilder(config: config, chinese: InterfaceLanguage.isChinese(language)).name(config.actionKey)
+        var messages = Composer.Messages.make(language: language, terms: Self.terms)
+        messages.actionKeyName = InterfaceWords(language: language).name(config.actionKey, terms: Self.terms)
         composer.messages = messages
         // Chinese only with librime; Korean and Hindi need their packs, which Windows doesn't download yet; Latin
         // languages always.
@@ -259,8 +269,8 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         lock.unlock()
         state?.task?.cancel()
         if let state {
-            panelPresenter.hide(owner: state.owner)
-            panelPresenter.forget(owner: state.owner)
+            panelWindow.hide(owner: state.owner)
+            panelWindow.forget(owner: state.owner)
         }
     }
 
@@ -271,10 +281,12 @@ public final class EngineHost: WireHost, @unchecked Sendable {
     public func panel(shown: Bool, in session: ComposerSession) {
         let state = state(session)
         guard shown, session.composer.wantsPanel, ownsForeground(session.peer) else {
-            panelPresenter.hide(owner: state.owner)
+            panelWindow.hide(owner: state.owner)
             return
         }
-        panelPresenter.show(model(for: session), owner: state.owner, caret: reportedCaret(session))
+        let model = model(for: session)
+        state.choices.withLock { $0 = model.rows.map(\.choice) }
+        panelWindow.show(model, owner: state.owner, caret: reportedCaret(session))
     }
 
     /// The caret `session` reported, if it is in a window of the client's process, cut to that window (§6, §8): a
@@ -289,20 +301,27 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         return rect.clamped(to: bounds)
     }
 
-    /// What the panel shows for `session` now.
+    /// What the keys and places are called in the panel and the composer's messages: Windows' (Ctrl+C, Enter, "this
+    /// PC"), wherever the engine is built.
+    static let terms = PlatformTerms.windows
+
+    /// What the panel shows for `session` now: the core's model of its Composer, in the interface language the settings
+    /// pick (`EngineSettings.interfaceLanguage`), with the time the last request took. Notices go to the window apart
+    /// (`notice`), Translate as You Type's chip is the Mac's.
     public func model(for session: ComposerSession) -> PanelModel {
         let state = state(session)
         let config = testMode ? Config.default : settings.current
-        let language = settings.interfaceLanguage(config)
-        return PanelBuilder(config: config, chinese: InterfaceLanguage.isChinese(language), elapsed: state.elapsed,
-                            fromCache: state.fromCache).build(session.composer)
+        let presenter = PanelPresenter(config: config, language: settings.interfaceLanguage(config), terms: Self.terms,
+                                       app: session.field.app, elapsed: state.elapsed, fromCache: state.fromCache,
+                                       agent: config.agent, agentCommand: config.agentCommand)
+        return presenter.model(for: session.composer)
     }
 
     public func caretMoved(in session: ComposerSession) {
         guard let caret = reportedCaret(session) else { return }
         let state = state(session)
         state.caret = caret
-        panelPresenter.move(owner: state.owner, caret: caret)
+        panelWindow.move(owner: state.owner, caret: caret)
     }
 
     public func ownsForeground(_ peer: WirePeer) -> Bool { testMode || foreground(peer) }
@@ -316,7 +335,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
             return
         }
         let state = state(session)
-        panelPresenter.notice(text, owner: state.owner, caret: state.caret)
+        panelWindow.notice(text, owner: state.owner, caret: state.caret)
     }
 
     func tr(_ zh: String, _ en: String) -> String {

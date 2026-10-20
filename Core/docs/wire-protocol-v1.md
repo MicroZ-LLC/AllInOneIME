@@ -440,7 +440,7 @@ The first frame is `hello`. Its shape, and the shape of `welcome`, never change 
 
 **Files:**
 
-- `WireMessages.swift`: Codable `ClientMessage` and `EngineMessage` enums (with `.unknown(type)` for types not known), `WireKey`, `FieldInfo`, `FieldContext`, `Output`.
+- `WireMessages.swift`: Codable `ClientMessage` and `EngineMessage` enums (with `.unknown(type)` for types not known), `WireKey`, `WireField` (§4's FieldInfo) and `WireContext` (§5.1's FieldContext), named apart from the core's session types, `Output`.
   - Reuses `Key` and `Modifiers`' existing Codable forms.
   - The encoder uses `.sortedKeys` and omits defaults.
 - `WireFrame.swift`: the length prefix, the limits and the checks.

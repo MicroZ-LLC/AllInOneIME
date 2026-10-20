@@ -114,17 +114,16 @@ recording itself, typing out, drawing the panel, the input menu.
 
 ## The Windows engine
 
-The engine (on the `0.6.6/windows-engine` branch, not merged here) drives a `Composer` through `AllInOneIMEWire`'s
-`ComposerSession` and `EngineHost`, which repeat what the Mac's controller did before the session. To drive an
-`InputSession` instead:
+The engine (merged in 0.6.6/integration) drives a `Composer` through `AllInOneIMEWire`'s `ComposerSession` and
+`EngineHost`, which repeat what the Mac's controller did before the session. To drive an `InputSession` instead:
 
-1. **Merge the branch** and settle the names it shares with this one: the core now has `PanelModel` and
-   `PanelPresenter` (step 6: the engine's `AllInOneIMEEngineKit/PanelModel.swift` and its `PanelBuilder` give way to
-   them, its drawing protocol is renamed, say `PanelWindow`), and `FieldInfo` and `FieldContext` (the wire's, in
-   `AllInOneIMEWire/WireMessages.swift`, become `WireField` and `WireContext`, or are converted at the edge). The
-   engine's builder took `chinese: Bool`; the presenter takes the interface language's code (`EngineSettings`'
-   `uiLanguage`, as `InterfaceLanguage` picks it) and `PlatformTerms.windows` (the default there,
-   `Platform.systemTerms`), and the composer's `modifierRoles` are `.windows`.
+1. **The names it shared with the session are settled** (done): its panel is the core's `PanelModel`, made by the
+   core's `PanelPresenter` (`EngineHost.model(for:)`, in the interface language `EngineSettings.interfaceLanguage`
+   picks and with `PlatformTerms.windows`; the composer's `modifierRoles` are `.windows`); the engine's own
+   `PanelModel` and `PanelBuilder` are gone, and its drawing protocol is `PanelWindow` (`CandidateWindow`, `NoPanel`,
+   the tests' `RecordingPanel`). A click on a row picks the row's `choice` (the last model's, kept with the session).
+   The wire's `FieldInfo` and `FieldContext` are `WireField` and `WireContext` (§4 and §5.1 keep their names; the
+   DLL's C++ `wire::FieldInfo` too).
 2. **`ComposerSession` wraps an `InputSession`** and loses its own policy (the secure check, `MarkedTextWatch`, the
    selection-moved check, `applyIdentity`):
    - `keyDown` → `.key(event, context)`, the context from the frame's `ctx` with `read: .all`: `secure` = the field's,
@@ -156,8 +155,11 @@ The engine (on the `0.6.6/windows-engine` branch, not merged here) drives a `Com
    `pastesInTerminal` false, `keyTranslator` nil (the DLL sends the dead key's text). Its `startConversion`, `consume`,
    `startScript`, `scriptEnvironment`, `oneLine` and `errorKind` go: they are `SessionTasks`'. Test mode's
    `ScriptedProvider` answers through a `converter` and `runProgram` of its own.
-4. **The candidate window** (`CandidateWindow.swift`, `CAllInOneIMEPanel`) draws the core's `PanelModel`. Its flat copy,
-   `AioPanelModel`, has strings for `input` and `header` and no icons; for the core's model it needs:
+4. **The candidate window** (`CandidateWindow.swift`, `CAllInOneIMEPanel`) draws the core's `PanelModel` through its
+   flat copy, `AioPanelModel`, unchanged so far: a line each for the input (its prompt and text, "▏" at the caret), the
+   header (the hand-off's title and choices, then the header's lines, joined with " · ") and the status (a list's items
+   after its hint), and no icons (`PanelModel.inputLine`, `headerLine`, `statusLine` in `PanelWindow.swift`). To draw
+   the core's model as it is meant, it needs:
    - `input` as its prompt, text and caret (`inputPrompt`, `inputText`, `inputCaret` in UTF-16, from the caret in
      characters), the caret drawn where DirectWrite puts that position (`HitTestTextPosition`), not a "▏" in the text;
    - `header` as its lines (joined with line breaks, or an array);

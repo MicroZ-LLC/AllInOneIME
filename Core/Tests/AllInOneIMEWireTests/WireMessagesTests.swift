@@ -54,7 +54,7 @@ struct WireMessagesTests {
             {"v":1,"id":8,"type":"keyDown","sid":1,"t":5000100,"key":{"vk":50,"scan":3,"text":"@","textIgnoringModifiers":"@","modifiers":["shift","leftShift"]},"ctx":{"sel":[3,3],"before":"hi "}}
             """#.utf8))
         let wire = WireKey(vk: 50, scan: 3, text: "@", textIgnoringModifiers: "@", modifiers: [.shift, .leftShift])
-        #expect(key == ClientFrame(id: 8, .keyDown(KeyFrame(sid: 1, t: 5_000_100, key: wire, ctx: FieldContext(sel: [3, 3], before: "hi ")))))
+        #expect(key == ClientFrame(id: 8, .keyDown(KeyFrame(sid: 1, t: 5_000_100, key: wire, ctx: WireContext(sel: [3, 3], before: "hi ")))))
 
         let applied = try WireJSON.decode(ClientFrame.self, from: Data(#"{"v":1,"id":5,"re":22,"type":"applied","ok":false,"reason":"gone"}"#.utf8))
         #expect(applied.message == .applied(re: 22, ok: false, reason: "gone", ctx: nil))
@@ -66,16 +66,16 @@ struct WireMessagesTests {
     @Test func everyClientFrameRoundTrips() throws {
         let frames: [ClientMessage] = [
             .hello(Hello(client: "tip/0.7.0", pid: 1, tid: 2, capabilities: ["allowForeground"])),
-            .open(sid: 1, field: FieldInfo(app: "win:notepad.exe", process: "notepad.exe", secure: true, scopes: [31], layout: "00000409")),
+            .open(sid: 1, field: WireField(app: "win:notepad.exe", process: "notepad.exe", secure: true, scopes: [31], layout: "00000409")),
             .focus(sid: 1, focus: 2, field: nil),
-            .focus(sid: 1, focus: 3, field: FieldInfo(readOnly: true)),
+            .focus(sid: 1, focus: 3, field: WireField(readOnly: true)),
             .blur(sid: 1), .close(sid: 1), .ping,
             .keyDown(KeyFrame(sid: 1, t: 9, key: WireKey(vk: 0x41, scan: 0x1E, extended: true, text: "a", isDeadKey: true, isRepeat: true),
-                              ctx: FieldContext(sel: [1, 4], before: "x", selText: "abc", selTruncated: true, comp: 2))),
+                              ctx: WireContext(sel: [1, 4], before: "x", selText: "abc", selTruncated: true, comp: 2))),
             .keyUp(KeyFrame(sid: 1, t: 10, key: WireKey(key: .modifier(.shift, .left), usage: 0xE1))),
             .endComposition(sid: 1, reason: "terminated"),
             .caret(sid: 1, rect: [1, 2, 3, 4], hwnd: 7, exact: true),
-            .applied(re: 3, ok: true, reason: nil, ctx: FieldContext(sel: [9, 9], before: "hi Hello.")),
+            .applied(re: 3, ok: true, reason: nil, ctx: WireContext(sel: [9, 9], before: "hi Hello.")),
         ]
         for (i, message) in frames.enumerated() {
             let frame = ClientFrame(id: UInt32(i + 1), message)
