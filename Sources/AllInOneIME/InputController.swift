@@ -981,7 +981,18 @@ final class AllInOneIMEInputController: IMKInputController {
         // the next change too when the page is busy: the copy changes nothing, for the composer (a tap of Shift or ⌥)
         // and the long press of Shift alike.
         guard !Self.modifierEchoes.isEcho(keyCode: event.keyCode, flags: event.modifierFlags.rawValue,
-                                          timestamp: event.timestamp) else { return }
+                                          timestamp: event.timestamp) else {
+            // Each copy dropped, how long after the event's time it came (`log stream --level debug --predicate
+            // 'subsystem == "com.aipinyin.inputmethod.AIPinyin" AND eventMessage BEGINSWITH "modifier copy"'`): what
+            // shows a real app hands the copy over with the event's own time.
+            let late = (ProcessInfo.processInfo.systemUptime - event.timestamp) * 1000
+            log.debug("""
+                modifier copy dropped: key \(event.keyCode, privacy: .public), flags \
+                \(event.modifierFlags.rawValue, format: .hex(includePrefix: true), privacy: .public), \
+                \(late, format: .fixed(precision: 1), privacy: .public) ms after its time
+                """)
+            return
+        }
         guard !SecureInput.blocksComposing(client ?? clientOverride ?? self.client()) else {
             // A password field took over: stop any recording (its release may never arrive here).
             if composer.voice != .off { perform(composer.commitAsTyped(), client: client) }
