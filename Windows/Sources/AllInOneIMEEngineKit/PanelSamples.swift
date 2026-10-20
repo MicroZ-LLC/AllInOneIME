@@ -111,4 +111,15 @@ public enum PanelSamples {
         rows.append(Row(label: "", text: "grayscale(0.25) and #34C759", kind: .candidate, icon: IconToken(.terminal, color: .grayscale(0.25))))
         return PanelModel(rows: rows, footer: "\(rows.count) icons")
     }
+
+    /// The checkout's Resources/AppIcon.png, for the samples of a build of this package (`swift build`: Windows/.build/…):
+    /// two folders above `.build`. Nil for any other copy, and never a folder further up, which any user of the PC may
+    /// make (C:\Resources).
+    public static func checkoutIcon(executable: String,
+                                    exists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }) -> String? {
+        let parts = executable.replacingOccurrences(of: "/", with: "\\").split(separator: "\\", omittingEmptySubsequences: false)
+        guard let build = parts.lastIndex(where: { $0.lowercased() == ".build" }), build >= 2 else { return nil }
+        let icon = (parts[..<(build - 1)].map(String.init) + ["Resources", "AppIcon.png"]).joined(separator: "\\")
+        return exists(icon) ? icon : nil
+    }
 }

@@ -185,18 +185,7 @@ func renderPanels(_ arguments: [String]) -> Int32 {
         }
     }
     if dpis.isEmpty { dpis = [96, 120] }
-    if image == nil {
-        // Resources/AppIcon.png, up from the program (a build in the checkout).
-        var url = URL(fileURLWithPath: executablePath()).deletingLastPathComponent()
-        for _ in 0..<6 {
-            let icon = url.appendingPathComponent("Resources/AppIcon.png")
-            if FileManager.default.fileExists(atPath: icon.path) {
-                image = icon.withUnsafeFileSystemRepresentation { String(cString: $0!) }
-                break
-            }
-            url.deleteLastPathComponent()
-        }
-    }
+    if image == nil { image = PanelSamples.checkoutIcon(executable: executablePath()) }
     let out = URL(fileURLWithPath: folder, isDirectory: true)
     try? FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
     var failures = 0

@@ -314,8 +314,10 @@ extension Composer {
                 language: language)
         }
 
-        public static let chinese = make(language: "zh-Hans")
-        public static let english = make(language: "en")
+        /// Made each time, with the platform's terms as they are then (`Platform.current`): never the key names of the
+        /// first use.
+        public static var chinese: ReplyMessages { make(language: "zh-Hans") }
+        public static var english: ReplyMessages { make(language: "en") }
     }
 }
 
