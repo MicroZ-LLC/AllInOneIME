@@ -2742,6 +2742,9 @@ enum SelfTest {
         }
         controller.commitComposition(client)  // start the next section from a clean state
         client.inserted.removeAll()
+        // Its notice goes by itself (its timer, in the run loop's default mode), as any notice does. Nothing below runs the
+        // run loop before the README scene of the next sentence (1b-sentence-pinyin): the notice would still be on its footer.
+        check(pump(timeout: 5) { controller.notice == nil }, "the secure input notice goes by itself (\(controller.notice ?? "-"))")
 
         section("pass-through when idle", needs: .composing)
         check(!press(controller, client, "1", code: 0x12), "digit passes through")

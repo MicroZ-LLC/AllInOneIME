@@ -148,6 +148,34 @@ struct InputSessionTests {
         }
     }
 
+    /// A notice is up until its own timer fires or a newer notice takes its place, as the Mac's controller had it before
+    /// the session (0.6.5.1): composing again once secure input is off (the notice on the panel's footer, over what is
+    /// there) and committing leave the secure input notice up; an older notice's timer leaves the newer one.
+    @Test func secureInputNoticeGoesWithItsTimer() {
+        inEnglish {
+            let host = host()
+            let notice = Composer.Messages.english.secureInputPaused
+            host.secure = true
+            host.press(KeyEvent(keyCode: 0, characters: "a"))
+            host.secure = false
+            host.type("ni")
+            host.secure = true
+            host.press(KeyEvent(keyCode: 2, characters: "d"))  // said again: secure input came on again
+            host.secure = false
+            #expect(host.timers.count == 2 && host.session.notice == notice, "\(host.timers)")
+            host.send(.timer(host.timers[0]))
+            #expect(host.session.notice == notice, "the first notice's timer leaves the second")
+            host.type("nihao")
+            #expect(host.panel?.detail == notice, "on the panel while composing (\(host.panel?.detail ?? "-"))")
+            host.send(.commit)
+            #expect(host.session.notice == notice && host.document == "ni你好", "committing leaves it (\(host.document))")
+            host.type("nihao")
+            host.fireTimers()
+            #expect(host.session.notice == nil && host.panel != nil && host.panel?.detail != notice,
+                    "its timer takes it down; the panel shows again without it (\(host.panel?.detail ?? "-"))")
+        }
+    }
+
     @Test func theAppTakingTheMarkedTextStartsOver() {
         inEnglish {
             let host = host()
