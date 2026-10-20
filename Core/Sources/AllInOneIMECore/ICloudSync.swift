@@ -437,10 +437,13 @@ public enum ICloudSync {
     /// whose clock is ahead is accepted, and a change here is stamped 1 ms after it); a key gone is a tombstone, except
     /// for keys in `ignoringLocalAbsence` (a file never created, or deleted, on this Mac); a key new since the last sync
     /// is stamped the same way. Then the newer stamp wins. A key every Mac of this version has that the record lacks (an
-    /// older version's) joins instead while it is at its default, or is a collection iCloud has. A Mac that has synced before never lets joining stamps (a
-    /// fresh Mac's values, put up while iCloud had lost its settings) over a value it synced: it puts its own back up,
-    /// with a real stamp; so it does for any value iCloud no longer has. A value of iCloud's refused here (`refused`, by its
-    /// stamp) is checked again each run, and this Mac's never goes over it unless changed here.
+    /// older version's) joins instead while it is at its default, or is a collection iCloud has. A Mac that has synced
+    /// before never lets joining stamps (a fresh Mac's values, put up while iCloud had lost its settings) over a value it
+    /// synced: it puts its own back up, with a real stamp; so it does for any value iCloud no longer has. But a value at
+    /// this version's default it joined with, unchanged since, is never made a change: it goes back up as it joined, and
+    /// iCloud's is taken when that is another joining Mac's (Macs that joined, or upgraded, at once). A value of iCloud's
+    /// refused here (`refused`, by its stamp) is checked again each run, and this Mac's never goes over it unless changed
+    /// here.
     public static func plan(local: [String: AIConfig.JSONValue], known: [String: Entry], remote: [String: Entry]?,
                             categories: Set<Category>, modes: [Category: Mode] = [:], mac: String, now: Date,
                             changedAt: (String) -> Date? = { _ in nil }, ignoringLocalAbsence: Set<String> = [],
@@ -450,8 +453,13 @@ public enum ICloudSync {
         if let remote { all.formUnion(remote.keys) }
         // What this version's values are on a Mac that never set them: the keys every Mac of it has.
         let defaults = values(of: .default, in: categories)
-        func real(_ entry: Entry) -> Entry {
-            entry.stamp.isJoining ? Entry(value: entry.value, stamp: Stamp(modified: now, by: mac)) : entry
+        // This Mac's own, put up again with a real stamp (now) when it went up as a joining Mac's (`Stamp.joining`): but
+        // for a value at this version's default (`defaults`), which nobody set here. Stamped now, it would look like a
+        // change, and go over one another Mac made meanwhile and hasn't put up yet (two Macs upgraded from 0.6.5 at once,
+        // each with its default up as a joining Mac's, the switch that learns English words turned off on a third).
+        func real(_ entry: Entry, _ key: String) -> Entry {
+            guard entry.stamp.isJoining, entry.value != defaults[key] else { return entry }
+            return Entry(value: entry.value, stamp: Stamp(modified: now, by: mac))
         }
         for key in all.sorted() {
             guard let category = category(of: key), categories.contains(category) else {
@@ -524,7 +532,16 @@ public enum ICloudSync {
                     plan.outgoing[key] = entry
                     plan.entries[key] = entry
                 } else if let record {
-                    let entry = theirs == nil || filler ? real(record) : record
+                    let entry = theirs == nil || filler ? real(record, key) : record
+                    if let theirs, filler, entry.stamp.isJoining {
+                        // Two joining values, neither a change: iCloud's, as in a normal run.
+                        plan.entries[key] = theirs
+                        if theirs.value != value, !(theirs.value == nil && absent) {
+                            plan.incoming[key] = theirs
+                            plan.kept[key] = held ?? record
+                        }
+                        continue
+                    }
                     if entry != theirs, theirs == nil || filler { plan.outgoing[key] = entry }
                     plan.entries[key] = entry
                 }
@@ -544,10 +561,11 @@ public enum ICloudSync {
                     continue
                 }
                 guard let theirs else {
-                    // iCloud doesn't have it (lost, or never sent): this Mac's goes up, with a real stamp.
+                    // iCloud doesn't have it (lost, or never sent): this Mac's goes up, with a real stamp (a default as
+                    // it joined, as it is).
                     if let mine {
-                        plan.outgoing[key] = real(mine)
-                        plan.entries[key] = real(mine)
+                        plan.outgoing[key] = real(mine, key)
+                        plan.entries[key] = real(mine, key)
                     }
                     continue
                 }
@@ -579,7 +597,17 @@ public enum ICloudSync {
                 }
                 if let mine, let record, theirs.stamp.isJoining, theirs.stamp != record.stamp {
                     // A fresh Mac's value over one this Mac synced (iCloud had lost it): this Mac's goes back up.
-                    let entry = real(mine)
+                    let entry = real(mine, key)
+                    if entry.stamp.isJoining {
+                        // Unless it is a default as this Mac joined with it, unchanged since (`real`): two joining
+                        // values, neither a change (Macs that joined at once). iCloud's is taken, as by a joining Mac.
+                        plan.entries[key] = theirs
+                        if theirs.value != value, !(theirs.value == nil && absent) {
+                            plan.incoming[key] = theirs
+                            plan.kept[key] = mine
+                        }
+                        continue
+                    }
                     if entry != theirs { plan.outgoing[key] = entry }
                     plan.entries[key] = entry
                     continue

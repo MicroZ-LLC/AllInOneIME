@@ -936,6 +936,37 @@ struct EnglishWordsSyncTests {
         #expect(try a.config().typeOut && b.config().typeOut, "A's own change went over")
     }
 
+    @Test func twoMacsUpgradedAtOnceNeverTurnLearningBackOnForAThird() throws {
+        // The review's: C, upgraded, turned learning off and hasn't synced since (asleep). A and B upgrade at once: each
+        // puts its default up as a joining Mac does, and B's settings.json, written from the file as it was before A's
+        // got there, is the one iCloud keeps. A syncs again: two joining values, neither a change.
+        let rig = try SyncRig()
+        let a = try rig.mac("A"), b = try rig.mac("B"), c = try rig.mac("C")
+        a.sync(at: t(0))
+        b.sync(at: t(1))
+        c.sync(at: t(2))
+        try upgradedFrom065(rig, [a, b, c])
+        try c.edit(at: t(5)) { $0.learnsEnglishWords = false }
+        let url = rig.folder.url.appendingPathComponent(ICloudSync.settingsFile)
+        let before = try Data(contentsOf: url)
+        a.sync(at: t(10))
+        try before.write(to: url)
+        b.sync(at: t(10.5))
+        a.sync(at: t(12))
+        // A's default isn't made a change: what iCloud has is still a joining Mac's.
+        let entry = try #require(try rig.settingsJSON()["learnsEnglishWords"] as? [String: Any])
+        #expect(entry["modified"] as? String == ICloudSync.dateText(ICloudSync.Stamp.joining("").modified), "\(entry)")
+        // C wakes: its change goes over them, and stays.
+        c.sync(at: t(20))
+        a.sync(at: t(21))
+        b.sync(at: t(22))
+        c.sync(at: t(23))
+        for mac in [a, b, c] { #expect(try !mac.config().learnsEnglishWords) }
+        // The lists of English words, at their defaults on all three, settle as they were.
+        for mac in [a, b, c] { #expect(try mac.config().englishWords.isEmpty && mac.config().addedEnglishWords.isEmpty) }
+        #expect(a.sync(at: t(24)).uploaded.isEmpty && b.sync(at: t(25)).uploaded.isEmpty && c.sync(at: t(26)).uploaded.isEmpty)
+    }
+
     @Test func aChangeMadeOnAMacUpgradedFrom065StillGoesOver() throws {
         let rig = try SyncRig()
         let a = try rig.mac("A"), b = try rig.mac("B")
