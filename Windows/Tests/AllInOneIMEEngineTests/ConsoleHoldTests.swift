@@ -46,6 +46,14 @@ struct ConsoleProbe {
                     k.ReadConsoleOutputCharacterW(w.HANDLE(out), buffer, info.size.X, COORD(0, y), ctypes.byref(read))
                     lines.append(buffer.value[:read.value].rstrip())
                 print(json.dumps({"lines": lines}), flush=True)
+            elif action == "close":
+                k.GetConsoleWindow.restype = w.HWND
+                u = ctypes.WinDLL("user32", use_last_error=True)
+                u.PostMessageW.argtypes = [w.HWND, w.UINT, w.WPARAM, w.LPARAM]
+                window = k.GetConsoleWindow()
+                # WM_CLOSE: its X. Said before this process, attached to the console too, may go with it.
+                print(json.dumps({"posted": u.PostMessageW(window, 0x0010, 0, 0), "window": window or 0}), flush=True)
+                k.FreeConsole()
             else:
                 into = k.CreateFileW("CONIN$", 0xC0000000, 3, None, 3, 0, None)
                 records = (RECORD * 2)(RECORD(1, KEY(1, 1, 0x58, 0x2D, "x", 0)), RECORD(1, KEY(0, 1, 0x58, 0x2D, "x", 0)))
@@ -77,6 +85,9 @@ struct ConsoleProbe {
 
     /// A key typed into the console (x, down and up).
     func pressKey(_ pid: DWORD) -> Bool { (run(pid, "key")["written"] as? Int ?? 0) != 0 }
+
+    /// The console's window closed as its X closes it (WM_CLOSE: CTRL_CLOSE_EVENT to its processes).
+    func closeWindow(_ pid: DWORD) -> Bool { (run(pid, "close")["posted"] as? Int ?? 0) != 0 }
 }
 
 extension OnTheDesktop {
@@ -120,6 +131,32 @@ extension OnTheDesktop {
             #expect(((try? FileManager.default.contentsOfDirectory(atPath: prompts.path)) ?? []).isEmpty)
             #expect(probe.pressKey(pid))
             #expect(WaitForSingleObject(process, 5000) == WAIT_OBJECT_0)
+        }
+
+        /// The window closed while its program still runs (its X, a terminal's tab): the program goes with it, and so
+        /// does the prompt's file, at once rather than at the engine's next start.
+        @Test(.timeLimit(.minutes(1))) func aConsoleClosedWhileItsProgramRunsDeletesThePrompt() throws {
+            try #require(FileManager.default.fileExists(atPath: debugEngine.path), "build the engine first (swift build)")
+            let folder = try temporaryFolder("hold-close")
+            defer { try? FileManager.default.removeItem(at: folder) }
+            let prompts = folder.appendingPathComponent("prompts", isDirectory: true)
+            try Data("@echo waiting %*\r\n@ping -n 30 127.0.0.1 >nul\r\n".utf8).write(to: folder.appendingPathComponent("wait.cmd"))
+            let probe = try ConsoleProbe(folder: folder)
+            let path = folder.withUnsafeFileSystemRepresentation { String(cString: $0!) }
+            let pid = try testShellThread.syncThrowing {
+                try testWindowsSystem().startInConsole(["wait", "--"], prompt: "line one\nline two", path: path, promptFolder: prompts)
+            }
+            let process = try #require(OpenProcess(DWORD(SYNCHRONIZE) | DWORD(PROCESS_TERMINATE), false, pid))
+            defer {
+                TerminateProcess(process, 0)
+                CloseHandle(process)
+            }
+            let deadline = Date().addingTimeInterval(20)
+            while !probe.screen(pid).contains("waiting"), Date() < deadline { Thread.sleep(forTimeInterval: 0.1) }
+            #expect(((try? FileManager.default.contentsOfDirectory(atPath: prompts.path)) ?? []).count == 1)
+            #expect(probe.closeWindow(pid))
+            #expect(WaitForSingleObject(process, 10_000) == WAIT_OBJECT_0)
+            #expect(((try? FileManager.default.contentsOfDirectory(atPath: prompts.path)) ?? []).isEmpty)
         }
 
         /// The four variables a console's process reads are this launch's only: one the engine has in its own

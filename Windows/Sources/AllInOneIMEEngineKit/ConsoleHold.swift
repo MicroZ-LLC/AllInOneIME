@@ -93,7 +93,9 @@ public enum ConsoleHold {
     /// The console's process (`AllInOneIMEEngine --run-in-console`): starts the program the environment names in this
     /// console, waits for it, deletes its prompt's file (held open meanwhile, so that `ConsoleCommand.removeStalePrompts`
     /// leaves it), says how it ended and waits for a key. Ctrl+C and Ctrl+Break are the program's: this process stays to
-    /// say so. Its exit code: 0 once the key is pressed (the program's is on the screen), 2 without a program.
+    /// say so. The window closed meanwhile (its X, the terminal's tab), or the user logging off: the program goes with
+    /// the console, and so does the prompt's file. Its exit code: 0 once the key is pressed (the program's is on the
+    /// screen), 2 without a program.
     public static func run() -> Int32 {
         guard let application = take(applicationVariable), let commandLine = take(commandLineVariable) else { return 2 }
         let title = take(titleVariable)
@@ -103,7 +105,6 @@ public enum ConsoleHold {
         let output = open("CONOUT$"), input = open("CONIN$")
         let name = title.flatMap { $0.isEmpty ? nil : $0 } ?? (application as NSString).lastPathComponent
         _ = name.withCString(encodedAs: UTF16.self) { SetConsoleTitleW($0) }
-        SetConsoleCtrlHandler({ event in WindowsBool(event == DWORD(CTRL_C_EVENT) || event == DWORD(CTRL_BREAK_EVENT)) }, true)
         // The prompt's file, open (to read, no one may delete it) while the program runs.
         let held = promptFile.flatMap { file -> HANDLE? in
             let handle = file.withCString(encodedAs: UTF16.self) {
@@ -111,6 +112,19 @@ public enum ConsoleHold {
             }
             return handle == INVALID_HANDLE_VALUE ? nil : handle
         }
+        if let promptFile { HeldPrompt.shared.hold(promptFile, handle: held) }
+        SetConsoleCtrlHandler({ event in
+            switch event {
+            case DWORD(CTRL_C_EVENT), DWORD(CTRL_BREAK_EVENT):
+                return true  // the program's
+            case DWORD(CTRL_CLOSE_EVENT), DWORD(CTRL_LOGOFF_EVENT), DWORD(CTRL_SHUTDOWN_EVENT):
+                // The window going (Windows ends this process when the handler returns): the file first.
+                HeldPrompt.shared.remove()
+                return false
+            default:
+                return false
+            }
+        }, true)
 
         var message: String
         var commandLineBuffer = Array(commandLine.utf16) + [0]
@@ -134,8 +148,7 @@ public enum ConsoleHold {
             message = chinese ? "\(name) 没能启动（错误 \(error)）。按任意键关闭此窗口。"
                 : "Couldn't start \(name) (error \(error)). Press any key to close this window."
         }
-        if let held { CloseHandle(held) }
-        if let promptFile { _ = promptFile.withCString(encodedAs: UTF16.self) { DeleteFileW($0) } }
+        HeldPrompt.shared.remove()
         write("\r\n" + message, to: output)
         waitForKey(input)
         return 0
@@ -218,6 +231,31 @@ public enum ConsoleHold {
         var units = Array(text.utf16)
         var written: DWORD = 0
         WriteConsoleW(output, &units, DWORD(units.count), &written, nil)
+    }
+
+    /// The prompt's file a console holds, deleted once, by whichever comes first: the program's end, or the console's
+    /// control handler (a C function, which has no context of its own) as its window closes.
+    final class HeldPrompt: @unchecked Sendable {
+        static let shared = HeldPrompt()
+        private let lock = NSLock()
+        private var path: String?
+        private var handle: HANDLE?
+
+        func hold(_ path: String, handle: HANDLE?) {
+            lock.lock()
+            (self.path, self.handle) = (path, handle)
+            lock.unlock()
+        }
+
+        /// Closes the file (this process's hold on it) and deletes it.
+        func remove() {
+            lock.lock()
+            let (path, handle) = (self.path, self.handle)
+            (self.path, self.handle) = (nil, nil)
+            lock.unlock()
+            if let handle { CloseHandle(handle) }
+            if let path { _ = path.withCString(encodedAs: UTF16.self) { DeleteFileW($0) } }
+        }
     }
 }
 #endif
