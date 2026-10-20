@@ -33,6 +33,15 @@ public enum FuzzyPinyin {
         pairs.map(\.id).filter(ids.contains)
     }
 
+    /// The spellings the pairs `ids` derive, as patterns and templates (`derive/^zh/z/`: "^zh", "z"), in the order
+    /// `patch` writes them.
+    static func derivations(_ ids: [String]) -> [(pattern: String, template: String)] {
+        pairs.filter { ids.contains($0.id) }.flatMap(\.rules).compactMap { rule in
+            let parts = rule.dropFirst("derive/".count).split(separator: "/", omittingEmptySubsequences: false)
+            return rule.hasPrefix("derive/") && parts.count == 3 ? (String(parts[0]), String(parts[1])) : nil
+        }
+    }
+
     public static let fileName = "rime_ice.custom.yaml"
     /// The first line of the file when AllInOneIME wrote it: one without it is the user's, never touched.
     static let marker = "# Written by AllInOneIME: fuzzy pinyin (Settings → Input). Edits here are replaced."

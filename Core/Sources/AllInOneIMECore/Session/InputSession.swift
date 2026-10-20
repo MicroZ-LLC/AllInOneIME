@@ -286,7 +286,7 @@ public final class InputSession {
         let config = services.loadSettings()
         guard config.learnsEnglishWords, config.allowsAI(in: app),
               EnglishWords.learnable(typed, known: Set(englishWords.words.map(EnglishWords.key)), dictionary: englishWords.dictionary,
-                                     hidden: config.redaction.customWords),
+                                     hidden: config.redaction.customWords, fuzzy: config.fuzzyPinyin),
               services.englishTypedOnce.again(typed) else { return }
         englishWords.words.append(typed)
         services.learnEnglishWord(typed)
@@ -308,6 +308,7 @@ public final class InputSession {
         composer.typesResults = config.applying(app: app).typeOut
         composer.horizontalCandidates = config.candidateLayout == .horizontal
         if let englishWords {
+            englishWords.fuzzyPinyin = config.fuzzyPinyin
             let jargon = services.jargon(config)
             let madeOf = config.englishWords + ["\u{0}"] + jargon.map(\.term)
             if madeOf != englishWordsMadeOf {

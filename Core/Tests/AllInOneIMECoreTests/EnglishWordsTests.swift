@@ -161,6 +161,17 @@ struct EnglishWordsTests {
         }
     }
 
+    @Test func pinyinWithTheUsersFuzzyPinyin() {
+        // f ↔ h: 会 hui typed fui, 红线 hongxian fongxian; in ↔ ing: 丁 ding typed din.
+        for (typed, fuzzy) in [("fuihuang", ["f-h"]), ("fongxian", ["f-h"]), ("dinmao", ["in-ing"]), ("fongxian", ["z-zh", "f-h"])] {
+            #expect(!Pinyin.isPinyin(typed) && Pinyin.isPinyin(typed, fuzzy: fuzzy), "\(typed)")
+            #expect(EnglishWords.learnable(typed, known: [], dictionary: EnglishDictionary([]), hidden: []), "\(typed)")
+            #expect(!EnglishWords.learnable(typed, known: [], dictionary: EnglishDictionary([]), hidden: [], fuzzy: fuzzy), "\(typed)")
+        }
+        #expect(!Pinyin.isPinyin("fongxian", fuzzy: ["n-l"]) && !Pinyin.isPinyin("bedrock", fuzzy: FuzzyPinyin.pairs.map(\.id)))
+        #expect(Pinyin.isPinyinBeingTyped("fongx", fuzzy: ["f-h"]) && !Pinyin.isPinyinBeingTyped("fongx"))
+    }
+
     // MARK: Among the candidates
 
     @Test func aWordWhoseLettersAreTypedComesFirstAsItIsWritten() {
@@ -205,6 +216,16 @@ struct EnglishWordsTests {
         // Pinyin still being typed: a longer word after the page.
         type("zhon", e)
         #expect(texts(e).last == "Zhongshan Park" && texts(e).first != "Zhongshan Park")
+    }
+
+    @Test func pinyinWithTheUsersFuzzyPinyinComesFirst() {
+        let (e, _) = engine(["Fongxian"])
+        type("fongxian", e)
+        #expect(texts(e).first == "Fongxian")
+        e.clearComposition()
+        e.fuzzyPinyin = ["f-h"]
+        type("fongxian", e)
+        #expect(texts(e).prefix(2) == ["比尔", "Fongxian"], "second, as pinyin: \(texts(e))")
     }
 
     @Test func threeAtMostTheShorterFirst() {
@@ -688,6 +709,18 @@ struct EnglishWordsSessionTests {
             #expect(learned.words.isEmpty)
             putInTwice("frobnicate", host(learned: learned))
             #expect(learned.words == ["frobnicate"], "anywhere else")
+        }
+    }
+
+    @Test func notWhatTheUsersFuzzyPinyinReads() {
+        withInterfaceLanguage("en") {
+            let learned = Learned()
+            var config = Self.settings
+            config.fuzzyPinyin = ["f-h"]
+            putInTwice("fongxian", host(config, learned: learned))
+            #expect(learned.words.isEmpty)
+            putInTwice("fongxian", host(learned: learned))
+            #expect(learned.words == ["fongxian"], "without it")
         }
     }
 

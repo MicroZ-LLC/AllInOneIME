@@ -22,6 +22,8 @@ public final class EnglishWordsEngine: PinyinEngine {
     }
     /// Letters librime committed exactly as they were typed, the whole composition (⏎, a tap of Shift).
     public var rawCommitted: ((String) -> Void)?
+    /// The user's fuzzy pinyin (`Config.fuzzyPinyin`): what librime reads as pinyin with it is pinyin here too.
+    public var fuzzyPinyin: [String] = []
     /// The most words put on a page.
     public static let maxPerPage = 3
 
@@ -72,7 +74,7 @@ public final class EnglishWordsEngine: PinyinEngine {
         let shown = Set(snap.candidates.map { $0.text.lowercased() })
         let found = matches(typed).filter { !shown.contains($0.word.lowercased()) && !dictionary.contains($0.key) }.prefix(Self.maxPerPage)
         guard !found.isEmpty else { return rime }
-        let pinyin = Pinyin.isPinyin(typed), maybePinyin = Pinyin.isPinyinBeingTyped(typed)
+        let pinyin = Pinyin.isPinyin(typed, fuzzy: fuzzyPinyin), maybePinyin = Pinyin.isPinyinBeingTyped(typed, fuzzy: fuzzyPinyin)
         // Before librime's candidate of each place (the last: after them all).
         var before = [[Entry]](repeating: [], count: rime.count + 1)
         for match in found {

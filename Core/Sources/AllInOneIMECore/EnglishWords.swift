@@ -44,12 +44,13 @@ public enum EnglishWords {
 
     /// Whether `typed`, letters the user put in as they are (`EnglishWordsEngine.rawCommitted`), is learned: Latin letters
     /// only, 3 to `maxLearned` of them, a word not offered already (`known`, by key) nor in rime-ice's dictionary, not
-    /// pinyin (`Pinyin.isPinyin`: "nihao", "yyds"), with a vowel, and nothing like a secret (`looksSecret`, the user's
-    /// hidden words included, anywhere in it).
-    public static func learnable(_ typed: String, known: Set<String>, dictionary: EnglishDictionary, hidden: [String]) -> Bool {
+    /// pinyin (`Pinyin.isPinyin`: "nihao", "yyds"; with the user's fuzzy pinyin, `fuzzy`: "fongxian" with f ↔ h), with a
+    /// vowel, and nothing like a secret (`looksSecret`, the user's hidden words included, anywhere in it).
+    public static func learnable(_ typed: String, known: Set<String>, dictionary: EnglishDictionary, hidden: [String],
+                                 fuzzy: [String] = []) -> Bool {
         guard (3...maxLearned).contains(typed.count), typed.allSatisfy({ $0.isASCII && $0.isLetter }) else { return false }
         let k = key(typed)
-        return !known.contains(k) && !dictionary.contains(k) && !Pinyin.isPinyin(k)
+        return !known.contains(k) && !dictionary.contains(k) && !Pinyin.isPinyin(k, fuzzy: fuzzy)
             && k.contains(where: { "aeiouy".contains($0) }) && !looksSecret(typed, hidden: hidden)
     }
 
@@ -324,56 +325,77 @@ enum Pinyin {
         // Letters left out: "do" for dou and dong, "lon" for long, "ten" for teng, "lng" for lang, leng, ling and long.
         ("([rtsdghkzc])o(u|ng)$", "$1o"), ("(.+)ong$", "$1on"), ("([tl])eng$", "$1en"), ("([qwrtypsdfghjklzxcbnm])([aeio])ng$", "$1ng"),
     ]
-    /// The syllables as rime-ice's speller reads them: as spelled, and as its `algebra` derives them, each rule applied to
-    /// what the ones before it gave.
-    static let spellings: Set<String> = {
-        var out = syllables
-        for (pattern, template) in algebra {
-            let regex = try! NSRegularExpression(pattern: pattern)
-            for spelling in out {
-                let range = NSRange(location: 0, length: (spelling as NSString).length)
-                guard regex.firstMatch(in: spelling, range: range) != nil else { continue }
-                out.insert(regex.stringByReplacingMatches(in: spelling, range: range, withTemplate: template))
-            }
-        }
-        return out
-    }()
-    /// The longest spelling, in letters.
-    private static let longest = spellings.map(\.count).max() ?? 6
     /// The initials a syllable can be typed as on its own (rime-ice's abbreviations: "llm" for 来了吗).
     static let initials: Set<String> = Set("b p m f d t n l g k h j q x zh ch sh r z c s y w".split(separator: " ").map(String.init))
-    /// The beginnings of the spellings: what may end pinyin still being typed ("zhon").
-    static let syllablePrefixes: Set<String> = Set(spellings.flatMap { spelling in
-        (1...spelling.count).map { String(spelling.prefix($0)) }
-    })
 
-    /// Whether `letters` (lowercased) is pinyin: spellings only ("nihao", "xiaomi", "zheige", "zhogn"), or, up to four
-    /// letters, spellings and initials ("rug" ru-g, "mac" ma-c, "llm"), which rime-ice takes for pinyin before an English
-    /// word (its `reduce_english_filter`).
-    static func isPinyin(_ letters: String) -> Bool {
+    /// How rime-ice's speller reads pinyin with the user's fuzzy pinyin (`Config.fuzzyPinyin`, `FuzzyPinyin`): the
+    /// syllables as spelled, and as its rules derive them, each rule applied to what the ones before it gave: the fuzzy
+    /// pairs' first, then rime-ice's own (`algebra`), as `FuzzyPinyin.patch` puts them.
+    struct Reading: Sendable {
+        let spellings: Set<String>
+        /// The beginnings of the spellings: what may end pinyin still being typed ("zhon").
+        let prefixes: Set<String>
+        /// The longest spelling, in letters.
+        let longest: Int
+
+        init(fuzzy: [String]) {
+            var out = Pinyin.syllables
+            for (pattern, template) in FuzzyPinyin.derivations(fuzzy) + Pinyin.algebra {
+                let regex = try! NSRegularExpression(pattern: pattern)
+                for spelling in out {
+                    let range = NSRange(location: 0, length: (spelling as NSString).length)
+                    guard regex.firstMatch(in: spelling, range: range) != nil else { continue }
+                    out.insert(regex.stringByReplacingMatches(in: spelling, range: range, withTemplate: template))
+                }
+            }
+            spellings = out
+            prefixes = Set(out.flatMap { spelling in (1...spelling.count).map { String(spelling.prefix($0)) } })
+            longest = out.map(\.count).max() ?? 6
+        }
+    }
+
+    /// The reading for the fuzzy pairs `fuzzy` (ids; those not known left out), made once for each set of them.
+    static func reading(fuzzy: [String]) -> Reading {
+        let pairs = FuzzyPinyin.known(fuzzy)
+        if let made = readings.withLock({ $0[pairs] }) { return made }
+        let made = Reading(fuzzy: pairs)
+        readings.withLock { $0[pairs] = made }
+        return made
+    }
+    private static let readings = Locked<[[String]: Reading]>(initialState: [:])
+
+    /// The syllables as rime-ice's speller reads them, without fuzzy pinyin.
+    static var spellings: Set<String> { reading(fuzzy: []).spellings }
+
+    /// Whether `letters` (lowercased) is pinyin, with the fuzzy pairs `fuzzy`: spellings only ("nihao", "xiaomi",
+    /// "zheige", "zhogn"), or, up to four letters, spellings and initials ("rug" ru-g, "mac" ma-c, "llm"), which rime-ice
+    /// takes for pinyin before an English word (its `reduce_english_filter`).
+    static func isPinyin(_ letters: String, fuzzy: [String] = []) -> Bool {
+        let reading = reading(fuzzy: fuzzy)
         let s = Array(letters)
-        return splits(s, allowing: { spellings.contains($0) })
-            || s.count <= 4 && splits(s, allowing: { spellings.contains($0) || initials.contains($0) })
+        return splits(s, reading, allowing: { reading.spellings.contains($0) })
+            || s.count <= 4 && splits(s, reading, allowing: { reading.spellings.contains($0) || initials.contains($0) })
     }
 
     /// Whether `letters` is pinyin still being typed: pinyin (`isPinyin`), or spellings then the beginning of one
     /// ("zhongg", "openr" o-pen-r).
-    static func isPinyinBeingTyped(_ letters: String) -> Bool {
-        if isPinyin(letters) { return true }
+    static func isPinyinBeingTyped(_ letters: String, fuzzy: [String] = []) -> Bool {
+        if isPinyin(letters, fuzzy: fuzzy) { return true }
+        let reading = reading(fuzzy: fuzzy)
         let s = Array(letters)
         return (0..<s.count).contains { cut in
-            (cut == 0 || splits(Array(s[..<cut]), allowing: { spellings.contains($0) }))
-                && syllablePrefixes.contains(String(s[cut...]))
+            (cut == 0 || splits(Array(s[..<cut]), reading, allowing: { reading.spellings.contains($0) }))
+                && reading.prefixes.contains(String(s[cut...]))
         }
     }
 
-    /// Whether `s` is a run of units `allowing` takes (each `longest` letters at most), with nothing left.
-    private static func splits(_ s: [Character], allowing: (String) -> Bool) -> Bool {
+    /// Whether `s` is a run of units `allowing` takes (each the reading's longest spelling at most), with nothing left.
+    private static func splits(_ s: [Character], _ reading: Reading, allowing: (String) -> Bool) -> Bool {
         guard !s.isEmpty else { return false }
         var reachable = [Bool](repeating: false, count: s.count + 1)
         reachable[0] = true
         for start in 0..<s.count where reachable[start] {
-            for length in 1...min(longest, s.count - start) where allowing(String(s[start..<(start + length)])) {
+            for length in 1...min(reading.longest, s.count - start) where allowing(String(s[start..<(start + length)])) {
                 reachable[start + length] = true
             }
         }
