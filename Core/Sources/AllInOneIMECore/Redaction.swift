@@ -56,7 +56,11 @@ public struct RedactionSettings: Codable, Equatable, Sendable {
     /// (those it didn't show) are added, and the others, one added elsewhere since included, stay. A word the field
     /// still shows that is gone from `list` (deleted on another Mac meanwhile) stays deleted.
     public static func edited(_ list: [String], field text: String, shown: [String]) -> [String] {
-        let typed = words(from: text)
+        edited(list, to: words(from: text), shown: shown)
+    }
+
+    /// `edited(_:field:shown:)` with the field's words as a list: as a settings window over the wire sends them.
+    public static func edited(_ list: [String], to typed: [String], shown: [String]) -> [String] {
         let removed = Set(shown).subtracting(typed)
         var out = list.filter { !removed.contains($0) }
         for word in typed where !shown.contains(word) && !out.contains(word) { out.append(word) }

@@ -9,7 +9,11 @@
 #     in Platform/Windows/ isn't wholly inside `#if os(Windows)` (that alone, or in a `&&`);
 #   - a core file starts a program itself (`Process(`, `posix_spawn`, `fork(`, `system(`, `CreateProcessW(`,
 #     `ShellExecuteW(`, ...) instead of through the ProcessLauncher (only Platform/FoundationProcessLauncher.swift does,
-#     with `Process`, and Platform/Windows/WindowsProcessLauncher.swift, with `CreateProcessW`).
+#     with `Process`, and Platform/Windows/WindowsProcessLauncher.swift, with `CreateProcessW`);
+#   - a file of the package (any target's under Sources/ or Tests/) uses `URLSession`, `URLRequest`, `HTTPURLResponse`
+#     or another of FoundationNetworking's types without `#if canImport(FoundationNetworking) import FoundationNetworking
+#     #endif`, in the file or re-exported (`@_exported`) by another of its target: Apple's Foundation has them, Linux's
+#     and Windows' don't.
 # A guard counts only when its branch can't be taken without it: `#if !(canImport(X))` or `#if canImport(X) || true`
 # guards nothing.
 # Scripts/check-core-portable-test.sh checks the check.

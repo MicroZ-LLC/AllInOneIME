@@ -1,0 +1,10 @@
+# A password field (IS_PASSWORD). §8: the DLL sends neither keys nor context: no open, no focus, nothing after the
+# handshake, and every key reaches the app.
+#! secure
+#! expect-silence
+> {"v":1,"id":1,"type":"hello","versions":[1],"client":"$any","platform":"win","arch":"x64","pid":"$any","tid":"$any","capabilities":["allowForeground"]}
+< {"v":1,"id":1,"re":1,"type":"welcome","version":1,"engine":"$any","enginePid":"$any","capabilities":[],"limits":{"contextBefore":32,"selection":10002}}
+#! type down vk=72 scan=35 char=h
+#! type down vk=73 scan=23 char=i
+#! type down vk=50 scan=3 shift char=@
+#! expect-document "hi@"

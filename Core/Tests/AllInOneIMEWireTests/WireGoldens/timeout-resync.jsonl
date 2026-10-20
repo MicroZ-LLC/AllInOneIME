@@ -1,0 +1,33 @@
+# A key the client gave up on (§5.4): it ended its composition, leaving the draft as typed (composition.typed),
+# passed the key to the app and dropped the late result, then sends endComposition timeout. The engine starts
+# over and hides its panel, and sends no composition: an empty one would remove what the document kept.
+#! provider fixtures/improve-hello.json
+#! inputLanguage english
+> {"v":1,"id":1,"type":"hello","versions":[1],"client":"$any","platform":"win","arch":"x64","pid":"$any","tid":"$any","capabilities":["allowForeground"]}
+< {"v":1,"id":1,"re":1,"type":"welcome","version":1,"engine":"$any","enginePid":"$any","capabilities":[],"limits":{"contextBefore":32,"selection":10002}}
+> {"id":2,"type":"open","sid":1,"field":{"app":"win:notepad.exe","process":"notepad.exe","scopes":[0],"layout":"00000409"}}
+> {"id":3,"type":"focus","sid":1,"focus":1}
+> {"id":4,"type":"keyDown","sid":1,"t":1000,"key":{"vk":16,"scan":42,"modifiers":["shift","leftShift"]},"ctx":{"sel":[0,0]}}
+< {"id":2,"re":4,"type":"result"}
+> {"id":5,"type":"keyDown","sid":1,"t":1080,"key":{"vk":50,"scan":3,"text":"@","textIgnoringModifiers":"@","modifiers":["shift","leftShift"]},"ctx":{"sel":[0,0]}}
+< {"id":3,"re":5,"type":"result","handled":true,"outputs":[{"op":"composition","text":"@","caret":1,"segments":[{"from":0,"to":1,"style":"draft"}]},{"op":"panel","shown":true}]}
+> {"id":6,"type":"keyUp","sid":1,"t":1150,"key":{"vk":16,"scan":42},"ctx":{"sel":[1,1],"comp":1}}
+< {"id":4,"re":6,"type":"result"}
+> {"id":7,"type":"keyDown","sid":1,"t":1150,"key":{"vk":73,"scan":23,"text":"i","textIgnoringModifiers":"i"},"ctx":{"sel":[1,1],"comp":1}}
+< {"id":5,"re":7,"type":"result","handled":true,"outputs":[{"op":"composition","text":"i","caret":1,"segments":[{"from":0,"to":1,"style":"draft"}],"typed":"@i"}]}
+> {"id":8,"type":"keyDown","sid":1,"t":1250,"key":{"vk":77,"scan":50,"text":"m","textIgnoringModifiers":"m"},"ctx":{"sel":[1,1],"comp":1}}
+< {"id":6,"re":8,"type":"result","handled":true,"outputs":[{"op":"composition","text":"im","caret":2,"segments":[{"from":0,"to":2,"style":"draft"}],"typed":"@im"}]}
+# p: the engine answers, but after the client's 150 ms: the client typed p and drops the result
+> {"id":9,"type":"keyDown","sid":1,"t":1350,"key":{"vk":80,"scan":25,"text":"p","textIgnoringModifiers":"p"},"ctx":{"sel":[2,2],"comp":2}}
+< {"id":7,"re":9,"type":"result","handled":true,"outputs":[{"op":"composition","text":"imp","caret":3,"segments":[{"from":0,"to":3,"style":"draft"}],"typed":"@imp"}]}
+> {"id":10,"type":"endComposition","sid":1,"reason":"timeout"}
+< {"id":8,"re":10,"type":"result","outputs":[{"op":"panel","shown":false}]}
+# Back in step: typing is plain text again
+> {"id":11,"type":"keyDown","sid":1,"t":1550,"key":{"vk":32,"scan":57,"text":" ","textIgnoringModifiers":" "},"ctx":{"sel":[4,4],"before":"@imp"}}
+< {"id":9,"re":11,"type":"result"}
+> {"id":12,"type":"keyDown","sid":1,"t":1650,"key":{"vk":88,"scan":45,"text":"x","textIgnoringModifiers":"x"},"ctx":{"sel":[5,5],"before":"@imp "}}
+< {"id":10,"re":12,"type":"result"}
+> {"id":13,"type":"blur","sid":1}
+< {"id":11,"re":13,"type":"result"}
+> {"id":14,"type":"close","sid":1}
+#! expect-document "@imp x"

@@ -1,0 +1,25 @@
+# The engine goes away mid-composition (§2.5): the DLL ends the composition keeping the draft as typed ("@i", which the
+# engine shows as "i"), passes keys through, reconnects with backoff, and re-sends open for the live context and focus
+# (a new serial) for the focused one. Ids start again from 1 on the new connection; the sid stays.
+> {"v":1,"id":1,"type":"hello","versions":[1],"client":"$any","platform":"win","arch":"x64","pid":"$any","tid":"$any","capabilities":["allowForeground"]}
+< {"v":1,"id":1,"re":1,"type":"welcome","version":1,"engine":"$any","enginePid":"$any","capabilities":[],"limits":{"contextBefore":32,"selection":10002}}
+> {"v":1,"id":2,"type":"open","sid":1,"field":{"app":"win:notepad.exe","process":"notepad.exe","scopes":[0],"layout":"00000409"}}
+> {"v":1,"id":3,"type":"focus","sid":1,"focus":1}
+> {"v":1,"id":4,"type":"keyDown","sid":1,"t":1000,"key":{"vk":50,"scan":3,"text":"@","textIgnoringModifiers":"@","modifiers":["shift","leftShift"]},"ctx":{"sel":[0,0]}}
+< {"v":1,"id":2,"re":4,"type":"result","handled":true,"outputs":[{"op":"composition","text":"@","caret":1,"segments":[{"from":0,"to":1,"style":"draft"}]},{"op":"panel","shown":true}]}
+> {"v":1,"id":5,"type":"caret","sid":1,"rect":[812,440,9,20],"hwnd":"$any"}
+> {"v":1,"id":6,"type":"keyDown","sid":1,"t":1200,"key":{"vk":73,"scan":23,"text":"i","textIgnoringModifiers":"i"},"ctx":{"sel":[1,1],"comp":1}}
+< {"v":1,"id":3,"re":6,"type":"result","handled":true,"outputs":[{"op":"composition","text":"i","caret":1,"segments":[{"from":0,"to":1,"style":"draft"}],"typed":"@i"}]}
+#! reconnect
+> {"v":1,"id":1,"type":"hello","versions":[1],"client":"$any","platform":"win","arch":"x64","pid":"$any","tid":"$any","capabilities":["allowForeground"]}
+< {"v":1,"id":1,"re":1,"type":"welcome","version":1,"engine":"$any","enginePid":"$any","capabilities":[],"limits":{"contextBefore":32,"selection":10002}}
+> {"v":1,"id":2,"type":"open","sid":1,"field":{"app":"win:notepad.exe","process":"notepad.exe","scopes":[0],"layout":"00000409"}}
+> {"v":1,"id":3,"type":"focus","sid":1,"focus":2}
+#! wait 600
+# the draft stayed in the document as typed, as plain text: no composition (no `comp`)
+> {"v":1,"id":4,"type":"keyDown","sid":1,"t":2000,"key":{"vk":77,"scan":50,"text":"m","textIgnoringModifiers":"m"},"ctx":{"sel":[2,2],"before":"@i"}}
+< {"v":1,"id":2,"re":4,"type":"result"}
+> {"v":1,"id":5,"type":"blur","sid":1}
+< {"v":1,"id":3,"re":5,"type":"result"}
+> {"v":1,"id":6,"type":"close","sid":1}
+#! expect-document "@im"

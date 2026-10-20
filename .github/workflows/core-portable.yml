@@ -2,11 +2,10 @@
 # Core/ alone (`git archive HEAD:Core`, beside the checkout, so that nothing above it is there), as the core's own
 # repository will be: the lint guards (Scripts/check-core-portable.sh, its self-test, Scripts/check-core-standalone.sh)
 # must pass, and on macOS, Linux and Windows the core and its tests must build (on macOS and Linux in release
-# too). On Windows the suites of what differs
-# there (paths, the folder swap, the word list, the JavaScript engine: QuickJS-ng) run too, and the Windows shell
-# (Windows/) builds; the rest of the tests
-# aren't run there yet: some still fail for known reasons (the tools in the image, POSIX programs, Apple-only
-# assumptions). The tests run in full on the Mac with `make test`.
+# too). On Windows the suites of what differs there (paths, the folder swap, the word list, the JavaScript engine:
+# QuickJS-ng) and the wire protocol's goldens run too, and the Windows shell (Windows/) builds, its engine replaying
+# the goldens over the real pipe; the rest of the tests aren't run there yet: some still fail for known reasons (the
+# tools in the image, POSIX programs, Apple-only assumptions). The tests run in full on the Mac with `make test`.
 name: Core on other platforms
 
 on:
@@ -101,8 +100,12 @@ jobs:
         run: swift build --build-tests
         working-directory: ../core
       - name: Run the tests of what differs on Windows
-        run: swift test --skip-build --filter 'PathCheckTests|SwapRecoveryTests|RedactionWordListTests|ScriptEngineTests|QuickJSEngineTests|OnQuickJSTests'
+        run: swift test --skip-build --filter 'PathCheckTests|SwapRecoveryTests|RedactionWordListTests|ScriptEngineTests|QuickJSEngineTests|OnQuickJSTests|AllInOneIMEWireTests'
         working-directory: ../core
       - name: Build the Windows shell
         run: swift build
+        working-directory: Windows
+      - name: Replay the wire goldens over the engine's pipe
+        shell: bash
+        run: .build/debug/allinoneime-cli.exe wire-replay --launch .build/debug/AllInOneIMEEngine.exe ../Core/Tests/AllInOneIMEWireTests/WireGoldens/*.jsonl
         working-directory: Windows

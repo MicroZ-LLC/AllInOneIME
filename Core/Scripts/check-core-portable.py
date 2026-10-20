@@ -9,7 +9,12 @@ string counts, and nothing there (an unbalanced \"\"\" in a comment, say) change
   - a file in Platform/Apple/ isn't wholly inside `#if canImport(...)`: every line of code is in the branch of one; a
     file in Platform/Windows/ isn't wholly inside `#if os(Windows)` (that alone, or in a `&&`);
   - a core file starts a program itself (`Process(`, `posix_spawn`, `fork(`, `system(`, `CreateProcessW(`,
-    `ShellExecuteW(`, ...) instead of through the ProcessLauncher; its files start them only their own way (LAUNCHERS).
+    `ShellExecuteW(`, ...) instead of through the ProcessLauncher; its files start them only their own way (LAUNCHERS);
+  - a file of the package (any target's, its tests' too) uses what is FoundationNetworking's off Apple platforms
+    (`URLSession`, `URLRequest`, `HTTPURLResponse`, ...: NETWORKING) without importing it: in the file, under
+    `#if canImport(FoundationNetworking)`, or re-exported (`@_exported import`) by another file of its target. Apple's
+    Foundation has them, so only Linux and Windows fail without it. Code in an Apple-only branch (`#if canImport(Darwin)`,
+    `#if os(macOS)`, ...) and Platform/Apple/ don't count.
 A guard counts only when its branch can't be taken without it (`implies`): `#if !(canImport(X))`,
 `#if canImport(X) || true` and `#if !(os(Linux) || os(Windows))` guard nothing.
 
@@ -57,6 +62,14 @@ LAUNCHERS = {
     "Platform/FoundationProcessLauncher.swift": PROGRAMS[:2],
     "Platform/Windows/WindowsProcessLauncher.swift": [re.compile(r"(?<!\w)CreateProcessW\s*\(")],
 }
+# What Foundation has on Apple platforms and FoundationNetworking elsewhere: a file that names one needs
+# `#if canImport(FoundationNetworking) import FoundationNetworking #endif` (or its target re-exports it).
+NETWORKING = re.compile(
+    r"(?<!\w)(?:URLSession(?:Configuration|(?:Data|Upload|Download|Stream|WebSocket)?Task|(?:Task|Data|Download|Stream|WebSocket)?Delegate"
+    r"|TaskMetrics)?|NS(?:Mutable)?URLRequest|URLRequest|URLResponse|HTTPURLResponse|CachedURLResponse|URLProtocol(?:Client)?"
+    r"|URLCache|URLCredential(?:Storage)?|URLProtectionSpace|URLAuthenticationChallenge(?:Sender)?|HTTPCookie(?:Storage|PropertyKey)?)"
+    r"(?!\w)")
+NETWORKING_GUARD = [r"canImport\(FoundationNetworking\)"]
 # `system(` unqualified: the C call when its argument is a string literal, or when the core has no `system` of its own
 # (Prompt.system, ...) that it could mean.
 SYSTEM_WITH_TEXT = re.compile(r"(?<![\w.])system\s*\(\s*#*\"")
@@ -214,6 +227,59 @@ def check_of(check, values):
 
 ANY_CAN_IMPORT = [r"canImport\(\w+\)"]
 WINDOWS = check_of("os", ["Windows"])
+APPLE_ONLY = check_of("os", APPLE_SYSTEMS) + check_of("canImport", ["Darwin", "AppKit", "UIKit", "Security", "JavaScriptCore",
+                                                                    "FoundationModels"])
+
+
+def networking(root):
+    """Files that name what is FoundationNetworking's off Apple platforms without importing it (NETWORKING): every
+    target's under Sources/ and Tests/ (a folder each), Platform/Apple/ aside. A target whose file re-exports it
+    (`@_exported import FoundationNetworking`, as Tests/AllInOneIMECoreTests/FoundationModules.swift) has it in each."""
+    found = []
+    for top in ("Sources", "Tests"):
+        base = os.path.join(root, top)
+        if not os.path.isdir(base):
+            continue
+        for target in sorted(os.listdir(base)):
+            folder = os.path.join(base, target)
+            if not os.path.isdir(folder):
+                continue
+            files = []
+            for directory, _, entries in os.walk(folder):
+                files += [os.path.join(directory, e) for e in entries if e.endswith(".swift")]
+            files.sort()
+            uses, imported, exported = {}, set(), False
+            for path in files:
+                relative = os.path.relpath(path, folder).replace(os.sep, "/")
+                if relative.startswith("Platform/Apple/"):
+                    continue
+                with open(path, encoding="utf-8", errors="replace") as f:
+                    text = strip(f.read())
+                lines = text.split("\n")
+                where = branches(lines)
+                for m in IMPORT.finditer(text):
+                    if m.group(1) != "FoundationNetworking":
+                        continue
+                    line = text.count("\n", 0, m.start(1))
+                    # Imported wherever FoundationNetworking is: unguarded, or under its own guard (every branch it is in).
+                    if all(implies(c, NETWORKING_GUARD) for c in (where[line] or [])):
+                        imported.add(path)
+                        if re.search(r"@_exported\b", text[m.start():m.start(1)]):
+                            exported = True
+                for i, l in enumerate(lines):
+                    if where[i] is None or any(implies(c, APPLE_ONLY) for c in where[i]):
+                        continue
+                    m = NETWORKING.search(l)
+                    if m and path not in uses:
+                        uses[path] = (i + 1, m.group(0))
+            if exported:
+                continue
+            for path, (line, name) in uses.items():
+                if path not in imported:
+                    shown = os.path.relpath(path, root).replace(os.sep, "/")
+                    found.append(f"{shown}:{line}: {name} without FoundationNetworking (Linux and Windows have it there: "
+                                 "#if canImport(FoundationNetworking) import FoundationNetworking #endif)")
+    return found
 
 
 def check(root):
@@ -283,7 +349,7 @@ def check(root):
             if (any(p.search(l) for p in PROGRAMS) or SYSTEM_WITH_TEXT.search(l)
                     or (not declares_system and SYSTEM_CALL.search(l))):
                 found.append(f"{shown}:{i + 1}: starts a program (use Platform.current.processes, a ProcessLauncher)")
-    return found
+    return found + networking(root)
 
 
 def main(arguments):
@@ -309,7 +375,8 @@ def main(arguments):
             print("  " + line, file=sys.stderr)
         return 1
     print("core-portable: imports only what every platform has (Apple's in Platform/Apple/, wholly guarded; C libraries "
-          "under their guard), Platform/Windows/ wholly under os(Windows), no program started outside the ProcessLauncher")
+          "under their guard), Platform/Windows/ wholly under os(Windows), no program started outside the ProcessLauncher, "
+          "FoundationNetworking imported wherever URLSession and its kin are used")
     return 0
 
 

@@ -1,0 +1,6 @@
+# The engine isn't running (§2.5): the DLL finds no pipe, stays passive and passes every key. No frames cross.
+#! no-engine
+#! type down vk=72 scan=35 char=h
+#! type down vk=73 scan=23 char=i
+#! type down vk=50 scan=3 shift char=@
+#! expect-document "hi@"

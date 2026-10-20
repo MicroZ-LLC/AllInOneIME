@@ -1,0 +1,35 @@
+# Password fields (§5.1, §8): the client sends no keys from them (#! keys: typed, not sent). A field that
+# turns secure while a draft is pending (its input scope changed) gets the draft as typed, pushed.
+#! provider fixtures/improve-hello.json
+#! inputLanguage english
+> {"v":1,"id":1,"type":"hello","versions":[1],"client":"$any","platform":"win","arch":"x64","pid":"$any","tid":"$any","capabilities":["allowForeground"]}
+< {"v":1,"id":1,"re":1,"type":"welcome","version":1,"engine":"$any","enginePid":"$any","capabilities":[],"limits":{"contextBefore":32,"selection":10002}}
+> {"id":2,"type":"open","sid":1,"field":{"app":"win:notepad.exe","process":"notepad.exe","secure":true,"scopes":[31],"layout":"00000409"}}
+> {"id":3,"type":"focus","sid":1,"focus":1}
+#! keys @improve
+> {"id":4,"type":"blur","sid":1}
+< {"id":2,"re":4,"type":"result"}
+# An ordinary field: a draft starts
+> {"id":5,"type":"open","sid":2,"field":{"app":"win:notepad.exe","process":"notepad.exe","scopes":[0],"layout":"00000409"}}
+> {"id":6,"type":"focus","sid":2,"focus":1}
+> {"id":7,"type":"keyDown","sid":2,"t":1800,"key":{"vk":16,"scan":42,"modifiers":["shift","leftShift"]},"ctx":{"sel":[0,0]}}
+< {"id":3,"re":7,"type":"result"}
+> {"id":8,"type":"keyDown","sid":2,"t":1880,"key":{"vk":50,"scan":3,"text":"@","textIgnoringModifiers":"@","modifiers":["shift","leftShift"]},"ctx":{"sel":[0,0]}}
+< {"id":4,"re":8,"type":"result","handled":true,"outputs":[{"op":"composition","text":"@","caret":1,"segments":[{"from":0,"to":1,"style":"draft"}]},{"op":"panel","shown":true}]}
+> {"id":9,"type":"keyUp","sid":2,"t":1950,"key":{"vk":16,"scan":42},"ctx":{"sel":[1,1],"comp":1}}
+< {"id":5,"re":9,"type":"result"}
+> {"id":10,"type":"keyDown","sid":2,"t":1950,"key":{"vk":73,"scan":23,"text":"i","textIgnoringModifiers":"i"},"ctx":{"sel":[1,1],"comp":1}}
+< {"id":6,"re":10,"type":"result","handled":true,"outputs":[{"op":"composition","text":"i","caret":1,"segments":[{"from":0,"to":1,"style":"draft"}],"typed":"@i"}]}
+> {"id":11,"type":"keyDown","sid":2,"t":2050,"key":{"vk":77,"scan":50,"text":"m","textIgnoringModifiers":"m"},"ctx":{"sel":[1,1],"comp":1}}
+< {"id":7,"re":11,"type":"result","handled":true,"outputs":[{"op":"composition","text":"im","caret":2,"segments":[{"from":0,"to":2,"style":"draft"}],"typed":"@im"}]}
+> {"id":12,"type":"keyDown","sid":2,"t":2150,"key":{"vk":80,"scan":25,"text":"p","textIgnoringModifiers":"p"},"ctx":{"sel":[2,2],"comp":2}}
+< {"id":8,"re":12,"type":"result","handled":true,"outputs":[{"op":"composition","text":"imp","caret":3,"segments":[{"from":0,"to":3,"style":"draft"}],"typed":"@imp"}]}
+# The field turns secure: the draft goes in as typed, and no more keys are sent
+> {"id":13,"type":"focus","sid":2,"focus":1,"field":{"app":"win:notepad.exe","process":"notepad.exe","secure":true,"scopes":[31],"layout":"00000409"}}
+< {"id":9,"type":"apply","sid":2,"focus":1,"outputs":[{"op":"panel","shown":false},{"op":"commit","text":"@imp"}]}
+> {"id":14,"re":9,"type":"applied","ok":true,"ctx":{"sel":[4,4],"before":"@imp"}}
+#! keys x
+> {"id":15,"type":"blur","sid":2}
+< {"id":10,"re":15,"type":"result"}
+> {"id":16,"type":"close","sid":1}
+> {"id":17,"type":"close","sid":2}

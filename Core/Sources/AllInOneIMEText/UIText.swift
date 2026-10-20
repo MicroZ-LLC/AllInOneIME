@@ -79,11 +79,16 @@ public enum UIText {
     public static let systemLanguage = InterfaceLanguage.pick(preferred: Locale.preferredLanguages,
                                                                shipped: InterfaceLanguage.shipped(in: .main))
 
-    /// The interface language's code: "zh-Hans", "en", …
-    public static var language: String { state.withLock { $0.language } }
+    /// The interface language's code: "zh-Hans", "en", … (`scopedLanguage`, where one is set).
+    public static var language: String { scopedLanguage ?? state.withLock { $0.language } }
 
     /// Whether the interface is Chinese: what only comes in Chinese and English (key names, …) is Chinese then.
-    public static var chinese: Bool { state.withLock { $0.chinese } }
+    public static var chinese: Bool { scopedLanguage.map(InterfaceLanguage.isChinese) ?? state.withLock { $0.chinese } }
+
+    /// The interface language of what one task makes (or one synchronous scope: `$scopedLanguage.withValue`), the
+    /// process's left as it is: a settings document in the language its settings say, for a window in another process
+    /// (`SettingsService`). Nil: the process's.
+    @TaskLocal public static var scopedLanguage: String?
 
     /// The interface text in the interface language as it is now (`language`): what a shell hands the core's text that
     /// takes its language (`PanelPresenter`, `SessionText`), and what `UIText`'s own texts are made with.

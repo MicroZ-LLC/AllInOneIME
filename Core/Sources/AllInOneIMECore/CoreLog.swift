@@ -10,7 +10,26 @@ public struct CoreLog: Sendable {
     private let write: @Sendable (Level, String) -> Void
 
     public init(subsystem: String, category: String) {
-        write = Self.writer(subsystem: subsystem, category: category)
+        let written = Self.writer(subsystem: subsystem, category: category)
+        write = { level, message in
+            written(level, message)
+            Self.heard(message)
+        }
+    }
+
+    /// Hears every message logged from now on, as written, until the returned closure is called: the tests', that no
+    /// key, token or text typed is ever in one.
+    static func listen(_ listener: @escaping @Sendable (String) -> Void) -> @Sendable () -> Void {
+        let id = UUID()
+        listeners.withLock { $0[id] = listener }
+        return { listeners.withLock { $0[id] = nil } }
+    }
+
+    private static let listeners = Locked<[UUID: @Sendable (String) -> Void]>(initialState: [:])
+
+    private static func heard(_ message: String) {
+        let listening = listeners.withLock { $0.isEmpty ? [] : Array($0.values) }
+        for listener in listening { listener(message) }
     }
 
     public func debug(_ message: String) { write(.debug, message) }
