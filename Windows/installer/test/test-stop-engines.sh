@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # The installer's helper's stop-engines (AllInOneIMESetup), ending nothing: its --dry-run, with a copy of the engine
 # in a folder of its own beside a copy of the helper (as `msiexec INSTALLFOLDER=` puts them, outside Program Files).
-# That engine is one to stop; its console's process (`--run-in-console`, its program still running) is left to it.
+# That engine is one to stop; its console's process (`--run-in-console`, its program still running) is left to it, and
+# so is one whose command line can't be read (it may be a console's).
 # Nothing installed is touched (a dry run ends nothing), so it runs from any shell, SSH's too.
 #
 #   bash installer/test/test-stop-engines.sh [HELPER.exe] [ENGINE.exe]
@@ -43,6 +44,10 @@ echo "$out" | sed 's/^/  /'
 check "both running" test -n "$engine_pid" -a -n "$console_pid"
 check "the engine beside the helper (installed elsewhere than Program Files) is one to stop" grep -q "would stop pid $engine_pid " <<<"$out"
 check "its console's process is left to its program" grep -q "left pid $console_pid alone (a console's" <<<"$out"
+# One whose command line can't be read may be a console's: left alone too (the engine's taken as unreadable, in a dry run).
+unreadable="$("$DIR/AllInOneIMESetup.exe" stop-engines --dry-run --unreadable "${engine_pid:-0}" | tr -d '\r')"
+echo "$unreadable" | sed 's/^/  /'
+check "one whose command line can't be read is left alone" grep -q "left pid $engine_pid alone (its command line can't be read" <<<"$unreadable"
 running() { tasklist /FI "PID eq $1" /NH 2>/dev/null | grep -qw "$1"; }
 check "a dry run stops nothing: both still running" eval '! grep -q "stop-engines: stopped pid" <<<"$out" && running "$engine_pid" && running "$console_pid"'
 

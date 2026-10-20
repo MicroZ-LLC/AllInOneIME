@@ -5,7 +5,8 @@
 //   AllInOneIMESetup remove-keyboard                take it out of this user's list, and drop this user's TSF state
 //                                                   for it
 //   AllInOneIMESetup start-engine                   start this user's engine in this session, never elevated
-//   AllInOneIMESetup stop-engines [--dry-run]       end every engine and Settings app run from where AllInOneIME is
+//   AllInOneIMESetup stop-engines [--dry-run [--unreadable PID]]
+//                                                   end every engine and Settings app run from where AllInOneIME is
 //                                                   installed (any user), but the consoles' processes; --dry-run: say
 //                                                   which, end none
 //   AllInOneIMESetup status                         what is registered, in this user's list, and running
@@ -268,22 +269,24 @@ struct Engine {
     DWORD session = 0;
     std::wstring path;
     std::wstring commandLine;
+    bool commandLineRead = false;  // false: it couldn't be read (the process may be a console's)
 };
 
-// A process's command line (NtQueryInformationProcess, ProcessCommandLineInformation: Windows 8.1 and later); empty
-// when it can't be read.
-std::wstring CommandLineOf(HANDLE process) {
+// A process's command line (NtQueryInformationProcess, ProcessCommandLineInformation: Windows 8.1 and later) into
+// `out`; false when it can't be read.
+bool ReadCommandLine(HANDLE process, std::wstring& out) {
     using Query = NTSTATUS(NTAPI*)(HANDLE, PROCESSINFOCLASS, PVOID, ULONG, PULONG);
     static const auto query = reinterpret_cast<Query>(GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "NtQueryInformationProcess"));
-    if (!query) return {};
+    if (!query) return false;
     constexpr auto kProcessCommandLineInformation = static_cast<PROCESSINFOCLASS>(60);
     ULONG size = 0;
     query(process, kProcessCommandLineInformation, nullptr, 0, &size);
-    if (size < sizeof(UNICODE_STRING)) return {};
+    if (size < sizeof(UNICODE_STRING)) return false;
     std::vector<unsigned char> buffer(size);
-    if (query(process, kProcessCommandLineInformation, buffer.data(), size, &size) < 0) return {};
+    if (query(process, kProcessCommandLineInformation, buffer.data(), size, &size) < 0) return false;
     const auto* line = reinterpret_cast<const UNICODE_STRING*>(buffer.data());
-    return std::wstring(line->Buffer, line->Length / sizeof(wchar_t));
+    out.assign(line->Buffer, line->Length / sizeof(wchar_t));
+    return true;
 }
 
 // The engine's own process for a console window it opened (`AllInOneIMEEngine --run-in-console`): its program (an
@@ -306,7 +309,7 @@ std::vector<Engine> RunningEngines(const wchar_t* exe = kEngineExe) {
             wchar_t path[MAX_PATH * 2] = {};
             DWORD size = static_cast<DWORD>(std::size(path));
             if (QueryFullProcessImageNameW(process, 0, path, &size)) engine.path = path;
-            engine.commandLine = CommandLineOf(process);
+            engine.commandLineRead = ReadCommandLine(process, engine.commandLine);
             CloseHandle(process);
         }
         engines.push_back(engine);
@@ -507,8 +510,9 @@ int StartEngine() {
 // Ends the engines and Settings windows run from the installed copy's folders (InstallRoots), for an uninstall or an
 // upgrade: their files go. A console's process is left to its program (an upgrade or uninstall doesn't close the
 // user's agent or terminal mid-work; it deletes the prompt's file once the program ends, and its files go at the next
-// restart, as a DLL in use does). `dryRun`: says which it would end.
-int StopEngines(bool dryRun) {
+// restart, as a DLL in use does), and so is one whose command line can't be read, which may be a console's. `dryRun`:
+// says which it would end; `unreadable`, in a dry run (the test's), a process whose command line is taken as unreadable.
+int StopEngines(bool dryRun, DWORD unreadable = 0) {
     const std::vector<std::wstring> roots = InstallRoots();
     int failures = 0, stopped = 0;
     std::vector<Engine> running = RunningEngines(kEngineExe);
@@ -519,6 +523,11 @@ int StopEngines(bool dryRun) {
         if (!installed) {
             Say("stop-engines: left pid %lu alone (%ls)", engine.pid,
                 engine.path.empty() ? L"path unknown" : engine.path.c_str());
+            continue;
+        }
+        if (!engine.commandLineRead || (dryRun && engine.pid == unreadable)) {
+            Say("stop-engines: left pid %lu alone (its command line can't be read: it may be a console's; its files go at "
+                "the next restart: %ls)", engine.pid, engine.path.c_str());
             continue;
         }
         if (IsConsoleProcess(engine)) {
@@ -604,7 +613,7 @@ int Status() {
 
 int Usage() {
     printf("usage: AllInOneIMESetup add-keyboard [0x0804|0x0409] | remove-keyboard | start-engine | "
-           "stop-engines [--dry-run] | status\n");
+           "stop-engines [--dry-run [--unreadable PID]] | status\n");
     return 2;
 }
 
@@ -628,7 +637,9 @@ int wmain(int argc, wchar_t** argv) {
     } else if (command == L"start-engine") {
         rc = StartEngine();
     } else if (command == L"stop-engines") {
-        rc = StopEngines(argc > 2 && std::wstring(argv[2]) == L"--dry-run");
+        const bool dryRun = argc > 2 && std::wstring(argv[2]) == L"--dry-run";
+        const DWORD unreadable = dryRun && argc > 4 && std::wstring(argv[3]) == L"--unreadable" ? wcstoul(argv[4], nullptr, 10) : 0;
+        rc = StopEngines(dryRun, unreadable);
     } else if (command == L"status") {
         rc = Status();
     } else {
