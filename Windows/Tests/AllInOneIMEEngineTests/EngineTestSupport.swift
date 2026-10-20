@@ -118,6 +118,7 @@ final class RecordingSystem: SystemActions, @unchecked Sendable {
     private var _clipboard: String?
     private var _opened: [String] = []
     private var _launched: [(argv: [String], prompt: String?)] = []
+    private var _started: [(program: String, arguments: [String])] = []
     private var _clipboardThreads: Set<DWORD> = []
     private var _shellThreads: Set<DWORD> = []
     var searchResults: [SearchResult] = []
@@ -130,6 +131,8 @@ final class RecordingSystem: SystemActions, @unchecked Sendable {
     }
     var opened: [String] { lock.lock(); defer { lock.unlock() }; return _opened }
     var launched: [(argv: [String], prompt: String?)] { lock.lock(); defer { lock.unlock() }; return _launched }
+    /// The programs started with their arguments (the Settings app), not opened as files.
+    var started: [(program: String, arguments: [String])] { lock.lock(); defer { lock.unlock() }; return _started }
     /// The threads the clipboard was used on.
     var clipboardThreads: Set<DWORD> { lock.lock(); defer { lock.unlock() }; return _clipboardThreads }
     /// The threads opening and terminals were used on.
@@ -171,6 +174,13 @@ final class RecordingSystem: SystemActions, @unchecked Sendable {
     }
 
     func search(_ query: String) -> [SearchResult] { searchResults }
+
+    func start(_ program: String, arguments: [String]) throws {
+        called(shell: true)
+        lock.lock()
+        _started.append((program, arguments))
+        lock.unlock()
+    }
 }
 
 /// librime, started once per test process from ThirdParty's build, in a user folder of its own.

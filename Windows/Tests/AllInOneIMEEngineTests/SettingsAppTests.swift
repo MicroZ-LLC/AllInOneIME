@@ -19,11 +19,14 @@ struct SettingsAppTests {
         defer { try? FileManager.default.removeItem(at: folder) }
         let app = #"C:\Program Files\AllInOneIME\0.6.6\Settings\AllInOneIMESettings.exe"#
         client.host.settingsApp = app
-        client.host.settingsAppArguments = ["--pipe", #"\.\pipe\test"#]
+        client.host.settingsAppArguments = ["--pipe", #"\\.\pipe\aio-test"#]
         let session = try #require(client.host.liveSessions.first)
         client.host.perform(.openSettings, in: session)
-        // On the shell's thread, as anything the engine opens.
-        #expect(client.wait { client.system.opened == [app] })
+        // Started with its arguments (a test engine's pipe), on the shell's thread, as anything the engine opens.
+        #expect(client.wait { client.system.started.count == 1 })
+        let started = try #require(client.system.started.first)
+        #expect(started.program == app && started.arguments == ["--pipe", #"\\.\pipe\aio-test"#])
+        #expect(client.system.opened.isEmpty)
         #expect(client.system.shellThreads == [testShellThread.threadId])
         #expect(client.panel.notices.isEmpty)
     }
