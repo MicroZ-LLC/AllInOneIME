@@ -150,7 +150,8 @@ The engine (on the `0.6.6/windows-engine` branch, not merged here) drives a `Com
 3. **`EngineHost` becomes the engine's `SessionServices`**: `converter` and `loadSettings` (`EngineSettings.current`),
    `levelOne` (`EngineRime.makeEngine`, `.starting` while it deploys, `.none` without it), `englishDictionary`
    (`RimeService.shared.englishDictionary`: with it the session puts English words among librime's candidates,
-   `EnglishWordsEngine`) and `learnEnglishWord` (`EnglishWords.learn` into the engine's `config.json`), `runProgram` and `runPlugin`
+   `EnglishWordsEngine`), `learnEnglishWord` (`EnglishWords.learn` into the engine's `config.json`) and `englishTypedOnce` (one for
+   all the engine's sessions, as the Mac's: a word is learned the second time, in any field), `runProgram` and `runPlugin`
    (this program as a child, `--run-js`, `--run-plugin`), `loadExtensions`, `searchFiles` (`SystemActions.search`),
    `runInTerminal`, `continueInAgent` and `launchInTerminal` (`SystemActions.launchInTerminal`), `noteDestination` (a
    folder or Notion; Apple Notes refuses), `addReminder`, `messageSender`, `startAgent`, `listAgents` and

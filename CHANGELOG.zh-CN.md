@@ -6,7 +6,7 @@
 
 ### 新增
 
-- 拼音里的英文词：打几个字母，以它们开头的英文词就出现在候选里（bedr → Bedrock；打完 bedrock 时 Bedrock 排第一）。除了 rime-ice 自带的，还有你的、黑话库里的英文词，和 rime-ice 没有的约 220 个常用产品和技术词（Bedrock、SageMaker、DynamoDB、LangGraph…）。打拼音时原样上屏的字母（bedrock ⏎，或单按 Shift）会学成英文词，不用命令：密码框里、关了 AI 的 App 里不学，拼音不学，像密钥、号码的也不学。「设置 → 输入 → 中文（拼音）→ 英文词」列出你的词，可以添加、移除，还有「学习打出的英文词」开关。它们和学到的词一起通过 iCloud 同步。加词不用重新部署。配置里：`englishWords`、`learnsEnglishWords`。
+- 拼音里的英文词：打几个字母，以它们开头的英文词就出现在候选里（bedr → Bedrock；打完 bedrock 时 Bedrock 排第一）。除了 rime-ice 自带的，还有你的、黑话库里的英文词，和 rime-ice 没有的约 220 个常用产品和技术词（Bedrock、SageMaker、DynamoDB、LangGraph…）。打拼音时同样的字母原样上屏两次（bedrock ⏎，或单按 Shift）就学成英文词，不用命令（第一次只记在内存里，退出 App 就忘）：密码框、终端、远程桌面和虚拟机、关了 AI 的 App 里不学，拼音不学（rime-ice 纠错的拼法也算），像密钥、号码的，含你的隐藏词的也不学。「设置 → 输入 → 中文（拼音）→ 英文词」列出你的词，可以添加（像密钥、卡号、电话号码或 IP 地址的不收）、移除，还有「学习打出的英文词」开关。它们和学到的词一起通过 iCloud 同步，按字母合并；超过 2000 个时先去掉最早学到的，你加的不去。加词不用重新部署。配置里：`englishWords`、`addedEnglishWords`、`learnsEnglishWords`。
 
 ## 0.6.5（2026-10-18）
 
