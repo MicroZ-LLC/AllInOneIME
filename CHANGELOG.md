@@ -2,6 +2,12 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
+## 0.6.6 (unreleased)
+
+### Added
+
+- English words in pinyin: type a few letters and the English words they start come up among the candidates (bedr → Bedrock; bedrock → Bedrock first). Besides rime-ice's own: yours, the English terms of your jargon list, and about 220 product and technical words rime-ice lacks (Bedrock, SageMaker, DynamoDB, LangGraph…). Letters you put in as typed while typing pinyin (bedrock ⏎, or a tap of Shift) are learned, with no command: never in password fields or apps with No AI, never pinyin, nothing that looks like a key or a number. Settings → Input → Chinese (pinyin) → English Words lists yours, to add and remove, with the switch "Learn the English words you type". They sync through iCloud with the learned words. Nothing is deployed again for a word added. In the config: `englishWords`, `learnsEnglishWords`.
+
 ## 0.6.5 (2026-10-18)
 
 ### Added
