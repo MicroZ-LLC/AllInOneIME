@@ -65,9 +65,10 @@ extension AIConfig {
         return names.map { AWSProfile(name: $0, region: regions[$0] ?? nil) }
     }
 
-    /// Whether `text` is about AWS or Bedrock: only then are the profiles' names sent to a cloud provider.
+    /// Whether `text` is about AWS or Bedrock, by its words (not letters inside others: "draws", "laws"): only then are
+    /// the profiles' names sent to a cloud provider.
     public static func mentionsAWS(_ text: String) -> Bool {
-        let lower = text.lowercased()
-        return ["aws", "bedrock", "amazon", "profile", "亚马逊"].contains { lower.contains($0) }
+        let words = AIConfigFit.Words(text)
+        return ["aws", "bedrock", "amazon", "profile", "亚马逊", "亞馬遜", "アマゾン", "아마존"].contains(where: words.contains)
     }
 }

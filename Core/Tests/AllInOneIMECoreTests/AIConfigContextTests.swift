@@ -457,6 +457,23 @@ struct AIConfigContextTests {
         #expect(estimated.sent.isEmpty)
     }
 
+    /// Too long for the on-device model, the user's own provider is asked with the AWS profiles named (the list and the
+    /// one in use) only when the sentence is about AWS or Bedrock: by its words, not by letters inside others.
+    @Test func theAWSProfilesAreNamedToTheProviderOnlyOnAWSSentences() async throws {
+        let sentences = [("use the AWS profile personal", true), ("switch to Bedrock in us-west-2", true), ("改用亚马逊的模型", true),
+                         ("アマゾンの Bedrock にして", true), ("candidates in a column when it draws", false), ("hide the laws' names", false),
+                         ("候选竖排", false)]
+        for (index, (sentence, aws)) in sentences.enumerated() {
+            let host = "assistant-aws-\(index).test"
+            let (service, config) = try Self.openAIService(ContextLimitedModel(overflows: true), host: host, answer: #"{"changes": []}"#)
+            let got = try await service.ask(sentence, context: Self.context(config), tools: Self.tools)
+            #expect(got.instead == .openai)
+            let body = RedactionTests.body(StubURLProtocol.lastRequest(host: host))
+            #expect(body.contains("personal") == aws && body.contains("names not shown") == !aws, "\(sentence)")
+            #expect(AIConfig.mentionsAWS(sentence) == aws, "\(sentence)")
+        }
+    }
+
     /// With the on-device model as the provider chosen there is nothing else to ask: the line says what to do, in the
     /// interface language; never the model's own error.
     @Test func tooLongWithoutAProviderSaysWhatToDo() async throws {
