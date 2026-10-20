@@ -203,7 +203,7 @@ public final class SettingsService: @unchecked Sendable {
             }
             var value = value
             if let shown {
-                switch Self.edited(value, shown: shown, of: field) {
+                switch Self.edited(value, shown: shown, of: field, rules: .init(platform)) {
                 case let .success(edited): value = edited
                 case let .failure(problem): return .failure(problem)
                 }
@@ -525,7 +525,7 @@ public final class SettingsService: @unchecked Sendable {
         // The form's command (`argv`) as typed, a command line: split as the Mac's editor splits it.
         var definition = action.value
         if case var .object(keys)? = definition, case let .string(line)? = keys["argv"] {
-            guard let argv = CustomCommand.arguments(fromCommandLine: line) else {
+            guard let argv = CustomCommand.arguments(fromCommandLine: line, rules: .init(platform)) else {
                 return .failure(SettingsProblem(.badValue, field: action.field, message: UIText.describe(.unbalancedQuote)))
             }
             keys["argv"] = argv.isEmpty ? nil : .array(argv.map(AIConfig.JSONValue.string))
@@ -627,14 +627,15 @@ public final class SettingsService: @unchecked Sendable {
     /// elsewhere meanwhile stays (taken out elsewhere, it stays out). Words (`redaction.customWords`) by the Mac's rule
     /// (`RedactionSettings.edited`); a list of choices keeps the window's order of what it showed (`merged`). A list
     /// whose order is its meaning (`agentCommand`, a command's arguments) isn't merged: changed since, it is `stale`.
-    /// A `words` field with a line (`text`) may be sent as lines: the one it showed, and the one edited.
-    static func edited(_ value: AIConfig.JSONValue, shown: AIConfig.JSONValue,
-                       of field: SettingsDocument.Field) -> Result<AIConfig.JSONValue, SettingsProblem> {
+    /// A `words` field with a line (`text`) may be sent as lines: the one it showed, and the one edited (a command line
+    /// split by `rules`, the system's).
+    static func edited(_ value: AIConfig.JSONValue, shown: AIConfig.JSONValue, of field: SettingsDocument.Field,
+                       rules: CustomCommand.LineRules = .shell) -> Result<AIConfig.JSONValue, SettingsProblem> {
         let now = field.value?.strings ?? []
         /// The list a value stands for: a line split as the field's setter splits it.
         func list(_ value: AIConfig.JSONValue) -> [String]? {
             guard field.kind == .words, field.text != nil, let line = value.string else { return value.strings }
-            return field.ordered == true ? CustomCommand.arguments(fromCommandLine: line) : RedactionSettings.words(from: line)
+            return field.ordered == true ? CustomCommand.arguments(fromCommandLine: line, rules: rules) : RedactionSettings.words(from: line)
         }
         guard [.words, .choices].contains(field.kind), let shown = list(shown) else {
             return .failure(SettingsProblem(.badValue, field: field.id, message: badValue))

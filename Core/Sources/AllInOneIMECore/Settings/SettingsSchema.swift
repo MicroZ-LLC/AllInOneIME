@@ -441,13 +441,14 @@ struct SettingsSchema {
                                 value: .array(config.agentCommand.map(JSON.string)))
             command.placeholder = tr("例如 ", "e.g. ") + "muse --"
             command.ordered = true  // a command's arguments, in order
-            command.text = CustomCommand.commandLine(config.agentCommand)
+            let rules = CustomCommand.LineRules(platform)  // the line as the system writes it
+            command.text = CustomCommand.commandLine(config.agentCommand, rules: rules)
             add(command, to: &fields) { value in
                 guard let line = value.string else {
                     store.config.agentCommand = Self.strings(value)
                     return
                 }
-                guard let argv = CustomCommand.arguments(fromCommandLine: line) else {
+                guard let argv = CustomCommand.arguments(fromCommandLine: line, rules: rules) else {
                     throw SettingsProblem(.badValue, field: "agentCommand", message: UIText.describe(.unbalancedQuote))
                 }
                 store.config.agentCommand = argv

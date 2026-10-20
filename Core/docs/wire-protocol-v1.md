@@ -581,7 +581,10 @@ given and sends back what the user did. It opens no sessions.
   - `items[].fields`: an item's own settings (an app's, an extension's switch and preferences), fields as any other:
     set and acted on by their `id`, which is unique in the document.
   - `text` (`words`): the list as the one line the field shows (", " between the words, or a command line); `settingsSet`
-    takes such a line as well as the list, and splits it the same way (`shown` too, §12.4).
+    takes such a line as well as the list, and splits it the same way (`shown` too, §12.4). A command line
+    (`agentCommand`, a command's `argv`) is written and split by the document's platform's rules: on Windows
+    `CommandLineToArgvW`'s (`C:\Tools\run.exe "C:\My Files\a.txt"`: a backslash is itself except before a `"`), on the
+    Mac a shell's words (`\` escapes, '…' quotes).
 - **`schema`** (`commands.custom`): the fields of a custom command's definition, the `value` its items carry and `save`
   takes, as the Mac's command editor shows them. Each field's `id` is a key of that object, its `kind`, `label`,
   `help`, `placeholder`, `choices`, bounds and `optional` as for any field, its `value` what a new command starts with.

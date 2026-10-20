@@ -248,6 +248,33 @@ struct SettingsServiceTests {
         #expect(try Config.load(from: url).agentCommand == ["muse", "--verbose", "--"])
     }
 
+    /// A command line typed on Windows keeps its paths' backslashes (`CommandLineToArgvW`'s rules: the agent's command, a
+    /// custom command's `argv`), and the line the document shows splits back to the same arguments; the Mac's document
+    /// keeps the Mac's rules, where a backslash escapes.
+    @Test func windowsPathsInCommandLines() async throws {
+        let (service, url) = try service(#"{"agent": "custom", "agentCommand": ["muse", "--"]}"#)
+        let line = #"C:\Tools\agent.exe --log "C:\My Files\log.txt" --"#
+        #expect((try? service.set("agentCommand", to: .string(line)).get()) != nil)
+        let argv = [#"C:\Tools\agent.exe"#, "--log", #"C:\My Files\log.txt"#, "--"]
+        #expect(try Config.load(from: url).agentCommand == argv)
+        let field = try #require(service.document().field("agentCommand"))
+        #expect(field.text == line)
+        #expect(CustomCommand.arguments(fromCommandLine: field.text ?? "", rules: .windows) == argv)
+        // Edited on the line the window showed: the same command, not changed meanwhile.
+        let edited = #"C:\Tools\agent.exe -q --"#
+        #expect((try? service.set("agentCommand", to: .string(edited), shown: .string(line)).get()) != nil)
+        #expect(try Config.load(from: url).agentCommand == [#"C:\Tools\agent.exe"#, "-q", "--"])
+        // A custom command's program, from the form's line.
+        let saved = await service.perform(SettingsAction(field: "commands.custom", name: "save", value: .object([
+            "name": .string("up"), "type": .string("run"), "argv": .string(#"C:\Tools\run.exe {input} \\server\share"#)])))
+        #expect((try? saved.get()) != nil)
+        #expect(try Config.load(from: url).customCommands.first?.argv == [#"C:\Tools\run.exe"#, "{input}", #"\\server\share"#])
+        // The Mac's: as its command editor splits it.
+        let (mac, macURL) = try self.service(#"{"agent": "custom", "agentCommand": ["muse", "--"]}"#, platform: .mac)
+        #expect((try? mac.set("agentCommand", to: .string(#"C:\Tools\agent.exe --"#)).get()) != nil)
+        #expect(try Config.load(from: macURL).agentCommand == ["C:Toolsagent.exe", "--"])
+    }
+
     /// A value the choices don't have (a language only the file names, a later version's style, a thinking level of the
     /// file's own) is shown as a choice of its own, `disabled`: the field can still be changed, and it is kept as it is,
     /// never dropped, nor picked once it is gone.
