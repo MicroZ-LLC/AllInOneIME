@@ -60,6 +60,9 @@ final class AssistantModel: ObservableObject {
     private(set) var connectionTests = 0
 
     private var requestTask: Task<Void, Never>?
+    /// The request on its way, by number (a new one, or Cancel, counts up): what one cancelled or replaced since says
+    /// when it gets somewhere (where it went instead, its answer, its failure) is dropped.
+    private var requestNumber = 0
     private var checkTask: Task<Void, Never>?
     private var connectionTask: Task<Void, Never>?
     private var lastProbe: Date?
@@ -107,6 +110,7 @@ final class AssistantModel: ObservableObject {
         let showsAWS = service.onDevice || AIConfig.mentionsAWS(keys.text)
         log.notice("assistant: request sent (\(keys.text.count) chars, \(service.onDevice ? "on device" : "provider", privacy: .public))")
         working = true
+        let number = requestNumber
         requestTask = Task { @MainActor [weak self] in
             let env = await AIConfigSession.environment(keys.text)
             let profiles = showsAWS ? await Task.detached { env.awsProfiles() }.value : []
@@ -119,17 +123,15 @@ final class AssistantModel: ObservableObject {
             do {
                 // Too long for the on-device model: where it goes instead is said before it goes.
                 let answer = try await service.ask(keys.text, context: context, tools: tools) { [weak self] provider in
-                    await MainActor.run {
-                        log.notice("assistant: too long for the on-device model; sent to \(provider.rawValue, privacy: .public) instead")
-                        self?.notice = text.sentInstead(provider)
-                    }
+                    await self?.sentInstead(provider, request: number, text: text)
                 }
-                guard let self, !Task.isCancelled else { return }
+                guard let self, !Task.isCancelled, self.requestNumber == number else { return }
                 self.working = false
-                if let provider = answer.instead { self.notice = text.sentInstead(provider) }
+                // Answered on the device: no line.
+                self.notice = answer.instead.map(text.sentInstead)
                 self.show(answer: answer.text, env: env, droppedKey: (keys.dropped, keys.provider))
             } catch {
-                guard let self, !Task.isCancelled else { return }
+                guard let self, !Task.isCancelled, self.requestNumber == number else { return }
                 log.error("assistant: the request failed: \(AllInOneIMEInputController.errorKind(error), privacy: .public)")
                 self.working = false
                 // The line says what the provider asked instead did (or that it isn't set up).
@@ -137,6 +139,14 @@ final class AssistantModel: ObservableObject {
                 self.message = UIText.describe(error)
             }
         }
+    }
+
+    /// Request `number` goes to `provider` instead of the on-device model (too long for it): said while it is on its way,
+    /// unless it was cancelled or replaced since.
+    private func sentInstead(_ provider: Provider, request number: Int, text: AIConfig.Text) {
+        guard number == requestNumber else { return }
+        log.notice("assistant: too long for the on-device model; sent to \(provider.rawValue, privacy: .public) instead")
+        notice = text.sentInstead(provider)
     }
 
     /// The answer checked against the settings as they are now: the preview, or the line that says why not.
@@ -175,11 +185,14 @@ final class AssistantModel: ObservableObject {
         tr("别在这里打密钥：它没有发出去。密钥请在 AI 服务里填", "Don't type keys here: it wasn't sent. Add keys in AI Provider.")
     }
 
-    /// Esc or Cancel while the request is on its way: nothing more comes of it.
+    /// Esc or Cancel while the request is on its way: nothing more comes of it, and the line that says where it went
+    /// instead goes with it.
     func cancelRequest() {
         requestTask?.cancel()
         requestTask = nil
+        requestNumber += 1
         working = false
+        notice = nil
     }
 
     /// Cancel on the preview: nothing changes.
