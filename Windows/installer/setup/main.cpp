@@ -6,7 +6,8 @@
 //                                                   for it
 //   AllInOneIMESetup start-engine                   start this user's engine in this session, never elevated
 //   AllInOneIMESetup stop-engines [--dry-run]       end every engine and Settings app run from where AllInOneIME is
-//                                                   installed (any user); --dry-run: say which, end none
+//                                                   installed (any user), but the consoles' processes; --dry-run: say
+//                                                   which, end none
 //   AllInOneIMESetup status                         what is registered, in this user's list, and running
 //
 // add-keyboard picks the language: Chinese (Simplified) when it is in the user's list, else English (US). It never
@@ -23,6 +24,7 @@
 #include <shldisp.h>
 #include <shlwapi.h>
 #include <tlhelp32.h>
+#include <winternl.h>
 
 #include <algorithm>
 #include <cstdarg>
@@ -265,7 +267,30 @@ struct Engine {
     DWORD pid = 0;
     DWORD session = 0;
     std::wstring path;
+    std::wstring commandLine;
 };
+
+// A process's command line (NtQueryInformationProcess, ProcessCommandLineInformation: Windows 8.1 and later); empty
+// when it can't be read.
+std::wstring CommandLineOf(HANDLE process) {
+    using Query = NTSTATUS(NTAPI*)(HANDLE, PROCESSINFOCLASS, PVOID, ULONG, PULONG);
+    static const auto query = reinterpret_cast<Query>(GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "NtQueryInformationProcess"));
+    if (!query) return {};
+    constexpr auto kProcessCommandLineInformation = static_cast<PROCESSINFOCLASS>(60);
+    ULONG size = 0;
+    query(process, kProcessCommandLineInformation, nullptr, 0, &size);
+    if (size < sizeof(UNICODE_STRING)) return {};
+    std::vector<unsigned char> buffer(size);
+    if (query(process, kProcessCommandLineInformation, buffer.data(), size, &size) < 0) return {};
+    const auto* line = reinterpret_cast<const UNICODE_STRING*>(buffer.data());
+    return std::wstring(line->Buffer, line->Length / sizeof(wchar_t));
+}
+
+// The engine's own process for a console window it opened (`AllInOneIMEEngine --run-in-console`): its program (an
+// agent, a terminal command) still runs there, and it holds that program's prompt file until the program ends.
+bool IsConsoleProcess(const Engine& engine) {
+    return engine.commandLine.find(L" --run-in-console") != std::wstring::npos;
+}
 
 std::vector<Engine> RunningEngines(const wchar_t* exe = kEngineExe) {
     std::vector<Engine> engines;
@@ -281,6 +306,7 @@ std::vector<Engine> RunningEngines(const wchar_t* exe = kEngineExe) {
             wchar_t path[MAX_PATH * 2] = {};
             DWORD size = static_cast<DWORD>(std::size(path));
             if (QueryFullProcessImageNameW(process, 0, path, &size)) engine.path = path;
+            engine.commandLine = CommandLineOf(process);
             CloseHandle(process);
         }
         engines.push_back(engine);
@@ -479,7 +505,9 @@ int StartEngine() {
 }
 
 // Ends the engines and Settings windows run from the installed copy's folders (InstallRoots), for an uninstall or an
-// upgrade: their files go. `dryRun`: says which it would end.
+// upgrade: their files go. A console's process is left to its program (an upgrade or uninstall doesn't close the
+// user's agent or terminal mid-work; it deletes the prompt's file once the program ends, and its files go at the next
+// restart, as a DLL in use does). `dryRun`: says which it would end.
 int StopEngines(bool dryRun) {
     const std::vector<std::wstring> roots = InstallRoots();
     int failures = 0, stopped = 0;
@@ -491,6 +519,11 @@ int StopEngines(bool dryRun) {
         if (!installed) {
             Say("stop-engines: left pid %lu alone (%ls)", engine.pid,
                 engine.path.empty() ? L"path unknown" : engine.path.c_str());
+            continue;
+        }
+        if (IsConsoleProcess(engine)) {
+            Say("stop-engines: left pid %lu alone (a console's, its program still running: %ls)", engine.pid,
+                engine.path.c_str());
             continue;
         }
         if (dryRun) {

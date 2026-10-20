@@ -196,7 +196,10 @@ What the MSI does:
   their session. The installer starts it for the installing user right away, never elevated (through Explorer when
   the installer is elevated); not from an SSH session (session 0), where it would only hold the pipe's name.
 - **Uninstall:** AllInOneIME out of the user's language list (and TSF's state for it in their HKCU), every engine and
-  Settings window from `Program Files\AllInOneIME` stopped, `DllUnregisterServer`, the files, the folder and the registry values gone. An
+  Settings window run from the installed copy stopped (its folder, wherever it was installed, and `Program
+  Files\AllInOneIME`; `AllInOneIMESetup stop-engines --dry-run` says which), but a console window's process, whose
+  program (an agent, a terminal command) is left to run and which deletes its prompt's file once it ends (its files go
+  at the next restart, as a DLL in use does), `DllUnregisterServer`, the files, the folder and the registry values gone. An
   upgrade keeps the keyboard in the list. `%APPDATA%\AllInOneIME`, the user's data (`config.json`, librime's learned
   words in `rime\`), is never touched, nor the keys in the Credential Manager.
 - **A DLL in use:** an installed input method's DLL is loaded, as a module or for its icon, by Explorer and every app
