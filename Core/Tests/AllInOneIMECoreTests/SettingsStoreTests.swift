@@ -377,14 +377,19 @@ struct SettingsStoreTests {
 /// `body` with `folder` read-only (a save into it fails), then writable again. False, `body` not run, where that keeps
 /// nothing from writing there (root). On Windows, where a folder's read-only attribute keeps nothing from being written
 /// in it (nor a file's from being replaced by an atomic write), writing is denied to everyone on the folder and what is
-/// in it (`denyWrites`), then allowed again.
+/// in it (`denyWrites`), then allowed again; no one writes past that (an administrator neither), so a folder it can't
+/// make read-only is the helper broken: an issue, not a test skipped quietly.
 func whileReadOnly(_ folder: URL, _ body: () throws -> Void) throws -> Bool {
     #if os(Windows)
-    guard let restore = denyWrites(in: folder) else { return false }
+    guard let restore = denyWrites(in: folder) else {
+        Issue.record("couldn't deny writes in \(folder.path)")
+        return false
+    }
     defer { restore() }
     let probe = folder.appendingPathComponent("probe.txt")
     if (try? Data().write(to: probe)) != nil {
         try? FileManager.default.removeItem(at: probe)
+        Issue.record("\(folder.path) is still writable with writes denied")
         return false
     }
     #else
