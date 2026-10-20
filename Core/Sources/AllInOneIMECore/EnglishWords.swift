@@ -44,7 +44,7 @@ public enum EnglishWords {
     /// Whether `typed`, letters the user put in as they are (`EnglishWordsEngine.rawCommitted`), is learned: Latin letters
     /// only, 3 to `maxLearned` of them, a word not offered already (`known`, by key) nor in rime-ice's dictionary, not
     /// pinyin (`Pinyin.isPinyin`: "nihao", "yyds"), with a vowel, and nothing like a secret (`looksSecret`, the user's
-    /// hidden words included).
+    /// hidden words included, anywhere in it).
     public static func learnable(_ typed: String, known: Set<String>, dictionary: EnglishDictionary, hidden: [String]) -> Bool {
         guard (3...maxLearned).contains(typed.count), typed.allSatisfy({ $0.isASCII && $0.isLetter }) else { return false }
         let k = key(typed)
@@ -70,9 +70,11 @@ public enum EnglishWords {
     }
 
     /// What is never learned or taken from the jargon list: what hiding sensitive information would hide from the AI
-    /// (`Redaction`, every detector on: a key or token, a card or phone number, an address; the user's hidden words too),
-    /// or what looks random (`looksRandom`).
+    /// (`Redaction`, every detector on: a key or token, a card or phone number, an address; the user's hidden words too,
+    /// anywhere in it, in any case, by their letters: "phoenixapi" for "Phoenix"), or what looks random (`looksRandom`).
     static func looksSecret(_ text: String, hidden: [String]) -> Bool {
+        let letters = key(text)
+        if hidden.contains(where: { let word = key($0); return !word.isEmpty && letters.contains(word) }) { return true }
         if !Redaction.find(text, settings: RedactionSettings(enabled: true, customWords: hidden)).isEmpty { return true }
         return Redaction.isKey(text) || looksRandom(text)
     }

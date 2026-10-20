@@ -372,6 +372,16 @@ struct EnglishWordsTests {
         }
     }
 
+    @Test func aHiddenWordAnywhereInTheLettersIsNeverLearned() {
+        func learnable(_ typed: String, hidden: [String]) -> Bool {
+            EnglishWords.learnable(typed, known: [], dictionary: dictionary, hidden: hidden)
+        }
+        // In any case, inside the letters, by its own letters ("Project Phoenix", "Acme-Corp").
+        #expect(!learnable("phoenixapi", hidden: ["Phoenix"]) && !learnable("myphoenix", hidden: ["PHOENIX"]))
+        #expect(!learnable("projectphoenix", hidden: ["Project Phoenix"]) && !learnable("acmecorpx", hidden: ["Acme-Corp"]))
+        #expect(learnable("frobnicate", hidden: ["Phoenix", "李明", " "]), "none of them in it")
+    }
+
     @Test func offeredAreTheUsersThenTheJargonListsThenTheCurated() {
         var config = Config.default
         config.englishWords = ["bedrock", "北京", "Frobnicate"]
@@ -599,7 +609,7 @@ struct EnglishWordsSessionTests {
         withInterfaceLanguage("en") {
             // Letters only, a vowel, no six consonants in a row nor a letter three times, not pinyin: only what hiding
             // sensitive information hides (`Redaction`'s keys, the user's hidden words) tells them from a word.
-            let secrets = ["XoBuKiVaZeNu", "hTqeWobAsuKelPimRaVo", "kTzQaWmPeLvR", "Phoenix"]
+            let secrets = ["XoBuKiVaZeNu", "hTqeWobAsuKelPimRaVo", "kTzQaWmPeLvR", "Phoenix", "phoenixapi"]
             for secret in secrets {
                 #expect(!EnglishWords.looksRandom(secret) && !Pinyin.isPinyin(EnglishWords.key(secret)), "\(secret)")
             }
