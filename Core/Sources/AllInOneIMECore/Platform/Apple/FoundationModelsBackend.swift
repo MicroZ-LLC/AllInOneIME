@@ -120,13 +120,22 @@ extension FoundationModelsBackend: AppleGuidedBackend {
     }
 
     func respond(to request: AppleModelRequest, schema: GuidedSchema, tools: [GuidedTool]) async throws -> String {
+        try await respondWithUsage(to: request, schema: schema, tools: tools).json
+    }
+
+    /// The answer, and on macOS 27 the session's usage and its whole transcript after the answer, counted.
+    func respondWithUsage(to request: AppleModelRequest, schema: GuidedSchema, tools: [GuidedTool]) async throws
+        -> (json: String, usage: GuidedUsage?) {
         do {
             let generation = try GenerationSchema(root: GuidedSchemaBuilder().dynamic(schema), dependencies: [])
             let session = LanguageModelSession(model: SystemLanguageModel.default, tools: try tools.map(DynamicTool.init),
                                                transcript: Transcript(entries: Self.transcript(request)))
             let options = GenerationOptions(temperature: request.temperature, maximumResponseTokens: request.maximumResponseTokens)
             let response = try await session.respond(to: request.prompt, schema: generation, options: options)
-            return response.content.jsonString
+            guard #available(macOS 27, iOS 27, *) else { return (response.content.jsonString, nil) }
+            let transcript = try? await SystemLanguageModel.default.tokenCount(for: session.transcript)
+            return (response.content.jsonString, GuidedUsage(input: response.usage.input.totalTokenCount,
+                                                             output: response.usage.output.totalTokenCount, transcript: transcript))
         } catch {
             throw Self.mapped(error)
         }

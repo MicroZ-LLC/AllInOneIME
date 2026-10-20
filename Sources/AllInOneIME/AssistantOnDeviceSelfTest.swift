@@ -2,11 +2,12 @@ import AllInOneIMECore
 import AppKit
 
 /// The on-device model with the context it reports set (`contextSize`: macOS 26's 4096 on a Mac with macOS 27's 8192), and
-/// what Settings → Assistant sent it: the model's own count of each request, and the answer's limit.
+/// what Settings → Assistant sent it: the model's own count of each request, the answer's limit, and what the answer
+/// took of the context as the framework counted it while answering (`usage`, macOS 27), apart from the plan's count.
 final class CappedGuidedModel: AppleGuidedBackend, @unchecked Sendable {
     let model: any AppleGuidedBackend
     let contextSize: Int
-    private(set) var sent: [(tokens: Int?, maximumResponseTokens: Int)] = []
+    private(set) var sent: [(tokens: Int?, maximumResponseTokens: Int, usage: GuidedUsage?)] = []
 
     init(_ model: any AppleGuidedBackend, contextSize: Int) {
         self.model = model
@@ -24,17 +25,39 @@ final class CappedGuidedModel: AppleGuidedBackend, @unchecked Sendable {
 
     func respond(to request: AppleModelRequest, schema: GuidedSchema, tools: [GuidedTool]) async throws -> String {
         let tokens = await model.tokenCount(of: request, schema: schema, tools: tools)
-        await MainActor.run { sent.append((tokens, request.maximumResponseTokens)) }
-        return try await model.respond(to: request, schema: schema, tools: tools)
+        let index = await MainActor.run {
+            sent.append((tokens, request.maximumResponseTokens, nil))
+            return sent.count - 1
+        }
+        let (json, usage) = try await model.respondWithUsage(to: request, schema: schema, tools: tools)
+        await MainActor.run { sent[index].usage = usage }
+        return json
+    }
+
+    /// The last answer's use of the context fits `contextSize` as the framework counted it: the whole transcript after
+    /// the answer (its tools' calls too), else what it read and wrote. Before macOS 27, which doesn't say, true.
+    var lastFits: Bool {
+        guard #available(macOS 27, *) else { return true }
+        guard let usage = sent.last?.usage else { return false }
+        return (usage.transcript ?? usage.input + usage.output) <= contextSize
+    }
+
+    /// The last request as the plan counted it and as the framework did: "3067 + 779 planned; 2990 read, 41 written, 3031 in all".
+    var lastLine: String {
+        guard let last = sent.last else { return "nothing sent" }
+        let planned = "\(last.tokens ?? -1) + \(last.maximumResponseTokens) planned"
+        guard let usage = last.usage else { return planned }
+        return planned + "; \(usage.input) read, \(usage.output) written, \(usage.transcript.map(String.init) ?? "?") in all"
     }
 }
 
 extension SelfTest {
     /// Settings → Assistant on Apple Intelligence on this Mac with a long-time user's config (many apps with settings of
     /// their own, five languages each way, every style): with the context macOS 26 has (4096 tokens) and this Mac's own,
-    /// the request is fitted to it and answered, in English and Chinese, through the page too; a request too long for any
-    /// fit says what to do, in the interface language, and isn't sent to the model. Only where the model is available;
-    /// no provider is asked (none has credentials here), the user's config file is never touched.
+    /// the request is fitted to it and answered, in English and Chinese, through the page too, within the context as the
+    /// plan counted it and (macOS 27) as the framework counted the answer; a request too long for any fit says what to
+    /// do, in the interface language, and isn't sent to the model. Only where the model is available; no provider is
+    /// asked (none has credentials here), the user's config file is never touched.
     static func testAssistantOnDevice(snapshotDirectory: URL) {
         let real = AppleModel.system
         section("Settings → Assistant on Apple Intelligence on this Mac: a large config fitted to its context (\(real.availability.rawValue))")
@@ -77,16 +100,18 @@ extension SelfTest {
         }
 
         for contextSize in [4096, guided.contextSize] {
-            for sentence in ["candidates in a column", "微信里用英文输入"] {
+            for sentence in ["candidates in a column", "微信里用英文输入", "use Bedrock"] {
                 let model = CappedGuidedModel(guided, contextSize: contextSize)
                 let result = ask(model, sentence)
                 let sent = model.sent.last
-                let fits = sent.map { ($0.tokens ?? 0) + $0.maximumResponseTokens <= contextSize } ?? false
+                // Planned within the context by the plan's count; and within it as the framework counted the answer, where
+                // it says (macOS 27): the context the request and the answer took, the tools' calls too.
+                let planned = sent.map { ($0.tokens ?? 0) + $0.maximumResponseTokens <= contextSize } ?? false
                 switch result {
                 case let .success(answer):
-                    check(answer.onDevice && fits && (try? AIConfig.parse(answer.text)) != nil,
-                          "\(contextSize) tokens, “\(sentence)”: answered on the device within its context (\(sent?.tokens ?? -1) + "
-                              + "\(sent?.maximumResponseTokens ?? -1) for the answer): \(answer.text.prefix(160))")
+                    check(answer.onDevice && planned && model.lastFits && (try? AIConfig.parse(answer.text)) != nil,
+                          "\(contextSize) tokens, “\(sentence)”: answered on the device within its context (\(model.lastLine)): "
+                              + "\(answer.text.prefix(160))")
                 case let .failure(error):
                     check(false, "\(contextSize) tokens, “\(sentence)”: failed: \(error)")
                 case nil:
@@ -116,8 +141,9 @@ extension SelfTest {
         _ = pump(timeout: 120) { !assistant.working }
         let text = AIConfig.Text(language: "zh-Hans")
         let lines = [AIConfig.Failure.notUnderstood, .notAllowed, .alreadySet].map(text.failure)
-        check(capped.sent.count == 1 && (assistant.preview != nil || assistant.message.map(lines.contains) == true),
-              "the page with a 4096-token context: \(assistant.preview != nil ? "a preview (\(assistant.lines.joined(separator: "; ")))" : assistant.message ?? "nothing")")
+        check(capped.sent.count == 1 && capped.lastFits && (assistant.preview != nil || assistant.message.map(lines.contains) == true),
+              "the page with a 4096-token context (\(capped.lastLine)): "
+                  + (assistant.preview != nil ? "a preview (\(assistant.lines.joined(separator: "; ")))" : assistant.message ?? "nothing"))
 
         // Too long for any fit: not sent to the model; the line says what to do, in the interface language.
         let long = CappedGuidedModel(guided, contextSize: 4096)

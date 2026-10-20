@@ -345,9 +345,33 @@ public protocol AppleGuidedBackend: AppleModelBackend {
     /// prompt, the schema and the tools' definitions; not the answer), as the model counts them; nil where it can't tell
     /// (before macOS 26.4). Nothing is sent.
     func tokenCount(of request: AppleModelRequest, schema: GuidedSchema, tools: [GuidedTool]) async -> Int?
+    /// `respond`, with what the answer took of the context as the framework counted it (macOS 27 and later; nil before):
+    /// how the self-test checks the fit apart from `tokenCount`, which the plan uses.
+    func respondWithUsage(to request: AppleModelRequest, schema: GuidedSchema, tools: [GuidedTool]) async throws
+        -> (json: String, usage: GuidedUsage?)
 }
 
 extension AppleGuidedBackend {
     public func prewarm() {}
     public func tokenCount(of request: AppleModelRequest, schema: GuidedSchema, tools: [GuidedTool]) async -> Int? { nil }
+    public func respondWithUsage(to request: AppleModelRequest, schema: GuidedSchema, tools: [GuidedTool]) async throws
+        -> (json: String, usage: GuidedUsage?) {
+        (try await respond(to: request, schema: schema, tools: tools), nil)
+    }
+}
+
+/// What an answer took of the on-device model's context, as the framework counted it while answering.
+public struct GuidedUsage: Equatable, Sendable {
+    /// The tokens the model read (with tools, every round of the conversation) and wrote.
+    public var input: Int
+    public var output: Int
+    /// The session's whole transcript after the answer, counted: the instructions with the tools' definitions, the
+    /// prompt with its schema, the tools' calls and what they returned, the answer. What had to fit in the context.
+    public var transcript: Int?
+
+    public init(input: Int, output: Int, transcript: Int?) {
+        self.input = input
+        self.output = output
+        self.transcript = transcript
+    }
 }
