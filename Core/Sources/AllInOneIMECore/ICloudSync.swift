@@ -40,7 +40,7 @@ public enum ICloudSync {
     public static let settingsKeys: [String] = [
         "provider", "awsProfile", "region", "modelId", "anthropic", "gemini", "openai",
         "maxTokens", "temperature", "timeoutSeconds",
-        "outputLanguages", "inputLanguages", "rewriteStyles", "improveTranslates", "voiceInput", "actionKey", "uiLanguage",
+        "outputLanguages", "inputLanguages", "rewriteStyles", "improveTranslates", "voiceInput", "actionKey", "commandTrigger", "uiLanguage",
         "claudeInBackground", "rememberQuestions", "questionRounds", "questionContinueIn", "menuBarIcon",
         "typeOut", "typeOutRate", "typeOutVaries", "typeOutMistakes", "fuzzyPinyin", "keyboardLayouts", "candidateLayout",
         "checkForUpdates", "useSelection", "redaction", "learnsEnglishWords",
@@ -61,12 +61,13 @@ public enum ICloudSync {
     /// Never synced, whatever the switches: each Mac decides for itself. The keys and tokens aren't in the config at all
     /// (they're in the keychain); extension sources and their clones run code; extension folders and plugins are paths on
     /// this Mac, and so is where `@note` saves (`notes`: a folder's path); the sync setting itself is per Mac; `typeOutSpeed` is only read (from older files); `outputLanguage` and
-    /// `defaultInput` come with their lists. Apps without typos and the recent apps aren't config keys either: named so
-    /// that no later version adds them.
+    /// `defaultInput` come with their lists. `@agent`'s agent and its program are what this Mac has installed, and
+    /// whether it takes Chrome's page is this Mac's choice (as they always were: never synced). Apps without typos and the recent apps aren't config keys
+    /// either: named so that no later version adds them.
     public static let neverSynced: Set<String> = [
         "extensionSources", "extensionFolders", "hiddenExtensionFolders", "findRaycastScripts", "disabledExtensions",
         "extensionPreferences", "jargonFile", "iCloudSync", "typeOutSpeed", "outputLanguage", "defaultInput",
-        "typeOutNoTyposApps", "recentApps", "notes",
+        "typeOutNoTyposApps", "recentApps", "notes", "agent", "agentCommand", "agentPageContext",
     ]
 
     /// The category `key` (a key of `settings.json`) is synced under; nil for a key this version doesn't sync (one a newer
@@ -363,8 +364,9 @@ public enum ICloudSync {
         var out: [String: AIConfig.JSONValue] = [:]
         if categories.contains(.settings) {
             for key in settingsKeys { out[key] = encoded[key] }
-            // Written into the file only when off; synced either way.
+            // Written into the file only when off (the trigger: when it isn't @); synced either way.
             out["learnsEnglishWords"] = .bool(config.learnsEnglishWords)
+            out["commandTrigger"] = .string(config.commandTrigger)
             if case var .object(redaction)? = encoded["redaction"] {
                 redaction["customWords"] = nil
                 out["redaction"] = .object(redaction)
@@ -957,6 +959,10 @@ public enum ICloudSync {
             return fields.values.allSatisfy { if case .string = $0 { return true } else { return false } } ? nil : .wrongType
         case "actionKey":
             return decodes(ActionKey.self, value) == nil ? .wrongType : nil
+        case "commandTrigger":
+            // One Settings refuses (a symbol typing needs) would be read as @: refused, the trigger here kept.
+            guard case let .string(trigger) = value else { return .wrongType }
+            return Config.commandTriggerProblem(trigger) == nil ? nil : .outOfRange
         case "uiLanguage":
             if value == .null { return nil }
             guard case let .string(code) = value else { return .wrongType }
