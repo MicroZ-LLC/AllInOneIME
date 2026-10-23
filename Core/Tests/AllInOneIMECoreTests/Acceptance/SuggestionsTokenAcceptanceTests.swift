@@ -174,7 +174,7 @@ struct SuggestionsTokenAcceptanceTests {
             let field = world.field()
             field.press(SuggestionKeys.key("@"))
             #expect(field.host.composer.draft == "@", "the command list opened (\(field.host.composer.draft))")
-            #expect(field.rows.first?.text.hasPrefix("@") == true, "its rows are commands (\(field.rows.map(\.text)))")
+            #expect(Command.builtins.map(\.name).contains(field.rows.first?.text ?? ""), "its rows are commands (\(field.rows.map(\.text)))")
             field.type("#7")
             field.idle()
             #expect(field.issuesShown.isEmpty, "\(field.issuesShown)")
