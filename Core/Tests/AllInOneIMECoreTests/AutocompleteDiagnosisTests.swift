@@ -57,7 +57,9 @@ struct TrimCase: Sendable, CustomTestStringConvertible {
 @Suite(.serialized)
 struct AutocompleteDiagnosisTests {
     /// The owner's settings: Bedrock with Claude Haiku picked, autocomplete on but never asked about the cloud (no
-    /// `autocompleteCloud`), "frobnicate" learned as an English word, "~" the command trigger; typing English.
+    /// `autocompleteCloud`), "frobnicate" learned as an English word; typing English. Not the owner's "~" command
+    /// trigger: a session puts its trigger in the process's interface text (`UIText.commandTrigger`), which the suites
+    /// running alongside read as @ (CommandTriggerTextTests, SessionTextTests).
     static func ownersConfig() -> Config {
         var config = Config.default
         config.uiLanguage = "en"
@@ -66,7 +68,6 @@ struct AutocompleteDiagnosisTests {
         config.autocomplete = true
         config.autocompleteCloud = nil
         config.englishWords = ["frobnicate"]
-        config.commandTrigger = "~"
         config.setOrder([Language.english])
         config.setOrder([OutputLanguage.english, .chinese])
         return config
