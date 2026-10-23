@@ -181,6 +181,48 @@ struct SuggestionsTests {
         #expect(decoded.completionSources.isEmpty && decoded.suggestions == nil)
     }
 
+    /// An approval that no longer holds is kept, marked lapsed (`Config.markLapsed`), never dropped: Settings says the
+    /// source changed since it was turned on, and it stays off, the plugin as it was again too, until turned on again. A
+    /// scan without the plugin (none read, or it skipped for its minAppVersion) has nothing to compare it with: no lapse.
+    @Test func aLapsedApprovalIsKeptMarkedUntilTurnedOnAgain() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("suggestions-lapsed-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let plugins = folder.appendingPathComponent("plugins", isDirectory: true)
+        try FileManager.default.createDirectory(at: plugins, withIntermediateDirectories: true)
+        try FileManager.default.copyItem(at: Self.github, to: plugins.appendingPathComponent("github"))
+        let plugin = try #require(PluginStore.load(from: plugins).plugins.first)
+        let source = try #require(plugin.manifest.completions.first)
+        var config = Config.default
+        config.setCompletionSource(source, of: plugin, enabled: true)
+        let approval = try #require(config.approval(of: source, in: plugin))
+        #expect(!approval.lapsed)
+        #expect(CompletionSourceApproval.lapsed(config.completionSources, plugins: []).isEmpty, "a scan without the plugin")
+        #expect(CompletionSourceApproval.lapsed(config.completionSources, plugins: [plugin]).isEmpty, "as it was approved")
+
+        let script = plugins.appendingPathComponent("github/main.js")
+        let original = try Data(contentsOf: script)
+        try Data("function load(ctx) { return { items: [] }; }".utf8).write(to: script)
+        let lapsed = CompletionSourceApproval.lapsed(config.completionSources, plugins: [plugin])
+        #expect(lapsed == [approval], "the script changed")
+        config.markLapsed(lapsed)
+        #expect(config.completionSources.count == 1 && config.completionSources.first?.lapsed == true, "\(config.completionSources)")
+        #expect(CompletionSourceApproval.lapsed(config.completionSources, plugins: [plugin]).isEmpty, "marked once")
+        try original.write(to: script)
+        #expect(config.approval(of: source, in: plugin)?.holds(for: source, of: plugin) == false, "the script as it was: still off")
+        #expect(try JSONDecoder().decode(Config.self, from: JSONEncoder().encode(config)).completionSources == config.completionSources)
+
+        // Settings says so; turned on again, it holds.
+        let url = folder.appendingPathComponent("config.json")
+        try config.write(to: url)
+        let service = SettingsService(store: SettingsStore(configURL: url), platform: .windows, library: PluginLibrary(directory: plugins))
+        let field = try #require(service.document().field("plugins.completion.github.issues"))
+        #expect(field.value == .bool(false), "\(field)")
+        #expect(["turn it on again", "要再打开一次"].contains { field.status?.contains($0) == true }, "\(field.status ?? "-")")
+        #expect((try? service.set("plugins.completion.github.issues", to: .bool(true)).get()) != nil)
+        let enabled = try Config.load(from: url).completionSources
+        #expect(enabled.count == 1 && enabled.first?.lapsed == false && enabled.first?.holds(for: source, of: plugin) == true, "\(enabled)")
+    }
+
     @Test func theNewKeysRoundTrip() throws {
         var config = Config.default
         config.suggestions = false

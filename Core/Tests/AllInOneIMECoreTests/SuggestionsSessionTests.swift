@@ -72,14 +72,19 @@ extension SuggestionsSessionTests {
 
 extension SuggestionsSessionTests {
     enum Gone: String, CaseIterable, Sendable {
-        case uninstalled, updated
+        /// A scan without the plugin (none read, or it skipped for its minAppVersion).
+        case missing
+        /// Updated since in a way that needs enabling again.
+        case updated
     }
 
-    /// An approval that no longer holds (its plugin removed, or updated since in a way that needs enabling again) is
-    /// dropped (the shell takes it out of the settings) and the source's cached list deleted, in memory and on disk:
-    /// the same plugin installed again asks again.
+    /// An approval that no longer holds (its plugin updated since in a way that needs enabling again) is kept, marked
+    /// lapsed (the shell marks it in the settings, which say so), and the source's cached list is kept: the source is off,
+    /// the plugin as it was again too, until enabled again. A scan without the plugin has nothing to compare it with: it
+    /// lapses nothing, and with the plugin back the source is on as before. (Removing a plugin forgets its approvals,
+    /// `SettingsStore.uninstall`, and with them its cached lists.)
     @Test(arguments: Gone.allCases)
-    func anApprovalThatNoLongerHoldsIsDroppedWithItsCache(_ gone: Gone) async throws {
+    func anApprovalThatNoLongerHoldsIsKeptMarkedWithItsCache(_ gone: Gone) async throws {
         try await inEnglish {
             let world = SuggestionsWorld()
             let cache = world.folder.appendingPathComponent("cache", isDirectory: true)
@@ -91,9 +96,12 @@ extension SuggestionsSessionTests {
             let lapsed = Locked<[CompletionSourceApproval]>(initialState: [])
             func field() -> SuggestionsField {
                 world.field(app: "com.apple.TextEdit") { services in
-                    services.suggestions.approvalsLapsed = { dropped in
-                        lapsed.withLock { $0 += dropped }
-                        world.switches.enabled.removeAll { dropped.contains($0) }
+                    services.suggestions.approvalsLapsed = { marked in
+                        lapsed.withLock { $0 += marked }
+                        var config = Config.default
+                        config.completionSources = world.switches.enabled
+                        config.markLapsed(marked)
+                        world.switches.enabled = config.completionSources
                     }
                 }
             }
@@ -105,22 +113,32 @@ extension SuggestionsSessionTests {
             #expect(lapsed.withLock { $0 }.isEmpty, "it holds: kept")
 
             switch gone {
-            case .uninstalled: world.plugins = []
+            case .missing: world.plugins = []
             case .updated:
                 let script = SuggestionsPlugins.script + "\nfunction extra() { return 1; }\n"
                 world.plugins = [try #require(try SuggestionsPlugins.install(SuggestionsPlugins.githubManifest(), script: script, in: world.folder))]
             }
-            let next = field()
-            #expect(lapsed.withLock { $0 } == [approval], "\(gone): dropped (\(lapsed.withLock { $0 }))")
-            #expect(next.settle { !FileManager.default.fileExists(atPath: file.path) }, "\(gone): its cached list deleted")
+            _ = field()
+            SuggestionsStore.disk.sync {}  // what the focus pruned on disk, done
+            if gone == .updated {
+                #expect(lapsed.withLock { $0 } == [approval], "\(gone): marked lapsed (\(lapsed.withLock { $0 }))")
+                #expect(world.switches.enabled.map(\.lapsed) == [true], "\(gone): kept (\(world.switches.enabled))")
+            } else {
+                #expect(lapsed.withLock { $0 }.isEmpty && world.switches.enabled == [approval], "\(gone): nothing lapsed")
+            }
+            #expect(FileManager.default.fileExists(atPath: file.path), "\(gone): its cached list kept")
 
-            // The plugin as it was, again: off until enabled again; nothing listed from before.
+            // The plugin as it was, again.
             world.plugins = [try #require(try SuggestionsPlugins.install(SuggestionsPlugins.githubManifest(), in: world.folder))]
             let calls = world.runtime.calls.count
             let again = field()
             again.type("#7")
-            again.idle()
-            #expect(again.rows.isEmpty && world.runtime.calls.count == calls, "\(gone), installed again: asks again (\(again.issuesShown))")
+            if gone == .updated {
+                again.idle()
+                #expect(again.rows.isEmpty && world.runtime.calls.count == calls, "\(gone), as it was again: off until enabled again (\(again.issuesShown))")
+            } else {
+                #expect(again.waitForIssues(["#7001", "#7002", "#7090", "#7100", "#789"]), "\(gone), back: on as before (\(again.issuesShown))")
+            }
         }
     }
 }

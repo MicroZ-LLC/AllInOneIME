@@ -236,7 +236,8 @@ public protocol CompletionRuntime: Sendable {
 
 /// A completion source the user enabled in Settings → Plugins, and what they enabled: the plugin's `hosts`, whether the
 /// source queries, the SHA-256 (lowercase hex) of its script file, and what else its switch said (`terms`). A plugin
-/// whose hosts, query, script or terms differ now needs enabling again: until then the source is off.
+/// whose hosts, query, script or terms differ now needs enabling again: until then the source is off, its approval kept
+/// and marked `lapsed` (Settings says it changed since it was turned on).
 public struct CompletionSourceApproval: Codable, Equatable, Hashable, Sendable {
     /// What a source's switch says besides its hosts and whether it queries ("sends what you type after # to …"): its
     /// prefix, how many characters after it before its query is first asked, how it compares.
@@ -260,14 +261,45 @@ public struct CompletionSourceApproval: Codable, Equatable, Hashable, Sendable {
     /// Nil: not kept (an approval made without them), which holds whatever they are now. Settings always keeps them
     /// (`init(enabling:of:)`).
     public var terms: Terms?
+    /// Its plugin was found changed since (`lapsed(_:plugins:sha256:)`): it holds no more, whatever the plugin is now,
+    /// until the source is turned on again (a new approval). Written only when set.
+    public var lapsed: Bool
 
-    public init(plugin: String, source: String, hosts: [String], query: Bool, scriptSHA256: String, terms: Terms? = nil) {
+    public init(plugin: String, source: String, hosts: [String], query: Bool, scriptSHA256: String, terms: Terms? = nil,
+                lapsed: Bool = false) {
         self.plugin = plugin
         self.source = source
         self.hosts = hosts
         self.query = query
         self.scriptSHA256 = scriptSHA256
         self.terms = terms
+        self.lapsed = lapsed
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case plugin, source, hosts, query, scriptSHA256, terms, lapsed
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        plugin = try c.decode(String.self, forKey: .plugin)
+        source = try c.decode(String.self, forKey: .source)
+        hosts = try c.decode([String].self, forKey: .hosts)
+        query = try c.decode(Bool.self, forKey: .query)
+        scriptSHA256 = try c.decode(String.self, forKey: .scriptSHA256)
+        terms = try c.decodeIfPresent(Terms.self, forKey: .terms)
+        lapsed = try c.decodeIfPresent(Bool.self, forKey: .lapsed) ?? false
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(plugin, forKey: .plugin)
+        try c.encode(source, forKey: .source)
+        try c.encode(hosts, forKey: .hosts)
+        try c.encode(query, forKey: .query)
+        try c.encode(scriptSHA256, forKey: .scriptSHA256)
+        try c.encodeIfPresent(terms, forKey: .terms)
+        if lapsed { try c.encode(true, forKey: .lapsed) }
     }
 }
 
@@ -417,9 +449,10 @@ public struct SuggestionsServices {
     public var recordPick: (SuggestionPick) -> Void
     /// A source's status changed (Settings → Plugins shows it). From any thread.
     public var reportStatus: @Sendable (CompletionSourceStatus) -> Void
-    /// These approvals no longer hold (`CompletionSourceApproval.lapsed`: their plugin removed, or changed since in a way
-    /// that needs enabling again): the shell takes them out of the settings, so the same plugin installed again asks
-    /// again. Their sources' cached lists are deleted already.
+    /// These approvals no longer hold (`CompletionSourceApproval.lapsed`: their plugin changed since in a way that needs
+    /// enabling again): the shell marks them lapsed in the settings (`Config.markLapsed`), which keep them and say so, and
+    /// the source stays off until enabled again, the plugin as it was again too. Their cached lists are kept: those go
+    /// with the approval (the source disabled, the plugin removed).
     public var approvalsLapsed: ([CompletionSourceApproval]) -> Void
     /// Where the pointer is (screen points) and whether Sticky Keys is on, for the long press of Shift
     /// (`TranslateMode.ShiftHold`: the pointer moved while Shift is held is a Shift-click being aimed; with Sticky Keys

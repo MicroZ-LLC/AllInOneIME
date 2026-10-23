@@ -139,8 +139,8 @@ extension InputSession {
         if shown { emit(.panel(nil)) }
     }
 
-    /// The settings changed (`SessionEvent.configChanged`): a source disabled, or whose approval no longer holds,
-    /// forgotten (its cache deleted), "Refresh now" acted on, the rows made again.
+    /// The settings changed (`SessionEvent.configChanged`): a source disabled forgotten (its cache deleted), one whose
+    /// approval no longer holds marked lapsed, "Refresh now" acted on, the rows made again.
     func suggestionsSettingsChanged() {
         suggestionsMaintain(prune: true)
         suggestionsUpdate()
@@ -628,8 +628,8 @@ extension InputSession {
 
     /// The results that came back taken in (now), Settings told of each source whose status changed; the lists due
     /// loaded (`prune`, as a field takes the focus or the settings change, the plugins just scanned again: the sources
-    /// disabled forgotten first, their cache deleted, and those whose approval no longer holds too, the shell told to
-    /// drop it); the next refresh's timer.
+    /// disabled forgotten first, their cache deleted, and the shell told of those whose approval no longer holds, to mark
+    /// it lapsed: kept, with its cache); the next refresh's timer.
     func suggestionsMaintain(prune: Bool = false) {
         let s = services.suggestions
         let settings = s.settings()
@@ -644,11 +644,11 @@ extension InputSession {
             }
         }
         if prune {
+            s.store.prune(keeping: Set(settings.enabled.map { CompletionSourceKey(plugin: $0.plugin, source: $0.source) }),
+                          folder: s.cacheFolder)
             let lapsed = CompletionSourceApproval.lapsed(settings.enabled, plugins: plugins, sha256: s.store.sha256)
-            let holding = settings.enabled.filter { !lapsed.contains($0) }
-            s.store.prune(keeping: Set(holding.map { CompletionSourceKey(plugin: $0.plugin, source: $0.source) }), folder: s.cacheFolder)
             if !lapsed.isEmpty {
-                log.notice("suggestions: \(lapsed.count) source(s) no longer approved (their plugin removed or changed): dropped")
+                log.notice("suggestions: \(lapsed.count) source(s) no longer approved (their plugin changed): off until enabled again")
                 s.approvalsLapsed(lapsed)
             }
         }

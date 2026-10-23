@@ -59,38 +59,36 @@ enum SuggestionsShared {
     }
 
     /// The settings of suggestions changed (a source enabled or disabled, "Refresh now", a plugin removed): the field
-    /// being typed in takes them in at once (a source disabled, or whose approval no longer holds, is forgotten, its cache
-    /// deleted; a refresh asked for starts).
+    /// being typed in takes them in at once (a source disabled, or its plugin removed, is forgotten, its cache deleted;
+    /// one whose approval no longer holds is marked so; a refresh asked for starts).
     static func settingsChanged() {
         if let field = AllInOneIMEInputController.activeController {
             field.received(.configChanged)
         } else {
-            // No field: what's disabled or no longer approved is still forgotten now, with the plugins as they are.
+            // No field: what's disabled is still forgotten now, and what no longer holds marked, with the plugins as they are.
             let enabled = LiveConfig.current.completionSources
-            let lapsed = CompletionSourceApproval.lapsed(enabled, plugins: LivePlugins.current(rescan: true))
-            store.prune(keeping: Set(enabled.filter { !lapsed.contains($0) }.map { CompletionSourceKey(plugin: $0.plugin, source: $0.source) }),
-                        folder: cacheFolder)
-            dropApprovals(lapsed)
+            store.prune(keeping: Set(enabled.map { CompletionSourceKey(plugin: $0.plugin, source: $0.source) }), folder: cacheFolder)
+            markLapsed(CompletionSourceApproval.lapsed(enabled, plugins: LivePlugins.current(rescan: true)))
         }
         NotificationCenter.default.post(name: .allInOneIMESuggestionsChanged, object: nil)
     }
 
-    /// Approvals that no longer hold (their plugin removed, or changed since: `CompletionSourceApproval.lapsed`) taken out
-    /// of the config file, once the key or focus being handled is done: the same plugin installed again asks again.
-    static func dropApprovals(_ lapsed: [CompletionSourceApproval]) {
+    /// Approvals that no longer hold (their plugin changed since: `CompletionSourceApproval.lapsed`) marked so in the
+    /// config file, kept, once the key or focus being handled is done: Settings says the source changed since it was
+    /// turned on, and it stays off until turned on again. (Approvals go only with their plugin, `SettingsStore.uninstall`,
+    /// or when turned off.)
+    static func markLapsed(_ lapsed: [CompletionSourceApproval]) {
         guard !lapsed.isEmpty else { return }
         DispatchQueue.main.async {
             do {
                 var config = try Config.load()
-                let before = config.completionSources
-                config.completionSources.removeAll { lapsed.contains($0) }
-                guard config.completionSources != before else { return }
+                guard config.markLapsed(lapsed) else { return }
                 try config.write()
-                log.notice("suggestions: \(before.count - config.completionSources.count, privacy: .public) approval(s) dropped")
+                log.notice("suggestions: \(lapsed.count, privacy: .public) approval(s) marked lapsed")
                 NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
                 NotificationCenter.default.post(name: .allInOneIMESuggestionsChanged, object: nil)
             } catch {
-                log.error("suggestions: approvals couldn't be dropped: \(String(describing: error), privacy: .public)")
+                log.error("suggestions: approvals couldn't be marked lapsed: \(String(describing: error), privacy: .public)")
             }
         }
     }
@@ -118,7 +116,7 @@ enum SuggestionsShared {
         services.loadPicks = { MainActor.assumeIsolated { picks.all } }
         services.recordPick = { pick in MainActor.assumeIsolated { picks.record(pick) } }
         services.reportStatus = { reported($0) }
-        services.approvalsLapsed = { lapsed in MainActor.assumeIsolated { dropApprovals(lapsed) } }
+        services.approvalsLapsed = { lapsed in MainActor.assumeIsolated { markLapsed(lapsed) } }
         services.pointer = { MainActor.assumeIsolated { TranslateModeShared.pointer() } }
         services.stickyKeys = { MainActor.assumeIsolated { TranslateModeShared.stickyKeys() } }
         services.shiftHeld = { MainActor.assumeIsolated { TranslateModeShared.shiftHeld() } }

@@ -19,6 +19,18 @@ extension Config {
         completionSources.removeAll { $0.plugin == plugin.name && $0.source == source.name }
         if enabled, let approval = CompletionSourceApproval(enabling: source, of: plugin) { completionSources.append(approval) }
     }
+
+    /// The approvals `lapsed` found (`CompletionSourceApproval.lapsed`) marked so, kept: off until enabled again, which
+    /// Settings says. Whether any changed.
+    @discardableResult
+    public mutating func markLapsed(_ lapsed: [CompletionSourceApproval]) -> Bool {
+        var changed = false
+        for index in completionSources.indices where !completionSources[index].lapsed && lapsed.contains(completionSources[index]) {
+            completionSources[index].lapsed = true
+            changed = true
+        }
+        return changed
+    }
 }
 
 extension CompletionSourceApproval {
@@ -38,21 +50,23 @@ extension CompletionSourceApproval {
         return holds(for: source, hosts: plugin.manifest.hosts, scriptSHA256: sha)
     }
 
-    /// The approvals of `enabled` that no longer hold for `plugins` as they are installed now: their plugin or source is
-    /// gone, or changed since (`holds`). `sha256`: a script's SHA-256 (nil: none to read).
+    /// The approvals of `enabled` not marked lapsed yet that no longer hold for `plugins` as they are installed now: their
+    /// plugin and source are there, changed since (`holds`). One whose plugin, source or script isn't there has nothing
+    /// to compare with (a scan that read none, a plugin skipped for its minAppVersion): it doesn't lapse. `sha256`: a
+    /// script's SHA-256 (nil: none to read).
     public static func lapsed(_ enabled: [CompletionSourceApproval], plugins: [InstalledPlugin],
                               sha256: (URL) -> String? = PluginStore.sha256(of:)) -> [CompletionSourceApproval] {
         enabled.filter { approval in
-            guard let plugin = plugins.first(where: { $0.name == approval.plugin }),
+            guard !approval.lapsed, let plugin = plugins.first(where: { $0.name == approval.plugin }),
                   let source = plugin.manifest.completions.first(where: { $0.name == approval.source }),
-                  let sha = plugin.scriptURL.flatMap(sha256) else { return true }
+                  let sha = plugin.scriptURL.flatMap(sha256) else { return false }
             return !approval.holds(for: source, hosts: plugin.manifest.hosts, scriptSHA256: sha)
         }
     }
 
-    /// `holds(for:of:)` with the plugin's hosts and its script's SHA-256 as they are now.
+    /// `holds(for:of:)` with the plugin's hosts and its script's SHA-256 as they are now. Never once marked lapsed.
     func holds(for source: CompletionSource, hosts: [String], scriptSHA256 sha: String) -> Bool {
-        self.source == source.name && query == source.query && scriptSHA256 == sha
+        !lapsed && self.source == source.name && query == source.query && scriptSHA256 == sha
             && Set(self.hosts.map { $0.lowercased() }) == Set(hosts.map { $0.lowercased() })
             && terms.map { $0 == Terms(source) } ?? true
     }
