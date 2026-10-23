@@ -159,3 +159,29 @@ extension SuggestionsSessionTests {
         }
     }
 }
+
+extension SuggestionsSessionTests {
+    /// Tab in a terminal or code editor completes what every item matching the token shares, not only the 5 rows shown:
+    /// "#1" with #100–#104 and #1999 adds nothing (the shown five share "#10", #1999 doesn't), and the Tab is the
+    /// terminal's; "#10" with #1000–#1004 and #10099 adds the "0" they all share.
+    @Test func tabInATerminalCompletesWhatEveryMatchingItemShares() throws {
+        try inEnglish {
+            let world = SuggestionsWorld()
+            try world.github(items: [100, 101, 102, 103, 104, 1999].map { SuggestionsItems.issue($0, "Issue \($0)") })
+            let field = world.field(app: "com.apple.Terminal", terminal: true)
+            field.type("#1")
+            #expect(field.waitForIssues(["#100", "#101", "#102", "#103", "#104"]), "\(field.issuesShown)")
+            #expect(!field.press(SuggestionKeys.tab), "#1999 matches too: nothing all of them share, the terminal's Tab")
+            #expect(field.document == "#1", "\(field.document)")
+
+            let other = SuggestionsWorld()
+            try other.github(items: [1000, 1001, 1002, 1003, 1004, 10099].map { SuggestionsItems.issue($0, "Issue \($0)") })
+            let next = other.field(app: "com.apple.Terminal", terminal: true)
+            next.type("#10")
+            #expect(next.waitForIssues(["#1000", "#1001", "#1002", "#1003", "#1004"]), "\(next.issuesShown)")
+            #expect(next.press(SuggestionKeys.tab) && next.document == "#100", "all six share #100: \(next.document)")
+            #expect(!next.press(SuggestionKeys.tab), "nothing more in common: the terminal's Tab")
+            #expect(next.document == "#100", "\(next.document)")
+        }
+    }
+}

@@ -371,12 +371,11 @@ extension InputSession {
         if let key { autocompleteAfterKey(key, handled: true, inserted: rest) }
     }
 
-    /// Tab in a terminal or code editor: the rows' common start, when it adds to what was typed (spec 6.10); the token
-    /// goes on with it, the rows stay.
+    /// Tab in a terminal or code editor: the common start of what every row for the token completes (not only the 5
+    /// shown), when it adds to what was typed (spec 6.10); the token goes on with it, the rows stay.
     func suggestionsCompleteShared(_ key: KeyEvent) -> Bool {
         let typed = suggesting.rows[0].typed
-        let rows = suggesting.rows.filter { $0.typed == typed }
-        let common = commonPrefix(rows.map(\.completion))
+        let common = suggestionsSharedCompletion(typed)
         guard common.count > typed.count,
               SuggestionsToken.normalized(common).lowercased().hasPrefix(SuggestionsToken.normalized(typed).lowercased()) else { return false }
         let rest = String(common.dropFirst(typed.count))
@@ -388,6 +387,44 @@ extension InputSession {
         suggestionsUpdate()
         autocompleteAfterKey(key, handled: true, inserted: rest)
         return true
+    }
+
+    /// What the completions of all the rows for the token that answer `typed` (the whole token, or coding's identifier)
+    /// start with, in any case (`commonPrefix`): the plugins' items (looked through until nothing more is shared) and
+    /// coding mode's.
+    func suggestionsSharedCompletion(_ typed: String) -> String {
+        let s = services.suggestions
+        let appClass = SuggestionsAppClass(app: app, terminal: terminal)
+        let t = InterfaceWords(language: UIText.language)
+        let token = suggesting.token
+        var common: String?
+        /// `completion` taken in: false once nothing more than what was typed is shared.
+        func share(_ completion: String) -> Bool {
+            common = commonPrefix([common ?? completion, completion])
+            return (common?.count ?? 0) > typed.count
+        }
+        sources: for active in activeSources(s.settings()) {
+            guard let after = PluginRows.afterPrefix(token, active.source) else { continue }
+            let list = active.source.list ? s.store.list(active.key) : nil
+            let answers = active.source.query && active.source.prefix != nil
+                ? s.store.answers(active.key, for: after.lowercased(), now: s.now()) : []
+            var more = true
+            PluginRows.eachRow(token, plugin: active.plugin, source: active.source, lists: (list.map { [$0.items] } ?? []) + answers.map(\.items),
+                               appClass: appClass, in: t) { row in
+                guard row.typed == typed else { return true }
+                more = share(row.completion)
+                return more
+            }
+            if !more { break sources }
+        }
+        if s.codingMode(), common.map({ $0.count > typed.count }) ?? true {
+            let identifier = SuggestionsToken.identifier(endingAt: SuggestionsToken.normalized(token))
+            for row in CodingRows.rows(identifier, packs: s.codingPacks(), words: terminal ? [] : suggesting.words, appClass: appClass, in: t)
+            where row.typed == typed {
+                if !share(row.completion) { break }
+            }
+        }
+        return common ?? typed
     }
 
     // MARK: - The rows

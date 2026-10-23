@@ -143,45 +143,79 @@ enum PluginRows {
     static func rows(_ token: String, plugin: InstalledPlugin, source: CompletionSource, lists: [CompletionItems],
                      madeAt: Date?, appClass: SuggestionsAppClass, picked: Set<String> = [], limit: Int? = nil,
                      in t: InterfaceWords) -> [SuggestionRow] {
-        guard let templates = templates(source, appClass) else { return [] }
-        let parsed = templates.compactMap(CompletionTemplate.parts)
-        let typed = SuggestionsToken.normalized(token)
-        let lowered = typed.lowercased()
-        let title = source.title.text(chinese: t.chinese)
+        guard let maker = RowMaker(token, plugin: plugin, source: source, madeAt: madeAt, appClass: appClass, in: t) else { return [] }
+        // Where each row is: its list, then its place there.
+        var found: [(list: Int, index: Int, row: SuggestionRow)] = []
+        var others = 0
+        maker.each(in: lists) { number, index, item in
+            // Picked before: looked up below, wherever it is.
+            if picked.contains(item.match) { return true }
+            guard let row = maker.row(item) else { return true }
+            found.append((number, index, row))
+            others += 1
+            return limit.map { others < $0 } ?? true
+        }
+        for match in picked {
+            let key = match.lowercased()
+            guard matches(key, maker.lowered, source),
+                  let (number, index) = lists.enumerated().lazy.compactMap({ number, list in list.positions[key].map { (number, $0) } }).first,
+                  lists[number].items[index].match == match, let row = maker.row(lists[number].items[index]) else { continue }
+            found.append((number, index, row))
+        }
+        return found.sorted { ($0.list, $0.index) < ($1.list, $1.index) }.map(\.row)
+    }
+
+    /// Each row of `lists` for `token` (as `rows` has them, every one), in their order, until `visit` says to stop
+    /// (false): what Tab in a terminal or code editor completes is what all of them share.
+    static func eachRow(_ token: String, plugin: InstalledPlugin, source: CompletionSource, lists: [CompletionItems],
+                        appClass: SuggestionsAppClass, in t: InterfaceWords, _ visit: (SuggestionRow) -> Bool) {
+        guard let maker = RowMaker(token, plugin: plugin, source: source, madeAt: nil, appClass: appClass, in: t) else { return }
+        maker.each(in: lists) { _, _, item in maker.row(item).map(visit) ?? true }
+    }
+
+    /// What makes a source's rows for a token: its templates for the app's class, read once.
+    struct RowMaker {
+        let token: String
+        let lowered: String
+        let plugin: InstalledPlugin
+        let source: CompletionSource
+        let templates: [[CompletionTemplate.Part]]
+        let title: String
+        let madeAt: Date?
+
+        /// Nil: the source has no rows in an app of `appClass` (`templates`).
+        init?(_ token: String, plugin: InstalledPlugin, source: CompletionSource, madeAt: Date?, appClass: SuggestionsAppClass,
+              in t: InterfaceWords) {
+            guard let templates = PluginRows.templates(source, appClass) else { return nil }
+            (self.token, self.plugin, self.source, self.madeAt) = (token, plugin, source, madeAt)
+            lowered = SuggestionsToken.normalized(token).lowercased()
+            self.templates = templates.compactMap(CompletionTemplate.parts)
+            title = source.title.text(chinese: t.chinese)
+        }
+
+        /// `item`'s row, if its insertion starts with what was typed.
         func row(_ item: CompletionItem) -> SuggestionRow? {
-            guard let insertion = CompletionTemplate.fill(parsed, with: item),
+            guard let insertion = CompletionTemplate.fill(templates, with: item),
                   SuggestionsToken.normalized(insertion).lowercased().hasPrefix(lowered) else { return nil }
             let (text, comment) = shown(item)
             return SuggestionRow(text: text, comment: comment, insertion: insertion, completion: item.match, typed: token,
                                  pick: SuggestionPick(plugin: plugin.name, source: source.name, match: item.match),
                                  source: title, madeAt: madeAt)
         }
-        // Where each row is: its list, then its place there.
-        var found: [(list: Int, index: Int, row: SuggestionRow)] = []
-        var seen = Set<String>()
-        var others = 0
-        scan: for (number, list) in lists.enumerated() {
-            var start = 0
-            while let index = list.next(answering: lowered, source, from: start) {
-                start = index + 1
-                guard seen.insert(list.lowered[index]).inserted else { continue }
-                let item = list.items[index]
-                // Picked before: looked up below, wherever it is.
-                if picked.contains(item.match) { continue }
-                guard let row = row(item) else { continue }
-                found.append((number, index, row))
-                others += 1
-                if let limit, others >= limit { break scan }
+
+        /// Each item of `lists` that answers the token, a match once (its first), in order, with its list and place,
+        /// until `visit` says to stop (false).
+        func each(in lists: [CompletionItems], _ visit: (Int, Int, CompletionItem) -> Bool) {
+            var seen = Set<String>()
+            for (number, list) in lists.enumerated() {
+                var start = 0
+                while let index = list.next(answering: lowered, source, from: start) {
+                    start = index + 1
+                    guard seen.insert(list.lowered[index]).inserted else { continue }
+                    guard visit(number, index, list.items[index]) else { return }
+                }
             }
         }
-        for match in picked {
-            let key = match.lowercased()
-            guard matches(key, lowered, source),
-                  let (number, index) = lists.enumerated().lazy.compactMap({ number, list in list.positions[key].map { (number, $0) } }).first,
-                  lists[number].items[index].match == match, let row = row(lists[number].items[index]) else { continue }
-            found.append((number, index, row))
-        }
-        return found.sorted { ($0.list, $0.index) < ($1.list, $1.index) }.map(\.row)
     }
 
     /// An item's row: its match, then its title and subtitle; its title alone when it starts with its match ("#12 Fix
