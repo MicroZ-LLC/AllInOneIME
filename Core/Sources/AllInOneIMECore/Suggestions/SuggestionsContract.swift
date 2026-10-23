@@ -397,6 +397,8 @@ public struct SuggestionsServices {
     /// Shift is latched, never held). The defaults: nowhere, off.
     public var pointer: () -> CGPoint
     public var stickyKeys: () -> Bool
+    /// What the long press of Shift says half way to the chooser ("Keep holding → …", the shell's wording; nil: nothing).
+    public var chooserHint: () -> String?
 
     public init() {
         store = SuggestionsStore()
@@ -415,6 +417,7 @@ public struct SuggestionsServices {
         reportStatus = { _ in }
         pointer = TranslateMode.ShiftHold.noPointer
         stickyKeys = { false }
+        chooserHint = { nil }
     }
 }
 

@@ -28,8 +28,9 @@ struct SuggestionsField {
     var shown = false
     /// The chooser is open, this row highlighted.
     var chooser: Int?
-    /// Shift's presses on its own counted (an older one's timer does nothing).
+    /// Shift's presses on its own counted (an older one's timer does nothing), and the hint of the one going on, up.
     var shift = 0
+    var hint: String?
     /// The last key (`uptime`); the pause before a query is asked again, counted, and the token it is for.
     var lastKeyAt: TimeInterval = 0
     var queryWait = 0
@@ -160,17 +161,22 @@ extension InputSession {
 
     func suggestionsTimer(_ timer: SuggestionsTimer) {
         switch timer {
-        case let .chooser(press):
+        case let .chooserHint(press), let .chooser(press):
             guard press == suggesting.shift, let held = chooserPress.held, !secureInputActive(), composer.voice == .off else { return }
             switch chooserPress.poll(pointerUsed: services.pointerUsedWithin(held)) {
             case .toggle?:
                 chooserPress.cancel()
+                chooserHintEnds()
                 chooserOpen()
             case .hint?:
-                emit(.startTimer(.suggestions(.chooser(press)), after: max(Self.chooserHold - held, 0.01)))
+                // Half way: "Keep holding → …", up about until the chooser comes.
+                if let hint = services.suggestions.chooserHint() {
+                    suggesting.hint = hint
+                    say(hint, lasting: TranslateMode.ShiftHold.toggleAfter - TranslateMode.ShiftHold.hintAfter + 0.3)
+                }
             case nil:
-                // Not yet (a timer early), or the pointer used or moved: a Shift-click.
-                if chooserPress.held != nil { emit(.startTimer(.suggestions(.chooser(press)), after: max(Self.chooserHold - held, 0.01))) }
+                // Early, or the pointer used or moved (a Shift-click): the press ended.
+                if chooserPress.held == nil { chooserHintEnds() }
             }
         case let .query(wait):
             guard wait == suggesting.queryWait, suggesting.queryWaitFor == suggesting.token else { return }
@@ -194,16 +200,27 @@ extension InputSession {
     func suggestionsModifiers(_ change: ModifierChange) {
         if chooserPress.flagsChanged(key: change.key, modifiers: change.modifiers) {
             suggesting.shift += 1
+            emit(.startTimer(.suggestions(.chooserHint(suggesting.shift)), after: TranslateMode.ShiftHold.hintAfter))
             emit(.startTimer(.suggestions(.chooser(suggesting.shift)), after: Self.chooserHold))
         } else if chooserPress.held == nil {
             suggesting.shift += 1
+            chooserHintEnds()
         }
+    }
+
+    /// The press ended short of the chooser (released, a key, another modifier), or the chooser came: its hint goes, if
+    /// it's still the notice up.
+    func chooserHintEnds() {
+        guard let hint = suggesting.hint else { return }
+        suggesting.hint = nil
+        _ = endNotice(hint)
     }
 
     /// Modifier changes may have gone unseen (secure input, another field): no press, Shift as it is now.
     func suggestionsModifiersMissed(shiftDown: Bool) {
         chooserPress.resync(shiftDown: shiftDown)
         suggesting.shift += 1
+        chooserHintEnds()
     }
 
     // MARK: - Keys
@@ -223,6 +240,7 @@ extension InputSession {
         // A key while Shift is held is no long press of it.
         chooserPress.keyDown()
         suggesting.shift += 1
+        chooserHintEnds()
         suggesting.lastKeyAt = services.uptime()
         suggesting.ranges = context.read.contains(.selectedRange) && context.selectedRange != nil
         if let highlighted = suggesting.chooser { return chooserKey(event, highlighted) }
@@ -621,7 +639,8 @@ extension InputSession {
 
     func chooserOpen() {
         guard !secureInputActive() else { return }
-        suggesting.chooser = 0
+        // The mode that is on highlighted (⏎ turns it off), else Translate as You Type.
+        suggesting.chooser = services.suggestions.codingMode() ? 1 : 0
         log.notice("the chooser of Translate as You Type and coding mode opened")
         suggestionsShow()
     }

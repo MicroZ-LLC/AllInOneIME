@@ -128,6 +128,8 @@ public enum TimerID: Hashable, Sendable {
 
 /// A timer of suggestions' (`TimerID.suggestions`), counted: an older one of a kind does nothing.
 public enum SuggestionsTimer: Hashable, Sendable {
+    /// The long press of Shift half way (its hint), then long enough for the chooser.
+    case chooserHint(Int)
     case chooser(Int)
     case query(Int)
     case refresh(Int)
