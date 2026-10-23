@@ -9,15 +9,14 @@ import Testing
 /// takes it from the settings file as it does on the Mac, as the DLL sends its key (what it types, Shift and all).
 @Suite(.serialized)
 struct CommandTriggerTests {
-    /// Each of `text`'s characters as a US layout types it, the triggers tried here ("~", "/") with their own keys; the
-    /// last one's outputs.
+    /// Each of `text`'s characters as a US layout types it, the trigger tried here ("~") with its own key; the last
+    /// one's outputs.
     @discardableResult
     static func type(_ client: EngineClient, _ text: String) -> [Output] {
         var last: [Output] = []
         for c in text {
             switch c {
             case "~": last = client.press(vk: 0xC0, scan: 0x29, text: "~", modifiers: [.shift, .leftShift])
-            case "/": last = client.press(vk: 0xBF, scan: 0x35, text: "/")
             default: last = client.type(String(c))
             }
         }
@@ -52,22 +51,23 @@ struct CommandTriggerTests {
         #expect(client.composition.isEmpty && client.committed == committed)
     }
 
-    /// In Chinese the Composer takes the trigger before librime, which has "/" for its symbols (rime-ice's "/fh").
+    /// In Chinese the Composer takes the trigger before librime, which would type it as itself and "impro" as pinyin.
+    /// ("/", rime-ice's key for its symbols, can't be the trigger since `Config.typingSymbols`: read as "@".)
     @Test func theTriggerComesBeforeLibrime() throws {
         let folder = try temporaryFolder("trigger-pinyin")
         defer { try? FileManager.default.removeItem(at: folder) }
         let rime = try RimeFixture.rime.get()
-        let client = EngineClient(settings: try settingsFile(#"{"commandTrigger": "/", "inputLanguages": ["zh", "en"], "defaultInput": "zh"}"#,
+        let client = EngineClient(settings: try settingsFile(#"{"commandTrigger": "~", "inputLanguages": ["zh", "en"], "defaultInput": "zh"}"#,
                                                              in: folder), rime: rime)
         #expect(client.composer.inputLanguage == .chinese)
-        Self.type(client, "/impro")
+        Self.type(client, "~impro")
         let palette = try #require(client.panel.model)
-        #expect(palette.rows.first?.text == "/improve")
+        #expect(palette.rows.first?.text == "~improve")
         #expect(palette.rows.first?.label == "1")
         // The footer of pinyin's candidates names it too.
         _ = client.escape()
         client.type("ni")
-        #expect(client.panel.model?.footer.contains("/") == true, "\(client.panel.model?.footer ?? "")")
+        #expect(client.panel.model?.footer.contains("~") == true, "\(client.panel.model?.footer ?? "")")
     }
 
     /// Changed in the settings (the file, as the Settings app writes it): as every setting, from the field's next focus

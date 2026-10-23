@@ -272,6 +272,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         composer.voiceEnabled = false  // no dictation on Windows yet
         composer.actionKey = config.actionKey
         composer.commandTrigger = config.commandTrigger
+        UIText.commandTrigger = config.commandTrigger  // the core's text naming commands (`UIText.triggered`)
         composer.typesResults = false  // typed out step by step comes later (ComposerSession commits it in one go)
         composer.horizontalCandidates = config.candidateLayout == .horizontal
         composer.outputLanguages = config.outputLanguages
