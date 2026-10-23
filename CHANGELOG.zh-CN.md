@@ -14,6 +14,9 @@
 - 候选框、短提示和边打边译的小标签不再播放窗口开关动画。每次选词上屏后立即隐藏候选，连续打字时复用窗口，空闲 400 毫秒后才关闭，减少 Slack、备忘录等应用里的窗口反复开关。候选框位置和大小没变时，不再重复调整窗口和更新阴影。
 - 输入法菜单复用缓存的配置，不再每次请求都解析 `config.json`。配置文件损坏时仍提示错误，禁用会覆盖配置的选项；修好后菜单自动刷新。
 - 拼音的农历日期（`nl` 和 `NYYYYMMDD`）在全新 Rime 用户目录里也能找到自带的数据库，语言包或 App 更新带来新的数据库时会重新复制；已有的自定义数据库会保留。复制不了时只是没有农历日期，拼音照常启动。
+- 设置 → 助手 →「检查问题」会说明缺少农历数据库时 librime 记下的错误（「Rime：缺少所需文件 lua/lunar.db（农历日期）」），不再是三遍「error in Rime」；日志里同一件事只列一次，并注明最近一周出现了几次。文件已就位后（这个版本会放好），这些记录显示为已解决的旧错误，不再是警告。
+-「检查问题」的「辅助功能权限没有允许」现在会说明：如果系统设置 → 隐私与安全性 → 辅助功能里 AllInOneIME 看起来已经打开，那是更新后 macOS 还留着上一个版本的权限，在那里先关掉再打开即可（「修复」会打开那一页）。检查的是正在运行的输入法自己的权限。
+- 不接受 temperature 的模型不再报错：推理模型，以及 Bedrock 上不能同时设 temperature 和 top_p 的 Claude 模型（「`temperature` and `top_p` cannot both be specified for this model」）。在 Amazon Bedrock、Claude API 和兼容 OpenAI 的服务上，这样的请求会去掉 temperature 再发一次，并记住这个模型（存在 `~/Library/Caches/AllInOneIME/unsupported-temperature.json`，不写进 `config.json`），之后的请求一开始就不带。设置 → 助手和「检查问题」（请求里 temperature 为 0）也一样。别的模型照样用你设的 temperature。
 
 ## 0.6.6（2026-10-20）
 

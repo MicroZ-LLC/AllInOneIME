@@ -518,7 +518,7 @@
      {
       "id": "temperature",
       "kind": "number",
-      "label": "temperatureを送信（対応していないモデルもあります。リクエストが失敗する場合はオフにしてください）",
+      "label": "temperatureを送信（受け付けないモデルには自動的に送りません）",
       "max": 1,
       "min": 0,
       "optional": true,

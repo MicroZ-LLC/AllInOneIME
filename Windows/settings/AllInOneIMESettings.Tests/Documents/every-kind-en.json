@@ -518,7 +518,7 @@
      {
       "id": "temperature",
       "kind": "number",
-      "label": "Send temperature (some models don't support it; turn it off if requests fail)",
+      "label": "Send temperature (left out for models that refuse it)",
       "max": 1,
       "min": 0,
       "optional": true,

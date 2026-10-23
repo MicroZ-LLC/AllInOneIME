@@ -167,17 +167,20 @@ public enum Doctor {
         out += updates(facts, t)
         out += iCloudSync(facts, t)
         // Lines no known event matches ("2 other log lines") aren't counted as errors.
-        let errors = facts.recentErrors.filter { !isOtherLogLines($0) }.count
+        let errors = facts.recentErrors.filter { !isOtherLogLines($0) && !isResolvedLogEvent($0) }.count
+        let logDetail = facts.recentErrors.map { localizedLogEvent($0, t) }.joined(separator: t.tr("；", "; "))
         if facts.recentErrors.isEmpty {
             out.append(Finding(area: .recentErrors, status: .ok, title: t.tr("最近的日志里没有错误", "No recent errors in the logs")))
         } else if errors == 0 {
-            out.append(Finding(area: .recentErrors, status: .warning, title: t.tr("日志里有别的记录", "Other lines in the logs"),
-                               detail: facts.recentErrors.joined(separator: t.tr("；", "; "))))
+            let resolved = facts.recentErrors.contains(where: isResolvedLogEvent)
+            out.append(Finding(area: .recentErrors, status: resolved ? .ok : .warning,
+                               title: resolved ? t.tr("之前的 Rime 错误已解决", "An earlier Rime error is resolved")
+                                   : t.tr("日志里有别的记录", "Other lines in the logs"), detail: logDetail))
         } else {
             out.append(Finding(area: .recentErrors, status: .warning,
                                title: errors == 1 ? t.tr("最近的日志里有 1 个错误", "1 recent error in the logs")
                                    : t.tr("最近的日志里有 \(errors) 个错误", "\(errors) recent errors in the logs"),
-                               detail: facts.recentErrors.joined(separator: t.tr("；", "; "))))
+                               detail: logDetail))
         }
         // What the probes reported may hold a full path or a key (an error that echoes one): never shown or sent so.
         out = out.map { finding in
@@ -310,8 +313,11 @@ public enum Doctor {
         case .granted:
             out.append(Finding(area: .permissions, status: .ok, title: t.tr("辅助功能权限已允许", "Accessibility is allowed")))
         case .denied, .notDetermined:
+            // Not allowed for the build that runs, though System Settings may show the switch on: after an update macOS
+            // can keep it for the previous build's signature.
             out.append(Finding(area: .permissions, status: .warning, title: t.tr("辅助功能权限没有允许", "Accessibility isn't allowed"),
-                               detail: t.tr("有的 App 里读不到选中的文字", "the selection can't be read in some apps"),
+                               detail: t.tr("有的 App 里读不到选中的文字。如果系统设置 → 隐私与安全性 → 辅助功能里 AllInOneIME 已经打开，先关掉再打开（macOS 可能还留着上一个版本的权限）",
+                                            "the selection can't be read in some apps. If AllInOneIME is already on in System Settings → Privacy & Security → Accessibility, turn it off and on again (macOS can keep the permission for the previous version)"),
                                fix: .openPrivacy(.accessibility)))
         case .unknown: break
         }
@@ -488,25 +494,35 @@ public enum Doctor {
 
     // MARK: - Logs
 
-    /// Error lines of the app's own logs, as the checks may show and send them: the newest `limit`, each as a fixed phrase
-    /// for the event it records ("update check failed (network, -1009)", "Rime dictionary failed to load", "plugin
-    /// weather failed to load"), with a reason from a fixed list or an error code or domain. Of the line's own text only
-    /// two things may be kept: a `~/…` path in a Rime dictionary event (which of its files), and a plugin's name when it
-    /// looks like one (letters, digits, - _ .). Lines no known event matches are counted on one last line ("2 other log
-    /// lines").
-    public static func summarizeLogLines(_ lines: [String], home: String = NSHomeDirectory(), limit: Int = 3) -> [String] {
+    /// Error lines of the app's own logs, as the checks may show and send them: each event as a fixed phrase ("update
+    /// check failed (network, -1009)", "Rime dictionary failed to load", "plugin weather failed to load"), with a reason
+    /// from a fixed list or an error code or domain, once, with how many times it came up when more than once ("…, 3
+    /// times"): the newest `limit` events, oldest first. Of the line's own text only two things may be kept: a `~/…` path
+    /// in a Rime dictionary event (which of its files), and a plugin's name when it looks like one (letters, digits, - _ .).
+    /// Lines no known event matches are counted on one last line ("2 other log lines"). `lunarDatabaseAvailable`: the Rime
+    /// user folder has lua/lunar.db now, so the runs that missed it were earlier ones (`providedLunarDatabase`).
+    public static func summarizeLogLines(_ lines: [String], home: String = NSHomeDirectory(), limit: Int = 3,
+                                         lunarDatabaseAvailable: Bool = false) -> [String] {
         let errors = lines.filter { line in
             let lower = line.lowercased()
             return line.hasPrefix("E") && line.count > 1 && line.dropFirst().first?.isNumber == true
                 || lower.contains("error") || lower.contains("failed") || line.hasPrefix("✗")
         }
-        var out: [String] = [], others = 0
-        for line in errors.suffix(limit) {
-            guard let event = logEvent(line, home: home) else {
+        // Each event: how many times, and the line it came on last.
+        var counts: [String: Int] = [:], last: [String: Int] = [:], others = 0
+        for (index, line) in errors.enumerated() {
+            guard var event = logEvent(line, home: home) else {
                 others += 1
                 continue
             }
-            out.append(event.count > 120 ? String(event.prefix(120)) + "…" : event)
+            if lunarDatabaseAvailable, event == missingLunarDatabase { event = providedLunarDatabase }
+            event = event.count > 120 ? String(event.prefix(120)) + "…" : event
+            counts[event, default: 0] += 1
+            last[event] = index
+        }
+        var out = last.sorted { $0.value < $1.value }.suffix(limit).map { event, _ in
+            let count = counts[event] ?? 1
+            return count > 1 ? "\(event), \(count) times" : event
         }
         if others > 0 { out.append(others == 1 ? "1 other log line" : "\(others) other log lines") }
         return out
@@ -515,6 +531,33 @@ public enum Doctor {
     /// The last line of `summarizeLogLines` that counts the lines no known event matched.
     static func isOtherLogLines(_ line: String) -> Bool {
         line.range(of: #"^\d+ other log lines?$"#, options: .regularExpression) != nil
+    }
+
+    /// librime couldn't open rime-ice's lunar date database, lua/lunar.db in the Rime user folder: reported by its
+    /// mapped file and again by the reverse lookup that reads it. Since 0.6.7 the app puts it there as Rime starts
+    /// (`RimeService.prepareLunarDatabase`); when it is there now, those runs were earlier ones, and the event is
+    /// `providedLunarDatabase` instead, not an error.
+    static let missingLunarDatabase = "Rime: a file it needs is missing: lua/lunar.db (the lunar date)"
+    static let providedLunarDatabase = "Earlier Rime run: lua/lunar.db was missing; this version provides it"
+
+    static func isResolvedLogEvent(_ line: String) -> Bool { line.hasPrefix(providedLunarDatabase) }
+
+    /// A line of `summarizeLogLines` as the findings show it: the lunar database's phrases and the count in the
+    /// interface language (the other phrases stay in English, as the logs are).
+    static func localizedLogEvent(_ line: String, _ t: Words) -> String {
+        var event = line, count: Int?
+        if let range = line.range(of: #", \d+ times$"#, options: .regularExpression) {
+            count = Int(line[range].filter(\.isNumber))
+            event = String(line[..<range.lowerBound])
+        }
+        switch event {
+        case missingLunarDatabase:
+            event = t.tr("Rime：缺少所需文件 lua/lunar.db（农历日期）", "Rime: a file it needs is missing: lua/lunar.db (the lunar date)")
+        case providedLunarDatabase:
+            event = t.tr("之前运行 Rime 时缺少 lua/lunar.db；此版本已提供该文件", "Earlier Rime run: lua/lunar.db was missing; this version provides it")
+        default: break
+        }
+        return event + (count.map { t.tr("，\($0) 次", ", \($0) times") } ?? "")
     }
 
     /// The phrase for the event `line` records, or nil when it is none the app knows.
@@ -533,6 +576,13 @@ public enum Doctor {
             let source = text[glog].range(of: #"[A-Za-z_]+(?=\.(cc|cpp|h):\d+\])"#, options: .regularExpression)
                 .map { String(text[glog][$0]) }
             let message = text[glog.upperBound...].lowercased()
+            // The quoted path is gone from `text`: the line itself says which file, matched as a whole, and only the
+            // fixed phrase goes on.
+            if source == "mapped_file" || source == "reverse_lookup_dictionary",
+               line.contains("lua/lunar.db") || line.contains(#"lua\lunar.db"#),
+               line.contains("non-existent file") || line.contains("Error opening reversedb") {
+                return missingLunarDatabase
+            }
             if message.contains("lookup") { return "Rime lookup failed" + reason }
             if message.contains("deploy") || source == "deployer" || source == "deployment_tasks" {
                 return "Rime deployment failed" + reason

@@ -1594,8 +1594,8 @@ struct SettingsView: View {
                 Text(tr("最多输出 \(model.config.maxTokens) tokens", "Up to \(model.config.maxTokens) output tokens"))
             }
             if model.config.provider == .bedrock || model.config.provider == .apple {
-                Toggle(tr("发送 temperature（有的模型不支持，报错时关掉）",
-                          "Send temperature (some models don't support it; turn it off if requests fail)"),
+                Toggle(tr("发送 temperature（不接受的模型会自动不发）",
+                          "Send temperature (left out for models that refuse it)"),
                        isOn: temperatureOn)
                 if let t = model.config.temperature {
                     Slider(value: Binding(get: { t }, set: { model.config.temperature = ($0 * 10).rounded() / 10 }),

@@ -518,7 +518,7 @@
      {
       "id": "temperature",
       "kind": "number",
-      "label": "发送 temperature（有的模型不支持，报错时关掉）",
+      "label": "发送 temperature（不接受的模型会自动不发）",
       "max": 1,
       "min": 0,
       "optional": true,

@@ -443,8 +443,8 @@ struct SettingsSchema {
                     value: config.maxTokens, in: 200...4000, step: 100), to: &fields) { store.config.maxTokens = Self.int($0) }
         if config.provider == .bedrock || config.provider == .apple {
             var temperature = Field(id: "temperature", kind: .number,
-                                    label: tr("发送 temperature（有的模型不支持，报错时关掉）",
-                                              "Send temperature (some models don't support it; turn it off if requests fail)"),
+                                    label: tr("发送 temperature（不接受的模型会自动不发）",
+                                              "Send temperature (left out for models that refuse it)"),
                                     value: config.temperature.map(JSON.number) ?? .null)
             (temperature.min, temperature.max, temperature.step, temperature.optional) = (0, 1, 0.1, true)
             add(temperature, to: &fields) { value in
