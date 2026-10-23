@@ -519,17 +519,23 @@ extension SelfTest {
         controller.activateServer(harness)
 
         // A narrow field (its frame as Accessibility tells it): the suggestion is cut at its edge, not drawn over what is
-        // beside it.
+        // beside it. In an app of its own: "Hello wor"'s suggestion, waved away with Esc above, never comes back in the
+        // harness's app for that text.
         let window = harness.window.frame
         let narrow = NSRect(x: window.minX, y: window.minY, width: 160, height: window.height)
         controller.fieldFrame = { narrow }
+        harness.bundleID = "com.aipinyin.selftest.narrow"
+        controller.activateServer(harness)
         harness.text = "Hello wo"
         harnessType("r", controller, harness)
-        check(ghost("ld, how are you?") && GhostOverlay.shared.frame.maxX <= narrow.maxX + 0.5
+        let narrowShown = ghost("ld, how are you?")
+        check(narrowShown && GhostOverlay.shared.frame.maxX <= narrow.maxX + 0.5
               && GhostOverlay.shared.frame.minX > AllInOneIMEInputController.caretRect(harness)?.minX ?? .infinity,
-              "a narrow field: cut at its edge (field to \(narrow.maxX), text \(GhostOverlay.shared.frame))")
+              "a narrow field: cut at its edge (field to \(narrow.maxX), text \(narrowShown ? "\(GhostOverlay.shared.frame)" : "not shown"))")
         harnessKey(controller, harness, "\u{1B}", code: VirtualKey.escape)
         controller.fieldFrame = { nil }
+        harness.bundleID = "com.aipinyin.selftest.harness"
+        controller.activateServer(harness)
 
         testAutocompleteConsentPanel(controller, harness, ghost: { ghost($0) })
 
