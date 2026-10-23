@@ -334,15 +334,42 @@ struct SuggestionsSourcesAcceptanceTests {
         }
     }
 
-    /// Fails the source's loads until it pauses (five in a row, each once its back-off is over).
+    static let issuesSource = CompletionSourceKey(plugin: "github", source: "issues")
+
+    /// Hands the session its work's answers until `condition` holds (true), the clock standing still: it moves only when
+    /// the test moves it, however long the wait. False: it never held (30 s, room for a busy machine). The timers the
+    /// session started meanwhile are noted as started now.
+    @discardableResult
+    func settleWithoutTime(_ field: SuggestionsField, until condition: () -> Bool) -> Bool {
+        defer { field.noteTimers() }
+        return field.host.settle(timeout: 30, until: condition)
+    }
+
+    /// Uses the source in `field` as the user would after a while (the timers due fire, " #7" is typed), the clock
+    /// standing still: whether its list is loading now, a load started since the test last moved the clock (on this use,
+    /// or on what the test did before it). The session starts a load as it handles an event or not then: a "no" needs no
+    /// waiting.
+    func useWithoutTime(_ field: SuggestionsField) -> Bool {
+        field.fireTimers()
+        field.type(" #7")
+        return field.world.store.lastLoadStarted(Self.issuesSource) == field.world.clock.now
+    }
+
+    /// Fails the source's loads until it pauses: five in a row, each once its back-off is over (2 h at most), each failure
+    /// taken in (Settings told) before the clock moves on.
     func failUntilPaused(_ field: SuggestionsField) {
         let world = field.world
         world.runtime.list("issues", .failure("GitHub said 503"))
-        for _ in 1...5 {
+        for failure in 1...5 {
             world.clock.advance(2 * 3600 + 60)
-            use(field, untilLoads: world.runtime.loads.count + 1)
+            let (loads, told) = (world.runtime.loads.count, world.statuses.withLock { $0.count })
+            guard useWithoutTime(field) else {
+                Issue.record("failure \(failure): no load once the back-off was over (\(String(describing: world.lastStatus)))")
+                return
+            }
+            #expect(settleWithoutTime(field) { world.runtime.loads.count == loads + 1 && world.statuses.withLock { $0.count } > told },
+                    "failure \(failure): the load and its failure taken in (\(world.runtime.loads.count) loads)")
         }
-        field.settle { world.lastStatus?.paused == true }
     }
 
     enum Resume: String, CaseIterable, Sendable {
@@ -350,7 +377,8 @@ struct SuggestionsSourcesAcceptanceTests {
     }
 
     /// A paused source loads again (spec 6.17) on "Refresh now", an update of its plugin, or 24 hours later; a good load
-    /// then unpauses it, its new list shows.
+    /// then unpauses it, its new list shows. The clock moves only when the test moves it: each load is answered and taken
+    /// in before it does.
     @Test(arguments: Resume.allCases)
     func aPausedSourceResumes(_ resume: Resume) async throws {
         try await inEnglish {
@@ -358,12 +386,12 @@ struct SuggestionsSourcesAcceptanceTests {
             try world.github()
             let field = world.field()
             field.type("#7")
-            #expect(field.waitForIssues(Self.allRows))
+            #expect(settleWithoutTime(field) { field.issuesShown == Self.allRows }, "\(field.issuesShown)")
             failUntilPaused(field)
             let loads = world.runtime.loads.count
             #expect(loads == 6 && world.lastStatus?.paused == true, "\(loads) loads, \(String(describing: world.lastStatus))")
             world.clock.advance(3600)
-            use(field, untilLoads: loads + 1, timeout: 0.3)
+            #expect(!useWithoutTime(field), "paused: no load an hour later")
             #expect(world.runtime.loads.count == loads, "paused")
 
             world.runtime.list("issues", items: [SuggestionsItems.issue(7055, "New since")] + SuggestionsItems.issues)
@@ -378,10 +406,12 @@ struct SuggestionsSourcesAcceptanceTests {
             case .aDayLater:
                 world.clock.advance(24 * 3600)
             }
-            #expect(use(field, untilLoads: loads + 1), "\(resume): loaded again (\(world.runtime.loads.count))")
+            try #require(useWithoutTime(field) && settleWithoutTime(field) { world.runtime.loads.count == loads + 1 },
+                         "\(resume): loaded again (\(world.runtime.loads.count))")
             field.type("0")
-            #expect(field.waitForIssues(["#7055", "#7001", "#7002", "#7090"]), "\(resume): the new list (\(field.issuesShown))")
-            #expect(field.settle { world.lastStatus?.paused == false && world.lastStatus?.error == nil },
+            #expect(settleWithoutTime(field) { field.issuesShown == ["#7055", "#7001", "#7002", "#7090"] },
+                    "\(resume): the new list (\(field.issuesShown))")
+            #expect(settleWithoutTime(field) { world.lastStatus?.paused == false && world.lastStatus?.error == nil },
                     "\(resume): \(String(describing: world.lastStatus))")
         }
     }
