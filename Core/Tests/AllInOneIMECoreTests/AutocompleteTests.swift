@@ -989,6 +989,8 @@ struct AutocompleteTests {
         }
     }
 
+    /// The on-device model can't run (and no cloud provider was agreed to): nothing would answer, so the field isn't even
+    /// read at the pause; said once.
     @Test func theOnDeviceModelUnavailableShowsNothingAndSaysSoOnce() {
         withInterfaceLanguage("en") {
             let r = rig(model: ContinuingModel(.appleIntelligenceNotEnabled))
@@ -996,10 +998,10 @@ struct AutocompleteTests {
             r.pauseEnds()
             r.host.settle(timeout: 5) { r.host.noticeAlone != nil }
             #expect(r.host.ghost == nil && r.host.noticeAlone?.hasPrefix("Autocomplete needs Apple Intelligence on this Mac") == true)
-            #expect(r.store.metrics.failed == 1)
+            #expect(r.host.fieldReads == 0 && r.model.requests.isEmpty && r.store.metrics.asked == 0)
             r.host.type("l")
             r.pauseEnds()
-            r.host.settle(timeout: 5) { r.store.metrics.failed == 2 }
+            #expect(r.host.fieldReads == 0)
             #expect(r.host.outputs.filter { if case let .notice(text) = $0 { text.hasPrefix("Autocomplete needs") } else { false } }.count == 1)
         }
     }

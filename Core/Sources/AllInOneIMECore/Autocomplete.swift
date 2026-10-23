@@ -846,6 +846,9 @@ extension Converter {
                                    inputTokens: route == .onDevice ? nil : inputTokens, outputTokens: route == .onDevice ? nil : outputTokens)
     }
 
+    /// Whether the on-device model can run now (what a pause asks before it reads the field).
+    public var onDeviceAvailability: AppleModelAvailability { client.apple.availability }
+
     /// Loads the on-device model ahead of a request (nothing is sent), where it can run.
     public func prewarmOnDevice() {
         guard client.apple.availability == .available, let backend = client.apple as? any AppleGuidedBackend else { return }

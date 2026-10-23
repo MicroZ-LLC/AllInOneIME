@@ -125,16 +125,14 @@ final class AutocompleteSelfTestEndpoint: URLProtocol, @unchecked Sendable {
         return (last["content"] as? [[String: Any]])?.compactMap { $0["text"] as? String }.joined() ?? ""
     }
 
-    /// A converter whose Claude API is this endpoint; `agreed`: the user agreed to send it text (else the answer `config`
-    /// has, about whatever it was).
-    static func converter(_ config: Config, agreed: Bool = false) -> Converter {
+    /// A converter whose Claude API is this endpoint, with `config`'s answer about sending it text.
+    static func converter(_ config: Config) -> Converter {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [AutocompleteSelfTestEndpoint.self]
         var config = config
         config.provider = .anthropic
         config.anthropic.baseURL = "https://autocomplete-selftest.invalid"
         config.anthropic.model = "claude-selftest"
-        if agreed { Autocomplete.answer(true, in: &config) }
         let fixed = config
         return Converter(client: BedrockClient(session: URLSession(configuration: configuration)), loadConfig: { fixed },
                          loadCredentials: { _ in throw ProviderError.missingKey(.anthropic) }, loadKey: { _, _ in "sk-test" },
@@ -457,8 +455,10 @@ extension SelfTest {
         testAutocompleteConsentPanel(controller, harness, ghost: { ghost($0) })
 
         // A cloud provider agreed to, through a local endpoint: the text before the caret, at most 1,500 characters, the
-        // values hidden; without the yes, nothing goes there (the on-device model unavailable: nothing at all).
+        // values hidden; without the yes, nothing goes there (the on-device model unavailable: nothing at all). The
+        // session's settings and the endpoint's converter name the same address, as one config file does.
         settings.provider = .anthropic
+        settings.anthropic.baseURL = "https://autocomplete-selftest.invalid"
         settings.redaction = RedactionSettings(enabled: true)
         controller.services.converter = AutocompleteSelfTestEndpoint.converter(settings)
         let long = String(repeating: "We went over the plan again today. ", count: 50)  // 1,750 characters
@@ -468,16 +468,16 @@ extension SelfTest {
         check(AutocompleteSelfTestEndpoint.sent.isEmpty && GhostOverlay.shared.text == nil,
               "a cloud provider not agreed to gets nothing (and the on-device model unavailable shows nothing)")
         // Agreed to the Claude API at its own address: this one is another host, and gets nothing either.
-        var elsewhere = settings
-        Autocomplete.answer(true, in: &elsewhere)
-        controller.services.converter = AutocompleteSelfTestEndpoint.converter(elsewhere)
+        settings.autocompleteCloud = Autocomplete.Consent(allowed: true, destination: "anthropic api.anthropic.com")
+        controller.services.converter = AutocompleteSelfTestEndpoint.converter(settings)
         controller.activateServer(harness)
         harness.text = long + "Write to ann@example.com and let me kno"
         harnessType("w", controller, harness)
         settled()
         check(AutocompleteSelfTestEndpoint.sent.isEmpty && GhostOverlay.shared.text == nil,
-              "agreed to the Claude API at api.anthropic.com: another host gets nothing (\(String(describing: elsewhere.autocompleteCloud)))")
-        controller.services.converter = AutocompleteSelfTestEndpoint.converter(settings, agreed: true)
+              "agreed to the Claude API at api.anthropic.com: another host gets nothing (\(String(describing: settings.autocompleteCloud)))")
+        Autocomplete.answer(true, in: &settings)
+        controller.services.converter = AutocompleteSelfTestEndpoint.converter(settings)
         controller.activateServer(harness)
         harness.text = long + "Write to ann@example.com and let me kno"
         harnessType("w", controller, harness)
@@ -492,6 +492,7 @@ extension SelfTest {
         check(store.metrics.cloudInputTokens == 120, "the tokens it read counted (\(store.metrics.cloudInputTokens))")
         harnessKey(controller, harness, "\u{1B}", code: VirtualKey.escape)
         (settings.provider, settings.autocompleteCloud, settings.redaction) = (settingsBefore.provider, nil, settingsBefore.redaction)
+        settings.anthropic.baseURL = settingsBefore.anthropic.baseURL
 
         let metrics = store.metrics
         check(metrics.shown >= 8 && metrics.accepted >= 3 && metrics.p90 != nil

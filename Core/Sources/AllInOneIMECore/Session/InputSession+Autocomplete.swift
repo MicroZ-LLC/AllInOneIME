@@ -219,7 +219,8 @@ extension InputSession {
 
     /// The pause is over: what the field says is read (`SessionOutput.readField`). Where the user agreed to a cloud
     /// provider and its requests would go elsewhere now (`Autocomplete.asksForCloud`: changed in Settings, by the
-    /// Assistant or by iCloud sync), it says so once for each: the on-device model is asked meanwhile.
+    /// Assistant or by iCloud sync), it says so once for each: the on-device model is asked meanwhile. Where that is the
+    /// model to ask and it can't run, nothing would answer: the field isn't read, and that is said once.
     func autocompletePaused(_ token: Int) {
         guard token == autocomplete.pause, autocomplete.suggestion == nil, autocompleteMayRun() else { return }
         let config = services.loadSettings()
@@ -227,6 +228,17 @@ extension InputSession {
            services.autocomplete.once("ask again: " + destination) {
             log.notice("autocomplete: the cloud provider agreed to changed; the on-device model until asked again")
             say(AutocompleteMessages(language: UIText.language).askAgain(config.provider.displayName), long: true)
+        }
+        if Autocomplete.route(config) == .onDevice {
+            let availability = services.converter.onDeviceAvailability
+            guard availability == .available else {
+                if services.autocomplete.once("unavailable") {
+                    log.notice("autocomplete: the on-device model isn't available (\(availability.rawValue)); nothing read")
+                    say(AutocompleteMessages(language: UIText.language).unavailable(UIText.describe(AppleModelError.unavailable(availability))),
+                        long: true)
+                }
+                return
+            }
         }
         autocomplete.reading = token
         emit(.readField(id: token))
