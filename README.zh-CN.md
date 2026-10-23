@@ -736,7 +736,7 @@ profile 的 `region`；设置里填的「区域」又优先于这两者。
 - 「思考」默认是 low：输入法每句话都在等，思考越少越快。模型不支持这个参数时选「不设置」。
 - 选 Claude Opus 5.5、Sonnet 5.5 时会带上 Claude API 的拒答兜底（`fallbacks: "default"`）：安全分类器拒绝时，服务端自动换一个模型重试。
 - 配置文件里对应 `provider`（`"bedrock"`、`"anthropic"`、`"gemini"`、`"openai"`），以及 `anthropic`、`gemini`、`openai` 各自的 `model`、`baseURL`、`effort`、`temperature`（不填就用默认值）。
-- 模型不接受 temperature 时（推理模型，或不能和 top_p 一起设的模型），会去掉它再发一次，之后就不再发给这个模型；Amazon Bedrock 也一样。哪些模型记在 `~/Library/Caches/AllInOneIME/unsupported-temperature.json` 里（只有服务和模型的名字），删掉它就会重新发。别的模型照样用你设的值；Gemini 和 AllInOneIME Cloud 不变。
+- 模型不接受 temperature 时（推理模型，或不能和 top_p 一起设的模型），会去掉它再发一次，之后就不再发给这个模型；Amazon Bedrock 也一样。哪些模型记在 `~/Library/Caches/AllInOneIME/unsupported-temperature.json` 里（只有服务和模型的名字）；设置 → AI 服务 →「模型参数」里写着有几个，点 temperature 开关旁的「重置」就会重新发。别的模型照样用你设的值；Gemini 和 AllInOneIME Cloud 不变。
 
 ### 本机的 Apple Intelligence（macOS 26）
 

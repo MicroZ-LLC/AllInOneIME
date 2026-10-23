@@ -12680,6 +12680,53 @@
         }
       }
     },
+    "Models that get no temperature: %@ (they refused it)" : {
+      "comment" : "不发 temperature 的模型：%@ 个（它们不接受） — Sources/AllInOneIME/SettingsWindow.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modelle ohne Temperatur: %@ (sie haben sie abgelehnt)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modelos sin temperatura: %@ (la rechazaron)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modèles sans température : %@ (ils l’ont refusée)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "temperatureを送らないモデル：%@（受け付けなかったもの）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "temperature를 보내지 않는 모델: %@개 (받지 않았음)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modelos sem temperatura: %@ (eles a recusaram)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不傳送 temperature 的模型：%@ 個（它們不接受）"
+          }
+        }
+      }
+    },
     "More" : {
       "comment" : "更多 — Sources/AllInOneIME/ExtensionSourcesSettings.swift",
       "localizations" : {
@@ -19896,6 +19943,53 @@
         }
       }
     },
+    "Reset sends it to them again; one that still refuses it is asked again without it, and remembered again." : {
+      "comment" : "重置后会重新发给它们；仍不接受的会再次去掉重发，再记住。 — Sources/AllInOneIME/SettingsWindow.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zurücksetzen sendet sie ihnen wieder; ein Modell, das sie weiterhin ablehnt, wird erneut ohne sie gefragt und wieder gemerkt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restablecer se la vuelve a enviar; si alguno la sigue rechazando, se le pregunta de nuevo sin ella y se recuerda otra vez."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réinitialiser la leur envoie de nouveau ; un modèle qui la refuse encore est interrogé à nouveau sans elle, puis mémorisé."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リセットすると再び送ります。まだ受け付けないモデルには、temperatureなしで聞き直して、また記憶します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "재설정하면 다시 보냅니다. 여전히 받지 않는 모델은 temperature 없이 다시 요청하고 다시 기억합니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Redefinir volta a enviá-la; um modelo que ainda a recusar é consultado de novo sem ela e lembrado outra vez."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重設後會重新傳給它們；仍不接受的會再次去掉重送，並再記住。"
+          }
+        }
+      }
+    },
     "Retry" : {
       "comment" : "重试 — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
@@ -22389,6 +22483,59 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "@agent 在背景交給 Claude Code 的任務會顯示在這裡"
+          }
+        }
+      }
+    },
+    "temperature.reset" : {
+      "comment" : "重置 — Sources/AllInOneIME/SettingsWindow.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zurücksetzen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restablecer"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réinitialiser"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リセット"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "재설정"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Redefinir"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重設"
           }
         }
       }

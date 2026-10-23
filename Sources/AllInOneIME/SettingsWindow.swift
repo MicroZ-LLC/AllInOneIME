@@ -846,6 +846,9 @@ struct SettingsView: View {
     @State private var page: SettingsPage
     @State private var query = ""
     @State private var commandTriggerEntry = "@"
+    /// The models remembered as refusing a temperature (`TemperatureSupport.shared`), read as the AI Provider page shows:
+    /// Reset (by the temperature switch) forgets them.
+    @State private var refusedTemperatures: [String] = []
     /// The input language whose settings the Input page shows.
     @State private var inputTab: Language = .chinese
     /// The language packs and their downloads (Chinese is a download: the app ships English only).
@@ -1606,6 +1609,25 @@ struct SettingsView: View {
                            in: 0...1) { Text("temperature \(String(format: "%.1f", t))") }
                 }
             }
+            // The models remembered as refusing it (any provider's): how many, and Reset, which sends it to them again.
+            if !refusedTemperatures.isEmpty {
+                LabeledContent {
+                    Button(tr("重置", "Reset", key: "temperature.reset")) {
+                        TemperatureSupport.shared.forget()
+                        refusedTemperatures = TemperatureSupport.shared.models
+                        log.notice("the models that refused a temperature forgotten")
+                    }
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(tr("不发 temperature 的模型：\(refusedTemperatures.count) 个（它们不接受）",
+                                "Models that get no temperature: \(refusedTemperatures.count) (they refused it)"))
+                        Text(tr("重置后会重新发给它们；仍不接受的会再次去掉重发，再记住。",
+                                "Reset sends it to them again; one that still refuses it is asked again without it, and remembered again."))
+                            .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .help(refusedTemperatures.joined(separator: "\n"))
+            }
             Stepper(value: $model.config.timeoutSeconds, in: 5...60, step: 5) {
                 Text(tr("超时 \(Int(model.config.timeoutSeconds)) 秒", "Timeout \(Int(model.config.timeoutSeconds)) s"))
             }
@@ -1613,6 +1635,8 @@ struct SettingsView: View {
             SectionTitle(tr("模型参数", "Model Settings"), icon: CommandIcons.provider)
         }
         .disabled(!model.canSave)
+        // A preview (the README images) shows none of the user's.
+        .onAppear { refusedTemperatures = model.store.persists ? TemperatureSupport.shared.models : [] }
     }
 
     @ViewBuilder private var interfaceSection: some View {

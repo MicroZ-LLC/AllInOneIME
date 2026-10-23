@@ -6,9 +6,11 @@ import Foundation
 /// `unsupported-temperature.json` among the caches (`CorePaths.cacheDir`), never in config.json. Its requests then go
 /// without a temperature from the start; every other model still gets the one the user set (or the request's own, the
 /// Assistant's 0). Only the providers' and models' names are kept: no request, answer or key. Bedrock, the Claude API and
-/// OpenAI-compatible services use it; Gemini and AllInOneIME Cloud send theirs as before.
-final class TemperatureSupport: Sendable {
-    static let shared = TemperatureSupport(file: CorePaths.cacheDir.appendingPathComponent("unsupported-temperature.json"))
+/// OpenAI-compatible services use it; Gemini and AllInOneIME Cloud send theirs as before. Settings → AI Provider says how
+/// many are remembered and forgets them (`models`, `forget`).
+public final class TemperatureSupport: Sendable {
+    /// The app's own (`BedrockClient()`'s): in the caches.
+    public static let shared = TemperatureSupport(file: CorePaths.cacheDir.appendingPathComponent("unsupported-temperature.json"))
 
     /// Where the models are kept (nil: for the process only).
     let file: URL?
@@ -40,6 +42,24 @@ final class TemperatureSupport: Sendable {
             // A cache: kept in memory when it can't be written.
             try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
             try? data.write(to: file, options: .atomic)
+        }
+    }
+
+    /// The models remembered, "provider:model", sorted (another process's added since too).
+    public var models: [String] {
+        refused.withLock { refused in
+            let known = (refused ?? []).union(Self.read(file))
+            refused = known
+            return known.sorted()
+        }
+    }
+
+    /// Every model remembered forgotten, here and in `file` (another process, the command line, as it next starts): each
+    /// gets the temperature again, and one that still refuses it is asked again without it, once, and remembered again.
+    public func forget() {
+        refused.withLock { refused in
+            refused = []
+            if let file { try? FileManager.default.removeItem(at: file) }
         }
     }
 

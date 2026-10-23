@@ -173,6 +173,31 @@ struct TemperatureRetryTests {
         #expect(memory.omits(.openai, model: "o4-mini") && !TemperatureSupport(file: nil).omits(.openai, model: "o4-mini"))
     }
 
+    /// A client on a session of the caller's own (a stub: the tests', the self-test's) keeps the models it learns in
+    /// memory: the user's own caches are never read or written for it. The app's own client keeps them in the file.
+    @Test func aClientOnASessionOfItsOwnNeverTouchesTheUsersCache() {
+        #expect(BedrockClient(session: StubURLProtocol.session()).temperatureSupport.file == nil)
+        #expect(BedrockClient().temperatureSupport === TemperatureSupport.shared)
+        #expect(ChatClient().bedrock.temperatureSupport === TemperatureSupport.shared)
+    }
+
+    /// Forgotten (Settings → AI Provider → Reset): every model gets the temperature again, here and in the file.
+    @Test func theModelsRememberedCanBeForgotten() throws {
+        let file = Self.cacheFile()
+        defer { try? FileManager.default.removeItem(at: file.deletingLastPathComponent()) }
+        let support = TemperatureSupport(file: file)
+        #expect(support.models.isEmpty)
+        support.remember(.openai, model: "o4-mini")
+        TemperatureSupport(file: file).remember(.bedrock, model: "us.deepseek.r1-v1:0")  // another process
+        #expect(support.models == ["bedrock:us.deepseek.r1-v1:0", "openai:o4-mini"])
+        support.forget()
+        #expect(support.models.isEmpty && !support.omits(.openai, model: "o4-mini") && !support.omits(.bedrock, model: "us.deepseek.r1-v1:0"))
+        #expect(!FileManager.default.fileExists(atPath: file.path) && TemperatureSupport(file: file).models.isEmpty)
+        // Refused again: remembered again.
+        support.remember(.openai, model: "o4-mini")
+        #expect(TemperatureSupport(file: file).omits(.openai, model: "o4-mini"))
+    }
+
     // MARK: - The Claude API and OpenAI-compatible services
 
     static let claudeAnswer = StubURLProtocol.Response(status: 200, headers: ["Content-Type": "text/event-stream"], chunks: [Data("""

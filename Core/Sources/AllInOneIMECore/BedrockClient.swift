@@ -63,8 +63,16 @@ public struct BedrockClient: Sendable {
     /// The models that refused a temperature, here and for the other providers of `ChatClient`.
     let temperatureSupport: TemperatureSupport
 
-    public init(session: URLSession = BedrockClient.makeSession()) {
-        self.init(session: session, temperatureSupport: .shared)
+    /// The app's own client: a session of its own (`makeSession`), the models that refuse a temperature kept in the caches
+    /// (`TemperatureSupport.shared`).
+    public init() {
+        self.init(session: Self.makeSession(), temperatureSupport: .shared)
+    }
+
+    /// A client on `session`, one of the caller's own (a stub's: the tests', the self-test's): the models that refuse a
+    /// temperature it keeps for itself, in memory, never in the user's caches.
+    public init(session: URLSession) {
+        self.init(session: session, temperatureSupport: TemperatureSupport(file: nil))
     }
 
     init(session: URLSession, temperatureSupport: TemperatureSupport) {
