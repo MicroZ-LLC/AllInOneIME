@@ -308,32 +308,36 @@ final class CandidateView: NSView {
         var widest: CGFloat = 0
         rowLayouts = []
         let horizontal = model.horizontal && !model.rows.isEmpty
+        // Rows one under another: their text starts after the widest label ("Tab", autocomplete's line), a digit's at
+        // least, so a label never runs into its text.
+        let labels = horizontal ? [] : model.rows.map { $0.label.isEmpty ? 0 : ceil(($0.label as NSString).size(withAttributes: [.font: Fonts.label]).width) }
+        let inset = Metrics.textInsetX + max(0, (labels.max() ?? 0) - Metrics.labelWidth)
         chipFrames = nil
         if let chip = model.chip {
             let frames = layoutChip(chip, top: y)
             chipFrames = frames
-            widest = max(widest, frames.whole.maxX - Metrics.textInsetX - Metrics.rowInsetX)
+            widest = max(widest, frames.whole.maxX - inset - Metrics.rowInsetX)
             let alone = model.rows.isEmpty && model.status == .none && model.footer.isEmpty && model.inputText == nil && model.header.isEmpty
             y = frames.whole.maxY + (alone ? 0 : Metrics.chipGap)
         }
         inputFrame = nil
         if let input = inputString() {
             let size = Self.measure(input, minHeight: 0)
-            widest = max(widest, size.width + p + Metrics.rowInsetX - Metrics.textInsetX)
+            widest = max(widest, size.width + p + Metrics.rowInsetX - inset)
             inputFrame = NSRect(x: p + Metrics.rowInsetX, y: y + Metrics.rowInsetY, width: Metrics.maxTextWidth, height: size.height)
             y += size.height + 2 * Metrics.rowInsetY
         }
         headerFrame = nil
         if let header = headerString() {
             let size = Self.measure(header, minHeight: 0)
-            widest = max(widest, size.width + p + Metrics.rowInsetX - Metrics.textInsetX)
+            widest = max(widest, size.width + p + Metrics.rowInsetX - inset)
             headerFrame = NSRect(x: p + Metrics.rowInsetX, y: y + Metrics.rowInsetY, width: Metrics.maxTextWidth, height: size.height)
             y += size.height + 2 * Metrics.rowInsetY
         }
         var cellsWidth: CGFloat = 0
         if horizontal { (y, cellsWidth) = layoutCells(top: y) }
         let rowsTop = y
-        textInset = horizontal ? rowLayouts.first?.textFrame.minX ?? Metrics.textInsetX : Metrics.textInsetX
+        textInset = horizontal ? rowLayouts.first?.textFrame.minX ?? Metrics.textInsetX : inset
         // A column for the icons when any row has one: the text moves right by it.
         let iconColumn = model.rows.contains { $0.icon != nil } ? Metrics.iconSize + Metrics.iconGap : 0
         for row in model.rows where !horizontal {
@@ -347,12 +351,12 @@ final class CandidateView: NSView {
             // One line next to an icon is centered on it.
             let lineHeight = ceil(font.ascender - font.descender + font.leading)
             let textY = y + Metrics.rowInsetY + (iconColumn > 0 && size.height <= Metrics.iconSize ? (Metrics.iconSize - lineHeight) / 2 : 0)
-            let textFrame = NSRect(x: Metrics.textInsetX + iconColumn, y: textY, width: Metrics.maxTextWidth, height: size.height)
+            let textFrame = NSRect(x: inset + iconColumn, y: textY, width: Metrics.maxTextWidth, height: size.height)
             let labelOrigin = NSPoint(
                 x: p + Metrics.rowInsetX,
                 y: textFrame.minY + (font.ascender - Fonts.label.ascender))
             let iconFrame = row.icon.map { _ in
-                NSRect(x: Metrics.textInsetX, y: y + Metrics.rowInsetY, width: Metrics.iconSize, height: Metrics.iconSize)
+                NSRect(x: inset, y: y + Metrics.rowInsetY, width: Metrics.iconSize, height: Metrics.iconSize)
             }
             rowLayouts.append(RowLayout(
                 frame: NSRect(x: p, y: y, width: 0, height: size.height + 2 * Metrics.rowInsetY),
@@ -363,17 +367,17 @@ final class CandidateView: NSView {
 
         statusFrame = nil
         let compact = (model.rows.isEmpty || model.chip != nil) && model.footer.isEmpty
-        let statusX = model.rows.isEmpty ? p + Metrics.rowInsetX : Metrics.textInsetX
+        let statusX = model.rows.isEmpty ? p + Metrics.rowInsetX : inset
         if let status = statusString() {
             let size = Self.measure(status, minHeight: 0)
-            widest = max(widest, size.width + statusX - Metrics.textInsetX)
+            widest = max(widest, size.width + statusX - inset)
             statusFrame = NSRect(x: statusX, y: y + Metrics.rowInsetY, width: Metrics.maxTextWidth, height: size.height)
             y += size.height + 2 * Metrics.rowInsetY
         }
 
         // In a row, as wide as the candidates need (and the status, the footer); in a column, at least `minWidth`.
-        var width = horizontal ? max(cellsWidth, widest > 0 ? Metrics.textInsetX + widest + Metrics.rowInsetX + p : 0)
-            : max(compact ? 0 : Metrics.minWidth, Metrics.textInsetX + widest + Metrics.rowInsetX + p)
+        var width = horizontal ? max(cellsWidth, widest > 0 ? inset + widest + Metrics.rowInsetX + p : 0)
+            : max(compact ? 0 : Metrics.minWidth, inset + widest + Metrics.rowInsetX + p)
         if !model.footer.isEmpty {
             let footer = footerStrings()
             let footerWidth = footer.left.size().width + (footer.right.map { $0.size().width + 16 } ?? 0)
