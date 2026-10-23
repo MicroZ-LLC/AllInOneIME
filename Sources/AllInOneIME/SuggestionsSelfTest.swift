@@ -38,13 +38,6 @@ final class GitHubStandIn: PluginFetcher, @unchecked Sendable {
 }
 
 extension SelfTest {
-    /// Whether the session's chooser (a long press of Shift: Translate as You Type, coding mode) is the panel now.
-    @MainActor
-    static func chooserIsOpen(_ controller: AllInOneIMEInputController) -> Bool {
-        let rows = controller.session.panelModel().rows
-        return rows.count == 2 && rows[0].text == tr("边打边译", "Translate as You Type") && rows[1].text == tr("编码模式", "Coding mode")
-    }
-
     /// Suggestions in a field of the self-test's own: nothing kept where the user's are (the lists' cache, the rows
     /// picked, the coding packs), no plugin of the user's run. Before the controller's session is made (it takes them).
     @MainActor
@@ -55,7 +48,6 @@ extension SelfTest {
         SuggestionsShared.picks = SuggestionPicks(url: directory.appendingPathComponent("suggestion-picks.json"))
         SuggestionsShared.picks.clear()
         SuggestionsShared.runtime = PluginCompletionRuntime(mode: .inProcess(fetcher: { _ in GitHubStandIn() }))
-        SuggestionsShared.codingMode = false
         CodingPackManager.shared.library = CodingPackLibrary(store: SuggestionsShared.packs)
         try? FileManager.default.removeItem(at: directory.appendingPathComponent("suggestions-cache"))
         try? FileManager.default.removeItem(at: directory.appendingPathComponent("coding-packs"))
@@ -72,15 +64,18 @@ extension SelfTest {
     /// installed in the self-test's folder and its issues enabled, its script run here with a stand-in for
     /// api.github.com (`GitHubStandIn`). "#12" shows its rows (the list's, then the live query, asked once 2 characters
     /// follow "#"), Tab inserts what wasn't typed of the first; in Slack (a chat app) Tab inserts the issue's address
-    /// too. The child process a completion script runs in (`--run-plugin … --completion load`). Coding mode's rows from
-    /// the Python pack (Core/CodingPacks), a snippet's caret. Everything left as it was found.
+    /// too. The child process a completion script runs in (`--run-plugin … --completion load`). Code (decision 22): a tap
+    /// of Shift after the languages, its Python pack's rows (Core/CodingPacks), Return taking one at once, a snippet's
+    /// caret, the menu bar icon's mark, the long press saying Translate as You Type isn't available there, an app that
+    /// starts in it. Everything left as it was found.
     static func testSuggestions(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
-        section("Suggestions: the GitHub plugin's issues and coding mode (a stand-in for api.github.com)", needs: .composing)
-        let saved = (services: controller.services.suggestions, plugins: controller.services.plugins, settings: settings)
+        section("Suggestions: the GitHub plugin's issues and Code (a stand-in for api.github.com)", needs: .composing)
+        let saved = (services: controller.services.suggestions, plugins: controller.services.plugins, settings: settings,
+                     shiftHeld: TranslateModeShared.shiftHeld, pointer: TranslateModeShared.pointer, stickyKeys: TranslateModeShared.stickyKeys)
         let folder = snapshotDirectory.appendingPathComponent("suggestions-plugins", isDirectory: true)
         defer {
             (controller.services.suggestions, controller.services.plugins, settings) = (saved.services, saved.plugins, saved.settings)
-            SuggestionsShared.codingMode = false
+            (TranslateModeShared.shiftHeld, TranslateModeShared.pointer, TranslateModeShared.stickyKeys) = (saved.shiftHeld, saved.pointer, saved.stickyKeys)
             try? FileManager.default.removeItem(at: folder)
             controller.commitComposition(client)
             client.bundleIDOverride = nil
@@ -172,7 +167,8 @@ extension SelfTest {
             check(false, "the local accounts plugin loads")
         }
 
-        // Coding mode: the Python pack's rows, Return picking one at once; a snippet goes in with its caret at $0.
+        // Code: an input after the languages, the Python pack's rows, Return picking one at once; a snippet goes in with
+        // its caret at its first tab stop ($0 in print's); Code's mark on the menu bar icon.
         controller.commitComposition(client)
         client.bundleIDOverride = "com.example.editor"
         controller.activateServer(client)
@@ -180,23 +176,54 @@ extension SelfTest {
            (try? SuggestionsShared.packs.keep(pack, language: "python")) != nil {
             SuggestionsShared.packsChanged()
             controller.services.suggestions.codingPacks = { SuggestionsShared.codingPacks }
-            SuggestionsShared.codingMode = true
+            settings.codingLanguage = "python"
             controller.activateServer(client)
-            check(controller.composer.inputLanguage == .english && MenuBarIcon.shared.coding,
-                  "coding mode: the field starts in English, the menu bar icon shows it")
+            controller.composer.setInputMode(.chinese)
+            let code = tr("代码（Python）", "Code (Python)")
+            tapShift(controller, client)
+            let english = controller.composer.input == .language(.english) && MenuBarIcon.shared.code == nil
+            tapShift(controller, client)
+            check(english && controller.composer.input == .code && controller.composer.inputLanguage == .english
+                  && controller.notice == code && MenuBarIcon.shared.code == code,
+                  "a tap of Shift: 中 → English → Code, said (\(controller.notice ?? "-")), Code's mark on the menu bar icon")
             client.inserted.removeAll()
             type("pr", controller, client)
             let coded = pump(timeout: 2) { controller.session.panelModel().rows.contains { $0.text == "print" } }
-            check(coded, "coding mode: \"pr\" offers the pack's print (\(controller.session.panelModel().rows.map(\.text)))")
-            snapshot("suggestions-coding", in: snapshotDirectory)
+            check(coded && client.marked.isEmpty, "Code: \"pr\" typed as letters offers the pack's print (\(controller.session.panelModel().rows.map(\.text)))")
+            snapshot("suggestions-code", in: snapshotDirectory)
             let panel = controller.session.panelModel()
-            check(panel.highlightChosen, "…the highlighted row selected: ⏎ takes it")
-            if let index = panel.rows.firstIndex(where: { $0.text == "print" && !$0.comment.isEmpty }) {
+            check(panel.highlightChosen && !panel.rows.contains { $0.comment.contains("Python") },
+                  "…the highlighted row selected (⏎ takes it), no row naming the language (\(panel.rows.map(\.comment)))")
+            if let index = panel.rows.firstIndex(where: { $0.text == "print" && $0.comment != tr("关键字", "keyword") }) {
                 for _ in 0..<index { press(controller, client, "", code: VirtualKey.down) }
                 press(controller, client, "\r", code: VirtualKey.returnKey)
             }
             check(client.inserted.last == "int()", "…⏎ puts the snippet in as \"int()\" (\(client.inserted.last ?? "-"))")
-            SuggestionsShared.codingMode = false
+
+            // The long press of Shift in Code: Translate as You Type isn't available there, and nothing changes.
+            (TranslateModeShared.shiftHeld, TranslateModeShared.pointer, TranslateModeShared.stickyKeys) = ({ true }, { .zero }, { false })
+            _ = controller.handle(event("", code: VirtualKey.leftShift, flags: .shift, type: .flagsChanged), client: client)
+            let refused = pump(timeout: 1.5) { controller.notice == tr("代码输入里不能边打边译", "Translate as You Type isn't available in Code") }
+            _ = controller.handle(event("", code: VirtualKey.leftShift, flags: [], type: .flagsChanged), client: client)
+            check(refused && !TranslateModeShared.state.isOn && controller.composer.input == .code,
+                  "a long press of Shift in Code: \(controller.notice ?? "-"), the input still Code")
+            (TranslateModeShared.shiftHeld, TranslateModeShared.pointer, TranslateModeShared.stickyKeys) = (saved.shiftHeld, saved.pointer, saved.stickyKeys)
+            tapShift(controller, client)
+            check(controller.composer.input == .language(.chinese) && MenuBarIcon.shared.code == nil,
+                  "…a tap of Shift: back to Chinese, the menu bar icon as before")
+
+            // An app that starts in Code (Settings → Apps); another doesn't.
+            controller.commitComposition(client)
+            settings.appProfiles["com.example.code"] = AppProfile()
+            settings.appProfiles["com.example.code"]?.startingInput = .code
+            client.bundleIDOverride = "com.example.code"
+            controller.activateServer(client)
+            let started = controller.composer.input == .code && MenuBarIcon.shared.code == code
+            controller.commitComposition(client)
+            client.bundleIDOverride = "com.example.editor"
+            controller.activateServer(client)
+            check(started && controller.composer.input == .language(.chinese) && MenuBarIcon.shared.code == nil,
+                  "an app set to start in Code starts there, another in Chinese (\(controller.composer.input))")
             try? SuggestionsShared.packs.remove("python")
             SuggestionsShared.packsChanged()
         } else {

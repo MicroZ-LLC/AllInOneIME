@@ -124,6 +124,8 @@ extension SettingsSchema {
             }
             do {
                 try codingPacks.remove(language)
+                // Code goes with the pack of its language, as an input language goes with its pack.
+                if store.config.codingLanguage == language { store.config.codingLanguage = nil }
                 return .success(SettingsActionOutcome())
             } catch {
                 return .failure(SettingsProblem(.failed, field: action.field, message: UIText.describe(error)))

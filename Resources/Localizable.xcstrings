@@ -144,6 +144,7 @@
     },
     " · coding mode on" : {
       "comment" : " · 编码模式已开 — Sources/AllInOneIME/MenuBarIcon.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -472,7 +473,7 @@
       }
     },
     " (downloads a language pack)" : {
-      "comment" : "（下载语言包） — Sources/AllInOneIME/SettingsWindow.swift",
+      "comment" : "（下载语言包） — Sources/AllInOneIME/CodeInputSettings.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -1694,7 +1695,7 @@
       }
     },
     "%@ · %@ keywords · %@ snippets" : {
-      "comment" : "%@ · %@ 个关键字 · %@ 个代码片段 — Sources/AllInOneIME/CodingLanguagesPage.swift",
+      "comment" : "%@ · %@ 个关键字 · %@ 个代码片段 — Sources/AllInOneIME/CodeInputSettings.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -3955,6 +3956,53 @@
         }
       }
     },
+    "After the languages, a tap of Shift away: rows of this language's keywords and snippets" : {
+      "comment" : "在输入语言后面，单按 Shift 切到它：列出这种编程语言的关键字和代码片段 — Sources/AllInOneIME/CodeInputSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nach den Sprachen, ein Tippen auf Umschalt entfernt: Zeilen mit Schlüsselwörtern und Snippets dieser Sprache"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Después de los idiomas, a un toque de Mayúsculas: filas con las palabras clave y los fragmentos de este lenguaje"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Après les langues, à une pression de Maj : des lignes de mots-clés et d’extraits de ce langage"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "入力言語の後ろ、Shift を軽く押すと切り替わります。この言語のキーワードとスニペットが並びます"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "입력 언어 다음, Shift를 한 번 누르면 전환: 이 언어의 키워드와 스니펫이 표시됩니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Depois dos idiomas, a um toque de Shift: linhas com as palavras-chave e os trechos desta linguagem"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在輸入語言後面，單按 Shift 切到它：列出這種程式語言的關鍵字和程式碼片段"
+          }
+        }
+      }
+    },
     "AllInOneIME %@ is available" : {
       "comment" : "AllInOneIME %@ 可以更新了 — Sources/AllInOneIME/Updates.swift",
       "localizations" : {
@@ -4380,6 +4428,7 @@
     },
     "AllInOneIME: coding mode on" : {
       "comment" : "AllInOneIME：编码模式已开 — Sources/AllInOneIME/MenuBarIcon.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -5895,7 +5944,7 @@
       }
     },
     "Available" : {
-      "comment" : "可下载 — Sources/AllInOneIME/CodingLanguagesPage.swift",
+      "comment" : "可下载 — Sources/AllInOneIME/CodeInputSettings.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -7822,8 +7871,149 @@
         }
       }
     },
+    "Code is in %@ once it's done, no restart" : {
+      "comment" : "下载完就切到代码（%@），不用重启 — Sources/AllInOneIME/CodeInputSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Danach ist Code in %@, ohne Neustart"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Al terminar, Código estará en %@, sin reiniciar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Code passe en %@ à la fin, sans redémarrage"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完了するとコード入力が %@ になります。再起動は不要です"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "완료되면 재시작 없이 코드 입력이 %@(으)로 바뀝니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ao terminar, Código fica em %@, sem reiniciar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下載完就切到程式碼（%@），不需重新啟動"
+          }
+        }
+      }
+    },
+    "Code is removed from your inputs too. You can download it again from the library below." : {
+      "comment" : "代码输入也会移除。以后可以从下面的语言库再下载。 — Sources/AllInOneIME/CodeInputSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Code wird auch aus deinen Eingaben entfernt. Du kannst das Paket aus der Bibliothek unten wieder laden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Código también se quita de tus entradas. Puedes volver a descargarlo desde la biblioteca de abajo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Code est aussi retiré de vos saisies. Vous pouvez le télécharger à nouveau depuis la bibliothèque ci-dessous."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コード入力も入力から外れます。下のライブラリからまたダウンロードできます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "코드 입력도 입력 목록에서 빠집니다. 아래 라이브러리에서 다시 다운로드할 수 있습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Código também sai das suas entradas. Você pode baixá-lo de novo na biblioteca abaixo."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "程式碼輸入也會移除。以後可以從下面的語言庫再下載。"
+          }
+        }
+      }
+    },
+    "Code uses the pack of the language picked for it above; the others stay installed for when you pick theirs." : {
+      "comment" : "代码输入只用上面选的那种编程语言的包；其他的留着，换成它们时就能用。 — Sources/AllInOneIME/CodeInputSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Code nutzt das Paket der oben gewählten Sprache; die anderen bleiben installiert, falls du ihre wählst."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Código usa el paquete del lenguaje elegido arriba; los demás siguen instalados para cuando elijas el suyo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Code utilise le paquet du langage choisi ci-dessus ; les autres restent installés pour quand vous choisirez le leur."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コード入力は上で選んだ言語のパックだけを使います。ほかのパックは、その言語に切り替えたときのために残ります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "코드 입력은 위에서 고른 언어의 팩만 씁니다. 다른 팩은 그 언어로 바꿀 때를 위해 설치된 채로 둡니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Código usa o pacote da linguagem escolhida acima; os outros ficam instalados para quando você escolher a deles."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "程式碼輸入只用上面選的那種程式語言的包；其他的留著，換成它們時就能用。"
+          }
+        }
+      }
+    },
     "Coding Language Library" : {
-      "comment" : "编程语言库 — Sources/AllInOneIME/CodingLanguagesPage.swift",
+      "comment" : "编程语言库 — Sources/AllInOneIME/CodeInputSettings.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -7871,6 +8061,7 @@
     },
     "Coding Languages" : {
       "comment" : "编程语言 — Sources/AllInOneIME/SettingsWindow.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -7918,6 +8109,7 @@
     },
     "Coding Mode" : {
       "comment" : "编码模式 — Sources/AllInOneIME/CodingLanguagesPage.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -7965,6 +8157,7 @@
     },
     "Coding mode is off now." : {
       "comment" : "编码模式现在关着。 — Sources/AllInOneIME/CodingLanguagesPage.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -8012,6 +8205,7 @@
     },
     "Coding mode is on now: hold Shift for a second and choose Coding mode again to turn it off." : {
       "comment" : "编码模式现在开着：按住 Shift 一秒，再选一次「编码模式」就关掉。 — Sources/AllInOneIME/CodingLanguagesPage.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -8669,7 +8863,7 @@
       }
     },
     "Couldn't get the library's list: " : {
-      "comment" : "没能取得语言库的列表： — Sources/AllInOneIME/CodingLanguagesPage.swift",
+      "comment" : "没能取得语言库的列表： — Sources/AllInOneIME/CodeInputSettings.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -9233,7 +9427,7 @@
       }
     },
     "Delete" : {
-      "comment" : "删除 — Sources/AllInOneIME/CodingLanguagesPage.swift",
+      "comment" : "删除 — Sources/AllInOneIME/CodeInputSettings.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -9327,7 +9521,7 @@
       }
     },
     "Delete the %@ coding pack?" : {
-      "comment" : "删除 %@ 编程语言包？ — Sources/AllInOneIME/CodingLanguagesPage.swift",
+      "comment" : "删除 %@ 编程语言包？ — Sources/AllInOneIME/CodeInputSettings.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -9609,7 +9803,7 @@
       }
     },
     "Didn't download: " : {
-      "comment" : "没有下载成功： — Sources/AllInOneIME/CodingLanguagesPage.swift",
+      "comment" : "没有下载成功： — Sources/AllInOneIME/CodeInputSettings.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -10215,6 +10409,100 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在下載 %@⋯"
+          }
+        }
+      }
+    },
+    "Downloading the %@ coding pack" : {
+      "comment" : "正在下载 %@ 编程语言包 — Sources/AllInOneIME/CodeInputSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Programmiersprachen-Paket für %@ wird geladen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descargando el paquete de programación %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Téléchargement du paquet de programmation %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ のプログラミング言語パックをダウンロード中"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 프로그래밍 언어 팩 다운로드 중"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Baixando o pacote de programação %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在下載 %@ 程式語言包"
+          }
+        }
+      }
+    },
+    "Downloading the %@ coding pack: Code is in %@ once it's in" : {
+      "comment" : "正在下载 %@ 编程语言包，好了就切到代码（%@） — Sources/AllInOneIME/InputMenu.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Programmiersprachen-Paket für %1$@ wird geladen: Danach ist Code in %2$@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descargando el paquete de programación %1$@: Código estará en %2$@ cuando llegue"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Téléchargement du paquet de programmation %1$@ : Code passe en %2$@ une fois qu’il est là"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ のプログラミング言語パックをダウンロード中。終わるとコード入力が %2$@ になります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 프로그래밍 언어 팩 다운로드 중: 받으면 코드 입력이 %2$@(으)로 바뀝니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Baixando o pacote de programação %1$@: Código fica em %2$@ quando chegar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在下載 %1$@ 程式語言包，好了就切到程式碼（%2$@）"
           }
         }
       }
@@ -11825,6 +12113,7 @@
     },
     "Hold Shift for a second in a text field and a small chooser opens at the caret: press 2 for Coding mode (or pick it with ↑↓ and ⏎). The menu bar icon shows it while it's on, in every app, until you choose it again. Each text field then starts in English (Shift still switches), and the rows under the caret offer the keywords and snippets of the packs below and words already in the field: Tab completes. It and Translate as You Type are never on together." : {
       "comment" : "在输入框里按住 Shift 一秒，光标处会弹出一个小菜单：按 2 选「编码模式」（或用 ↑↓ 选中按 ⏎）。打开后菜单栏图标会显示它，在所有 App 里一直开着，直到再选一次关掉。开着时每个输入框从英文开始（按 Shift 照样切换），光标下面列出下面这些语言包的关键字、代码片段和输入框里已有的词，按 Tab 补全。它和边打边译不能同时开。 — Sources/AllInOneIME/CodingLanguagesPage.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -12300,7 +12589,7 @@
       }
     },
     "Installed Coding Languages" : {
-      "comment" : "已安装的编程语言 — Sources/AllInOneIME/CodingLanguagesPage.swift",
+      "comment" : "已安装的编程语言 — Sources/AllInOneIME/CodeInputSettings.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -12629,7 +12918,7 @@
       }
     },
     "Its keywords and snippets no longer show; you can download it again from the library below." : {
-      "comment" : "它的关键字和代码片段不再出现；以后可以从下面的语言库再下载。 — Sources/AllInOneIME/CodingLanguagesPage.swift",
+      "comment" : "它的关键字和代码片段不再出现；以后可以从下面的语言库再下载。 — Sources/AllInOneIME/CodeInputSettings.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -14800,6 +15089,7 @@
     },
     "No coding packs yet: coding mode offers only words already in the field. Download one from the library below." : {
       "comment" : "还没有编程语言包：开着编码模式时只列出输入框里已有的词。在下面的语言库里下载。 — Sources/AllInOneIME/CodingLanguagesPage.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -14841,6 +15131,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "還沒有程式語言包：開著編碼模式時只列出輸入框裡已有的詞。在下面的語言庫裡下載。"
+          }
+        }
+      }
+    },
+    "No coding packs yet: picking a language for Code downloads its pack, or download one from the library below." : {
+      "comment" : "还没有编程语言包：给代码输入选一种语言就会下载，也可以从下面的语言库里下载。 — Sources/AllInOneIME/CodeInputSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noch keine Programmiersprachen-Pakete: Wählst du eine Sprache für Code, wird ihr Paket geladen, oder lade eines aus der Bibliothek unten."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aún no hay paquetes: elegir un lenguaje para Código descarga su paquete, o descarga uno desde la biblioteca de abajo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun paquet pour l’instant : choisir un langage pour Code télécharge son paquet, ou téléchargez-en un depuis la bibliothèque ci-dessous."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プログラミング言語パックはまだありません。コード入力の言語を選ぶとそのパックがダウンロードされます。下のライブラリからも入れられます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "아직 프로그래밍 언어 팩이 없습니다. 코드 입력의 언어를 고르면 그 팩을 다운로드하고, 아래 라이브러리에서도 받을 수 있습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ainda não há pacotes: escolher uma linguagem para Código baixa o pacote dela, ou baixe um na biblioteca abaixo."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒有程式語言包：給程式碼輸入選一種語言就會下載，也可以從下面的語言庫裡下載。"
           }
         }
       }
@@ -18090,7 +18427,7 @@
       }
     },
     "Packs come from the language library, each checked against its signed index; it's fetched only when you ask (%@)." : {
-      "comment" : "语言包来自语言库，下载后逐个核对签名的索引；只有你点了才会联网（%@）。 — Sources/AllInOneIME/CodingLanguagesPage.swift",
+      "comment" : "语言包来自语言库，下载后逐个核对签名的索引；只有你点了才会联网（%@）。 — Sources/AllInOneIME/CodeInputSettings.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -19042,8 +19379,103 @@
         }
       }
     },
+    "Plugins' completions (#12 → a GitHub issue, say) and Code's keywords and snippets, Tab inserts. Off: none in this app." : {
+      "comment" : "插件的补全（比如 #12 → GitHub issue）和代码输入的关键字、代码片段，按 Tab 插入。关掉后这个 App 里不列出。 — Sources/AllInOneIME/AppProfiles.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vervollständigungen von Plug-ins (etwa #12 → ein GitHub-Issue) und Schlüsselwörter und Snippets der Eingabe Code, Tab fügt ein. Aus: keine in dieser App."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sugerencias de plugins (#12 → un issue de GitHub, por ejemplo) y palabras clave y fragmentos de la entrada Código; Tab inserta. Desactivado: ninguna en esta app."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Complétions des plug-ins (#12 → une issue GitHub, par exemple) et mots-clés et extraits de la saisie Code, Tab insère. Désactivé : aucune dans cette app."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プラグインの補完（例：#12 → GitHub issue）とコード入力のキーワード・スニペット。Tab で挿入。オフにするとこの App では表示しません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "플러그인 자동 완성(예: #12 → GitHub 이슈)과 코드 입력의 키워드·스니펫, Tab으로 삽입. 끄면 이 앱에서는 표시하지 않습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sugestões de plug-ins (#12 → um issue do GitHub, por exemplo) e palavras-chave e trechos da entrada Código; Tab insere. Desativado: nenhuma neste app."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "外掛的補全（比如 #12 → GitHub issue）和程式碼輸入的關鍵字、程式碼片段，按 Tab 插入。關掉後這個 App 裡不列出。"
+          }
+        }
+      }
+    },
+    "Plugins' completions (#12 → a GitHub issue, say) and Code's keywords and snippets: Tab inserts" : {
+      "comment" : "插件的补全（比如 #12 → GitHub issue）和代码输入的关键字、代码片段，按 Tab 插入 — Sources/AllInOneIME/Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vervollständigungen von Plug-ins (etwa #12 → ein GitHub-Issue) und Schlüsselwörter und Snippets der Eingabe Code: Tab fügt ein"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sugerencias de plugins (#12 → un issue de GitHub, por ejemplo) y palabras clave y fragmentos de la entrada Código: Tab inserta"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Complétions des plug-ins (#12 → une issue GitHub, par exemple) et mots-clés et extraits de la saisie Code : Tab insère"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プラグインの補完（例：#12 → GitHub issue）とコード入力のキーワード・スニペット：Tab で挿入"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "플러그인 자동 완성(예: #12 → GitHub 이슈)과 코드 입력의 키워드·스니펫: Tab으로 삽입"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sugestões de plug-ins (#12 → um issue do GitHub, por exemplo) e palavras-chave e trechos da entrada Código: Tab insere"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "外掛的補全（比如 #12 → GitHub issue）和程式碼輸入的關鍵字、程式碼片段，按 Tab 插入"
+          }
+        }
+      }
+    },
     "Plugins' completions (#12 → a GitHub issue, say) and coding mode's keywords and snippets, Tab inserts. Off: none in this app." : {
       "comment" : "插件的补全（比如 #12 → GitHub issue）和编码模式的关键字、代码片段，按 Tab 插入。关掉后这个 App 里不列出。 — Sources/AllInOneIME/AppProfiles.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -19091,6 +19523,7 @@
     },
     "Plugins' completions (#12 → a GitHub issue, say) and coding mode's keywords and snippets: Tab inserts" : {
       "comment" : "插件的补全（比如 #12 → GitHub issue）和编码模式的关键字、代码片段，按 Tab 插入 — Sources/AllInOneIME/Suggestions.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -19138,6 +19571,7 @@
     },
     "Plugins' completions (#12 lists GitHub issues, say; turn each plugin's on in Plugins) and coding mode's keywords and snippets (see Coding Languages): a few rows under the caret, Tab inserts. The same switch as Suggestions in the input menu; an app can turn them off in Apps." : {
       "comment" : "插件的补全（比如打 #12 列出 GitHub issue；每个插件的补全在「插件」里打开）和编码模式的关键字、代码片段（在「编程语言」里）：光标下面列出几行，按 Tab 插入。和输入法菜单里的「建议」是同一个开关；某个 App 里不要可以在「按 App 设置」里关掉。 — Sources/AllInOneIME/SuggestionsSettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -20080,7 +20514,7 @@
       }
     },
     "Refresh" : {
-      "comment" : "刷新 — Sources/AllInOneIME/CodingLanguagesPage.swift",
+      "comment" : "刷新 — Sources/AllInOneIME/CodeInputSettings.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -21782,7 +22216,7 @@
       }
     },
     "Retry" : {
-      "comment" : "重试 — Sources/AllInOneIME/CodingLanguagesPage.swift",
+      "comment" : "重试 — Sources/AllInOneIME/CodeInputSettings.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -22769,7 +23203,7 @@
       }
     },
     "Show Available Packs…" : {
-      "comment" : "显示可下载的语言包… — Sources/AllInOneIME/CodingLanguagesPage.swift",
+      "comment" : "显示可下载的语言包… — Sources/AllInOneIME/CodeInputSettings.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -24087,6 +24521,7 @@
     },
     "Suggestions are off, so coding mode shows no rows: turn them on in General." : {
       "comment" : "建议关着，编码模式也不会列出什么：在「通用」里打开。 — Sources/AllInOneIME/CodingLanguagesPage.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -24614,6 +25049,53 @@
         }
       }
     },
+    "The %@ coding pack didn't download" : {
+      "comment" : "%@ 编程语言包没有下载成功 — Sources/AllInOneIME/CodeInputSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Programmiersprachen-Paket für %@ wurde nicht geladen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El paquete de programación %@ no se descargó"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le paquet de programmation %@ n’a pas été téléchargé"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ のプログラミング言語パックをダウンロードできませんでした"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 프로그래밍 언어 팩을 다운로드하지 못함"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O pacote de programação %@ não foi baixado"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 程式語言包沒有下載成功"
+          }
+        }
+      }
+    },
     "The %@ language pack didn't download" : {
       "comment" : "%@语言包没有下载成功 — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
@@ -24657,6 +25139,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@語言套件沒有下載成功"
+          }
+        }
+      }
+    },
+    "The %@ pack isn't installed: Code can be typed once it is." : {
+      "comment" : "%@ 的语言包还没安装：装好以后才能切到代码。 — Sources/AllInOneIME/CodeInputSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Paket für %@ ist nicht installiert: Code lässt sich tippen, sobald es da ist."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El paquete de %@ no está instalado: podrás escribir en Código cuando lo esté."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le paquet %@ n’est pas installé : Code se saisit une fois qu’il l’est."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ のパックがまだインストールされていません。入れるとコード入力が使えます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 팩이 설치되지 않았습니다. 설치하면 코드 입력을 쓸 수 있습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O pacote de %@ não está instalado: dá para digitar em Código quando estiver."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 的語言包還沒安裝：裝好以後才能切到程式碼。"
           }
         }
       }
@@ -25273,7 +25802,7 @@
       }
     },
     "The library has no coding packs for this version yet." : {
-      "comment" : "语言库里暂时没有这个版本能用的编程语言包。 — Sources/AllInOneIME/CodingLanguagesPage.swift",
+      "comment" : "语言库里暂时没有这个版本能用的编程语言包。 — Sources/AllInOneIME/CodeInputSettings.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -29183,6 +29712,7 @@
     },
     "While coding mode is on, every pack installed is used (a text field can't tell which language it's in)." : {
       "comment" : "开着编码模式时，所有装好的语言包都会用上（输入框分不出是哪种语言）。 — Sources/AllInOneIME/CodingLanguagesPage.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {

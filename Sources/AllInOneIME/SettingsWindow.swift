@@ -853,6 +853,8 @@ struct SettingsView: View {
     @State private var inputTab: Language = .chinese
     /// The language packs and their downloads (Chinese is a download: the app ships English only).
     @ObservedObject private var packs = LanguagePackManager.shared
+    /// Code's coding packs and their downloads (Code's menu, the + menu's Code).
+    @ObservedObject private var codingPacks = CodingPackManager.shared
     /// The extension sources' new commits: a badge on the Custom Commands page.
     @ObservedObject private var extensionSources = ExtensionSourceController.shared
     /// The pack of an input language just removed: the dialog offers to delete it too.
@@ -1052,10 +1054,12 @@ struct SettingsView: View {
                         }
                     }
                     .pickerStyle(.segmented).labelsHidden().fixedSize()
-                    // Always there, so it's clear where languages are added: one to five of them.
+                    // Always there, so it's clear where languages are added: one to five of them; and Code, under its own
+                    // heading, never among them (decision 22).
                     let languages = model.config.inputLanguages
                     let missing = Language.allCases.filter { !languages.contains($0) }
                     let full = languages.count >= Config.maxInputLanguages
+                    let codeAdded = model.config.codingLanguage != nil
                     Menu {
                         ForEach(missing, id: \.self) { language in
                             // A language whose pack isn't here says it downloads first.
@@ -1064,25 +1068,39 @@ struct SettingsView: View {
                                    + (download ? tr("（下载语言包）", " (downloads a language pack)") : "")) {
                                 addInputLanguage(language)
                             }
-                            .disabled(LanguagePack.for(language).map(isDownloading) ?? false)
+                            .disabled(full || LanguagePack.for(language).map(isDownloading) ?? false)
                         }
                         if !missing.isEmpty { Divider() }
                         Text(tr("更多输入语言即将支持", "More input languages are coming"))
+                        if !codeAdded {
+                            Divider()
+                            Section(tr("代码", "Code")) {
+                                ForEach(CodingLanguagePack.offered, id: \.language) { offered in
+                                    let download = !codingPacks.installed.contains { $0.language == offered.language }
+                                    Button(offered.title + (download ? tr("（下载语言包）", " (downloads a language pack)") : "")) {
+                                        CodeInputSettings.pick(offered.language, model: model)
+                                    }
+                                    .disabled(codingPacks.isDownloading(offered.language))
+                                }
+                            }
+                        }
                     } label: {
                         Image(systemName: "plus")
                     }
                     .menuIndicator(.hidden).fixedSize()
-                    .disabled(full)
+                    .disabled(full && codeAdded)
                     .help(full ? tr("最多 \(Config.maxInputLanguages) 种输入语言", "Up to \(Config.maxInputLanguages) input languages")
                                : tr("添加输入语言", "Add an input language"))
                     .accessibilityLabel(tr("添加输入语言", "Add an input language"))
                 }
             } label: {
                 titled(tr("输入语言", "Input languages"),
-                       model.config.inputLanguages.count > 1
+                       model.config.inputs.count > 1
                        ? tr("单按 Shift 切换；点一个看它的设置", "Tap Shift to switch; click one for its settings")
                        : tr("只有一种时 Shift 不切换", "With one, Shift doesn't switch"))
             }
+            // Code, after the languages and apart from them: its coding language, its pack on its way.
+            CodeInputRow(model: model)
             // The candidates of a word being typed (pinyin, Hindi) in a column, or in a row like macOS's own panel.
             LabeledContent {
                 Picker("", selection: $model.config.candidateLayout) {
@@ -1965,6 +1983,8 @@ struct SettingsView: View {
                         PersonalDictionariesSection(model: model, dictionaries: personalDictionaries)
                         EnglishWordsSection(model: model)
                     }
+                    // Code's packs, apart from the languages' (decision 22).
+                    CodingPacksSections(model: model)
                 case .writing:
                     translateSection
                     rewriteSection
@@ -1977,7 +1997,6 @@ struct SettingsView: View {
                     pluginsSection
                     webSearchSection
                     notesSection
-                case .codingLanguages: CodingLanguagesPage(model: model)
                 case .voice: voiceSection
                 case .agent: AgentSettingsPage(model: model)
                 case .provider:
@@ -2037,6 +2056,7 @@ struct SettingsView: View {
         .onChange(of: model.config.outputLanguage) { model.save() }
         .onChange(of: model.config.outputLanguages) { model.save() }
         .onChange(of: model.config.inputLanguages) { model.save() }
+        .onChange(of: model.config.codingLanguage) { model.save() }
         .onChange(of: model.config.improveTranslates) { model.save() }
         .onChange(of: model.config.voiceInput) { model.save() }
         .onChange(of: model.config.actionKey) { model.save() }
@@ -2998,12 +3018,12 @@ struct SectionTitle: View {
 
 /// The settings window's pages, in the sidebar's order.
 enum SettingsPage: String, CaseIterable, Identifiable {
-    case assistant, general, input, writing, commands, plugins, codingLanguages, voice, agent, provider, advanced, about, apps
+    case assistant, general, input, writing, commands, plugins, voice, agent, provider, advanced, about, apps
 
     var id: String { rawValue }
 
     static let groups: [[SettingsPage]] = [[.assistant], [.general, .input, .writing, .voice, .apps],
-                                           [.commands, .plugins, .codingLanguages, .agent, .provider], [.advanced, .about]]
+                                           [.commands, .plugins, .agent, .provider], [.advanced, .about]]
 
     var title: String {
         switch self {
@@ -3013,7 +3033,6 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .writing: return tr("翻译与改写", "Translate & Rewrite")
         case .commands: return tr("自定义命令", "Custom Commands")
         case .plugins: return tr("插件", "Plugins")
-        case .codingLanguages: return tr("编程语言", "Coding Languages")
         case .voice: return tr("语音输入", "Voice Input")
         case .agent: return tr("Agent", "Agent")
         case .provider: return tr("AI 服务", "AI Provider")
@@ -3031,7 +3050,6 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .writing: return CommandIcons.translate
         case .commands: return CommandIcons.commands
         case .plugins: return CommandIcons.plugins
-        case .codingLanguages: return CandidateView.Icon(symbol: "chevron.left.forwardslash.chevron.right", color: .systemGreen)
         case .voice: return CommandIcons.voice
         case .agent: return CommandIcons.agent
         case .provider: return CommandIcons.provider
@@ -3045,12 +3063,11 @@ enum SettingsPage: String, CaseIterable, Identifiable {
     private var keywords: String {
         switch self {
         case .assistant: return "assistant config change settings describe sentence doctor check problems fix diagnose 助手 设置 改设置 描述 一句话 检查 问题 修复 诊断"
-        case .general: return "action key return 执行键 回车 type out typing speed typos mistakes forget 逐字上屏 打字速度 打错 忘掉 menu bar panel 菜单栏 面板 interface language 界面语言 中文 english recent questions history @question clear 最近的问题 提问 记录 历史 清除 continue conversation claude code chatgpt gemini copy 接着聊 对话 追问 复制 icloud drive sync macs learned words hidden words remove 同步 云盘 多台 学到的词 隐藏的词 移除 suggestions plugins completions coding mode picked rows 建议 插件 补全 编码模式 选过的行"
-        case .input: return "input languages pinyin english chinese shift 输入语言 拼音 中文 英文 fuzzy 模糊音 zh ch sh candidate layout horizontal vertical 候选 排列 横排 竖排 english words dictionary learn bedrock personal import dict yaml 个人 自定义 导入 英文词 词典 词库 学习"
+        case .general: return "action key return 执行键 回车 type out typing speed typos mistakes forget 逐字上屏 打字速度 打错 忘掉 menu bar panel 菜单栏 面板 interface language 界面语言 中文 english recent questions history @question clear 最近的问题 提问 记录 历史 清除 continue conversation claude code chatgpt gemini copy 接着聊 对话 追问 复制 icloud drive sync macs learned words hidden words remove 同步 云盘 多台 学到的词 隐藏的词 移除 suggestions plugins completions picked rows 建议 插件 补全 选过的行"
+        case .input: return "input languages pinyin english chinese shift 输入语言 拼音 中文 英文 fuzzy 模糊音 zh ch sh candidate layout horizontal vertical 候选 排列 横排 竖排 english words dictionary learn bedrock personal import dict yaml 个人 自定义 导入 英文词 词典 词库 学习 code coding languages programming packs python java go typescript javascript c++ keywords snippets download library 代码 编程语言 语言包 关键字 代码片段 下载 语言库"
         case .writing: return "translate languages 翻译 语言 rewrite styles polish concise formal casual tactful jargon 改写 润色 简洁 正式 口语 委婉 黑话 jargon list 黑话库 improve"
         case .commands: return "custom commands 自定义 命令 prompt program terminal link 程序 终端 网页 raycast script commands scripts extensions bundles preferences 脚本 扩展 扩展包 偏好 文件夹 folder spotlight 聚焦 extension sources git repository link clone update pin ssh 扩展来源 仓库 链接 从链接添加 克隆 更新 固定"
         case .plugins: return "plugins library 插件 插件库 stock xe search 搜索 brave @note note notes save to notion obsidian folder markdown vault token integration 笔记 备忘录 存到 文件夹 令牌 集成 completions suggestions # issues github refresh now preferences password 补全 建议 立即刷新 偏好 密码"
-        case .codingLanguages: return "coding languages mode programming code packs python javascript keywords snippets suggestions completions tab shift hold download library 编程 语言 编码模式 代码 语言包 关键字 代码片段 建议 补全 按住 下载 语言库"
         case .voice: return "voice speech microphone dictation 语音 说话 麦克风 right option 右 ⌥"
         case .agent: return "@agent coding agent claude code gemini cli kiro custom command terminal installed not installed background notify tasks @tasks claude tasks 编程 交给 自定义 命令 终端 已安装 未安装 后台 通知 任务"
         case .provider: return "ai provider model bedrock aws profile region claude gemini openai deepseek ollama api key test connection tokens temperature timeout apple intelligence on-device local 服务 模型 密钥 测试连接 模型参数 超时 温度 本机 苹果 sso role assume credential_process sts mfa 角色 登录 privacy hide sensitive information redact placeholder email phone card key token ip address words 隐私 隐藏 敏感信息 脱敏 占位符 邮箱 电话 卡号 密钥 地址"

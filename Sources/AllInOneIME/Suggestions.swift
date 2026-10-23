@@ -1,11 +1,11 @@
 import AllInOneIMECore
 import AppKit
 
-/// Suggestions (plugin completions and coding mode, the core's `InputSession+Suggestions`) for the whole input method:
+/// Suggestions (plugin completions and Code's rows, the core's `InputSession+Suggestions`) for the whole input method:
 /// the store every field shares (each source's list, its queries' answers, failures and pauses), the plugins' runtime
-/// (their completion scripts run as script plugins do, `PluginCompletionRuntime`), coding mode (on across fields and apps
-/// until turned off, as Translate as You Type), "Refresh now", the sources' statuses for Settings → Plugins, the rows
-/// picked (kept on this Mac only), the coding packs installed. Main thread only.
+/// (their completion scripts run as script plugins do, `PluginCompletionRuntime`), "Refresh now", the sources' statuses
+/// for Settings → Plugins, the rows picked (kept on this Mac only), the coding packs installed (Code's rows are its coding
+/// language's pack's). Main thread only.
 @MainActor
 enum SuggestionsShared {
     /// What the core keeps in memory for every field of this launch (the self-test puts its own in).
@@ -15,15 +15,6 @@ enum SuggestionsShared {
     /// Where the lists are cached on disk, readable by this user only: ~/Library/Caches/AllInOneIME/suggestions/ (nil:
     /// none, the self-test's).
     static var cacheFolder: URL? = CorePaths.cacheDir.appendingPathComponent("suggestions", isDirectory: true)
-    /// Coding mode: the session turns it on and off from its chooser (a long press of Shift); the menu bar icon shows it.
-    static var codingMode = false {
-        didSet {
-            guard codingMode != oldValue else { return }
-            log.notice("coding mode \(codingMode ? "on" : "off", privacy: .public)")
-            MenuBarIcon.shared.setCoding(codingMode)
-            NotificationCenter.default.post(name: .allInOneIMESuggestionsChanged, object: nil)
-        }
-    }
     /// "Refresh now" pressed in Settings → Plugins, the latest for each source.
     private(set) static var refreshes: [CompletionSourceRefresh] = []
     /// The coding packs installed (`CodingPackStore`, the self-test's own folder while it runs).
@@ -42,10 +33,11 @@ enum SuggestionsShared {
         return read
     }
 
-    /// A pack was added or removed: read again, the fields told.
+    /// A pack was added or removed: read again, Settings told, and the field being typed in (Code may have come or gone).
     static func packsChanged() {
         installedPacks = nil
         NotificationCenter.default.post(name: .allInOneIMESuggestionsChanged, object: nil)
+        AllInOneIMEInputController.activeController?.applySettings()
     }
 
     /// The switches as the settings have them now, with "Refresh now".
@@ -168,12 +160,13 @@ struct SuggestionPicks {
 }
 
 extension Notification.Name {
-    /// Suggestions changed something Settings shows: a source's status, coding mode, the packs. Main thread.
+    /// Suggestions changed something Settings shows: a source's status, the coding packs. Main thread.
     static let allInOneIMESuggestionsChanged = Notification.Name("AllInOneIMESuggestionsChanged")
 }
 
-/// Downloading, listing and removing coding packs for Settings → Coding languages (`CodingPackLibrary`): the library's
-/// offer once fetched, each download's progress and error. Main thread.
+/// Downloading, listing and removing coding packs for the Code input (Settings → Input, the input menu;
+/// `CodingPackLibrary`): a coding language picked whose pack isn't installed (`pick`), the library's offer once fetched,
+/// each download's progress and error. Main thread.
 @MainActor
 final class CodingPackManager: ObservableObject {
     static let shared = CodingPackManager()
@@ -191,6 +184,9 @@ final class CodingPackManager: ObservableObject {
     @Published private(set) var states: [String: State] = [:]
     /// The packs installed.
     @Published private(set) var installed: [CodingLanguagePack] = []
+    /// The language picked for Code whose pack is downloading, or didn't download (`pick`): Settings → Input shows how
+    /// that goes. Nil once it's in, or cancelled.
+    @Published private(set) var picked: String?
     /// The library (the self-test's own while it runs).
     var library = CodingPackLibrary()
     private var tasks: [String: Task<Void, Never>] = [:]
@@ -239,10 +235,52 @@ final class CodingPackManager: ObservableObject {
         }
     }
 
+    /// Code's coding language picked (`language`, decision 22): `then` gets it at once where its pack is installed; else
+    /// the pack is downloaded first (the library's newest for this version), as adding an input language downloads its
+    /// pack, with its progress and error in `states`, and `then` gets it once the pack is in (not if that fails or is
+    /// cancelled: Code stays as it was).
+    func pick(_ language: String, then: @escaping @MainActor (String) -> Void) {
+        if installed.contains(where: { $0.language == language }) {
+            picked = nil
+            return then(language)
+        }
+        guard tasks[language] == nil else { return }
+        picked = language
+        states[language] = .downloading(0)
+        let library = library
+        tasks[language] = Task {
+            do {
+                try await library.install(language: language) { share in
+                    Task { @MainActor in
+                        if case .downloading = CodingPackManager.shared.states[language] { CodingPackManager.shared.states[language] = .downloading(share) }
+                    }
+                }
+                states[language] = .idle
+                tasks[language] = nil
+                if picked == language { picked = nil }
+                log.notice("coding pack installed for Code")
+                SuggestionsShared.packsChanged()
+                reload()
+                then(language)
+            } catch {
+                tasks[language] = nil
+                let cancelled = Task.isCancelled || (error as? LanguagePackError) == .cancelled
+                states[language] = cancelled ? .idle : .failed(UIText.describe(error))
+            }
+        }
+    }
+
+    /// Whether `language`'s pack is on its way.
+    func isDownloading(_ language: String) -> Bool {
+        if case .downloading = states[language] { return true }
+        return false
+    }
+
     func cancel(_ language: String) {
         tasks[language]?.cancel()
         tasks[language] = nil
         states[language] = .idle
+        if picked == language { picked = nil }
     }
 
     func remove(_ language: String) {
@@ -258,8 +296,8 @@ final class CodingPackManager: ObservableObject {
 }
 
 extension AllInOneIMEInputController {
-    /// `menu` with Suggestions' switch after autocomplete's: plugin completions and coding mode's rows, everywhere (an
-    /// app's own choice is in Settings → Apps); on unless turned off here.
+    /// `menu` with Suggestions' switch after autocomplete's: plugin completions and Code's rows, everywhere (an app's own
+    /// choice is in Settings → Apps); on unless turned off here or in Settings → General.
     @MainActor
     func addingSuggestions(to menu: NSMenu) -> NSMenu {
         let config = LiveConfig.currentIfValid
@@ -267,8 +305,8 @@ extension AllInOneIMEInputController {
         item.target = self
         item.state = (config ?? .default).suggestions != false ? .on : .off
         item.isEnabled = config != nil  // don't overwrite a config file that failed to parse
-        item.toolTip = tr("插件的补全（比如 #12 → GitHub issue）和编码模式的关键字、代码片段，按 Tab 插入",
-                          "Plugins' completions (#12 → a GitHub issue, say) and coding mode's keywords and snippets: Tab inserts")
+        item.toolTip = tr("插件的补全（比如 #12 → GitHub issue）和代码输入的关键字、代码片段，按 Tab 插入",
+                          "Plugins' completions (#12 → a GitHub issue, say) and Code's keywords and snippets: Tab inserts")
         let after = menu.items.lastIndex {
             $0.action == #selector(toggleAutocomplete(_:)) || $0.action == #selector(toggleAutocompleteCloud(_:))
                 || $0.action == #selector(toggleImproveTranslates(_:))

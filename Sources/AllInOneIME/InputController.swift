@@ -150,8 +150,8 @@ final class AllInOneIMEInputController: IMKInputController {
         services.translateChip = { MainActor.assumeIsolated { box.value?.translateChip() } }
         // Autocomplete: what it learns and counts, one for every field; an app's name for what it says of the app.
         services.autocomplete = MainActor.assumeIsolated { MainThreadBox(AutocompleteSwitch.store) }.value
-        // Suggestions: one store for every field, coding mode and Translate as You Type the input method's (this field
-        // turns the latter on and off for the session's chooser).
+        // Suggestions: one store for every field, the coding packs installed, and Translate as You Type the input method's
+        // (this field turns it on and off for the session's long press of Shift).
         services.suggestions = MainActor.assumeIsolated { MainThreadBox(SuggestionsShared.services(field: box)) }.value
         services.appName = { app in MainActor.assumeIsolated { AppNames.name(for: app) } }
         services.page = { app in
@@ -451,7 +451,7 @@ final class AllInOneIMEInputController: IMKInputController {
 
     override func menu() -> NSMenu! {
         log.notice("input menu requested")
-        return MainActor.assumeIsolated { MainThreadBox(addingSuggestions(to: addingAutocomplete(to: makeMenu()))) }.value
+        return MainActor.assumeIsolated { MainThreadBox(addingSuggestions(to: addingAutocomplete(to: addingCode(to: makeMenu())))) }.value
     }
 
     // MARK: - The session
@@ -524,7 +524,7 @@ final class AllInOneIMEInputController: IMKInputController {
     func handleFlagsChanged(_ event: NSEvent, client: IMKTextInput?) {
         // Chromium and Electron apps (Slack, VS Code, Chrome) hand every modifier change over twice, the same event,
         // after the next change too when the page is busy: the copy changes nothing, for the session's composer (a tap
-        // of Shift or ⌥) and its long press of Shift (the chooser) alike.
+        // of Shift or ⌥) and its long press of Shift (Translate as You Type) alike.
         guard !Self.modifierEchoes.isEcho(keyCode: event.keyCode, flags: event.modifierFlags.rawValue,
                                           timestamp: event.timestamp, now: ProcessInfo.processInfo.systemUptime) else {
             // Each copy dropped, how long after the event's time it came (`log stream --level debug --predicate
@@ -551,7 +551,7 @@ final class AllInOneIMEInputController: IMKInputController {
             if missing.isEmpty { break }
             read(missing, of: target, into: &context)
         }
-        // The session times a long press of Shift itself: its chooser of Translate as You Type and coding mode.
+        // The session times a long press of Shift itself: Translate as You Type on or off (not in Code).
         apply(session.handle(.modifiers(change, context)).outputs, client: client)
     }
 
@@ -724,6 +724,8 @@ final class AllInOneIMEInputController: IMKInputController {
                 }
             case .keyboardLayout:
                 applyKeyboardLayout(client: target)
+                // The menu bar icon shows Code's mark while the field being typed in is in Code.
+                if Self.activeController === self { MenuBarIcon.shared.setCode(composer.coding ? composer.messages.codeMode : nil) }
             case let .readField(id):
                 readFieldAfterPause(id: id, in: target)
             case let .ghost(text):

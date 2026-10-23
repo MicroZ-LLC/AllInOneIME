@@ -64,10 +64,19 @@ enum AppProfileSamples {
 enum AppProfileText {
     static func inputName(_ language: Language) -> String { SessionText.inputName(language, language: UIText.language) }
 
-    /// "Starts in English · Rewrites: Formal · Typed out · No AI"; "Same as everywhere" when it sets nothing.
-    static func summary(_ profile: AppProfile) -> String {
+    /// An input as the settings name it: a language, or Code with `config`'s coding language ("Code (Python)").
+    static func inputName(_ input: Input, _ config: Config) -> String {
+        SessionText.inputName(input, language: UIText.language, coding: config.codingLanguage.map { CodingLanguagePack.title(of: $0) })
+    }
+
+    /// "Starts in English · Rewrites: Formal · Typed out · No AI"; "Same as everywhere" when it sets nothing. Code is named
+    /// with `config`'s coding language.
+    static func summary(_ profile: AppProfile, config: Config = LiveConfig.current) -> String {
         var parts: [String] = []
-        if let language = profile.inputLanguage { parts.append(tr("用\(inputName(language))开始", "Starts in \(inputName(language))")) }
+        if let input = profile.startingInput {
+            let name = inputName(input, config)
+            parts.append(tr("用\(name)开始", "Starts in \(name)"))
+        }
         if let names = profile.rewriteStyles {
             let styles = RewriteStyle.resolve(names).map(UIText.name)
             parts.append(tr("改写：", "Rewrites: ") + (styles.isEmpty ? tr("无", "none") : styles.joined(separator: tr("、", ", "))))
@@ -177,18 +186,20 @@ struct AppProfilesSection: View {
                 Image(nsImage: AppNames.icon(for: app, size: 32)).accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(AppNames.name(for: app)).font(.body.weight(.medium))
-                    Text(AppProfileText.summary(profile)).font(.callout).foregroundStyle(.secondary).lineLimit(2)
+                    Text(AppProfileText.summary(profile, config: model.config)).font(.callout).foregroundStyle(.secondary).lineLimit(2)
                 }
                 Spacer()
                 Button(tr("移除", "Remove")) { model.removeProfile(app) }
             }
+            // The inputs: the languages, then Code where it's among them (decision 22); one no longer there, as it is.
             Picker(tr("开始的输入语言", "Starts in"), selection: Binding(
-                get: { profile.inputLanguage },
-                set: { language in model.changeProfile(app) { $0.inputLanguage = language } })) {
+                get: { profile.startingInput },
+                set: { input in model.changeProfile(app) { $0.startingInput = input } })) {
                 Text(tr("跟全局一样（\(AppProfileText.inputName(model.config.defaultInput))）",
-                        "Same as everywhere (\(AppProfileText.inputName(model.config.defaultInput)))")).tag(Language?.none)
-                ForEach(model.config.inputLanguages, id: \.self) { language in
-                    Text(AppProfileText.inputName(language)).tag(Language?.some(language))
+                        "Same as everywhere (\(AppProfileText.inputName(model.config.defaultInput)))")).tag(Input?.none)
+                ForEach(model.config.inputs + (profile.startingInput.map { model.config.inputs.contains($0) ? [] : [$0] } ?? []),
+                        id: \.self) { input in
+                    Text(AppProfileText.inputName(input, model.config)).tag(Input?.some(input))
                 }
             }
             LabeledContent(tr("改写风格", "Rewrite styles")) { stylesMenu(app, profile) }
@@ -233,8 +244,8 @@ struct AppProfilesSection: View {
             } label: {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(tr("建议", "Suggestions"))
-                    Text(tr("插件的补全（比如 #12 → GitHub issue）和编码模式的关键字、代码片段，按 Tab 插入。关掉后这个 App 里不列出。",
-                            "Plugins' completions (#12 → a GitHub issue, say) and coding mode's keywords and snippets, Tab inserts. Off: none in this app."))
+                    Text(tr("插件的补全（比如 #12 → GitHub issue）和代码输入的关键字、代码片段，按 Tab 插入。关掉后这个 App 里不列出。",
+                            "Plugins' completions (#12 → a GitHub issue, say) and Code's keywords and snippets, Tab inserts. Off: none in this app."))
                         .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -308,9 +319,9 @@ extension AllInOneIMEInputController {
         menu.addItem(note)
         let everywhere = AppProfileText.inputName(current.defaultInput)
         add(tr("跟全局一样（\(everywhere)）", "Same as Everywhere (\(everywhere))"),
-            #selector(setAppInput(_:)), on: profile.inputLanguage == nil)
-        for language in current.inputLanguages {
-            add(AppProfileText.inputName(language), #selector(setAppInput(_:)), value: language.rawValue, on: profile.inputLanguage == language)
+            #selector(setAppInput(_:)), on: profile.startingInput == nil)
+        for input in current.inputs {
+            add(AppProfileText.inputName(input, current), #selector(setAppInput(_:)), value: input.rawValue, on: profile.startingInput == input)
         }
         menu.addItem(.separator())
         let settings = NSMenuItem(title: tr("按 App 设置…", "Per-App Settings…"), action: #selector(showAppSettings(_:)), keyEquivalent: "")
@@ -368,7 +379,7 @@ extension AllInOneIMEInputController {
 
     @objc func setAppInput(_ sender: Any?) {
         MainActor.assumeIsolated {
-            changeAppProfile(sender, "starting input") { profile, _, value in profile.inputLanguage = Language(rawValue: value) }
+            changeAppProfile(sender, "starting input") { profile, _, value in profile.startingInput = Input(rawValue: value) }
         }
     }
 

@@ -89,7 +89,6 @@ extension SelfTest {
         // chip to go off, no chip, no notice up (its timer cancelled), the language picked last as it was.
         defer {
             TranslateModeShared.state = TranslateMode.State()
-            SuggestionsShared.codingMode = false
             TranslateModeShared.chipToken += 1
             (TranslateModeShared.listOpen, TranslateModeShared.toldSecureInput) = (false, false)
             controller.perform(controller.composer.setTranslateMode(nil), client: client)
@@ -131,51 +130,56 @@ extension SelfTest {
             type(pinyin, controller, client)
             _ = space(controller, client)
         }
-        /// Shift held on its own until the chooser opens (the session's), then 1 (Translate as You Type) chosen: whether the
-        /// chooser opened, and whether the mode turned on or off.
-        func longPress() -> (opened: Bool, toggled: Bool) {
+        /// Shift held on its own until the mode turns on or off (the session times it, as in 0.6.6: no chooser): whether the
+        /// hint was `hint` first.
+        func longPress(hint: String) -> (hinted: Bool, toggled: Bool) {
             let was = TranslateModeShared.state.isOn
             shift(true)
-            let opened = pump(timeout: 1.6) { chooserIsOpen(controller) }
+            let hinted = pump(timeout: 0.9) { controller.notice == hint }
+            let toggled = pump(timeout: 1.5) { TranslateModeShared.state.isOn != was }
             shift(false)
-            if opened { press(controller, client, "1", code: 0x12) }
-            let toggled = pump(timeout: 0.5) { TranslateModeShared.state.isOn != was }
-            return (opened, toggled)
+            return (hinted, toggled)
         }
+        let (onHint, offHint) = (tr("继续按住 → 边打边译", "Keep holding → Translate as You Type"),
+                                 tr("继续按住 → 关闭边打边译", "Keep holding → Translate as You Type off"))
 
-        // Off: no @ command for it; Shift with a letter (a capital) held long opens no chooser, toggles nothing.
+        // Off: no @ command for it; Shift with a letter (a capital) held long toggles nothing.
         check(!controller.composer.commands.contains { $0.name == "mode" || $0.name == "exit" }, "no @mode or @exit")
         shift(true)
         press(controller, client, "A", code: 0x00, flags: .shift)
-        let capitalOpened = pump(timeout: 1.3) { chooserIsOpen(controller) }
+        _ = pump(timeout: 1.3) { false }
         shift(false)
-        check(!capitalOpened && !TranslateModeShared.state.isOn, "Shift held with a letter (a capital) opens no chooser, toggles nothing")
+        check(!TranslateModeShared.state.isOn, "Shift held with a letter (a capital) doesn't turn it on")
         controller.commitComposition(client)
         controller.composer.setInputMode(.chinese)
         client.inserted.removeAll()
-        // A press given up short of a second: no chooser.
+        // A press given up after its hint: the hint goes at once, Shift let go or a letter typed.
         shift(true)
-        _ = pump(timeout: 0.5) { false }
+        let letGo = pump(timeout: 0.9) { controller.notice == onHint }
         shift(false)
-        let short = pump(timeout: 0.8) { chooserIsOpen(controller) }
-        check(!short && !TranslateModeShared.state.isOn, "Shift let go after half a second: no chooser, nothing turns on")
+        check(letGo && controller.notice == nil, "Shift let go after the hint: the hint goes at once (\(controller.notice ?? "none"))")
+        shift(true)
+        let capital = pump(timeout: 0.9) { controller.notice == onHint }
+        press(controller, client, "A", code: 0x00, flags: .shift)
+        check(capital && controller.notice != onHint, "…a letter typed then: the hint goes at once (\(controller.notice ?? "none"))")
+        _ = pump(timeout: 0.7) { TranslateModeShared.state.isOn }
+        shift(false)
+        check(!TranslateModeShared.state.isOn, "…and nothing turns on")
         controller.commitComposition(client)
         controller.composer.setInputMode(.chinese)
         client.inserted.removeAll()
 
-        // A long press of Shift: the chooser; 1 turns it on.
+        // A long press of Shift: the hint, then on, at once (no chooser: nothing to pick, the panel shows no rows).
         shift(true)
-        let opened = pump(timeout: 1.6) { chooserIsOpen(controller) }
-        check(opened && !TranslateModeShared.state.isOn,
-              "a long press of Shift opens the chooser at about 1 s: \(controller.session.panelModel().rows.map(\.text))")
-        snapshot("suggestions-chooser", in: snapshotDirectory)
+        let hinted = pump(timeout: 0.9) { controller.notice == onHint }
+        check(hinted && !TranslateModeShared.state.isOn, "a long press of Shift: \(controller.notice ?? "no hint") at about 0.5 s")
+        let on = pump(timeout: 1.5) { TranslateModeShared.state.isOn }
         shift(false)
-        press(controller, client, "1", code: 0x12)
-        let on = pump(timeout: 0.5) { TranslateModeShared.state.isOn }
         check(on && controller.composer.translateMode?.target == .english
               && controller.notice == tr("边打边译 已开启：中文 → 英文 · 再长按 Shift 关闭", "Translate as You Type on: Chinese → English · hold Shift again to turn off")
-              && controller.composer.inputLanguage == .chinese && MenuBarIcon.shared.translating,
-              "…1 chosen, it's on (\(controller.notice ?? "-")), the menu bar badge shown, the input language not switched")
+              && controller.composer.inputLanguage == .chinese && MenuBarIcon.shared.translating
+              && controller.session.panelModel().rows.isEmpty,
+              "…at 1.0 s it's on (\(controller.notice ?? "-")), no chooser, the menu bar badge shown, the input language not switched")
         check(pump(timeout: 2.2) { controller.notice == nil }, "…its notice up about 1.5 s")
         // A tap of Shift still switches the input language.
         tapShift(controller, client)
@@ -293,16 +297,16 @@ extension SelfTest {
         _ = escape(controller, client)
         check(pump(timeout: 1) { chip() == zhJa && panel.view.model.rows.isEmpty }, "…the chip alone again (\(chip()))")
 
-        // A long press again, 1: off, the chip gone.
-        let off = longPress()
-        check(off.opened && off.toggled && controller.composer.translateMode == nil && !MenuBarIcon.shared.translating
+        // A long press again: off, the chip gone.
+        let off = longPress(hint: offHint)
+        check(off.hinted && off.toggled && controller.composer.translateMode == nil && !MenuBarIcon.shared.translating
               && controller.notice == tr("边打边译 已关闭", "Translate as You Type off") && panel.view.model.chip == nil,
-              "a long press again and 1 turn it off, the chip gone: \(controller.notice ?? "-")")
+              "a long press again turns it off, the chip gone: \(controller.notice ?? "-")")
         draft("nihao")
         check(client.inserted.last == "你好" && client.marked.isEmpty, "off: words go straight in again")
 
         // On again: into the language picked last, the notice naming it.
-        let again = longPress()
+        let again = longPress(hint: onHint)
         check(again.toggled && controller.composer.translateMode?.target == japanese
               && controller.notice == tr("边打边译 已开启：中文 → 日语 · 再长按 Shift 关闭", "Translate as You Type on: Chinese → Japanese · hold Shift again to turn off"),
               "on again: into the last pick, \(controller.notice ?? "-")")
@@ -317,32 +321,32 @@ extension SelfTest {
               && chip() == zhEn && MenuBarIcon.shared.translating,
               "the target removed while it's on: into English at once, the chip following (\(chip()))")
         _ = escape(controller, client)
-        _ = longPress()
+        _ = longPress(hint: offHint)
         // Japanese no longer offered: the first again. Turned on while English is typed: still into English.
         tapShift(controller, client)
-        let english = longPress()
+        let english = longPress(hint: onHint)
         check(english.toggled && controller.composer.translateMode?.target == .english && controller.composer.inputLanguage == .english
               && controller.notice == tr("边打边译 已开启：中文 → 英文 · 再长按 Shift 关闭", "Translate as You Type on: Chinese → English · hold Shift again to turn off"),
               "a pick no longer offered: the first output language; English typed doesn't change it (\(controller.notice ?? "-"))")
         check(!press(controller, client, "o", code: 0x1F) && client.marked.isEmpty, "…and English goes in as typed")
         tapShift(controller, client)
-        _ = longPress()
+        _ = longPress(hint: offHint)
 
         // Another app active with no text field in it (Finder, `watchApps`): off at once, the draft in as typed, the chip
-        // and the menu bar badge gone, no notice; a press of Shift held then ends, its hint gone, and opens no chooser.
+        // and the menu bar badge gone, no notice; a press of Shift held then ends, its hint gone, and turns nothing on.
         controller.toggleTranslateMode()
         endNotice()
         draft("nihao")
         shift(true)
-        _ = pump(timeout: 0.6) { false }  // the hint's time
+        let holding = pump(timeout: 0.9) { controller.notice == offHint }
         AllInOneIMEInputController.otherAppActivated("com.apple.finder")
-        check(!TranslateModeShared.state.isOn && controller.composer.translateMode == nil && client.inserted.last == "你好"
+        check(holding && !TranslateModeShared.state.isOn && controller.composer.translateMode == nil && client.inserted.last == "你好"
               && client.marked.isEmpty && ["hidden", "none"].contains(chip()) && !MenuBarIcon.shared.translating
               && controller.notice == nil,
               "Finder active: off, the draft in as typed (\(client.inserted.last ?? "-")), no chip (\(chip())), no badge, no notice (\(controller.notice ?? "none"))")
-        let later = pump(timeout: 0.7) { chooserIsOpen(controller) }  // past the chooser's time, Shift still held
+        let later = pump(timeout: 0.7) { TranslateModeShared.state.isOn }  // past the long press's time, Shift still held
         shift(false)
-        check(!later && !TranslateModeShared.state.isOn, "…the press of Shift held then opens no chooser later")
+        check(!later, "…the press of Shift held then turns nothing on later")
         let (own, other) = (ProcessInfo.processInfo.processIdentifier, pid_t(1))
         check(TranslateModeShared.isOtherApp(pid: other, id: "com.apple.finder", frontmost: other)
               && !TranslateModeShared.isOtherApp(pid: own, id: Bundle.main.bundleIdentifier, frontmost: own)
@@ -368,11 +372,9 @@ extension SelfTest {
             return renameTold ? nil : messages.renamed(old: "reply", new: "myreply")
         }
         client.bundleIDOverride = mail
-        SuggestionsShared.codingMode = true
         controller.activateServer(client)
         controller.services.takeRenameNotice = renames
         check(TranslateModeShared.state.isOn && controller.composer.translateMode?.target == .english, "an app that translates always turns it on")
-        check(!SuggestionsShared.codingMode && !MenuBarIcon.shared.coding, "…and coding mode off (they're exclusive)")
         let renamed = controller.composer.messages.reply.renamed(old: "reply", new: "myreply")
         check(renameTold && controller.notice == renamed, "…a rename told then is the notice up (\(controller.notice ?? "none"))")
         endNotice()

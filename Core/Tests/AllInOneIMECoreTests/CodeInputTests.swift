@@ -242,6 +242,58 @@ struct CodeInputTests {
         #expect(ICloudSync.values(of: config, in: [.settings])["codingLanguage"] == nil)
     }
 
+    /// The settings document (Windows' Settings app) has Code in Input after the languages, a field of its own: not
+    /// added, or one of the library's coding languages; a language whose pack isn't installed says so; removing the pack
+    /// of Code's language removes Code too. An app may start in Code there. Windows says its engine doesn't type in Code
+    /// yet.
+    @Test func theSettingsDocumentHasCodeInInput() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("code-input-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let plugins = folder.appendingPathComponent("plugins", isDirectory: true)
+        try FileManager.default.createDirectory(at: plugins, withIntermediateDirectories: true)
+        let url = folder.appendingPathComponent("config.json")
+        try Data(#"{"inputLanguages": ["zh", "en"], "appProfiles": {"com.apple.mail": {"typeOut": true}}}"#.utf8).write(to: url)
+        let service = SettingsService(store: SettingsStore(configURL: url), platform: .mac, library: PluginLibrary(directory: plugins),
+                                      secrets: .inMemory())
+        try await withInterfaceLanguage("en") {
+            let input = try #require(service.document().sections.first { $0.id == "input" }).fields.map(\.id)
+            #expect(input.firstIndex(of: "codingLanguage") == input.firstIndex(of: "inputLanguages").map { $0 + 1 }
+                    && input.contains("code.installed") && input.contains("code.library"), "\(input)")
+            #expect(!service.document().sections.contains { $0.id == "codingLanguages" })
+            let code = try #require(service.document().field("codingLanguage"))
+            #expect(code.kind == .choice && code.value == nil && code.label == "Code")
+            #expect(code.choices?.map(\.label) == ["Not added", "Python", "Java", "Go", "TypeScript", "JavaScript", "C", "C++"])
+            let languages = service.document().field("inputLanguages")?.choices?.map(\.label) ?? []
+            #expect(!languages.isEmpty && !languages.contains("Code"), "never a language: \(languages)")
+
+            #expect((try? service.set("codingLanguage", to: .string("java")).get()) != nil)
+            #expect(try Config.load(from: url).codingLanguage == "java")
+            #expect(service.document().field("codingLanguage")?.status
+                    == "The Java pack isn't installed: Code can be typed once it is (from the coding language library below).")
+            try CodingPackStore(directory: folder.appendingPathComponent("CodingPacks", isDirectory: true))
+                .keep(Data(contentsOf: SuggestionsCodingPacksTests.folder.appendingPathComponent("java.json")), language: "java")
+            #expect((try? service.set("codingLanguage", to: .string("java")).get()) != nil)
+            #expect(service.document().field("codingLanguage")?.status == nil)
+            #expect(service.document().field("code.installed")?.items?.map(\.id) == ["java"])
+
+            let starts = try #require(service.document().field("apps.com.apple.mail.inputLanguage"))
+            let labels = starts.choices?.map(\.label) ?? []
+            #expect(starts.choices?.contains { $0.value == .string("code") && $0.label == "Code (Java)" } == true, "\(labels)")
+            #expect((try? service.set("apps.com.apple.mail.inputLanguage", to: .string("code")).get()) != nil)
+            #expect(try Config.load(from: url).profile(for: "com.apple.mail")?.startingInput == .code)
+        }
+        let removed = await service.perform(SettingsAction(field: "code.installed", name: SettingsAction.remove, item: "java"))
+        #expect((try? removed.get()) != nil)
+        #expect(try Config.load(from: url).codingLanguage == nil, "Code goes with its pack")
+        await withInterfaceLanguage("en") {
+            #expect(service.document().field("codingLanguage")?.value == nil)
+
+            let windows = SettingsService(store: SettingsStore(configURL: url), platform: .windows, library: PluginLibrary(directory: plugins),
+                                          secrets: .inMemory())
+            #expect(windows.document().field("codingLanguage")?.help == "Windows doesn't type in Code yet: what you set here is kept for when it does.")
+        }
+    }
+
     // MARK: - The long press of Shift
 
     /// A long press of Shift turns Translate as You Type on, another turns it off, as in 0.6.6: no chooser (no rows, no

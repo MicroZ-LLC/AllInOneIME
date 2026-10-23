@@ -8352,7 +8352,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Une saisie après les langues, à une pression de Maj : vous tapez des lettres, et les lignes sous le curseur proposent les mots-clés et extraits de ce langage de programmation et les mots déjà dans le champ ; %@ ou Tab insère."
+            "value" : "Une saisie après les langues, à une pression de Maj : vous tapez des lettres, et les lignes sous le curseur proposent les mots-clés et extraits de ce langage de programmation et les mots déjà dans le champ ; %@ ou Tab insère."
           }
         },
         "ja" : {
@@ -27095,7 +27095,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Complétions des plug-ins (#12 liste des issues GitHub, par exemple ; celles de chaque plug-in s’activent dans Plug-ins) et mots-clés et extraits de la saisie Code (voir Saisie) : quelques lignes sous le curseur, Tab insère. Une app peut les désactiver dans Apps."
+            "value" : "Complétions des plug-ins (#12 liste des issues GitHub, par exemple ; celles de chaque plug-in s’activent dans Plug-ins) et mots-clés et extraits de la saisie Code (voir Saisie) : quelques lignes sous le curseur, Tab insère. Une app peut les désactiver dans Apps."
           }
         },
         "ja" : {
@@ -27142,7 +27142,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Complétions des plug-ins (#12 liste des issues GitHub, par exemple ; celles de chaque plug-in s’activent dans Plug-ins) et mots-clés et extraits de la saisie Code (voir Saisie) : quelques lignes sous le curseur, Tab insère. Le même interrupteur que Suggestions dans le menu de saisie ; une app peut les désactiver dans Apps."
+            "value" : "Complétions des plug-ins (#12 liste des issues GitHub, par exemple ; celles de chaque plug-in s’activent dans Plug-ins) et mots-clés et extraits de la saisie Code (voir Saisie) : quelques lignes sous le curseur, Tab insère. Le même interrupteur que Suggestions dans le menu de saisie ; une app peut les désactiver dans Apps."
           }
         },
         "ja" : {
@@ -36254,7 +36254,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Les suggestions sont désactivées, Code n’affiche donc aucune ligne : activez-les dans Général."
+            "value" : "Les suggestions sont désactivées, Code n’affiche donc aucune ligne : activez-les dans Général."
           }
         },
         "ja" : {
@@ -37621,7 +37621,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Le paquet %@ n’est pas installé : Code se saisit une fois qu’il l’est (depuis la bibliothèque de langages de programmation ci-dessous)."
+            "value" : "Le paquet %@ n’est pas installé : Code se saisit une fois qu’il l’est (depuis la bibliothèque de langages de programmation ci-dessous)."
           }
         },
         "ja" : {
@@ -43270,7 +43270,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Windows ne saisit pas encore en Code : ce que vous réglez ici est conservé pour plus tard."
+            "value" : "Windows ne saisit pas encore en Code : ce que vous réglez ici est conservé pour plus tard."
           }
         },
         "ja" : {

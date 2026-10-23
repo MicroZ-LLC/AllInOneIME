@@ -220,6 +220,8 @@ enum SettingsPageImages {
         // Fuzzy pinyin shown on, with its pairs (the model saves nothing).
         if !model.config.inputLanguages.contains(.chinese) { model.config.setOrder(model.config.inputLanguages + [.chinese]) }
         if model.config.fuzzyPinyin.isEmpty { model.config.fuzzyPinyin = SettingsModel.fuzzyDefaults }
+        // Code shown added, in Python (the model saves nothing).
+        if model.config.codingLanguage == nil { model.config.codingLanguage = "python" }
         // Settings → Apps with sample apps, never the user's own (the images go into docs and release notes).
         model.config.appProfiles = AppProfileSamples.profiles
         // Hiding sensitive information shown on, with its switches and sample words, never the user's own.

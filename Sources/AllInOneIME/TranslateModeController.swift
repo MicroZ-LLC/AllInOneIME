@@ -3,8 +3,8 @@ import AppKit
 import InputMethodKit
 
 /// Translate as You Type (「边打边译」, `TranslateMode`) for the whole input method: on or off for every text field (IMK
-/// makes a controller per field; the session's chooser, which a long press of Shift opens, turns it on and off:
-/// `setTranslateMode`), and the language picked last on its chip.
+/// makes a controller per field; the session's long press of Shift turns it on and off: `setTranslateMode`), and the
+/// language picked last on its chip.
 @MainActor
 enum TranslateModeShared {
     /// How long the notice of turning it on or off stays up.
@@ -15,7 +15,7 @@ enum TranslateModeShared {
     /// self-test supplies its own).
     static var pointer: () -> CGPoint = { NSEvent.mouseLocation }
     /// Whether Shift is still down, with no mouse button, when the long press's time comes (`SuggestionsServices.shiftHeld`:
-    /// a release that went unseen opens no chooser; the self-test supplies its own).
+    /// a release that went unseen turns nothing on or off; the self-test supplies its own).
     static var shiftHeld: () -> Bool = { NSEvent.modifierFlags.contains(.shift) && NSEvent.pressedMouseButtons == 0 }
     /// Whether Shift is down now, as a text field takes the focus (`SuggestionsServices.shiftDown`: its release, or its
     /// press, may have gone to the field before).

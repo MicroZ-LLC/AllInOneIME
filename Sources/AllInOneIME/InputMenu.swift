@@ -45,7 +45,9 @@ extension AllInOneIMEInputController {
         outputItem.submenu = outputs
         menu.addItem(outputItem)
 
-        let inputNames = current.inputLanguages.map { SessionText.inputName($0, language: UIText.language) }
+        // The inputs: the languages, then Code ("Code (Python)", its item added by `addingCode`).
+        let coding = current.codingLanguage.map { CodingLanguagePack.title(of: $0) }
+        let inputNames = current.inputs.map { SessionText.inputName($0, language: UIText.language, coding: coding) }
         let inputItem = NSMenuItem(title: tr("输入：", "Input: ") + inputNames.joined(separator: " + "),
                                    action: nil, keyEquivalent: "")
         let inputs = NSMenu()
@@ -62,7 +64,7 @@ extension AllInOneIMEInputController {
             inputs.addItem(item)
         }
         inputs.addItem(.separator())
-        if current.inputLanguages.count > 1 {
+        if current.inputs.count > 1 {
             let shiftNote = NSMenuItem(title: tr("✓ 是默认；Shift 切换", "✓ is the default; Shift switches"), action: nil, keyEquivalent: "")
             shiftNote.isEnabled = false
             inputs.addItem(shiftNote)
@@ -261,6 +263,67 @@ extension AllInOneIMEInputController {
                 applySettings()
             } catch {
                 log.error("could not update the default input: \(String(describing: error), privacy: .public)")
+            }
+        }
+    }
+
+    /// `menu` (`makeMenu`'s) with Code in its inputs' submenu, after the languages and apart from them (decision 22):
+    /// named with its coding language ("Code (Python)"), which its submenu changes (one whose pack isn't installed
+    /// downloads it first, `CodingPackManager.pick`). Nothing without Code.
+    @MainActor
+    func addingCode(to menu: NSMenu) -> NSMenu {
+        let config = LiveConfig.currentIfValid
+        let current = config ?? .default
+        guard let coding = current.codingLanguage,
+              let inputs = menu.items.lazy.compactMap(\.submenu).first(where: { $0.items.contains { $0.action == #selector(setDefaultInput(_:)) } }),
+              let last = inputs.items.lastIndex(where: { $0.action == #selector(setDefaultInput(_:)) }) else { return menu }
+        let code = NSMenuItem(title: AppProfileText.inputName(.code, current), action: nil, keyEquivalent: "")
+        code.image = NSImage(systemSymbolName: "curlybraces", accessibilityDescription: nil)
+        let languages = NSMenu()
+        let packs = CodingPackManager.shared
+        for offered in CodeInputSettings.languages(current, installed: packs.installed) {
+            let installed = packs.installed.contains { $0.language == offered.language }
+            let item = NSMenuItem(title: offered.title + (installed ? "" : tr("（下载语言包）", " (downloads a language pack)")),
+                                  action: #selector(setCodingLanguage(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = offered.language
+            item.state = offered.language == coding ? .on : .off
+            item.isEnabled = config != nil && !packs.isDownloading(offered.language)
+            languages.addItem(item)
+        }
+        code.submenu = languages
+        // After the languages' separator, with one of its own.
+        inputs.insertItem(code, at: last + 2)
+        inputs.insertItem(.separator(), at: last + 3)
+        return menu
+    }
+
+    /// Code's coding language picked in the input menu: Code's at once where its pack is installed, else once the pack has
+    /// downloaded (`CodingPackManager.pick`); written to the config file, the field takes it at once.
+    @objc func setCodingLanguage(_ sender: Any?) {
+        MainActor.assumeIsolated {
+            guard let language = Self.menuItem(from: sender)?.representedObject as? String else {
+                log.error("input menu action without a coding language")
+                return
+            }
+            let packs = CodingPackManager.shared
+            if !packs.installed.contains(where: { $0.language == language }) {
+                // Its progress and any failure in Settings → Input, as an input language's.
+                let title = CodingLanguagePack.title(of: language)
+                showNotice(tr("正在下载 \(title) 编程语言包，好了就切到代码（\(title)）", "Downloading the \(title) coding pack: Code is in \(title) once it's in"),
+                           client: nil)
+            }
+            packs.pick(language) { language in
+                do {
+                    var config = try Config.load()
+                    config.codingLanguage = language
+                    try config.write()
+                    NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
+                    log.notice("Code's language now \(language, privacy: .public)")
+                    AllInOneIMEInputController.activeController?.applySettings()
+                } catch {
+                    log.error("could not change Code's language: \(String(describing: error), privacy: .public)")
+                }
             }
         }
     }
