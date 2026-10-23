@@ -130,6 +130,10 @@ final class AllInOneIMEInputController: IMKInputController {
     /// The self-test's say whether the field is a password field, as autocomplete's read asks Accessibility
     /// (`passwordFieldByAccessibility`): its harness field is never the one focused. Nil: Accessibility's.
     var passwordField: (@MainActor () -> Bool)?
+    /// The field's frame the suggestion is cut at (`placeGhost`), asked once a suggestion (nil: not yet; .some(nil): not
+    /// known); the self-test's own (`fieldFrame`: its harness field isn't the one focused), else Accessibility's.
+    var ghostField: NSRect??
+    var fieldFrame: (@MainActor () -> NSRect?)?
 
     static let notFound = NSRange(location: NSNotFound, length: NSNotFound)
 

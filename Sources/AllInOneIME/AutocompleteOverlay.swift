@@ -1,9 +1,11 @@
 import AllInOneIMECore
+import AllInOneIMEMac
 import AppKit
 import InputMethodKit
 
 /// Autocomplete's suggestion (`SessionOutput.ghost`, the core's `Autocomplete`) after the caret: gray text in a window of
-/// its own, as tall as the caret's line, its text about the field's size, a small Tab key after it. It takes no clicks;
+/// its own, as tall as the caret's line, its text about the field's size, a small Tab key after it, cut at the field's
+/// edge where Accessibility tells its frame (`FocusedField.frame`). It takes no clicks;
 /// a click or the wheel anywhere takes it down (the session sees the pointer used, `SessionServices.pointerUsedWithin`,
 /// and ends the suggestion at the next key). Where the field tells no caret rect, the suggestion is a line of the
 /// candidate panel instead (`PanelModel.autocomplete`).
@@ -43,17 +45,13 @@ final class GhostOverlay: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 
-    /// `text` right after `caret` (a rect on the screen, as tall as its line), cut at the screen's edge.
-    func show(_ text: String, caret: NSRect) {
+    /// `text` right after `caret` (a rect on the screen, as tall as its line), cut at the screen's edge and at the field's
+    /// (`field`, its frame where it is known: `GhostPlacement`).
+    func show(_ text: String, caret: NSRect, field: NSRect? = nil) {
         ghost.text = text
         ghost.fontSize = Self.fontSize(lineHeight: caret.height)
-        let size = ghost.fittingSize
         let screen = NSScreen.screens.first { $0.frame.contains(NSPoint(x: caret.minX, y: caret.midY)) } ?? NSScreen.main
-        let right = screen?.visibleFrame.maxX ?? caret.maxX + size.width
-        let x = caret.maxX + 1
-        let width = max(min(size.width, right - x), 24)
-        let height = max(caret.height, size.height)
-        setFrame(NSRect(x: x, y: caret.midY - height / 2, width: width, height: height), display: true)
+        setFrame(GhostPlacement.frame(size: ghost.fittingSize, caret: caret, visible: screen?.visibleFrame, field: field), display: true)
         ghost.needsDisplay = true
         alphaValue = Self.invisible ? 0 : 1
         orderFrontRegardless()
@@ -368,13 +366,15 @@ extension AllInOneIMEInputController {
         }
     }
 
-    /// At the caret, where the field tells it; else as a line of the candidate panel.
+    /// At the caret, where the field tells it (cut at the field's edge, its frame asked once a suggestion: as it's typed
+    /// along, the field stays where it is); else as a line of the candidate panel.
     @MainActor
     func placeGhost(_ text: String, in client: IMKTextInput) {
         if let caret = Self.caretRect(client) {
             if ghostInPanel { hidePanelLine() }
+            if ghostField == nil { ghostField = .some(fieldFrame?() ?? FocusedField.frame()) }
             GhostOverlay.shared.owner = self
-            GhostOverlay.shared.show(text, caret: caret)
+            GhostOverlay.shared.show(text, caret: caret, field: ghostField ?? nil)
             return
         }
         GhostOverlay.shared.hide()
@@ -387,6 +387,7 @@ extension AllInOneIMEInputController {
 
     @MainActor
     func hideGhost() {
+        ghostField = nil
         if GhostOverlay.shared.owner === self || GhostOverlay.shared.owner == nil { GhostOverlay.shared.hide() }
         if ghostInPanel { hidePanelLine() }
     }
@@ -398,11 +399,11 @@ extension AllInOneIMEInputController {
         if panel.owner === self, !composer.wantsPanel { panel.hide() }
     }
 
-    /// Whether Accessibility tells the focused element is a password field (`SecureInput.focusedFieldIsSecure`; the
-    /// self-test's harness field, which isn't the one focused, is told by the self-test).
+    /// Whether Accessibility tells the focused element is a password field (`FocusedField.isSecure`; the self-test's
+    /// harness field, which isn't the one focused, is told by the self-test).
     @MainActor
     func passwordFieldByAccessibility() -> Bool {
-        passwordField?() ?? (SecureInput.focusedFieldIsSecure() == true)
+        passwordField?() ?? (FocusedField.isSecure() == true)
     }
 
     /// Where the caret is on the screen (as tall as its line), as the field tells it: nil where it tells none (no caret,
@@ -417,7 +418,7 @@ extension AllInOneIMEInputController {
     }
 
     /// What the field says once autocomplete's pause is over (`SessionOutput.readField`): secure input, a password field
-    /// as Accessibility tells it where secure input isn't on (`SecureInput.focusedFieldIsSecure`: the field marked
+    /// as Accessibility tells it where secure input isn't on (`FocusedField.isSecure`: the field marked
     /// secure), the selection, the text around the caret (nothing of it during secure input or in a password field). Read
     /// once this event is done, and handed back.
     @MainActor

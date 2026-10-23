@@ -276,7 +276,7 @@ extension SelfTest {
             GhostOverlay.shared.hide()
             (settings, controller.services.converter, controller.services.uptime) = (settingsBefore, converterBefore, uptimeBefore)
             (controller.clientOverride, controller.services.secureInputActive) = (overrideBefore, secureBefore)
-            controller.passwordField = nil
+            (controller.passwordField, controller.fieldFrame) = (nil, nil)
             controller.activateServer(client)
             controller.applySettings()
             controller.composer.setInputMode(settings.defaultInput)
@@ -288,8 +288,9 @@ extension SelfTest {
         controller.services.converter = Converter(loadConfig: { modelSettings }, appleModel: model)
         controller.services.uptime = { now }
         controller.services.secureInputActive = { false }
-        // The harness field is never the one focused: Accessibility's answer would be about another app's.
+        // The harness field is never the one focused: Accessibility's answers would be about another app's.
         controller.passwordField = { false }
+        controller.fieldFrame = { nil }
         controller.clientOverride = harness
         controller.activateServer(harness)
         controller.applySettings()
@@ -451,6 +452,19 @@ extension SelfTest {
         (client.caretRect, client.bundleIDOverride, controller.clientOverride) = (caretBefore, nil, harness)
         (client.document, client.selection, client.insertionPoint, client.inserted) = fieldBefore
         controller.activateServer(harness)
+
+        // A narrow field (its frame as Accessibility tells it): the suggestion is cut at its edge, not drawn over what is
+        // beside it.
+        let window = harness.window.frame
+        let narrow = NSRect(x: window.minX, y: window.minY, width: 160, height: window.height)
+        controller.fieldFrame = { narrow }
+        harness.text = "Hello wo"
+        harnessType("r", controller, harness)
+        check(ghost("ld, how are you?") && GhostOverlay.shared.frame.maxX <= narrow.maxX + 0.5
+              && GhostOverlay.shared.frame.minX > AllInOneIMEInputController.caretRect(harness)?.minX ?? .infinity,
+              "a narrow field: cut at its edge (field to \(narrow.maxX), text \(GhostOverlay.shared.frame))")
+        harnessKey(controller, harness, "\u{1B}", code: VirtualKey.escape)
+        controller.fieldFrame = { nil }
 
         testAutocompleteConsentPanel(controller, harness, ghost: { ghost($0) })
 

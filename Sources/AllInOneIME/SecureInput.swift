@@ -42,24 +42,6 @@ enum SecureInput {
         return owner == target
     }
 
-    /// Whether the focused element is a password field as Accessibility tells it (`AXSecureTextField`): one whose app
-    /// doesn't turn secure event input on for it, or not yet (a web page's, a field of the app's own drawing). Nil where it
-    /// can't be told: Accessibility not allowed (never asked for here), nothing focused, no answer within a quarter of a
-    /// second.
-    static func focusedFieldIsSecure() -> Bool? {
-        guard AXIsProcessTrusted() else { return nil }
-        let system = AXUIElementCreateSystemWide()
-        AXUIElementSetMessagingTimeout(system, 0.25)
-        var focused: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(system, kAXFocusedUIElementAttribute as CFString, &focused) == .success,
-              let focused, CFGetTypeID(focused) == AXUIElementGetTypeID() else { return nil }
-        let element = focused as! AXUIElement  // checked just above
-        AXUIElementSetMessagingTimeout(element, 0.25)
-        var subrole: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &subrole) == .success else { return false }
-        return subrole as? String == kAXSecureTextFieldSubrole as String
-    }
-
     static func ownerDescription() -> String {
         guard let pid = ownerPID() else { return "off" }
         let name = pid > 0 ? NSRunningApplication(processIdentifier: pid)?.bundleIdentifier ?? "pid \(pid)" : "unknown"
