@@ -25,6 +25,8 @@ final class PanelStandIns {
     var monitorWatching = false
     /// Autocomplete's switch, as the panel turns it (nothing is written).
     var autocomplete = false
+    /// The command trigger the settings would have.
+    var commandTrigger = "@"
     let defaults = MemoryKeyValueStore()
 
     /// `transcriptReads`: the transcripts read (not those the panel already read as they are).
@@ -91,6 +93,7 @@ final class PanelStandIns {
             return on
         }
         sources.autocompleteSummary = { nil }
+        sources.commandTrigger = { self.commandTrigger }
         return sources
     }
 
@@ -422,14 +425,20 @@ extension SelfTest {
         stand.defaults.removeValue(forKey: FloatingPanel.dismissedRemindersKey)
         stand.defaults.removeValue(forKey: FloatingPanel.dismissedTasksKey)
 
-        // Nothing at all: the empty states.
+        // Nothing at all: the empty states, their commands named with the settings' trigger (~ here).
         stand.sessions = []
         stand.reminders = []
         stand.defaults.removeValue(forKey: SavedNotesStore.key)
+        stand.commandTrigger = "~"
         panel.refresh()
         check(pump(timeout: 2) { panel.tasks == .list([]) && panel.reminders == .list([]) } && panel.notes.isEmpty
               && panel.counts.isEmpty, "nothing yet: the three empty lines, no counts")
+        let empty = [FloatingPanel.EmptyList.notes, .reminders, .tasks].map { FloatingPanel.emptyLine($0, trigger: panel.commandTrigger) }
+        check(panel.commandTrigger == "~" && empty == ["用 ~note 存的笔记会显示在这里", "用 ~reminder 加的提醒会显示在这里",
+                                                       "用 ~agent 交给 Claude Code 后台的任务会显示在这里"],
+              "the empty lines name the commands with the settings' trigger: \(empty)")
         render("14c-dashboard-empty")  // not in the README
+        stand.commandTrigger = "@"
 
         // Displays changed (one unplugged, the resolution): closed, like a menu.
         post(NSApplication.didChangeScreenParametersNotification)

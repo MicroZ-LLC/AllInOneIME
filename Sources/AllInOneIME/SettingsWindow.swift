@@ -22,6 +22,10 @@ final class SettingsModel: ObservableObject {
     }
     var loadError: String? { store.loadError }
     var saveError: String? { store.saveError }
+
+    /// Interface text that names commands ("@agent", "@ commands") with the command trigger these settings have
+    /// (`UIText.triggered`): drawn again as it changes.
+    func triggered(_ text: String) -> String { UIText.triggered(text, trigger: config.commandTrigger) }
     @Published private(set) var profiles: [String] = []
     @Published private(set) var testStatus: TestStatus = .idle
     /// Where the API key of each provider comes from (refreshed when one is saved), and the last 4 characters kept
@@ -965,14 +969,14 @@ struct SettingsView: View {
             // Commands on the selected text (`Composer.selection`): on by default, off for an app where it misbehaves.
             Toggle(isOn: $model.config.useSelection) {
                 titled(tr("使用选中的文字", "Use the selected text"),
-                       tr("先选中一段文字，再打 @improve、@translate、@question 等命令按 ⏎：命令处理选中的文字（打字时它一直选中、不变），选好的结果替换它；Esc 什么都不改。哪个 App 里不正常就关掉。",
-                          "Select some text, then type @improve, @translate, @question … and ⏎: the command works on the selection (it stays selected and as it is while you type), and the result you pick replaces it; Esc changes nothing. Turn it off if it misbehaves in an app."))
+                       model.triggered(tr("先选中一段文字，再打 @improve、@translate、@question 等命令按 ⏎：命令处理选中的文字（打字时它一直选中、不变），选好的结果替换它；Esc 什么都不改。哪个 App 里不正常就关掉。",
+                          "Select some text, then type @improve, @translate, @question … and ⏎: the command works on the selection (it stays selected and as it is while you type), and the result you pick replaces it; Esc changes nothing. Turn it off if it misbehaves in an app.")))
             }
             // The recent @questions (`QuestionHistory`): kept only on this Mac; off forgets them too.
             Toggle(isOn: Binding(get: { model.config.rememberQuestions }, set: { model.setRememberQuestions($0) })) {
                 titled(tr("记住最近的问题", "Remember recent questions"),
-                       tr("@question 后面不打字就列出最近 \(QuestionHistory.limit) 个问题，选一个马上看到当时的答案（不联网），按 ⌘R 重新问。问题和答案只存在这台 Mac 上（除非在下面选了通过 iCloud 同步）；安全输入时和对选中文字的提问不存。关掉会删掉已存的。",
-                          "@question with nothing after it lists your last \(QuestionHistory.limit) questions; pick one to see its answer again at once (offline), ⌘R asks it again. Questions and answers stay on this Mac (unless you sync them through iCloud, below); nothing is kept during secure input or for questions on selected text. Turning it off deletes them."))
+                       model.triggered(tr("@question 后面不打字就列出最近 \(QuestionHistory.limit) 个问题，选一个马上看到当时的答案（不联网），按 ⌘R 重新问。问题和答案只存在这台 Mac 上（除非在下面选了通过 iCloud 同步）；安全输入时和对选中文字的提问不存。关掉会删掉已存的。",
+                          "@question with nothing after it lists your last \(QuestionHistory.limit) questions; pick one to see its answer again at once (offline), ⌘R asks it again. Questions and answers stay on this Mac (unless you sync them through iCloud, below); nothing is kept during secure input or for questions on selected text. Turning it off deletes them.")))
             }
             .disabled(!model.canSave)
             HStack {
@@ -989,8 +993,8 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .top) {
                     titled(tr("对话接着在哪里聊", "Continue a conversation in"),
-                           tr("@question 聊满 \(QuestionChat.rounds(model.config.questionRounds)) 轮（或随时按 ⌘⏎）后，⌘1、⌘2… 把对话带到这些地方接着聊，拖动排序，第一个是默认。对话会发给你选的服务。",
-                              "After \(QuestionChat.rounds(model.config.questionRounds)) rounds of @question (or ⌘⏎ any time), ⌘1, ⌘2 … take the conversation there; drag to reorder, the first is the default. The conversation goes to the service you pick."))
+                           model.triggered(tr("@question 聊满 \(QuestionChat.rounds(model.config.questionRounds)) 轮（或随时按 ⌘⏎）后，⌘1、⌘2… 把对话带到这些地方接着聊，拖动排序，第一个是默认。对话会发给你选的服务。",
+                              "After \(QuestionChat.rounds(model.config.questionRounds)) rounds of @question (or ⌘⏎ any time), ⌘1, ⌘2 … take the conversation there; drag to reorder, the first is the default. The conversation goes to the service you pick.")))
                     Spacer()
                     let missing = model.missingContinueChoices
                     if !missing.isEmpty {
@@ -1090,10 +1094,10 @@ struct SettingsView: View {
             } label: {
                 titled(tr("候选排列", "Candidate layout"),
                        model.config.candidateLayout == .horizontal
-                       ? tr("选词（拼音、印地语）的候选并排（默认），像系统自带的输入法：← → 选词，↑↓ 或 - = 翻页。@ 命令列表和结果还是竖排。在下一个输入框生效。",
-                            "For picking words (pinyin, Hindi): side by side (the default), like the system's own input methods; ← → choose, ↑↓ or - = turn the page. The @ list and results stay vertical. From the next text field.")
-                       : tr("选词（拼音、印地语）的候选一个一个往下排：↑↓ 选词，- = 翻页。@ 命令列表和结果总是竖排。在下一个输入框生效。",
-                            "For picking words (pinyin, Hindi): one under the other; ↑↓ choose, - = turn the page. The @ list and results are always vertical. From the next text field."))
+                       ? model.triggered(tr("选词（拼音、印地语）的候选并排（默认），像系统自带的输入法：← → 选词，↑↓ 或 - = 翻页。@ 命令列表和结果还是竖排。在下一个输入框生效。",
+                            "For picking words (pinyin, Hindi): side by side (the default), like the system's own input methods; ← → choose, ↑↓ or - = turn the page. The @ list and results stay vertical. From the next text field."))
+                       : model.triggered(tr("选词（拼音、印地语）的候选一个一个往下排：↑↓ 选词，- = 翻页。@ 命令列表和结果总是竖排。在下一个输入框生效。",
+                            "For picking words (pinyin, Hindi): one under the other; ↑↓ choose, - = turn the page. The @ list and results are always vertical. From the next text field.")))
             }
             ForEach(LanguagePack.catalog) { pack in packRow(pack) }
         } header: {
@@ -1139,7 +1143,7 @@ struct SettingsView: View {
                 }
             }
         } header: {
-            SectionTitle(tr("翻译（@translate）", "Translate (@translate)"), icon: CommandIcons.translate)
+            SectionTitle(model.triggered(tr("翻译（@translate）", "Translate (@translate)")), icon: CommandIcons.translate)
         }
         .disabled(!model.canSave)
     }
@@ -1171,11 +1175,11 @@ struct SettingsView: View {
             }
             .disabled(!model.canSave)
             Toggle(isOn: $model.config.improveTranslates) {
-                titled(tr("@improve 同时翻译", "@improve also translates"), inputSummary)
+                titled(model.triggered(tr("@improve 同时翻译", "@improve also translates")), inputSummary)
             }
             .disabled(!model.canSave)
         } header: {
-            SectionTitle(tr("改写风格（@improve）", "Rewrite Styles (@improve)"), icon: CommandIcons.improve)
+            SectionTitle(model.triggered(tr("改写风格（@improve）", "Rewrite Styles (@improve)")), icon: CommandIcons.improve)
         }
     }
 
@@ -1433,8 +1437,8 @@ struct SettingsView: View {
             SectionTitle(tr("语音输入", "Voice Input"), icon: CommandIcons.voice)
         } footer: {
             if VoiceInput.isSupported {
-                Text(tr("中文模式说中文，英文模式说英文。识别出的文字直接上屏，在 @ 命令里就接在命令后面。",
-                        "Speak English in English mode and Chinese in Chinese mode. The text is typed in, or after the @ command you are writing."))
+                Text(model.triggered(tr("中文模式说中文，英文模式说英文。识别出的文字直接上屏，在 @ 命令里就接在命令后面。",
+                        "Speak English in English mode and Chinese in Chinese mode. The text is typed in, or after the @ command you are writing.")))
                     .font(.caption).foregroundStyle(.secondary)
                     .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)  // under the card, from its left
             }
@@ -1500,14 +1504,14 @@ struct SettingsView: View {
                     case let .failed(text): Text("✗ \(text)").foregroundStyle(.red).textSelection(.enabled)
                     }
                 }
-                Text(tr("@search 用 Brave Search 搜网页，用你自己的 API key：Brave 每月送一些免费额度（目前约 1000 次搜索），注册时要绑信用卡。"
+                Text(model.triggered(tr("@search 用 Brave Search 搜网页，用你自己的 API key：Brave 每月送一些免费额度（目前约 1000 次搜索），注册时要绑信用卡。"
                             + "要搜的内容会发给 Brave。key 存在钥匙串里；也可以在 shell 里设置 BRAVE_API_KEY。",
                         "@search searches the web with Brave Search, using your own API key: Brave gives some free credit each month "
                             + "(about 1,000 searches for now); signing up needs a credit card. What you search for is sent to Brave. "
-                            + "The key is kept in the keychain; you can also set BRAVE_API_KEY in your shell."))
+                            + "The key is kept in the keychain; you can also set BRAVE_API_KEY in your shell.")))
                     .font(.caption).foregroundStyle(.secondary)
             } header: {
-                SectionTitle(tr("网页搜索（@search）", "Web Search (@search)"), icon: CommandIcons.webSearch)
+                SectionTitle(model.triggered(tr("网页搜索（@search）", "Web Search (@search)")), icon: CommandIcons.webSearch)
             }
         }
     }
@@ -1582,7 +1586,7 @@ struct SettingsView: View {
                 }
             }
         } header: {
-            SectionTitle(tr("笔记（@note）", "Notes (@note)"), icon: CommandIcons.icon(for: .note))
+            SectionTitle(model.triggered(tr("笔记（@note）", "Notes (@note)")), icon: CommandIcons.icon(for: .note))
         }
         .disabled(!model.canSave)
     }
@@ -1681,7 +1685,7 @@ struct SettingsView: View {
             .overlay(Capsule().strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5))
             .shadow(color: .black.opacity(0.06), radius: 2, y: 1)
             .padding(.horizontal, 12)
-            let shown = SettingsPage.allCases.filter { $0.matches(query) }
+            let shown = SettingsPage.allCases.filter { $0.matches(query, trigger: model.config.commandTrigger) }
             List(selection: Binding(get: { page }, set: { if let new = $0 { page = new } })) {
                 // In groups, like System Settings: what you type with, what it runs, the rest.
                 let groups = SettingsPage.groups.map { $0.filter(shown.contains) }.filter { !$0.isEmpty }
@@ -2450,7 +2454,7 @@ struct SettingsView: View {
                 Button(tr("刷新插件库", "Refresh Library")) { model.refreshLibrary() }.disabled(model.libraryBusy)
             }
             // On the header, which is there whenever an Install or Update button is.
-            .confirmationDialog(pluginToInstall.map { tr("安装 @\($0.name) \($0.version)？", "Install @\($0.name) \($0.version)?") } ?? "",
+            .confirmationDialog(pluginToInstall.map { model.triggered(tr("安装 @\($0.name) \($0.version)？", "Install @\($0.name) \($0.version)?")) } ?? "",
                                 isPresented: Binding(get: { pluginToInstall != nil }, set: { if !$0 { pluginToInstall = nil } })) {
                 Button(tr("安装", "Install")) {
                     if let entry = pluginToInstall { model.install(entry) }
@@ -2519,10 +2523,10 @@ struct SettingsView: View {
         case "prompt": return tr("AI 指令，发给你选的 AI 服务", "An AI instruction, sent to your AI provider")
         case "link":
             let target = entry.url.flatMap { URL(string: $0)?.host } ?? hosts
-            return tr("@\(entry.name) 后面的内容会在浏览器里打开 \(target)", "Opens what you type after @\(entry.name) at \(target) in the browser")
+            return model.triggered(tr("@\(entry.name) 后面的内容会在浏览器里打开 \(target)", "Opens what you type after @\(entry.name) at \(target) in the browser"))
         default:
             return hosts.isEmpty ? tr("不联网", "No network")
-                : tr("@\(entry.name) 后面输入的内容会发到 \(hosts)", "What you type after @\(entry.name) goes to \(hosts)")
+                : model.triggered(tr("@\(entry.name) 后面输入的内容会发到 \(hosts)", "What you type after @\(entry.name) goes to \(hosts)"))
         }
     }
 
@@ -2533,12 +2537,12 @@ struct SettingsView: View {
         case .script:
             let hosts = plugin.manifest.hosts.joined(separator: ", ")
             parts.append(hosts.isEmpty ? tr("不联网", "no network")
-                         : tr("@\(plugin.name) 后面的内容会发到 \(hosts)", "sends the text after @\(plugin.name) to \(hosts)"))
+                         : model.triggered(tr("@\(plugin.name) 后面的内容会发到 \(hosts)", "sends the text after @\(plugin.name) to \(hosts)")))
         case .prompt:
             parts.append(tr("AI 指令，发给你选的 AI 服务", "an AI instruction, sent to your AI provider"))
         case .link:
             let host = plugin.manifest.destinationHosts.joined(separator: ", ")
-            parts.append(tr("@\(plugin.name) 后面的内容会在浏览器里打开 \(host)", "opens \(host) in the browser with the text after @\(plugin.name)"))
+            parts.append(model.triggered(tr("@\(plugin.name) 后面的内容会在浏览器里打开 \(host)", "opens \(host) in the browser with the text after @\(plugin.name)")))
         }
         if plugin.isLocal { parts.append(tr("本地插件（未经审核）", "local (not reviewed)")) }
         return parts.joined(separator: " · ")
@@ -3005,8 +3009,10 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         }
     }
 
-    func matches(_ query: String) -> Bool {
-        let words = query.lowercased().split(whereSeparator: \.isWhitespace)
+    /// Whether the page goes by every word of `query`; a command named with the command trigger (`trigger`: "~agent")
+    /// as its words name it ("@agent").
+    func matches(_ query: String, trigger: String = "@") -> Bool {
+        let words = query.lowercased().replacingOccurrences(of: trigger, with: "@").split(whereSeparator: \.isWhitespace)
         guard !words.isEmpty else { return true }
         let text = (title + " " + keywords).lowercased()
         return words.allSatisfy { text.contains($0) }

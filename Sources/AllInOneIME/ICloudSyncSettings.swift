@@ -52,8 +52,8 @@ struct ICloudSyncSection: View {
                 removeRow(.hiddenWords)
                 Toggle(isOn: binding(\.recentQuestions)) {
                     titled(tr("最近的问题", "Recent questions"),
-                           tr("@question 的问题和答案；只在开了「记住最近的问题」时同步。关掉后已同步的仍留在 iCloud 里，用「从 iCloud 移除…」删掉。",
-                              "@question's questions and answers; only while “Remember recent questions” is on. Turned off, the ones synced stay in iCloud until you remove them."))
+                           model.triggered(tr("@question 的问题和答案；只在开了「记住最近的问题」时同步。关掉后已同步的仍留在 iCloud 里，用「从 iCloud 移除…」删掉。",
+                              "@question's questions and answers; only while “Remember recent questions” is on. Turned off, the ones synced stay in iCloud until you remove them.")))
                 }
                 removeRow(.recentQuestions)
                 let keysRow = Self.keysRow(entitled: Self.entitled)

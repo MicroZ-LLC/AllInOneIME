@@ -464,6 +464,25 @@ enum SelfTest {
         }
     }
 
+    /// The settings window names commands with the trigger its settings have, as soon as it changes (`SettingsModel.
+    /// triggered`), and its search finds a page by a command typed with it. Nothing is saved.
+    static func testCommandTriggerText() {
+        let pickedBefore = UIText.choice
+        defer { UIText.choice = pickedBefore }
+        UIText.choice = "en"
+        let model = SettingsModel(configURL: Config.defaultURL, persists: false)
+        model.config.commandTrigger = "@"
+        let agent = tr("@agent 和 @reply 带上 Chrome 里的网页", "@agent and @reply take the Chrome page along")
+        check(model.triggered(agent) == "@agent and @reply take the Chrome page along", "Settings names commands with @: \(model.triggered(agent))")
+        model.config.commandTrigger = "~"
+        check(model.triggered(agent) == "~agent and ~reply take the Chrome page along"
+              && model.triggered(tr("自定义 @ 命令", "Custom @ Commands")) == "Custom ~ Commands",
+              "…and with ~ once the trigger is ~: \(model.triggered(agent))")
+        check(SettingsPage.agent.matches("~agent", trigger: "~") && SettingsPage.agent.matches("@agent", trigger: "~")
+              && !SettingsPage.general.matches("~agent", trigger: "~") && !SettingsPage.agent.matches("~agent"),
+              "the search finds ~agent's page with ~ the trigger")
+    }
+
     /// The candidate layout's picker (Input page) saves as soon as it changes, like the other settings: the input
     /// method reads it from the file when a text field becomes active. On a copy of the config, in `directory`.
     static func testCandidateLayoutSaves(in directory: URL) {
@@ -740,6 +759,7 @@ enum SelfTest {
         testInterfaceTranslations(in: snapshotDirectory)
         testInterfaceLanguages()
         testCandidateLayoutSaves(in: snapshotDirectory)
+        testCommandTriggerText()
         check(SettingsView.version?.isEmpty == false, "the window ends with the version (AllInOneIME \(SettingsView.version ?? "?"))")
 
         // A config file that doesn't parse is shown as an error and never overwritten.

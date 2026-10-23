@@ -369,9 +369,12 @@ extension UIText {
 
     /// Interface text that names commands ("@improve", "@ commands") with the command trigger in place of each "@" (the
     /// translations keep the ASCII @ for this).
-    public static func triggered(_ text: String) -> String {
-        let trigger = commandTrigger
-        return trigger == "@" ? text : text.replacingOccurrences(of: "@", with: trigger)
+    public static func triggered(_ text: String) -> String { triggered(text, trigger: commandTrigger) }
+
+    /// `text` naming commands with `trigger`: a window's own settings' (the Mac's Settings window draws with its config's,
+    /// whatever the process's is when it draws).
+    public static func triggered(_ text: String, trigger: String) -> String {
+        trigger == "@" ? text : text.replacingOccurrences(of: "@", with: trigger)
     }
 
     private static let clock24State = Locked<Bool?>(initialState: nil)

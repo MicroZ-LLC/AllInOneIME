@@ -115,6 +115,8 @@ struct DashboardSources {
         return AutocompleteSwitch.isOn
     }
     var autocompleteSummary: @MainActor () -> String? = { AutocompleteSwitch.store.metrics.summary(language: UIText.language) }
+    /// The command trigger the settings have (`Config.commandTrigger`): what its text names commands with.
+    var commandTrigger: @MainActor () -> String = { LiveConfig.current.commandTrigger }
 
     @MainActor static var live: DashboardSources {
         DashboardSources(
@@ -232,6 +234,9 @@ final class FloatingPanel: ObservableObject {
     @Published private(set) var now: Date
     /// The interface language it was drawn in: it redraws when that changes.
     @Published private(set) var language = UIText.language
+    /// The command trigger its text names commands with ("用 @note 存的笔记…"), as the settings had it when it opened or
+    /// was refreshed.
+    @Published private(set) var commandTrigger = "@"
     /// Autocomplete's switch as it is, and what was counted of it, read as it drops down.
     @Published private(set) var autocomplete = false
     @Published private(set) var autocompleteSummary: String?
@@ -342,6 +347,7 @@ final class FloatingPanel: ObservableObject {
 
     private func open(below anchor: CGRect) {
         language = UIText.language
+        commandTrigger = sources.commandTrigger()
         now = sources.now()
         (autocomplete, autocompleteSummary) = (sources.autocompleteOn(), sources.autocompleteSummary())
         notes = SavedNotesStore.load(sources.defaults).newest(Self.notesShown)
@@ -483,6 +489,7 @@ final class FloatingPanel: ObservableObject {
     /// The refresh button: everything, now.
     func refresh() {
         now = sources.now()
+        commandTrigger = sources.commandTrigger()
         notes = SavedNotesStore.load(sources.defaults).newest(Self.notesShown)
         refreshReminders()
         lookAtTasks(force: true)
@@ -925,6 +932,22 @@ final class FloatingPanel: ObservableObject {
         tr("完成「\(title)」", "Complete \u{201C}\(title)\u{201D}")
     }
 
+    /// A list of the panel's with nothing in it yet.
+    enum EmptyList { case notes, reminders, tasks }
+
+    /// What an empty list says: the command that fills it, named with the command trigger (`trigger`).
+    static func emptyLine(_ list: EmptyList, trigger: String) -> String {
+        switch list {
+        case .notes:
+            return UIText.triggered(tr("用 @note 存的笔记会显示在这里", "Notes saved with @note show up here"), trigger: trigger)
+        case .reminders:
+            return UIText.triggered(tr("用 @reminder 加的提醒会显示在这里", "Reminders added with @reminder show up here"), trigger: trigger)
+        case .tasks:
+            return UIText.triggered(tr("用 @agent 交给 Claude Code 后台的任务会显示在这里",
+                                       "Tasks @agent hands to Claude Code in the background show up here"), trigger: trigger)
+        }
+    }
+
     static func progressName(_ progress: AgentSession.Progress) -> String {
         switch progress {
         case .working: return tr("进行中", "running")
@@ -1125,7 +1148,7 @@ struct FloatingPanelView: View {
     @ViewBuilder
     private var notes: some View {
         if panel.notes.isEmpty {
-            line(tr("用 @note 存的笔记会显示在这里", "Notes saved with @note show up here"))
+            line(FloatingPanel.emptyLine(.notes, trigger: panel.commandTrigger))
         }
         ForEach(panel.notes) { note in
             let title = note.title.isEmpty ? tr("（无标题）", "(Untitled)") : note.title
@@ -1165,7 +1188,7 @@ struct FloatingPanelView: View {
         case let .failed(text):
             Text(text).font(.system(size: 11)).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
         case let .list(items) where items.isEmpty:
-            line(tr("用 @reminder 加的提醒会显示在这里", "Reminders added with @reminder show up here"))
+            line(FloatingPanel.emptyLine(.reminders, trigger: panel.commandTrigger))
         case let .list(items):
             ForEach(items.prefix(FloatingPanel.remindersShown), id: \.id) { reminder in reminderRow(reminder) }
             if items.count > FloatingPanel.remindersShown {
@@ -1227,7 +1250,7 @@ struct FloatingPanelView: View {
         case let .failed(text):
             Text(text).font(.system(size: 11)).foregroundStyle(.red).lineLimit(3)
         case let .list(rows) where rows.isEmpty:
-            line(tr("用 @agent 交给 Claude Code 后台的任务会显示在这里", "Tasks @agent hands to Claude Code in the background show up here"))
+            line(FloatingPanel.emptyLine(.tasks, trigger: panel.commandTrigger))
         case let .list(rows):
             // A few at a time: the rest scroll into view, or a search finds them.
             let shown = AgentTaskList.matching(rows, panel.taskQuery)

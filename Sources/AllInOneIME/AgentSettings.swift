@@ -18,21 +18,21 @@ struct AgentSettingsPage: View {
                     Text(title(kind) + (installed(kind) ? "" : tr("（未安装）", " (not installed)"))).tag(kind)
                 }
             } label: {
-                titled(tr("@agent 交给", "@agent hands it to"),
+                titled(model.triggered(tr("@agent 交给", "@agent hands it to")),
                        tr("在终端打开它，你打的字是第一句话。", "It opens in Terminal with what you typed as its first message."))
             }
             // `@agent` (and `@reply` with nothing selected or pasted) in Chrome takes the page along (`PageContext`), with
             // Accessibility allowed. The key stays `agentPageContext`.
             Toggle(isOn: $model.config.agentPageContext) {
-                titled(tr("@agent 和 @reply 带上 Chrome 里的网页", "@agent and @reply take the Chrome page along"),
-                       tr("在 Chrome 里打 @agent 时，把网址、你所在的输入框和它所在的表单或区块、选中的文字、屏幕上看得到的内容一起交给 agent（不读密码框，不发整页）；@reply 没有选中或粘贴消息时，把这些发给你选的 AI 服务商来写回复。需要「辅助功能」权限。",
-                          "In Chrome, @agent hands the agent the address, the field you're in with its form or section, the selection and what's visible on screen too (never a password field, never the whole page); @reply, with no message selected or pasted, sends the same to your AI provider to write its replies. Needs Accessibility."))
+                titled(model.triggered(tr("@agent 和 @reply 带上 Chrome 里的网页", "@agent and @reply take the Chrome page along")),
+                       model.triggered(tr("在 Chrome 里打 @agent 时，把网址、你所在的输入框和它所在的表单或区块、选中的文字、屏幕上看得到的内容一起交给 agent（不读密码框，不发整页）；@reply 没有选中或粘贴消息时，把这些发给你选的 AI 服务商来写回复。需要「辅助功能」权限。",
+                          "In Chrome, @agent hands the agent the address, the field you're in with its form or section, the selection and what's visible on screen too (never a password field, never the whole page); @reply, with no message selected or pasted, sends the same to your AI provider to write its replies. Needs Accessibility.")))
             }
         } header: {
             SectionTitle(tr("Agent", "Agent"), icon: CommandIcons.agent)
         } footer: {
-            note(tr("@question 的对话也能接着在这里装了的每个 agent 里聊（通用 →「对话接着在哪里聊」）。",
-                    "An @question conversation can go on in each agent installed here too (General → “Continue a conversation in”)."))
+            note(model.triggered(tr("@question 的对话也能接着在这里装了的每个 agent 里聊（通用 →「对话接着在哪里聊」）。",
+                    "An @question conversation can go on in each agent installed here too (General → “Continue a conversation in”).")))
         }
         .disabled(!model.canSave)
         ForEach(AgentKind.allCases, id: \.self) { kind in
@@ -44,7 +44,7 @@ struct AgentSettingsPage: View {
                 case .gemini, .kiro: EmptyView()
                 }
             } header: {
-                SectionTitle(title(kind) + (kind == model.config.agent ? tr(" · @agent 用它", " · used by @agent") : ""),
+                SectionTitle(title(kind) + (kind == model.config.agent ? model.triggered(tr(" · @agent 用它", " · used by @agent")) : ""),
                              icon: CommandIcons.agent)
             }
             .disabled(!model.canSave)
@@ -73,12 +73,12 @@ struct AgentSettingsPage: View {
     @ViewBuilder private var claudeSettings: some View {
         Toggle(isOn: $model.config.claudeInBackground) {
             titled(tr("在后台运行，做完通知我", "Runs in the background and notifies me"),
-                   tr("@agent 交给 Claude Code 时，它在后台做，做完弹通知，点通知在终端里接着聊。关掉就直接在终端打开。",
-                      "When @agent hands it to Claude Code, it works in the background and notifies you when it's done; click the notification to go on in Terminal. Off: it opens in Terminal."))
+                   model.triggered(tr("@agent 交给 Claude Code 时，它在后台做，做完弹通知，点通知在终端里接着聊。关掉就直接在终端打开。",
+                      "When @agent hands it to Claude Code, it works in the background and notifies you when it's done; click the notification to go on in Terminal. Off: it opens in Terminal.")))
         }
         titled(tr("Claude 任务", "Claude Tasks"),
-               tr("@tasks 列出后台任务的进度和最后的回复，⏎ 在终端里打开；菜单栏面板里也有（通用 →「在菜单栏显示图标」）。",
-                  "@tasks lists the background tasks with their progress and last replies, ⏎ opens one in Terminal; the menu bar panel shows them too (General → “Show in Menu Bar”)."))
+               model.triggered(tr("@tasks 列出后台任务的进度和最后的回复，⏎ 在终端里打开；菜单栏面板里也有（通用 →「在菜单栏显示图标」）。",
+                  "@tasks lists the background tasks with their progress and last replies, ⏎ opens one in Terminal; the menu bar panel shows them too (General → “Show in Menu Bar”).")))
     }
 
     /// The custom agent's command: words as a custom terminal command's, the text typed added as the last argument.

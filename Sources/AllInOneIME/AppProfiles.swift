@@ -201,8 +201,8 @@ struct AppProfilesSection: View {
                                  set: { on in model.changeProfile(app) { $0.noAI = on ? true : nil } })) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(tr("这个 App 里不用 AI", "No AI in this app"))
-                    Text(tr("@improve、@translate、@question、@agent 等不会发给 AI，打字和别的命令照常。",
-                            "@improve, @translate, @question, @agent and the like send nothing to the AI; typing and the other commands work."))
+                    Text(model.triggered(tr("@improve、@translate、@question、@agent 等不会发给 AI，打字和别的命令照常。",
+                            "@improve, @translate, @question, @agent and the like send nothing to the AI; typing and the other commands work.")))
                         .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
             }

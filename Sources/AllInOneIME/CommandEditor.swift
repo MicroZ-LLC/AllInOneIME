@@ -109,7 +109,8 @@ struct CommandEditor: View {
                         TextField(tr("名字", "Name"), text: $name, prompt: Text(tr("只用英文字母，比如 py", "Letters only, e.g. py")))
                         Menu(tr("从例子开始", "Start from an Example")) {
                             ForEach(Self.examples, id: \.name) { example in
-                                Button("@\(example.name)  " + (example.summary ?? "")) { load(example) }
+                                // With the trigger the Settings window set (`UIText.commandTrigger`).
+                                Button(UIText.commandTrigger + example.name + "  " + (example.summary ?? "")) { load(example) }
                             }
                         }
                         .fixedSize()
