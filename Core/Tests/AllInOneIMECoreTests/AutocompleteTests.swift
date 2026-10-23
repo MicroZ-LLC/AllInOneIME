@@ -654,16 +654,16 @@ struct AutocompleteTests {
         let on = try AIConfig.parse(#"{"changes": [{"key": "autocomplete", "value": true}]}"#)
         var config = Config.default  // Bedrock
         let rows = AIConfig.check(on, config: config, environment: env).rows
-        #expect(rows.map { $0.text(chinese: false) } == ["Autocomplete: off → on. Each pause sends up to 1,500 characters before the caret (and 200 after) to Amazon Bedrock · us.anthropic.claude-haiku-4-5-20251001-v1:0"])
+        #expect(rows.map { $0.text(chinese: false) } == ["Autocomplete: off → on. Each pause sends the caret's line and up to 200 characters before it in the same language (and 200 after) to Amazon Bedrock · us.anthropic.claude-haiku-4-5-20251001-v1:0"])
         let undo = AIConfig.apply(rows.compactMap { $0.edit }, to: &config)
         #expect(config.autocomplete && undo == [.autocomplete(false)])
         config.autocomplete = false
         config.provider = .anthropic
         config.redaction = RedactionSettings(enabled: true)
         #expect(AIConfig.check(on, config: config, environment: env).rows.map { $0.text(chinese: false) }
-            == ["Autocomplete: off → on. Each pause sends up to 1,500 characters before the caret (and 200 after) to Claude API · claude-haiku-5-5, hidden words removed"])
+            == ["Autocomplete: off → on. Each pause sends the caret's line and up to 200 characters before it in the same language (and 200 after) to Claude API · claude-haiku-5-5, hidden words removed"])
         #expect(AIConfig.check(on, config: config, environment: Self.assistant([.bedrock, .anthropic], chinese: true)).rows.map { $0.text(chinese: true) }
-            == ["续写：关 → 开。每次停顿会把光标前最多 1,500 字（和光标后 200 字）发给 Claude API · claude-haiku-5-5，先去掉隐藏词"])
+            == ["续写：关 → 开。每次停顿会把光标所在行和它前面同一语言的最多 200 字（和光标后 200 字）发给 Claude API · claude-haiku-5-5，先去掉隐藏词"])
         config.provider = .apple
         #expect(AIConfig.check(on, config: config, environment: env).rows.map { $0.text(chinese: false) } == ["Autocomplete: off → on"])
         // Off says nothing more.
@@ -684,10 +684,10 @@ struct AutocompleteTests {
         let words = Autocomplete.Words(language: "en")
         var config = Config.default
         #expect(words.model(config) == "Amazon Bedrock · us.anthropic.claude-haiku-4-5-20251001-v1:0")
-        #expect(words.destination(config) == "Each pause sends up to 1,500 characters before the caret (and 200 after) to Amazon Bedrock · us.anthropic.claude-haiku-4-5-20251001-v1:0")
+        #expect(words.destination(config) == "Each pause sends the caret's line and up to 200 characters before it in the same language (and 200 after) to Amazon Bedrock · us.anthropic.claude-haiku-4-5-20251001-v1:0")
         config.provider = .gemini
         config.redaction = RedactionSettings(enabled: true)
-        #expect(words.destination(config) == "Each pause sends up to 1,500 characters before the caret (and 200 after) to Gemini API · gemini-3.8-flash, hidden words removed")
+        #expect(words.destination(config) == "Each pause sends the caret's line and up to 200 characters before it in the same language (and 200 after) to Gemini API · gemini-3.8-flash, hidden words removed")
         // An OpenAI-compatible service without a model: its name.
         config.provider = .openai
         config.openai = ProviderSettings(baseURL: "https://api.deepseek.com/v1")
