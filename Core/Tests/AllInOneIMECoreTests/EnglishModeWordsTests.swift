@@ -422,6 +422,25 @@ struct EnglishModeLearningTests {
         }
     }
 
+    /// A password manager: a password shown in a plain field there, or typed before secure input comes on, is no word,
+    /// as autocomplete never runs there (`PasswordManagers`).
+    @Test func neverInAPasswordManager() {
+        withInterfaceLanguage("en") {
+            let learned = Learned()
+            for app in ["com.1password.1password", "com.agilebits.onepassword7", "com.apple.Passwords", "com.bitwarden.desktop",
+                        "org.keepassxc.keepassxc"] {
+                let manager = host(learned: learned, app: app)
+                english(manager)
+                type("zorblax zorblax ok", manager)
+            }
+            #expect(learned.words.isEmpty)
+            let editor = host(learned: learned)
+            english(editor)
+            type("zorblax zorblax ok", editor)
+            #expect(learned.words == ["zorblax"], "anywhere else")
+        }
+    }
+
     @Test func neverWhatLooksLikeASecretOrHoldsAHiddenWord() {
         withInterfaceLanguage("en") {
             let learned = Learned()

@@ -461,7 +461,7 @@ struct EnglishWordsTests {
         #expect(!learns(once: once) && learns(once: once), "the second time")
         // Where it never is: the first time isn't even remembered there.
         for field in [FieldInfo(app: "win:notepad.exe", secure: true), FieldInfo(app: "win:windowsterminal.exe", terminal: true),
-                      FieldInfo(app: "win:mstsc.exe")] {
+                      FieldInfo(app: "win:mstsc.exe"), FieldInfo(app: "win:KeePassXC.exe")] {
             let once = EnglishWords.TypedOnce()
             #expect(!learns(field, once: once) && !learns(field, once: once) && !learns(once: once), "\(field)")
         }

@@ -820,11 +820,12 @@ public final class EngineHost: WireHost, @unchecked Sendable {
     /// typing pinyin), learned as an English word as the Mac learns one (`EnglishWords.learns`: the second time, in any
     /// field): never in a password field or a private one (`WireField.keepsNothing`), in a terminal (`runsWhatIsTyped`),
     /// in a remote desktop, a virtual machine or an SSH client (its app, or its program: Windows App's session is
-    /// msrdc.exe), in an app with no AI, or with learning off. Offered in this field at once; written into the settings
-    /// file (`EnglishWords.learn`) off the session's queue, for every field, through `writingSettings`.
+    /// msrdc.exe), in a password manager (the same), in an app with no AI, or with learning off. Offered in this field at
+    /// once; written into the settings file (`EnglishWords.learn`) off the session's queue, for every field, through
+    /// `writingSettings`.
     func learn(_ typed: String, in session: ComposerSession, engine: EnglishWordsEngine) {
         let field = session.field
-        guard !EnglishWords.isRemote("win:" + field.process) else { return }
+        guard !EnglishWords.isRemote("win:" + field.process), !PasswordManagers.contains("win:" + field.process) else { return }
         let info = FieldInfo(app: field.app, terminal: runsWhatIsTyped(session), secure: field.keepsNothing)
         let settings = self.settings
         let learned = learning.withLock {

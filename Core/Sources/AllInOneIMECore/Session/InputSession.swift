@@ -301,8 +301,8 @@ public final class InputSession {
     /// Letters put in as they were typed while typing pinyin ("bedrock" and ⏎), learned as an English word the second time
     /// when they may be one, as every shell learns them (`EnglishWords.learns`; the first time they are only remembered,
     /// in memory: `SessionServices.englishTypedOnce`): never during secure input, in a terminal, in a remote desktop, a
-    /// virtual machine or an SSH client, in an app with no AI, or with learning off. Offered in this field at once; kept
-    /// for every field (`SessionServices.learnEnglishWord`).
+    /// virtual machine or an SSH client, in a password manager, in an app with no AI, or with learning off. Offered in this
+    /// field at once; kept for every field (`SessionServices.learnEnglishWord`).
     private func learnEnglishWord(_ typed: String) {
         guard let englishWords,
               EnglishWords.learns(typed, in: FieldInfo(app: app, terminal: terminal, secure: field.secure),

@@ -70,6 +70,7 @@ public enum Autocomplete {
         case terminal
         /// A remote desktop, a virtual machine or an SSH client (`EnglishWords.isRemote`): its password fields can't be told.
         case remote
+        /// A password manager (`PasswordManagers`).
         case passwordManager
         /// The app has no AI (`AppProfile.noAI`).
         case noAI
@@ -84,32 +85,11 @@ public enum Autocomplete {
         if secureInput || field.secure { return .secureInput }
         if field.terminal { return .terminal }
         if EnglishWords.isRemote(field.app) { return .remote }
-        if isPasswordManager(field.app) { return .passwordManager }
+        if PasswordManagers.contains(field.app) { return .passwordManager }
         if !config.allowsAI(in: field.app) { return .noAI }
         if translating { return .translating }
         if composing { return .composing }
         return nil
-    }
-
-    /// Password managers, by the beginning of their bundle ids (in small letters): 1Password (7 and 8), Apple's
-    /// Passwords and Keychain Access, Bitwarden, KeePassXC, Strongbox, Enpass, Secrets, NordPass, Keeper, Proton Pass,
-    /// RoboForm, Dashlane, LastPass, MacPass.
-    static let passwordManagers = [
-        "com.1password.", "com.agilebits.", "com.apple.passwords", "com.apple.keychainaccess", "com.bitwarden.",
-        "org.keepassxc.", "com.markmcguill.strongbox", "in.sinew.enpass", "com.outercorner.secrets", "com.nordsec.nordpass",
-        "com.keepersecurity.", "me.proton.pass", "com.siber.roboform", "com.dashlane.", "com.lastpass.", "com.hicknhacksoftware.macpass",
-    ]
-    /// The same on Windows, by their program's file name (an app id "win:1password.exe").
-    static let passwordManagerPrograms: Set<String> = [
-        "1password.exe", "bitwarden.exe", "keepassxc.exe", "keepass.exe", "enpass.exe", "nordpass.exe",
-        "keeperpasswordmanager.exe", "proton pass.exe", "roboform.exe", "dashlane.exe",
-    ]
-
-    /// Whether `app` (a bundle id, or a Windows app id; in any case) is a password manager.
-    public static func isPasswordManager(_ app: String?) -> Bool {
-        guard let app = app?.lowercased() else { return false }
-        if app.hasPrefix("win:") { return passwordManagerPrograms.contains(String(app.dropFirst(4))) }
-        return passwordManagers.contains { app.hasPrefix($0) }
     }
 
     // MARK: What is sent

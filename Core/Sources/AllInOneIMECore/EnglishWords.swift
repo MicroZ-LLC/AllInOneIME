@@ -111,10 +111,13 @@ public enum EnglishWords {
     /// in memory) when they may be a word (`learnable`, not one of `offered` already). Never during secure input
     /// (`secureInput`) or in a password field (`FieldInfo.secure`), in a terminal (a password prompt of sudo's or ssh's
     /// doesn't turn secure input on in every one), in a remote desktop, a virtual machine or an SSH client (`isRemote`),
-    /// in an app with no AI, or with learning off (`Config.learnsEnglishWords`). `config` is read only past those.
+    /// in a password manager (`PasswordManagers`: a password shown in a plain field there), in an app with no AI, or with
+    /// learning off (`Config.learnsEnglishWords`). `config` is read only past those.
     public static func learns(_ typed: String, in field: FieldInfo, secureInput: Bool, config: () -> Config, offered: [String],
                               dictionary: EnglishDictionary, typedOnce: TypedOnce) -> Bool {
-        guard !secureInput, !field.secure, !field.terminal, !isRemote(field.app) else { return false }
+        guard !secureInput, !field.secure, !field.terminal, !isRemote(field.app), !PasswordManagers.contains(field.app) else {
+            return false
+        }
         let config = config()
         return config.learnsEnglishWords && config.allowsAI(in: field.app)
             && !dictionary.contains(typed)  // most words typed in English mode: told before the words offered are gone through
@@ -126,9 +129,9 @@ public enum EnglishWords {
     /// Whether a word typed in English mode (`EnglishModeWords`: letters that went straight to the app, between a space or
     /// a mark and a space, a mark or ⏎) is learned: by the rule letters put in as typed while typing pinyin are (`learns`:
     /// the second time, the first only remembered; never during secure input, in a password field, a terminal, a remote
-    /// desktop, a virtual machine or an SSH client, an app with no AI, with learning off; never pinyin, a word rime-ice or
-    /// the user has, what looks like a secret or holds a hidden word), and never one with a capital first, which in prose
-    /// is a name (a person's, a place's) or a sentence's first word: not even remembered.
+    /// desktop, a virtual machine or an SSH client, a password manager, an app with no AI, with learning off; never
+    /// pinyin, a word rime-ice or the user has, what looks like a secret or holds a hidden word), and never one with a
+    /// capital first, which in prose is a name (a person's, a place's) or a sentence's first word: not even remembered.
     public static func learnsTypedInEnglish(_ typed: String, in field: FieldInfo, secureInput: Bool, config: () -> Config,
                                             offered: [String], dictionary: EnglishDictionary, typedOnce: TypedOnce) -> Bool {
         guard let first = typed.first, !first.isUppercase else { return false }
