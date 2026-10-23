@@ -3,6 +3,7 @@ import Foundation
 import os
 import Testing
 @testable import AllInOneIMECore
+import AllInOneIMETestSupport
 #if canImport(FoundationModels)
 import FoundationModels
 #endif
@@ -139,7 +140,9 @@ enum AppleAcceptance {
         return config
     }
 
-    static func converter(_ config: Config, _ model: ScriptedAppleModel, secrets: AppleSecretsLog = AppleSecretsLog()) -> Converter {
+    /// `clock`: what the model's timeout is measured on (a test's moves by hand).
+    static func converter(_ config: Config, _ model: ScriptedAppleModel, secrets: AppleSecretsLog = AppleSecretsLog(),
+                          clock: any Clock<Duration> = ContinuousClock()) -> Converter {
         Converter(
             client: BedrockClient(session: AppleNoNetworkProtocol.session()),
             loadConfig: { config },
@@ -151,7 +154,8 @@ enum AppleAcceptance {
                 secrets.asked()
                 return "sk-should-not-be-used"
             },
-            appleModel: model)
+            appleModel: model,
+            appleClock: clock)
     }
 
     /// Prefixes of `text` every `characters` Characters (the last is `text`).
@@ -194,15 +198,7 @@ enum AppleAcceptance {
     /// Runs `stream` to the end, or gives up after `limit` (a hang).
     static func outcome(_ stream: AsyncThrowingStream<ConversionUpdate, Error>, limit: Duration = .seconds(10)) async -> Outcome {
         await withTaskGroup(of: Outcome.self) { group in
-            group.addTask {
-                var updates: [ConversionUpdate] = []
-                do {
-                    for try await update in stream { updates.append(update) }
-                    return .finished(updates)
-                } catch {
-                    return .failed(error, updates)
-                }
-            }
+            group.addTask { await end(of: stream) }
             group.addTask {
                 try? await Task.sleep(for: limit)
                 return .hung
@@ -211,6 +207,25 @@ enum AppleAcceptance {
             group.cancelAll()
             return first
         }
+    }
+
+    /// Runs `stream` to the end, however long that takes: for a test whose only deadline is its time limit. A call
+    /// timed on a clock moved by hand ends at once unless the code is wrong, but in a busy test run its tasks can wait
+    /// a minute or more for a thread (the full parallel suite's blocking tests hold the pool): a deadline of its own
+    /// would fail it then.
+    static func end(of stream: AsyncThrowingStream<ConversionUpdate, Error>) async -> Outcome {
+        var updates: [ConversionUpdate] = []
+        do {
+            for try await update in stream { updates.append(update) }
+            return .finished(updates)
+        } catch {
+            return .failed(error, updates)
+        }
+    }
+
+    /// Waits until `condition` holds, however long that takes (as `end(of:)`).
+    static func until(_ condition: () -> Bool) async throws {
+        while !condition() { try await Task.sleep(for: .milliseconds(20)) }
     }
 
     /// All events of the provider stream, or the error it ended with.
@@ -816,22 +831,31 @@ struct AppleModelAcceptanceTests {
         }
     }
 
-    @Test func s6_noNewTextWithinTheTimeoutStops() async throws {
+    /// On a clock moved by hand: what is timed is the model's silence, not how long a busy test run takes to give the
+    /// call a thread. Nothing here waits for time to pass, and nothing has a deadline but the test's time limit (a hang).
+    @Test(.timeLimit(.minutes(10))) func s6_noNewTextWithinTheTimeoutStops() async throws {
         var config = A.apple()
         config.timeoutSeconds = 0.6
         for before in [[], [AppleModelSnapshot(text: "EN: I'm")]] {
-            let model = ScriptedAppleModel(.stall(before))
-            let started = ContinuousClock.now
-            let outcome = await A.outcome(A.converter(config, model).convert("i dont feel good"), limit: .seconds(10))
-            let elapsed = ContinuousClock.now - started
-            let error = try #require(outcome.error, "\(outcome)")
-            #expect(error as? AppleModelError == .timedOut(0.6))
-            #expect(((error as? LocalizedError)?.errorDescription ?? "").contains("didn't answer"))
-            // Well before the 10-second hang guard (with room for a busy test run).
-            #expect(elapsed >= .milliseconds(550) && elapsed < .seconds(5), "\(elapsed)")
+            let clock = ManualClock(), model = ScriptedAppleModel(.stall(before))
+            var updates = A.converter(config, model, clock: clock).convert("i dont feel good").makeAsyncIterator()
+            // The model asked, what it wrote shown, and the timeout waiting on the clock: its time starts now.
+            try await A.until { model.log.requests.count == 1 }
+            if let last = before.last { #expect(try await updates.next()?.rawText == last.text) }
+            try await A.until { clock.sleeping == 1 }
+            // Not stopped before the timeout: waiting on the clock (again), the model's stream not let go of …
+            clock.advance(by: .milliseconds(550))
+            try await A.until { clock.sleeping == 1 || model.log.terminations > 0 }
+            #expect(model.log.terminations == 0, "stopped at 0.55 s")
+            // … and stopped when it is reached, with the timeout's error.
+            clock.advance(by: .milliseconds(50))
+            var error: (any Error)?
+            do { while try await updates.next() != nil {} } catch let thrown { error = thrown }
+            let thrown = try #require(error, "ended without an error")
+            #expect(thrown as? AppleModelError == .timedOut(0.6))
+            #expect(((thrown as? LocalizedError)?.errorDescription ?? "").contains("didn't answer"))
             // The model's stream is let go of, not left running.
-            try await Task.sleep(for: .milliseconds(300))
-            #expect(model.log.terminations == 1)
+            try await A.until { model.log.terminations == 1 }
         }
     }
 
