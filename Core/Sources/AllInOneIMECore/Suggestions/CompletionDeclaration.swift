@@ -94,6 +94,8 @@ enum CompletionDeclaration {
         guard let list = flag(fields["list"]), let query = flag(fields["query"]) else {
             return refuse("list and query must be true or false")
         }
+        // Every number typed anywhere (a card's, in a browser) would be sent as it grows: v1 looks up only after a prefix.
+        if prefix == nil, query { return refuse("a completion without a prefix can't query: give it a prefix, or a list only") }
         var refresh: TimeInterval = 3600
         switch fields["refresh"] {
         case nil, .null?: break

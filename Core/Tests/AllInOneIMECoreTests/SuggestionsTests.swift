@@ -142,6 +142,25 @@ struct SuggestionsTests {
         #expect(CompletionDeclaration.duration("90m") == 5400 && CompletionDeclaration.durationText(5400) == "90m")
     }
 
+    /// A source without a prefix may not look up what is typed (v1): any number typed in any field (a card's, in a
+    /// browser) would go to the plugin's hosts as it grows. Refused, saying why; its list alone, or a lookup after a
+    /// prefix, is fine.
+    @Test func aSourceWithoutAPrefixCantLookUpWhatIsTyped() throws {
+        func read(_ entry: String) throws -> PluginManifest {
+            try JSONDecoder().decode(PluginManifest.self, from: Data(#"""
+                { "name": "aws", "version": "1.0.0", "type": "script", "script": "main.js", "hosts": ["api.example.com"],
+                  "completions": [\#(entry)] }
+                """#.utf8))
+        }
+        let querying = try read(#"{ "name": "accounts", "title": "Accounts", "compare": "exact", "list": true, "query": true }"#)
+        #expect(querying.completions.isEmpty && querying.refusedCompletions.map(\.name) == ["accounts"], "\(querying.completions)")
+        #expect(querying.refusedCompletions.first?.reason.contains("prefix") == true, "\(querying.refusedCompletions)")
+        let listing = try read(#"{ "name": "accounts", "title": "Accounts", "compare": "exact", "list": true }"#)
+        #expect(listing.completions.map(\.name) == ["accounts"] && listing.refusedCompletions.isEmpty)
+        let prefixed = try read(#"{ "name": "accounts", "title": "Accounts", "prefix": "acct-", "query": true }"#)
+        #expect(prefixed.completions.first?.query == true && prefixed.refusedCompletions.isEmpty)
+    }
+
     @Test func approvalsHoldUntilThePluginChanges() throws {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("suggestions-approval-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: folder) }

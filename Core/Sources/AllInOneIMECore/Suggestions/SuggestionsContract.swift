@@ -38,7 +38,8 @@ public struct CompletionSource: Equatable, Hashable, Sendable {
     public var list: Bool
     /// How often the list is loaded again, in seconds: 1 h unless declared ("5m" … "7d").
     public var refresh: TimeInterval
-    /// The script exports `query(text, ctx)`: a live lookup.
+    /// The script exports `query(text, ctx)`: a live lookup. Only with a `prefix` (a declaration without one is refused:
+    /// any number typed anywhere would go out).
     public var query: Bool
     /// The characters after the prefix before `query` is first called: 3 unless declared (1 at least). After that it is
     /// called again (150 ms after the last key, one call at a time) only when what is kept of the answers for the

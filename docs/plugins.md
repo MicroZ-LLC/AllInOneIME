@@ -176,7 +176,7 @@ It declares its sources in `completions` (optional; `api` 1 stays valid) and its
 | `compare` | `prefix` | `prefix` (`#12` shows `#1234`) or `exact`; without a prefix only `exact`, and only for tokens of digits (a 12-digit account id) |
 | `list` | `false` | the script exports `load(ctx)`; its last good list is kept |
 | `refresh` | `1h` | `5m` … `7d`: how often the list is loaded again while the source is used (not after a week unused) |
-| `query` | `false` | the script exports `query(text, ctx)`, a live lookup |
+| `query` | `false` | the script exports `query(text, ctx)`, a live lookup; only with a `prefix` (without one, every number typed anywhere would be sent) |
 | `queryMinChars` | 3 | characters after the prefix before `query` is first called (at least 1) |
 | `insert` | `{"default": "{arg}"}` | what a row inserts per app class: `default`, `chat` (chat apps and browsers), `terminal` (terminals and code editors: anything but `null` is `{match}` there); a template or a list tried in turn (the first whose variables all exist), `null` for no rows in that class |
 

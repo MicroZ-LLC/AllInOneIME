@@ -449,12 +449,13 @@ extension InputSession {
             if active.source.list { suggestionsLoadIfDue(active, settings: settings, now: now) }
             let list = active.source.list ? s.store.list(active.key) : nil
             let lowered = after.lowercased()
-            let answers = active.source.query ? s.store.answers(active.key, for: lowered, now: now) : []
+            let answers = active.source.query && active.source.prefix != nil ? s.store.answers(active.key, for: lowered, now: now) : []
             let picked = Set(scores.keys.filter { $0.plugin == active.key.plugin && $0.source == active.key.source }.map(\.match))
             rows += PluginRows.rows(token, plugin: active.plugin, source: active.source,
                                     lists: (list.map { [$0.items] } ?? []) + answers.map(\.items), madeAt: list?.madeAt, appClass: appClass,
                                     picked: picked, limit: Self.maxSuggestionRows, in: t)
-            if active.source.query, after.count >= active.source.queryMinChars {
+            // Never without a prefix (the declaration refuses it): any number typed would go out.
+            if active.source.query, active.source.prefix != nil, after.count >= active.source.queryMinChars {
                 suggestionsQuery(active, text: after, answers: answers, askAgain: askAgain, now: now)
             }
         }
