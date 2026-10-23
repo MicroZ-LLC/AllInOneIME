@@ -275,11 +275,39 @@ struct SuggestionsTests {
         #expect(PluginPreference.values(for: github, set: ["repos": "", "token": ""]) == ["repos": "MicroZ-LLC/AllInOneIME"])
     }
 
+    /// A plugin with preferences that types Latin (a script's default): its standard input, JSON, goes as it is, never
+    /// made half-width as a whole (`CustomCommand.halfWidth`), which would break it; `run` makes the text in it so.
+    @Test(arguments: ["fix “login” bug", "a、b", "（1，2）"])
+    func theJSONOnStandardInputIsNeverMadeHalfWidth(_ text: String) throws {
+        let manifest = try JSONDecoder().decode(PluginManifest.self, from: Data(contentsOf: Self.github.appendingPathComponent("plugin.json")))
+        let github = InstalledPlugin(manifest: manifest, directory: Self.github, isLocal: true)
+        #expect(github.manifest.typesLatin)
+        let command = PluginRunner.command(for: github, executable: "/Apps/AllInOneIME", language: .english)
+        let input = PluginRunner.standardInput(text, preferences: ["token": "t0ken"])
+        let sent = try #require(command.standardInput(for: input))
+        #expect(try JSONDecoder().decode(PluginHost.RunInput.self, from: Data(sent.utf8))
+                == PluginHost.RunInput(input: text, preferences: ["token": "t0ken"]))
+    }
+
     #if os(macOS)  // Package.swift leaves PlugLangCLI's file out elsewhere (it runs the app as a child process)
     /// The app's own child process (`--run-plugin <folder> --with-preferences`) reads them back: `run(input, ctx)` gets
     /// `ctx.preferences`, the defaults filled in.
     @Test(.enabled(if: PlugLangCLI.available, "build the app first: swift build at the repo root, or set ALLINONEIME_TEST_BINARY"))
     func theChildProcessGivesRunThePreferences() async throws {
+        #expect(try await runProbe("hi") == "hi en repos=octo-org/octo-repo token=t0ken")
+    }
+
+    /// A plugin with preferences that types Latin (a script's default) gets the text made half-width, as one without
+    /// does: quotes and "、" typed in Chinese punctuation come as ASCII, in JSON that stays JSON.
+    @Test(.enabled(if: PlugLangCLI.available, "build the app first: swift build at the repo root, or set ALLINONEIME_TEST_BINARY"),
+          arguments: [("fix “login” bug", #"fix "login" bug"#), ("a、b", #"a\b"#)])
+    func theChildProcessGivesRunTheTextHalfWidthWithThePreferences(_ typed: String, _ given: String) async throws {
+        #expect(try await runProbe(typed) == "\(given) en repos=octo-org/octo-repo token=t0ken")
+    }
+
+    /// `run(input, ctx)` of a probe plugin with two preferences (one set, the token) through the app's child process:
+    /// the input, the language and the preferences it got.
+    private func runProbe(_ input: String) async throws -> String {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("suggestions-run-\(UUID().uuidString)/probe", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: folder.deletingLastPathComponent()) }
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -296,11 +324,11 @@ struct SuggestionsTests {
             """.utf8).write(to: folder.appendingPathComponent("main.js"))
         let plugin = try #require(PluginStore.load(from: folder.deletingLastPathComponent()).plugins.first)
         var text = ""
-        for try await update in PluginRunner.run(plugin, input: "hi", language: .english, preferences: { ["token": "t0ken"] },
+        for try await update in PluginRunner.run(plugin, input: input, language: .english, preferences: { ["token": "t0ken"] },
                                                  executable: try #require(PlugLangCLI.binary)) where update.isFinal {
             text = update.result.versions.first?.text ?? ""
         }
-        #expect(text == "hi en repos=octo-org/octo-repo token=t0ken", "\(text)")
+        return text
     }
     #endif
 

@@ -89,13 +89,15 @@ public enum PluginHost {
 /// has some).
 public enum PluginRunner {
     /// The program run for `plugin`, as a `run` command; `language` is the input method's interface language. A plugin
-    /// with preferences is told its standard input is `PluginHost.RunInput` (`standardInput`).
+    /// with preferences is told its standard input is `PluginHost.RunInput` (`standardInput`): JSON, which goes as it is
+    /// (made half-width it would break: `“` is `"`), the text in it made so first where the plugin types Latin (`run`).
     public static func command(for plugin: InstalledPlugin, executable: String, language: Language? = nil) -> CustomCommand {
-        CustomCommand(name: plugin.name, type: .run,
-                      argv: [executable, "--run-plugin", plugin.directory.path] + (language.map { ["--language", $0.rawValue] } ?? [])
-                          + (plugin.manifest.preferences.isEmpty ? [] : [PluginHost.preferencesFlag]),
-                      stdin: CustomCommand.placeholder, ascii: plugin.manifest.typesLatin,
-                      timeoutSeconds: plugin.manifest.timeout)
+        let preferences = !plugin.manifest.preferences.isEmpty
+        return CustomCommand(name: plugin.name, type: .run,
+                             argv: [executable, "--run-plugin", plugin.directory.path] + (language.map { ["--language", $0.rawValue] } ?? [])
+                                 + (preferences ? [PluginHost.preferencesFlag] : []),
+                             stdin: CustomCommand.placeholder, ascii: plugin.manifest.typesLatin && !preferences,
+                             timeoutSeconds: plugin.manifest.timeout)
     }
 
     /// What a plugin with preferences gets on standard input: `input` and `preferences`, as JSON.
@@ -117,7 +119,8 @@ public enum PluginRunner {
             let task = Task {
                 do {
                     let values = PluginPreference.values(for: plugin, set: preferences?() ?? [:])
-                    for try await update in CommandRunner.run(command, input: standardInput(input, preferences: values)) {
+                    let text = plugin.manifest.typesLatin ? CustomCommand.halfWidth(input) : input
+                    for try await update in CommandRunner.run(command, input: standardInput(text, preferences: values)) {
                         continuation.yield(update)
                     }
                     continuation.finish()
