@@ -532,8 +532,11 @@ final class AllInOneIMEInputController: IMKInputController {
             return
         }
         let target: IMKTextInput? = client ?? clientOverride ?? self.client()
-        // The key was held up to the event; the pointer is asked later, so look back that much further.
-        let change = ModifierChange(key: MacKeyCodes.key(event.keyCode), modifiers: Self.flagsChangedModifiers(event.modifierFlags),
+        // The key was held up to the event; the pointer is asked later, so look back that much further. fn held with Shift
+        // is no long press of it (only the session's long press minds fn).
+        var modifiers = Self.flagsChangedModifiers(event.modifierFlags)
+        if event.modifierFlags.contains(.function) { modifiers.insert(.function) }
+        let change = ModifierChange(key: MacKeyCodes.key(event.keyCode), modifiers: modifiers,
                                     timestamp: event.timestamp, late: max(ProcessInfo.processInfo.systemUptime - event.timestamp, 0))
         var context = FieldContext(field: Self.fieldInfo(target))
         while true {

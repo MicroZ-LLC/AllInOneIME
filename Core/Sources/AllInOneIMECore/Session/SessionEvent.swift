@@ -140,8 +140,8 @@ public enum SuggestionsTimer: Hashable, Sendable {
 }
 
 /// The modifier keys changed: `key` the one that did (`.modifier(kind, side)`), `modifiers` those down now with their
-/// sides, `timestamp` when (seconds), `late` how long ago that was when the shell got it (the pointer is asked later:
-/// it looks back that much further).
+/// sides (fn as `.function`, where there is one: only the long press of Shift minds it), `timestamp` when (seconds),
+/// `late` how long ago that was when the shell got it (the pointer is asked later: it looks back that much further).
 public struct ModifierChange: Equatable, Sendable {
     public var key: Key
     public var modifiers: Modifiers

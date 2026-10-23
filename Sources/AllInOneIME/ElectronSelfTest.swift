@@ -159,11 +159,13 @@ extension SelfTest {
     static func testShiftHoldInElectron(_ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
         section("The long press of Shift in an Electron app (Slack): the chooser", needs: .composing)
         let saved = (settings: settings, pointer: TranslateModeShared.pointer, stickyKeys: TranslateModeShared.stickyKeys,
-                     defaults: TranslateModeShared.defaults, pointerUsed: controller.services.pointerUsedWithin)
+                     defaults: TranslateModeShared.defaults, pointerUsed: controller.services.pointerUsedWithin,
+                     shiftHeld: TranslateModeShared.shiftHeld)
         let suite = "com.aipinyin.selftest.translatemode.electron"
         UserDefaults.standard.removePersistentDomain(forName: suite)
         TranslateModeShared.defaults = UserDefaults(suiteName: suite) ?? .standard
-        (TranslateModeShared.pointer, TranslateModeShared.stickyKeys) = ({ .zero }, { false })
+        // The recorded presses' Shift down as the system has it while the timers run.
+        (TranslateModeShared.pointer, TranslateModeShared.stickyKeys, TranslateModeShared.shiftHeld) = ({ .zero }, { false }, { true })
         // Everything as it was found: off, no press timed, no notice, the self-test's own app again.
         defer {
             TranslateModeShared.state = TranslateMode.State()
@@ -173,6 +175,7 @@ extension SelfTest {
             MenuBarIcon.shared.setTranslating(false)
             (settings, TranslateModeShared.pointer, TranslateModeShared.stickyKeys) = (saved.settings, saved.pointer, saved.stickyKeys)
             (TranslateModeShared.defaults, controller.services.pointerUsedWithin) = (saved.defaults, saved.pointerUsed)
+            TranslateModeShared.shiftHeld = saved.shiftHeld
             UserDefaults.standard.removePersistentDomain(forName: suite)
             client.bundleIDOverride = nil
             controller.activateServer(client)

@@ -260,3 +260,47 @@ extension SuggestionsSessionTests {
         }
     }
 }
+
+extension SuggestionsSessionTests {
+    /// fn held with Shift is no long press of Shift (the Mac tells fn as `.function`): no chooser; a tap of Shift with fn
+    /// held still switches the input language, as it always did (the composer isn't told of fn).
+    @Test func fnHeldOpensNoChooserAndATapStillSwitches() {
+        inEnglish {
+            let world = SuggestionsWorld()
+            let field = world.field()
+            let language = field.host.composer.inputLanguage
+            field.host.modifiers(ModifierChange(key: .modifier(.shift, .left), modifiers: [.shift, .leftShift, .function],
+                                                timestamp: world.clock.timestamp))
+            field.noteTimers()
+            world.clock.advance(0.1)
+            field.host.modifiers(ModifierChange(key: .modifier(.shift, .left), modifiers: [.function], timestamp: world.clock.timestamp))
+            #expect(field.host.composer.inputLanguage != language, "fn and a tap of Shift: the next input language")
+            field.host.modifiers(ModifierChange(key: .modifier(.shift, .left), modifiers: [.shift, .leftShift, .function],
+                                                timestamp: world.clock.timestamp))
+            field.noteTimers()
+            world.clock.advance(1.2)
+            field.fireTimers()
+            #expect(field.rows.isEmpty, "fn and Shift held: no chooser (\(field.rows.map(\.text)))")
+            field.host.modifiers(ModifierChange(key: .modifier(.shift, .left), modifiers: [.function], timestamp: world.clock.timestamp))
+        }
+    }
+
+    /// When the long press's time comes, Shift is asked of the system (`SuggestionsServices.shiftHeld`): its release went
+    /// unseen (another app had it, an event lost), no chooser.
+    @Test func aReleaseMissedOpensNoChooser() {
+        inEnglish {
+            let world = SuggestionsWorld()
+            let held = Locked(initialState: true)
+            let field = world.field { $0.suggestions.shiftHeld = { held.withLock { $0 } } }
+            field.host.modifiers(ModifierChange(key: .modifier(.shift, .left), modifiers: [.shift, .leftShift], timestamp: world.clock.timestamp))
+            field.noteTimers()
+            held.withLock { $0 = false }  // let go, unseen
+            world.clock.advance(1.2)
+            field.fireTimers()
+            #expect(field.rows.isEmpty, "Shift no longer down: no chooser (\(field.rows.map(\.text)))")
+            held.withLock { $0 = true }
+            field.holdShift()
+            #expect(field.rows.map(\.text) == ["Translate as You Type", "Coding mode"], "held: the chooser (\(field.rows.map(\.text)))")
+        }
+    }
+}

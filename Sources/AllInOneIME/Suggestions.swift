@@ -121,6 +121,7 @@ enum SuggestionsShared {
         services.approvalsLapsed = { lapsed in MainActor.assumeIsolated { dropApprovals(lapsed) } }
         services.pointer = { MainActor.assumeIsolated { TranslateModeShared.pointer() } }
         services.stickyKeys = { MainActor.assumeIsolated { TranslateModeShared.stickyKeys() } }
+        services.shiftHeld = { MainActor.assumeIsolated { TranslateModeShared.shiftHeld() } }
         services.chooserHint = { MainActor.assumeIsolated { chooserHint } }
         return services
     }

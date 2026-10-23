@@ -681,7 +681,8 @@ public final class InputSession {
         let (late, pointerUsedWithin) = (change.late, services.pointerUsedWithin)
         composer.pointerUsedWithin = { pointerUsedWithin($0 + late) }
         keyContext = context
-        perform(composer.handleFlagsChanged(key: change.key, modifiers: change.modifiers, timestamp: change.timestamp))
+        // fn is the long press's only (fn and Shift is none); a tap of Shift with fn held switches as it always did.
+        perform(composer.handleFlagsChanged(key: change.key, modifiers: change.modifiers.subtracting(.function), timestamp: change.timestamp))
         keyContext = nil
     }
 

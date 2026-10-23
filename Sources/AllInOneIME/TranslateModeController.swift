@@ -14,6 +14,9 @@ enum TranslateModeShared {
     /// keeps it: what the session's long press of Shift goes by (`SuggestionsServices.pointer`, `stickyKeys`; the
     /// self-test supplies its own).
     static var pointer: () -> CGPoint = { NSEvent.mouseLocation }
+    /// Whether Shift is still down, with no mouse button, when the long press's time comes (`SuggestionsServices.shiftHeld`:
+    /// a release that went unseen opens no chooser; the self-test supplies its own).
+    static var shiftHeld: () -> Bool = { NSEvent.modifierFlags.contains(.shift) && NSEvent.pressedMouseButtons == 0 }
     static var stickyKeys: () -> Bool = { universalAccess?.bool(forKey: "stickyKey") ?? false }
     private static let universalAccess = UserDefaults(suiteName: "com.apple.universalaccess")
     /// The mode said it lets text in as typed while secure input is on (once each time it comes on).

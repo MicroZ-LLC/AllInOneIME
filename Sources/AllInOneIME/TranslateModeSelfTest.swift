@@ -77,9 +77,10 @@ extension SelfTest {
         let (notes, chat, mail) = ("com.example.notes", "com.example.chat", "com.example.mail")
         let saved = (converter: controller.services.converter, settings: settings, defaults: TranslateModeShared.defaults,
                      lastTarget: TranslateModeShared.lastTarget, pointer: TranslateModeShared.pointer,
-                     stickyKeys: TranslateModeShared.stickyKeys)
-        // The mouse left alone and Sticky Keys off, whatever this Mac's are, while Shift is "held".
-        (TranslateModeShared.pointer, TranslateModeShared.stickyKeys) = ({ .zero }, { false })
+                     stickyKeys: TranslateModeShared.stickyKeys, shiftHeld: TranslateModeShared.shiftHeld)
+        // The mouse left alone and Sticky Keys off, whatever this Mac's are, while Shift is "held" (the fake field's
+        // Shift down as the system has it while the timers run).
+        (TranslateModeShared.pointer, TranslateModeShared.stickyKeys, TranslateModeShared.shiftHeld) = ({ .zero }, { false }, { true })
         // The language picked last: in the self-test's own defaults (the user's stay as they are).
         let suite = "com.aipinyin.selftest.translatemode"
         UserDefaults.standard.removePersistentDomain(forName: suite)
@@ -97,6 +98,7 @@ extension SelfTest {
             TranslateModeShared.defaults = saved.defaults
             if TranslateModeShared.lastTarget != saved.lastTarget { TranslateModeShared.lastTarget = saved.lastTarget }
             (TranslateModeShared.pointer, TranslateModeShared.stickyKeys) = (saved.pointer, saved.stickyKeys)
+            TranslateModeShared.shiftHeld = saved.shiftHeld
             UserDefaults.standard.removePersistentDomain(forName: suite)
             client.bundleIDOverride = nil
             controller.activateServer(client)

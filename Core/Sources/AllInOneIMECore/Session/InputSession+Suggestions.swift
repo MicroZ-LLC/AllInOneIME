@@ -172,6 +172,8 @@ extension InputSession {
         switch timer {
         case let .chooserHint(press), let .chooser(press):
             guard press == suggesting.shift, let held = chooserPress.held, !secureInputActive(), composer.voice == .off else { return }
+            // Shift let go unseen (another app had the release, an event lost): the press is over, and the next one counts.
+            guard services.suggestions.shiftHeld() else { return suggestionsModifiersMissed(shiftDown: false) }
             switch chooserPress.poll(pointerUsed: services.pointerUsedWithin(held)) {
             case .toggle?:
                 chooserPress.cancel()
@@ -223,7 +225,8 @@ extension InputSession {
     }
 
     /// A modifier changed: Shift down on its own starts the long press the chooser opens after (`TranslateMode.ShiftHold`:
-    /// not with Sticky Keys, not the same change handed over again); anything else ends it.
+    /// not with fn or another modifier held, not with Sticky Keys, not the same change handed over again); anything else
+    /// ends it.
     func suggestionsModifiers(_ change: ModifierChange) {
         if chooserPress.flagsChanged(key: change.key, modifiers: change.modifiers) {
             suggesting.shift += 1
