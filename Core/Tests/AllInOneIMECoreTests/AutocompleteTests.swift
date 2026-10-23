@@ -512,7 +512,7 @@ struct AutocompleteTests {
 
     /// Counting and learning never write the defaults as they happen (a key's end of a suggestion would wait for it): a
     /// while later, all at once, off the session's thread.
-    @Test func whatIsCountedIsWrittenLaterAllAtOnce() throws {
+    @Test func whatIsCountedIsWrittenLaterAllAtOnce() async throws {
         final class Writes: KeyValueStore, @unchecked Sendable {
             let kept = MemoryKeyValueStore()
             private let lock = NSLock()
@@ -527,15 +527,15 @@ struct AutocompleteTests {
             func removeValue(forKey key: String) { kept.removeValue(forKey: key) }
         }
         let defaults = Writes()
-        let store = AutocompleteStore(defaults: defaults)
+        let store = AutocompleteStore(defaults: defaults, writeDelay: 0.1)
         for _ in 0..<10 {
             store.count { $0.shown("abc", after: 0.2, fromCache: false) }
             store.learn { _ = $0.record(false, in: "com.example.editor") }
         }
         #expect(defaults.keys.isEmpty, "written as counted: \(defaults.keys)")
         let deadline = Date().addingTimeInterval(10)
-        while defaults.keys.count < 2, Date() < deadline { Thread.sleep(forTimeInterval: 0.05) }
-        Thread.sleep(forTimeInterval: 0.2)
+        while defaults.keys.count < 2, Date() < deadline { try await Task.sleep(for: .milliseconds(20)) }
+        try await Task.sleep(for: .milliseconds(200))
         #expect(defaults.keys.sorted() == ["autocompleteLearning", "autocompleteMetrics"], "\(defaults.keys)")
         let again = AutocompleteStore(defaults: defaults)
         #expect(again.metrics.shown == 10 && again.learning.apps["com.example.editor"]?.outcomes.count == 10)

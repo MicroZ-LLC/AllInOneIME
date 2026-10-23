@@ -644,15 +644,18 @@ public final class AutocompleteStore: @unchecked Sendable {
     /// The on-device model is loaded ahead of the first pause when a field takes the focus, at most once in this long.
     static let prewarmEvery: TimeInterval = 60
     /// How long what was counted and learned waits before it's written (`keepSoon`): what changes meanwhile goes with it.
-    static let writeDelay: TimeInterval = 2
+    public static let writeDelay: TimeInterval = 2
     /// Where it's written: off the session's thread (a key's end of a suggestion never waits for the defaults).
     private static let writes = DispatchQueue(label: "com.aipinyin.autocomplete.store", qos: .utility)
 
     private let state: Locked<State>
     private let defaults: any KeyValueStore
+    /// `writeDelay`, but the tests'.
+    private let delay: TimeInterval
 
-    public init(defaults: any KeyValueStore = MemoryKeyValueStore()) {
+    public init(defaults: any KeyValueStore = MemoryKeyValueStore(), writeDelay: TimeInterval = AutocompleteStore.writeDelay) {
         self.defaults = defaults
+        delay = writeDelay
         var initial = State()
         let decoder = JSONDecoder()
         if let data = defaults.data(forKey: Self.learningKey), let learning = try? decoder.decode(Autocomplete.Learning.self, from: data) {
@@ -690,7 +693,7 @@ public final class AutocompleteStore: @unchecked Sendable {
             return !state.writeWaiting
         }
         guard first else { return }
-        Self.writes.asyncAfter(deadline: .now() + Self.writeDelay) { self.flush() }
+        Self.writes.asyncAfter(deadline: .now() + delay) { self.flush() }
     }
 
     /// What was counted and learned, written to the defaults now (what was waiting to be: `keepSoon`).
