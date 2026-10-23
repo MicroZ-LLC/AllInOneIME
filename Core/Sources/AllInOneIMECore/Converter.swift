@@ -38,9 +38,10 @@ public final class Converter: Sendable {
         loadCredentials: @escaping CredentialLoader = { try await AWSCredentialResolver.shared.resolve(profile: $0) },
         loadKey: @escaping ChatClient.KeyLoader = { try APIKeys.load($0, for: $1) },
         loadJargon: @escaping JargonLoader = { JargonLibrary.load(from: $0.jargonURL) },
-        appleModel: any AppleModelBackend = AppleModel.system
+        appleModel: any AppleModelBackend = AppleModel.system,
+        appleClock: any Clock<Duration> = ContinuousClock()
     ) {
-        self.client = ChatClient(bedrock: client, apple: appleModel)
+        self.client = ChatClient(bedrock: client, apple: appleModel, appleClock: appleClock)
         self.loadConfig = loadConfig
         self.loadCredentials = loadCredentials
         self.loadKey = loadKey

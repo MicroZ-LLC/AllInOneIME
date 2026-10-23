@@ -170,11 +170,15 @@ public struct ChatClient: Sendable {
     public let bedrock: BedrockClient
     /// The on-device model (`Provider.apple`).
     public let apple: any AppleModelBackend
+    /// What the on-device model's timeout is measured on (`AppleModel.stream`): a test's moves by hand.
+    public let appleClock: any Clock<Duration>
     public var session: URLSession { bedrock.session }
 
-    public init(bedrock: BedrockClient = BedrockClient(), apple: any AppleModelBackend = AppleModel.system) {
+    public init(bedrock: BedrockClient = BedrockClient(), apple: any AppleModelBackend = AppleModel.system,
+                appleClock: any Clock<Duration> = ContinuousClock()) {
         self.bedrock = bedrock
         self.apple = apple
+        self.appleClock = appleClock
     }
 
     /// The profile's credentials (`AWSCredentialResolver.shared` by default): fetched when the profile's kind needs it.
@@ -213,7 +217,7 @@ public struct ChatClient: Sendable {
                 }
             case .apple:
                 return AppleModel.stream(body, backend: apple, maxTokens: body.inferenceConfig.maxTokens ?? config.maxTokens,
-                                         timeout: config.timeoutSeconds)
+                                         timeout: config.timeoutSeconds, clock: appleClock)
             }
         } catch {
             return AsyncThrowingStream { $0.finish(throwing: error) }
