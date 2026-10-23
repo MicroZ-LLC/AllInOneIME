@@ -26,7 +26,7 @@
       "help": "Saisissez un symbole, comme @ ou ~, en début de phrase pour ouvrir les commandes.",
       "id": "commandTrigger",
       "kind": "text",
-      "label": "Déclencheur de commande",
+      "label": "Touche magique",
       "optional": true,
       "placeholder": "@",
       "value": "@"

@@ -43,7 +43,7 @@ address. You can also hold right ⌥ and talk. Without `@`, your keys go to the 
 (pinyin, built on Rime and rime-ice), French, Korean (Hangul) and Hindi (Devanagari from Latin letters), and runs
 your own scripts as @ commands.
 
-The command trigger defaults to `@`. In Settings → General → Command trigger, pick another symbol from the menu: `#`, `%`, `&`, `*`, `+`, `|` or `~`; commands then start with it (for example, `~translate`), and `@` types normally. Letters, digits, spaces and the symbols typing needs (pinyin's keys such as `'` `-` `=` `[` `]` `` ` ``, and the ones pinyin types as Chinese punctuation, such as `,` `.` `?` `\`) can't be the trigger, so the menu doesn't offer them. You can also set `"commandTrigger": "~"` in the config file.
+The magic key, the symbol commands start with, is `@` by default. In Settings → General → Magic key, pick another symbol from the menu: `#`, `%`, `&`, `*`, `+`, `|` or `~`; commands then start with it (for example, `~translate`), and `@` types normally. Letters, digits, spaces and the symbols typing needs (pinyin's keys such as `'` `-` `=` `[` `]` `` ` ``, and the ones pinyin types as Chinese punctuation, such as `,` `.` `?` `\`) can't be the magic key, so the menu doesn't offer them. You can also set it in the config file, where it's called the command trigger: `"commandTrigger": "~"`.
 
 ![@improve and a rough sentence, then ⏎: polished versions, plus rewrites](docs/en/improve.png)
 
@@ -518,7 +518,7 @@ so, with a button that opens that pane.
 
 | Switch | What syncs | Default |
 | --- | --- | --- |
-| Settings | the settings in `config.json`: languages, rewrite styles, the action key, the command trigger, typing out, per-app settings, hiding sensitive information (its switches), the AI provider and model (never a key) … | on |
+| Settings | the settings in `config.json`: languages, rewrite styles, the action key, the magic key, typing out, per-app settings, hiding sensitive information (its switches), the AI provider and model (never a key) … | on |
 | Jargon and custom commands | your jargon list and `customCommands` | on |
 | Learned words | what pinyin learned from your choices (Rime's user dictionary, through librime's user-dictionary sync), words picked from a personal dictionary too, and your English words, added or learned (`englishWords`); your own Rime files, such as custom phrases, and the personal dictionaries themselves stay on the Mac | on |
 | Hidden words | the words you hide from the AI ("iCloud Drive is end-to-end encrypted only with Advanced Data Protection") | off |
@@ -777,7 +777,7 @@ one in. They take the place of [autocomplete](#autocomplete-new)'s gray text whi
 - **Turning them on:** each plugin's completions in Settings → Plugins (a switch each: last refresh, items, last error,
   Refresh now; its preferences, passwords in the keychain). A plugin update that changes the hosts it reaches, its
   lookup or its script turns them off until you turn them on again. **Suggestions** in the input menu turns them all off
-  or on; Settings → Apps per app. With `#` as the command trigger, a source after `#` can't work (Settings says so).
+  or on; Settings → Apps per app. With `#` as the magic key, a source after `#` can't work (Settings says so).
 - **Coding mode:** hold Shift for a second and pick **Coding mode** (2); again to turn it off. It stays on in every app
   until then (the menu bar icon shows `{}`), each text field starts in English (a tap of Shift still switches), and from
   two letters on the rows offer keywords and snippets of the coding languages you installed and the words already in the
@@ -977,7 +977,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 | `improveTranslates` | `@improve` also translates (as `@translate @improve`) | `false` |
 | `voiceInput` | Hold right ⌥ to talk | `true` |
 | `actionKey` | Action key: `"enter"` (⏎), `"optionTap"` (Tap ⌥), `"optionSpace"` (⌥Space), `"space"` (Space) | `"enter"` |
-| `commandTrigger` | The symbol that starts commands: one of `"#"`, `"%"`, `"&"`, `"*"`, `"+"`, `"@"`, `"\|"`, `"~"`; any other value is `"@"` | `"@"` |
+| `commandTrigger` | The magic key, the symbol that starts commands: one of `"#"`, `"%"`, `"&"`, `"*"`, `"+"`, `"@"`, `"\|"`, `"~"`; any other value is `"@"` | `"@"` |
 | `uiLanguage` | Interface language (settings window, candidate panel hints, menu): `"zh"` (Simplified Chinese), `"en"`, or the code of another language the app ships: `"zh-Hant"`, `"ja"`, `"ko"`, `"de"`, `"fr"`, `"es"`, `"pt-BR"` | `null` (follow the system) |
 | `rewriteStyles` | Rewrite styles: `polish`, `concise`, `formal`, `casual`, `tactful`, `jargon`, e.g. `["polish", "concise", "jargon"]` | Polish, Concise, Formal |
 | `jargonFile` | Your own jargon list file | `null` (i.e. `~/.config/allinoneime/jargon.txt`) |

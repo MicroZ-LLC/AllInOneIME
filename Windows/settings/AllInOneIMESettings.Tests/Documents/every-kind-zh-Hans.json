@@ -26,7 +26,7 @@
       "help": "输入一个符号，例如 @ 或 ~。打在句首打开命令列表。",
       "id": "commandTrigger",
       "kind": "text",
-      "label": "命令触发符",
+      "label": "魔法键",
       "optional": true,
       "placeholder": "@",
       "value": "@"

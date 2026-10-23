@@ -79,11 +79,11 @@ struct CommandTriggerTests {
         #expect(Config.CommandTriggerProblem.typingSymbol(",").message(language: "zh-Hans")
             == ", 打字时要用（拼音或中文标点），不能用来打开命令。可以用：# % & * + @ | ~")
         #expect(Config.CommandTriggerProblem.notASymbol.message(language: "en")
-            == "The command trigger must be one symbol, not a letter, digit or space. These work: # % & * + @ | ~")
+            == "The magic key must be one symbol, not a letter, digit or space. These work: # % & * + @ | ~")
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let data = try Data(contentsOf: root.appendingPathComponent("Resources/Localizable.xcstrings"))
         let tables = try StringCatalog.tables(from: data)
-        let keys = ["The command trigger must be one symbol, not a letter, digit or space. These work: %@",
+        let keys = ["The magic key must be one symbol, not a letter, digit or space. These work: %@",
                     "%@ is needed for typing (pinyin or Chinese punctuation), so it can't open commands. These work: %@"]
         for language in StringCatalogCheck.languages {
             for key in keys {

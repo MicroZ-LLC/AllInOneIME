@@ -8010,53 +8010,6 @@
         }
       }
     },
-    "Command trigger: " : {
-      "comment" : "命令触发符： — Sources/AllInOneIME/SettingsWindow.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Befehlsauslöser: "
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Activador de comandos: "
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Déclencheur de commande : "
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "コマンド起動記号："
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "명령 호출 기호: "
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Acionador de comandos: "
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "命令觸發符："
-          }
-        }
-      }
-    },
     "Commands and the programs they run" : {
       "comment" : "命令和它们运行的程序 — Sources/AllInOneIME/ExtensionSourcesSettings.swift",
       "localizations" : {
@@ -13664,6 +13617,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "本機（未經審核）"
+          }
+        }
+      }
+    },
+    "Magic key: " : {
+      "comment" : "魔法键： — Sources/AllInOneIME/SettingsWindow.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Magische Taste: "
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tecla mágica: "
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Touche magique : "
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "マジックキー："
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "매직 키: "
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tecla mágica: "
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "魔法鍵："
           }
         }
       }
