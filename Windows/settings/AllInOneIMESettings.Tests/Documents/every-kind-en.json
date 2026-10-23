@@ -23,6 +23,15 @@
       "value": "enter"
      },
      {
+      "help": "Type one symbol, such as @ or ~, to open commands at the start of a sentence.",
+      "id": "commandTrigger",
+      "kind": "text",
+      "label": "Command trigger",
+      "optional": true,
+      "placeholder": "@",
+      "value": "@"
+     },
+     {
       "help": "A command's result is typed in character by character, like a person typing; pinyin picks still go in at once. Esc stops it; any other key types the rest at once.",
       "id": "typeOut",
       "kind": "toggle",
@@ -783,8 +792,8 @@
          "remove"
         ],
         "detail": "added",
-        "id": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-r1n88d_l",
-        "title": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-r1n88d_l"
+        "id": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-v5brge1a",
+        "title": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-v5brge1a"
        }
       ],
       "kind": "items",
@@ -863,13 +872,13 @@
         "fields": [
          {
           "help": "Say hi",
-          "id": "extensions.on.C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-r1n88d_l/hello.sh",
+          "id": "extensions.on.C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-v5brge1a/hello.sh",
           "kind": "toggle",
           "label": "@hello",
           "value": true
          }
         ],
-        "id": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-r1n88d_l/hello.sh",
+        "id": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-v5brge1a/hello.sh",
         "title": "@hello"
        }
       ],
@@ -1113,7 +1122,7 @@
       "id": "configFile",
       "kind": "info",
       "label": "Config file",
-      "value": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-71ro82nd\\config.json"
+      "value": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-b0armaou\\config.json"
      }
     ],
     "footer": "Changes apply right away, with no restart.",

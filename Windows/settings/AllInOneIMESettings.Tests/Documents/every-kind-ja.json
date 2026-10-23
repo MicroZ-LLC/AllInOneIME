@@ -23,6 +23,15 @@
       "value": "enter"
      },
      {
+      "help": "文頭で @ や ~ などの記号を1つ入力するとコマンドが開きます。",
+      "id": "commandTrigger",
+      "kind": "text",
+      "label": "コマンド起動記号",
+      "optional": true,
+      "placeholder": "@",
+      "value": "@"
+     },
+     {
       "help": "コマンドの結果を、人がタイプするように1文字ずつ入力します。ピンインで選んだ語はすぐに入力されます。Escで停止し、ほかのキーを押すと残りを一度に入力します。",
       "id": "typeOut",
       "kind": "toggle",
@@ -783,8 +792,8 @@
          "remove"
         ],
         "detail": "追加済み",
-        "id": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-r1n88d_l",
-        "title": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-r1n88d_l"
+        "id": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-v5brge1a",
+        "title": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-v5brge1a"
        }
       ],
       "kind": "items",
@@ -863,13 +872,13 @@
         "fields": [
          {
           "help": "Say hi",
-          "id": "extensions.on.C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-r1n88d_l/hello.sh",
+          "id": "extensions.on.C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-v5brge1a/hello.sh",
           "kind": "toggle",
           "label": "@hello",
           "value": true
          }
         ],
-        "id": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-r1n88d_l/hello.sh",
+        "id": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-v5brge1a/hello.sh",
         "title": "@hello"
        }
       ],
@@ -1113,7 +1122,7 @@
       "id": "configFile",
       "kind": "info",
       "label": "設定ファイル",
-      "value": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-u5tduu7n\\config.json"
+      "value": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-13g4b84x\\config.json"
      }
     ],
     "footer": "変更はすぐに反映され、再起動は不要です。",

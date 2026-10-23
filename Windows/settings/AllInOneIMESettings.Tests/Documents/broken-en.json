@@ -1,7 +1,7 @@
 {
  "document": {
   "language": "zh-Hans",
-  "loadError": "配置文件格式错误（C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-jceupn5u\\config.json）：DecodingError.dataCorrupted: Data was corrupted. Debug description: The given data was not valid JSON.",
+  "loadError": "配置文件格式错误（C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-k9et_y9y\\config.json）：DecodingError.dataCorrupted: Data was corrupted. Debug description: The given data was not valid JSON.",
   "platform": "windows",
   "sections": [
    {
@@ -23,6 +23,16 @@
       "label": "执行键",
       "readOnly": true,
       "value": "enter"
+     },
+     {
+      "help": "输入一个符号，例如 @ 或 ~。打在句首打开命令列表。",
+      "id": "commandTrigger",
+      "kind": "text",
+      "label": "命令触发符",
+      "optional": true,
+      "placeholder": "@",
+      "readOnly": true,
+      "value": "@"
      },
      {
       "help": "命令的结果（翻译、润色、回答…）像人打字一样一个字一个字打进去；打拼音选词还是马上上屏。按 Esc 停下，按别的键把剩下的一次打完。",
@@ -799,7 +809,7 @@
       "id": "configFile",
       "kind": "info",
       "label": "配置文件",
-      "value": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-jceupn5u\\config.json"
+      "value": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-k9et_y9y\\config.json"
      }
     ],
     "footer": "改完立即生效，不用重启。",

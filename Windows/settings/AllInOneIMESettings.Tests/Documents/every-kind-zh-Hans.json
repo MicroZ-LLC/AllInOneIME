@@ -23,6 +23,15 @@
       "value": "enter"
      },
      {
+      "help": "输入一个符号，例如 @ 或 ~。打在句首打开命令列表。",
+      "id": "commandTrigger",
+      "kind": "text",
+      "label": "命令触发符",
+      "optional": true,
+      "placeholder": "@",
+      "value": "@"
+     },
+     {
       "help": "命令的结果（翻译、润色、回答…）像人打字一样一个字一个字打进去；打拼音选词还是马上上屏。按 Esc 停下，按别的键把剩下的一次打完。",
       "id": "typeOut",
       "kind": "toggle",
@@ -783,8 +792,8 @@
          "remove"
         ],
         "detail": "添加的",
-        "id": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-r1n88d_l",
-        "title": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-r1n88d_l"
+        "id": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-v5brge1a",
+        "title": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-v5brge1a"
        }
       ],
       "kind": "items",
@@ -863,13 +872,13 @@
         "fields": [
          {
           "help": "Say hi",
-          "id": "extensions.on.C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-r1n88d_l/hello.sh",
+          "id": "extensions.on.C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-v5brge1a/hello.sh",
           "kind": "toggle",
           "label": "@hello",
           "value": true
          }
         ],
-        "id": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-r1n88d_l/hello.sh",
+        "id": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-v5brge1a/hello.sh",
         "title": "@hello"
        }
       ],
@@ -1113,7 +1122,7 @@
       "id": "configFile",
       "kind": "info",
       "label": "配置文件",
-      "value": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-iuxw3hk0\\config.json"
+      "value": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-np0klia6\\config.json"
      }
     ],
     "footer": "改完立即生效，不用重启。",

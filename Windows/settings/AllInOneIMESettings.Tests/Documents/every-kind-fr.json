@@ -23,6 +23,15 @@
       "value": "enter"
      },
      {
+      "help": "Saisissez un symbole, comme @ ou ~, en début de phrase pour ouvrir les commandes.",
+      "id": "commandTrigger",
+      "kind": "text",
+      "label": "Déclencheur de commande",
+      "optional": true,
+      "placeholder": "@",
+      "value": "@"
+     },
+     {
       "help": "Le résultat d’une commande est tapé caractère par caractère, comme par un humain ; les mots choisis en pinyin restent insérés d’un coup. Esc l’arrête ; toute autre touche tape le reste d’un coup.",
       "id": "typeOut",
       "kind": "toggle",
@@ -783,8 +792,8 @@
          "remove"
         ],
         "detail": "ajouté",
-        "id": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-r1n88d_l",
-        "title": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-r1n88d_l"
+        "id": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-v5brge1a",
+        "title": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-v5brge1a"
        }
       ],
       "kind": "items",
@@ -863,13 +872,13 @@
         "fields": [
          {
           "help": "Say hi",
-          "id": "extensions.on.C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-r1n88d_l/hello.sh",
+          "id": "extensions.on.C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-v5brge1a/hello.sh",
           "kind": "toggle",
           "label": "@hello",
           "value": true
          }
         ],
-        "id": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-r1n88d_l/hello.sh",
+        "id": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-v5brge1a/hello.sh",
         "title": "@hello"
        }
       ],
@@ -1113,7 +1122,7 @@
       "id": "configFile",
       "kind": "info",
       "label": "Fichier de configuration",
-      "value": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-vo5klwdd\\config.json"
+      "value": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-g_v90b_o\\config.json"
      }
     ],
     "footer": "Les modifications s’appliquent immédiatement, sans redémarrage.",
