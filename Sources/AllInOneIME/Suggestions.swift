@@ -120,6 +120,7 @@ enum SuggestionsShared {
         services.pointer = { MainActor.assumeIsolated { TranslateModeShared.pointer() } }
         services.stickyKeys = { MainActor.assumeIsolated { TranslateModeShared.stickyKeys() } }
         services.shiftHeld = { MainActor.assumeIsolated { TranslateModeShared.shiftHeld() } }
+        services.shiftDown = { MainActor.assumeIsolated { TranslateModeShared.shiftDown() } }
         services.chooserHint = { MainActor.assumeIsolated { chooserHint } }
         return services
     }

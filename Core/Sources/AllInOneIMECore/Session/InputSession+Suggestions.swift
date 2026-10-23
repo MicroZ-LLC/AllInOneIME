@@ -128,9 +128,10 @@ extension InputSession {
     // MARK: - Events
 
     /// A field took the focus: nothing of the one before; the sources' state taken in (lists cached, loads due, sources
-    /// disabled forgotten).
+    /// disabled forgotten). Shift's changes meanwhile went to other fields: no press, Shift as it is now, so the change
+    /// seen last here (Shift down as Shift+Tab left) passes for no copy of the next one.
     func suggestionsFocused() {
-        chooserPress.cancel()
+        chooserPress.resync(shiftDown: services.suggestions.shiftDown())
         let (refresh, shift) = (suggesting.refresh, suggesting.shift)
         suggesting = SuggestionsField()
         (suggesting.refresh, suggesting.shift) = (refresh, shift + 1)
@@ -270,6 +271,13 @@ extension InputSession {
         chooserPress.resync(shiftDown: shiftDown)
         suggesting.shift += 1
         chooserHintEnds()
+    }
+
+    /// Another app became active (the shell's), with a text field or not: Shift's changes go there now. A long press of
+    /// Shift here ends, its hint with it, and Shift is taken as it is (`SuggestionsServices.shiftDown`). What the shell is
+    /// to do.
+    public func otherAppActivated() -> [SessionOutput] {
+        collect { suggestionsModifiersMissed(shiftDown: services.suggestions.shiftDown()) }
     }
 
     // MARK: - Keys

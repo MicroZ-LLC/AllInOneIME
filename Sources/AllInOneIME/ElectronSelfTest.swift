@@ -269,7 +269,8 @@ extension SelfTest {
     /// held: one switch, and the chooser (the copy of the tap's release, reaching the long press, would end the press;
     /// reaching the composer, the two copies would switch back). Then Shift+Tab with the page busy:
     /// the focus in the next field before Shift's copies come; there the copy of Shift's down and the release would be a
-    /// tap, but the copy is known in every field (the composer of each field its own).
+    /// tap, but the copy is known in every field (the composer of each field its own). Back in the field it left, Shift's
+    /// down the last change seen there: the first long press opens the chooser all the same (taken for no copy of it).
     static func checkCopiesDroppedFirst(_ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
         var opened = false
         replay(reached(in: electronTapThenHoldBusy), controller, client, after: 0.2) {
@@ -321,6 +322,11 @@ extension SelfTest {
         other.deactivateServer(otherClient)
         other.inputControllerWillClose()
         controller.activateServer(client)
+        var reopened = false
+        replay(reached(in: electronShiftHold), controller, client, after: 0.2) { reopened = reopened || chooserIsOpen(controller) }
+        if chooserIsOpen(controller) { _ = escape(controller, client) }
+        check(reopened && !TranslateModeShared.state.isOn,
+              "back in the field Shift+Tab left, Shift's release gone to the next one: the first long press opens the chooser")
     }
 
     /// The Electron harness itself, when `ALLINONEIME_ELECTRON_HARNESS` names its folder (`make electron-harness`: its

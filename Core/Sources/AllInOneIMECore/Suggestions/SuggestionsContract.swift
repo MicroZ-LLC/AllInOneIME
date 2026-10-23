@@ -467,6 +467,10 @@ public struct SuggestionsServices {
     /// Whether Shift is down now as the system has it (and no mouse button), asked when the long press's time comes: a
     /// release that went unseen opens no chooser. The default: yes.
     public var shiftHeld: () -> Bool
+    /// Whether Shift is down now as the system has it, asked as a field takes the focus: Shift's changes while another
+    /// field had it went there, and the long press goes on from Shift as it is now (`TranslateMode.ShiftHold.resync`).
+    /// The default: no.
+    public var shiftDown: () -> Bool
     /// What the long press of Shift says half way to the chooser ("Keep holding → …", the shell's wording; nil: nothing).
     public var chooserHint: () -> String?
 
@@ -489,6 +493,7 @@ public struct SuggestionsServices {
         pointer = TranslateMode.ShiftHold.noPointer
         stickyKeys = { false }
         shiftHeld = { true }
+        shiftDown = { false }
         chooserHint = { nil }
     }
 }
