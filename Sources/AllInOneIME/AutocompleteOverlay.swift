@@ -157,8 +157,9 @@ enum AutocompleteSwitch {
             }
             config.autocomplete = on
             try config.write()
-            NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
+            // Counted here, before a session sees the file (`AutocompleteStore.saw`), which then counts nothing more.
             store.switched(on: on)
+            NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
             log.notice("autocomplete \(on ? "on" : "off", privacy: .public) (\(String(describing: Autocomplete.route(config)), privacy: .public))")
             field?.applySettings()
             field?.showNotice(on ? onNotice(config) : tr("续写 已关闭", "Autocomplete off"), client: nil, long: on && !modelReady(config))

@@ -570,10 +570,13 @@ public final class AutocompleteStore: @unchecked Sendable {
         var metrics = Autocomplete.Metrics()
         var said: Set<String> = []
         var prewarmed: TimeInterval?
+        /// The switch as last seen (`saw`), nil before.
+        var switchSeen: Bool?
     }
 
     static let learningKey = "autocompleteLearning"
     static let metricsKey = "autocompleteMetrics"
+    static let switchKey = "autocompleteSwitch"
     /// The on-device model is loaded ahead of the first pause when a field takes the focus, at most once in this long.
     static let prewarmEvery: TimeInterval = 60
 
@@ -590,6 +593,7 @@ public final class AutocompleteStore: @unchecked Sendable {
         if let data = defaults.data(forKey: Self.metricsKey), let metrics = try? decoder.decode(Autocomplete.Metrics.self, from: data) {
             initial.metrics = metrics
         }
+        initial.switchSeen = defaults.string(forKey: Self.switchKey).flatMap { ["on": true, "off": false][$0] }
         state = Locked(initialState: initial)
     }
 
@@ -618,8 +622,27 @@ public final class AutocompleteStore: @unchecked Sendable {
 
     /// The switch turned on or off (counted; on, every app starts over).
     public func switched(on: Bool, at date: Date = Date()) {
+        keepSeen(on)
         count { $0.switched(on: on, at: date) }
         if on { learn { $0.restart() } }
+    }
+
+    /// The switch as the settings have it, seen by a session as it takes them (a field takes the focus, the settings
+    /// change): turned on or off since it was last seen, elsewhere than the input method's own switch (Settings →
+    /// Assistant, a hand edit of the config file), it is counted and every app starts over, as with the switch
+    /// (`switched`, which counts its own). Seen the first time: only kept.
+    public func saw(switch on: Bool, at date: Date = Date()) {
+        let before = state.withLock { $0.switchSeen }
+        guard before != on else { return }
+        if before == nil { keepSeen(on) } else { switched(on: on, at: date) }
+    }
+
+    private func keepSeen(_ on: Bool) {
+        let changed = state.withLock { state -> Bool in
+            defer { state.switchSeen = on }
+            return state.switchSeen != on
+        }
+        if changed { defaults.set(on ? "on" : "off", forKey: Self.switchKey) }
     }
 
     public func keep(_ text: String, after before: String) {

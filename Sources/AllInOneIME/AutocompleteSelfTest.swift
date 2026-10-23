@@ -411,6 +411,15 @@ extension SelfTest {
         check(stoppedMenu.contains(tr("跟全局一样（在这里没用上，已停）", "Same as everywhere (stopped here: not used)"))
               && stoppedMenu.contains(tr("总是续写", "Always", key: "autocomplete.always")),
               "the input menu's This App says so, and offers Always (\(stoppedMenu))")
+        // Turned off and on again elsewhere than the switch (Settings → Assistant writes the file): seen as a field takes
+        // the focus, every app starts over, as with the switch.
+        let turnedOn = store.metrics.turnedOn
+        settings.autocomplete = false
+        controller.activateServer(harness)
+        settings.autocomplete = true
+        controller.activateServer(harness)
+        check(!store.stopped(in: "com.aipinyin.selftest.harness") && store.metrics.turnedOn == turnedOn + 1,
+              "turned on again by Settings → Assistant: counted, and the app starts over")
         store.learn { $0.restart() }
 
         // A field that tells no caret rect: a line of the candidate panel. (The fake field's caret rect made empty, and its

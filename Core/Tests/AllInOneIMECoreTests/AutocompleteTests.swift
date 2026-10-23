@@ -816,6 +816,42 @@ struct AutocompleteTests {
         }
     }
 
+    /// Turned on elsewhere than the input method's own switch (Settings → Assistant, a hand edit of the config file): seen
+    /// as the next field takes the focus or the settings change, it is counted and every app starts over, as with the
+    /// switch; the switch itself isn't counted twice.
+    @Test func turnedOnByTheAssistantEveryAppStartsOver() {
+        withInterfaceLanguage("en") {
+            let store = AutocompleteStore()
+            store.learn { learning in for _ in 0..<30 { _ = learning.record(false, in: "com.example.editor") } }
+            let settings = Settings()
+            settings.config.autocomplete = false
+            let r = rig(settings, store: store)
+            #expect(store.stopped(in: "com.example.editor") && store.metrics.turnedOn == 0)
+            // "Turn on autocomplete", as Settings → Assistant applies it.
+            _ = AIConfig.apply([.autocomplete(true)], to: &settings.config)
+            r.host.focus()
+            #expect(!store.stopped(in: "com.example.editor") && store.metrics.turnedOn == 1)
+            r.host.type("Hello wor")
+            #expect(!r.pauses.isEmpty)
+            // Off the same way, within a day: counted as the switch counts it.
+            _ = AIConfig.apply([.autocomplete(false)], to: &settings.config)
+            r.host.send(.configChanged)
+            #expect(store.metrics.turnedOffWithinADay == 1)
+            // The input method's own switch says so itself (`switched`): seen after it, it isn't counted again.
+            settings.config.autocomplete = true
+            store.switched(on: true)
+            r.host.focus()
+            #expect(store.metrics.turnedOn == 2)
+            // What was kept says what was seen last: another launch counts nothing for the same switch.
+            let defaults = MemoryKeyValueStore()
+            let first = AutocompleteStore(defaults: defaults)
+            first.saw(switch: true)
+            let relaunched = AutocompleteStore(defaults: defaults)
+            relaunched.saw(switch: true)
+            #expect(relaunched.metrics.turnedOn == 0)
+        }
+    }
+
     @Test func theOnDeviceModelUnavailableShowsNothingAndSaysSoOnce() {
         withInterfaceLanguage("en") {
             let r = rig(model: ContinuingModel(.appleIntelligenceNotEnabled))
