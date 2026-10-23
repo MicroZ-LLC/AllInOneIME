@@ -3198,49 +3198,49 @@
         }
       }
     },
-    "%@ is the command trigger: typing it opens the command list, so these completions can't show (pick another trigger in General)" : {
-      "comment" : "%@ 是命令触发符，打 %@ 会打开命令列表，所以这个补全不会出现（在「通用」里换一个命令触发符就行） — Sources/AllInOneIMECore/Suggestions/SuggestionsContract.swift",
+    "%@ is the magic key: typing it opens the command list, so these completions can't show (pick another magic key in General)" : {
+      "comment" : "%@ 是魔法键，打 %@ 会打开命令列表，所以这个补全不会出现（在「通用」里换一个魔法键就行） — Sources/AllInOneIMECore/Suggestions/SuggestionsContract.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ ist das Befehlszeichen: Es öffnet die Befehlsliste, daher können diese Vervollständigungen nicht erscheinen (wähle unter „Allgemein“ ein anderes Zeichen)"
+            "value" : "%@ ist die magische Taste: Sie öffnet die Befehlsliste, daher können diese Vervollständigungen nicht erscheinen (wähle unter „Allgemein“ eine andere magische Taste)"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ es el activador de comandos: al escribirlo se abre la lista de comandos, así que estas sugerencias no pueden aparecer (elige otro activador en General)"
+            "value" : "%@ es la tecla mágica: al escribirla se abre la lista de comandos, así que estas sugerencias no pueden aparecer (elige otra tecla mágica en General)"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ est le déclencheur des commandes : le taper ouvre la liste des commandes, ces complétions ne peuvent donc pas s’afficher (choisissez un autre déclencheur dans Général)"
+            "value" : "%@ est la touche magique : la taper ouvre la liste des commandes, ces complétions ne peuvent donc pas s’afficher (choisissez une autre touche magique dans Général)"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ はコマンドの起動記号です。入力するとコマンド一覧が開くため、この補完は表示されません（「一般」で別の記号を選んでください）"
+            "value" : "%@ はマジックキーです。入力するとコマンド一覧が開くため、この補完は表示されません（「一般」でマジックキーを別の記号に変えてください）"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@는 명령 트리거입니다. 입력하면 명령 목록이 열리므로 이 자동 완성은 표시되지 않습니다(일반에서 다른 트리거를 선택하세요)"
+            "value" : "%@는 매직 키입니다. 입력하면 명령 목록이 열리므로 이 자동 완성은 표시되지 않습니다(일반에서 다른 매직 키를 선택하세요)"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ é o gatilho de comandos: digitá-lo abre a lista de comandos, então estas sugestões não podem aparecer (escolha outro gatilho em Geral)"
+            "value" : "%@ é a tecla mágica: digitá-la abre a lista de comandos, então estas sugestões não podem aparecer (escolha outra tecla mágica em Geral)"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ 是命令觸發符，打它會打開命令列表，所以這個補全不會出現（在「一般」裡換一個命令觸發符就行）"
+            "value" : "%@ 是魔法鍵，打它會打開命令列表，所以這個補全不會出現（在「一般」裡換一個魔法鍵就行）"
           }
         }
       }
@@ -12428,53 +12428,6 @@
         }
       }
     },
-    "Command trigger" : {
-      "comment" : "命令触发符 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Befehlsauslöser"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Activador de comandos"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Déclencheur de commande"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "コマンド起動記号"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "명령 호출 기호"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Acionador de comandos"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "命令觸發符"
-          }
-        }
-      }
-    },
     "Completions not used" : {
       "comment" : "没有用上的补全 — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
       "localizations" : {
@@ -19768,6 +19721,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已有同名的本機外掛"
+          }
+        }
+      }
+    },
+    "Magic key" : {
+      "comment" : "魔法键 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Magische Taste"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tecla mágica"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Touche magique"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "マジックキー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "매직 키"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tecla mágica"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "魔法鍵"
           }
         }
       }
@@ -37072,53 +37072,6 @@
         }
       }
     },
-    "The command trigger must be one symbol, not a letter, digit or space. These work: %@" : {
-      "comment" : "命令触发符只能是一个符号，不能是字母、数字或空格。可以用：%@ — Sources/AllInOneIMECore/Config.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Der Befehlsauslöser muss ein einzelnes Symbol sein, kein Buchstabe, keine Ziffer und kein Leerzeichen. Möglich sind: %@"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "El activador de comandos debe ser un solo símbolo, no una letra, un dígito ni un espacio. Sirven: %@"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Le déclencheur de commande doit être un seul symbole, ni lettre, ni chiffre, ni espace. Possibles : %@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "コマンド起動記号は記号1文字にしてください（英字・数字・スペースは使えません）。使える記号：%@"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "명령 호출 기호는 기호 하나여야 하며 글자, 숫자, 공백은 안 됩니다. 쓸 수 있는 기호: %@"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "O acionador de comandos deve ser um único símbolo, não uma letra, um dígito ou um espaço. Funcionam: %@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "命令觸發符只能是一個符號，不能是字母、數字或空格。可以用：%@"
-          }
-        }
-      }
-    },
     "The config file has an error and was left as is: " : {
       "comment" : "配置文件有误，未做修改： — Sources/AllInOneIMECore/Settings/SettingsService.swift",
       "localizations" : {
@@ -38008,6 +37961,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "上次更新沒有成功"
+          }
+        }
+      }
+    },
+    "The magic key must be one symbol, not a letter, digit or space. These work: %@" : {
+      "comment" : "魔法键只能是一个符号，不能是字母、数字或空格。可以用：%@ — Sources/AllInOneIMECore/Config.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die magische Taste muss ein einzelnes Symbol sein, kein Buchstabe, keine Ziffer und kein Leerzeichen. Möglich sind: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La tecla mágica debe ser un solo símbolo, no una letra, un dígito ni un espacio. Sirven: %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La touche magique doit être un seul symbole, ni lettre, ni chiffre, ni espace. Possibles : %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "マジックキーは記号1文字にしてください（英字・数字・スペースは使えません）。使える記号：%@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "매직 키는 기호 하나여야 하며 글자, 숫자, 공백은 안 됩니다. 쓸 수 있는 기호: %@"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A tecla mágica deve ser um único símbolo, não uma letra, um dígito ou um espaço. Funcionam: %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "魔法鍵只能是一個符號，不能是字母、數字或空格。可以用：%@"
           }
         }
       }

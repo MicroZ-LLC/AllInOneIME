@@ -923,9 +923,9 @@ struct SettingsView: View {
                 .buttonStyle(.plain)
                 .menuIndicator(.hidden)
                 .fixedSize()
-                .accessibilityLabel(tr("命令触发符：", "Command trigger: ") + model.config.commandTrigger)
+                .accessibilityLabel(tr("魔法键：", "Magic key: ") + model.config.commandTrigger)
             } label: {
-                titled(tr("命令触发符", "Command trigger"),
+                titled(tr("魔法键", "Magic key"),
                        tr("打在句首打开命令列表。", "Typed at the start of a sentence, it opens the commands."))
             }
             .disabled(!model.canSave)

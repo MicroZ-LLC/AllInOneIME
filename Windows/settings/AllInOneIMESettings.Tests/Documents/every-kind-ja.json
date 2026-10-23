@@ -26,7 +26,7 @@
       "help": "文頭で @ や ~ などの記号を1つ入力するとコマンドが開きます。",
       "id": "commandTrigger",
       "kind": "text",
-      "label": "コマンド起動記号",
+      "label": "マジックキー",
       "optional": true,
       "placeholder": "@",
       "value": "@"

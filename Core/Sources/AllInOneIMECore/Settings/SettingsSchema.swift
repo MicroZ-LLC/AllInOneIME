@@ -210,7 +210,7 @@ struct SettingsSchema {
             guard let key = value.string.flatMap(ActionKey.named) else { return }
             store.config.actionKey = key
         }
-        add(text("commandTrigger", tr("命令触发符", "Command trigger"),
+        add(text("commandTrigger", tr("魔法键", "Magic key"),
                  tr("输入一个符号，例如 @ 或 ~。打在句首打开命令列表。", "Type one symbol, such as @ or ~, to open commands at the start of a sentence."),
                  value: config.commandTrigger, placeholder: "@"), to: &fields) { value in
             guard let trigger = value.string else {

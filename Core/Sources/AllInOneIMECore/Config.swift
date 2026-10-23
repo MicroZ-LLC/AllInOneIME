@@ -108,8 +108,8 @@ public struct Config: Codable, Equatable, Sendable {
             let t = InterfaceWords(language: language), these = Config.commandTriggers.joined(separator: " ")
             switch self {
             case .notASymbol:
-                return t.tr("命令触发符只能是一个符号，不能是字母、数字或空格。可以用：\(these)",
-                            "The command trigger must be one symbol, not a letter, digit or space. These work: \(these)")
+                return t.tr("魔法键只能是一个符号，不能是字母、数字或空格。可以用：\(these)",
+                            "The magic key must be one symbol, not a letter, digit or space. These work: \(these)")
             case let .typingSymbol(symbol):
                 return t.tr("\(symbol) 打字时要用（拼音或中文标点），不能用来打开命令。可以用：\(these)",
                             "\(symbol) is needed for typing (pinyin or Chinese punctuation), so it can't open commands. These work: \(these)")

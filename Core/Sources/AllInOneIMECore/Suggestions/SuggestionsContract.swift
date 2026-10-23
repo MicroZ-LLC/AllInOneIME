@@ -139,8 +139,8 @@ extension CompletionSource {
     public func inactiveReason(_ config: Config) -> String? {
         guard let first = prefix?.first, String(first) == config.commandTrigger else { return nil }
         let trigger = config.commandTrigger
-        return tr("\(trigger) 是命令触发符，打 \(trigger) 会打开命令列表，所以这个补全不会出现（在「通用」里换一个命令触发符就行）",
-                  "\(trigger) is the command trigger: typing it opens the command list, so these completions can't show (pick another trigger in General)")
+        return tr("\(trigger) 是魔法键，打 \(trigger) 会打开命令列表，所以这个补全不会出现（在「通用」里换一个魔法键就行）",
+                  "\(trigger) is the magic key: typing it opens the command list, so these completions can't show (pick another magic key in General)")
     }
 }
 

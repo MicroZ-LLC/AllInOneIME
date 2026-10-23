@@ -26,7 +26,7 @@
       "help": "Type one symbol, such as @ or ~, to open commands at the start of a sentence.",
       "id": "commandTrigger",
       "kind": "text",
-      "label": "Command trigger",
+      "label": "Magic key",
       "optional": true,
       "placeholder": "@",
       "value": "@"
