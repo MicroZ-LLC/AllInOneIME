@@ -836,6 +836,7 @@ You don't need AWS: pick one under "AI Provider" in the settings, paste an API k
 - "Thinking" is low by default: the input method waits on every sentence, and less thinking is faster. Choose "Not set" for models that don't take it.
 - With Claude Opus 5.5 or Sonnet 5.5 chosen, requests carry the Claude API's refusal fallback (`fallbacks: "default"`): when a safety classifier declines, the server retries on another model.
 - In the config file: `provider` (`"bedrock"`, `"anthropic"`, `"gemini"`, `"openai"`), and `model`, `baseURL`, `effort` and `temperature` under `anthropic`, `gemini` and `openai` (unset ones use the defaults).
+- A model that refuses the temperature (a reasoning model, or one that won't take it along with top_p) is asked again without it, once, and from then on gets none; on Amazon Bedrock too. Which models is kept in `~/Library/Caches/AllInOneIME/unsupported-temperature.json` (their provider and name only): delete it to send them the temperature again. Other models still get the one you set; Gemini and AllInOneIME Cloud are left as they are.
 
 ### Apple Intelligence on this Mac (macOS 26)
 

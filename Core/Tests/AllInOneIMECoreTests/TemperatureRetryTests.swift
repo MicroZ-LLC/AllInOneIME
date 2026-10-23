@@ -172,4 +172,108 @@ struct TemperatureRetryTests {
         memory.remember(.openai, model: "o4-mini")
         #expect(memory.omits(.openai, model: "o4-mini") && !TemperatureSupport(file: nil).omits(.openai, model: "o4-mini"))
     }
+
+    // MARK: - The Claude API and OpenAI-compatible services
+
+    static let claudeAnswer = StubURLProtocol.Response(status: 200, headers: ["Content-Type": "text/event-stream"], chunks: [Data("""
+        event: message_start
+        data: {"type":"message_start","message":{"id":"msg_test","type":"message","role":"assistant","content":[]}}
+
+        event: content_block_delta
+        data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"OK"}}
+
+        event: message_delta
+        data: {"type":"message_delta","delta":{"stop_reason":"end_turn"}}
+
+        event: message_stop
+        data: {"type":"message_stop"}
+
+
+        """.utf8)])
+
+    static let openAIAnswer = StubURLProtocol.Response(status: 200, headers: ["Content-Type": "text/event-stream"], chunks: [Data("""
+        data: {"choices":[{"index":0,"delta":{"content":"OK"},"finish_reason":null}]}
+
+        data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+
+        data: [DONE]
+
+
+        """.utf8)])
+
+    static func jsonError(_ status: Int, _ body: String) -> StubURLProtocol.Response {
+        .init(status: status, headers: ["Content-Type": "application/json"], chunks: [Data(body.utf8)])
+    }
+
+    @Test func theClaudeAPIAndOpenAICompatibleServicesAskAgainWithoutIt() async throws {
+        let cases: [(Provider, String, String, StubURLProtocol.Response)] = [
+            (.anthropic, "claude-haiku-5-5", #"""
+             {"type":"error","error":{"type":"invalid_request_error","message":"`temperature` may only be set to 1 when thinking is enabled. Please consult our documentation at https://docs.claude.com/en/docs/build-with-claude/extended-thinking"},"request_id":"req_011CTemperatureTest"}
+             """#, Self.claudeAnswer),
+            (.openai, "o4-mini", #"""
+             {"error":{"message":"Unsupported value: 'temperature' does not support 0.7 with this model. Only the default (1) value is supported.","type":"invalid_request_error","param":"temperature","code":"unsupported_value"}}
+             """#, Self.openAIAnswer),
+            // A compatible service passing on its model's error, with a numeric code.
+            (.openai, "anthropic/claude-sonnet-4.5", #"""
+             {"error":{"message":"Provider returned error: temperature and top_p cannot both be specified for this model. Please use only one.","code":400}}
+             """#, Self.openAIAnswer),
+        ]
+        for (index, (provider, model, refusal, answer)) in cases.enumerated() {
+            let host = "temperature-\(index).test"
+            let file = Self.cacheFile()
+            defer { try? FileManager.default.removeItem(at: file.deletingLastPathComponent()) }
+            StubURLProtocol.register(host: host, [Self.jsonError(400, refusal), answer])
+            var config = Config.default
+            config.provider = provider
+            let settings = ProviderSettings(model: model, baseURL: "https://\(host)" + (provider == .openai ? "/v1" : ""), temperature: 0.7)
+            if provider == .anthropic { config.anthropic = settings } else { config.openai = settings }
+            func ask(_ client: ChatClient) async throws -> String {
+                try await Self.text(client.stream(Self.body(temperature: nil), config: config, loadCredentials: Self.credentials,
+                                                  loadKey: { _, _ in "sk-test" }))
+            }
+            let client = Self.client(TemperatureSupport(file: file))
+            #expect(try await ask(client) == "OK", "\(index)")
+            #expect(Self.temperatures(host) == [0.7, nil], "\(index)")
+            StubURLProtocol.register(host: host, answer)
+            #expect(try await ask(client) == "OK", "\(index)")
+            #expect(try await ask(Self.client(TemperatureSupport(file: file))) == "OK", "\(index)")
+            #expect(Self.temperatures(host) == [nil, nil], "\(index)")
+            #expect(try String(contentsOf: file, encoding: .utf8) == "[\"\(provider.rawValue):\(model)\"]", "\(index)")
+        }
+    }
+
+    /// Only a validation error that names the temperature (or top_p), on a request that had one, from the Claude API or
+    /// an OpenAI-compatible service: anything else fails as before, after one request, and nothing is remembered.
+    @Test func otherProviderErrorsAreNotAskedAgain() async throws {
+        let file = Self.cacheFile()
+        defer { try? FileManager.default.removeItem(at: file.deletingLastPathComponent()) }
+        let client = Self.client(TemperatureSupport(file: file))
+        let failures: [(Provider, Double?, StubURLProtocol.Response)] = [
+            (.openai, 0.7, Self.jsonError(400, #"{"error":{"message":"max_tokens is too large: 900000. This model supports at most 128000 completion tokens.","type":"invalid_request_error","param":"max_tokens","code":"invalid_value"}}"#)),
+            (.openai, 0.7, Self.jsonError(500, #"{"error":{"message":"The server had an error while processing your request (temperature sampling).","type":"server_error"}}"#)),
+            (.anthropic, 0.7, Self.jsonError(429, #"{"type":"error","error":{"type":"rate_limit_error","message":"Number of requests has exceeded your rate limit; temperature unchanged"}}"#)),
+            // No temperature to leave out.
+            (.anthropic, nil, Self.jsonError(400, #"{"type":"error","error":{"type":"invalid_request_error","message":"temperature: Input should be less than or equal to 1"}}"#)),
+            // Gemini sends its own as before.
+            (.gemini, 0.7, Self.jsonError(400, #"{"error":{"code":400,"message":"Invalid value at 'generation_config.temperature' (TYPE_FLOAT), 3","status":"INVALID_ARGUMENT"}}"#)),
+        ]
+        for (index, (provider, temperature, failure)) in failures.enumerated() {
+            let host = "temperature-other-\(index).test"
+            StubURLProtocol.register(host: host, [failure, Self.openAIAnswer])
+            var config = Config.default
+            config.provider = provider
+            let settings = ProviderSettings(model: "some-model", baseURL: "https://\(host)" + (provider == .openai ? "/v1" : ""), temperature: temperature)
+            switch provider {
+            case .anthropic: config.anthropic = settings
+            case .gemini: config.gemini = settings
+            default: config.openai = settings
+            }
+            await #expect(throws: ProviderError.self, "\(index)") {
+                _ = try await Self.text(client.stream(Self.body(temperature: nil), config: config, loadCredentials: Self.credentials,
+                                                      loadKey: { _, _ in "sk-test" }))
+            }
+            #expect(StubURLProtocol.requests(host: host).count == 1, "\(index)")
+        }
+        #expect(!FileManager.default.fileExists(atPath: file.path))
+    }
 }
