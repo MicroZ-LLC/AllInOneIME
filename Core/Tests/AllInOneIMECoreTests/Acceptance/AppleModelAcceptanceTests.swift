@@ -344,14 +344,16 @@ struct AppleModelAcceptanceTests {
         #expect(AppleModel.settingsURL.scheme == "x-apple.systempreferences")
     }
 
-    @Test(arguments: [AppleModelAvailability.unsupportedSystem, .deviceNotEligible, .appleIntelligenceNotEnabled, .modelNotReady])
+    @Test(.timeLimit(.minutes(10)),
+          arguments: [AppleModelAvailability.unsupportedSystem, .deviceNotEligible, .appleIntelligenceNotEnabled, .modelNotReady])
     func s2_selectedWhileUnavailableEveryCommandFailsWithTheReason(_ reason: AppleModelAvailability) async throws {
         let model = ScriptedAppleModel(.answer([AppleModelSnapshot(text: "EN: should not be asked")]), availability: reason)
         let secrets = AppleSecretsLog()
         var config = A.apple(A.bilingual)
         config.timeoutSeconds = 30
         config.customCommands = [CustomCommand(name: "tweetit", type: .prompt, prompt: "Rewrite this as a tweet.")]
-        let converter = A.converter(config, model, secrets: secrets)
+        // The request's timeout (30 s) on a clock that never moves: a failure that waited for it would never come.
+        let converter = A.converter(config, model, secrets: secrets, clock: ManualClock())
         let custom = try #require(Command.catalog(config.customCommands).first { $0.name == "tweetit" })
         let network = AppleNoNetworkProtocol.count.withLock { $0 }
         let runs: [(String, AsyncThrowingStream<ConversionUpdate, Error>)] = [
@@ -363,11 +365,8 @@ struct AppleModelAcceptanceTests {
             ("selection", converter.generate(.edit, input: Prompt.editRequest(instruction: "improve", text: "i dont feel good"))),
         ]
         for (name, stream) in runs {
-            let started = ContinuousClock.now
-            // Not a hang, and not a failure that waited for the request's timeout (30 s). (The bound leaves room for
-            // the full parallel suite, whose blocking tests can hold up the start of a task by a few seconds.)
-            let outcome = await A.outcome(stream, limit: .seconds(10))
-            #expect(ContinuousClock.now - started < .seconds(10), "\(name) took \(ContinuousClock.now - started)")
+            // An end, so not a failure that waited for the request's timeout. (A hang is caught by the time limit.)
+            let outcome = await A.end(of: stream)
             let error = try #require(outcome.error, "\(name): \(outcome)")
             #expect(error as? AppleModelError == .unavailable(reason), "\(name): \(error)")
             #expect(!(error.localizedDescription).isEmpty)
