@@ -120,6 +120,31 @@ struct DoctorTests {
         #expect(findings.contains { $0.area == .recentErrors && $0.status == .warning })
     }
 
+    @Test func lunarLogsNameTheFileAndGroupRepeatedOldErrors() {
+        let lines = [
+            "E20261010 09:00:00.000 1234 mapped_file.cc:78] attempt to open non-existent file '/Users/alice/Library/Application Support/AllInOneIME/Rime/lua/lunar.db'",
+            "E20261010 09:00:01.000 1234 reverse_lookup_dictionary.cc:39] Error opening reversedb '/Users/alice/Library/Application Support/AllInOneIME/Rime/lua/lunar.db'",
+            "E20261010 09:00:02.000 1234 mapped_file.cc:78] attempt to open non-existent file '/Users/alice/Library/Application Support/AllInOneIME/Rime/lua/lunar.db'",
+        ]
+        let missing = Doctor.summarizeLogLines(lines, home: "/Users/alice")
+        #expect(missing == ["Rime: a file it needs is missing: lua/lunar.db (the lunar date) (3 times)"])
+        let available = Doctor.summarizeLogLines(lines, home: "/Users/alice", lunarDatabaseAvailable: true)
+        #expect(available == ["Earlier Rime run: lua/lunar.db was missing; this version provides it (3 times)"])
+        let finding = Doctor.findings(facts { $0.recentErrors = available }, chinese: false).first { $0.area == .recentErrors }
+        #expect(finding?.status == .ok)
+        #expect(!(finding?.text(chinese: false).contains("3 recent errors") ?? true))
+        #expect(!available.joined().contains("alice"))
+    }
+
+    @Test func accessibilityDenialExplainsStaleSystemSettingsEntry() {
+        let denied = Doctor.findings(facts { $0.accessibility = .denied }, chinese: false)
+            .first { $0.area == .permissions && $0.fix == .openPrivacy(.accessibility) }
+        #expect(denied?.detail?.contains("turn it off and on again") == true)
+        let chinese = Doctor.findings(facts { $0.accessibility = .denied }, chinese: true)
+            .first { $0.area == .permissions && $0.fix == .openPrivacy(.accessibility) }
+        #expect(chinese?.detail?.contains("先关闭再打开") == true)
+    }
+
     @Test func theReportForTheModelNamesFixesByID() {
         let findings = Doctor.findings(facts { $0.packs = [.chinese: .missing] }, chinese: false)
         let report = Doctor.report(findings)

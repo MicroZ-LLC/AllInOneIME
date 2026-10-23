@@ -44,6 +44,7 @@ enum DoctorSession {
             facts.inputMethod.registered = false
         }
         let url = AIConfigSession.url, logs = RimeDirectories.logs, lookup = AIConfigSession.keySource
+        let lunarDatabase = RimeDirectories.user.appendingPathComponent("lua/lunar.db")
         let read = await Task.detached(priority: .userInitiated) { () -> Background in
             let data = try? Data(contentsOf: url)
             let config = Result { try Config.load(from: url) }
@@ -66,7 +67,7 @@ enum DoctorSession {
                               automation: automation(),
                               reminders: EKEventStore.authorizationStatus(for: .reminder),
                               pluginErrors: PluginStore.load().skipped.prefix(5).map { "\($0.folder): \($0.reason)" },
-                              recentErrors: recentLogErrors(in: logs))
+                              recentErrors: recentLogErrors(in: logs, lunarDatabase: lunarDatabase))
         }.value
         facts.configData = read.configData
         switch read.config {
@@ -138,7 +139,7 @@ enum DoctorSession {
     }
 
     /// The error lines of the last week in the app's own logs (the updater's, librime's) in `folder`, summarised.
-    nonisolated static func recentLogErrors(in folder: URL) -> [String] {
+    nonisolated static func recentLogErrors(in folder: URL, lunarDatabase: URL) -> [String] {
         let weekAgo = Date().addingTimeInterval(-7 * 86400)
         let files = ((try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.contentModificationDateKey])) ?? [])
             .filter { $0.lastPathComponent == "update.log" || $0.lastPathComponent.contains(".ERROR.") }
@@ -148,7 +149,7 @@ enum DoctorSession {
             guard let text = try? String(contentsOf: file, encoding: .utf8) else { continue }
             lines += text.split(separator: "\n").suffix(200).map(String.init)
         }
-        return Doctor.summarizeLogLines(lines)
+        return Doctor.summarizeLogLines(lines, lunarDatabaseAvailable: FileManager.default.fileExists(atPath: lunarDatabase.path))
     }
 
     /// What a fix does besides the settings (the self-test records them instead).

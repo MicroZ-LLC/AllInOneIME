@@ -283,6 +283,53 @@
         }
       }
     },
+    " (%@ times)" : {
+      "comment" : "（%@ 次） — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (%@ Mal)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (%@ veces)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (%@ fois)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "（%@回）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (%@회)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (%@ vezes)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "（%@ 次）"
+          }
+        }
+      }
+    },
     " (%@)" : {
       "comment" : "（%@） — Sources/AllInOneIMECore/AIConfigText.swift",
       "localizations" : {
@@ -7533,6 +7580,53 @@
         }
       }
     },
+    "An earlier Rime error is resolved" : {
+      "comment" : "之前的 Rime 错误已解决 — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein früherer Rime-Fehler ist behoben"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se resolvió un error anterior de Rime"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une ancienne erreur de Rime est résolue"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以前のRimeエラーは解決しました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이전 Rime 오류가 해결되었습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Um erro anterior do Rime foi resolvido"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先前的 Rime 錯誤已解決"
+          }
+        }
+      }
+    },
     "Another bundle with this name is loaded" : {
       "comment" : "已经有一个同名的扩展包 — Sources/AllInOneIMECore/UIText+Names.swift",
       "localizations" : {
@@ -13569,6 +13663,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "每個腳本都是一個 @ 指令，以檔名命名（convert-timestamp.sh → @converttimestamp）。參數寫在指令後面，以逗號分隔：@flights beijing, new york。腳本可以插入結果、顯示進度、提供列表供選擇，或在背景執行並通知你。寫法請參閱 docs/extensions.md。"
+          }
+        }
+      }
+    },
+    "Earlier Rime run: lua/lunar.db was missing; this version provides it" : {
+      "comment" : "之前运行 Rime 时缺少 lua/lunar.db；此版本已提供该文件 — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bei einem früheren Rime-Lauf fehlte lua/lunar.db; diese Version stellt die Datei bereit"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En una ejecución anterior de Rime faltaba lua/lunar.db; esta versión lo incluye"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lors d’une précédente exécution de Rime, lua/lunar.db manquait ; cette version le fournit"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以前のRime実行時にlua/lunar.dbがありませんでした。このバージョンには含まれています"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이전 Rime 실행에서 lua/lunar.db가 없었습니다. 이 버전에는 해당 파일이 포함됩니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Faltava lua/lunar.db em uma execução anterior do Rime; esta versão inclui o arquivo"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先前執行 Rime 時缺少 lua/lunar.db；此版本已提供該檔案"
           }
         }
       }
@@ -27786,6 +27927,53 @@
         }
       }
     },
+    "Rime: a file it needs is missing: lua/lunar.db (the lunar date)" : {
+      "comment" : "Rime：缺少所需文件 lua/lunar.db（农历日期） — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime: Eine benötigte Datei fehlt: lua/lunar.db (Mondkalenderdatum)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime: falta un archivo necesario: lua/lunar.db (fecha lunar)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime : un fichier nécessaire manque : lua/lunar.db (date lunaire)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime：必要なファイル lua/lunar.db（旧暦の日付）がありません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime: 필요한 파일 lua/lunar.db(음력 날짜)가 없습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime: falta um arquivo necessário: lua/lunar.db (data lunar)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime：缺少所需檔案 lua/lunar.db（農曆日期）"
+          }
+        }
+      }
+    },
     "Role via %@" : {
       "comment" : "通过 %@ 的角色 — Sources/AllInOneIMECore/AWSProfiles.swift",
       "localizations" : {
@@ -36284,6 +36472,7 @@
     },
     "the selection can't be read in some apps" : {
       "comment" : "有的 App 里读不到选中的文字 — Sources/AllInOneIMECore/Doctor.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -36325,6 +36514,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "有些 App 中讀不到選取的文字"
+          }
+        }
+      }
+    },
+    "the selection can't be read in some apps. If it's already on there, turn it off and on again (macOS can keep the permission for the previous version)" : {
+      "comment" : "有的 App 里读不到选中的文字。如果列表里已有 AllInOneIME，先关闭再打开（macOS 可能仍保留旧版本的权限） — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Auswahl kann in manchen Apps nicht gelesen werden. Wenn AllInOneIME bereits in der Liste steht, schalte es aus und wieder ein (macOS kann die Berechtigung der vorherigen Version behalten)."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se puede leer la selección en algunas apps. Si AllInOneIME ya aparece en la lista, desactívalo y vuelve a activarlo (macOS puede conservar el permiso de la versión anterior)."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La sélection ne peut pas être lue dans certaines apps. Si AllInOneIME figure déjà dans la liste, désactivez-le puis réactivez-le (macOS peut conserver l’autorisation de la version précédente)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一部のアプリでは選択したテキストを読み取れません。AllInOneIMEが一覧にある場合は、一度オフにしてからオンにしてください（macOSが前のバージョンの許可を保持していることがあります）。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "일부 앱에서는 선택한 텍스트를 읽을 수 없습니다. 목록에 AllInOneIME가 이미 있다면 껐다가 다시 켜세요(macOS가 이전 버전의 권한을 유지할 수 있습니다)."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A seleção não pode ser lida em alguns apps. Se AllInOneIME já estiver na lista, desative e ative novamente (o macOS pode manter a permissão da versão anterior)."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有些 App 無法讀取選取的文字。如果清單中已有 AllInOneIME，請先關閉再開啟（macOS 可能仍保留舊版本的權限）。"
           }
         }
       }
