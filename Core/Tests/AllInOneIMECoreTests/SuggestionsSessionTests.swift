@@ -393,7 +393,7 @@ extension SuggestionsSessionTests {
             #expect(field.settle { field.rows.first?.comment.contains("try/except") == true }, "\(field.rows.map(\.comment))")
             #expect(field.host.fieldReads == 0, "no pause")
             #expect(pressAsTheMacDoes(SuggestionKeys.tab, in: field), "Tab asked for the line it goes into")
-            #expect(field.document == "def main():\n    try:\n        \n    except Exception as e:\n        print(e)",
+            #expect(field.document == "def main():\n    try:\n        \n    except  as e:\n        print(e)",
                     "\(field.document.debugDescription)")
             field.host.document = "x = "
             typeAsTheMacDoes(" pri", into: field)

@@ -92,12 +92,42 @@ struct SuggestionsTests {
 
     // MARK: - Coding
 
+    /// The caret at the first tab stop (the lowest number above 0), its text left out (at each of its places), the other
+    /// stops' text kept; with no stop but `$0`, at `$0`; at the end without one.
     @Test func aSnippetsBodyGoesInAsText() {
-        #expect(CodingRows.expand("def ${1:name}(${2}):\n    $0") == ("def name():\n    ", 0))
+        #expect(CodingRows.expand("def ${1:name}(${2}):\n    $0") == ("def ():\n    ", 8))
         #expect(CodingRows.expand("print($0)") == ("print()", 1))
-        #expect(CodingRows.expand("for (const ${1:x} of $2) {\n  $0\n}") == ("for (const x of ) {\n  \n}", 2))
+        #expect(CodingRows.expand("for (const ${1:x} of $2) {\n  $0\n}") == ("for (const  of ) {\n  \n}", 12))
+        #expect(CodingRows.expand("try:\n    $0\nexcept ${1:Exception} as e:\n    ${2:print(e)}")
+                == ("try:\n    \nexcept  as e:\n    print(e)", 19))
+        #expect(CodingRows.expand("sort(${1:v}.begin(), ${1:v}.end());$0") == ("sort(.begin(), .end());", 18))
+        #expect(CodingRows.expand("show(${2:value})${0}") == ("show()", 1))
+        #expect(CodingRows.expand("${2:a} ${1:b}$0") == ("a ", 0))
         #expect(CodingRows.expand("cost: $5") == ("cost: ", 0))
         #expect(CodingRows.expand("a $ b ${x}") == ("a $ b ${x}", 0))
+    }
+
+    /// Where the caret can't be put back into what went in (`toFirstStop` false): every stop's text, the caret at `$0`.
+    @Test func withoutTheFirstStopEveryStopKeepsItsText() {
+        #expect(CodingRows.expand("def ${1:name}(${2}):\n    $0", toFirstStop: false) == ("def name():\n    ", 0))
+        #expect(CodingRows.expand("print($0)", toFirstStop: false) == ("print()", 1))
+        #expect(CodingRows.expand("for (const ${1:x} of $2) {\n  $0\n}", toFirstStop: false) == ("for (const x of ) {\n  \n}", 2))
+        #expect(CodingRows.expand("sort(${1:v}.begin(), ${1:v}.end());$0", toFirstStop: false) == ("sort(v.begin(), v.end());", 0))
+    }
+
+    /// A snippet's row puts in its first stop empty where the field reports ranges, every stop's text where it doesn't;
+    /// one whose first stop is within what is typed (its body starts with it) goes in as without ranges, the caret at `$0`.
+    @Test func aSnippetsRowHasItsTextWithAndWithoutRanges() throws {
+        let t = InterfaceWords(language: "en")
+        let pack = CodingLanguagePack(language: "example", title: "Example", version: "1.0.0", keywords: [], snippets: [
+            .init(trigger: "def", body: "def ${1:name}(${2}):\n    $0", title: "function"),
+            .init(trigger: "name", body: "${1:name} = $0", title: "assignment"),
+        ])
+        let def = try #require(CodingRows.rows("de", packs: [pack], words: [], appClass: .ordinary, in: t).first)
+        #expect(def.insertion == "def ():\n    " && def.caretBack == 8 && def.plainInsertion == "def name():\n    ")
+        #expect(def.rest(ranges: true) == "f ():\n    " && def.rest(ranges: false) == "f name():\n    ")
+        let name = try #require(CodingRows.rows("na", packs: [pack], words: [], appClass: .ordinary, in: t).first)
+        #expect(name.insertion == "name = " && name.caretBack == 0 && name.plainInsertion == nil, "\(name)")
     }
 
     @Test func theFieldsWordsByFrequencyThenNearness() {

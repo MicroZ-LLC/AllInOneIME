@@ -325,10 +325,10 @@ extension InputSession {
         switch suggesting.appClass {
         case .ordinary:
             let row = suggesting.rows[suggesting.highlighted]
-            return suggesting.moved || (row.coding && !row.rest.isEmpty) ? row : nil
+            return suggesting.moved || (row.coding && !row.rest(ranges: suggesting.ranges).isEmpty) ? row : nil
         case .codeEditor:
             let row = suggesting.rows[0]
-            return !terminal && row.coding && !row.rest.isEmpty ? row : nil
+            return !terminal && row.coding && !row.rest(ranges: suggesting.ranges).isEmpty ? row : nil
         case .chat, .none:
             return nil
         }
@@ -478,10 +478,11 @@ extension InputSession {
 
     // MARK: - Putting a row in
 
-    /// `row` put in: what wasn't typed of it (spec 1.4), the caret at a snippet's `$0` where the field reports ranges
-    /// (else at the end); picked before, it comes first next time. The token ends with it.
+    /// `row` put in: what wasn't typed of it (spec 1.4); where the field reports ranges, a snippet's first tab stop
+    /// without its text and the caret there (or at its `$0`), else every stop's text and the caret at the end; picked
+    /// before, it comes first next time. The token ends with it.
     func suggestionsInsert(_ row: SuggestionRow, key: KeyEvent?) {
-        let rest = row.rest
+        let rest = row.rest(ranges: suggesting.ranges)
         if !rest.isEmpty {
             emit(.commit(rest))
             lastTyped.forget()

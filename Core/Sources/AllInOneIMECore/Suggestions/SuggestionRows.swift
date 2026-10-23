@@ -6,8 +6,12 @@ struct SuggestionRow: Equatable {
     var comment: String
     /// What it puts in, whole: what was typed (`typed`) is its start, in any case; only the rest goes in.
     var insertion: String
-    /// The caret this many UTF-16 units back from the end of what went in (a snippet's `$0`).
+    /// The caret this many UTF-16 units back from the end of what went in, where the field reports ranges (a snippet's
+    /// first tab stop, or its `$0`).
     var caretBack = 0
+    /// What it puts in instead where the field reports no ranges (the caret stays at the end there), when that differs:
+    /// a snippet's first tab stop with its text too.
+    var plainInsertion: String?
     /// What the terminal and code editor class completes: the item's `match`, a keyword, a snippet's trigger, a word.
     var completion: String
     /// The part of the token it answers: the whole token for a plugin's row, the identifier for coding's.
@@ -21,8 +25,9 @@ struct SuggestionRow: Equatable {
     /// IDE does (`InputSession.suggestionsReturnRow`).
     var coding = false
 
-    /// What goes in for it: what wasn't typed yet (the typed part, its case, stays).
-    var rest: String { String(insertion.dropFirst(typed.count)) }
+    /// What goes in for it where the field reports ranges (`ranges`), or not: what wasn't typed yet (the typed part, its
+    /// case, stays).
+    func rest(ranges: Bool) -> String { String((ranges ? insertion : plainInsertion ?? insertion).dropFirst(typed.count)) }
 }
 
 /// A list's or a query's items with what finding a token's among them needs, made once (off the session's thread, as
@@ -302,11 +307,47 @@ enum CodingRows {
     /// How much of the field's text is looked through, each side of the caret.
     static let scanned = 20_000
 
-    /// A snippet's body as it goes in: `${n:text}` as its text, `${n}` and `$n` as nothing, the caret at `$0` (its
-    /// UTF-16 units from the end; at the end without one).
-    static func expand(_ body: String) -> (text: String, caretBack: Int) {
+    /// A snippet's body as it goes in (its caret as UTF-16 units from the end): `${n:text}` as its text, `${n}` and `$n`
+    /// as nothing, but its first tab stop (the lowest number above 0: `$1` or `${1:…}`) without its text, wherever it is,
+    /// the caret at its first place; with no stop but `$0`, the caret at `$0`, at the end without one (spec 2, decision 19
+    /// as amended). `toFirstStop` false, for a field the caret can't be put back into: every stop with its text, the
+    /// caret at `$0`.
+    static func expand(_ body: String, toFirstStop: Bool = true) -> (text: String, caretBack: Int) {
+        let parts = snippetParts(body)
+        let first = toFirstStop ? parts.compactMap { part -> Int? in
+            if case let .stop(number, _) = part, number > 0 { return number } else { return nil }
+        }.min() : nil
         var out = ""
-        var caret: Int?
+        var (atFirst, atZero): (Int?, Int?) = (nil, nil)
+        for part in parts {
+            switch part {
+            case let .text(text):
+                out += text
+            case let .stop(number, _) where number == first:
+                if atFirst == nil { atFirst = out.utf16.count }
+            case let .stop(number, text):
+                if number == 0 { atZero = out.utf16.count }
+                out += text
+            }
+        }
+        return (out, (atFirst ?? atZero).map { out.utf16.count - $0 } ?? 0)
+    }
+
+    /// A piece of a snippet's body: text as it goes in, or a tab stop (`$n`, `${n}`, `${n:text}`), its number and text.
+    enum SnippetPart: Equatable {
+        case text(String)
+        case stop(Int, String)
+    }
+
+    /// `body` as its text and its tab stops, in order; a `$` that starts none is text.
+    static func snippetParts(_ body: String) -> [SnippetPart] {
+        var parts: [SnippetPart] = []
+        var out = ""
+        func stop(_ number: String, _ text: String) {
+            if !out.isEmpty { parts.append(.text(out)) }
+            out = ""
+            parts.append(.stop(Int(number) ?? .max, text))
+        }
         let characters = Array(body)
         var index = 0
         func digits(from start: Int) -> (String, Int) {
@@ -324,7 +365,7 @@ enum CodingRows {
             let next = characters[index + 1]
             if next.isASCII, next.isNumber {
                 let (number, end) = digits(from: index + 1)
-                if number == "0" { caret = out.utf16.count }
+                stop(number, "")
                 index = end
             } else if next == "{" {
                 let (number, end) = digits(from: index + 2)
@@ -337,15 +378,15 @@ enum CodingRows {
                 if characters[end] == ":" {
                     close = characters[end...].firstIndex(of: "}") ?? characters.count
                 }
-                if number == "0" { caret = out.utf16.count }
-                if characters[end] == ":" { out += String(characters[(end + 1)..<min(close, characters.count)]) }
+                stop(number, characters[end] == ":" ? String(characters[(end + 1)..<min(close, characters.count)]) : "")
                 index = min(close + 1, characters.count)
             } else {
                 out.append(character)
                 index += 1
             }
         }
-        return (out, caret.map { out.utf16.count - $0 } ?? 0)
+        if !out.isEmpty { parts.append(.text(out)) }
+        return parts
     }
 
     /// The identifiers of `text` (`minWordLength` characters or more, not starting with a digit), the one the caret is
@@ -418,10 +459,15 @@ enum CodingRows {
         var byInsertion: [String: Int] = [:]
         for pack in packs {
             for snippet in pack.snippets where snippet.trigger.hasPrefix(identifier) {
-                let (text, caretBack) = expand(indented(snippet.body, by: indent))
-                guard text.hasPrefix(identifier) else { continue }
-                let (insertion, back) = code ? (snippet.trigger, 0) : (text, caretBack)
-                let key = insertion + "\u{0}\(back)"
+                let body = indented(snippet.body, by: indent)
+                // Where the caret can't go back into it, every stop's text; else the first stop's left out, the caret
+                // there, unless that stop is within what was typed (a body that starts with it): `$0`'s then.
+                let plain = expand(body, toFirstStop: false)
+                guard plain.text.hasPrefix(identifier) else { continue }
+                var (text, caretBack) = expand(body)
+                if !text.hasPrefix(identifier) { (text, caretBack) = plain }
+                let (insertion, back, other) = code ? (snippet.trigger, 0, nil) : (text, caretBack, plain.text == text ? nil : plain.text)
+                let key = insertion + "\u{0}\(back)\u{0}" + (other ?? "")
                 if let index = byInsertion[key] {
                     if !snippets[index].languages.contains(pack.title) { snippets[index].languages.append(pack.title) }
                     continue
@@ -432,8 +478,8 @@ enum CodingRows {
                 // Picked as itself, not as every snippet of its trigger ("if", "if/else", "main guard").
                 let pick = SuggestionPick(plugin: "", source: pack.language, match: "snippet:\(snippet.trigger):\(snippet.title ?? snippet.body)")
                 snippets.append((SuggestionRow(text: snippet.trigger, comment: "", insertion: insertion, caretBack: back,
-                                               completion: snippet.trigger, typed: identifier, pick: pick, source: pack.title,
-                                               coding: true),
+                                               plainInsertion: other, completion: snippet.trigger, typed: identifier, pick: pick,
+                                               source: pack.title, coding: true),
                                  [pack.title], title))
             }
         }
