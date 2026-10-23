@@ -127,6 +127,9 @@ final class AllInOneIMEInputController: IMKInputController {
     /// (`showGhost`); the suggestion is a line of the candidate panel (`placeGhost`).
     var ghostToken = 0
     var ghostInPanel = false
+    /// The self-test's say whether the field is a password field, as autocomplete's read asks Accessibility
+    /// (`passwordFieldByAccessibility`): its harness field is never the one focused. Nil: Accessibility's.
+    var passwordField: (@MainActor () -> Bool)?
 
     static let notFound = NSRange(location: NSNotFound, length: NSNotFound)
 

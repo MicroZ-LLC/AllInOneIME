@@ -398,6 +398,13 @@ extension AllInOneIMEInputController {
         if panel.owner === self, !composer.wantsPanel { panel.hide() }
     }
 
+    /// Whether Accessibility tells the focused element is a password field (`SecureInput.focusedFieldIsSecure`; the
+    /// self-test's harness field, which isn't the one focused, is told by the self-test).
+    @MainActor
+    func passwordFieldByAccessibility() -> Bool {
+        passwordField?() ?? (SecureInput.focusedFieldIsSecure() == true)
+    }
+
     /// Where the caret is on the screen (as tall as its line), as the field tells it: nil where it tells none (no caret,
     /// an empty rect, off every screen).
     static func caretRect(_ client: IMKTextInput) -> NSRect? {
@@ -409,8 +416,10 @@ extension AllInOneIMEInputController {
         return rect
     }
 
-    /// What the field says once autocomplete's pause is over (`SessionOutput.readField`): secure input, the selection,
-    /// the text around the caret (nothing of it during secure input). Read once this event is done, and handed back.
+    /// What the field says once autocomplete's pause is over (`SessionOutput.readField`): secure input, a password field
+    /// as Accessibility tells it where secure input isn't on (`SecureInput.focusedFieldIsSecure`: the field marked
+    /// secure), the selection, the text around the caret (nothing of it during secure input or in a password field). Read
+    /// once this event is done, and handed back.
     @MainActor
     func readFieldForAutocomplete(id: Int, in client: IMKTextInput?) {
         DispatchQueue.main.async { [weak self] in
@@ -418,7 +427,8 @@ extension AllInOneIMEInputController {
             let target = client ?? self.clientOverride ?? self.client()
             var context = FieldContext(read: [.secure], field: Self.fieldInfo(target))
             context.secure = SecureInput.blocksComposing(target) || self.services.secureInputActive()
-            if !context.secure {
+            if !context.secure, self.passwordFieldByAccessibility() { context.field?.secure = true }
+            if !context.secure, context.field?.secure != true {
                 context.selectedRange = target.flatMap { Self.range($0.selectedRange()) }
                 context.text = self.readFieldText(from: target, before: Autocomplete.beforeLimit, after: Autocomplete.afterLimit,
                                                   purpose: "autocomplete")

@@ -278,6 +278,7 @@ extension SelfTest {
             GhostOverlay.shared.hide()
             (settings, controller.services.converter, controller.services.uptime) = (settingsBefore, converterBefore, uptimeBefore)
             (controller.clientOverride, controller.services.secureInputActive) = (overrideBefore, secureBefore)
+            controller.passwordField = nil
             controller.activateServer(client)
             controller.applySettings()
             controller.composer.setInputMode(settings.defaultInput)
@@ -289,6 +290,8 @@ extension SelfTest {
         controller.services.converter = Converter(loadConfig: { modelSettings }, appleModel: model)
         controller.services.uptime = { now }
         controller.services.secureInputActive = { false }
+        // The harness field is never the one focused: Accessibility's answer would be about another app's.
+        controller.passwordField = { false }
         controller.clientOverride = harness
         controller.activateServer(harness)
         controller.applySettings()
@@ -369,6 +372,8 @@ extension SelfTest {
         }
         nothing("while secure input is on", prepare: { controller.services.secureInputActive = { true } },
                 restore: { controller.services.secureInputActive = { false } })
+        nothing("in a password field Accessibility tells, secure input off", prepare: { controller.passwordField = { true } },
+                restore: { controller.passwordField = { false } })
         nothing("in a terminal", prepare: { harness.bundleID = "com.apple.Terminal" }, restore: { harness.bundleID = "com.aipinyin.selftest.harness" })
         nothing("in a password manager", prepare: { harness.bundleID = "com.1password.1password" },
                 restore: { harness.bundleID = "com.aipinyin.selftest.harness" })

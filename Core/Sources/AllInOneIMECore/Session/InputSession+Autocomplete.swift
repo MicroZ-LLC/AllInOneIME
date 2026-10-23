@@ -24,6 +24,9 @@ struct AutocompleteField {
     var asked: Int?
     /// What was typed into the field, for one that tells nothing of its text (`Autocomplete.Typed`), and when last.
     var typed = Autocomplete.Typed()
+    /// The field was found to be a password field as it was read (`FieldContext.field`'s `secure`: the Mac's
+    /// Accessibility tells one where secure input isn't on): off in it until another takes the focus.
+    var passwordField = false
     var typedAt: TimeInterval = 0
     /// When Tab last put a suggestion in, and how many characters of it went in (typed along and by Tab): ⌘Z as the next key
     /// takes it back (`Autocomplete.undoWindow`).
@@ -75,7 +78,7 @@ extension InputSession {
     func autocompleteMayRun() -> Bool {
         let config = services.loadSettings()
         guard Autocomplete.isOn(in: app, config: config, stopped: services.autocomplete.stopped(in: app)) else { return false }
-        let info = FieldInfo(app: app, terminal: terminal, secure: field.secure)
+        let info = FieldInfo(app: app, terminal: terminal, secure: field.secure || autocomplete.passwordField)
         return Autocomplete.blocker(in: info, secureInput: secureInputActive(), config: config, composing: composer.isComposing,
                                     translating: composer.translateMode != nil) == nil
     }
@@ -156,6 +159,7 @@ extension InputSession {
     /// the suggestion takes it on (typed along: its rest shows, from the caret on); anything else ends it. A key that
     /// typed starts the pause (`autocompleteSchedulePause`).
     func autocompleteAfterKey(_ key: KeyEvent, handled: Bool, inserted: String) {
+        guard !autocomplete.passwordField else { return }  // nothing of a password field is kept, not even what was typed
         let now = services.uptime()
         if services.pointerUsedWithin(now - autocomplete.typedAt) { autocomplete.typed.forget() }
         if !inserted.isEmpty {
@@ -215,10 +219,18 @@ extension InputSession {
 
     /// What the field said once the pause was over: a suggestion kept for its text (`Autocomplete.Cache`), else a
     /// request. Nothing where it isn't to run (`Autocomplete.context`: a selection, the caret before the line's end …).
+    /// A field the shell tells is a password field (`FieldInfo.secure`, though secure input is off) sends nothing, not
+    /// even what was typed into it (forgotten), and it's off there until another field takes the focus.
     func autocompleteRead(_ context: FieldContext, id: Int) {
         guard id == autocomplete.reading, id == autocomplete.pause, autocomplete.suggestion == nil else { return }
         autocomplete.reading = nil
         guard context.read.contains(.secure), !context.secure, autocompleteMayRun() else { return }
+        if context.field?.secure == true {
+            autocomplete.passwordField = true
+            autocomplete.typed.forget()
+            log.notice("autocomplete: a password field; off in it")
+            return
+        }
         let text = context.read.contains(.text) ? context.text : nil
         let selection = context.read.contains(.selectedRange) ? context.selectedRange : nil
         // What was typed stands in only where the field tells nothing, and not past a click.

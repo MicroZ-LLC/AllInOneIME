@@ -29,6 +29,9 @@ public final class FakeHost: @unchecked Sendable {
     public var appTypesKeys = false
     /// The field tells nothing of its text when it is read (`SessionOutput.readField`): WeChat's.
     public var tellsNoText = false
+    /// The field is a password field by what the shell tells of it when it is read (the Mac's Accessibility:
+    /// `AXSecureTextField`), though secure input isn't on.
+    public var passwordField = false
 
     // MARK: What the session did
 
@@ -212,6 +215,7 @@ public final class FakeHost: @unchecked Sendable {
                 fieldReads += 1
                 var read = context
                 if tellsNoText { read.text = nil }
+                if passwordField { read.field = FieldInfo(app: app, terminal: terminal, secure: true) }
                 send(.field(read, id: id))
             case let .ghost(text):
                 ghost = text

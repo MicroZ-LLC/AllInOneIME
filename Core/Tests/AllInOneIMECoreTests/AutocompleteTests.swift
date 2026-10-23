@@ -839,6 +839,28 @@ struct AutocompleteTests {
         }
     }
 
+    /// A field the shell tells is a password field when it's read (the Mac's Accessibility), secure input off: nothing of it
+    /// is sent, nor what was typed into it where it tells nothing of its text, and it's off in that field from then on.
+    @Test func aFieldMarkedSecureWhenReadSendsNothingNotEvenWhatWasTyped() {
+        withInterfaceLanguage("en") {
+            let r = rig()
+            r.host.tellsNoText = true
+            r.host.passwordField = true
+            r.host.type("hunter2pass")
+            r.pauseEnds()
+            #expect(r.host.fieldReads == 1 && r.model.requests.isEmpty && r.host.ghost == nil)
+            r.host.type("x")
+            r.pauseEnds()
+            #expect(r.host.fieldReads == 1 && r.model.requests.isEmpty && r.pauses.isEmpty, "off in the field")
+            // Another field: on again.
+            r.host.passwordField = false
+            r.host.focus()
+            r.host.type("Hello wor")
+            r.pauseEnds(expecting: "x")
+            #expect(r.model.requests.count == 1 && r.model.requests.first?.prompt == "<before>Hello wor</before>")
+        }
+    }
+
     @Test func aClickSinceItCameUpTakesItAwayAndTabGoesToTheApp() {
         withInterfaceLanguage("en") {
             let clicked = Locked(initialState: false)
