@@ -27,23 +27,16 @@ extension OnTheDesktop.CandidateWindowTests {
         return window.state.draws > draws
     }
 
-    /// A row's image is read off the window's thread: one that doesn't come (a share that doesn't answer; here a pipe
-    /// that never writes) holds nothing up, the panel drawn at once with the fallback.
+    /// A row's image is read off the window's thread: one that doesn't come (a share that doesn't answer: `StuckFiles`)
+    /// holds nothing up, the panel drawn at once with the fallback. (A named pipe that never writes, as this had it, is
+    /// no such file: the read fails at once.)
     @Test(.timeLimit(.minutes(1))) func anImageThatDoesntComeHoldsNothingUp() throws {
         let window = try window()
         let owner = PanelOwner(pid: nil, choose: { _ in })
-        let name = #"\\.\pipe\aio-slow-image-"# + "\(GetCurrentProcessId())-\(UInt32.random(in: 0...UInt32.max))"
-        var servers: [HANDLE] = []
-        defer { for server in servers { CloseHandle(server) } }
-        for _ in 0..<4 {
-            let server = name.withCString(encodedAs: UTF16.self) {
-                CreateNamedPipeW($0, DWORD(PIPE_ACCESS_DUPLEX), DWORD(PIPE_TYPE_BYTE), 4, 4096, 4096, 0, nil)
-            }
-            if let server, server != INVALID_HANDLE_VALUE { servers.append(server) }
-        }
-        try #require(!servers.isEmpty)
+        let stuck = try StuckFiles(1)
+        defer { withExtendedLifetime(stuck) {} }
         var model = Self.model
-        model.rows[0].icon = IconToken(.image(path: name, fallback: .scriptList), color: .teal)
+        model.rows[0].icon = IconToken(.image(path: stuck.paths[0], fallback: .scriptList), color: .teal)
         let started = Date()
         window.show(model, owner: owner, caret: Self.caret)
         let state = window.state  // once the window's thread has done what was posted (it waits 5 s at most)
@@ -51,6 +44,95 @@ extension OnTheDesktop.CandidateWindowTests {
         #expect(state.visible == 1)
         window.hide(owner: owner)
         #expect(window.state.visible == 0)
+    }
+
+    /// Files whose read doesn't end while this holds them (a share that doesn't answer): each with a batch oplock of this
+    /// process's, which another open breaks and waits for until the oplock goes with this (an open for the attributes
+    /// alone, as the loader's look at the file's time and size, doesn't).
+    final class StuckFiles {
+        let folder: URL
+        let paths: [String]
+        private var held: [(handle: HANDLE, overlapped: UnsafeMutablePointer<OVERLAPPED>)] = []
+
+        init(_ count: Int) throws {
+            let folder = try temporaryFolder("panel-stuck-images")
+            self.folder = folder
+            paths = (0..<count).map { index in
+                folder.appendingPathComponent("\(index).bmp").withUnsafeFileSystemRepresentation { String(cString: $0!) }
+            }
+            for path in paths {
+                _ = FileManager.default.createFile(atPath: path, contents: OnTheDesktop.CandidateWindowTests.bmp(red: 0, green: 128, blue: 0))
+                let handle = path.withCString(encodedAs: UTF16.self) {
+                    CreateFileW($0, GENERIC_READ, DWORD(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), nil,
+                                DWORD(OPEN_EXISTING), DWORD(FILE_FLAG_OVERLAPPED), nil)
+                }
+                guard let handle, handle != INVALID_HANDLE_VALUE else { throw Self.failed("CreateFileW") }
+                let overlapped = UnsafeMutablePointer<OVERLAPPED>.allocate(capacity: 1)
+                overlapped.initialize(to: OVERLAPPED())
+                overlapped.pointee.hEvent = CreateEventW(nil, true, false, nil)
+                held.append((handle, overlapped))
+                // FSCTL_REQUEST_BATCH_OPLOCK: granted while it is pending.
+                guard !DeviceIoControl(handle, 0x0009_0008, nil, 0, nil, 0, nil, overlapped), GetLastError() == DWORD(ERROR_IO_PENDING)
+                else { throw Self.failed("FSCTL_REQUEST_BATCH_OPLOCK") }
+            }
+        }
+
+        static func failed(_ call: String) -> Error {
+            CocoaError(.featureUnsupported, userInfo: [NSLocalizedDescriptionKey: "\(call): \(GetLastError())"])
+        }
+
+        deinit {
+            for (handle, overlapped) in held {
+                CancelIoEx(handle, overlapped)
+                CloseHandle(handle)
+                CloseHandle(overlapped.pointee.hEvent)
+            }
+            // The loader's reads end once the oplocks are gone; their memory is left (a test's).
+            try? FileManager.default.removeItem(at: folder)
+        }
+    }
+
+    /// Images whose reads don't end hold up no other: the one after two of them is read and drawn (another reader once
+    /// theirs have run a second).
+    @Test(.timeLimit(.minutes(1))) func stuckImagesHoldUpNoOther() throws {
+        let window = try window()
+        let owner = PanelOwner(pid: nil, choose: { _ in })
+        let stuck = try StuckFiles(2)
+        defer { withExtendedLifetime(stuck) {} }  // the pipes stay till the end
+        let folder = try temporaryFolder("panel-stuck-image")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let image = folder.appendingPathComponent("icon.bmp")
+        try Self.bmp(red: 255, green: 0, blue: 0).write(to: image)
+        var model = Self.model
+        model.rows[0].icon = IconToken(.image(path: stuck.paths[0], fallback: .scriptList), color: .teal)
+        model.rows[1].icon = IconToken(.image(path: stuck.paths[1], fallback: .scriptList), color: .teal)
+        model.rows[2].icon = IconToken(.image(path: image.withUnsafeFileSystemRepresentation { String(cString: $0!) },
+                                              fallback: .scriptList), color: .teal)
+        window.show(model, owner: owner, caret: Self.caret)
+        let draws = window.state.draws
+        #expect(draws >= 1)
+        #expect(drawnAgain(window, after: draws), "the image after the stuck ones never came")
+        window.hide(owner: owner)
+    }
+
+    /// The images being read count against the 64 kept: with more whose reads don't end, no more are kept (their
+    /// fallback drawn), however many rows ask.
+    @Test(.timeLimit(.minutes(1))) func imagesBeingReadCountAgainstTheLimit() throws {
+        let window = try window()
+        let owner = PanelOwner(pid: nil, choose: { _ in })
+        let stuck = try StuckFiles(72)
+        defer { withExtendedLifetime(stuck) {} }
+        var model = Self.model
+        for start in stride(from: 0, to: stuck.paths.count, by: model.rows.count) {
+            for row in model.rows.indices {
+                model.rows[row].icon = IconToken(.image(path: stuck.paths[start + row], fallback: .scriptList), color: .teal)
+            }
+            window.show(model, owner: owner, caret: Self.caret)
+            #expect(window.state.images <= 64)
+        }
+        #expect(window.state.images == 64)
+        #expect(window.state.visible == 1)
+        window.hide(owner: owner)
     }
 
     /// An image that couldn't be read is drawn once it can be, and one that changed is read again: looked at again in

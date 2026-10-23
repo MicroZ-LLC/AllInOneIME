@@ -221,14 +221,15 @@ What the MSI does:
   program (an agent, a terminal command) is left to run and which deletes its prompt's file once it ends (its files go
   at the next restart, as a DLL in use does), and any whose command line can't be read (it may be one),
   `DllUnregisterServer`, the files, the folder and the registry values gone. An upgrade keeps the keyboard in the list.
+  `%APPDATA%\AllInOneIME`, the user's data (`config.json`, librime's learned words in `rime\`), is never touched, nor
+  the keys in the Credential Manager.
 - **A console window open during an upgrade:** its process holds `AllInOneIMEEngine.exe` and the runtime DLLs it
   loaded. An upgrade to another version installs into that version's own folder, so nothing mixes; but a package of
   the same version (a reinstall, an integration build that kept the version) replaces those files only at the next
   restart (`msiexec` then returns 3010, a restart required), while the others (AllInOneIME Settings, `rime-data`, the
   DLL that apps load from now on) are the new package's at once: until the restart the user's engine, started again
   from the same path, is the old one, with the new Settings app and data. Close the console windows (the agent's, a
-  terminal command's) before such an upgrade to have it all at once. `%APPDATA%\AllInOneIME`, the user's data (`config.json`, librime's learned
-  words in `rime\`), is never touched, nor the keys in the Credential Manager.
+  terminal command's) before such an upgrade to have it all at once.
 - **A DLL in use:** an installed input method's DLL is loaded, as a module or for its icon, by Explorer and every app
   that showed it (in the test: Explorer, Discord, Notepad...). Restart Manager is off (`MSIRESTARTMANAGERCONTROL`), so
   the installer never closes the user's apps: Windows Installer moves the file to `Config.Msi` and deletes it at the
