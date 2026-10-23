@@ -24,6 +24,10 @@ public final class EngineRime: @unchecked Sendable {
 
     /// Every call into librime.
     static let lock = NSRecursiveLock()
+    /// Held by a redeploy for the fuzzy pinyin (`applyFuzzyPinyin`) from its start to its end: one at a time, each asked
+    /// for once the one before is done. librime refuses a deployment while one runs, and `RimeService` keeps such a
+    /// request and starts it later from the main queue, which would drop the sessions outside `lock`.
+    static let deploying = NSLock()
 
     public let location: Location
     public let userData: URL
@@ -200,6 +204,8 @@ public final class EngineRime: @unchecked Sendable {
             log("rime: fuzzy pinyin changed (\(ids.count) pairs): deploying again")
             // librime refuses a deployment while one is under way (the one at the start, a second or more): after it.
             Thread.detachNewThread { [self] in
+                Self.deploying.lock()
+                defer { Self.deploying.unlock() }
                 waitUntilReady(timeout: 300)
                 Self.lock.lock()
                 RimeService.shared.redeploy()
