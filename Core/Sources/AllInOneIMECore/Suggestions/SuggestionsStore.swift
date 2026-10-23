@@ -406,8 +406,13 @@ public final class SuggestionsStore: @unchecked Sendable {
         disk.async {
             guard let data = try? JSONEncoder().encode(cached) else { return }
             do {
+                #if os(Windows)
+                // The file is the user's alone (`writePrivate`); the folder as the user's folders are.
+                try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                #else
                 try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true,
                                                         attributes: [.posixPermissions: 0o700])
+                #endif
                 try Platform.current.files.writePrivate(data, to: folder.appendingPathComponent(key.fileName))
             } catch {
                 SuggestionsStore.log.error("suggestions: a list couldn't be cached (\(type(of: error)))")
