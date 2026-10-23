@@ -16,7 +16,7 @@
         "value": "space"
        }
       ],
-      "help": "Enter runs an @ command, also on pinyin not yet picked. Without @, Enter is a normal Enter.",
+      "help": "Enter runs a command typed with @, also on pinyin not yet picked. Without @, Enter is a normal Enter.",
       "id": "actionKey",
       "kind": "choice",
       "label": "Action key",

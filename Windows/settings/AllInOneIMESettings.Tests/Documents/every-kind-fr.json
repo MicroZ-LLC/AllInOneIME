@@ -16,7 +16,7 @@
         "value": "space"
        }
       ],
-      "help": "Enter exécute une commande @, même sur un pinyin pas encore choisi. Sans @, Enter fonctionne normalement.",
+      "help": "Enter exécute une commande tapée avec @, même sur un pinyin pas encore choisi. Sans @, Enter fonctionne normalement.",
       "id": "actionKey",
       "kind": "choice",
       "label": "Touche d’action",

@@ -14,7 +14,7 @@ extension UIText {
         switch key {
         case .enter:
             return tr("@ 命令写完按 ⏎ 执行，拼音没选完也能直接按。没有 @ 时 ⏎ 就是普通回车。",
-                      "Return runs an @ command, also on pinyin not yet picked. Without @, Return is a normal Return.")
+                      "Return runs a command typed with @, also on pinyin not yet picked. Without @, Return is a normal Return.")
         case .optionTap:
             return tr("按一下 ⌥ 马上松开，左右都行；按住右 ⌥ 仍然是说话。@ 命令按 ⏎ 也执行。",
                       "Press either ⌥ and let go right away; holding right ⌥ still dictates. @ commands also run on Return.")
@@ -28,7 +28,7 @@ extension UIText {
                           + "@ commands also run on Return.")
         case let .shortcut(key):
             return tr("@ 命令写完按 \(key.name) 执行；⏎ 也执行，没有 @ 时 ⏎ 是普通回车。",
-                      "\(key.name) runs an @ command; Return does too, and without @ Return is a normal Return.")
+                      "\(key.name) runs a command typed with @; Return does too, and without @ Return is a normal Return.")
         }
     }
 
@@ -37,7 +37,7 @@ extension UIText {
         switch key {
         case .enter:
             return tr("@ 命令写完按 Enter 执行，拼音没选完也能直接按。没有 @ 时 Enter 就是普通的换行。",
-                      "Enter runs an @ command, also on pinyin not yet picked. Without @, Enter is a normal Enter.")
+                      "Enter runs a command typed with @, also on pinyin not yet picked. Without @, Enter is a normal Enter.")
         case .optionTap:
             return tr("按一下 Ctrl 马上松开，左右都行。@ 命令按 Enter 也执行。",
                       "Press either Ctrl and let go right away. @ commands also run on Enter.")
@@ -51,7 +51,7 @@ extension UIText {
         case let .shortcut(key):
             let name = terms.name(key, space: tr("空格", "Space"))
             return tr("@ 命令写完按 \(name) 执行；Enter 也执行，没有 @ 时 Enter 是普通的换行。",
-                      "\(name) runs an @ command; Enter does too, and without @ Enter is a normal Enter.")
+                      "\(name) runs a command typed with @; Enter does too, and without @ Enter is a normal Enter.")
         }
     }
 

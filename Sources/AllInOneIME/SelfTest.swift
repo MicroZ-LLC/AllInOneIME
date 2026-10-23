@@ -486,7 +486,7 @@ enum SelfTest {
         defer { UIText.commandTrigger = triggerBefore }
         UIText.commandTrigger = "~"
         let note = SettingsView.actionKeyNote(.enter, trigger: "#")
-        check(note == "Return runs an # command, also on pinyin not yet picked. Without #, Return is a normal Return."
+        check(note == "Return runs a command typed with #, also on pinyin not yet picked. Without #, Return is a normal Return."
               && SettingsView.actionKeyNote(.enter, trigger: "~").contains("Without ~,"),
               "the action key's note names the trigger the menu has: \(note)")
     }

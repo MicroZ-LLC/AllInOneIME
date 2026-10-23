@@ -4044,43 +4044,43 @@
         }
       }
     },
-    "%@ runs an @ command; Enter does too, and without @ Enter is a normal Enter." : {
+    "%@ runs a command typed with @; Enter does too, and without @ Enter is a normal Enter." : {
       "comment" : "@ 命令写完按 %@ 执行；Enter 也执行，没有 @ 时 Enter 是普通的换行。 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ führt einen @-Befehl aus; Enter ebenfalls, und ohne @ verhält sich Enter wie gewohnt."
+            "value" : "%@ führt einen mit @ geschriebenen Befehl aus; Enter ebenfalls, und ohne @ verhält sich Enter wie gewohnt."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ ejecuta un comando @; Enter también, y sin @ Enter funciona como siempre."
+            "value" : "%@ ejecuta un comando escrito con @; Enter también, y sin @ Enter funciona como siempre."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ exécute une commande @ ; Enter aussi, et sans @, Enter fonctionne normalement."
+            "value" : "%@ exécute une commande tapée avec @ ; Enter aussi, et sans @, Enter fonctionne normalement."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@で@コマンドを実行します。Enterでも実行できます。@がなければEnterは通常どおり動作します。"
+            "value" : "@で入力したコマンドを%@で実行します。Enterでも実行できます。@がなければEnterは通常どおり動作します。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@(으)로 @ 명령을 실행합니다. Enter 키로도 실행되며, @가 없을 때 Enter는 일반 Enter입니다."
+            "value" : "@ 기호로 입력한 명령을 %@(으)로 실행합니다. Enter 키로도 실행되며, @ 없이는 Enter가 일반 Enter입니다."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ executa um comando @; Enter também, e sem @ o Enter funciona normalmente."
+            "value" : "%@ executa um comando digitado com @; Enter também, e sem @ o Enter funciona normalmente."
           }
         },
         "zh-Hant" : {
@@ -4091,43 +4091,43 @@
         }
       }
     },
-    "%@ runs an @ command; Return does too, and without @ Return is a normal Return." : {
+    "%@ runs a command typed with @; Return does too, and without @ Return is a normal Return." : {
       "comment" : "@ 命令写完按 %@ 执行；⏎ 也执行，没有 @ 时 ⏎ 是普通回车。 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ führt einen @-Befehl aus; Return ebenfalls, und ohne @ verhält sich Return wie gewohnt."
+            "value" : "%@ führt einen mit @ geschriebenen Befehl aus; Return ebenfalls, und ohne @ verhält sich Return wie gewohnt."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ ejecuta un comando @; Retorno también, y sin @ Retorno es un Retorno normal."
+            "value" : "%@ ejecuta un comando escrito con @; Retorno también, y sin @ Retorno es un Retorno normal."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ exécute une commande @ ; Retour aussi, et sans @, Retour fonctionne normalement."
+            "value" : "%@ exécute une commande tapée avec @ ; Retour aussi, et sans @, Retour fonctionne normalement."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@で@コマンドを実行します。Returnでも実行できます。@がなければReturnは通常どおり動作します。"
+            "value" : "@で入力したコマンドを%@で実行します。Returnでも実行できます。@がなければReturnは通常どおり動作します。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@(으)로 @ 명령을 실행합니다. Return 키로도 실행되며, @가 없을 때 Return은 일반 Return입니다."
+            "value" : "@ 기호로 입력한 명령을 %@(으)로 실행합니다. Return 키로도 실행되며, @ 없이는 Return이 일반 Return입니다."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ executa um comando @; Return também, e sem @ o Return funciona normalmente."
+            "value" : "%@ executa um comando digitado com @; Return também, e sem @ o Return funciona normalmente."
           }
         },
         "zh-Hant" : {
@@ -14737,43 +14737,43 @@
         }
       }
     },
-    "Enter runs an @ command, also on pinyin not yet picked. Without @, Enter is a normal Enter." : {
+    "Enter runs a command typed with @, also on pinyin not yet picked. Without @, Enter is a normal Enter." : {
       "comment" : "@ 命令写完按 Enter 执行，拼音没选完也能直接按。没有 @ 时 Enter 就是普通的换行。 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Enter führt einen @-Befehl aus, auch bei noch nicht gewähltem Pinyin. Ohne @ verhält sich Enter wie gewohnt."
+            "value" : "Enter führt einen mit @ geschriebenen Befehl aus, auch bei noch nicht gewähltem Pinyin. Ohne @ verhält sich Enter wie gewohnt."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Enter ejecuta un comando @, también con pinyin aún sin elegir. Sin @, Enter funciona como siempre."
+            "value" : "Enter ejecuta un comando escrito con @, también con pinyin aún sin elegir. Sin @, Enter funciona como siempre."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Enter exécute une commande @, même sur un pinyin pas encore choisi. Sans @, Enter fonctionne normalement."
+            "value" : "Enter exécute une commande tapée avec @, même sur un pinyin pas encore choisi. Sans @, Enter fonctionne normalement."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Enterで@コマンドを実行します。ピンインが未確定でも実行できます。@がなければEnterは通常どおり動作します。"
+            "value" : "@で入力したコマンドをEnterで実行します。ピンインが未確定でも実行できます。@がなければEnterは通常どおり動作します。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Enter 키로 @ 명령을 실행하며, 병음을 아직 선택하지 않았어도 실행됩니다. @가 없으면 Enter는 일반 Enter입니다."
+            "value" : "@ 기호로 입력한 명령을 Enter 키로 실행하며, 병음을 아직 선택하지 않았어도 실행됩니다. @ 없이는 Enter가 일반 Enter입니다."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Enter executa um comando @, mesmo com pinyin ainda não escolhido. Sem @, o Enter funciona normalmente."
+            "value" : "Enter executa um comando digitado com @, mesmo com pinyin ainda não escolhido. Sem @, o Enter funciona normalmente."
           }
         },
         "zh-Hant" : {
@@ -28199,43 +28199,43 @@
         }
       }
     },
-    "Return runs an @ command, also on pinyin not yet picked. Without @, Return is a normal Return." : {
+    "Return runs a command typed with @, also on pinyin not yet picked. Without @, Return is a normal Return." : {
       "comment" : "@ 命令写完按 ⏎ 执行，拼音没选完也能直接按。没有 @ 时 ⏎ 就是普通回车。 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Return führt einen @-Befehl aus, auch bei noch nicht gewähltem Pinyin. Ohne @ verhält sich Return wie gewohnt."
+            "value" : "Return führt einen mit @ geschriebenen Befehl aus, auch bei noch nicht gewähltem Pinyin. Ohne @ verhält sich Return wie gewohnt."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Retorno ejecuta un comando @, también con pinyin aún sin elegir. Sin @, Retorno es un Retorno normal."
+            "value" : "Retorno ejecuta un comando escrito con @, también con pinyin aún sin elegir. Sin @, Retorno es un Retorno normal."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Retour exécute une commande @, même sur un pinyin pas encore choisi. Sans @, Retour fonctionne normalement."
+            "value" : "Retour exécute une commande tapée avec @, même sur un pinyin pas encore choisi. Sans @, Retour fonctionne normalement."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Returnで@コマンドを実行します。ピンインが未確定でも実行できます。@がなければReturnは通常どおり動作します。"
+            "value" : "@で入力したコマンドをReturnで実行します。ピンインが未確定でも実行できます。@がなければReturnは通常どおり動作します。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Return 키로 @ 명령을 실행하며, 병음을 아직 선택하지 않았어도 실행됩니다. @가 없으면 Return은 일반 Return입니다."
+            "value" : "@ 기호로 입력한 명령을 Return 키로 실행하며, 병음을 아직 선택하지 않았어도 실행됩니다. @ 없이는 Return이 일반 Return입니다."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Return executa um comando @, mesmo com pinyin ainda não escolhido. Sem @, o Return funciona normalmente."
+            "value" : "Return executa um comando digitado com @, mesmo com pinyin ainda não escolhido. Sem @, o Return funciona normalmente."
           }
         },
         "zh-Hant" : {
