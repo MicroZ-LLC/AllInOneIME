@@ -13685,7 +13685,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lors d’une précédente exécution de Rime, lua/lunar.db manquait ; cette version le fournit"
+            "value" : "Lors d’une précédente exécution de Rime, lua/lunar.db manquait ; cette version le fournit"
           }
         },
         "ja" : {
@@ -27945,7 +27945,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Rime : un fichier nécessaire manque : lua/lunar.db (date lunaire)"
+            "value" : "Rime : un fichier nécessaire manque : lua/lunar.db (date lunaire)"
           }
         },
         "ja" : {
