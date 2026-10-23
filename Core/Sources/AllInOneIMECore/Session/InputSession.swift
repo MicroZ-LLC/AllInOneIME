@@ -70,8 +70,12 @@ public final class InputSession {
     var lastTyped = LastTyped()
     /// Autocomplete in this field (InputSession+Autocomplete.swift).
     var autocomplete = AutocompleteField()
-    /// Suggestions in this field: the token, its rows, the chooser (InputSession+Suggestions.swift).
+    /// Suggestions in this field: the token, its rows, the chooser (InputSession+Suggestions.swift), and the long press
+    /// of Shift that opens the chooser, timed on the session's clock.
     var suggesting = SuggestionsField()
+    lazy var chooserPress = TranslateMode.ShiftHold(now: { [weak self] in self?.services.uptime() ?? 0 },
+                                                   pointer: { [weak self] in self?.services.suggestions.pointer() ?? .zero },
+                                                   stickyKeys: { [weak self] in self?.services.suggestions.stickyKeys() ?? false })
     /// Shown once each time composing is paused for secure input.
     private var secureNoticeShown = false
     /// The key being handled, and what the field said with it; the field's text as last read (`@reply` after dictation).
@@ -667,6 +671,7 @@ public final class InputSession {
         guard !(context.secure || field.secure) else {
             // A password field took over: stop any recording (its release may never arrive here).
             if composer.voice != .off { perform(composer.commitAsTyped()) }
+            suggestionsModifiersMissed(shiftDown: change.modifiers.contains(.shift))  // no long press of Shift either
             return
         }
         ensureLevelOne()

@@ -28,8 +28,7 @@ struct SuggestionsField {
     var shown = false
     /// The chooser is open, this row highlighted.
     var chooser: Int?
-    /// Shift went down on its own (`uptime`); its presses counted (an older one's timer does nothing).
-    var shiftDown: TimeInterval?
+    /// Shift's presses on its own counted (an older one's timer does nothing).
     var shift = 0
     /// The last key (`uptime`); the pause before a query is asked again, counted, and the token it is for.
     var lastKeyAt: TimeInterval = 0
@@ -102,6 +101,7 @@ extension InputSession {
     /// A field took the focus: nothing of the one before; the sources' state taken in (lists cached, loads due, sources
     /// disabled forgotten).
     func suggestionsFocused() {
+        chooserPress.cancel()
         let (refresh, shift) = (suggesting.refresh, suggesting.shift)
         suggesting = SuggestionsField()
         (suggesting.refresh, suggesting.shift) = (refresh, shift + 1)
@@ -161,14 +161,17 @@ extension InputSession {
     func suggestionsTimer(_ timer: SuggestionsTimer) {
         switch timer {
         case let .chooser(press):
-            guard press == suggesting.shift, let down = suggesting.shiftDown, !secureInputActive() else { return }
-            let held = services.uptime() - down
-            guard held >= Self.chooserHold - 0.05 else {
-                emit(.startTimer(.suggestions(.chooser(press)), after: Self.chooserHold - held))
-                return
+            guard press == suggesting.shift, let held = chooserPress.held, !secureInputActive(), composer.voice == .off else { return }
+            switch chooserPress.poll(pointerUsed: services.pointerUsedWithin(held)) {
+            case .toggle?:
+                chooserPress.cancel()
+                chooserOpen()
+            case .hint?:
+                emit(.startTimer(.suggestions(.chooser(press)), after: max(Self.chooserHold - held, 0.01)))
+            case nil:
+                // Not yet (a timer early), or the pointer used or moved: a Shift-click.
+                if chooserPress.held != nil { emit(.startTimer(.suggestions(.chooser(press)), after: max(Self.chooserHold - held, 0.01))) }
             }
-            suggesting.shiftDown = nil
-            chooserOpen()
         case let .query(wait):
             guard wait == suggesting.queryWait, suggesting.queryWaitFor == suggesting.token else { return }
             let paused = services.uptime() - suggesting.lastKeyAt
@@ -186,16 +189,21 @@ extension InputSession {
         }
     }
 
-    /// A modifier changed: Shift down on its own starts the long press the chooser opens after; anything else ends it.
+    /// A modifier changed: Shift down on its own starts the long press the chooser opens after (`TranslateMode.ShiftHold`:
+    /// not with Sticky Keys, not the same change handed over again); anything else ends it.
     func suggestionsModifiers(_ change: ModifierChange) {
-        suggesting.shift += 1
-        let others = change.modifiers.subtracting([.shift, .capsLock]).subtracting(.sides)
-        guard change.key.modifierKind == .shift, change.modifiers.contains(.shift), others.isEmpty, !secureInputActive() else {
-            suggesting.shiftDown = nil
-            return
+        if chooserPress.flagsChanged(key: change.key, modifiers: change.modifiers) {
+            suggesting.shift += 1
+            emit(.startTimer(.suggestions(.chooser(suggesting.shift)), after: Self.chooserHold))
+        } else if chooserPress.held == nil {
+            suggesting.shift += 1
         }
-        suggesting.shiftDown = services.uptime()
-        emit(.startTimer(.suggestions(.chooser(suggesting.shift)), after: Self.chooserHold))
+    }
+
+    /// Modifier changes may have gone unseen (secure input, another field): no press, Shift as it is now.
+    func suggestionsModifiersMissed(shiftDown: Bool) {
+        chooserPress.resync(shiftDown: shiftDown)
+        suggesting.shift += 1
     }
 
     // MARK: - Keys
@@ -213,7 +221,7 @@ extension InputSession {
     /// show (spec 1.4: Tab, ↓ ↑, Return once moved, Esc; digits never). Nil: the key goes on.
     func suggestionsBeforeKey(_ event: KeyEvent, _ context: FieldContext) -> Bool? {
         // A key while Shift is held is no long press of it.
-        suggesting.shiftDown = nil
+        chooserPress.keyDown()
         suggesting.shift += 1
         suggesting.lastKeyAt = services.uptime()
         suggesting.ranges = context.read.contains(.selectedRange) && context.selectedRange != nil
@@ -651,16 +659,20 @@ extension InputSession {
     func chooserChoose(_ index: Int) {
         let s = services.suggestions
         let t = InterfaceWords(language: UIText.language)
+        // The chooser goes first: what the mode then says (its notice) stays up.
         suggesting.chooser = nil
+        suggestionsUpdate()
         if index == 0 {
             if s.translateAsYouType() {
                 s.setTranslateAsYouType(false)
             } else {
-                if s.codingMode() { s.setCodingMode(false) }
+                if s.codingMode() {
+                    s.setCodingMode(false)
+                    applyCodingMode()
+                }
                 s.setTranslateAsYouType(true)
             }
             log.notice("Translate as You Type \(s.translateAsYouType() ? "on" : "off") (the chooser)")
-            suggestionsUpdate()
         } else {
             let on = !s.codingMode()
             if on, s.translateAsYouType() { s.setTranslateAsYouType(false) }

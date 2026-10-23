@@ -392,6 +392,11 @@ public struct SuggestionsServices {
     public var recordPick: (SuggestionPick) -> Void
     /// A source's status changed (Settings → Plugins shows it). From any thread.
     public var reportStatus: @Sendable (CompletionSourceStatus) -> Void
+    /// Where the pointer is (screen points) and whether Sticky Keys is on, for the long press of Shift
+    /// (`TranslateMode.ShiftHold`: the pointer moved while Shift is held is a Shift-click being aimed; with Sticky Keys
+    /// Shift is latched, never held). The defaults: nowhere, off.
+    public var pointer: () -> CGPoint
+    public var stickyKeys: () -> Bool
 
     public init() {
         store = SuggestionsStore()
@@ -408,6 +413,8 @@ public struct SuggestionsServices {
         loadPicks = { [] }
         recordPick = { _ in }
         reportStatus = { _ in }
+        pointer = TranslateMode.ShiftHold.noPointer
+        stickyKeys = { false }
     }
 }
 

@@ -416,7 +416,7 @@ public final class SuggestionsStore: @unchecked Sendable {
     }
 
     /// Forgets the sources not in `enabled` (disabled, or their plugin removed), and deletes their files in `folder`.
-    func prune(keeping enabled: Set<CompletionSourceKey>, folder: URL?) {
+    public func prune(keeping enabled: Set<CompletionSourceKey>, folder: URL?) {
         state.withLock { state in
             for key in state.sources.keys.filter({ !enabled.contains($0) }) {
                 state.sources[key]?.query?.task?.cancel()

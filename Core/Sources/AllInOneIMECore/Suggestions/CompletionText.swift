@@ -99,14 +99,14 @@ enum SuggestionsToken {
 }
 
 /// What a script returns (`load`, `query`), checked and cleaned (spec 1.2, 6.5, 6.6).
-enum CompletionOutput {
+public enum CompletionOutput {
     /// Why an output is refused (the old list is kept), as Settings says it.
-    enum Failure: Error, Equatable {
+    public enum Failure: Error, Equatable {
         case tooLarge(bytes: Int)
         case tooManyItems(Int)
         case notAList
 
-        var message: String {
+        public var message: String {
             switch self {
             case .tooLarge:
                 return tr("插件返回的列表超过 4 MB，没有用", "The plugin's list is larger than 4 MB: not used")
@@ -122,7 +122,7 @@ enum CompletionOutput {
     /// object with a good `match` once control, bidi and zero-width characters are taken out of everything (bad ones
     /// dropped one by one), the same `match` (in any case) kept once, the first. `digitsOnly`: a source without prefix,
     /// whose matches are digits.
-    static func read(_ data: Data, digitsOnly: Bool = false) -> Result<CompletionList, Failure> {
+    public static func read(_ data: Data, digitsOnly: Bool = false) -> Result<CompletionList, Failure> {
         guard data.count <= CompletionList.maxBytes else { return .failure(.tooLarge(bytes: data.count)) }
         guard let object = (try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])) as? [String: Any],
               let entries = object["items"] as? [Any] else { return .failure(.notAList) }
