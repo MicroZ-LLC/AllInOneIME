@@ -735,7 +735,9 @@ or tell Settings → Assistant "turn on autocomplete"; it stays on until you tur
 - **What it counts**, only on this Mac: suggestions shown and taken, how much of what was shown went in, how long they took
   to come up (90% within … ms), Tabs undone right away, apps where it stopped, times it was turned off within a day, the
   tokens a cloud provider read. The input menu's Autocomplete item and the menu bar panel show the first lines.
-- Where a text field doesn't tell where its caret is, the suggestion is a line of the candidate panel instead ("Tab").
+- The gray text sits on the caret's line as the candidate panel finds it, on the line's baseline, in the field's own font.
+  Where a text field doesn't tell where its caret is, or tells two places more than a line apart, the suggestion is a
+  line of the candidate panel instead ("Tab").
   Where it can't read its text (WeChat), what you typed into it since it took the focus stands in; a click forgets it.
 
 ## Voice input
