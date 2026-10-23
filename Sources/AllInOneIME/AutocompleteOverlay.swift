@@ -506,25 +506,12 @@ extension AllInOneIMEInputController {
         return rects
     }
 
-    /// Where the suggestion goes: on the line the candidate panel goes by (the empty range's rect where the field tells
-    /// no line), at the caret's x, from the empty range's rect where that is on the line, else from the end of the
-    /// character before the caret. Nil, the candidate panel's line instead: no line told; the empty range's rect more
-    /// than a line from it (one of them is wrong: Notes's has been above the line); no x on the line.
+    /// Where the suggestion goes: on the line the candidate panel goes by, at the caret (`GhostPlacement.line`); nil, the
+    /// candidate panel's line instead.
     static func ghostPlace(_ rects: CaretRects) -> GhostOverlay.Place? {
-        guard let line = rects.line ?? rects.caret else { return nil }
-        func apart(_ rect: NSRect) -> CGFloat { abs(rect.midY - line.midY) }
-        if let caret = rects.caret, apart(caret) > line.height { return nil }
-        let x: CGFloat
-        if let caret = rects.caret, apart(caret) <= line.height / 2 {
-            x = caret.maxX
-        } else if let previous = rects.previous, apart(previous) <= line.height / 2 {
-            x = previous.maxX
-        } else if rects.caret == nil {
-            x = line.minX
-        } else {
-            return nil
+        GhostPlacement.line(rects.line, caret: rects.caret, previous: rects.previous).map {
+            GhostOverlay.Place(line: $0.line, x: $0.x, font: rects.font)
         }
-        return GhostOverlay.Place(line: line, x: x, font: rects.font)
     }
 
     /// `rect` if it is one: not empty, not at the origin, on a screen.
