@@ -49,10 +49,11 @@ struct CommandRunnerTests {
         #expect(try await run(rev, "abc").get() == "cba")
     }
 
-    #if canImport(Darwin)
+    #if os(macOS) || os(Linux)
     /// What is written to the standard input of a program that ended without reading it fails (EPIPE), and ends nothing
     /// else: no SIGPIPE for the process writing it (`CommandRunner` writes it off its queue, maybe once a quick program
-    /// is over; a test run, the Settings app, don't ignore SIGPIPE as the input method does).
+    /// is over; a test run, the Settings app, don't ignore SIGPIPE as the input method does). On macOS and Linux alike
+    /// (Windows has no signals).
     @Test func writingToAProgramThatEndedFailsWithoutSIGPIPE() throws {
         let stdin = Pipe()
         let ended = DispatchSemaphore(value: 0)

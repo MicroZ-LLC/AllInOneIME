@@ -1,5 +1,10 @@
 #if os(macOS) || os(Linux) || os(Windows)
 import Foundation
+#if canImport(Glibc)
+import Glibc
+#elseif canImport(Musl)
+import Musl
+#endif
 
 /// Foundation's `Process`: the core's only use of it (the lint guard, `Scripts/check-core-portable.sh`, keeps it so).
 /// On macOS and Linux Foundation starts each program in a process group of its own, so stopping it (SIGTERM, SIGKILL to
@@ -25,6 +30,9 @@ public struct FoundationProcessLauncher: ProcessLauncher {
         // What is written to its standard input once it ended without reading it fails (EPIPE), and ends nothing else:
         // no SIGPIPE for this process (one that doesn't ignore it, as the input method does: a test run, Settings).
         if case let .pipe(pipe) = spec.standardInput { _ = fcntl(pipe.fileHandleForWriting.fileDescriptor, F_SETNOSIGPIPE, 1) }
+        #elseif canImport(Glibc) || canImport(Musl)
+        // The same on Linux, which has no such flag for a pipe: SIGPIPE ignored in this process (`ignoresSIGPIPE`).
+        if case .pipe = spec.standardInput { _ = Self.ignoresSIGPIPE }
         #endif
         if let io = Self.handle(spec.standardOutput) { process.standardOutput = io }
         if let io = Self.handle(spec.standardError) { process.standardError = io }
@@ -33,6 +41,14 @@ public struct FoundationProcessLauncher: ProcessLauncher {
         try process.run()
         return child
     }
+
+    #if canImport(Glibc) || canImport(Musl)
+    /// SIGPIPE ignored in this whole process, once, before the first program whose standard input is written to starts.
+    /// Linux can't set it off for one pipe (Apple's F_SETNOSIGPIPE), and by default a write to a program that ended
+    /// without reading its input would kill the process writing it (exit 141: a test run, the CLI) where it should only
+    /// fail with EPIPE, which `CommandRunner` already ignores. Nothing of the core wants SIGPIPE. (Windows has no signals.)
+    private static let ignoresSIGPIPE: Void = { _ = signal(SIGPIPE, SIG_IGN) }()
+    #endif
 
     /// What `Process` takes for `io` (nil: leave it be, the input method's own).
     private static func handle(_ io: ProcessIO) -> Any? {
