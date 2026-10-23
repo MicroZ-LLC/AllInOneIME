@@ -1,0 +1,3 @@
+# The Settings app's test documents and the text service's goldens: LF on every checkout, core.autocrlf or not.
+*.jsonl text eol=lf
+*.json text eol=lf

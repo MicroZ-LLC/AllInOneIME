@@ -75,7 +75,9 @@ jobs:
         working-directory: ../core
 
   # windows-latest, Swift 6.4.1 from swift.org; the toolchain finds Visual Studio's MSVC and the Windows SDK by itself,
-  # no developer prompt needed. The test files that call POSIX directly are left out there (Core/Package.swift).
+  # no developer prompt needed. The test files that call POSIX directly are left out there (Core/Package.swift). The
+  # runner's git has core.autocrlf on: the export's line ends are Core/.gitattributes's (git archive reads the archived
+  # tree's attributes, not the root's), which keeps the goldens LF.
   windows:
     runs-on: windows-latest
     steps:

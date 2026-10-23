@@ -136,7 +136,10 @@ public struct WireTranscript: Sendable {
 
     public init(_ text: String) throws {
         var steps: [Step] = []
-        for (index, raw) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
+        // Lines end with "\n" or, in a checkout made with CRLF, "\r\n": one Character to Swift, which "\n" doesn't
+        // split, so such a file would be one line, a comment, and no steps.
+        for (index, raw) in text.split(omittingEmptySubsequences: false, whereSeparator: { $0 == "\n" || $0 == "\r\n" })
+            .enumerated() {
             let line = raw.trimmingCharacters(in: .whitespacesAndNewlines)
             let number = index + 1
             if line.isEmpty { continue }
