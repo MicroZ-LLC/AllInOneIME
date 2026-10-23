@@ -14,6 +14,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 - Candidates appear and disappear without window animations, including notices and the Translate as You Type chip. Committing a word hides the panel immediately; continuous typing reuses its window, which closes after 400 ms of idle time. This avoids repeated window transitions while typing in apps such as Slack and Notes. An unchanged panel frame no longer triggers another resize or shadow update.
 - The input menu reuses the cached config instead of parsing `config.json` for every request. A broken file still shows an error and disables choices that would overwrite it; repairing the file refreshes the menu.
 - Pinyin's lunar date (`nl` and `NYYYYMMDD`) finds its bundled database in a fresh Rime user folder. An existing database of your own is kept.
+- Settings → Assistant → Check for problems names the error librime logged while the lunar date's database was missing ("Rime: a file it needs is missing: lua/lunar.db (the lunar date)") instead of "error in Rime" three times, and lists each event in the logs once, with how many times it came up in the last week. Once the file is in place (this version puts it there), those lines show as an earlier error that is resolved, not as a warning.
 
 ## 0.6.6 (2026-10-20)
 

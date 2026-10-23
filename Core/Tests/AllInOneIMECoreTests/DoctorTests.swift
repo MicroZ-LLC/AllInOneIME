@@ -120,6 +120,7 @@ struct DoctorTests {
         #expect(findings.contains { $0.area == .recentErrors && $0.status == .warning })
     }
 
+    /// The report as it came: librime's two lines for the missing lunar database were "error in Rime" three times.
     @Test func lunarLogsNameTheFileAndGroupRepeatedOldErrors() {
         let lines = [
             "E20261010 09:00:00.000 1234 mapped_file.cc:78] attempt to open non-existent file '/Users/alice/Library/Application Support/AllInOneIME/Rime/lua/lunar.db'",
@@ -127,13 +128,39 @@ struct DoctorTests {
             "E20261010 09:00:02.000 1234 mapped_file.cc:78] attempt to open non-existent file '/Users/alice/Library/Application Support/AllInOneIME/Rime/lua/lunar.db'",
         ]
         let missing = Doctor.summarizeLogLines(lines, home: "/Users/alice")
-        #expect(missing == ["Rime: a file it needs is missing: lua/lunar.db (the lunar date) (3 times)"])
+        #expect(missing == ["Rime: a file it needs is missing: lua/lunar.db (the lunar date), 3 times"])
+        let shown = Doctor.findings(facts { $0.recentErrors = missing }, chinese: false).first { $0.area == .recentErrors }
+        #expect(shown?.text(chinese: false)
+                == "⚠ 1 recent error in the logs — Rime: a file it needs is missing: lua/lunar.db (the lunar date), 3 times")
+        let zh = Doctor.findings(facts { $0.recentErrors = missing }, chinese: true).first { $0.area == .recentErrors }
+        #expect(zh?.detail == "Rime：缺少所需文件 lua/lunar.db（农历日期），3 次")
+        // The file is there now (this version puts it there): those runs were earlier ones, and nothing is wrong.
         let available = Doctor.summarizeLogLines(lines, home: "/Users/alice", lunarDatabaseAvailable: true)
-        #expect(available == ["Earlier Rime run: lua/lunar.db was missing; this version provides it (3 times)"])
+        #expect(available == ["Earlier Rime run: lua/lunar.db was missing; this version provides it, 3 times"])
         let finding = Doctor.findings(facts { $0.recentErrors = available }, chinese: false).first { $0.area == .recentErrors }
-        #expect(finding?.status == .ok)
-        #expect(!(finding?.text(chinese: false).contains("3 recent errors") ?? true))
-        #expect(!available.joined().contains("alice"))
+        #expect(finding?.status == .ok && finding?.title == "An earlier Rime error is resolved")
+        #expect(!(missing + available).joined().contains("alice"))
+    }
+
+    /// The same event is named once, with how many times it came up in all the lines (not only the newest few), and the
+    /// newest events are the ones shown.
+    @Test func repeatedLogEventsAreCountedOnce() {
+        let lunar = "E20261010 09:00:00.000 1234 mapped_file.cc:78] attempt to open non-existent file '/Users/x/Rime/lua/lunar.db'"
+        let lines = Array(repeating: lunar, count: 5) + [
+            "2026-10-12 update check failed: The request timed out.",
+            "E20261012 10:00:00.000 1234 engine.cc:81] error 1",
+            "E20261012 10:00:01.000 1234 engine.cc:82] error 2",
+            "2026-10-13 update check failed: The request timed out.",
+            lunar,
+        ]
+        #expect(Doctor.summarizeLogLines(lines, home: "/Users/x") == [
+            "error in Rime (engine), 2 times",
+            "update check failed (timed out), 2 times",
+            "Rime: a file it needs is missing: lua/lunar.db (the lunar date), 6 times",
+        ])
+        #expect(Doctor.summarizeLogLines(lines, home: "/Users/x", limit: 1) == [
+            "Rime: a file it needs is missing: lua/lunar.db (the lunar date), 6 times",
+        ])
     }
 
     @Test func accessibilityDenialExplainsStaleSystemSettingsEntry() {

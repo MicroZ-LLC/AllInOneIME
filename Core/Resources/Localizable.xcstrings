@@ -283,53 +283,6 @@
         }
       }
     },
-    " (%@ times)" : {
-      "comment" : "（%@ 次） — Sources/AllInOneIMECore/Doctor.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : " (%@ Mal)"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : " (%@ veces)"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : " (%@ fois)"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "（%@回）"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : " (%@회)"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : " (%@ vezes)"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "（%@ 次）"
-          }
-        }
-      }
-    },
     " (%@)" : {
       "comment" : "（%@） — Sources/AllInOneIMECore/AIConfigText.swift",
       "localizations" : {
@@ -796,6 +749,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "、"
+          }
+        }
+      }
+    },
+    ", %@ times" : {
+      "comment" : "，%@ 次 — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", %@ Mal"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", %@ veces"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", %@ fois"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "、%@回"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", %@회"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", %@ vezes"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "，%@ 次"
           }
         }
       }
