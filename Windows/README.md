@@ -407,7 +407,7 @@ second among the candidates of "frobn", after librime's first.
 ## Replaying the goldens over the pipe
 
 ```
-allinoneime-cli wire-replay [--launch ENGINE.exe] [--cold-starts N] [--repeat N] <file.jsonl>...
+allinoneime-cli wire-replay [--launch ENGINE.exe] [--pipe NAME] [--cold-starts N] [--repeat N] <file.jsonl>...
 ```
 
 Against an engine in test mode, either one already running or one started with `--launch`, it does what a DLL does:
@@ -419,7 +419,8 @@ Against an engine in test mode, either one already running or one started with `
 
 It prints each file and the key round trips: from writing a `keyDown` or `keyUp` to reading its `result`, timed
 with `QueryPerformanceCounter`. With `--cold-starts N`, it first launches the engine N times and times each launch
-until `welcome`.
+until `welcome`. With `--pipe NAME`, the engine's pipe is one of its own (the engine's `--pipe`, given to the engine
+`--launch` starts too): a replay beside the engine the user runs, which has the user's pipe.
 
 ```
 swift build -c release
