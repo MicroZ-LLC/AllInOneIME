@@ -123,6 +123,10 @@ final class AllInOneIMEInputController: IMKInputController {
     /// Kept while the session waits for a web page a request takes along (`InputSession.waitsForPage`): the request
     /// starts even if the field is gone by then.
     private var keepAlive: AllInOneIMEInputController?
+    /// Counts autocomplete's suggestions shown and taken down: a placement that comes after a newer one does nothing
+    /// (`showGhost`); the suggestion is a line of the candidate panel (`placeGhost`).
+    var ghostToken = 0
+    var ghostInPanel = false
 
     static let notFound = NSRange(location: NSNotFound, length: NSNotFound)
 
@@ -137,6 +141,9 @@ final class AllInOneIMEInputController: IMKInputController {
             MainActor.assumeIsolated { box.value?.appliedLayout.flatMap(KeyboardLayout.init(id:)) ?? KeyboardLayout.current() }
         }
         services.translateChip = { MainActor.assumeIsolated { box.value?.translateChip() } }
+        // Autocomplete: what it learns and counts, one for every field; an app's name for what it says of the app.
+        services.autocomplete = MainActor.assumeIsolated { MainThreadBox(AutocompleteSwitch.store) }.value
+        services.appName = { app in MainActor.assumeIsolated { AppNames.name(for: app) } }
         services.page = { app in
             MainActor.assumeIsolated { () -> MainThreadBox<PageSource?> in
                 guard let controller = box.value, let pid = controller.pageProcess(app) else { return MainThreadBox(nil) }
@@ -434,7 +441,7 @@ final class AllInOneIMEInputController: IMKInputController {
 
     override func menu() -> NSMenu! {
         log.notice("input menu requested")
-        return MainActor.assumeIsolated { MainThreadBox(makeMenu()) }.value
+        return MainActor.assumeIsolated { MainThreadBox(addingAutocomplete(to: makeMenu())) }.value
     }
 
     // MARK: - The session
@@ -706,8 +713,10 @@ final class AllInOneIMEInputController: IMKInputController {
                 }
             case .keyboardLayout:
                 applyKeyboardLayout(client: target)
-            case .readField, .ghost:
-                break  // autocomplete isn't drawn on the Mac yet: nothing read, nothing shown
+            case let .readField(id):
+                readFieldForAutocomplete(id: id, in: target)
+            case let .ghost(text):
+                showGhost(text, in: target)
             case let .startTimer(.notice(token), seconds):
                 // In the run loop's default mode, as a notice always expired: not while a menu is tracked.
                 let box = WeakBox(self)

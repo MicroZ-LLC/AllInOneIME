@@ -59,7 +59,21 @@ field that takes the focus again after `.close` starts over: its engine is made 
 | `readClipboard` | read once the key is answered, never during secure input: `SessionEvent.clipboard` |
 | `keyboardLayout` | the input language's layout told to the field |
 | `startTimer` | `DispatchQueue.main.asyncAfter`, then `SessionEvent.timer` |
+| `readField` | what the field says read once the event is done (secure input, the selection, the text around the caret), then `SessionEvent.field` |
+| `ghost` | autocomplete's suggestion in gray after the caret, a window of its own (`GhostOverlay`); where the field tells no caret rect, a line of the candidate panel |
 | `platform(.startVoice …)` | dictation (macOS 26's speech recognition), `SessionEvent.voice` as it hears |
+
+## Autocomplete
+
+Autocomplete (`Autocomplete`, `InputSession+Autocomplete.swift`) is the session's, around the composer: after a key that
+put text into the field, a pause (`TimerID.autocomplete`); once it's over, the field is read (`readField`, answered with
+`SessionEvent.field`), and a suggestion kept for its text is shown, or a request starts in the autocomplete slot
+(`SessionTasks.autocomplete`), which every key stops. The answer (`TaskUpdate.suggested`) is the `ghost` output. Before the
+composer has a key, Tab takes the suggestion (`commit`) and Esc takes it down; after, text that is its start takes it on
+(typed along), anything else ends it, and while something is composed it's held, its rest coming back if what goes in is
+its start. What is kept across fields and launches (the suggestions, what is learned per app, the counts) is
+`SessionServices.autocomplete` (`AutocompleteStore`); the time it goes by, `SessionServices.uptime`. The shell draws the
+suggestion and reads the field; the Windows engine, which doesn't run the session yet, has neither.
 
 ## The candidate panel
 

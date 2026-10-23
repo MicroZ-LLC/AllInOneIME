@@ -107,6 +107,14 @@ struct DashboardSources {
     /// (`Platform.defaults`, UserDefaults on the Mac); memory in the self-test, which leaves the user's alone.
     var defaults: any KeyValueStore
     var now: @MainActor () -> Date
+    /// Autocomplete's switch (`AutocompleteSwitch`): whether it's on, turning it on or off (what it is then), and what
+    /// was counted of it (nil: nothing yet).
+    var autocompleteOn: @MainActor () -> Bool = { AutocompleteSwitch.isOn }
+    var setAutocomplete: @MainActor (_ on: Bool) -> Bool = { on in
+        AutocompleteSwitch.set(on, notify: AllInOneIMEInputController.activeController)
+        return AutocompleteSwitch.isOn
+    }
+    var autocompleteSummary: @MainActor () -> String? = { AutocompleteSwitch.store.metrics.summary(language: UIText.language) }
 
     @MainActor static var live: DashboardSources {
         DashboardSources(
@@ -224,6 +232,9 @@ final class FloatingPanel: ObservableObject {
     @Published private(set) var now: Date
     /// The interface language it was drawn in: it redraws when that changes.
     @Published private(set) var language = UIText.language
+    /// Autocomplete's switch as it is, and what was counted of it, read as it drops down.
+    @Published private(set) var autocomplete = false
+    @Published private(set) var autocompleteSummary: String?
     /// The lists' height, measured by the view: the window is as tall as they need, up to `maxHeight`.
     @Published var listHeight: CGFloat = 0 {
         didSet { if listHeight != oldValue { resize() } }
@@ -332,6 +343,7 @@ final class FloatingPanel: ObservableObject {
     private func open(below anchor: CGRect) {
         language = UIText.language
         now = sources.now()
+        (autocomplete, autocompleteSummary) = (sources.autocompleteOn(), sources.autocompleteSummary())
         notes = SavedNotesStore.load(sources.defaults).newest(Self.notesShown)
         dropMissingFiles()
         scriptRuns = ScriptTasks.shared.background
@@ -542,6 +554,12 @@ final class FloatingPanel: ObservableObject {
             log.notice("menu bar panel: \(saved.notes.count) notes after looking at the files")
             self.notes = saved.newest(Self.notesShown)
         }
+    }
+
+    /// Autocomplete turned on or off here (on with a cloud provider not asked about yet, a dialog asks first).
+    func setAutocomplete(_ on: Bool) {
+        autocomplete = sources.setAutocomplete(on)
+        autocompleteSummary = sources.autocompleteSummary()
     }
 
     /// Opens the note where it was saved, by its id's scheme: a note in Notes there (one that's gone is dropped once
@@ -1076,6 +1094,7 @@ struct FloatingPanelView: View {
                 Text(message).font(.system(size: 11)).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
             }
             if let update = updates.available { updateNotice(update) }
+            autocompleteSwitch
             ExtensionSourceNotice(sources: extensionSources) { panel.click { SettingsWindow.shared.show(page: .commands) } }
             section(tr("笔记", "Notes", key: "panel.notes"), CommandIcons.icon(for: .note)) { notes }
             section(tr("提醒事项", "Reminders"), CommandIcons.icon(for: .reminder)) { reminders }
@@ -1087,6 +1106,20 @@ struct FloatingPanelView: View {
         .frame(maxWidth: .infinity, alignment: .leading)  // short lines (the empty ones) stay on the left
         .padding(.horizontal, 10)
         .padding(.vertical, 10)
+    }
+
+    /// Autocomplete's switch, with what was counted of it.
+    private var autocompleteSwitch: some View {
+        Toggle(isOn: Binding(get: { panel.autocomplete }, set: { on in panel.click { panel.setAutocomplete(on) } })) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(tr("续写", "Autocomplete")).font(.system(size: 13))
+                Text(panel.autocompleteSummary ?? tr("停一下，光标后出现灰字，按 Tab 接受", "Pause, and the rest of the sentence shows in gray after the caret; Tab takes it"))
+                    .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(2).fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .toggleStyle(.switch)
+        .controlSize(.mini)
+        .padding(.horizontal, 2)
     }
 
     @ViewBuilder
