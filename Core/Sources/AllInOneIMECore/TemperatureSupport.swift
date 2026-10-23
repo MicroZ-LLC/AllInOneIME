@@ -4,10 +4,11 @@ import Foundation
 /// and top_p cannot both be specified"). A request whose temperature such a model refuses before any answer goes again
 /// once without it (`adapting`), and the model is remembered by provider and model: for the process, and in
 /// `unsupported-temperature.json` among the caches (`CorePaths.cacheDir`), never in config.json. Its requests then go
-/// without a temperature from the start; every other model still gets the one the user set (or the request's own, the
-/// Assistant's 0). Only the providers' and models' names are kept: no request, answer or key. Bedrock, the Claude API and
-/// OpenAI-compatible services use it; Gemini and AllInOneIME Cloud send theirs as before. Settings → AI Provider says how
-/// many are remembered and forgets them (`models`, `forget`).
+/// without a temperature from the start; every other model still gets the one the user set (on Bedrock, the request's own
+/// where it has one: the Assistant's and Check for problems' 0; the Claude API and OpenAI-compatible services send the
+/// provider's settings' one, `HTTPProviders.makeRequest`). Only the providers' and models' names are kept: no request,
+/// answer or key. Bedrock, the Claude API and OpenAI-compatible services use it; Gemini and AllInOneIME Cloud send theirs
+/// as before. Settings → AI Provider says how many are remembered and forgets them (`models`, `forget`).
 public final class TemperatureSupport: Sendable {
     /// The app's own (`BedrockClient()`'s): in the caches.
     public static let shared = TemperatureSupport(file: CorePaths.cacheDir.appendingPathComponent("unsupported-temperature.json"))
