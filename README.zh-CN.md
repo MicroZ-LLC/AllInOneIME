@@ -22,7 +22,7 @@
 
 **[下载](https://allinoneime.com/download)** · **[官网](https://allinoneime.com/zh/)** · **[文档](https://github.com/MicroZ-LLC/AllInOneIME/wiki/首页)** · **[扩展](docs/extensions.md)**
 
-[怎么用](#怎么用) · [@ 命令](#-命令试用) · [自己加命令](#自己加命令) · [输入语言](#输入和翻译) · [语音](#语音输入) · [安装](#安装) · [隐私](#隐私)
+[怎么用](#怎么用) · [@ 命令](#-命令试用) · [自己加命令](#自己加命令) · [输入语言](#输入和翻译) · [安装](#安装) · [隐私](#隐私)
 
 <br>
 
@@ -35,7 +35,7 @@
 > 从旧版本更新后，AllInOneIME 存在钥匙串里的每个 key，macOS 都会问一次登录密码：输入后点「始终允许」。只从
 > [GitHub Releases](https://github.com/MicroZ-LLC/AllInOneIME/releases) 或 [allinoneime.com](https://allinoneime.com/zh/) 下载。
 
-一个 macOS 输入法。句子开头打 `@` 就是命令，写完按 ⏎ 执行：`@improve` 让 AI 润色、给几种改写，`@translate` 翻译成你选的语言，`@question` 提问，`@agent` 交给 Claude Code、Gemini CLI、Kiro CLI 等编程 agent，`@open` 找文件、App 或打开网址。也可以按住右 ⌥ 说话。不打 `@` 时，按键照常交给 App。它还能打中文（拼音，基于 Rime 和雾凇拼音）、法语、韩语（韩文）和印地语（用拉丁字母打出天城文），也能把你自己的脚本变成 @ 命令。
+一个 macOS 输入法。句子开头打 `@` 就是命令，写完按 ⏎ 执行：`@improve` 让 AI 润色、给几种改写，`@translate` 翻译成你选的语言，`@question` 提问，`@agent` 交给 Claude Code、Gemini CLI、Kiro CLI 等编程 agent，`@open` 找文件、App 或打开网址。不打 `@` 时，按键照常交给 App。它还能打中文（拼音，基于 Rime 和雾凇拼音）、法语、韩语（韩文）和印地语（用拉丁字母打出天城文），也能把你自己的脚本变成 @ 命令。
 
 命令触发符默认是 `@`。在「设置 → 通用 → 命令触发符」的菜单里可改选另一个符号：`#`、`%`、`&`、`*`、`+`、`|` 或 `~`；之后用 `~translate` 等命令，`@` 则照常输入。字母、数字、空格和打字要用的符号（拼音的按键，如 `'` `-` `=` `[` `]` `` ` ``，以及拼音打成中文标点的，如 `,` `.` `?` `\`）不能用，菜单里没有它们。也可以在配置文件里写 `"commandTrigger": "~"`。
 
@@ -64,7 +64,6 @@
 | ⌘⏎、⌘1–⌘9 | 在 `@question` 对话里：列出可以接着聊的地方（装了的编程 agent，`@agent` 交给的那个在最前；Claude、ChatGPT、Gemini；或复制对话），⌘1、⌘2… 选一个 |
 | 鼠标点一行 | 在候选框里：选中这一行，和按它的数字一样（词、命令列表里的命令、结果、`@open` 找到的文件、收件人、扩展列出的行）；鼠标指着的那一行会高亮。输入框不会失去焦点 |
 | 单按 Shift | 有不止一种输入语言时：按顺序换到下一种（中文 → 英文 → 法语 → …，再回到第一个） |
-| 按住右 ⌥ | 说话，松开结束。按你正在打的语言识别（中文、英文、法语、韩语或印地语）。在命令里就接在后面，否则直接上屏 |
 
 ## @ 命令（试用）
 
@@ -85,7 +84,7 @@
 | `@reportissue` | 报告问题：在浏览器里打开 GitHub 的新问题页，命令后面写的就是标题，还有「What happened / What you expected」（发生了什么 / 你期望的结果）要你填。会附上 App 和 macOS 的版本、Mac 的架构、界面语言和输入语言、装了的语言包、用的哪一种 AI 服务（和模型，公开的模型才写名字，否则写 custom）、执行键，以及自定义命令、插件、扩展各有几个，但不带它们的名字、你打的字、路径和密钥。按 ⏎（或你的执行键）先在候选框里把这些都列出来；再按一次，或者用鼠标点那一行，才打开网页，你看过后用自己的 GitHub 账号点提交；Esc 返回。输入法菜单里的「报告问题…」和设置 →「关于」里也有 |
 | `@imessage` | 发 iMessage：先打名字、拼音（全拼或首字母，如 `zs`）、手机号或邮箱，在候选框里选收件人（最近发过的排前面；也可以直接打完整的手机号或邮箱），再写消息（句中的 `@stock AAPL` 这类命令会先运行）。⏎ 在候选框里显示「发给 张三（…）：消息」，再按 ⏎ 才发出，Esc 回去修改；不会往输入框里写任何东西。第一次用时 macOS 会问能否访问通讯录、能否控制「信息」，都点「好」 |
 
-例：`@q` ⏎，打 `什么是量子计算`，⏎。`@note 想看的书：《三体》` ⏎，存进备忘录。`@reminder 明天下午3点给张三打电话` ⏎，看一眼读出的时间，再按 ⏎ 加进提醒事项。选好命令后按住右 ⌥ 说话也行。`@open` 会临时切到英文字母，用完回到中文。
+例：`@q` ⏎，打 `什么是量子计算`，⏎。`@note 想看的书：《三体》` ⏎，存进备忘录。`@reminder 明天下午3点给张三打电话` ⏎，看一眼读出的时间，再按 ⏎ 加进提醒事项。`@open` 会临时切到英文字母，用完回到中文。
 
 `@py` 和 `@js` 的代码同样用英文字母输入，全角标点会转成半角（`print（“牛逼”）` → `print("牛逼")`）；写成一行，多句用 `;` 隔开。
 代码在单独的进程里运行，10 秒超时，Esc 随时停止；出错时显示错误的第一行，比如 `ZeroDivisionError: division by zero`。
@@ -342,8 +341,8 @@ Raycast 的 mode 对应关系：`fullOutput` → `show`，`compact` 和 `silent`
 
 ### 执行键
 
-默认是 ⏎，可以在设置的「执行键」里换（config 里的 `actionKey`）：⏎、单按 ⌥（左右都行，按一下马上松开；
-按住右 ⌥ 仍然是说话）、⌥空格，或者空格（词选完了再按一次空格，英文模式下连按两次）。
+默认是 ⏎，可以在设置的「执行键」里换（config 里的 `actionKey`）：⏎、单按 ⌥（左右都行，按一下马上松开）、
+⌥空格，或者空格（词选完了再按一次空格，英文模式下连按两次）。
 不管执行键是哪个，@ 命令都可以按 ⏎ 执行。⌥空格如果已经是 Alfred、Raycast 等的快捷键，会先被它们拿走。
 
 ### 逐字上屏
@@ -413,7 +412,7 @@ bundle ID 不分大小写（手写的 `com.apple.Mail` 就是「邮件」的 `co
 
 **检查问题。** 打开这一页时（窗口再回到前面时也会）检查这台 Mac 上的设置，一行一项列出来，✗ 问题在前，然后是 ⚠ 提醒，最后是 ✓ 正常的
 （全都正常时合成一行「一切正常」）：输入法（安装、启用、在你的输入法列表里）、AI 服务（密钥有没有保存、Bedrock profile 的密钥找不找得到，
-从不读出或显示密钥；Apple 智能）、权限（辅助功能、说话时用的麦克风、控制备忘录、提醒事项、终端和信息，问系统时不弹窗）、安全输入、
+从不读出或显示密钥；Apple 智能）、权限（辅助功能、控制备忘录、提醒事项、终端和信息，问系统时不弹窗）、安全输入、
 输入语言的语言包、`config.json`（能不能读、不认识的键、超出范围的值、重复的语言、超过 5 种翻译语言）、没加载的扩展和插件、更新，
 通过 iCloud 同步（开没开、上次同步时间、上次的错误、iCloud 云盘不可用、iCloud 里没用在这台 Mac 上的设置），还有 App 自己日志里最近的错误。「检查」再检查一遍并测试连接；在「遇到什么问题？（可选）」里写了问题（「为什么翻译不了」）的话，
 AI 会根据结果解释可能的原因，并标出建议修的几项。
@@ -514,7 +513,7 @@ iCloud 云盘：不用另外登录，也不经过我们的服务器。需要打�
 - **模糊音**（中文输入时）：分不清的音两种拼法都能打出来，比如 z ↔ zh、n ↔ l、in ↔ ing。在「输入」页的输入语言分段条里点「中文（拼音）」，打开「模糊音」，再勾要的几组；改完词库重新部署，一两秒。它写的是 Rime 用户目录里的 `rime_ice.custom.yaml`，那里如果有你自己的这个文件，不会覆盖。
 - **个人词库**（中文输入时）：设置 → 输入 → 中文（拼音）→ 个人词库 →「导入或更新…」，可以把 UTF-8 的 Rime `.dict.yaml` 词库加在雾凇拼音之外。列表显示词库的 Rime `name`、原文件名和词条数；再次导入相同 `name` 会更新已存的副本，只修改原文件不会自动更新。导入、更新和移除后会自动重新部署，页面显示进度或错误。每次都会重新编译拼音词库（雾凇拼音的全部词条加上你的），可能要一分钟左右，这期间暂时打不了中文；移除最后一个词库时，Rime 为它们编译的文件也会删掉。需要先装好中文语言包。词库的副本只留在这台 Mac 上，不通过 iCloud 同步或发给 AI；原文件、你自己的 Rime 文件和学到的词都会保留。不过从词库里选过的词和别的词一样会被学到：学进 Rime 的用户词典，开了同步时（设置 → 通用 →「通过 iCloud 同步」）随学到的词同步到你的其他 Mac，移除词库后也还在。如果有你自己的 `rime_ice.custom.yaml`，会在改动任何文件之前拒绝导入：可以先备份并移开它，或者在 Rime 中手动挂载词库以保留其中的设置。
 - **翻译（@translate）**：加你要翻译成的语言（英文、日语、韩语、法语、繁体中文、印地语、孟加拉语、泰米尔语等印度主要语言…），拖动排序。用拉丁字母打的印地语（"aap kaise ho"）翻出来是天城文。`@translate` 按这个顺序每种语言出一行，只加了一种就出 3 个版本；和原文同一种语言的跳过。新装时默认翻译成系统偏好语言里第一个不是英文的语言；系统里只有英文的话，`@translate` 会提示还没有要翻译成的语言，在提示上按 ⏎ 打开这一页，「添加…」带着框标出来（句子按原样上屏）。这时边打边译也不会开启，会提示到哪里加一种。
-- **键盘布局**：法语按它卡片里选的布局打字（配置里的 `keyboardLayouts`）。其他语言用这个输入法时，macOS 沿用你最近用的拉丁字母布局（法语 AZERTY、德语 QWERTZ、西班牙语、美国国际…），照常打字，`@` 在你的布局里在哪就按哪个；死键在命令的文字里也能组字（⌥E 再按 E → é，^ 再按 e → ê）。没有拉丁字母的布局（俄语、印地语 InScript）macOS 不让输入法用：用 ⌃空格 切过去打，或者把文字粘贴（⌃V）、说进命令里。
+- **键盘布局**：法语按它卡片里选的布局打字（配置里的 `keyboardLayouts`）。其他语言用这个输入法时，macOS 沿用你最近用的拉丁字母布局（法语 AZERTY、德语 QWERTZ、西班牙语、美国国际…），照常打字，`@` 在你的布局里在哪就按哪个；死键在命令的文字里也能组字（⌥E 再按 E → é，^ 再按 e → ê）。没有拉丁字母的布局（俄语、印地语 InScript）macOS 不让输入法用：用 ⌃空格 切过去打，或者把文字粘贴（⌃V）进命令里。
 - `@improve` 只润色、给改写风格，不翻译；`@translate @improve` 写在一起，一次请求同时翻译和改写。设置里打开「@improve 同时翻译」，`@improve` 就一直这样。
 
 个人词库可以这样写（词条各列之间用 **Tab** 分隔）：
@@ -649,22 +648,9 @@ two-way door：可以随时撤回的决定
   列表、你打的字和查询从不写进日志、不发给 AI、不当成英文词学习、不同步；列表缓存在 `~/Library/Caches/AllInOneIME/suggestions/`
   （只有你能读），关掉它的来源就删掉。你选过的行只记在本机，不记输入框里的词。密码框里和系统安全输入时都不出。
 
-## 语音输入
-
-<img src="docs/voice.png" width="340" alt="按住右 ⌥ 说话">
-
-按住右 ⌥ 说话，松开后文字直接上屏。按你正在打的语言识别（中文、英文、法语、韩语或印地语）。先打好命令（比如 `@improve `、`@question `）再说的话，文字接在命令后面，按 ⏎ 执行；也可以不松开右 ⌥ 直接按 ⏎，说完马上执行。语音用 macOS 自带的语音识别（SpeechAnalyzer）在本机完成，音频不上传；需要 macOS 26 或更新版本。
-
-第一次使用时：
-
-- macOS 会问是否允许 AllInOneIME 使用麦克风。也可以先在设置里点「允许使用麦克风」。
-- 如果这台 Mac 还没有这种语言的语音模型，会自动下载一次。在设置里也可以手动下载。
-
-按住约 0.2 秒后才开始录音，所以轻点右 ⌥ 不会打开麦克风（执行键设成「单按 ⌥」时，轻点就是执行）。按住时如果按了别的键（比如 ⌥ 组合键、⌥←），就当作快捷键，也不会录音。录音中按其他键会取消录音。
-
 ## 安装
 
-运行需要 macOS 14 以上，语音输入要 macOS 26 以上。安装包是通用版，Apple 芯片和 Intel 的 Mac 都能用；
+运行需要 macOS 14 以上。安装包是通用版，Apple 芯片和 Intel 的 Mac 都能用；
 目前只在 macOS 27、Apple 芯片上测试过（Intel 版只在 Rosetta 下跑过自测）。
 
 1. 从 [Releases](https://github.com/MicroZ-LLC/AllInOneIME/releases/latest) 下载 `AllInOneIME-<版本>.dmg`（只从这里下载），双击打开。
@@ -700,7 +686,7 @@ Ctrl+空格 切不到 AllInOneIME，或者切过去一会儿又变回 U.S.：再
 
 ### 从源码编译
 
-编译需要 Xcode 26 以上，因为语音输入用到 macOS 26 SDK。
+编译需要 Xcode 26 以上（macOS 26 SDK）。
 
 ```sh
 git clone https://github.com/MicroZ-LLC/AllInOneIME.git
@@ -812,7 +798,6 @@ Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系�
 | `keyboardLayouts` | 各输入语言用的键盘布局，按语言代码（目前只有法语）：`{"fr": "com.apple.keylayout.French-PC"}` | 法语：`com.apple.keylayout.French`（AZERTY） |
 | `outputLanguages` | `@translate` 翻译成的语言，按顺序：`["en", "ja"]` 等 | `["en"]` |
 | `improveTranslates` | `@improve` 同时翻译（等于 `@translate @improve`） | `false` |
-| `voiceInput` | 按住右 ⌥ 说话 | `true` |
 | `actionKey` | 执行键：`"enter"`（⏎）、`"optionTap"`（单按 ⌥）、`"optionSpace"`（⌥空格）、`"space"`（空格） | `"enter"` |
 | `commandTrigger` | 命令触发符：`"#"`、`"%"`、`"&"`、`"*"`、`"+"`、`"@"`、`"\|"`、`"~"` 之一；其他值都按 `"@"` | `"@"` |
 | `uiLanguage` | 界面语言（设置窗口、候选框提示、菜单）：`"zh"`（简体中文）、`"en"`，或 App 带的别的语言的代码：`"zh-Hant"`、`"ja"`、`"ko"`、`"de"`、`"fr"`、`"es"`、`"pt-BR"` | `null`（跟随系统） |
@@ -852,9 +837,8 @@ Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系�
 - 建议：插件的补全要你打开后才运行它的脚本，而且只能访问它声明的主机；它看不到你打的字、所在的 App 和输入框，只有边打边查
   （设置里会写，连同发到哪里）拿到前缀后面的字。编码模式的行来自你装的语言包和输入框里的文字，都在本机。列表、你打的字和查询从不
   写进日志、不发给 AI、不学习、不同步，见[建议和编码模式](#建议和编码模式新)。
-- 语音只在按住右 ⌥ 时录音，在本机识别；只有在上面这些命令里，识别出的文字才会在你按执行键时发出去。
 - 只有在命令里按 ⌃V 或 ⌘V 时，输入法才读一次剪贴板里的文字；密码管理器标成隐藏的内容不读。读到的文字先显示在命令里，同样要你再按执行键才发出去。新版 macOS 会问是否允许 AllInOneIME 读取剪贴板，选「允许」；不想每次都问，可以在 系统设置 → 隐私与安全性 里把 AllInOneIME 的粘贴权限设成总是允许。
-- 在密码框里 macOS 会临时切到系统键盘（U.S. 或 ABC），离开后切回来。只要你正在打字的应用开着安全输入，AllInOneIME 就不组字、也不能录音，按键原样输入。只要系统处于安全输入状态（密码框、终端的安全键盘输入等），就不会发任何内容给 AI。
+- 在密码框里 macOS 会临时切到系统键盘（U.S. 或 ABC），离开后切回来。只要你正在打字的应用开着安全输入，AllInOneIME 就不组字，按键原样输入。只要系统处于安全输入状态（密码框、终端的安全键盘输入等），就不会发任何内容给 AI。
 - `@note`、`@reminder` 不发给 AI：AllInOneIME 只把文字交给这台 Mac 上的「备忘录」和「提醒事项」，提醒的时间也在本机读出（这两个 App 会不会把它同步到别的设备，看它们用的账户，比如 iCloud）。所以系统处于安全输入状态时，它们也照常能用。`@note` 存到文件夹是在这台 Mac 上写一个文件（文件夹本身同步的话，比如在 iCloud 云盘或用 Obsidian Sync，它也跟着同步）。`@note` 存到 Notion 会把笔记发给 Notion（api.notion.com，用你的集成令牌，令牌存在钥匙串里），只有这时才发；系统安全输入时不发。
 - `@reportissue`（和「报告问题…」）自己不发送任何东西：它在浏览器里打开 GitHub 的新问题页，带着你写的标题和上面说的版本、语言、AI 服务的种类和数量，打开前先在候选框里列出来。你不在 GitHub 上点提交，什么都不会发出去。
 - `@open` 只在本机搜索。它记得你用它打开过什么（最近 200 个），存在输入法自己的偏好设置里（不在 config.json 里），用来排序。
@@ -881,7 +865,7 @@ make test         # 单元测试，加上用真实 Rime 引擎跑的测试（和
 make strings      # 把新的界面文字加进 Resources/Localizable.xcstrings，不再用的标成 stale
 make pack         # 中文语言包：build/packs/zh-pinyin-<版本>.tar.xz、它的 sha256 和 packs.json 里的条目
 make packs        # 所有语言包：中文，以及 Core/LanguagePacks/ 里的韩语和印地语（ko-hangul、hi-phonetic）
-make selftest     # 用模拟文本框驱动输入法：真实 Bedrock 调用，加上用合成语音测试本机识别
+make selftest     # 用模拟文本框驱动输入法：真实 Bedrock 调用
 make realtest     # 在真实 App 的文本框里打字测试（需要屏幕已解锁，会占用前台约 1 分钟）
 make screenshots  # 重新生成 docs/ 里的截图
 make cli && .build/release/allinoneime-cli --styles 简洁,黑话 "我今天有点不舒服"   # 在终端里试翻译和改写
@@ -903,13 +887,13 @@ key，用点分隔、写明用在哪里或怎么用：`tr("删除", "Remove", ke
 
 代码结构：根目录是 macOS App；`Core/` 是各平台共用的核心，是一个独立的 Swift 包（能单独在 macOS、Linux 和 Windows 上编译和测试）；`Windows/` 是 Windows App 的开头。
 
-- `Core/Sources/AllInOneIMECore`：Bedrock 客户端、SigV4、提示词、两级输入状态机（含 @ 命令和语音手势），不依赖 AppKit
+- `Core/Sources/AllInOneIMECore`：Bedrock 客户端、SigV4、提示词、两级输入状态机（含 @ 命令），不依赖 AppKit
 - `Core/Sources/AllInOneIMEText`：界面文字及其语言（`UIString`、`InterfaceText`、`InterfaceLanguage`，以及在没有 `.lproj` 的平台上直接读 catalog 的 `StringCatalog`）；设置启动器只链接它（`AllInOneIMECore` 重新导出它）
 - `Core/Sources/AllInOneIMEQuickJS`：QuickJS-ng（C 源码在 `Core/Sources/CQuickJS`），没有 JavaScriptCore 的平台（Windows、Linux、Android）上插件和 `@js` 用的 JavaScript
 - `Core/Sources/AllInOneIMERime`：librime 封装
 - `Core/Sources/AllInOneIMECLI`：命令行 `allinoneime-cli`（`make cli`），由各平台自己的 `main` 运行
 - `Sources/AllInOneIMEMac`：只有 Mac 才有的部分（键盘布局、代码签名、Spotlight、AppleScript、更新的安装）和 `Platform.mac`
-- `Sources/AllInOneIME`：InputMethodKit 输入法、候选框、设置窗口、语音识别
+- `Sources/AllInOneIME`：InputMethodKit 输入法、候选框、设置窗口
 - `Sources/AllInOneIMESettings`：「AllInOneIME 设置」启动器
 - `Sources/AllInOneIMEInstaller`：DMG 里的「安装 AllInOneIME」：安装、更新和卸载
 
@@ -934,7 +918,7 @@ App 先用内置的公钥核对签名再读 update.json，不会装不比现在�
 在本机试：`make update-test`，或者用 `Scripts/build-update-manifest.swift` 的 `--test-key`，再
 `AllInOneIME --install-update --manifest-url http://127.0.0.1:<端口>/update.json --key <测试公钥> --target-dir <目录>`。
 
-Bundle ID 仍是 `com.aipinyin.inputmethod.AIPinyin`：macOS 按它记住已添加的输入法和麦克风权限，改了就要重新添加和授权。
+Bundle ID 仍是 `com.aipinyin.inputmethod.AIPinyin`：macOS 按它记住已添加的输入法和给它的权限，改了就要重新添加和授权。
 
 ## 许可证
 

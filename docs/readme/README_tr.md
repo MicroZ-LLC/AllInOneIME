@@ -22,7 +22,7 @@ Sohbet penceresine kopyalamak yok, uygulama değiştirmek yok. Kendi yapay zekâ
 
 **[İndir](https://allinoneime.com/download)** · **[Web sitesi](https://allinoneime.com)** · **[Belgeler](https://github.com/MicroZ-LLC/AllInOneIME/wiki)** · **[Uzantılar](../extensions.md)**
 
-[Nasıl kullanılır](#nasıl-kullanılır) · [Komutlar](#-komutları-beta) · [Kendi komutlarınız](#kendi-komutlarınız) · [Diller](#giriş-ve-çeviri) · [Ses](#sesle-giriş) · [Kurulum](#kurulum) · [Gizlilik](#gizlilik)
+[Nasıl kullanılır](#nasıl-kullanılır) · [Komutlar](#-komutları-beta) · [Kendi komutlarınız](#kendi-komutlarınız) · [Diller](#giriş-ve-çeviri) · [Kurulum](#kurulum) · [Gizlilik](#gizlilik)
 
 <br>
 
@@ -35,7 +35,7 @@ Sohbet penceresine kopyalamak yok, uygulama değiştirmek yok. Kendi yapay zekâ
 > [!NOTE]
 > 0.6.3'ten itibaren AllInOneIME bir Developer ID ile imzalanıyor ve Apple tarafından onaylanıyor (notarize): artık "System Settings → Privacy & Security" (Sistem Ayarları → Gizlilik ve Güvenlik) bölümünden izin vermeniz gerekmez. Daha eski bir sürümden güncelledikten sonra macOS, AllInOneIME'nin anahtar zincirine kaydettiği her anahtar için giriş parolanızı bir kez sorar: parolayı girin ve "Always Allow" (Her Zaman İzin Ver) düğmesine tıklayın. AllInOneIME'yi yalnızca [GitHub Releases](https://github.com/MicroZ-LLC/AllInOneIME/releases) veya [allinoneime.com](https://allinoneime.com) üzerinden indirin.
 
-Her metin alanında yapay zekâ komutları sunan bir macOS giriş yöntemi. Bir cümleye `@` ile başlayın ve bitince ⏎ tuşuna basın: `@improve` yazdığınızı düzeltip cilalar ve birkaç yeniden yazım önerir, `@translate` seçtiğiniz dillere çevirir, `@question` bir soru sorar, `@agent` işi bir kodlama ajanına (Claude Code, Gemini CLI, Kiro CLI …) devreder, `@open` ise dosya ve uygulama bulur ya da bir web adresi açar. Sağ ⌥ tuşunu basılı tutup konuşabilirsiniz de. `@` olmadan tuşlarınız her zamanki gibi uygulamaya gider. Ayrıca Çince (pinyin, Rime ve rime-ice üzerine kurulu), Fransızca, Korece (Hangul) ve Hintçe (Latin harflerinden Devanagari) yazar ve kendi betiklerinizi @ komutları olarak çalıştırır.
+Her metin alanında yapay zekâ komutları sunan bir macOS giriş yöntemi. Bir cümleye `@` ile başlayın ve bitince ⏎ tuşuna basın: `@improve` yazdığınızı düzeltip cilalar ve birkaç yeniden yazım önerir, `@translate` seçtiğiniz dillere çevirir, `@question` bir soru sorar, `@agent` işi bir kodlama ajanına (Claude Code, Gemini CLI, Kiro CLI …) devreder, `@open` ise dosya ve uygulama bulur ya da bir web adresi açar. `@` olmadan tuşlarınız her zamanki gibi uygulamaya gider. Ayrıca Çince (pinyin, Rime ve rime-ice üzerine kurulu), Fransızca, Korece (Hangul) ve Hintçe (Latin harflerinden Devanagari) yazar ve kendi betiklerinizi @ komutları olarak çalıştırır.
 
 Komut tetikleyicisi varsayılan olarak `@`'dir. Settings → General → Command trigger altında başka bir simge seçebilirsiniz: `#`, `%`, `&`, `*`, `+`, `|` veya `~`; komutlar o zaman bu simgeyle başlar (örneğin `~translate`) ve `@` normal şekilde yazılır. Harfler, rakamlar, boşluklar ve yazarken gereken simgeler (`'` `-` `=` `[` `]` `` ` `` gibi pinyin tuşları ve pinyinin Çince noktalama olarak yazdığı `,` `.` `?` `\` gibi simgeler) kabul edilmez; ayarlar nedenini söyler. Yapılandırma dosyasında: `"commandTrigger": "~"`.
 
@@ -62,7 +62,6 @@ Daha fazla ayrıntı için (tüm komutlar ve ayarlar, kurulum sorunlarını gide
 | ⌘⏎, ⌘1–⌘9 | Bir `@question` sohbetinde: sohbetin nerede sürdürülebileceğini gösterir (kurulu kodlama ajanları, önce `@agent`'ın işi devrettiği; Claude, ChatGPT, Gemini; ya da kopyalamak); ⌘1, ⌘2 … birini seçer |
 | Bir satıra tıklama | Aday panelinde: satırı, rakamı seçecekmiş gibi seçer (bir sözcük, listedeki bir komut, bir sonuç, bir `@open` dosyası, bir alıcı, bir uzantının satırı); işaretçinin altındaki satır vurgulanır. Metin alanı odağı korur |
 | Shift'e dokunma | Birden fazla giriş dili varsa: sıralarına göre bir sonrakine geçer (İngilizce → Çince → Fransızca → …, sonra yeniden ilkine) |
-| Sağ ⌥'yi basılı tutma | Konuşun, bitirmek için bırakın. Yazdığınız dilde (İngilizce, Çince, Fransızca, Korece veya Hintçe). Bir komutta metin komutun arkasına gelir; aksi hâlde doğrudan eklenir |
 
 ## @ komutları (beta)
 
@@ -83,7 +82,7 @@ Daha fazla ayrıntı için (tüm komutlar ve ayarlar, kurulum sorunlarını gide
 | `@reportissue` | Bir sorun bildirir: tarayıcınızda GitHub'ın yeni issue sayfasını açar; komuttan sonra yazdığınız başlık olur, doldurmanız için de "What happened / What you expected" (ne oldu / ne bekliyordunuz) bölümleri gelir. Uygulama ve macOS sürümlerini, Mac'inizin mimarisini, arayüz ve giriş dillerini, kurulu dil paketlerini, yapay zekâ sağlayıcısının türünü (ve herkese açık bir modelse modeli; değilse "custom"), eylem tuşunu ve kaç özel komut, eklenti ve uzantınız olduğunu ekler; asla adlarını, metninizi, yolları veya anahtarları eklemez. ⏎ (veya eylem tuşunuz) önce bunların hepsini aday panelinde gösterir; tekrar ⏎ ya da satıra bir tıklama sayfayı açar, orada okuyup Submit düğmesine tıklarsınız (kendi GitHub hesabınızla); Esc geri döner. Giriş menüsünde ("Report an Issue…") ve Settings → About içinde de bulunur |
 | `@imessage` | Bir iMessage gönderir: bir ad, telefon numarası veya e-posta yazın (Çince bir ad pinyin'iyle de, tam olarak ya da baş harfleriyle) ve alıcıyı aday panelinden seçin (son zamanlarda mesajlaştıklarınız önce gelir; tam bir numara veya adres de olur), ardından mesajı yazın (içindeki `@stock AAPL` gibi komutlar önce çalışır). ⏎ panelde "Send to Alex (…): message" gösterir, ⏎ tekrar gönderir, Esc düzenlemeye döner; metin alanına hiçbir şey yazılmaz. İlk seferde macOS, AllInOneIME'nin Contacts'a (Kişiler) erişip Messages'ı (Mesajlar) denetleyip denetleyemeyeceğini sorar: ikisinde de OK'e tıklayın |
 
-Örnek: `@q` ⏎, `what is quantum computing` yazın, ⏎. `@note books to read: The Three-Body Problem` ⏎ bir not kaydeder. `@reminder call Bob tomorrow at 3pm` ⏎, okunan zamanı kontrol edin, sonra eklemek için yeniden ⏎. Komut seçildikten sonra sağ ⌥'yi basılı tutup konuşabilirsiniz de. Çince modunda `@open` o an için İngilizce harflere geçer ve işiniz bitince Çinceye döner.
+Örnek: `@q` ⏎, `what is quantum computing` yazın, ⏎. `@note books to read: The Three-Body Problem` ⏎ bir not kaydeder. `@reminder call Bob tomorrow at 3pm` ⏎, okunan zamanı kontrol edin, sonra eklemek için yeniden ⏎. Çince modunda `@open` o an için İngilizce harflere geçer ve işiniz bitince Çinceye döner.
 
 `@py` ve `@js` kodu İngilizce harflerle yazılır ve tam genişlikli noktalama işaretleri (Çince modundan) ASCII'ye dönüşür; kodu tek satıra, deyimler arasına `;` koyarak yazın. Ayrı bir süreçte çalışır, 10 saniye sonra ya da herhangi bir anda Esc ile durdurulur; hata olursa hatanın ilk satırı gösterilir, ör. `ZeroDivisionError: division by zero`. Birden çok satırlı çıktı yazdırıldığı gibi eklenir; terminalde tek satır olarak girer (terminal kendisine verilen her satırı çalıştırır). Bir düzenleyicinin içindeki terminal (VS Code, Cursor, JetBrains) düzenleyicinin kendisinden ayırt edilemez, bu yüzden orada her komutun birden çok satırlı çıktısı olduğu gibi girer. İkisi de başka bir komutun cümlesinin içinde çalışır: `@reply the answer is @py 2**100`; boşluk içeren kodu tırnak içine alın: `@question explain @py "sum(x * x for x in range(10))"`. Tersi geçerli değildir: `@py` ve `@js` kodu her zaman tam yazdığınız gibi çalışır ve içindeki `@commands` önceden çalıştırılmaz.
 
@@ -246,7 +245,7 @@ Bir şey getiren komutlar (eklentiler ve programlar) bir cümlenin içinde de ç
 
 ### Eylem tuşu
 
-Varsayılan ⏎; ayarlarda "Action key" (eylem tuşu) altından değiştirin (yapılandırmada `actionKey`): ⏎, "Tap ⌥" (⌥'ye dokunma, iki taraftan biri: basıp hemen bırakın; sağ ⌥'yi basılı tutmak yine konuşmak içindir), ⌥Space veya Space (sözcükler seçildikten sonra Boşluk'a bir kez daha basın; İngilizce modunda iki kez). Eylem tuşu ne olursa olsun, @ komutları ⏎ ile de çalışır. ⌥Space zaten Alfred, Raycast veya benzeri bir uygulamanın kısayoluysa, önce onlar alır.
+Varsayılan ⏎; ayarlarda "Action key" (eylem tuşu) altından değiştirin (yapılandırmada `actionKey`): ⏎, "Tap ⌥" (⌥'ye dokunma, iki taraftan biri: basıp hemen bırakın), ⌥Space veya Space (sözcükler seçildikten sonra Boşluk'a bir kez daha basın; İngilizce modunda iki kez). Eylem tuşu ne olursa olsun, @ komutları ⏎ ile de çalışır. ⌥Space zaten Alfred, Raycast veya benzeri bir uygulamanın kısayoluysa, önce onlar alır.
 
 ### Sonuçları yazarak ekleme
 
@@ -345,7 +344,7 @@ Ayarlarda:
 - **Fuzzy pinyin** (bulanık pinyin, Çince girişle): ayırt etmediğiniz sesler her iki şekilde de yazılabilir, ör. z ↔ zh, n ↔ l, in ↔ ing. "Input" sayfasında, giriş dilleri çubuğunda "Chinese (pinyin)" seçin, "Fuzzy pinyin"i açın ve çiftleri seçin; sözlükler bir iki saniye içinde yeniden dağıtılır. Rime kullanıcı klasörüne `rime_ice.custom.yaml` yazar ve oradaki kendi dosyanızın üzerine asla yazmaz.
 - **Personal Dictionaries** (kişisel sözlükler, Çince girişte): Settings → Input → Chinese (pinyin) → Personal Dictionaries → **Import or Update…**, rime-ice'ın yanına UTF-8 bir Rime sözcük dosyası (`.dict.yaml`) ekler (önce Çince dil paketinin kurulu olması gerekir). Liste her birinin Rime `name` değerini, dosya adını ve girdi sayısını gösterir; aynı `name` yeniden içe aktarılınca kayıtlı kopyanın yerini alır (yalnızca kaynak dosyayı düzenlemek onu güncellemez). Her içe aktarma, güncelleme ya da kaldırma pinyin sözlüğünü yeniden derler (rime-ice'ın tüm sözcükleri ve sizinkiler); bu bir dakika kadar sürebilir, bu sırada Çince giriş durur ve sayfa ilerlemeyi ya da bir hatayı gösterir. Kopyalar bu Mac'te kalır, iCloud eşzamanlamasının ve yapay zekâ isteklerinin dışında; ama bunlardan seçtiğiniz bir sözcük diğerleri gibi Rime'ın kullanıcı sözlüğüne öğrenilir; bu sözlük, açıksa öğrenilen sözcüklerle birlikte eşzamanlanır ve sözlük kaldırıldıktan sonra da kalır. Kendi `rime_ice.custom.yaml` dosyanız varsa, hiçbir dosya değişmeden içe aktarma reddedilir.
 - **Translate (@translate)**: çevrilecek dilleri ekleyin (İspanyolca, Fransızca, Almanca, Japonca, Korece, Çince, Hintçe, Bengalce, Tamilce ve diğer başlıca Hint dilleri…) ve sürükleyerek sıralayın. Latin harfleriyle yazılmış Hintçe ("aap kaise ho") Devanagari olarak döner. `@translate` her dilde, bu sırayla birer satır yazar (tek dil varsa üç sürüm); cümlenin kendi dili atlanır. Yeni bir kurulum, Mac'inizin tercih edilen dilleri arasında İngilizce olmayan ilk dile çevirir; yalnızca İngilizce varsa `@translate` henüz çevrilecek bir dil olmadığını bildirir; bu bildirimde ⏎ bu sayfayı "Add…" (Ekle…) düğmesi çerçeveli olarak açar (cümle yazdığınız gibi eklenir). Yazarken çeviri de o zaman açılmaz ve nereye dil ekleyeceğinizi söyler.
-- **Keyboard layouts** (klavye düzenleri): Fransızca, kartında seçilen düzenle yazar (yapılandırmada `keyboardLayouts`). Diğer diller için macOS giriş yönteminin altında son Latin düzeninizi (AZERTY, QWERTZ, İspanyolca, US International…) korur; böylece her zamanki gibi yazarsınız, düzeninizde nerede bulunuyorsa `@` da dahil, ve ölü tuşlar bir komutun metninde de birleşir (⌥E ardından E → é, ^ ardından e → ê). Latin harfi olmayan düzenler (Rusça, Hintçe InScript) bir giriş yöntemi altında kullanılamaz: onlara ⌃Space ile geçin ya da metni bir komuta yapıştırın (⌃V) veya dikte edin.
+- **Keyboard layouts** (klavye düzenleri): Fransızca, kartında seçilen düzenle yazar (yapılandırmada `keyboardLayouts`). Diğer diller için macOS giriş yönteminin altında son Latin düzeninizi (AZERTY, QWERTZ, İspanyolca, US International…) korur; böylece her zamanki gibi yazarsınız, düzeninizde nerede bulunuyorsa `@` da dahil, ve ölü tuşlar bir komutun metninde de birleşir (⌥E ardından E → é, ^ ardından e → ê). Latin harfi olmayan düzenler (Rusça, Hintçe InScript) bir giriş yöntemi altında kullanılamaz: onlara ⌃Space ile geçin ya da metni bir komuta yapıştırın (⌃V).
 - `@improve` çevirmeden cilalar ve yeniden yazar; `@translate @improve` birlikte tek istekte çevirir ve yeniden yazar. `@improve`'un bunu her zaman yapması için ayarlarda "@improve also translates" seçeneğini açın.
 
 Kişisel bir sözlük şöyle görünür (her girdinin alanları **sekmeyle** ayrılır):
@@ -403,22 +402,9 @@ Etiket, yazdığınız satırın altında, giriş yönteminin kendi panelinde (a
 - **Uygulamalar**: başka bir uygulamaya geçmek (metin alanı olmayan birine de) onu bildirimsiz kapatır ve geri dönünce kapalı kalır; meğer ki o uygulama için Settings → Apps içinde "Always Translate as You Type" (her zaman yazarken çeviri) açık olsun (profilinde `translateAlways`): orada kendiliğinden açılır. Yapay zekâsız (No AI) bir uygulamada hiçbir şey yapmaz: metin bir bildirimle yazıldığı gibi girer; güvenli giriş açıkken (bir parola alanı) yazdıklarınız da öyle.
 - **Gizlilik**: `@translate` için olduğu gibi: yalnızca ⏎'ye bastığınızda, kendi yapay zekâ sağlayıcınıza gönderilir; hassas bilgileri gizleme açıksa bu bilgiler gizlenir.
 
-## Sesle giriş
-
-<img src="../en/voice.png" width="340" alt="Konuşmak için sağ ⌥'yi basılı tutun">
-
-Sağ ⌥'yi basılı tutup konuşun; bıraktığınızda metin eklenir. Konuşma yazdığınız dilde tanınır (İngilizce, Çince, Fransızca, Korece veya Hintçe). Önce bir komut yazıp (ör. `@improve `, `@question `) sonra konuşursanız, metin komutun arkasına gelir ve ⏎ onu çalıştırır; bitirir bitirmez çalıştırmak için sağ ⌥'yi bırakmadan ⏎'ye de basabilirsiniz. Konuşma Mac'te, macOS'un yerleşik konuşma tanıması (SpeechAnalyzer) ile tanınır ve hiçbir ses yüklenmez; macOS 26 veya üstü gerekir.
-
-İlk seferde:
-
-- macOS, AllInOneIME'nin mikrofonu kullanıp kullanamayacağını sorar. Önceden ayarlarda "Allow Microphone" (mikrofona izin ver) düğmesine de tıklayabilirsiniz.
-- Bu Mac'te o dil için konuşma modeli henüz yoksa, bir kez otomatik olarak indirilir. Onu ayarlardan da indirebilirsiniz.
-
-Kayıt ancak tuşu yaklaşık 0,2 sn basılı tuttuktan sonra başlar; böylece sağ ⌥'ye kısa bir dokunuş mikrofonu açmaz (eylem tuşu "Tap ⌥" olarak ayarlıysa dokunuş eylemi çalıştırır). Basılı tutarken başka bir tuşa basarsanız (bir ⌥ kısayolu, ⌥←), bu bir kısayol sayılır ve yine hiçbir şey kaydedilmez. Kayıt sırasında başka herhangi bir tuşa basmak kaydı iptal eder.
-
 ## Kurulum
 
-Çalıştırmak için macOS 14 veya üstü, sesle giriş için macOS 26 veya üstü gerekir. Yükleyici evrenseldir: Apple silicon ve Intel işlemcili Mac'lerde çalışır. Şimdiye kadar yalnızca Apple silicon üzerinde macOS 27'de test edildi (Intel derlemesi yalnızca Rosetta altında kendi öz testiyle).
+Çalıştırmak için macOS 14 veya üstü gerekir. Yükleyici evrenseldir: Apple silicon ve Intel işlemcili Mac'lerde çalışır. Şimdiye kadar yalnızca Apple silicon üzerinde macOS 27'de test edildi (Intel derlemesi yalnızca Rosetta altında kendi öz testiyle).
 
 1. `AllInOneIME-<version>.dmg` dosyasını [Releases](https://github.com/MicroZ-LLC/AllInOneIME/releases/latest) sayfasından (yalnızca oradan) indirip açın.
 2. İçindeki "Install AllInOneIME" öğesine çift tıklayın ve "Install" düğmesine tıklayın. Giriş yöntemi `~/Library/Input Methods` içine, "AllInOneIME Settings" ise `~/Applications` içine gider. Yalnızca bu kullanıcı için; yönetici parolası gerekmez.
@@ -438,7 +424,7 @@ Kaldırmak için "Install AllInOneIME"ı açın ve "Uninstall…" düğmesine t�
 
 ### Kaynaktan derleme
 
-Sesle giriş macOS 26 SDK'sını kullandığı için derlemek Xcode 26 veya üstünü gerektirir.
+Derlemek Xcode 26 veya üstünü gerektirir (macOS 26 SDK'sı).
 
 ```sh
 git clone https://github.com/MicroZ-LLC/AllInOneIME.git
@@ -530,7 +516,6 @@ Tüm ayarlar `~/.config/allinoneime/config.json` içinde saklanır; bir değişi
 | `keyboardLayouts` | Bir giriş dilinin yazdığı klavye düzeni, dil koduna göre (şimdilik yalnızca Fransızca): `{"fr": "com.apple.keylayout.French-PC"}` | Fransızca: `com.apple.keylayout.French` (AZERTY) |
 | `outputLanguages` | `@translate`'in sırayla çevirdiği diller: `["es", "fr", "de"]`, … | `["en"]` |
 | `improveTranslates` | `@improve` çeviri de yapar (`@translate @improve` gibi) | `false` |
-| `voiceInput` | Konuşmak için sağ ⌥'yi basılı tutma | `true` |
 | `actionKey` | Eylem tuşu: `"enter"` (⏎), `"optionTap"` (Tap ⌥), `"optionSpace"` (⌥Space), `"space"` (Space) | `"enter"` |
 | `commandTrigger` | Komutları başlatan simge: `"#"`, `"%"`, `"&"`, `"*"`, `"+"`, `"@"`, `"\|"`, `"~"` değerlerinden biri; başka her değer `"@"` sayılır | `"@"` |
 | `uiLanguage` | Arayüz dili (ayarlar penceresi, aday paneli ipuçları, menü): `"zh"` (Basitleştirilmiş Çince), `"en"` ya da uygulamanın sunduğu başka bir dilin kodu: `"zh-Hant"`, `"ja"`, `"ko"`, `"de"`, `"fr"`, `"es"`, `"pt-BR"` | `null` (sistemi izle) |
@@ -559,9 +544,8 @@ Tüm ayarlar `~/.config/allinoneime/config.json` içinde saklanır; bir değişi
 - Bir `@question` sohbetini başka bir yerde sürdürmek (son turdan sonra ⌘1 … ya da ⌘⏎) onu, yazdığınızla birlikte, seçtiğiniz hizmete gönderir: bu Mac'teki bir kodlama ajanı (Claude Code, Gemini CLI, Kiro CLI ya da kendinizinki; her biri kendi hesabı ve hizmetiyle), claude.ai, chatgpt.com veya gemini.google.com; web adresinde ya da pano üzerinden. Sohbet gördüğünüz gibi gider: yapay zekâ isteklerinden gizlenen değerler (aşağıya bakın) içinde olduğu gibi yer alır, çünkü onu oraya göndermeyi siz seçersiniz. Siz birini seçene kadar hiçbir şey hiçbir yere gitmez; "Copy the conversation" onu yalnızca panoya koyar.
 - AllInOneIME Cloud ile cümle, geliştiricinin sunucusu üzerinden bir model sağlayıcısına (şu anda OpenRouter aracılığıyla) gider: sunucu yalnızca sayıları tutar, metni asla tutmaz. Oturum açmak yalnızca e-posta adresinizi saklar.
 - Hassas bilgileri gizleme (Settings → AI Provider → Privacy, varsayılan olarak kapalı): herhangi bir istek çıkmadan önce (`@improve`, `@translate`, `@question`, talimat komutlarınız ve talimat eklentileriniz, AllInOneIME Cloud dahil her sağlayıcıda), e-posta adresleri, telefon numaraları, ödeme kartı numaraları (Luhn ile doğrulanmış), API anahtarları ve token'lar (`sk-`, `sk-ant-`, `AKIA…`, `ghp_`, `xox…` ve uzun rastgele dizeler), IP adresleri ve kendi sözcükleriniz (bir kod adı, bir ad) Mac'te `[EMAIL_1]`, `[PHONE_1]`, `[ITEM_1]` gibi yer tutucularla değiştirilir; aynı değer aynı yer tutucuyu alır. Modelin sonuçları gösterilmeden veya eklenmeden önce gerçek değerleri geri alır ve panel "2 items hidden from the AI" der. Yer tutucusu model tarafından tanınmayacak kadar değiştirilmiş bir sonuç yazıldığı gibi gösterilir ve "⚠ placeholder changed" ile işaretlenir. Gizlenmiş bir değer içeren jargon listesi girdileri gönderilmez. Her tür kapatılabilir. Tam genişlikli biçimler (`zhang＠example.com`, `１３８…`) de bulunur ve bir değer veya ifade bir satır sonuyla bölünmüş olabilir. E-postalar, numaralar ve anahtarlar gibi biçimli değerleri tanır; adları veya adresleri (bunları kendi sözcükleriniz olarak ekleyin) ve başka alfabelerdeki benzer görünen harfleri tanıyamaz. Yapay zekâ hizmetinize giden isteklere uygulanır; `@agent` (yanına aldığı Chrome sayfasıyla birlikte), bir web sitesinden veri getiren (`@stock`) veya bir siteyi açan (`@x`) eklentiler ve betik uzantıları metni yazıldığı gibi gönderir. Yapılandırmada: `redaction` (`enabled`, `emails`, `phones`, `cards`, `keys`, `ips`, `customWords`).
-- Ses yalnızca sağ ⌥'yi basılı tuttuğunuz sürece kaydedilir ve Mac'te tanınır; tanınan metin yalnızca yukarıdaki komutlarda, eylem tuşuna bastığınızda gönderilir.
 - Giriş yöntemi pano metnini yalnızca bir komutta ⌃V veya ⌘V'ye bastığınızda, bir kez okur; parola yöneticilerinin gizli olarak işaretlediği içerik okunmaz. Metin önce komutta gösterilir ve yine yalnızca eylem tuşuna bastığınızda gönderilir. Son macOS sürümleri, AllInOneIME'nin panoyu okuyup okuyamayacağını sorar: izin verin. Her seferinde sorulmasını önlemek için "System Settings → Privacy & Security" içinde AllInOneIME'nin yapıştırma iznini her zaman izin ver olarak ayarlayın.
-- Parola alanlarında macOS kendi klavyesine (U.S. veya ABC) geçer ve alandan ayrıldığınızda geri döner. Yazdığınız uygulama güvenli girişi tuttuğu her durumda AllInOneIME metin oluşturmaz ve kayıt yapamaz: tuşlar yazıldığı gibi girer. Sistem güvenli giriş durumundayken de (parola alanları, Terminal'in "Secure Keyboard Entry" özelliği vb.) yapay zekâya hiçbir şey gönderilmez.
+- Parola alanlarında macOS kendi klavyesine (U.S. veya ABC) geçer ve alandan ayrıldığınızda geri döner. Yazdığınız uygulama güvenli girişi tuttuğu her durumda AllInOneIME metin oluşturmaz: tuşlar yazıldığı gibi girer. Sistem güvenli giriş durumundayken de (parola alanları, Terminal'in "Secure Keyboard Entry" özelliği vb.) yapay zekâya hiçbir şey gönderilmez.
 - `@note` ve `@reminder` yapay zekâya gitmez: AllInOneIME metni yalnızca bu Mac'teki Notes ve Reminders'a verir ve anımsatıcının zamanını da Mac'te okur (bu uygulamaların onu diğer aygıtlarınızla eşzamanlayıp eşzamanlamadığı, iCloud gibi hesaplarına bağlıdır). Bu yüzden güvenli giriş sırasında da çalışırlar. Bir klasöre kaydeden `@note` bu Mac'te bir dosya yazar (klasör eşzamanlanıyorsa, örneğin bir iCloud Drive ya da Obsidian Sync klasörüyse, dosya da eşzamanlanır). Notion'a kaydeden `@note` notu Notion'a gönderir (api.notion.com, anahtar zincirinde saklanan entegrasyon belirtecinizle) ve yalnızca o zaman: güvenli giriş sırasında değil.
 - `@reportissue` (ve "Report an Issue…") kendisi hiçbir şey göndermez: tarayıcınızda GitHub'ın yeni issue sayfasını, yazdığınız başlık ve yukarıda listelenen sürümler, diller, sağlayıcı türü ve sayılarla açar; bunlar önce aday panelinde gösterilir. Orada Submit'e tıklamadıkça GitHub'a hiçbir şey ulaşmaz.
 - `@open` yalnızca bu Mac'te arar. Onunla açtıklarınızı (son 200) önce listelemek için, giriş yönteminin kendi tercihlerinde (config.json'da değil) hatırlar.
@@ -581,7 +565,7 @@ make test         # unit tests, plus tests that run the real Rime engine (and ma
 make strings      # adds new interface text to Resources/Localizable.xcstrings, marks what's unused stale
 make pack         # the Chinese language pack: build/packs/zh-pinyin-<version>.tar.xz, its sha256, its packs.json entry
 make packs        # all the language packs: Chinese, and Korean and Hindi from Core/LanguagePacks/ (ko-hangul, hi-phonetic)
-make selftest     # drives the input method through a simulated text field: real Bedrock calls, plus on-device recognition tested with synthesized speech
+make selftest     # drives the input method through a simulated text field: real Bedrock calls
 make realtest     # types into a real app's text field (needs the screen unlocked; takes over the foreground for about 1 minute)
 make screenshots  # regenerates the screenshots in docs/
 make cli && .build/release/allinoneime-cli --styles concise,jargon "this is a blocker bug your team need fix it asap"   # try polishing and rewrites in the terminal
@@ -597,13 +581,13 @@ Arayüz metni `tr("中文", "English")` olarak yazılır: Basitleştirilmiş Çi
 
 Kod düzeni: kök dizin macOS uygulamasıdır; `Core/` her platformun paylaştığı çekirdektir, kendi başına bir Swift paketidir (macOS, Linux ve Windows'ta tek başına derlenir ve sınanır); `Windows/` Windows uygulamasının başlangıcıdır.
 
-- `Core/Sources/AllInOneIMECore`: Bedrock istemcisi, SigV4, istemler (prompt'lar), iki düzeyli giriş durum makinesi (@ komutları ve ses hareketi dahil); AppKit bağımlılığı yok
+- `Core/Sources/AllInOneIMECore`: Bedrock istemcisi, SigV4, istemler (prompt'lar), iki düzeyli giriş durum makinesi (@ komutları dahil); AppKit bağımlılığı yok
 - `Core/Sources/AllInOneIMEText`: arayüz metni ve dili (`UIString`, `InterfaceText`, `InterfaceLanguage` ve `.lproj` paketlerinin olmadığı yerde kataloğu okuyan `StringCatalog`); ayarları açan tüm bağlantılar (`AllInOneIMECore` onu yeniden dışa aktarır)
 - `Core/Sources/AllInOneIMEQuickJS`: QuickJS-ng (C kaynakları `Core/Sources/CQuickJS` içinde); JavaScriptCore'un olmadığı yerlerde (Windows, Linux, Android) eklentilerin ve `@js`'in JavaScript'i
 - `Core/Sources/AllInOneIMERime`: librime sarmalayıcısı
 - `Core/Sources/AllInOneIMECLI`: komut satırı, `allinoneime-cli` (`make cli`); her platformun kendi `main`'i onu çalıştırır
 - `Sources/AllInOneIMEMac`: yalnızca Mac'te olanlar (tuş düzenleri, kod imzalama, Spotlight, AppleScript, güncelleyicinin kurulumu) ve `Platform.mac`
-- `Sources/AllInOneIME`: InputMethodKit giriş yöntemi, aday paneli, ayarlar penceresi, konuşma tanıma
+- `Sources/AllInOneIME`: InputMethodKit giriş yöntemi, aday paneli, ayarlar penceresi
 - `Sources/AllInOneIMESettings`: "AllInOneIME Settings" başlatıcısı
 - `Sources/AllInOneIMEInstaller`: disk görüntüsündeki "Install AllInOneIME": kurar, günceller ve kaldırır
 
@@ -619,7 +603,7 @@ Bir sürüm yayımlama (uygulama içi güncelleyici, yayınların kendi anahtar�
 
 Uygulama, manifesti okumadan önce imzasını içine yerleşik açık anahtarla denetler, daha yeni olmayan bir sürümü asla kurmaz, yalnızca https üzerinden allinoneime.com'dan veya deponun GitHub sürüm dosyalarından indirir ve arşivi ancak boyutu ile SHA-256'sı manifestle eşleştiğinde, iki uygulamanın paket kimlikleri, sürümleri ve kod imzaları doğrulandığında ve yeni giriş yöntemi başladığında kurar. Ardından giriş yöntemi işi yardımcı olarak kendi çalıştırılabilir dosyasına devreder (`--apply-update`); yardımcı onun kapanmasını bekler, uygulamaları yükleyicinin yaptığı gibi değiştirir (eskiler kenara alınır, bir şey başarısız olursa geri konur) ve yenisini kaydeder. Yerel bir sunucuyla denemek için: `make update-test` ya da `Scripts/build-update-manifest.swift` ile `--test-key` ve `AllInOneIME --install-update --manifest-url http://127.0.0.1:<port>/update.json --key <its public key> --target-dir <folder>`.
 
-Paket kimliği (bundle ID) hâlâ `com.aipinyin.inputmethod.AIPinyin`: macOS onu eklenen giriş kaynağını ve mikrofon iznini hatırlamak için kullanır; bu yüzden değiştirmek, giriş yöntemini yeniden eklemek ve izni yeniden vermek anlamına gelir.
+Paket kimliği (bundle ID) hâlâ `com.aipinyin.inputmethod.AIPinyin`: macOS onu eklenen giriş kaynağını ve ona verilen izinleri hatırlamak için kullanır; bu yüzden değiştirmek, giriş yöntemini yeniden eklemek ve izinleri yeniden vermek anlamına gelir.
 
 ## Lisans
 

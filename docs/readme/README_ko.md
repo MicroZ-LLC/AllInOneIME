@@ -22,7 +22,7 @@
 
 **[다운로드](https://allinoneime.com/download)** · **[웹사이트](https://allinoneime.com)** · **[문서](https://github.com/MicroZ-LLC/AllInOneIME/wiki)** · **[확장 기능](../extensions.md)**
 
-[사용 방법](#사용-방법) · [명령어](#-명령어-베타) · [나만의 명령어](#나만의-명령어) · [언어](#입력과-번역) · [음성](#음성-입력) · [설치](#설치) · [개인정보 보호](#개인정보-보호)
+[사용 방법](#사용-방법) · [명령어](#-명령어-베타) · [나만의 명령어](#나만의-명령어) · [언어](#입력과-번역) · [설치](#설치) · [개인정보 보호](#개인정보-보호)
 
 <br>
 
@@ -35,7 +35,7 @@
 > [!NOTE]
 > 0.6.3부터 AllInOneIME는 Developer ID로 서명되고 Apple의 공증을 받습니다. 이제 System Settings → Privacy & Security(시스템 설정 → 개인정보 보호 및 보안)에서 허용할 필요가 없습니다. 이전 버전에서 업데이트한 뒤에는 AllInOneIME가 키체인에 저장한 키마다 macOS가 로그인 암호를 한 번씩 묻습니다. 암호를 입력하고 "Always Allow"(항상 허용)를 클릭하세요. AllInOneIME는 [GitHub Releases](https://github.com/MicroZ-LLC/AllInOneIME/releases) 또는 [allinoneime.com](https://allinoneime.com)에서만 내려받으세요.
 
-모든 텍스트 필드에서 AI 명령어를 쓸 수 있는 macOS 입력기입니다. 문장을 `@`로 시작하고, 다 쓰면 ⏎를 누르세요. `@improve`는 쓴 글을 다듬고 몇 가지 다시 쓰기를 제안하고, `@translate`는 고른 언어로 번역하고, `@question`은 질문을 하고, `@agent`는 코딩 에이전트(Claude Code, Gemini CLI, Kiro CLI …)에 넘기고, `@open`은 파일과 앱을 찾거나 웹 주소를 엽니다. 오른쪽 ⌥를 누른 채 말할 수도 있습니다. `@`가 없으면 키 입력은 평소처럼 앱으로 갑니다. 중국어(병음, Rime과 rime-ice 기반), 프랑스어, 한국어(한글), 힌디어(라틴 문자로 데바나가리 입력)도 입력할 수 있고, 직접 만든 스크립트를 @ 명령어로 실행할 수도 있습니다.
+모든 텍스트 필드에서 AI 명령어를 쓸 수 있는 macOS 입력기입니다. 문장을 `@`로 시작하고, 다 쓰면 ⏎를 누르세요. `@improve`는 쓴 글을 다듬고 몇 가지 다시 쓰기를 제안하고, `@translate`는 고른 언어로 번역하고, `@question`은 질문을 하고, `@agent`는 코딩 에이전트(Claude Code, Gemini CLI, Kiro CLI …)에 넘기고, `@open`은 파일과 앱을 찾거나 웹 주소를 엽니다. `@`가 없으면 키 입력은 평소처럼 앱으로 갑니다. 중국어(병음, Rime과 rime-ice 기반), 프랑스어, 한국어(한글), 힌디어(라틴 문자로 데바나가리 입력)도 입력할 수 있고, 직접 만든 스크립트를 @ 명령어로 실행할 수도 있습니다.
 
 명령 호출 기호는 기본값이 `@`입니다. Settings → General → Command trigger(명령 호출 기호)에서 다른 기호를 고를 수 있습니다: `#`, `%`, `&`, `*`, `+`, `|`, `~`. 그러면 명령이 그 기호로 시작하고(예: `~translate`), `@`는 평소처럼 입력됩니다. 글자, 숫자, 공백, 그리고 입력에 필요한 기호(`'` `-` `=` `[` `]` `` ` `` 같은 병음 키와, `,` `.` `?` `\`처럼 병음이 중국어 문장 부호로 입력하는 기호)는 쓸 수 없으며, 설정에서 그 이유를 알려 줍니다. 설정 파일에서는 `"commandTrigger": "~"`입니다.
 
@@ -62,7 +62,6 @@
 | ⌘⏎, ⌘1–⌘9 | `@question` 대화에서: 이어서 할 수 있는 곳(설치된 코딩 에이전트, `@agent`가 넘기는 에이전트가 먼저; Claude, ChatGPT, Gemini; 또는 복사)을 보여 줍니다. ⌘1, ⌘2 …로 하나를 고릅니다 |
 | 행 클릭 | 후보 패널에서: 그 행의 숫자 키를 누른 것처럼 선택합니다(단어, 목록의 명령어, 결과, `@open` 파일, 받는 사람, 확장의 행). 포인터 아래의 행이 강조됩니다. 텍스트 필드는 포커스를 유지합니다 |
 | Shift 가볍게 누르기 | 입력 언어가 둘 이상일 때: 순서대로 다음 언어로 바꿉니다(영어 → 중국어 → 프랑스어 → …, 그다음 다시 처음으로) |
-| 오른쪽 ⌥ 누르고 있기 | 말하고, 떼면 멈춥니다. 입력 중인 언어(영어, 중국어, 프랑스어, 한국어, 힌디어)로 인식합니다. 명령어 안에서는 텍스트가 그 뒤에 들어가고, 그렇지 않으면 바로 삽입됩니다 |
 
 ## @ 명령어 (베타)
 
@@ -83,7 +82,7 @@
 | `@reportissue` | 문제를 보고합니다. 브라우저에서 GitHub의 새 issue 페이지를 열고, 명령어 뒤에 입력한 내용을 제목으로, 채워 넣을 "What happened / What you expected"(무슨 일이 있었는지 / 무엇을 기대했는지)를 붙입니다. 앱과 macOS 버전, Mac의 아키텍처, 인터페이스 언어와 입력 언어, 설치된 언어 팩, AI 제공업체의 종류(공개 모델이면 모델 이름도, 아니면 "custom"), 실행 키, 그리고 사용자 지정 명령어·플러그인·확장이 각각 몇 개인지를 덧붙이며, 그 이름이나 사용자의 텍스트, 경로, 키는 절대 넣지 않습니다. ⏎(또는 실행 키)를 누르면 먼저 이 모든 내용을 후보 패널에 보여 주고, ⏎를 한 번 더 누르거나 그 행을 클릭하면 페이지가 열립니다. 거기서 내용을 읽고 Submit을 클릭합니다(본인의 GitHub 계정으로). Esc는 뒤로 갑니다. 입력 메뉴("Report an Issue…")와 Settings → About에도 있습니다 |
 | `@imessage` | iMessage를 보냅니다. 이름, 전화번호, 이메일을 입력하고(중국어 이름은 병음으로도, 전체 또는 첫 글자로) 후보 패널에서 받는 사람을 고른 다음(최근에 메시지를 보낸 사람이 먼저 나옵니다. 전체 번호나 주소도 됩니다), 메시지를 씁니다(그 안의 `@stock AAPL` 같은 명령어가 먼저 실행됩니다). ⏎를 누르면 패널에 "Send to Alex (…): message"가 표시되고, ⏎를 한 번 더 누르면 보내며, Esc는 편집으로 돌아갑니다. 텍스트 필드에는 아무것도 입력되지 않습니다. 처음에 macOS가 AllInOneIME가 Contacts(연락처)에 접근하고 Messages(메시지)를 제어하도록 허용할지 묻습니다. 둘 다 "OK"를 클릭하세요 |
 
-예: `@q` ⏎, `what is quantum computing` 입력, ⏎. `@note books to read: The Three-Body Problem` ⏎는 메모를 저장합니다. `@reminder call Bob tomorrow at 3pm` ⏎ 후 해석된 시간을 확인하고, ⏎를 한 번 더 눌러 추가합니다. 명령어를 고른 뒤에는 오른쪽 ⌥를 누른 채 말할 수도 있습니다. 중국어 모드에서 `@open`은 잠시 영문 입력으로 바뀌었다가 끝나면 중국어로 돌아갑니다.
+예: `@q` ⏎, `what is quantum computing` 입력, ⏎. `@note books to read: The Three-Body Problem` ⏎는 메모를 저장합니다. `@reminder call Bob tomorrow at 3pm` ⏎ 후 해석된 시간을 확인하고, ⏎를 한 번 더 눌러 추가합니다. 중국어 모드에서 `@open`은 잠시 영문 입력으로 바뀌었다가 끝나면 중국어로 돌아갑니다.
 
 `@py`와 `@js`의 코드는 영문자로 입력하며, (중국어 모드에서 온) 전각 문장 부호는 ASCII로 바뀝니다. 코드는 한 줄로 쓰고, 문장 사이는 `;`로 구분하세요. 코드는 별도 프로세스에서 실행되며, 10초 후 또는 언제든 Esc로 멈춥니다. 오류가 나면 오류의 첫 줄이 표시됩니다(예: `ZeroDivisionError: division by zero`). 여러 줄의 출력은 출력된 그대로 삽입되지만, 터미널에서는 한 줄로 들어갑니다(터미널은 받은 모든 줄을 실행하기 때문입니다). 편집기 안의 터미널(VS Code, Cursor, JetBrains)은 편집기 자체와 구분할 수 없으므로, 그곳에서는 어떤 명령어의 여러 줄 출력이든 그대로 들어갑니다. 둘 다 다른 명령어의 문장 안에서도 작동합니다: `@reply the answer is @py 2**100`. 공백이 있는 코드는 따옴표로 묶으세요: `@question explain @py "sum(x * x for x in range(10))"`. 반대는 안 됩니다. `@py`와 `@js`의 코드는 항상 입력한 그대로 실행되며, 그 안의 `@commands`가 먼저 실행되지 않습니다.
 
@@ -246,7 +245,7 @@ Raycast의 모드는 다음과 같이 대응됩니다: `fullOutput` → `show`, 
 
 ### 실행 키
 
-기본값은 ⏎입니다. 설정의 "Action key"(실행 키)에서 바꿀 수 있습니다(설정 파일의 `actionKey`): ⏎, "Tap ⌥"(⌥ 가볍게 누르기. 양쪽 모두 가능하며, 눌렀다가 바로 뗍니다. 오른쪽 ⌥를 누르고 있는 것은 여전히 말하기용입니다), ⌥Space, 또는 Space(단어를 고른 뒤 Space를 한 번 더. 영어 모드에서는 두 번). 실행 키가 무엇이든 @ 명령어는 ⏎로도 실행됩니다. ⌥Space가 이미 Alfred, Raycast 같은 앱의 단축키라면 그 앱이 먼저 받습니다.
+기본값은 ⏎입니다. 설정의 "Action key"(실행 키)에서 바꿀 수 있습니다(설정 파일의 `actionKey`): ⏎, "Tap ⌥"(⌥ 가볍게 누르기. 양쪽 모두 가능하며, 눌렀다가 바로 뗍니다), ⌥Space, 또는 Space(단어를 고른 뒤 Space를 한 번 더. 영어 모드에서는 두 번). 실행 키가 무엇이든 @ 명령어는 ⏎로도 실행됩니다. ⌥Space가 이미 Alfred, Raycast 같은 앱의 단축키라면 그 앱이 먼저 받습니다.
 
 ### 결과를 타이핑해 넣기
 
@@ -345,7 +344,7 @@ Settings → General → **Sync through iCloud**(iCloud로 동기화, 기본값�
 - **Fuzzy pinyin**(퍼지 병음, 중국어 입력 시): 구분하지 않는 소리를 어느 쪽으로 입력해도 됩니다(예: z ↔ zh, n ↔ l, in ↔ ing). "Input"(입력) 페이지의 입력 언어 막대에서 중국어(병음)를 고르고, "Fuzzy pinyin"을 켠 다음 쌍을 고르세요. 사전이 1~2초 안에 다시 배포됩니다. Rime 사용자 폴더에 `rime_ice.custom.yaml`을 쓰며, 그곳에 있는 여러분 자신의 파일을 덮어쓰지는 않습니다.
 - **Personal Dictionaries**(개인 사전, 중국어 입력 시): Settings → Input → Chinese (pinyin) → Personal Dictionaries → **Import or Update…**(가져오기 또는 업데이트)로 UTF-8 Rime 어휘 파일(`.dict.yaml`)을 rime-ice에 더할 수 있습니다(먼저 중국어 언어 팩이 설치되어 있어야 합니다). 목록에는 각 사전의 Rime `name`, 파일 이름, 항목 수가 표시되며, 같은 `name`을 다시 가져오면 저장된 사본이 바뀝니다(원본 파일만 고쳐서는 바뀌지 않습니다). 가져오기, 업데이트, 제거할 때마다 병음 사전(rime-ice의 모든 단어와 사용자 단어)을 다시 컴파일하므로 1분 정도 걸릴 수 있고, 그동안에는 중국어를 입력할 수 없으며 페이지에 진행 상황이나 오류가 표시됩니다. 사본은 이 Mac에만 있으며 iCloud 동기화와 AI 요청에 포함되지 않습니다. 다만 사전에서 고른 단어는 다른 단어처럼 Rime 사용자 사전에 학습되어, 학습한 단어 동기화가 켜져 있으면 다른 Mac에도 동기화되고 사전을 제거해도 남습니다. 직접 만든 `rime_ice.custom.yaml`이 있으면 파일을 바꾸기 전에 가져오기를 거부합니다.
 - **Translate (@translate)**(번역): 번역할 언어(스페인어, 프랑스어, 독일어, 일본어, 한국어, 중국어, 힌디어, 벵골어, 타밀어 및 기타 주요 인도 언어…)를 추가하고 드래그해 순서를 정합니다. 라틴 문자로 입력한 힌디어("aap kaise ho")는 데바나가리로 돌아옵니다. `@translate`는 이 순서대로 언어마다 한 줄씩 씁니다(언어가 하나면 세 가지 버전). 문장 원래 언어는 건너뜁니다. 새로 설치하면 Mac의 선호하는 언어 중 영어가 아닌 첫 번째 언어로 번역합니다. 영어만 있으면 `@translate`가 아직 번역할 언어가 없다고 알리고, 그 알림에서 ⏎를 누르면 이 페이지가 열리며 "Add…"(추가…)에 테두리가 표시됩니다(문장은 입력한 그대로 들어갑니다). 이때 입력하며 번역하기도 켜지지 않고, 언어를 추가할 곳을 알려 줍니다.
-- **Keyboard layouts**(키보드 레이아웃): 프랑스어는 카드에서 고른 레이아웃으로 입력합니다(설정 파일의 `keyboardLayouts`). 다른 언어에서는 입력기 아래에서 macOS가 마지막으로 쓴 라틴 레이아웃(AZERTY, QWERTZ, 스페인어, US International…)을 유지하므로 평소처럼 입력할 수 있고, `@`도 레이아웃상 원래 자리에 있으며, 데드 키도 명령어의 텍스트 안에서 조합됩니다(⌥E 다음 E → é, ^ 다음 e → ê). 라틴 문자가 없는 레이아웃(러시아어, 힌디어 InScript)은 입력기 아래에서 쓸 수 없습니다. ⌃Space로 그 레이아웃으로 전환하거나, 텍스트를 명령어에 붙여 넣거나(⌃V) 받아쓰기로 입력하세요.
+- **Keyboard layouts**(키보드 레이아웃): 프랑스어는 카드에서 고른 레이아웃으로 입력합니다(설정 파일의 `keyboardLayouts`). 다른 언어에서는 입력기 아래에서 macOS가 마지막으로 쓴 라틴 레이아웃(AZERTY, QWERTZ, 스페인어, US International…)을 유지하므로 평소처럼 입력할 수 있고, `@`도 레이아웃상 원래 자리에 있으며, 데드 키도 명령어의 텍스트 안에서 조합됩니다(⌥E 다음 E → é, ^ 다음 e → ê). 라틴 문자가 없는 레이아웃(러시아어, 힌디어 InScript)은 입력기 아래에서 쓸 수 없습니다. ⌃Space로 그 레이아웃으로 전환하거나, 텍스트를 명령어에 붙여 넣으세요(⌃V).
 - `@improve`는 번역하지 않고 다듬고 다시 씁니다. `@translate @improve`를 함께 쓰면 한 번의 요청으로 번역과 다시 쓰기를 합니다. 설정에서 "@improve also translates"를 켜면 `@improve`가 항상 그렇게 합니다.
 
 개인 사전은 다음과 같은 형식입니다(각 항목의 필드는 **탭**으로 구분합니다):
@@ -403,22 +402,9 @@ two-way door = a decision you can undo at any time
 - **앱**: 다른 앱으로 전환하면(텍스트 필드가 없는 앱이라도) 알림 없이 꺼지고, 돌아와도 꺼진 채입니다. 단, Settings → Apps에서 그 앱에 "Always Translate as You Type"(항상 입력하며 번역)을 켰다면(프로필의 `translateAlways`) 그 앱에서는 저절로 켜집니다. No AI로 설정한 앱에서는 아무것도 하지 않습니다. 텍스트는 알림과 함께 입력한 그대로 들어가며, 보안 입력 중(암호 필드)에 입력하는 것도 마찬가지입니다.
 - **개인정보 보호**: `@translate`와 같습니다. ⏎를 눌렀을 때만 여러분의 AI 제공업체로 보내며, 민감한 정보 숨기기가 켜져 있으면 그 정보를 숨긴 뒤 보냅니다.
 
-## 음성 입력
-
-<img src="../en/voice.png" width="340" alt="오른쪽 ⌥를 누른 채 말하기">
-
-오른쪽 ⌥를 누른 채 말하고, 떼면 텍스트가 삽입됩니다. 입력 중인 언어(영어, 중국어, 프랑스어, 한국어, 힌디어)로 인식합니다. 먼저 명령어를 입력하고(예: `@improve `, `@question `) 말하면 텍스트가 명령어 뒤에 들어가고 ⏎로 실행합니다. 오른쪽 ⌥를 떼지 않고 ⏎를 눌러 말이 끝나자마자 실행할 수도 있습니다. 음성은 macOS 내장 음성 인식(SpeechAnalyzer)이 Mac에서 인식하며, 오디오는 업로드되지 않습니다. macOS 26 이상이 필요합니다.
-
-처음에는:
-
-- macOS가 AllInOneIME가 마이크를 사용하도록 허용할지 묻습니다. 설정에서 미리 "Allow Microphone"(마이크 허용)을 클릭해 둘 수도 있습니다.
-- 이 Mac에 해당 언어의 음성 모델이 아직 없으면 한 번 자동으로 다운로드됩니다. 설정에서 다운로드할 수도 있습니다.
-
-녹음은 키를 약 0.2초 누르고 있어야 시작되므로, 오른쪽 ⌥를 가볍게 누르기만 해서는 마이크가 켜지지 않습니다(실행 키가 "Tap ⌥"로 설정되어 있으면 가볍게 누르기가 동작을 실행합니다). 누르고 있는 동안 다른 키를 누르면(⌥ 단축키, ⌥←) 단축키로 간주되어 역시 녹음되지 않습니다. 녹음 중에 다른 키를 누르면 녹음이 취소됩니다.
-
 ## 설치
 
-실행하려면 macOS 14 이상, 음성 입력에는 macOS 26 이상이 필요합니다. 설치 프로그램은 유니버설이라 Apple 실리콘과 Intel Mac 모두에서 작동합니다. 지금까지는 Apple 실리콘의 macOS 27에서만 테스트했습니다(Intel 빌드는 Rosetta에서 자체 테스트만 거쳤습니다).
+실행하려면 macOS 14 이상이 필요합니다. 설치 프로그램은 유니버설이라 Apple 실리콘과 Intel Mac 모두에서 작동합니다. 지금까지는 Apple 실리콘의 macOS 27에서만 테스트했습니다(Intel 빌드는 Rosetta에서 자체 테스트만 거쳤습니다).
 
 1. [Releases](https://github.com/MicroZ-LLC/AllInOneIME/releases/latest)에서 `AllInOneIME-<version>.dmg`를 다운로드해(반드시 이곳에서만) 엽니다.
 2. 그 안의 "Install AllInOneIME"을 더블 클릭하고 "Install"(설치)을 클릭합니다. 입력기는 `~/Library/Input Methods`에, "AllInOneIME Settings"는 `~/Applications`에 설치됩니다. 현재 사용자 전용이며 관리자 암호는 필요 없습니다.
@@ -438,7 +424,7 @@ AIPinyin(AllInOneIME의 이전 이름)을 설치했었다면 그냥 설치하세
 
 ### 소스에서 빌드하기
 
-음성 입력이 macOS 26 SDK를 사용하므로 빌드하려면 Xcode 26 이상이 필요합니다.
+빌드하려면 Xcode 26 이상(macOS 26 SDK)이 필요합니다.
 
 ```sh
 git clone https://github.com/MicroZ-LLC/AllInOneIME.git
@@ -530,7 +516,6 @@ Settings → AI Provider → Privacy → "Hide sensitive information before send
 | `keyboardLayouts` | 입력 언어가 쓰는 키보드 레이아웃, 언어 코드로 지정(현재 프랑스어만): `{"fr": "com.apple.keylayout.French-PC"}` | 프랑스어: `com.apple.keylayout.French`(AZERTY) |
 | `outputLanguages` | `@translate`가 번역할 언어, 순서대로: `["es", "fr", "de"]`, … | `["en"]` |
 | `improveTranslates` | `@improve`에서도 번역(`@translate @improve`처럼) | `false` |
-| `voiceInput` | 오른쪽 ⌥를 누른 채 말하기 | `true` |
 | `actionKey` | 실행 키: `"enter"`(⏎), `"optionTap"`(Tap ⌥), `"optionSpace"`(⌥Space), `"space"`(Space) | `"enter"` |
 | `commandTrigger` | 명령을 시작하는 기호: `"#"`, `"%"`, `"&"`, `"*"`, `"+"`, `"@"`, `"\|"`, `"~"` 중 하나. 다른 값은 `"@"`로 취급합니다 | `"@"` |
 | `uiLanguage` | 인터페이스 언어(설정 창, 후보 패널 힌트, 메뉴): `"zh"`(중국어 간체), `"en"`, 또는 앱이 제공하는 다른 언어의 코드: `"zh-Hant"`, `"ja"`, `"ko"`, `"de"`, `"fr"`, `"es"`, `"pt-BR"` | `null`(시스템 따름) |
@@ -559,9 +544,8 @@ Settings → AI Provider → Privacy → "Hide sensitive information before send
 - `@question` 대화를 다른 곳에서 이어 가면(마지막 회차 뒤의 ⌘1 …, 또는 ⌘⏎) 대화가 입력한 내용과 함께, 고른 서비스로 웹 주소나 클립보드를 통해 전송됩니다: 이 Mac의 코딩 에이전트(Claude Code, Gemini CLI, Kiro CLI 또는 직접 만든 것, 각자 자신의 계정과 서비스를 씀), claude.ai, chatgpt.com, gemini.google.com. 대화는 보이던 그대로 전송됩니다. AI 요청에서 숨겼던 값(아래 참고)도 그대로 들어 있는데, 그곳으로 보내기로 한 것이 사용자이기 때문입니다. 하나를 고르기 전까지는 아무 데로도 전송되지 않습니다. "Copy the conversation"은 클립보드에 넣기만 합니다.
 - AllInOneIME Cloud를 쓰면 문장은 개발자의 서버를 거쳐 모델 제공업체로 갑니다(현재는 OpenRouter를 거침). 서버는 횟수만 보관하며, 텍스트는 절대 보관하지 않습니다. 로그인 시에는 이메일 주소만 보관합니다.
 - 민감한 정보 숨기기(Settings → AI Provider → Privacy, 기본값은 끔): 어떤 요청이든 나가기 전에(`@improve`, `@translate`, `@question`, 사용자의 프롬프트 명령어와 프롬프트 플러그인, AllInOneIME Cloud를 포함한 모든 제공업체), 이메일 주소, 전화번호, 결제 카드 번호(Luhn 검사), API 키와 토큰(`sk-`, `sk-ant-`, `AKIA…`, `ghp_`, `xox…`, 긴 무작위 문자열), IP 주소, 직접 등록한 단어(코드명, 이름)를 Mac에서 `[EMAIL_1]`, `[PHONE_1]`, `[ITEM_1]` 같은 자리 표시자로 바꿉니다. 같은 값에는 같은 자리 표시자가 붙습니다. 모델의 결과는 표시하거나 삽입하기 전에 실제 값을 되돌려 받으며, 패널에는 "2 items hidden from the AI"라고 표시됩니다. 모델이 자리 표시자를 알아볼 수 없을 만큼 바꾼 결과는 쓰인 그대로 보여 주고 "⚠ placeholder changed"로 표시합니다. 숨긴 값이 들어 있는 Jargon 용어 목록 항목은 보내지 않습니다. 종류마다 끌 수 있습니다. 전각 형태(`zhang＠example.com`, `１３８…`)도 찾아내며, 값이나 구절이 줄바꿈으로 나뉘어 있어도 됩니다. 이메일, 번호, 키처럼 형식이 있는 값은 알아보지만, 이름이나 주소(직접 등록한 단어로 추가하세요), 다른 문자 체계의 비슷하게 생긴 글자는 알아보지 못합니다. 사용자의 AI 서비스로 가는 요청에 적용됩니다. `@agent`(함께 가져가는 Chrome 페이지 포함), 웹사이트에서 데이터를 가져오거나(`@stock`) 웹사이트를 여는(`@x`) 플러그인, 스크립트 확장은 입력한 그대로 텍스트를 보냅니다. 설정 파일에서는 `redaction`(`enabled`, `emails`, `phones`, `cards`, `keys`, `ips`, `customWords`)입니다.
-- 음성은 오른쪽 ⌥를 누르고 있는 동안에만 녹음되며 Mac에서 인식됩니다. 인식된 텍스트는 위의 명령어에서 실행 키를 눌렀을 때만 전송됩니다.
 - 입력기는 명령어 안에서 ⌃V나 ⌘V를 누를 때만 클립보드 텍스트를 한 번 읽습니다. 암호 관리자가 숨김으로 표시한 내용은 읽지 않습니다. 텍스트는 먼저 명령어 안에 표시되며, 역시 실행 키를 눌렀을 때만 전송됩니다. 최근 macOS 버전은 AllInOneIME가 클립보드를 읽도록 허용할지 묻습니다. 허용하세요. 매번 묻지 않게 하려면 System Settings → Privacy & Security에서 AllInOneIME의 붙여넣기 권한을 항상 허용으로 설정하세요.
-- 암호 필드에서는 macOS가 자체 키보드(U.S. 또는 ABC)로 전환하고, 필드를 벗어나면 되돌립니다. 입력 중인 앱이 보안 입력을 유지하는 동안 AllInOneIME는 글자를 조합하지 않고 녹음도 할 수 없으며, 키는 입력한 그대로 들어갑니다. 또한 시스템이 보안 입력 상태인 동안(암호 필드, Terminal의 Secure Keyboard Entry(보안 키보드 입력) 등)에는 아무것도 AI로 전송되지 않습니다.
+- 암호 필드에서는 macOS가 자체 키보드(U.S. 또는 ABC)로 전환하고, 필드를 벗어나면 되돌립니다. 입력 중인 앱이 보안 입력을 유지하는 동안 AllInOneIME는 글자를 조합하지 않으며, 키는 입력한 그대로 들어갑니다. 또한 시스템이 보안 입력 상태인 동안(암호 필드, Terminal의 Secure Keyboard Entry(보안 키보드 입력) 등)에는 아무것도 AI로 전송되지 않습니다.
 - `@note`와 `@reminder`는 AI로 가지 않습니다. AllInOneIME는 텍스트를 이 Mac의 Notes와 Reminders에만 넘기며, 미리 알림의 시간도 Mac에서 해석합니다(그 앱들이 다른 기기로 동기화하는지는 iCloud 같은 계정에 달려 있습니다). 그래서 보안 입력 중에도 작동합니다. 폴더로 저장하는 `@note`는 이 Mac에 파일을 씁니다(iCloud Drive나 Obsidian Sync 폴더처럼 그 폴더가 동기화된다면 파일도 동기화됩니다). Notion으로 저장하는 `@note`는 메모를 Notion(api.notion.com)에 통합의 토큰(키체인에 보관)으로 보내며, 그때만 보냅니다. 보안 입력 중에는 보내지 않습니다.
 - `@reportissue`(와 "Report an Issue…")는 스스로 아무것도 보내지 않습니다. 브라우저에서 GitHub의 새 issue 페이지를 열고, 입력한 제목과 위에 나열한 버전, 언어, 제공업체 종류, 개수를 붙이며, 이 내용은 먼저 후보 패널에 표시됩니다. 거기서 Submit을 클릭하지 않으면 GitHub에는 아무것도 전달되지 않습니다.
 - `@open`은 이 Mac에서만 검색합니다. 그것으로 연 항목(최근 200개)을 입력기 자체의 환경설정(config.json이 아님)에 기억해 두었다가 먼저 나열합니다.
@@ -581,7 +565,7 @@ make test         # unit tests, plus tests that run the real Rime engine (and ma
 make strings      # adds new interface text to Resources/Localizable.xcstrings, marks what's unused stale
 make pack         # the Chinese language pack: build/packs/zh-pinyin-<version>.tar.xz, its sha256, its packs.json entry
 make packs        # all the language packs: Chinese, and Korean and Hindi from Core/LanguagePacks/ (ko-hangul, hi-phonetic)
-make selftest     # drives the input method through a simulated text field: real Bedrock calls, plus on-device recognition tested with synthesized speech
+make selftest     # drives the input method through a simulated text field: real Bedrock calls
 make realtest     # types into a real app's text field (needs the screen unlocked; takes over the foreground for about 1 minute)
 make screenshots  # regenerates the screenshots in docs/
 make cli && .build/release/allinoneime-cli --styles concise,jargon "this is a blocker bug your team need fix it asap"   # try polishing and rewrites in the terminal
@@ -597,13 +581,13 @@ make update-test  # the in-app updater end to end: a temporary install, a test s
 
 코드 구성: 루트는 macOS 앱이고, `Core/`는 모든 플랫폼이 공유하는 코어로 그 자체가 하나의 Swift 패키지입니다(macOS, Linux, Windows에서 따로 빌드하고 테스트합니다). `Windows/`는 Windows 앱의 시작입니다.
 
-- `Core/Sources/AllInOneIMECore`: Bedrock 클라이언트, SigV4, 프롬프트, 2단계 입력 상태 머신(@ 명령어와 음성 제스처 포함). AppKit 의존성 없음
+- `Core/Sources/AllInOneIMECore`: Bedrock 클라이언트, SigV4, 프롬프트, 2단계 입력 상태 머신(@ 명령어 포함). AppKit 의존성 없음
 - `Core/Sources/AllInOneIMEText`: 인터페이스 텍스트와 그 언어(`UIString`, `InterfaceText`, `InterfaceLanguage`, 그리고 `.lproj` 번들이 없는 곳에서 카탈로그를 읽는 `StringCatalog`). 설정 실행기는 이 모듈만 링크합니다(`AllInOneIMECore`가 이것을 다시 내보냄)
 - `Core/Sources/AllInOneIMEQuickJS`: QuickJS-ng(C 소스는 `Core/Sources/CQuickJS`에 있음). JavaScriptCore가 없는 곳(Windows, Linux, Android)에서 플러그인과 `@js`의 JavaScript를 실행
 - `Core/Sources/AllInOneIMERime`: librime 래퍼
 - `Core/Sources/AllInOneIMECLI`: 명령줄 도구 `allinoneime-cli`(`make cli`). 각 플랫폼 자체의 `main`이 실행
 - `Sources/AllInOneIMEMac`: Mac에만 있는 것(키 배열, 코드 서명, Spotlight, AppleScript, 업데이트 설치)과 `Platform.mac`
-- `Sources/AllInOneIME`: InputMethodKit 입력기, 후보 패널, 설정 창, 음성 인식
+- `Sources/AllInOneIME`: InputMethodKit 입력기, 후보 패널, 설정 창
 - `Sources/AllInOneIMESettings`: "AllInOneIME Settings" 실행기
 - `Sources/AllInOneIMEInstaller`: 디스크 이미지의 "Install AllInOneIME". 설치, 업데이트, 제거를 담당
 
@@ -619,7 +603,7 @@ make update-test  # the in-app updater end to end: a temporary install, a test s
 
 앱은 매니페스트를 읽기 전에 내장된 공개 키로 서명을 확인하고, 더 새롭지 않은 버전은 절대 설치하지 않으며, https로 allinoneime.com 또는 이 저장소의 GitHub 릴리스 파일에서만 내려받고, 아카이브의 크기와 SHA-256이 매니페스트와 일치하고 두 앱의 번들 ID, 버전, 코드 서명이 확인되며 새 입력기가 시작될 때에만 설치합니다. 그런 다음 입력기는 자신의 실행 파일을 도우미로 넘겨(`--apply-update`) 작업을 맡깁니다. 도우미는 입력기가 종료되기를 기다렸다가 설치 프로그램과 같은 방식으로 앱을 바꾸고(이전 앱은 옆으로 옮겨 두고, 실패하면 되돌림) 새 앱을 등록합니다. 로컬 서버로 시험하려면: `make update-test`, 또는 `Scripts/build-update-manifest.swift`의 `--test-key`와 `AllInOneIME --install-update --manifest-url http://127.0.0.1:<port>/update.json --key <its public key> --target-dir <folder>`를 사용합니다.
 
-번들 ID는 여전히 `com.aipinyin.inputmethod.AIPinyin`입니다. macOS가 이것으로 추가된 입력 소스와 마이크 권한을 기억하므로, 바꾸면 입력기를 다시 추가하고 권한을 다시 허용해야 합니다.
+번들 ID는 여전히 `com.aipinyin.inputmethod.AIPinyin`입니다. macOS가 이것으로 추가된 입력 소스와 부여된 권한을 기억하므로, 바꾸면 입력기를 다시 추가하고 권한을 다시 허용해야 합니다.
 
 ## 라이선스
 
