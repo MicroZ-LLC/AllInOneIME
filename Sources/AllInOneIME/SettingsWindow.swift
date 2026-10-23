@@ -891,12 +891,7 @@ struct SettingsView: View {
         Section {
             // Return by default; "Record…" takes the next key pressed (or a tap of ⌥).
             LabeledContent {
-                HStack(spacing: 8) {
-                    KeyRecorder(key: $model.config.actionKey)
-                    if model.config.actionKey != .enter {
-                        Button(tr("恢复 ⏎", "Use ⏎")) { model.config.actionKey = .enter }
-                    }
-                }
+                KeyRecorder(key: $model.config.actionKey)
             } label: {
                 titled(tr("执行键", "Action key"), Self.actionKeyNote(model.config.actionKey, trigger: model.config.commandTrigger))
             }
@@ -904,16 +899,26 @@ struct SettingsView: View {
             // One of the symbols that type as themselves in every mode (`Config.commandTriggers`): picked, never typed,
             // so there is nothing to refuse.
             LabeledContent {
-                Picker("", selection: $model.config.commandTrigger) {
+                // Shown like the action key: the symbol as text; a click opens the symbols to pick from.
+                Menu {
                     ForEach(Config.commandTriggers, id: \.self) { symbol in
-                        Text(symbol == "@" ? tr("@（默认）", "@ (default)") : symbol)
-                            .font(.body.monospaced())
-                            .tag(symbol)
+                        Button {
+                            model.config.commandTrigger = symbol
+                        } label: {
+                            if symbol == model.config.commandTrigger {
+                                Label(symbol == "@" ? tr("@（默认）", "@ (default)") : symbol, systemImage: "checkmark")
+                            } else {
+                                Text(symbol == "@" ? tr("@（默认）", "@ (default)") : symbol)
+                            }
+                        }
                     }
+                } label: {
+                    Text(model.config.commandTrigger).font(.body.monospaced())
                 }
-                .labelsHidden()
-                .pickerStyle(.menu)
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.visible)
                 .fixedSize()
+                .accessibilityLabel(tr("命令触发符：", "Command trigger: ") + model.config.commandTrigger)
             } label: {
                 titled(tr("命令触发符", "Command trigger"),
                        tr("打在句首打开命令列表。", "Typed at the start of a sentence, it opens the commands."))
@@ -2808,9 +2813,10 @@ enum ChipOrder {
     }
 }
 
-/// The action key and a button to record another: the next key pressed with ⌃, ⌥ or ⌘ (or Return,
-/// Space, ⌥Space, a function key), or a tap of ⌥ on its own. Esc cancels; a plain letter is refused
-/// (it couldn't be typed any more).
+/// The action key as System Settings shows a shortcut: its name as plain text; a click records another (the next key
+/// pressed with ⌃, ⌥ or ⌘, or Return, Space, ⌥Space, a function key, or a tap of ⌥ on its own), outlined while it
+/// listens. Esc or another click cancels; a plain letter is refused (it couldn't be typed any more). Return again is in
+/// its context menu.
 private struct KeyRecorder: View {
     @Binding var key: ActionKey
     @State private var recording = false
@@ -2818,11 +2824,23 @@ private struct KeyRecorder: View {
     @State private var monitor: Any?
 
     var body: some View {
-        HStack(spacing: 8) {
-            Text(recording ? (refused ? tr("要带 ⌃、⌥ 或 ⌘", "Add ⌃, ⌥ or ⌘") : tr("按下新的键…", "Press a key…")) : UIText.pickerName(key))
-                .foregroundStyle(recording ? .secondary : .primary)
-                .frame(minWidth: 90, alignment: .trailing)
-            Button(recording ? tr("取消", "Cancel") : tr("录制…", "Record…")) { recording ? stop() : start() }
+        Button { recording ? stop() : start() } label: {
+            Text(recording ? (refused ? tr("要带 ⌃、⌥ 或 ⌘", "Add ⌃, ⌥ or ⌘") : tr("按下新的键", "Type the key")) : UIText.pickerName(key))
+                .foregroundStyle(recording ? Color.accentColor : .primary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(recording ? Color.accentColor.opacity(0.12) : .clear))
+                .overlay(RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .strokeBorder(recording ? Color.accentColor : .clear, lineWidth: 1))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(tr("点一下，再按新的键", "Click, then press the new key"))
+        .accessibilityLabel(tr("执行键：", "Action key: ") + UIText.pickerName(key))
+        .accessibilityHint(tr("点一下录制新的键", "Click to record another key"))
+        .contextMenu {
+            if key != .enter { Button(tr("恢复 ⏎", "Use ⏎")) { key = .enter } }
         }
         .onDisappear(perform: stop)
     }
