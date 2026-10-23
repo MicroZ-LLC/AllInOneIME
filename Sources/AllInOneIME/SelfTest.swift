@@ -2582,11 +2582,12 @@ enum SelfTest {
         // moved between the login keychain and iCloud Keychain when a section turns sync on).
         APIKeys.keychain = .inMemory()
         ICloudSyncController.shared.keys = nil
-        // Autocomplete learns and counts in memory, never in the input method's defaults; it never asks in a dialog; its
-        // suggestion is drawn invisible, and the user's clicks don't take it down.
+        // Autocomplete learns and counts in memory, never in the input method's defaults; its cloud question is answered
+        // "On This Mac Only" (its own section shows the real one, invisible); its suggestion is drawn invisible, and the
+        // user's clicks don't take it down.
         AutocompleteSwitch.store = AutocompleteStore()
-        AutocompleteSwitch.askCloud = { _, _ in false }
-        (GhostOverlay.invisible, GhostOverlay.watchesPointer) = (true, false)
+        AutocompleteSwitch.askCloud = { _, _, answered in answered(false) }
+        (GhostOverlay.invisible, GhostOverlay.watchesPointer, AutocompleteConsentPanel.invisible) = (true, false, true)
         _ = secureInputGoes()  // held elsewhere just now (a password field): a while for it to go
 
         let className = Bundle.main.object(forInfoDictionaryKey: "InputMethodServerControllerClass") as? String ?? ""

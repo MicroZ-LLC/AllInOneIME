@@ -213,22 +213,17 @@ extension AllInOneIMEInputController {
         return menu
     }
 
-    /// Autocomplete on or off for every app (`AutocompleteSwitch`): on with a cloud provider not asked about yet, it asks
-    /// first, in a dialog that takes the focus (the text being typed goes in first).
+    /// Autocomplete on or off for every app (`AutocompleteSwitch`): on with a cloud provider not asked about yet, it is on
+    /// at once with the on-device model, and asks in a panel that takes no focus (`AutocompleteConsentPanel`): the text
+    /// being typed stays as it is, and typing goes on.
     @objc func toggleAutocomplete(_ sender: Any?) {
-        MainActor.assumeIsolated {
-            let on = !AutocompleteSwitch.isOn
-            if on, Autocomplete.asksForCloud(LiveConfig.current) { perform(composer.commitAll(), client: nil) }
-            AutocompleteSwitch.set(on, notify: self)
-        }
+        MainActor.assumeIsolated { _ = AutocompleteSwitch.set(!AutocompleteSwitch.isOn, notify: self) }
     }
 
-    /// Autocomplete with the cloud provider picked, or with the on-device model only.
+    /// Autocomplete with the cloud provider picked (asked in the same panel), or with the on-device model only.
     @objc func toggleAutocompleteCloud(_ sender: Any?) {
         MainActor.assumeIsolated {
-            let yes = Autocomplete.cloudAnswer(LiveConfig.current) != true
-            if yes { perform(composer.commitAll(), client: nil) }
-            AutocompleteSwitch.setCloud(yes)
+            AutocompleteSwitch.setCloud(Autocomplete.cloudAnswer(LiveConfig.current) != true)
             applySettings()
         }
     }

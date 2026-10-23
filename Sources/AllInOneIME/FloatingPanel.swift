@@ -563,7 +563,8 @@ final class FloatingPanel: ObservableObject {
         }
     }
 
-    /// Autocomplete turned on or off here (on with a cloud provider not asked about yet, a dialog asks first).
+    /// Autocomplete turned on or off here (on with a cloud provider not asked about yet, it asks too, in a panel of its own
+    /// that blocks nothing: `AutocompleteConsentPanel`).
     func setAutocomplete(_ on: Bool) {
         autocomplete = sources.setAutocomplete(on)
         autocompleteSummary = sources.autocompleteSummary()
