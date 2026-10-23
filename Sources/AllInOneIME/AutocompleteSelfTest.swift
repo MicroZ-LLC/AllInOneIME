@@ -125,13 +125,16 @@ final class AutocompleteSelfTestEndpoint: URLProtocol, @unchecked Sendable {
         return (last["content"] as? [[String: Any]])?.compactMap { $0["text"] as? String }.joined() ?? ""
     }
 
-    static func converter(_ config: Config) -> Converter {
+    /// A converter whose Claude API is this endpoint; `agreed`: the user agreed to send it text (else the answer `config`
+    /// has, about whatever it was).
+    static func converter(_ config: Config, agreed: Bool = false) -> Converter {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [AutocompleteSelfTestEndpoint.self]
         var config = config
         config.provider = .anthropic
         config.anthropic.baseURL = "https://autocomplete-selftest.invalid"
         config.anthropic.model = "claude-selftest"
+        if agreed { Autocomplete.answer(true, in: &config) }
         let fixed = config
         return Converter(client: BedrockClient(session: URLSession(configuration: configuration)), loadConfig: { fixed },
                          loadCredentials: { _ in throw ProviderError.missingKey(.anthropic) }, loadKey: { _, _ in "sk-test" },
@@ -233,16 +236,16 @@ extension SelfTest {
         answer = false
         controller.toggleAutocomplete(nil)
         let saved = try? Config.load()
-        check(saved?.autocomplete == true && saved?.autocompleteCloud == false && asked.count == 2,
+        check(saved?.autocomplete == true && saved.flatMap(Autocomplete.cloudAnswer) == false && asked.count == 2,
               "answered “On This Mac Only”: on, with the on-device model (\(String(describing: saved?.autocompleteCloud)))")
         check(menuItem(toggle)?.state == .on && menuItem(cloud)?.title == tr("续写用 Amazon Bedrock", "Autocomplete with Amazon Bedrock")
               && menuItem(cloud)?.state == .off,
               "the menu: 续写 checked, 续写用 Amazon Bedrock unchecked (\(menuItem(cloud)?.title ?? "none"))")
         answer = true
         controller.toggleAutocompleteCloud(nil)
-        check((try? Config.load())?.autocompleteCloud == true && menuItem(cloud)?.state == .on, "agreed: it may use Bedrock")
+        check((try? Config.load()).flatMap(Autocomplete.cloudAnswer) == true && menuItem(cloud)?.state == .on, "agreed: it may use Bedrock")
         controller.toggleAutocompleteCloud(nil)
-        check((try? Config.load())?.autocompleteCloud == false && asked.count == 3, "taken back without asking")
+        check((try? Config.load()).flatMap(Autocomplete.cloudAnswer) == false && asked.count == 3, "taken back without asking")
         controller.toggleAutocomplete(nil)
         check((try? Config.load())?.autocomplete == false && store.metrics.turnedOn == 1 && store.metrics.turnedOffWithinADay == 1,
               "off again; counted as turned off within a day (\(store.metrics.turnedOn), \(store.metrics.turnedOffWithinADay))")
@@ -441,8 +444,17 @@ extension SelfTest {
         settled()
         check(AutocompleteSelfTestEndpoint.sent.isEmpty && GhostOverlay.shared.text == nil,
               "a cloud provider not agreed to gets nothing (and the on-device model unavailable shows nothing)")
-        settings.autocompleteCloud = true
-        controller.services.converter = AutocompleteSelfTestEndpoint.converter(settings)
+        // Agreed to the Claude API at its own address: this one is another host, and gets nothing either.
+        var elsewhere = settings
+        Autocomplete.answer(true, in: &elsewhere)
+        controller.services.converter = AutocompleteSelfTestEndpoint.converter(elsewhere)
+        controller.activateServer(harness)
+        harness.text = long + "Write to ann@example.com and let me kno"
+        harnessType("w", controller, harness)
+        settled()
+        check(AutocompleteSelfTestEndpoint.sent.isEmpty && GhostOverlay.shared.text == nil,
+              "agreed to the Claude API at api.anthropic.com: another host gets nothing (\(String(describing: elsewhere.autocompleteCloud)))")
+        controller.services.converter = AutocompleteSelfTestEndpoint.converter(settings, agreed: true)
         controller.activateServer(harness)
         harness.text = long + "Write to ann@example.com and let me kno"
         harnessType("w", controller, harness)

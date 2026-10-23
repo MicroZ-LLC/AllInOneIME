@@ -203,7 +203,7 @@ extension AllInOneIMEInputController {
             let cloud = NSMenuItem(title: tr("续写用 \(name)", "Autocomplete with \(name)"), action: #selector(toggleAutocompleteCloud(_:)),
                                    keyEquivalent: "")
             cloud.target = self
-            cloud.state = current.autocompleteCloud == true ? .on : .off
+            cloud.state = Autocomplete.cloudAnswer(current) == true ? .on : .off
             cloud.isEnabled = config != nil
             cloud.indentationLevel = 1
             items.append(cloud)
@@ -226,7 +226,7 @@ extension AllInOneIMEInputController {
     /// Autocomplete with the cloud provider picked, or with the on-device model only.
     @objc func toggleAutocompleteCloud(_ sender: Any?) {
         MainActor.assumeIsolated {
-            let yes = LiveConfig.current.autocompleteCloud != true
+            let yes = Autocomplete.cloudAnswer(LiveConfig.current) != true
             if yes { perform(composer.commitAll(), client: nil) }
             AutocompleteSwitch.setCloud(yes)
             applySettings()

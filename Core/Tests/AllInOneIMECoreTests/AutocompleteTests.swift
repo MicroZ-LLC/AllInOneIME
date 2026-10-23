@@ -167,14 +167,69 @@ struct AutocompleteTests {
     @Test func theOnDeviceModelUnlessTheUserAgreedToTheirCloudProvider() {
         var config = Config.default  // Bedrock
         #expect(Autocomplete.route(config) == .onDevice && Autocomplete.asksForCloud(config))
-        config.autocompleteCloud = false
+        Autocomplete.answer(false, in: &config)
         #expect(Autocomplete.route(config) == .onDevice && !Autocomplete.asksForCloud(config))
-        config.autocompleteCloud = true
+        Autocomplete.answer(true, in: &config)
         #expect(Autocomplete.route(config) == .cloud(.bedrock))
         config.provider = .apple
         config.autocompleteCloud = nil
         #expect(Autocomplete.route(config) == .onDevice && !Autocomplete.asksForCloud(config))
         #expect(Autocomplete.Route.onDevice.pause == 0.15 && Autocomplete.Route.cloud(.anthropic).pause == 0.35)
+    }
+
+    /// The yes is for where the requests went when it was given: the provider and its host (for Bedrock, the AWS profile
+    /// and region). Another one, picked in Settings, by the Assistant or by iCloud sync, is asked about again, and gets
+    /// nothing meanwhile; back to the one agreed to, the yes holds again.
+    @Test func theYesIsForTheProviderAndHostItWasGivenFor() throws {
+        var config = Config.default  // Bedrock, the default profile and its region
+        #expect(Autocomplete.destination(config) == "bedrock default")
+        Autocomplete.answer(true, in: &config)
+        #expect(config.autocompleteCloud == Autocomplete.Consent(allowed: true, destination: "bedrock default"))
+        #expect(Autocomplete.route(config) == .cloud(.bedrock) && Autocomplete.cloudAnswer(config) == true)
+        // Gemini, as the Assistant picks it ("use Gemini"), or as iCloud sync brings it.
+        _ = AIConfig.apply([.provider(.gemini)], to: &config)
+        #expect(Autocomplete.destination(config) == "gemini generativelanguage.googleapis.com")
+        #expect(Autocomplete.route(config) == .onDevice && Autocomplete.asksForCloud(config) && Autocomplete.cloudAnswer(config) == nil)
+        config.provider = .bedrock
+        #expect(Autocomplete.route(config) == .cloud(.bedrock))
+        // Another region, another profile: another place, another account.
+        config.region = "eu-central-1"
+        #expect(Autocomplete.route(config) == .onDevice && Autocomplete.asksForCloud(config))
+        config.region = nil
+        config.awsProfile = "work"
+        #expect(Autocomplete.route(config) == .onDevice && Autocomplete.asksForCloud(config))
+        // An OpenAI-compatible service agreed to, then its address changed: another service.
+        config.provider = .openai
+        config.openai.baseURL = "https://api.openai.com/v1"
+        Autocomplete.answer(true, in: &config)
+        #expect(Autocomplete.route(config) == .cloud(.openai))
+        config.openai.baseURL = "https://api.deepseek.com/v1"
+        #expect(Autocomplete.destination(config) == "openai api.deepseek.com")
+        #expect(Autocomplete.route(config) == .onDevice && Autocomplete.asksForCloud(config))
+        // A no is for its destination too: another one is asked about.
+        Autocomplete.answer(false, in: &config)
+        #expect(!Autocomplete.asksForCloud(config) && Autocomplete.cloudAnswer(config) == false)
+        config.openai.baseURL = "https://api.openai.com/v1"
+        #expect(Autocomplete.asksForCloud(config))
+    }
+
+    /// Agreed to one provider, then another picked while autocomplete is on: the on-device model meanwhile (nothing goes to
+    /// the new one), said once.
+    @Test func anotherProviderThanTheOneAgreedToIsSaidOnce() {
+        withInterfaceLanguage("en") {
+            let settings = Settings()
+            Autocomplete.answer(true, in: &settings.config)  // Bedrock
+            settings.config.provider = .gemini
+            let r = rig(settings)
+            r.host.type("Hello wor")
+            r.pauseEnds(expecting: "x")
+            #expect(r.host.ghost == "ld, how are you?" && r.model.requests.count == 1, "the on-device model's")
+            #expect(r.host.noticeAlone == "Your AI provider changed: Autocomplete uses the model on this Mac until you agree to send text to Gemini API (“Autocomplete with Gemini API” in the input menu)")
+            r.host.press(FakeHost.escape)
+            r.host.type("l")
+            r.pauseEnds(expecting: "x")
+            #expect(r.host.outputs.filter { if case let .notice(text) = $0 { text.hasPrefix("Your AI provider changed") } else { false } }.count == 1)
+        }
     }
 
     /// AllInOneIME Cloud is never autocomplete's model, agreed to or not: its free requests a day are the @ commands', and
@@ -183,7 +238,7 @@ struct AutocompleteTests {
         var config = Config.default
         config.provider = .hosted
         #expect(Autocomplete.route(config) == .onDevice && !Autocomplete.asksForCloud(config))
-        config.autocompleteCloud = true  // a config file written by hand
+        config.autocompleteCloud = Autocomplete.Consent(allowed: true, destination: "hosted")  // a config file written by hand
         #expect(Autocomplete.route(config) == .onDevice && !Autocomplete.asksForCloud(config))
         let model = ContinuingModel { _ in " tomorrow at noon." }
         let fixed = config
@@ -207,14 +262,19 @@ struct AutocompleteTests {
         #expect(!plain.contains("autocomplete"))
         var config = Config.default
         config.autocomplete = true
-        config.autocompleteCloud = false
+        Autocomplete.answer(false, in: &config)
         config.appProfiles = ["com.example.app": AppProfile(autocomplete: false)]
         let back = try JSONDecoder().decode(Config.self, from: JSONEncoder().encode(config))
-        #expect(back.autocomplete && back.autocompleteCloud == false && back.profile(for: "com.example.app")?.autocomplete == false)
+        #expect(back.autocomplete && back.autocompleteCloud == Autocomplete.Consent(allowed: false, destination: "bedrock default")
+                && back.profile(for: "com.example.app")?.autocomplete == false)
+        let written = try JSONSerialization.jsonObject(with: JSONEncoder().encode(back)) as? [String: Any]
+        #expect(written?["autocompleteCloud"] as? [String: AnyHashable] == ["allowed": false, "destination": "bedrock default"])
         #expect(!AppProfile(autocomplete: false).isEmpty)
-        // A value of the wrong type reads as none.
+        // A value of the wrong type reads as none; so does a yes without where it was about (an early build's): asked again.
         let odd = try JSONDecoder().decode(Config.self, from: Data(#"{"autocomplete": "yes", "autocompleteCloud": "no"}"#.utf8))
         #expect(!odd.autocomplete && odd.autocompleteCloud == nil)
+        let early = try JSONDecoder().decode(Config.self, from: Data(#"{"autocomplete": true, "autocompleteCloud": true}"#.utf8))
+        #expect(early.autocompleteCloud == nil && Autocomplete.route(early) == .onDevice && Autocomplete.asksForCloud(early))
         #expect(ICloudSync.neverSynced.contains("autocompleteCloud"))
     }
 
@@ -263,7 +323,7 @@ struct AutocompleteTests {
         var config = Config.default
         config.provider = .openai
         config.openai = ProviderSettings(model: "small", baseURL: "https://\(host)/v1")
-        config.autocompleteCloud = true
+        Autocomplete.answer(true, in: &config)
         let fixed = config
         let model = ContinuingModel { _ in " never asked." }
         let converter = Converter(client: BedrockClient(session: StubURLProtocol.session()), loadConfig: { fixed },
@@ -775,7 +835,7 @@ struct AutocompleteTests {
         withInterfaceLanguage("en") {
             let settings = Settings()
             settings.config.provider = .anthropic
-            settings.config.autocompleteCloud = true
+            Autocomplete.answer(true, in: &settings.config)
             let r = rig(settings)
             r.host.type("Hi")
             #expect(r.host.timerDelays[r.pauses.last!] == 0.35)

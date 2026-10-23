@@ -45,6 +45,13 @@ struct AutocompleteMessages {
     func unavailable(_ reason: String) -> String {
         words.tr("续写需要本机的 Apple Intelligence：\(reason)", "Autocomplete needs Apple Intelligence on this Mac: \(reason)")
     }
+
+    /// The user agreed to send text to a cloud provider, and `provider` (its name), or its host, AWS profile or region, is
+    /// another now: the on-device model until they agree again.
+    func askAgain(_ provider: String) -> String {
+        words.tr("AI 服务改了，续写先用本机模型；要把文字发给 \(provider)，在输入法菜单里勾「续写用 \(provider)」",
+                 "Your AI provider changed: Autocomplete uses the model on this Mac until you agree to send text to \(provider) (“Autocomplete with \(provider)” in the input menu)")
+    }
 }
 
 extension InputSession {
@@ -190,9 +197,17 @@ extension InputSession {
         emit(.startTimer(.autocomplete(autocomplete.pause), after: services.autocomplete.pause(base, in: app)))
     }
 
-    /// The pause is over: what the field says is read (`SessionOutput.readField`).
+    /// The pause is over: what the field says is read (`SessionOutput.readField`). Where the user agreed to a cloud
+    /// provider and its requests would go elsewhere now (`Autocomplete.asksForCloud`: changed in Settings, by the
+    /// Assistant or by iCloud sync), it says so once for each: the on-device model is asked meanwhile.
     func autocompletePaused(_ token: Int) {
         guard token == autocomplete.pause, autocomplete.suggestion == nil, autocompleteMayRun() else { return }
+        let config = services.loadSettings()
+        if config.autocompleteCloud?.allowed == true, Autocomplete.asksForCloud(config), let destination = Autocomplete.destination(config),
+           services.autocomplete.once("ask again: " + destination) {
+            log.notice("autocomplete: the cloud provider agreed to changed; the on-device model until asked again")
+            say(AutocompleteMessages(language: UIText.language).askAgain(config.provider.displayName), long: true)
+        }
         autocomplete.reading = token
         emit(.readField(id: token))
     }

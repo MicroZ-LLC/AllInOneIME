@@ -130,8 +130,9 @@ final class GhostView: NSView {
 // MARK: - The switch
 
 /// Autocomplete's switch (`Config.autocomplete`), for the input menu, the menu bar panel and the self-test: written to the
-/// config file, counted (`Autocomplete.Metrics.switched`), and, turned on with a cloud provider picked for the first
-/// time, after asking whether it may send text there (`Config.autocompleteCloud`).
+/// config file, counted (`Autocomplete.Metrics.switched`), and, turned on with a cloud provider picked that the user
+/// wasn't asked about (or another one than they were: `Autocomplete.asksForCloud`), after asking whether it may send text
+/// there (`Config.autocompleteCloud`).
 @MainActor
 enum AutocompleteSwitch {
     /// What autocomplete learns and counts, for every field: this input method's own defaults (the self-test has its own,
@@ -152,7 +153,7 @@ enum AutocompleteSwitch {
             var config = try Config.load()
             if on, Autocomplete.asksForCloud(config) {
                 guard let yes = askCloud(config.provider, AppleModel.system.availability == .available) else { return false }
-                config.autocompleteCloud = yes
+                Autocomplete.answer(yes, in: &config)
             }
             config.autocomplete = on
             try config.write()
@@ -168,14 +169,15 @@ enum AutocompleteSwitch {
         }
     }
 
-    /// The yes to the cloud provider given or taken back (the input menu's "Autocomplete with …"); given, it asks first.
+    /// The yes to the cloud provider given or taken back (the input menu's "Autocomplete with …"), for where its requests
+    /// go now (`Autocomplete.destination`); given, it asks first.
     static func setCloud(_ yes: Bool) {
         do {
             var config = try Config.load()
             if yes {
                 guard askCloud(config.provider, AppleModel.system.availability == .available) == true else { return }
             }
-            config.autocompleteCloud = yes
+            Autocomplete.answer(yes, in: &config)
             try config.write()
             NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
             log.notice("autocomplete with the cloud provider: \(yes ? "yes" : "no", privacy: .public)")

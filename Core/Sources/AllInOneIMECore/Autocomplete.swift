@@ -32,8 +32,9 @@ public enum Autocomplete {
     // MARK: The model
 
     /// The model a pause asks: Apple's on-device model, unless the user picked a cloud provider of their own
-    /// (`offersCloud`) and agreed, once, to send it what is before the caret (`Config.autocompleteCloud`). Where the
-    /// on-device model can't run nothing is shown: it never turns to a cloud provider by itself.
+    /// (`offersCloud`) and agreed, once, to send it what is before the caret: there, as it is set now
+    /// (`Config.autocompleteCloud`, `destination`). Where the on-device model can't run nothing is shown: it never turns
+    /// to a cloud provider by itself.
     public enum Route: Equatable, Sendable {
         case onDevice
         case cloud(Provider)
@@ -45,12 +46,54 @@ public enum Autocomplete {
     }
 
     public static func route(_ config: Config) -> Route {
-        offersCloud(config.provider) && config.autocompleteCloud == true ? .cloud(config.provider) : .onDevice
+        cloudAnswer(config) == true ? .cloud(config.provider) : .onDevice
     }
 
-    /// Whether turning it on asks first: a cloud provider picked, and the user hasn't said yet whether it may go there.
+    /// Whether turning it on asks first: a cloud provider picked, and the user hasn't said yet whether it may go there,
+    /// where its requests go now (`destination`): never asked, or asked about another provider, host, AWS profile or
+    /// region.
     public static func asksForCloud(_ config: Config) -> Bool {
-        offersCloud(config.provider) && config.autocompleteCloud == nil
+        destination(config) != nil && cloudAnswer(config) == nil
+    }
+
+    /// The user's answer about sending text where `config`'s requests go now (`destination`): true yes, false the
+    /// on-device model only; nil not asked about it (an answer about another destination is none).
+    public static func cloudAnswer(_ config: Config) -> Bool? {
+        guard let destination = destination(config), let consent = config.autocompleteCloud, consent.destination == destination else {
+            return nil
+        }
+        return consent.allowed
+    }
+
+    /// `yes` (or no) as the answer about where `config`'s requests go now; nothing for a provider it never asks.
+    public static func answer(_ yes: Bool, in config: inout Config) {
+        guard let destination = destination(config) else { return }
+        config.autocompleteCloud = Consent(allowed: yes, destination: destination)
+    }
+
+    /// Where a request of autocomplete's would go with `config`'s cloud provider: the provider and the host its requests go
+    /// to ("anthropic api.anthropic.com", "openai api.deepseek.com"); for Bedrock, the AWS profile and the region set
+    /// (none: the profile's own), whose account and place they are ("bedrock default us-west-2"). Nil for one it never
+    /// asks (`offersCloud`).
+    public static func destination(_ config: Config) -> String? {
+        guard offersCloud(config.provider) else { return nil }
+        if config.provider == .bedrock {
+            return ["bedrock", config.awsProfile, config.region ?? ""].joined(separator: " ").trimmingCharacters(in: .whitespaces)
+        }
+        return config.provider.rawValue + " " + (HTTPProviders.host(of: config.settings(for: config.provider)) ?? "")
+    }
+
+    /// The user's answer about sending the text before the caret to a cloud provider (`Config.autocompleteCloud`), and
+    /// where it was about (`destination`).
+    public struct Consent: Codable, Equatable, Sendable {
+        /// Yes, it may send there; no, the on-device model only.
+        public var allowed: Bool
+        public var destination: String
+
+        public init(allowed: Bool, destination: String) {
+            self.allowed = allowed
+            self.destination = destination
+        }
     }
 
     /// Whether autocomplete may ask `provider`, once the user agreed: a cloud provider of the user's own (an API key, an

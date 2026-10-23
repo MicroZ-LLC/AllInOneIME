@@ -210,9 +210,12 @@ public struct Config: Codable, Equatable, Sendable {
     /// use. Off by default.
     public var autocomplete: Bool = false
     /// Whether autocomplete may send the text before the caret to the cloud provider picked (`provider`), as the user
-    /// answered when it was turned on (nil: not asked yet). Without that yes it uses Apple's on-device model, and shows
-    /// nothing where that can't run (`Autocomplete.route`). This Mac's own: never synced.
-    public var autocompleteCloud: Bool?
+    /// answered when it was turned on, and where that answer was about: the provider and the host its requests go to
+    /// (`Autocomplete.Consent`, `Autocomplete.destination`). Nil: not asked yet. An answer about another destination (the
+    /// provider changed, in Settings, by the Assistant or by iCloud sync; another base URL, AWS profile or region) is no
+    /// answer: it asks again. Without a yes for where requests go now it uses Apple's on-device model, and shows nothing
+    /// where that can't run (`Autocomplete.route`). This Mac's own: never synced.
+    public var autocompleteCloud: Autocomplete.Consent?
     /// Sync through iCloud (`ICloudSync`) and what syncs: this Mac's own, never synced. Off by default.
     public var iCloudSync: ICloudSyncSettings
     /// Where `@note` saves (`NoteSettings`): Notes by default, a folder of Markdown files, or Notion. This Mac's own (a
@@ -430,7 +433,8 @@ public struct Config: Codable, Equatable, Sendable {
         redaction = try c.decodeIfPresent(RedactionSettings.self, forKey: .redaction) ?? d.redaction
         // A value of the wrong type reads as the default, not an error.
         autocomplete = (try? c.decodeIfPresent(Bool.self, forKey: .autocomplete)).flatMap { $0 } ?? d.autocomplete
-        autocompleteCloud = (try? c.decodeIfPresent(Bool.self, forKey: .autocompleteCloud)).flatMap { $0 }
+        // A yes or no without where it was about (an early 0.6.7 build's true or false) is none: asked again.
+        autocompleteCloud = (try? c.decodeIfPresent(Autocomplete.Consent.self, forKey: .autocompleteCloud)).flatMap { $0 }
         extensionSources = ExtensionSource.decodeAll(c, forKey: .extensionSources)
         iCloudSync = (try? c.decodeIfPresent(ICloudSyncSettings.self, forKey: .iCloudSync)).flatMap { $0 } ?? d.iCloudSync
         notes = (try? c.decodeIfPresent(NoteSettings.self, forKey: .notes)).flatMap { $0 } ?? d.notes
