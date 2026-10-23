@@ -109,6 +109,14 @@ struct AutocompleteTests {
         #expect(Autocomplete.trimmed("\n\n", before: "Hi") == nil)
     }
 
+    @Test func anAnswerInAnotherScriptThanTheTextsIsNotShown() {
+        // Real (0.6.7's request): "Hi" + "你好。"; with examples, "Thanks for the update." + "我们下周再聚。".
+        #expect(Autocomplete.trimmed("你好。", before: "Hi") == nil)
+        #expect(Autocomplete.trimmed("我们下周再聚。", before: "Thanks for the update.") == nil)
+        // Text with Chinese in it may go on in it.
+        #expect(Autocomplete.trimmed("周五见。", before: "Swift 课程，") == "周五见。")
+    }
+
     @Test func aNewWordGetsTheSpaceTheModelLeftOut() {
         #expect(Autocomplete.trimmed("<after>be late</after>", before: "I might") == " be late")
         #expect(Autocomplete.trimmed("<after>worry about it.</after>", before: "Don't you") == " worry about it.")

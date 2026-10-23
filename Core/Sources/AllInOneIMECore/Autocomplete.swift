@@ -177,6 +177,8 @@ public enum Autocomplete {
         var line = String(first).replacingOccurrences(of: "\t", with: " ")
         line = line.filter { !$0.isNewline && $0.unicodeScalars.allSatisfy(KeyEvent.isPrintable) }
         line = stripQuotes(line)
+        // Chinese, Japanese or Korean after text with none of it ("Hi" + "你好。"): not the user's language.
+        if line.contains(where: { $0.isWide && $0.isLetter }), !before.suffix(200).contains(where: \.isWide) { return nil }
         // Only the end of what was typed said again ("iss" after "iss"): nothing to add.
         if saysTheEndAgain(line, before: before) { return nil }
         // The end of what was typed said again ("…see you" → "see you tomorrow"), the unfinished word written whole
