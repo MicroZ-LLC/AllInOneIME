@@ -229,6 +229,38 @@ struct SuggestionsTests {
         #expect(PluginHost.completionFunction(["/p", "--language", "en"]) == nil)
     }
 
+    // MARK: - The list cached on disk
+
+    /// A list is written to its cache file in one step, the file new and the user's only from the start, by way of a
+    /// file outside the cache folder (beside it, on the same volume): what lists the folder meanwhile finds only the
+    /// sources' files, never one half written.
+    @Test func aCachedListIsWrittenFromOutsideItsFolder() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("suggestions-cache-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let cache = root.appendingPathComponent("suggestions", isDirectory: true)
+        let key = CompletionSourceKey(plugin: "github", source: "issues")
+        var source = SuggestionsStore.Source()
+        source.list = CompletionItems((1...2000).map { CompletionItem(match: "#\($0)", title: "Issue \($0)") })
+        source.loadedAt = Date()
+        let writing = Locked(initialState: true)
+        let seen = Locked<Set<String>>(initialState: [])
+        let lister = Thread {
+            while writing.withLock({ $0 }) {
+                let names = (try? FileManager.default.contentsOfDirectory(atPath: cache.path)) ?? []
+                seen.withLock { $0.formUnion(names) }
+            }
+        }
+        lister.start()
+        for _ in 0..<40 { SuggestionsStore.write(source, of: key, in: cache) }
+        SuggestionsStore.disk.sync {}
+        writing.withLock { $0 = false }
+        let others = seen.withLock { $0 }.subtracting([key.fileName])
+        #expect(others.isEmpty, "\(others.count) other files, such as \(others.first ?? "")")
+        #expect(try FileManager.default.contentsOfDirectory(atPath: cache.path) == [key.fileName])
+        let permissions = try FileManager.default.attributesOfItem(atPath: cache.appendingPathComponent(key.fileName).path)[.posixPermissions]
+        #expect(permissions as? Int == 0o600)
+    }
+
     // MARK: - The settings document
 
     /// Windows' settings document: under the GitHub plugin its source's switch (saying what it sends where) and its

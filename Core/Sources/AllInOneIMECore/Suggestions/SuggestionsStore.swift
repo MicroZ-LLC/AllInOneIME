@@ -410,6 +410,12 @@ public final class SuggestionsStore: @unchecked Sendable {
         var lastUsed: Double?
     }
 
+    /// Where a list is written before it is renamed into `folder`: a hidden folder beside it, on its volume (what lists
+    /// `folder` never finds a file half written).
+    static func staging(for folder: URL) -> URL {
+        folder.deletingLastPathComponent().appendingPathComponent(".\(folder.lastPathComponent).staging", isDirectory: true)
+    }
+
     /// `source`'s list written to its file in `folder` (readable by the user only), off the session's thread.
     static func write(_ source: Source, of key: CompletionSourceKey, in folder: URL) {
         guard let items = source.list, let loadedAt = source.loadedAt else { return }
@@ -425,14 +431,15 @@ public final class SuggestionsStore: @unchecked Sendable {
                 try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true,
                                                         attributes: [.posixPermissions: 0o700])
                 #endif
-                try Platform.current.files.writePrivate(data, to: folder.appendingPathComponent(key.fileName))
+                try Platform.current.files.writePrivate(data, to: folder.appendingPathComponent(key.fileName), stagingIn: staging(for: folder))
             } catch {
                 SuggestionsStore.log.error("suggestions: a list couldn't be cached (\(type(of: error)))")
             }
         }
     }
 
-    /// Forgets the sources not in `enabled` (disabled, or their plugin removed), and deletes their files in `folder`.
+    /// Forgets the sources not in `enabled` (disabled, or their plugin removed), and deletes their files in `folder`, and
+    /// what a write stopped half way left beside it (none is under way: the writes are on the same queue).
     public func prune(keeping enabled: Set<CompletionSourceKey>, folder: URL?) {
         state.withLock { state in
             for key in state.sources.keys.filter({ !enabled.contains($0) }) {
@@ -446,6 +453,10 @@ public final class SuggestionsStore: @unchecked Sendable {
             for name in names {
                 guard let key = CompletionSourceKey(fileName: name), !enabled.contains(key) else { continue }
                 try? FileManager.default.removeItem(at: folder.appendingPathComponent(name))
+            }
+            let staging = Self.staging(for: folder)
+            for name in (try? FileManager.default.contentsOfDirectory(atPath: staging.path)) ?? [] where name.hasSuffix(".tmp") {
+                try? FileManager.default.removeItem(at: staging.appendingPathComponent(name))
             }
         }
     }
