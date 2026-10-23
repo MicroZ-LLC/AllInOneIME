@@ -6,11 +6,15 @@ extension SelfTest {
     /// word rime-ice lacks ("bedrock", from the curated list) first when all its letters are typed, second while longer;
     /// letters put in as typed twice learned (into the self-test's own config file) and offered at once; nothing learned
     /// during secure input, in an app with no AI, a terminal or a remote desktop; rime-ice's own English words as they were.
+    /// A word typed twice in English mode learned too, nothing shown there; not one with a capital first, not during
+    /// secure input or in a terminal.
     static func testEnglishWords(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
         section("English words among pinyin's candidates", needs: .composing)
         let settingsBefore = settings
+        let pointerBefore = controller.services.pointerUsedWithin
         defer {
             settings = settingsBefore
+            controller.services.pointerUsedWithin = pointerBefore
             controller.services.secureInputActive = { false }
             controller.commitComposition(client)
             client.bundleIDOverride = nil
@@ -77,6 +81,46 @@ extension SelfTest {
         putInTwice("nihao")
         check(!learned().contains("quuxify") && !learned().contains("nihao"),
               "nothing learned during secure input, in an app with no AI, a terminal, a remote desktop or an SSH client, or of pinyin (\(learned()))")
+
+        // Words typed in English mode (a tap of Shift: the keys go straight to the app, nothing is shown) are learned too:
+        // the second time, by the same rule; then pinyin offers them.
+        controller.services.pointerUsedWithin = { _ in false }  // the user's own clicks meanwhile
+        /// Whether each key went straight to the app.
+        func typeInEnglish(_ text: String) -> Bool {
+            text.map { character in
+                switch character {
+                case " ": return !space(controller, client)
+                case "\r": return !enter(controller, client)
+                default: return !press(controller, client, String(character), code: keyCodes[character] ?? 0)
+                }
+            }.allSatisfy { $0 }
+        }
+        tapShift(controller, client)
+        check(controller.composer.inputLanguage == .english, "a tap of Shift: English mode (\(controller.composer.inputLanguage))")
+        let inserted = client.inserted.count
+        check(typeInEnglish("we zorblaxing it. ") && client.marked.isEmpty && client.inserted.count == inserted,
+              "in English mode each key goes straight to the app: nothing marked or put in (\(client.marked), \(client.inserted.suffix(2)))")
+        check(!learned().contains("zorblaxing"), "…a word typed once is only remembered (\(learned()))")
+        _ = typeInEnglish("zorblaxing\rok ")
+        check(learned().contains("zorblaxing"), "…typed twice it is learned (\(learned()))")
+        _ = typeInEnglish("Quuxifying Quuxifying ok ")
+        controller.services.secureInputActive = { true }
+        _ = typeInEnglish("wibbling wibbling ok ")
+        controller.services.secureInputActive = { false }
+        client.bundleIDOverride = "com.apple.Terminal"
+        controller.activateServer(client)
+        controller.composer.setInputMode(.english)
+        _ = typeInEnglish("wobbling wobbling ok ")
+        client.bundleIDOverride = nil
+        controller.activateServer(client)
+        controller.composer.setInputMode(.english)
+        check(!learned().contains { ["quuxifying", "wibbling", "wobbling"].contains($0.lowercased()) },
+              "…not one with a capital first, nor during secure input or in a terminal (\(learned()))")
+        tapShift(controller, client)
+        check(controller.composer.inputLanguage == .chinese, "a tap of Shift: back to Chinese")
+        type("zorblaxi", controller, client)
+        check(candidates().contains("zorblaxing"), "'zorblaxi' then offers it among pinyin's candidates (\(candidates().prefix(4)))")
+        _ = escape(controller, client)
     }
 
     /// Settings → Input → Chinese → English Words: words added and removed are saved at once (a config file of its own),
