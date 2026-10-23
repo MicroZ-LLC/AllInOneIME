@@ -22,7 +22,7 @@ public struct AppProfile: Codable, Equatable, Sendable {
     /// (`ICloudSync.thisMacsOwnAppFields`).
     public var autocomplete: Bool?
     /// Suggestions (plugin completions, coding mode's rows) in the app (Settings → Apps: 「建议」): off (false), or as
-    /// everywhere (nil, or true).
+    /// everywhere (nil, or true). This Mac's own, as the switch is: never synced (`ICloudSync.thisMacsOwnAppFields`).
     public var suggestions: Bool?
 
     public init(inputLanguage: Language? = nil, rewriteStyles: [String]? = nil, typeOut: Bool? = nil, noAI: Bool? = nil,

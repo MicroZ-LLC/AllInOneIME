@@ -73,6 +73,68 @@ struct ICloudSyncCommandTriggerTests {
         #expect(a.sync(at: t(10)).applied.isEmpty && b.sync(at: t(11)).uploaded.isEmpty)
     }
 
+    /// Suggestions in an app are each Mac's own too, as their switch is: turned off and on again on one Mac (on is no
+    /// value, as Settings writes it), they never go up, never come back from iCloud, and never reach another Mac.
+    @Test func anAppsSuggestionsAreEachMacsOwn() throws {
+        let rig = try SyncRig()
+        let a = try rig.mac("A"), b = try rig.mac("B")
+        let slack = "com.tinyspeck.slackmacgap"
+        a.sync(at: t(0))
+        b.sync(at: t(1))
+        try a.edit(at: t(2)) { $0.appProfiles[slack] = AppProfile(noAI: true) }
+        #expect(a.sync(at: t(3)).uploaded == ["appProfiles.\(slack)"])
+        #expect(b.sync(at: t(4)).applied == ["appProfiles.\(slack)"])
+        func iCloudsSlack() throws -> [String: Any]? {
+            try #require(try rig.settingsJSON()["appProfiles.\(slack)"] as? [String: Any])["value"] as? [String: Any]
+        }
+        // Off on A: nothing to sync.
+        try a.edit(at: t(5)) { $0.changeProfile(for: slack) { $0.suggestions = false } }
+        #expect(a.sync(at: t(6)).uploaded.isEmpty, "only suggestions: nothing to sync")
+        #expect(try iCloudsSlack()?["suggestions"] == nil)
+        #expect(b.sync(at: t(7)).applied.isEmpty)
+        #expect(try b.config().profile(for: slack) == AppProfile(noAI: true))
+        #expect(try a.config().profile(for: slack) == AppProfile(noAI: true, suggestions: false))
+        // On again on A, and B changes Slack meanwhile: A keeps on, B's change comes, and neither copy holds suggestions.
+        try a.edit(at: t(8)) { $0.changeProfile(for: slack) { $0.suggestions = nil } }
+        try b.edit(at: t(9)) { $0.changeProfile(for: slack) { $0.typeOut = true } }
+        #expect(b.sync(at: t(10)).uploaded == ["appProfiles.\(slack)"])
+        a.sync(at: t(11))
+        #expect(try a.config().profile(for: slack) == AppProfile(typeOut: true, noAI: true))
+        #expect(try b.config().profile(for: slack) == AppProfile(typeOut: true, noAI: true))
+        #expect(try iCloudsSlack()?["suggestions"] == nil)
+        // Off again on A, then A changes Slack: A's off stays A's.
+        try a.edit(at: t(12)) { $0.changeProfile(for: slack) { $0.suggestions = false } }
+        try a.edit(at: t(13)) { $0.changeProfile(for: slack) { $0.typeOut = false } }
+        #expect(a.sync(at: t(14)).uploaded == ["appProfiles.\(slack)"])
+        #expect(try iCloudsSlack()?["suggestions"] == nil)
+        b.sync(at: t(15))
+        #expect(try b.config().profile(for: slack) == AppProfile(typeOut: false, noAI: true))
+        #expect(try a.config().profile(for: slack) == AppProfile(typeOut: false, noAI: true, suggestions: false))
+        // A stale value in iCloud (written by a build that synced it) doesn't come down either, and goes with A's next change.
+        var stale = try rig.settingsJSON()
+        var entry = try #require(stale["appProfiles.\(slack)"] as? [String: Any])
+        entry["value"] = ["noAI": true, "typeOut": false, "suggestions": false]
+        stale["appProfiles.\(slack)"] = entry
+        try JSONSerialization.data(withJSONObject: stale).write(to: rig.folder.url.appendingPathComponent(ICloudSync.settingsFile))
+        try b.edit(at: t(16)) { $0.changeProfile(for: slack) { $0.typeOut = nil } }
+        b.sync(at: t(17))
+        #expect(try b.config().profile(for: slack) == AppProfile(noAI: true))
+        #expect(try iCloudsSlack()?["suggestions"] == nil)
+        #expect(a.sync(at: t(18)).applied == ["appProfiles.\(slack)"])
+        #expect(try a.config().profile(for: slack) == AppProfile(noAI: true, suggestions: false))
+        #expect(a.sync(at: t(19)).uploaded.isEmpty && b.sync(at: t(20)).uploaded.isEmpty)
+    }
+
+    /// Every field of an app's settings is one this version knows (never carried up from iCloud as a newer version's).
+    @Test func everyAppFieldIsKnown() throws {
+        let every = AppProfile(inputLanguage: .english, rewriteStyles: [], typeOut: true, noAI: true, translateAlways: true,
+                               autocomplete: true, suggestions: false)
+        let data = try JSONEncoder().encode(every)
+        let fields = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        #expect(Set(fields.keys) == ICloudSync.knownFields(of: ICloudSync.appPrefix + "com.apple.mail"))
+        #expect(ICloudSync.thisMacsOwnAppFields.isSubset(of: Set(fields.keys)))
+    }
+
     /// Each key a config file may hold syncs (as itself, or with the key that carries it) or never does.
     @Test func everyConfigKeyIsSyncedOrNeverSynced() {
         // Synced under other keys: the apps one by one, the hidden words as `redaction.customWords`.

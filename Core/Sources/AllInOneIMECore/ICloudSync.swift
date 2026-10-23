@@ -66,8 +66,8 @@ public enum ICloudSync {
     /// `defaultInput` come with their lists. `@agent`'s agent and its program are what this Mac has installed, and
     /// whether it takes Chrome's page is this Mac's choice (as they always were: never synced). Suggestions' switch, the
     /// completion sources enabled and the plugins' preferences are this Mac's plugins' (`suggestions`,
-    /// `completionSources`, `pluginPreferences`). Apps without typos and the recent apps aren't config keys
-    /// either: named so that no later version adds them.
+    /// `completionSources`, `pluginPreferences`), and so is Suggestions' choice for an app (`thisMacsOwnAppFields`). Apps
+    /// without typos and the recent apps aren't config keys either: named so that no later version adds them.
     public static let neverSynced: Set<String> = [
         "extensionSources", "extensionFolders", "hiddenExtensionFolders", "findRaycastScripts", "disabledExtensions",
         "extensionPreferences", "jargonFile", "iCloudSync", "typeOutSpeed", "outputLanguage", "defaultInput",
@@ -377,7 +377,8 @@ public enum ICloudSync {
                 out["redaction"] = .object(redaction)
             }
             if case let .object(apps)? = encoded["appProfiles"] {
-                // Without autocomplete, each Mac's own (`thisMacsOwnAppFields`): an app with nothing else isn't synced.
+                // Without autocomplete and Suggestions, each Mac's own (`thisMacsOwnAppFields`): an app with nothing else
+                // isn't synced.
                 for (app, profile) in apps {
                     if let synced = syncedPart(of: profile) { out[appPrefix + app] = synced }
                 }
@@ -653,10 +654,12 @@ public enum ICloudSync {
     }
 
     /// The fields this version knows of an object-valued key (`redaction`, a provider's settings, an app's settings); nil
-    /// for any other key. An app's own autocomplete is known (never carried up from iCloud), but never synced
-    /// (`thisMacsOwnAppFields`).
+    /// for any other key. An app's own autocomplete and Suggestions are known (never carried up from iCloud), but never
+    /// synced (`thisMacsOwnAppFields`).
     public static func knownFields(of key: String) -> Set<String>? {
-        if key.hasPrefix(appPrefix) { return ["inputLanguage", "rewriteStyles", "typeOut", "noAI", "translateAlways", "autocomplete"] }
+        if key.hasPrefix(appPrefix) {
+            return ["inputLanguage", "rewriteStyles", "typeOut", "noAI", "translateAlways", "autocomplete", "suggestions"]
+        }
         switch key {
         case "redaction": return ["enabled", "emails", "phones", "cards", "keys", "ips", "customWords"]
         case "anthropic", "gemini", "openai": return ["model", "baseURL", "effort", "temperature"]
@@ -664,10 +667,11 @@ public enum ICloudSync {
         }
     }
 
-    /// The fields of an app's settings each Mac has for itself, as autocomplete's switch is this Mac's own (`neverSynced`):
-    /// whether autocomplete runs in the app, always or never (`AppProfile.autocomplete`). Never sent; another Mac's settings
-    /// for the app neither replace nor remove this Mac's (`withThisMacsOwn`).
-    public static let thisMacsOwnAppFields: Set<String> = ["autocomplete"]
+    /// The fields of an app's settings each Mac has for itself, as autocomplete's and Suggestions' switches are this Mac's
+    /// own (`neverSynced`): whether autocomplete runs in the app, always or never (`AppProfile.autocomplete`), and whether
+    /// Suggestions are off there (`AppProfile.suggestions`). Never sent; another Mac's settings for the app neither replace
+    /// nor remove this Mac's (`withThisMacsOwn`).
+    public static let thisMacsOwnAppFields: Set<String> = ["autocomplete", "suggestions"]
 
     /// An app's settings as they sync (`profile` as the config file writes it): without `thisMacsOwnAppFields`; nil when
     /// nothing else is left.
@@ -1084,8 +1088,8 @@ public enum ICloudSync {
                     let own = apps.first { $0.key.caseInsensitiveCompare(app) == .orderedSame }?.value
                     for other in apps.keys where other.caseInsensitiveCompare(app) == .orderedSame { apps[other] = nil }
                     let spelled = current.profileKey(for: app) ?? app
-                    // Its autocomplete is this Mac's own: iCloud's is left out, this Mac's stays (also when iCloud's
-                    // settings for the app are gone).
+                    // Its autocomplete and Suggestions are this Mac's own: iCloud's are left out, this Mac's stay (also
+                    // when iCloud's settings for the app are gone).
                     apps[spelled] = withThisMacsOwn(value, own: own)
                     file["appProfiles"] = .object(apps)
                 } else {
