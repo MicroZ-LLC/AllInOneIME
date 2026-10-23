@@ -30,6 +30,8 @@ struct CompletionItems: Sendable {
     let lowered: [String]
     /// The first item of each match in small letters.
     let positions: [String: Int]
+    /// Whether each item is the first of its match in small letters.
+    let firsts: [Bool]
 
     /// Their UTF-8, one after another, and where each starts (and, last, where the last ends): what a token's start is
     /// looked for in, a few bytes compared for most items.
@@ -41,16 +43,20 @@ struct CompletionItems: Sendable {
         lowered = items.map { $0.match.lowercased() }
         var positions: [String: Int] = [:]
         positions.reserveCapacity(items.count)
+        var firsts: [Bool] = []
+        firsts.reserveCapacity(items.count)
         var bytes: [UInt8] = []
         var starts: [Int] = []
         starts.reserveCapacity(items.count + 1)
         for (index, match) in lowered.enumerated() {
-            if positions[match] == nil { positions[match] = index }
+            let first = positions[match] == nil
+            if first { positions[match] = index }
+            firsts.append(first)
             starts.append(bytes.count)
             bytes += match.utf8
         }
         starts.append(bytes.count)
-        (self.positions, self.bytes, self.starts) = (positions, bytes, starts)
+        (self.positions, self.firsts, self.bytes, self.starts) = (positions, firsts, bytes, starts)
     }
 
     var count: Int { items.count }
@@ -136,24 +142,32 @@ enum PluginRows {
         return nil
     }
 
+    /// The most matching items a key fills the templates of for a source's rows (with a `limit`; those picked before
+    /// aside): a template whose insertion never starts with what was typed (`"{url}"`, a plugin's mistake) costs a key no
+    /// more than that over a list of 20,000, and shows no rows.
+    static let maxTried = 100
+
     /// The rows of `lists` (the list's items, then the queries' answers, each match once: its first) for `token` in an
     /// app of `appClass`, in their order: those whose insertion starts with what was typed. Only what matches is looked
-    /// at, and only until `limit` rows are found (nil: all of them); the items picked before (`picked`, their `match`)
-    /// are rows wherever they are, looked up on their own.
+    /// at, and only until `limit` rows are found (nil: all of them), `maxTried` items tried at most then; the items
+    /// picked before (`picked`, their `match`) are rows wherever they are, looked up on their own.
     static func rows(_ token: String, plugin: InstalledPlugin, source: CompletionSource, lists: [CompletionItems],
                      madeAt: Date?, appClass: SuggestionsAppClass, picked: Set<String> = [], limit: Int? = nil,
                      in t: InterfaceWords) -> [SuggestionRow] {
         guard let maker = RowMaker(token, plugin: plugin, source: source, madeAt: madeAt, appClass: appClass, in: t) else { return [] }
         // Where each row is: its list, then its place there.
         var found: [(list: Int, index: Int, row: SuggestionRow)] = []
-        var others = 0
+        var (others, tried) = (0, 0)
         maker.each(in: lists) { number, index, item in
             // Picked before: looked up below, wherever it is.
             if picked.contains(item.match) { return true }
-            guard let row = maker.row(item) else { return true }
-            found.append((number, index, row))
-            others += 1
-            return limit.map { others < $0 } ?? true
+            tried += 1
+            if let row = maker.row(item) {
+                found.append((number, index, row))
+                others += 1
+            }
+            guard let limit else { return true }
+            return others < limit && tried < maxTried
         }
         for match in picked {
             let key = match.lowercased()
@@ -165,12 +179,13 @@ enum PluginRows {
         return found.sorted { ($0.list, $0.index) < ($1.list, $1.index) }.map(\.row)
     }
 
-    /// Each row of `lists` for `token` (as `rows` has them, every one), in their order, until `visit` says to stop
-    /// (false): what Tab in a terminal or code editor completes is what all of them share.
-    static func eachRow(_ token: String, plugin: InstalledPlugin, source: CompletionSource, lists: [CompletionItems],
-                        appClass: SuggestionsAppClass, in t: InterfaceWords, _ visit: (SuggestionRow) -> Bool) {
+    /// What each row of `lists` for `token` completes (as `rows` has them, every one: its `completion`), in their order,
+    /// until `visit` says to stop (false): what Tab in a terminal or code editor completes is what all of them share.
+    /// Only the insertion is made, no row.
+    static func eachCompletion(_ token: String, plugin: InstalledPlugin, source: CompletionSource, lists: [CompletionItems],
+                               appClass: SuggestionsAppClass, in t: InterfaceWords, _ visit: (String) -> Bool) {
         guard let maker = RowMaker(token, plugin: plugin, source: source, madeAt: nil, appClass: appClass, in: t) else { return }
-        maker.each(in: lists) { _, _, item in maker.row(item).map(visit) ?? true }
+        maker.each(in: lists) { _, _, item in maker.insertion(item) == nil || visit(item.match) }
     }
 
     /// What makes a source's rows for a token: its templates for the app's class, read once.
@@ -180,6 +195,9 @@ enum PluginRows {
         let plugin: InstalledPlugin
         let source: CompletionSource
         let templates: [[CompletionTemplate.Part]]
+        /// The template is `{match}` (the terminal and code editor class's): an item that answers the token puts in its
+        /// match, which starts with what was typed.
+        let matchOnly: Bool
         let title: String
         let madeAt: Date?
 
@@ -190,13 +208,21 @@ enum PluginRows {
             (self.token, self.plugin, self.source, self.madeAt) = (token, plugin, source, madeAt)
             lowered = SuggestionsToken.normalized(token).lowercased()
             self.templates = templates.compactMap(CompletionTemplate.parts)
+            matchOnly = self.templates == [[.variable("match")]]
             title = source.title.text(chinese: t.chinese)
+        }
+
+        /// What `item` (one that answers the token: `each`) puts in, if it starts with what was typed.
+        func insertion(_ item: CompletionItem) -> String? {
+            if matchOnly { return item.match }
+            guard let insertion = CompletionTemplate.fill(templates, with: item),
+                  SuggestionsToken.normalized(insertion).lowercased().hasPrefix(lowered) else { return nil }
+            return insertion
         }
 
         /// `item`'s row, if its insertion starts with what was typed.
         func row(_ item: CompletionItem) -> SuggestionRow? {
-            guard let insertion = CompletionTemplate.fill(templates, with: item),
-                  SuggestionsToken.normalized(insertion).lowercased().hasPrefix(lowered) else { return nil }
+            guard let insertion = insertion(item) else { return nil }
             let (text, comment) = shown(item)
             return SuggestionRow(text: text, comment: comment, insertion: insertion, completion: item.match, typed: token,
                                  pick: SuggestionPick(plugin: plugin.name, source: source.name, match: item.match),
@@ -206,12 +232,13 @@ enum PluginRows {
         /// Each item of `lists` that answers the token, a match once (its first), in order, with its list and place,
         /// until `visit` says to stop (false).
         func each(in lists: [CompletionItems], _ visit: (Int, Int, CompletionItem) -> Bool) {
-            var seen = Set<String>()
             for (number, list) in lists.enumerated() {
                 var start = 0
                 while let index = list.next(answering: lowered, source, from: start) {
                     start = index + 1
-                    guard seen.insert(list.lowered[index]).inserted else { continue }
+                    // A match once: its first (which answers the token too) visited already.
+                    guard list.firsts[index],
+                          number == 0 || !lists[..<number].contains(where: { $0.positions[list.lowered[index]] != nil }) else { continue }
                     guard visit(number, index, list.items[index]) else { return }
                 }
             }
@@ -432,14 +459,44 @@ enum CodingRows {
 
 /// The longest start `texts` share, in any case (the first's case kept).
 func commonPrefix(_ texts: [String]) -> String {
-    guard var common = texts.first.map(Array.init) else { return "" }
-    for text in texts.dropFirst() {
-        let other = Array(text)
-        var length = 0
-        while length < min(common.count, other.count), String(common[length]).lowercased() == String(other[length]).lowercased() {
-            length += 1
-        }
-        common = Array(common.prefix(length))
+    guard var common = texts.first else { return "" }
+    for text in texts.dropFirst() where !common.isEmpty {
+        common = commonPrefix(common, text)
     }
-    return String(common)
+    return common
+}
+
+/// The longest start `a` and `b` share, in any case (`a`'s case kept; `a` itself when it is all shared). Byte by byte
+/// while both are ASCII (an item's match, a keyword: most often all of it), character by character where either isn't
+/// (or a mark could join the last character compared): no string made per character.
+func commonPrefix(_ a: String, _ b: String) -> String {
+    var (a, b) = (a, b)
+    // The bytes both share, where they stop at a character's start in both; nil: not so.
+    let shared: Int? = a.withUTF8 { x in
+        b.withUTF8 { y in
+            let end = min(x.count, y.count)
+            var n = 0
+            while n < end {
+                var (c, d) = (x[n], y[n])
+                guard c < 0x80, d < 0x80 else { break }
+                if c != d {
+                    if (0x41...0x5A).contains(c) { c |= 0x20 }
+                    if (0x41...0x5A).contains(d) { d |= 0x20 }
+                    guard c == d else { break }
+                }
+                n += 1
+            }
+            return (n == x.count || x[n] < 0x80) && (n == y.count || y[n] < 0x80) ? n : nil
+        }
+    }
+    if let shared {
+        return shared == a.utf8.count ? a : String(a[..<a.utf8.index(a.utf8.startIndex, offsetBy: shared)])
+    }
+    var (k, l) = (a.startIndex, b.startIndex)
+    while k < a.endIndex, l < b.endIndex {
+        let (c, d) = (a[k], b[l])
+        guard c == d || c.lowercased() == d.lowercased() else { break }
+        (k, l) = (a.index(after: k), b.index(after: l))
+    }
+    return k == a.endIndex ? a : String(a[..<k])
 }

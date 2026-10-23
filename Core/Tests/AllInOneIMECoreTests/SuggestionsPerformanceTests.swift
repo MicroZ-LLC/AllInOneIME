@@ -64,6 +64,53 @@ struct SuggestionsPerformanceTests {
         }
     }
 
+    /// A template whose insertion never starts with what was typed (`"default": "{url}"`, a plugin's mistake) has no rows,
+    /// and costs a key over a list of 20,000 no more than a good one: only so many matching items are tried for a key.
+    @Test func aTemplateThatNeverFitsCostsAKeyLittle() async throws {
+        try await inEnglish {
+            let world = SuggestionsWorld()
+            try world.github(items: Self.items, manifest: SuggestionsPlugins.githubManifest(
+                query: false, insert: #"{ "default": "{url}", "chat": "{url}", "terminal": "{match}" }"#))
+            let field = world.field()
+            field.type("#1")
+            #expect(field.settle { world.lastStatus?.items == CompletionList.maxItems }, "loaded: \(String(describing: world.lastStatus))")
+            var keys: [KeyEvent] = []
+            for digit in "0123456789" { keys += [SuggestionKeys.key(digit), SuggestionKeys.backspace] }
+            let durations = timed(keys, in: field)
+            #expect(field.rows.isEmpty, "\(field.rows.map(\.text))")
+            let shown = durations.map { $0.formatted(.units(allowed: [.milliseconds], fractionalPart: .show(length: 1))) }
+            #expect(Self.median(durations) < Self.bound, "\(shown)")
+        }
+    }
+
+    /// Tab in a terminal over a list of 20,000 that all share a long start ("#1000000…"): what they share is found
+    /// quickly, though every matching item is looked at (`commonPrefix` compares without making strings).
+    @Test func tabInATerminalStaysQuickWithTheLargestList() async throws {
+        try await inEnglish {
+            let world = SuggestionsWorld()
+            let items = (1...CompletionList.maxItems).map { number in
+                CompletionItem(match: "#\(100_000_000_000 + number)", title: "Issue \(number)", arg: "#\(100_000_000_000 + number)")
+            }
+            try world.github(items: items, manifest: SuggestionsPlugins.githubManifest(query: false))
+            let field = world.field(app: "com.apple.Terminal", terminal: true)
+            field.type("#1")
+            #expect(field.settle { field.rows.count == 5 }, "\(field.rows.map(\.text))")
+            var durations: [Duration] = []
+            let clock = ContinuousClock()
+            for _ in 0..<5 {
+                let before = field.document
+                var handled = false
+                durations.append(clock.measure { handled = field.press(SuggestionKeys.tab) })
+                #expect(handled && field.document == before + "000000", "all of them share #1000000: \(field.document)")
+                field.type(" #1")
+                #expect(field.settle { field.rows.count == 5 }, "\(field.rows.map(\.text))")
+            }
+            let shown = durations.map { $0.formatted(.units(allowed: [.milliseconds], fractionalPart: .show(length: 1))) }
+            // A Tab, not each key: a little more is allowed (before, about 8 keys' bound).
+            #expect(Self.median(durations) < Self.bound * 3, "\(shown)")
+        }
+    }
+
     /// The rows over a list of 20,000 are those a list of all of them gives: the first 5 matching, in its order, after the
     /// picked ones.
     @Test func theRowsAreTheFirstFiveMatching() async throws {

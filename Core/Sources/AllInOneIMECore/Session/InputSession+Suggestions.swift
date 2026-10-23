@@ -489,21 +489,25 @@ extension InputSession {
         let t = InterfaceWords(language: UIText.language)
         let token = suggesting.token
         var common: String?
-        /// `completion` taken in: false once nothing more than what was typed is shared.
+        var commonCount = 0
+        let typedCount = typed.count
+        /// `completion` taken in: false once nothing more than what was typed is shared. (What is shared only ever gets
+        /// shorter: its characters counted again only then.)
         func share(_ completion: String) -> Bool {
-            common = commonPrefix([common ?? completion, completion])
-            return (common?.count ?? 0) > typed.count
+            let shared = commonPrefix(common ?? completion, completion)
+            if shared.utf8.count != common?.utf8.count { (common, commonCount) = (shared, shared.count) }
+            return commonCount > typedCount
         }
-        sources: for active in activeSources(s.settings()) {
+        // A plugin's rows answer the whole token.
+        sources: for active in activeSources(s.settings()) where typed == token {
             guard let after = PluginRows.afterPrefix(token, active.source) else { continue }
             let list = active.source.list ? s.store.list(active.key) : nil
             let answers = active.source.query && active.source.prefix != nil
                 ? s.store.answers(active.key, for: after.lowercased(), now: s.now()) : []
             var more = true
-            PluginRows.eachRow(token, plugin: active.plugin, source: active.source, lists: (list.map { [$0.items] } ?? []) + answers.map(\.items),
-                               appClass: appClass, in: t) { row in
-                guard row.typed == typed else { return true }
-                more = share(row.completion)
+            PluginRows.eachCompletion(token, plugin: active.plugin, source: active.source,
+                                      lists: (list.map { [$0.items] } ?? []) + answers.map(\.items), appClass: appClass, in: t) { completion in
+                more = share(completion)
                 return more
             }
             if !more { break sources }
