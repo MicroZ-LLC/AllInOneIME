@@ -37,7 +37,7 @@
 
 一个 macOS 输入法。句子开头打 `@` 就是命令，写完按 ⏎ 执行：`@improve` 让 AI 润色、给几种改写，`@translate` 翻译成你选的语言，`@question` 提问，`@agent` 交给 Claude Code、Gemini CLI、Kiro CLI 等编程 agent，`@open` 找文件、App 或打开网址。也可以按住右 ⌥ 说话。不打 `@` 时，按键照常交给 App。它还能打中文（拼音，基于 Rime 和雾凇拼音）、法语、韩语（韩文）和印地语（用拉丁字母打出天城文），也能把你自己的脚本变成 @ 命令。
 
-命令触发符默认是 `@`。在「设置 → 通用 → 命令触发符」可改成 `~` 等单个符号；之后用 `~translate` 等命令，`@` 则照常输入。也可以在配置文件里写 `"commandTrigger": "~"`。
+命令触发符默认是 `@`。在「设置 → 通用 → 命令触发符」可改成另一个符号：`#`、`%`、`&`、`*`、`+`、`|` 或 `~`；之后用 `~translate` 等命令，`@` 则照常输入。字母、数字、空格和打字要用的符号（拼音的按键，如 `'` `-` `=` `[` `]` `` ` ``，以及拼音打成中文标点的，如 `,` `.` `?` `\`）不能用，设置里会说明原因。也可以在配置文件里写 `"commandTrigger": "~"`。
 
 ![@improve 加拼音，按 ⏎：原文语言的润色和改写](docs/improve.png)
 
@@ -746,7 +746,7 @@ Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系�
 | `improveTranslates` | `@improve` 同时翻译（等于 `@translate @improve`） | `false` |
 | `voiceInput` | 按住右 ⌥ 说话 | `true` |
 | `actionKey` | 执行键：`"enter"`（⏎）、`"optionTap"`（单按 ⌥）、`"optionSpace"`（⌥空格）、`"space"`（空格） | `"enter"` |
-| `commandTrigger` | 命令触发符，单个可打印 ASCII 符号，如 `"~"`；无效值回退到 `"@"` | `"@"` |
+| `commandTrigger` | 命令触发符：`"#"`、`"%"`、`"&"`、`"*"`、`"+"`、`"@"`、`"\|"`、`"~"` 之一；其他值都按 `"@"` | `"@"` |
 | `uiLanguage` | 界面语言（设置窗口、候选框提示、菜单）：`"zh"`（简体中文）、`"en"`，或 App 带的别的语言的代码：`"zh-Hant"`、`"ja"`、`"ko"`、`"de"`、`"fr"`、`"es"`、`"pt-BR"` | `null`（跟随系统） |
 | `rewriteStyles` | 改写风格，例如 `["润色", "简洁", "黑话"]` | `["润色", "简洁", "正式"]` |
 | `jargonFile` | 你自己的黑话词表文件 | `null`（即 `~/.config/allinoneime/jargon.txt`） |

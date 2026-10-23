@@ -24927,13 +24927,48 @@
     "Use @" : {
       "comment" : "恢复 @ — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
-        "de" : { "stringUnit" : { "state" : "translated", "value" : "@ verwenden" } },
-        "es" : { "stringUnit" : { "state" : "translated", "value" : "Usar @" } },
-        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Utiliser @" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "@ に戻す" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "@ 사용" } },
-        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Usar @" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "恢復 @" } }
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@ verwenden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usar @"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utiliser @"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@ に戻す"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@ 사용"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usar @"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "恢復 @"
+          }
+        }
       }
     },
     "Use ⏎" : {

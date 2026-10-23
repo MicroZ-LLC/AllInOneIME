@@ -196,8 +196,11 @@ struct SettingsSchema {
         add(text("commandTrigger", tr("命令触发符", "Command trigger"),
                  tr("输入一个符号，例如 @ 或 ~。打在句首打开命令列表。", "Type one symbol, such as @ or ~, to open commands at the start of a sentence."),
                  value: config.commandTrigger, placeholder: "@"), to: &fields) { value in
-            guard let trigger = value.string, Config.validCommandTrigger(trigger) else {
+            guard let trigger = value.string else {
                 throw SettingsProblem(.badValue, field: "commandTrigger", message: SettingsService.badValue)
+            }
+            if let problem = Config.commandTriggerProblem(trigger) {
+                throw SettingsProblem(.badValue, field: "commandTrigger", message: problem.errorDescription ?? SettingsService.badValue)
             }
             store.config.commandTrigger = trigger
         }

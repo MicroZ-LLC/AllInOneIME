@@ -2727,6 +2727,53 @@
         }
       }
     },
+    "%@ is needed for typing (pinyin or Chinese punctuation), so it can't open commands. These work: %@" : {
+      "comment" : "%@ 打字时要用（拼音或中文标点），不能用来打开命令。可以用：%@ — Sources/AllInOneIMECore/Config.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ wird zum Tippen gebraucht (Pinyin oder chinesische Satzzeichen) und kann keine Befehle öffnen. Möglich sind: %2$@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ se necesita para escribir (pinyin o puntuación china), así que no puede abrir comandos. Sirven: %2$@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ sert à la saisie (pinyin ou ponctuation chinoise) et ne peut donc pas ouvrir les commandes. Possibles : %2$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ は入力（ピンイン・中国語の句読点）に使うため、コマンドを開く記号にはできません。使える記号：%2$@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 은(는) 입력(병음이나 중국어 문장 부호)에 쓰이므로 명령을 열 수 없습니다. 쓸 수 있는 기호: %2$@"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ é usado para digitar (pinyin ou pontuação chinesa), então não pode abrir comandos. Funcionam: %2$@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 打字時要用（拼音或中文標點），不能用來開啟命令。可以用：%2$@"
+          }
+        }
+      }
+    },
     "%@ is one of your custom commands" : {
       "comment" : "%@ 是一个自定义命令的名字 — Sources/AllInOneIMECore/UIText+Names.swift",
       "localizations" : {
@@ -11208,13 +11255,48 @@
     "Command trigger" : {
       "comment" : "命令触发符 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
-        "de" : { "stringUnit" : { "state" : "translated", "value" : "Befehlsauslöser" } },
-        "es" : { "stringUnit" : { "state" : "translated", "value" : "Activador de comandos" } },
-        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Déclencheur de commande" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "コマンド起動記号" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "명령 호출 기호" } },
-        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Acionador de comandos" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "命令觸發符" } }
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Befehlsauslöser"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activador de comandos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Déclencheur de commande"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コマンド起動記号"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "명령 호출 기호"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Acionador de comandos"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "命令觸發符"
+          }
+        }
       }
     },
     "Config file" : {
@@ -34449,6 +34531,53 @@
         }
       }
     },
+    "The command trigger must be one symbol, not a letter, digit or space. These work: %@" : {
+      "comment" : "命令触发符只能是一个符号，不能是字母、数字或空格。可以用：%@ — Sources/AllInOneIMECore/Config.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Befehlsauslöser muss ein einzelnes Symbol sein, kein Buchstabe, keine Ziffer und kein Leerzeichen. Möglich sind: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El activador de comandos debe ser un solo símbolo, no una letra, un dígito ni un espacio. Sirven: %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le déclencheur de commande doit être un seul symbole, ni lettre, ni chiffre, ni espace. Possibles : %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コマンド起動記号は記号1文字にしてください（英字・数字・スペースは使えません）。使える記号：%@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "명령 호출 기호는 기호 하나여야 하며 글자, 숫자, 공백은 안 됩니다. 쓸 수 있는 기호: %@"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O acionador de comandos deve ser um único símbolo, não uma letra, um dígito ou um espaço. Funcionam: %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "命令觸發符只能是一個符號，不能是字母、數字或空格。可以用：%@"
+          }
+        }
+      }
+    },
     "The config file has an error and was left as is: " : {
       "comment" : "配置文件有误，未做修改： — Sources/AllInOneIMECore/Settings/SettingsService.swift",
       "localizations" : {
@@ -38077,13 +38206,48 @@
     "Type one symbol, such as @ or ~, to open commands at the start of a sentence." : {
       "comment" : "输入一个符号，例如 @ 或 ~。打在句首打开命令列表。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
-        "de" : { "stringUnit" : { "state" : "translated", "value" : "Gib am Satzanfang ein Symbol wie @ oder ~ ein, um Befehle zu öffnen." } },
-        "es" : { "stringUnit" : { "state" : "translated", "value" : "Escribe un símbolo, como @ o ~, al inicio de una frase para abrir los comandos." } },
-        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Saisissez un symbole, comme @ ou ~, en début de phrase pour ouvrir les commandes." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "文頭で @ や ~ などの記号を1つ入力するとコマンドが開きます。" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "문장 시작에 @ 또는 ~ 같은 기호 하나를 입력하면 명령이 열립니다." } },
-        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Digite um símbolo, como @ ou ~, no início de uma frase para abrir os comandos." } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "在句首輸入一個符號，例如 @ 或 ~，即可開啟命令清單。" } }
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gib am Satzanfang ein Symbol wie @ oder ~ ein, um Befehle zu öffnen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escribe un símbolo, como @ o ~, al inicio de una frase para abrir los comandos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saisissez un symbole, comme @ ou ~, en début de phrase pour ouvrir les commandes."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文頭で @ や ~ などの記号を1つ入力するとコマンドが開きます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "문장 시작에 @ 또는 ~ 같은 기호 하나를 입력하면 명령이 열립니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Digite um símbolo, como @ ou ~, no início de uma frase para abrir os comandos."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在句首輸入一個符號，例如 @ 或 ~，即可開啟命令清單。"
+          }
+        }
       }
     },
     "Type results out" : {

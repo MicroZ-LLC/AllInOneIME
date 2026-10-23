@@ -908,8 +908,7 @@ struct SettingsView: View {
                                 model.config.commandTrigger = commandTriggerEntry
                             }
                         }
-                        .onSubmit { commandTriggerEntry = model.config.commandTrigger }
-                    if model.config.commandTrigger != "@" {
+                    if model.config.commandTrigger != "@" || commandTriggerEntry != "@" {
                         Button(tr("恢复 @", "Use @")) {
                             commandTriggerEntry = "@"
                         }
@@ -921,6 +920,11 @@ struct SettingsView: View {
                           "Type one symbol, such as @ or ~, to open commands at the start of a sentence."))
             }
             .disabled(!model.canSave)
+            // One that typing needs, or not a symbol: said, and the trigger stays the one in use.
+            if let problem = Config.commandTriggerProblem(commandTriggerEntry) {
+                Label(problem.errorDescription ?? "", systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(.red)
+            }
             // Results typed in character by character, like a person typing.
             Toggle(isOn: $model.config.typeOut) {
                 titled(tr("逐字上屏", "Type results out"),

@@ -43,7 +43,7 @@ address. You can also hold right ⌥ and talk. Without `@`, your keys go to the 
 (pinyin, built on Rime and rime-ice), French, Korean (Hangul) and Hindi (Devanagari from Latin letters), and runs
 your own scripts as @ commands.
 
-The command trigger defaults to `@`. In Settings → General → Command trigger, choose another single symbol such as `~`; commands then start with `~` (for example, `~translate`), and `@` types normally. You can also set `"commandTrigger": "~"` in the config file.
+The command trigger defaults to `@`. In Settings → General → Command trigger, choose another single symbol: `#`, `%`, `&`, `*`, `+`, `|` or `~`; commands then start with it (for example, `~translate`), and `@` types normally. Letters, digits, spaces and the symbols typing needs (pinyin's keys such as `'` `-` `=` `[` `]` `` ` ``, and the ones pinyin types as Chinese punctuation, such as `,` `.` `?` `\`) are refused, and Settings says why. You can also set `"commandTrigger": "~"` in the config file.
 
 ![@improve and a rough sentence, then ⏎: polished versions, plus rewrites](docs/en/improve.png)
 
@@ -879,7 +879,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 | `improveTranslates` | `@improve` also translates (as `@translate @improve`) | `false` |
 | `voiceInput` | Hold right ⌥ to talk | `true` |
 | `actionKey` | Action key: `"enter"` (⏎), `"optionTap"` (Tap ⌥), `"optionSpace"` (⌥Space), `"space"` (Space) | `"enter"` |
-| `commandTrigger` | One printable ASCII symbol that starts commands, such as `"~"`; invalid values fall back to `"@"` | `"@"` |
+| `commandTrigger` | The symbol that starts commands: one of `"#"`, `"%"`, `"&"`, `"*"`, `"+"`, `"@"`, `"\|"`, `"~"`; any other value is `"@"` | `"@"` |
 | `uiLanguage` | Interface language (settings window, candidate panel hints, menu): `"zh"` (Simplified Chinese), `"en"`, or the code of another language the app ships: `"zh-Hant"`, `"ja"`, `"ko"`, `"de"`, `"fr"`, `"es"`, `"pt-BR"` | `null` (follow the system) |
 | `rewriteStyles` | Rewrite styles: `polish`, `concise`, `formal`, `casual`, `tactful`, `jargon`, e.g. `["polish", "concise", "jargon"]` | Polish, Concise, Formal |
 | `jargonFile` | Your own jargon list file | `null` (i.e. `~/.config/allinoneime/jargon.txt`) |
