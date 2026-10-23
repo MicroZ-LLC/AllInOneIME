@@ -428,7 +428,8 @@ extension InputSession {
     /// The rows for the token (5 at most) and the class of app they are for: the plugins' sources that apply (their
     /// list's and queries' items, those picked before first), coding mode's (the packs', the field's words). None while
     /// something is composed, in secure input, where a switch is off or the app has none (spec 1.5). Asks the queries
-    /// due (spec 6.4) and marks the sources used.
+    /// due (spec 6.4) and marks the sources used. Each source's items are looked through only for what matches, until
+    /// its first 5 rows (with the rows picked before, wherever they are): a list may have 20,000.
     func suggestionsRows(askAgain: Bool) -> ([SuggestionRow], SuggestionsAppClass) {
         let appClass = SuggestionsAppClass(app: app, terminal: terminal)
         let s = services.suggestions
@@ -438,7 +439,7 @@ extension InputSession {
         else { return ([], appClass) }
         let now = s.now()
         let t = InterfaceWords(language: UIText.language)
-        let picks = s.loadPicks()
+        let scores = Frecency.scores(s.loadPicks())
         var rows: [SuggestionRow] = []
         let token = suggesting.token
         for active in activeSources(settings) {
@@ -449,17 +450,19 @@ extension InputSession {
             let list = active.source.list ? s.store.list(active.key) : nil
             let lowered = after.lowercased()
             let answers = active.source.query ? s.store.answers(active.key, for: lowered, now: now) : []
+            let picked = Set(scores.keys.filter { $0.plugin == active.key.plugin && $0.source == active.key.source }.map(\.match))
             rows += PluginRows.rows(token, plugin: active.plugin, source: active.source,
-                                    lists: [list?.items ?? []] + answers.map(\.items), madeAt: list?.madeAt, appClass: appClass, in: t)
+                                    lists: (list.map { [$0.items] } ?? []) + answers.map(\.items), madeAt: list?.madeAt, appClass: appClass,
+                                    picked: picked, limit: Self.maxSuggestionRows, in: t)
             if active.source.query, after.count >= active.source.queryMinChars {
                 suggestionsQuery(active, text: after, answers: answers, askAgain: askAgain, now: now)
             }
         }
-        rows = Frecency.ordered(rows, picks: picks)
+        rows = Frecency.ordered(rows, scores: scores)
         if s.codingMode() {
             let identifier = SuggestionsToken.identifier(endingAt: SuggestionsToken.normalized(token))
             rows += Frecency.ordered(CodingRows.rows(identifier, packs: s.codingPacks(), words: terminal ? [] : suggesting.words,
-                                                     indent: suggesting.indent, appClass: appClass, in: t), picks: picks)
+                                                     indent: suggesting.indent, appClass: appClass, in: t), scores: scores)
         }
         return (Array(rows.prefix(Self.maxSuggestionRows)), appClass)
     }
@@ -548,10 +551,10 @@ extension InputSession {
         SuggestionsWork.start {
             var call = call
             call.context.preferences = preferences()
-            let result: Result<CompletionList, SuggestionsStore.LoadFailure>
+            let result: Result<SuggestionsStore.LoadedList, SuggestionsStore.LoadFailure>
             do {
                 switch CompletionOutput.read(try await runtime.load(call), digitsOnly: digitsOnly) {
-                case let .success(list): result = .success(list)
+                case let .success(list): result = .success(SuggestionsStore.LoadedList(list))
                 case let .failure(failure): result = .failure(.init(message: failure.message))
                 }
             } catch {
@@ -565,7 +568,7 @@ extension InputSession {
     /// for a start of it (nor one on its way); after that only when the answer kept for the longest start of it leaves
     /// fewer than 5 rows, once typing pauses. One at a time for a source: one on its way for a start of `text` is waited
     /// for, another is cancelled.
-    func suggestionsQuery(_ active: ActiveSource, text: String, answers: [(text: String, items: [CompletionItem])],
+    func suggestionsQuery(_ active: ActiveSource, text: String, answers: [(text: String, items: CompletionItems)],
                           askAgain: Bool, now: Date) {
         let s = services.suggestions
         let lowered = text.lowercased()
@@ -575,7 +578,8 @@ extension InputSession {
         if let inFlight, lowered.hasPrefix(inFlight) { return }
         if let longest = answers.first {
             let token = SuggestionsToken.normalized(suggesting.token).lowercased()
-            guard longest.items.filter({ PluginRows.matches($0, token, active.source) }).count < Self.maxSuggestionRows else { return }
+            guard PluginRows.count(longest.items, answering: token, active.source, upTo: Self.maxSuggestionRows) < Self.maxSuggestionRows
+            else { return }
             guard askAgain else {
                 if suggesting.queryWaitFor != suggesting.token {
                     suggesting.queryWait += 1
@@ -595,10 +599,10 @@ extension InputSession {
         let task = SuggestionsWork.start {
             var call = call
             call.context.preferences = preferences()
-            var items: [CompletionItem]?
+            var items: CompletionItems?
             do {
                 if case let .success(list) = CompletionOutput.read(try await runtime.query(text, call), digitsOnly: digitsOnly) {
-                    items = list.items
+                    items = CompletionItems(list.items)
                 }
             } catch {}
             store.deposit(key, .query(id: id, text: lowered, items: items, cancelled: Task.isCancelled), from: session,

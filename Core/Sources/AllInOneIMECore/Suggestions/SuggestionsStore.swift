@@ -44,8 +44,19 @@ public final class SuggestionsStore: @unchecked Sendable {
     static let queryRest: TimeInterval = 60
 
     struct Answer {
-        var items: [CompletionItem]
+        var items: CompletionItems
         var at: Date
+    }
+
+    /// A list as a load left it: its items ready to be matched, and when it was made (`CompletionList.fetchedAt`).
+    struct LoadedList: Sendable {
+        var items: CompletionItems
+        var fetchedAt: Double?
+
+        init(_ list: CompletionList) {
+            items = CompletionItems(list.items)
+            fetchedAt = list.fetchedAt
+        }
     }
 
     /// Why a load failed, as Settings says it.
@@ -55,14 +66,14 @@ public final class SuggestionsStore: @unchecked Sendable {
 
     /// A load's or a query's result, as its task left it.
     enum Pending {
-        case load(id: Int, Result<CompletionList, LoadFailure>)
+        case load(id: Int, Result<LoadedList, LoadFailure>)
         /// nil: it failed (or was cancelled: `cancelled`).
-        case query(id: Int, text: String, items: [CompletionItem]?, cancelled: Bool)
+        case query(id: Int, text: String, items: CompletionItems?, cancelled: Bool)
     }
 
     struct Source {
         /// The last good list, when it was made (`fetchedAt`, else when it was loaded) and loaded.
-        var list: [CompletionItem]?
+        var list: CompletionItems?
         var madeAt: Date?
         var loadedAt: Date?
         /// When the last load started, and the one in flight.
@@ -216,7 +227,7 @@ public final class SuggestionsStore: @unchecked Sendable {
                         } else {
                             source.queryFailures += 1
                             // Not asked again for this text a while.
-                            source.answers[text] = Answer(items: [], at: now)
+                            source.answers[text] = Answer(items: CompletionItems([]), at: now)
                             if source.queryFailures >= Self.queryFailuresToRest { source.queryRestUntil = now.addingTimeInterval(Self.queryRest) }
                         }
                         if source.answers.count > Self.maxAnswers,
@@ -314,7 +325,7 @@ public final class SuggestionsStore: @unchecked Sendable {
     }
 
     /// The list of `key` (nil: none yet), and its age's start.
-    func list(_ key: CompletionSourceKey) -> (items: [CompletionItem], madeAt: Date?)? {
+    func list(_ key: CompletionSourceKey) -> (items: CompletionItems, madeAt: Date?)? {
         state.withLock { state in
             state.sources[key].flatMap { source in source.list.map { ($0, source.madeAt) } }
         }
@@ -323,7 +334,7 @@ public final class SuggestionsStore: @unchecked Sendable {
     // MARK: - Queries
 
     /// The answers kept for `key`'s texts that `text` (in small letters) starts with, the longest first, as of `now`.
-    func answers(_ key: CompletionSourceKey, for text: String, now: Date) -> [(text: String, items: [CompletionItem])] {
+    func answers(_ key: CompletionSourceKey, for text: String, now: Date) -> [(text: String, items: CompletionItems)] {
         state.withLock { state in
             guard let source = state.sources[key] else { return [] }
             return source.answers.filter { text.hasPrefix($0.key) && now.timeIntervalSince($0.value.at) < Self.answerLife }
@@ -380,9 +391,10 @@ public final class SuggestionsStore: @unchecked Sendable {
         let url = folder.appendingPathComponent(key.fileName)
         guard let data = Self.disk.sync(execute: { try? Data(contentsOf: url) }),
               let cached = try? JSONDecoder().decode(CachedList.self, from: data) else { return false }
+        let items = CompletionItems(cached.items)
         return with(key) { source in
             guard source.list == nil else { return false }
-            source.list = cached.items
+            source.list = items
             source.loadedAt = Date(timeIntervalSince1970: cached.loadedAt)
             source.madeAt = Date(timeIntervalSince1970: cached.fetchedAt ?? cached.loadedAt)
             if let used = cached.lastUsed { source.lastUsed = max(source.lastUsed ?? .distantPast, Date(timeIntervalSince1970: used)) }
@@ -401,7 +413,7 @@ public final class SuggestionsStore: @unchecked Sendable {
     /// `source`'s list written to its file in `folder` (readable by the user only), off the session's thread.
     static func write(_ source: Source, of key: CompletionSourceKey, in folder: URL) {
         guard let items = source.list, let loadedAt = source.loadedAt else { return }
-        let cached = CachedList(items: items, fetchedAt: source.madeAt?.timeIntervalSince1970, loadedAt: loadedAt.timeIntervalSince1970,
+        let cached = CachedList(items: items.items, fetchedAt: source.madeAt?.timeIntervalSince1970, loadedAt: loadedAt.timeIntervalSince1970,
                                 lastUsed: source.lastUsed?.timeIntervalSince1970)
         disk.async {
             guard let data = try? JSONEncoder().encode(cached) else { return }

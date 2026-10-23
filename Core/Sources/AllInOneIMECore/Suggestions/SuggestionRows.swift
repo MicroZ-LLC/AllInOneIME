@@ -22,6 +22,73 @@ struct SuggestionRow: Equatable {
     var rest: String { String(insertion.dropFirst(typed.count)) }
 }
 
+/// A list's or a query's items with what finding a token's among them needs, made once (off the session's thread, as
+/// they come): each `match` in small letters, and where each is.
+struct CompletionItems: Sendable {
+    let items: [CompletionItem]
+    /// Each item's `match` in small letters, in the items' order.
+    let lowered: [String]
+    /// The first item of each match in small letters.
+    let positions: [String: Int]
+
+    /// Their UTF-8, one after another, and where each starts (and, last, where the last ends): what a token's start is
+    /// looked for in, a few bytes compared for most items.
+    private let bytes: [UInt8]
+    private let starts: [Int]
+
+    init(_ items: [CompletionItem]) {
+        self.items = items
+        lowered = items.map { $0.match.lowercased() }
+        var positions: [String: Int] = [:]
+        positions.reserveCapacity(items.count)
+        var bytes: [UInt8] = []
+        var starts: [Int] = []
+        starts.reserveCapacity(items.count + 1)
+        for (index, match) in lowered.enumerated() {
+            if positions[match] == nil { positions[match] = index }
+            starts.append(bytes.count)
+            bytes += match.utf8
+        }
+        starts.append(bytes.count)
+        (self.positions, self.bytes, self.starts) = (positions, bytes, starts)
+    }
+
+    var count: Int { items.count }
+
+    /// The first item from `start` on that answers `token` (normalized, in small letters) as `source` compares
+    /// (`PluginRows.matches`); nil: none.
+    func next(answering token: String, _ source: CompletionSource, from start: Int) -> Int? {
+        guard start < items.count else { return nil }
+        // A token not in ASCII, or compared whole: as `matches` compares, item by item.
+        let wanted = Array(token.utf8)
+        guard source.compare == .prefix, wanted.allSatisfy({ $0 < 0x80 }) else {
+            return (start..<items.count).first { PluginRows.matches(lowered[$0], token, source) }
+        }
+        return bytes.withUnsafeBufferPointer { bytes in
+            starts.withUnsafeBufferPointer { starts in
+                wanted.withUnsafeBufferPointer { wanted in
+                    var index = start
+                    while index < items.count {
+                        let from = starts[index], length = starts[index + 1] - from
+                        var same = length >= wanted.count
+                        var offset = 0
+                        while same, offset < wanted.count {
+                            same = bytes[from + offset] == wanted[offset]
+                            offset += 1
+                        }
+                        // What follows isn't ASCII: a mark could join the token's last character (`hasPrefix` says).
+                        if same, length == wanted.count || bytes[from + wanted.count] < 0x80 || lowered[index].hasPrefix(token) {
+                            return index
+                        }
+                        index += 1
+                    }
+                    return nil
+                }
+            }
+        }
+    }
+}
+
 /// The rows a plugin's completion source has for a token (spec 1.3, 1.4, 6.7, 6.8, 6.13).
 enum PluginRows {
     /// The part of `token` after `source`'s prefix, when the source applies to it: it starts with the prefix (in any
@@ -38,10 +105,20 @@ enum PluginRows {
         return after.count >= source.minChars ? after : nil
     }
 
-    /// Whether `item` answers `token` (normalized, in small letters) as `source` compares.
-    static func matches(_ item: CompletionItem, _ lowered: String, _ source: CompletionSource) -> Bool {
-        let match = item.match.lowercased()
-        return source.compare == .exact ? match == lowered : match.hasPrefix(lowered)
+    /// Whether an item whose `match` in small letters is `match` answers `token` (normalized, in small letters) as
+    /// `source` compares.
+    static func matches(_ match: String, _ lowered: String, _ source: CompletionSource) -> Bool {
+        source.compare == .exact ? match == lowered : match.hasPrefix(lowered)
+    }
+
+    /// How many of `items` answer `token` (normalized, in small letters), counted up to `limit`.
+    static func count(_ items: CompletionItems, answering lowered: String, _ source: CompletionSource, upTo limit: Int) -> Int {
+        var (count, start) = (0, 0)
+        while count < limit, let found = items.next(answering: lowered, source, from: start) {
+            count += 1
+            start = found + 1
+        }
+        return count
     }
 
     /// The templates of `source` for an app of `appClass`: nil, none there (`null`); the terminal and code editor
@@ -59,28 +136,52 @@ enum PluginRows {
         return nil
     }
 
-    /// The rows of `items` (the list's, then the queries' answers, each match once) for `token` in an app of
-    /// `appClass`: those whose insertion starts with what was typed.
-    static func rows(_ token: String, plugin: InstalledPlugin, source: CompletionSource, lists: [[CompletionItem]],
-                     madeAt: Date?, appClass: SuggestionsAppClass, in t: InterfaceWords) -> [SuggestionRow] {
+    /// The rows of `lists` (the list's items, then the queries' answers, each match once: its first) for `token` in an
+    /// app of `appClass`, in their order: those whose insertion starts with what was typed. Only what matches is looked
+    /// at, and only until `limit` rows are found (nil: all of them); the items picked before (`picked`, their `match`)
+    /// are rows wherever they are, looked up on their own.
+    static func rows(_ token: String, plugin: InstalledPlugin, source: CompletionSource, lists: [CompletionItems],
+                     madeAt: Date?, appClass: SuggestionsAppClass, picked: Set<String> = [], limit: Int? = nil,
+                     in t: InterfaceWords) -> [SuggestionRow] {
         guard let templates = templates(source, appClass) else { return [] }
+        let parsed = templates.compactMap(CompletionTemplate.parts)
         let typed = SuggestionsToken.normalized(token)
         let lowered = typed.lowercased()
         let title = source.title.text(chinese: t.chinese)
+        func row(_ item: CompletionItem) -> SuggestionRow? {
+            guard let insertion = CompletionTemplate.fill(parsed, with: item),
+                  SuggestionsToken.normalized(insertion).lowercased().hasPrefix(lowered) else { return nil }
+            let (text, comment) = shown(item)
+            return SuggestionRow(text: text, comment: comment, insertion: insertion, completion: item.match, typed: token,
+                                 pick: SuggestionPick(plugin: plugin.name, source: source.name, match: item.match),
+                                 source: title, madeAt: madeAt)
+        }
+        // Where each row is: its list, then its place there.
+        var found: [(list: Int, index: Int, row: SuggestionRow)] = []
         var seen = Set<String>()
-        var rows: [SuggestionRow] = []
-        for list in lists {
-            for item in list where matches(item, lowered, source) {
-                guard seen.insert(item.match.lowercased()).inserted,
-                      let insertion = CompletionTemplate.fill(templates, with: item),
-                      SuggestionsToken.normalized(insertion).lowercased().hasPrefix(lowered) else { continue }
-                let (text, comment) = shown(item)
-                rows.append(SuggestionRow(text: text, comment: comment, insertion: insertion, completion: item.match, typed: token,
-                                          pick: SuggestionPick(plugin: plugin.name, source: source.name, match: item.match),
-                                          source: title, madeAt: madeAt))
+        var others = 0
+        scan: for (number, list) in lists.enumerated() {
+            var start = 0
+            while let index = list.next(answering: lowered, source, from: start) {
+                start = index + 1
+                guard seen.insert(list.lowered[index]).inserted else { continue }
+                let item = list.items[index]
+                // Picked before: looked up below, wherever it is.
+                if picked.contains(item.match) { continue }
+                guard let row = row(item) else { continue }
+                found.append((number, index, row))
+                others += 1
+                if let limit, others >= limit { break scan }
             }
         }
-        return rows
+        for match in picked {
+            let key = match.lowercased()
+            guard matches(key, lowered, source),
+                  let (number, index) = lists.enumerated().lazy.compactMap({ number, list in list.positions[key].map { (number, $0) } }).first,
+                  lists[number].items[index].match == match, let row = row(lists[number].items[index]) else { continue }
+            found.append((number, index, row))
+        }
+        return found.sorted { ($0.list, $0.index) < ($1.list, $1.index) }.map(\.row)
     }
 
     /// An item's row: its match, then its title and subtitle; its title alone when it starts with its match ("#12 Fix
@@ -114,8 +215,12 @@ enum Frecency {
     }
 
     static func ordered(_ rows: [SuggestionRow], picks: [SuggestionPick]) -> [SuggestionRow] {
-        guard !picks.isEmpty else { return rows }
-        let scores = scores(picks)
+        ordered(rows, scores: scores(picks))
+    }
+
+    /// `ordered` with the picks' scores (`scores`), worked out once for several sources' rows.
+    static func ordered(_ rows: [SuggestionRow], scores: [SuggestionPick: Double]) -> [SuggestionRow] {
+        guard !scores.isEmpty else { return rows }
         let picked = rows.enumerated().compactMap { index, row -> (Int, Double)? in
             row.pick.flatMap { scores[$0] }.map { (index, $0) }
         }.sorted { $0.1 != $1.1 ? $0.1 > $1.1 : $0.0 < $1.0 }.map(\.0)

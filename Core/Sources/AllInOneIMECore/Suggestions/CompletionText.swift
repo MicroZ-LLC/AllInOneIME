@@ -35,18 +35,19 @@ enum CompletionTemplate {
 
     /// `templates` filled with `item`'s variables: the first whose variables the item all has (nil: none).
     static func fill(_ templates: [String], with item: CompletionItem) -> String? {
-        var variables = item.variables ?? [:]
-        variables["match"] = item.match
-        variables["arg"] = item.arg ?? item.match
-        for template in templates {
-            guard let parts = parts(template) else { continue }
+        fill(templates.compactMap(parts), with: item)
+    }
+
+    /// `fill` with the templates in their parts (`parts`), read once for many items.
+    static func fill(_ templates: [[Part]], with item: CompletionItem) -> String? {
+        for parts in templates {
             var out = ""
             var complete = true
             for part in parts {
                 switch part {
                 case let .text(text): out += text
                 case let .variable(name):
-                    guard let value = variables[name] else {
+                    guard let value = value(of: name, in: item) else {
                         complete = false
                         break
                     }
@@ -57,6 +58,15 @@ enum CompletionTemplate {
             if complete { return CompletionOutput.clean(out) }
         }
         return nil
+    }
+
+    /// The variable `name` of `item`: its `match`, its `arg` (else its match), or one of its own.
+    static func value(of name: String, in item: CompletionItem) -> String? {
+        switch name {
+        case "match": return item.match
+        case "arg": return item.arg ?? item.match
+        default: return item.variables?[name]
+        }
     }
 }
 

@@ -67,6 +67,29 @@ struct SuggestionsTests {
         #expect(PluginRows.afterPrefix("12a", accounts) == nil)
     }
 
+    /// The items a token's start is looked for in (`CompletionItems`, their bytes) answer it as `hasPrefix` does, letters
+    /// with marks too; compared whole, as the whole.
+    @Test func theItemsAnswerATokenAsItsStart() {
+        let matches = ["#12", "#1234", "PROJ-12", "proj-120", "#é1", "#e1", "#ÉTÉ", "Ai", "AİX", "#1", "#12"]
+        let items = CompletionItems(matches.map { CompletionItem(match: $0) })
+        #expect(items.positions["#12"] == 0 && items.positions["proj-12"] == 2, "the first of each, in small letters")
+        let prefix = CompletionSource(name: "s", title: LocalizedText(en: "S"), prefix: "#")
+        let exact = CompletionSource(name: "s", title: LocalizedText(en: "S"), prefix: "#", compare: .exact)
+        for source in [prefix, exact] {
+            for token in ["#", "#1", "#12", "proj-12", "#é", "#e", "#ét", "ai", "aİ".lowercased(), "x", ""] {
+                var found: [Int] = []
+                var start = 0
+                while let index = items.next(answering: token, source, from: start) {
+                    found.append(index)
+                    start = index + 1
+                }
+                let expected = items.lowered.indices.filter { PluginRows.matches(items.lowered[$0], token, source) }
+                #expect(found == expected, "\(source.compare) \(token): \(found.map { matches[$0] })")
+                #expect(PluginRows.count(items, answering: token, source, upTo: 2) == min(expected.count, 2), "\(token)")
+            }
+        }
+    }
+
     // MARK: - Coding
 
     @Test func aSnippetsBodyGoesInAsText() {
