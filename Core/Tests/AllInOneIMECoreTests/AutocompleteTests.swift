@@ -572,6 +572,42 @@ struct AutocompleteTests {
         }
     }
 
+    /// Tab, then ⌘Z as the next key within a few seconds (`Autocomplete.undoWindow`): taken back, so not taken at all
+    /// (a habitual Tab after a pause in Jupyter, say): counted as waved away and undone, and learned so for the app, where
+    /// it may stop. Later, or after another key, ⌘Z is the user's own.
+    @Test func aTabTakenBackWithCommandZIsNotTaken() {
+        withInterfaceLanguage("en") {
+            let undo = KeyEvent(keyCode: 0x06, characters: "z", charactersIgnoringModifiers: "z", modifiers: .command)
+            let store = AutocompleteStore()
+            store.learn { learning in for _ in 0..<29 { _ = learning.record(false, in: "com.example.editor") } }
+            let r = rig(store: store)
+            r.host.type("Hello wor")
+            r.pauseEnds(expecting: "x")
+            r.clock.advance(0.5)
+            #expect(r.host.press(FakeHost.tab))
+            #expect(store.metrics.accepted == 1 && store.metrics.acceptedCharacters == 16 && !store.stopped(in: "com.example.editor"))
+            r.clock.advance(3)
+            r.host.press(undo)
+            let metrics = store.metrics
+            #expect(metrics.accepted == 0 && metrics.undone == 1 && metrics.dismissed == 1 && metrics.acceptedCharacters == 0)
+            #expect(store.learning.apps["com.example.editor"]?.outcomes.contains(true) == false)
+            #expect(store.stopped(in: "com.example.editor") && metrics.stoppedApps == 1)
+            #expect(r.host.noticeAlone == "Autocomplete wasn't used in Editor, so it stopped there (Settings → Apps can keep it on)")
+            // Too late, or not the next key: the user's own ⌘Z, the Tab taken.
+            for (wait, key) in [(6.0, nil), (0.5, FakeHost.space)] as [(TimeInterval, KeyEvent?)] {
+                let later = rig()
+                later.host.type("Hello wor")
+                later.pauseEnds(expecting: "x")
+                later.clock.advance(0.5)
+                later.host.press(FakeHost.tab)
+                later.clock.advance(wait)
+                if let key { later.host.press(key) }
+                later.host.press(undo)
+                #expect(later.store.metrics.accepted == 1 && later.store.metrics.undone == 0, "\(wait)")
+            }
+        }
+    }
+
     @Test func aTabRightAsItAppearsOrWithAModifierIsTheApps() {
         withInterfaceLanguage("en") {
             let r = rig()

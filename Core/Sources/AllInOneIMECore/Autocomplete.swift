@@ -22,8 +22,9 @@ public enum Autocomplete {
     /// A Tab this soon after the suggestion came up is the user's own (pressed before they could see it): it goes to the
     /// app, and the suggestion goes.
     public static let tabGrace: TimeInterval = 0.12
-    /// ⌘Z this soon after Tab put a suggestion in counts as one taken by mistake (`Metrics.undone`).
-    public static let undoWindow: TimeInterval = 2
+    /// ⌘Z as the next key this soon after Tab put a suggestion in takes it back: a Tab pressed out of habit (to indent, to
+    /// take an editor's own completion), so the suggestion counts as not taken (`Metrics.undone`, `Learning.takenBack`).
+    public static let undoWindow: TimeInterval = 5
     /// How long the model may say nothing before the request is given up.
     public static let timeout: TimeInterval = 4
     /// The answer's limit in tokens: a dozen words, with room to spare.
@@ -441,6 +442,22 @@ public enum Autocomplete {
             var entry = apps[key] ?? App()
             entry.outcomes = Array((entry.outcomes + [taken]).suffix(Self.window))
             entry.dismissedInARow = taken ? 0 : entry.dismissedInARow + 1
+            return settle(entry, key)
+        }
+
+        /// The suggestion just taken in `app` taken back at once (⌘Z right after Tab, `undoWindow`): not taken after all.
+        /// True when it stops there now.
+        public mutating func takenBack(in app: String) -> Bool {
+            let key = app.lowercased()
+            guard var entry = apps[key], entry.outcomes.last == true else { return false }
+            entry.outcomes[entry.outcomes.count - 1] = false
+            entry.dismissedInARow += 1
+            return settle(entry, key)
+        }
+
+        /// `entry` kept for `key`, stopped when none of the last `window` was taken: true when it stops now.
+        private mutating func settle(_ entry: App, _ key: String) -> Bool {
+            var entry = entry
             let stops = !entry.stopped && entry.outcomes.count >= Self.window && !entry.outcomes.contains(true)
             if stops { entry.stopped = true }
             apps[key] = entry
@@ -473,7 +490,7 @@ public enum Autocomplete {
         public var shown = 0
         /// Shown from what was kept (`Cache`), with no request.
         public var fromCache = 0
-        /// Taken with Tab.
+        /// Taken with Tab (and not taken back at once: `undone`).
         public var accepted = 0
         /// Typed to their end.
         public var typedThrough = 0
@@ -481,7 +498,7 @@ public enum Autocomplete {
         public var shownCharacters = 0
         /// Of what was shown, what went in: by Tab, and typed along.
         public var acceptedCharacters = 0
-        /// ⌘Z within `undoWindow` of a Tab.
+        /// Taken with Tab, then back with ⌘Z right after it (`undoWindow`): counted as waved away (`dismissed`), not taken.
         public var undone = 0
         /// Answers that came too late to show (`Route.late`), and requests that failed.
         public var late = 0
@@ -527,8 +544,8 @@ public enum Autocomplete {
             let sorted = latencies.sorted()
             return sorted[min(sorted.count - 1, Int((Double(sorted.count) * 0.9).rounded(.up)) - 1)]
         }
-        /// Tabs taken back at once, of those taken.
-        public var undoneShare: Double? { accepted == 0 ? nil : Double(undone) / Double(accepted) }
+        /// Tabs taken back at once, of every Tab.
+        public var undoneShare: Double? { accepted + undone == 0 ? nil : Double(undone) / Double(accepted + undone) }
         /// Turned off within a day of being turned on, of the times it was turned on.
         public var offWithinADayShare: Double? { turnedOn == 0 ? nil : Double(turnedOffWithinADay) / Double(turnedOn) }
 

@@ -25,8 +25,9 @@ struct AutocompleteField {
     /// What was typed into the field, for one that tells nothing of its text (`Autocomplete.Typed`), and when last.
     var typed = Autocomplete.Typed()
     var typedAt: TimeInterval = 0
-    /// When Tab last put a suggestion in: ⌘Z right after is counted (`Autocomplete.Metrics.undone`).
-    var acceptedAt: TimeInterval?
+    /// When Tab last put a suggestion in, and how many characters of it went in (typed along and by Tab): ⌘Z as the next key
+    /// takes it back (`Autocomplete.undoWindow`).
+    var taken: (at: TimeInterval, characters: Int)?
 }
 
 /// What autocomplete says, in the interface language.
@@ -101,16 +102,16 @@ extension InputSession {
         tasks.cancel(.autocomplete)
     }
 
-    /// Before the composer has `event`. Every key ends the pause and stops the request; ⌘Z right after a Tab is counted.
+    /// Before the composer has `event`. Every key ends the pause and stops the request; ⌘Z right after a Tab takes the
+    /// suggestion back (`autocompleteTakenBack`).
     /// With a suggestion up: Tab puts it in (true), or goes to the app as it would (`Autocomplete.tab`: ⇧Tab, ⌥Tab, a Tab
     /// right as it came up) and the suggestion goes; Esc takes it down (true). Nil: the key goes on.
     func autocompleteBeforeKey(_ event: KeyEvent) -> Bool? {
         let now = services.uptime()
-        if let at = autocomplete.acceptedAt, now - at <= Autocomplete.undoWindow, Self.isUndo(event) {
-            services.autocomplete.count { $0.undone += 1 }
-            log.notice("autocomplete: ⌘Z right after a suggestion went in")
+        if let taken = autocomplete.taken, now - taken.at <= Autocomplete.undoWindow, Self.isUndo(event) {
+            autocompleteTakenBack(characters: taken.characters)
         }
-        autocomplete.acceptedAt = nil
+        autocomplete.taken = nil
         autocomplete.pause += 1
         (autocomplete.reading, autocomplete.asked) = (nil, nil)
         tasks.cancel(.autocomplete)
@@ -132,7 +133,7 @@ extension InputSession {
             log.notice("autocomplete: suggestion taken (\(suggestion.text.count) characters)")
             autocomplete.typed.add(suggestion.text)
             autocomplete.typedAt = now
-            autocomplete.acceptedAt = now
+            autocomplete.taken = (now, suggestion.typed + suggestion.text.count)
             // What it put in is a commit like any: a pause after it asks for what follows.
             autocompleteSchedulePause()
             return true
@@ -300,6 +301,25 @@ extension InputSession {
             }
         }
         guard let app, services.autocomplete.learn({ $0.record(end == .accepted || end == .typedThrough, in: app) }) else { return }
+        autocompleteStopped(in: app)
+    }
+
+    /// The suggestion Tab just put in taken back with ⌘Z (`Autocomplete.undoWindow`): not taken after all, counted and
+    /// learned so (`characters` of it had gone in); it may stop in the app now.
+    func autocompleteTakenBack(characters: Int) {
+        services.autocomplete.count { metrics in
+            metrics.accepted -= 1
+            metrics.undone += 1
+            metrics.dismissed += 1
+            metrics.acceptedCharacters -= characters
+        }
+        log.notice("autocomplete: ⌘Z right after a suggestion went in: not taken after all")
+        guard let app, services.autocomplete.learn({ $0.takenBack(in: app) }) else { return }
+        autocompleteStopped(in: app)
+    }
+
+    /// It stopped in `app` for want of use (`Autocomplete.Learning.window`): counted, and said once.
+    private func autocompleteStopped(in app: String) {
         services.autocomplete.count { $0.stoppedApps += 1 }
         log.notice("autocomplete stopped in an app: none of its last \(Autocomplete.Learning.window) suggestions was taken")
         say(AutocompleteMessages(language: UIText.language).stopped(in: services.appName(app) ?? app), long: true)
