@@ -61,7 +61,9 @@ extension OnTheDesktop.CandidateWindowTests {
                 folder.appendingPathComponent("\(index).bmp").withUnsafeFileSystemRepresentation { String(cString: $0!) }
             }
             for path in paths {
-                _ = FileManager.default.createFile(atPath: path, contents: OnTheDesktop.CandidateWindowTests.bmp(red: 0, green: 128, blue: 0))
+                // Written in place (FileManager's createFile writes a file beside it and renames it, which a scan of the
+                // new file can fail, silently: then the open below found no file).
+                try OnTheDesktop.CandidateWindowTests.bmp(red: 0, green: 128, blue: 0).write(to: URL(fileURLWithPath: path))
                 let handle = path.withCString(encodedAs: UTF16.self) {
                     CreateFileW($0, GENERIC_READ, DWORD(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), nil,
                                 DWORD(OPEN_EXISTING), DWORD(FILE_FLAG_OVERLAPPED), nil)
