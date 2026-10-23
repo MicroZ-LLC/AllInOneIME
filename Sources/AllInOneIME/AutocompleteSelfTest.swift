@@ -390,16 +390,17 @@ extension SelfTest {
         (settings.autocomplete, settings.appProfiles) = (true, [:])
 
         // It stops in an app where none of the last 30 was taken, and says so once (the input menu reads the config file:
-        // the switch on there too, for its "This App").
+        // the switch on there too, for its "This App"). The field takes the focus first: the switch seen on again since the
+        // section before turned it off starts every app over (`AutocompleteStore.saw`), what was learned before too.
         if var file = try? Config.load() {
             file.autocomplete = true
             try? file.write()
         }
+        controller.activateServer(harness)
         store.learn { learning in
             learning.restart()
             for _ in 0..<29 { _ = learning.record(false, in: "com.aipinyin.selftest.harness") }
         }
-        controller.activateServer(harness)
         harness.text = "Hello wo"
         harnessType("r", controller, harness)
         check(ghost("ld, how are you?", within: 5), "a suggestion, the 30th in the app")
