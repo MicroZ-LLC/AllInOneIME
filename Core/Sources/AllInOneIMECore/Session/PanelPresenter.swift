@@ -306,7 +306,9 @@ public struct PanelPresenter {
                                       terms: terms)
                 model.footer = t.tr("空格 选词 · \(name(key)) \(action)", "Space picks · \(name(key)) to \(action)")
             } else {
-                model.footer = SessionText.translateModeFooter(composer, language: language, terms: terms) ?? t.tr("空格 选词 · 开头打 @ 用命令", "Space picks · type @ first for commands")
+                model.footer = SessionText.translateModeFooter(composer, language: language, terms: terms)
+                    ?? t.tr("空格 选词 · 开头打 @ 用命令", "Space picks · type @ first for commands")
+                        .replacingOccurrences(of: "@", with: composer.commandTrigger)
             }
             if state.pageNumber > 0 || !state.isLastPage {
                 model.detail = t.tr("第 \(state.pageNumber + 1) 页", "page \(state.pageNumber + 1)")
@@ -316,7 +318,7 @@ public struct PanelPresenter {
             // Five at a time; the rest scroll into view (the position on the right).
             let first = composer.paletteFirstVisible, total = composer.paletteMatches.count
             model.rows = composer.paletteVisible.enumerated().map {
-                Row(label: String($0.offset + 1), text: "@" + $0.element.name,
+                Row(label: String($0.offset + 1), text: composer.commandTrigger + $0.element.name,
                     comment: t.summary($0.element, status: $0.element.script.flatMap(scriptStatus), terms: terms),
                     kind: .candidate, icon: IconToken.command($0.element))
             }

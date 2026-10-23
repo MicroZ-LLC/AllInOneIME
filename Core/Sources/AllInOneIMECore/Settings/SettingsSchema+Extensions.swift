@@ -66,9 +66,9 @@ extension SettingsSchema {
         }
         for command in index.commands where command.source.bundleName == nil {
             var fields: [Field] = []
-            add(toggle(Self.switchID(command.id), "@" + command.name, UIText.summary(command), store.isEnabled(command.id)),
+            add(toggle(Self.switchID(command.id), config.commandTrigger + command.name, UIText.summary(command), store.isEnabled(command.id)),
                 to: &fields) { store.setEnabled(command.id, Self.bool($0)) }
-            items.append(SettingsDocument.Item(id: command.id, title: "@" + command.name,
+            items.append(SettingsDocument.Item(id: command.id, title: config.commandTrigger + command.name,
                                                detail: command.source == .raycast ? command.title + " · Raycast" : command.title,
                                                fields: fields))
         }
@@ -122,7 +122,7 @@ extension SettingsSchema {
         }
         if on {
             for command in commands {
-                add(toggle(Self.switchID(command.id), "@" + command.name, UIText.summary(command), store.isEnabled(command.id)),
+                add(toggle(Self.switchID(command.id), config.commandTrigger + command.name, UIText.summary(command), store.isEnabled(command.id)),
                     to: &fields) { store.setEnabled(command.id, Self.bool($0)) }
             }
         }

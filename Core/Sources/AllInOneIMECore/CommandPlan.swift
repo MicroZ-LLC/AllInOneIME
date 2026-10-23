@@ -45,7 +45,7 @@ public struct CommandPlan: Equatable, Sendable {
     /// what to search for is words, often Chinese (`@search 苹果发布会`).
     public static func takesPhrase(_ command: Command) -> Bool { command == .webSearch }
 
-    public static func make(_ text: String, commands: [Command]) -> CommandPlan {
+    public static func make(_ text: String, commands: [Command], trigger: Character = "@") -> CommandPlan {
         let inners = Dictionary(commands.filter(canBeInner).map { ($0.name, $0) }, uniquingKeysWith: { first, _ in first })
         var parts: [Part] = []
         var inner: [Inner] = []
@@ -55,7 +55,7 @@ public struct CommandPlan: Equatable, Sendable {
         while i < chars.count {
             let c = chars[i]
             let afterWordChar = i > 0 && chars[i - 1].isASCII && (chars[i - 1].isLetter || chars[i - 1].isNumber)
-            if c == "@", !afterWordChar {
+            if c == trigger, !afterWordChar {
                 var j = i + 1
                 while j < chars.count, chars[j].isASCII, chars[j].isLetter { j += 1 }
                 let name = String(chars[(i + 1)..<j]).lowercased()
@@ -73,8 +73,8 @@ public struct CommandPlan: Equatable, Sendable {
                 // A space before the argument, or a quote right after the name (`@stock「aapl tsla」`).
                 let start = j < chars.count && chars[j] == " " ? j + 1 : j
                 if let command = inners[name], !takesNoArgument(command), j < chars.count, chars[j] == " " || "「“\"".contains(chars[j]),
-                   let (argument, end) = takesPhrase(command) ? Self.phrase(chars, from: start, commands: inners)
-                       : Self.argument(chars, from: start) {
+                   let (argument, end) = takesPhrase(command) ? Self.phrase(chars, from: start, commands: inners, trigger: trigger)
+                       : Self.argument(chars, from: start, trigger: trigger) {
                     if !argument.isEmpty {
                         if !literal.isEmpty { parts.append(.text(literal)) }
                         literal = ""
@@ -96,7 +96,7 @@ public struct CommandPlan: Equatable, Sendable {
     /// (ASCII, up to a space, a non-ASCII character or `@`) and the words right after it that have no
     /// lowercase letters (more symbols: `AAPL TSLA`, `600519 700`), so `@stock SNDK is good to buy`
     /// takes `SNDK`. Sentence punctuation at its end stays in the text. Nil when there is none.
-    static func argument(_ chars: [Character], from start: Int) -> (String, Int)? {
+    static func argument(_ chars: [Character], from start: Int, trigger: Character = "@") -> (String, Int)? {
         guard start < chars.count else { return nil }
         let quotes: [Character: Character] = ["「": "」", "\"": "\"", "“": "”"]
         if let close = quotes[chars[start]] {
@@ -106,7 +106,7 @@ public struct CommandPlan: Equatable, Sendable {
         }
         func word(at i: Int) -> Int {
             var k = i
-            while k < chars.count, chars[k].isASCII, chars[k] != " ", chars[k] != "@", !chars[k].isNewline { k += 1 }
+            while k < chars.count, chars[k].isASCII, chars[k] != " ", chars[k] != trigger, !chars[k].isNewline { k += 1 }
             return k
         }
         var end = word(at: start)
@@ -126,22 +126,22 @@ public struct CommandPlan: Equatable, Sendable {
     /// ends: the text in 「…」 or "…", or else the rest of the sentence, up to a line break, ，。！？；,
     /// ? ! ; before a space or the end, or the next command inside the text (`commands`, by name).
     /// Spaces and sentence punctuation at its end stay in the text. Nil when there is none.
-    static func phrase(_ chars: [Character], from start: Int, commands: [String: Command]) -> (String, Int)? {
+    static func phrase(_ chars: [Character], from start: Int, commands: [String: Command], trigger: Character = "@") -> (String, Int)? {
         guard start < chars.count else { return nil }
-        if "「\"“".contains(chars[start]) { return argument(chars, from: start) }
+        if "「\"“".contains(chars[start]) { return argument(chars, from: start, trigger: trigger) }
         var end = start
-        while end < chars.count, !endsPhrase(chars, at: end, commands: commands) { end += 1 }
+        while end < chars.count, !endsPhrase(chars, at: end, commands: commands, trigger: trigger) { end += 1 }
         while end > start, " ,.;:!?".contains(chars[end - 1]) { end -= 1 }
         return end > start ? (String(chars[start..<end]), end) : nil
     }
 
     /// Whether a phrase ends before `chars[i]`: a line break, sentence punctuation, or a known command
     /// (`@name` not after a letter or digit, then a space or a quote).
-    private static func endsPhrase(_ chars: [Character], at i: Int, commands: [String: Command]) -> Bool {
+    private static func endsPhrase(_ chars: [Character], at i: Int, commands: [String: Command], trigger: Character) -> Bool {
         let c = chars[i]
         if c.isNewline || "，。！？；".contains(c) { return true }
         if "?!;".contains(c), i + 1 == chars.count || chars[i + 1] == " " { return true }
-        guard c == "@", i == 0 || !(chars[i - 1].isASCII && (chars[i - 1].isLetter || chars[i - 1].isNumber)) else { return false }
+        guard c == trigger, i == 0 || !(chars[i - 1].isASCII && (chars[i - 1].isLetter || chars[i - 1].isNumber)) else { return false }
         var j = i + 1
         while j < chars.count, chars[j].isASCII, chars[j].isLetter { j += 1 }
         return commands[String(chars[(i + 1)..<j]).lowercased()] != nil && j < chars.count

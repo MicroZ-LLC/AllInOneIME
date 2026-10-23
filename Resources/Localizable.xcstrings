@@ -1505,6 +1505,53 @@
         }
       }
     },
+    "%@ · %@ entries" : {
+      "comment" : "%@ · %@ 条 — Sources/AllInOneIME/PersonalDictionariesSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · %@ Einträge"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · %@ entradas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · %@ entrées"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · %@項目"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · %@개 항목"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · %@ entradas"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · %@ 條"
+          }
+        }
+      }
+    },
     "%@ arguments" : {
       "comment" : "%@ 个参数 — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
@@ -3062,6 +3109,53 @@
         }
       }
     },
+    "Add Chinese (pinyin) and download its language pack first." : {
+      "comment" : "先添加中文（拼音）并下载语言包。 — Sources/AllInOneIME/PersonalDictionariesSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Füge zuerst Chinesisch (Pinyin) hinzu und lade das Sprachpaket herunter."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Primero añade Chino (pinyin) y descarga su paquete de idioma."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajoutez d’abord Chinois (pinyin) et téléchargez son pack de langue."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先に中国語（ピンイン）を追加し、言語パックをダウンロードしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "먼저 중국어(병음)를 추가하고 언어 팩을 다운로드하세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Primeiro adicione Chinês (pinyin) e baixe o pacote de idioma."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先加入中文（拼音）並下載語言套件。"
+          }
+        }
+      }
+    },
     "Add Command…" : {
       "comment" : "添加命令… — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
@@ -3387,6 +3481,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "加入或排序語言⋯"
+          }
+        }
+      }
+    },
+    "Add your pinyin vocabulary" : {
+      "comment" : "添加你的拼音词库 — Sources/AllInOneIME/PersonalDictionariesSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eigenen Pinyin-Wortschatz hinzufügen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Añade tu vocabulario pinyin"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajouter votre vocabulaire pinyin"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "独自のピンイン語彙を追加"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "내 병음 어휘 추가"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adicione seu vocabulário pinyin"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加入你的拼音詞庫"
           }
         }
       }
@@ -5600,6 +5741,53 @@
         }
       }
     },
+    "Choose a UTF-8 Rime .dict.yaml containing its own entries and pinyin codes. Import the same name again to update its saved copy." : {
+      "comment" : "选择一个直接包含词条和拼音编码的 UTF-8 Rime .dict.yaml 文件；再次导入相同 name 会更新已存的副本。 — Sources/AllInOneIME/PersonalDictionariesSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wähle eine UTF-8-Rime-Datei .dict.yaml mit eigenen Einträgen und Pinyin-Codes. Importiere denselben name erneut, um die gespeicherte Kopie zu aktualisieren."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elige un .dict.yaml de Rime en UTF-8 con sus propias entradas y códigos pinyin. Importa el mismo name de nuevo para actualizar la copia guardada."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisissez un fichier Rime .dict.yaml UTF-8 contenant ses propres entrées et codes pinyin. Importez de nouveau le même name pour mettre à jour la copie enregistrée."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "項目とピンインコードを直接含むUTF-8のRime .dict.yamlファイルを選んでください。同じnameで再度読み込むと保存済みのコピーを更新します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "항목과 병음 코드를 직접 포함하는 UTF-8 Rime .dict.yaml 파일을 선택하세요. 같은 name을 다시 가져오면 저장된 사본을 업데이트합니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escolha um .dict.yaml do Rime em UTF-8 com suas próprias entradas e códigos pinyin. Importe o mesmo name novamente para atualizar a cópia salva."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇一個直接包含詞條和拼音編碼的 UTF-8 Rime .dict.yaml 檔案；再次匯入相同 name 會更新已存的副本。"
+          }
+        }
+      }
+    },
     "Choose File…" : {
       "comment" : "选择文件… — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
@@ -7617,6 +7805,100 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已拒絕：打開系統設定"
+          }
+        }
+      }
+    },
+    "Dictionaries redeployed and ready to use." : {
+      "comment" : "词库已重新部署，可以使用了。 — Sources/AllInOneIME/PersonalDictionariesSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wörterbücher neu bereitgestellt und einsatzbereit."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diccionarios reimplementados y listos para usar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dictionnaires redéployés et prêts à l’emploi."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "辞書を再デプロイし、使用できるようになりました。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "사전을 다시 배포하여 사용할 준비가 되었습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dicionários reimplantados e prontos para uso."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "詞庫已重新部署，可以使用了。"
+          }
+        }
+      }
+    },
+    "Dictionary copies saved on this Mac." : {
+      "comment" : "词库副本已保存在这台 Mac 上。 — Sources/AllInOneIME/PersonalDictionariesSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wörterbuchkopien auf diesem Mac gespeichert."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copias de los diccionarios guardadas en este Mac."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copies des dictionnaires enregistrées sur ce Mac."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "辞書のコピーをこのMacに保存しました。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "사전 사본을 이 Mac에 저장했습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cópias dos dicionários salvas neste Mac."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "詞庫副本已保存在這台 Mac 上。"
           }
         }
       }
@@ -9644,6 +9926,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "隱藏的詞"
+          }
+        }
+      }
+    },
+    "Import or Update…" : {
+      "comment" : "导入或更新… — Sources/AllInOneIME/PersonalDictionariesSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importieren oder aktualisieren …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importar o actualizar…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importer ou mettre à jour…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み込む・更新…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "가져오기 또는 업데이트…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importar ou atualizar…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯入或更新⋯"
           }
         }
       }
@@ -12623,6 +12952,53 @@
         }
       }
     },
+    "No personal dictionaries yet" : {
+      "comment" : "还没有个人词库 — Sources/AllInOneIME/PersonalDictionariesSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noch keine persönlichen Wörterbücher"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aún no hay diccionarios personales"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun dictionnaire personnel pour le moment"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "個人辞書はまだありません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "아직 개인 사전이 없습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nenhum dicionário pessoal ainda"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒有個人詞庫"
+          }
+        }
+      }
+    },
     "No questions saved." : {
       "comment" : "没有保存的问题。 — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
@@ -14550,6 +14926,53 @@
         }
       }
     },
+    "Open Rime Logs" : {
+      "comment" : "打开 Rime 日志 — Sources/AllInOneIME/PersonalDictionariesSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime-Protokolle öffnen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir registros de Rime"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrir les journaux Rime"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rimeのログを開く"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime 로그 열기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir logs do Rime"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打開 Rime 日誌"
+          }
+        }
+      }
+    },
     "Open Rime User Folder" : {
       "comment" : "打开 Rime 用户目录 — Sources/AllInOneIME/InputMenu.swift",
       "localizations" : {
@@ -15498,6 +15921,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "各 App 設定⋯"
+          }
+        }
+      }
+    },
+    "Personal Dictionaries" : {
+      "comment" : "个人词库 — Sources/AllInOneIME/PersonalDictionariesSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Persönliche Wörterbücher"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diccionarios personales"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dictionnaires personnels"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "個人辞書"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "개인 사전"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dicionários pessoais"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "個人詞庫"
           }
         }
       }
@@ -16673,6 +17143,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重新部署詞庫"
+          }
+        }
+      }
+    },
+    "Redeploying dictionaries…" : {
+      "comment" : "正在重新部署词库… — Sources/AllInOneIME/PersonalDictionariesSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wörterbücher werden neu bereitgestellt …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reimplementando diccionarios…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Redéploiement des dictionnaires…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "辞書を再デプロイ中…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "사전을 다시 배포하는 중…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reimplantando dicionários…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在重新部署詞庫⋯"
           }
         }
       }
@@ -18802,6 +19319,53 @@
         }
       }
     },
+    "Saving dictionaries…" : {
+      "comment" : "正在保存词库… — Sources/AllInOneIME/PersonalDictionariesSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wörterbücher werden gespeichert …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guardando diccionarios…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrement des dictionnaires…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "辞書を保存中…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "사전 저장 중…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Salvando dicionários…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在儲存詞庫⋯"
+          }
+        }
+      }
+    },
     "Search settings…" : {
       "comment" : "搜索设置… — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
@@ -20353,6 +20917,53 @@
         }
       }
     },
+    "Supplements the built-in vocabulary. Files must contain their own text, pinyin codes and optional numeric weights, without other dictionary dependencies. Import the same name again to update its copy; editing the source alone doesn't update it. Copies stay on this Mac, outside iCloud sync and AI context. Learned words are kept when you remove a dictionary." : {
+      "comment" : "补充自带词库；文件需直接包含文字、拼音编码和可选的数字权重，不支持依赖其他词库。再次导入相同 name 会更新副本；只修改原文件不会自动更新。副本只留在这台 Mac 上，不通过 iCloud 同步或发给 AI。移除后已学到的词会保留。 — Sources/AllInOneIME/PersonalDictionariesSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ergänzt den integrierten Wortschatz. Dateien müssen eigene Texte, Pinyin-Codes und optionale numerische Gewichte enthalten, ohne andere Wörterbücher vorauszusetzen. Importiere denselben name erneut, um die Kopie zu aktualisieren; Änderungen an der Quelle allein werden nicht übernommen. Kopien bleiben auf diesem Mac, außerhalb von iCloud-Synchronisierung und KI-Kontext. Gelernte Wörter bleiben beim Entfernen eines Wörterbuchs erhalten."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Complementa el vocabulario integrado. Los archivos deben contener su propio texto, códigos pinyin y pesos numéricos opcionales, sin depender de otros diccionarios. Importa el mismo name de nuevo para actualizar la copia; editar solo el origen no la actualiza. Las copias quedan en este Mac, fuera de la sincronización de iCloud y del contexto de IA. Las palabras aprendidas se conservan al quitar un diccionario."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Complète le vocabulaire intégré. Les fichiers doivent contenir leurs propres textes, codes pinyin et poids numériques facultatifs, sans dépendre d’autres dictionnaires. Importez de nouveau le même name pour actualiser sa copie ; modifier la source seule ne la met pas à jour. Les copies restent sur ce Mac, hors de la synchronisation iCloud et du contexte de l’IA. Les mots appris sont conservés lorsque vous retirez un dictionnaire."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "内蔵語彙に追加します。ファイルには文字列、ピンインコード、任意の数値の重みを直接含め、他の辞書に依存しないものを使用してください。同じnameで再度読み込むとコピーを更新します。元ファイルの編集だけでは更新されません。コピーはこのMacにのみ保存し、iCloud同期やAIのコンテキストには含めません。辞書を削除しても学習済みの単語は保持します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기본 어휘에 추가합니다. 파일에는 텍스트, 병음 코드, 선택적인 숫자 가중치가 직접 포함되어야 하며 다른 사전에 의존하면 안 됩니다. 같은 name을 다시 가져오면 사본을 업데이트하며, 원본만 수정하면 반영되지 않습니다. 사본은 이 Mac에만 저장되며 iCloud 동기화나 AI 맥락에 포함되지 않습니다. 사전을 제거해도 학습한 단어는 유지됩니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Complementa o vocabulário integrado. Os arquivos devem conter seus próprios textos, códigos pinyin e pesos numéricos opcionais, sem depender de outros dicionários. Importe o mesmo name novamente para atualizar a cópia; editar só a origem não a atualiza. As cópias ficam neste Mac, fora da sincronização do iCloud e do contexto da IA. As palavras aprendidas são mantidas ao remover um dicionário."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "補充內建詞庫；檔案需直接包含文字、拼音編碼和可選的數字權重，不支援依賴其他詞庫。再次匯入相同 name 會更新副本；只修改原檔案不會自動更新。副本只留在這台 Mac 上，不透過 iCloud 同步或傳給 AI。移除後已學到的詞會保留。"
+          }
+        }
+      }
+    },
     "Sync Now" : {
       "comment" : "立即同步 — Sources/AllInOneIME/ICloudSyncSettings.swift",
       "localizations" : {
@@ -21107,6 +21718,100 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "預設分支"
+          }
+        }
+      }
+    },
+    "The dictionary copy is saved on this Mac, but Rime deployment failed. Check the Rime logs, then choose Redeploy Dictionaries from the input menu." : {
+      "comment" : "词库副本已保存在这台 Mac 上，但 Rime 部署失败。请查看 Rime 日志，处理后从输入法菜单选择「重新部署词库」。 — Sources/AllInOneIME/PersonalDictionariesSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Wörterbuchkopie ist auf diesem Mac gespeichert, aber die Rime-Bereitstellung ist fehlgeschlagen. Prüfe die Rime-Protokolle und wähle dann im Eingabemenü Wörterbücher neu bereitstellen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La copia del diccionario está guardada en este Mac, pero falló la implementación de Rime. Revisa los registros de Rime y elige Reimplementar diccionarios en el menú de entrada."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La copie du dictionnaire est enregistrée sur ce Mac, mais le déploiement de Rime a échoué. Consultez les journaux Rime, puis choisissez Redéployer les dictionnaires dans le menu de saisie."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "辞書のコピーはこのMacに保存されましたが、Rimeのデプロイに失敗しました。Rimeのログを確認し、入力メニューから「辞書を再デプロイ」を選んでください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "사전 사본은 이 Mac에 저장되었지만 Rime 배포에 실패했습니다. Rime 로그를 확인한 후 입력 메뉴에서 사전 다시 배포를 선택하세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A cópia do dicionário foi salva neste Mac, mas a implantação do Rime falhou. Confira os logs do Rime e escolha Reimplantar dicionários no menu de entrada."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "詞庫副本已保存在這台 Mac 上，但 Rime 部署失敗。請查看 Rime 日誌，處理後從輸入法選單選擇「重新部署詞庫」。"
+          }
+        }
+      }
+    },
+    "The dictionary copy is saved on this Mac; deployment is still pending or running. You can choose Redeploy Dictionaries from the input menu later." : {
+      "comment" : "词库副本已保存在这台 Mac 上，部署仍在等待或进行。稍后可从输入法菜单选择「重新部署词库」。 — Sources/AllInOneIME/PersonalDictionariesSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Wörterbuchkopie ist auf diesem Mac gespeichert; die Bereitstellung wartet noch oder läuft. Du kannst später im Eingabemenü Wörterbücher neu bereitstellen wählen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La copia del diccionario está guardada en este Mac; la implementación sigue pendiente o en curso. Puedes elegir Reimplementar diccionarios en el menú de entrada más tarde."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La copie du dictionnaire est enregistrée sur ce Mac ; le déploiement est encore en attente ou en cours. Vous pourrez choisir Redéployer les dictionnaires dans le menu de saisie ultérieurement."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "辞書のコピーはこのMacに保存されました。デプロイは待機中または実行中です。後で入力メニューから「辞書を再デプロイ」を選ぶこともできます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "사전 사본은 이 Mac에 저장되었으며 배포가 대기 중이거나 실행 중입니다. 나중에 입력 메뉴에서 사전 다시 배포를 선택할 수 있습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A cópia do dicionário foi salva neste Mac; a implantação ainda está pendente ou em andamento. Você pode escolher Reimplantar dicionários no menu de entrada depois."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "詞庫副本已保存在這台 Mac 上，部署仍在等待或進行。稍後可從輸入法選單選擇「重新部署詞庫」。"
           }
         }
       }
@@ -24219,6 +24924,18 @@
         }
       }
     },
+    "Use @" : {
+      "comment" : "恢复 @ — Sources/AllInOneIME/SettingsWindow.swift",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "@ verwenden" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Usar @" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Utiliser @" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "@ に戻す" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "@ 사용" } },
+        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Usar @" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "恢復 @" } }
+      }
+    },
     "Use ⏎" : {
       "comment" : "恢复 ⏎ — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
@@ -24309,6 +25026,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用這台 Mac 內建的模型（macOS 26 或以後版本）：不需要 API 金鑰、不用付費，文字也不會離開這台 Mac。它是小型模型：上下文約 %@ 個 token，支援的語言較少，效果也不如雲端模型。"
+          }
+        }
+      }
+    },
+    "UTF-8 Rime .dict.yaml, up to 32 MiB" : {
+      "comment" : "UTF-8 Rime .dict.yaml，最多 32 MiB — Sources/AllInOneIME/PersonalDictionariesSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "UTF-8 Rime .dict.yaml, bis zu 32 MiB"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime .dict.yaml en UTF-8, hasta 32 MiB"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime .dict.yaml UTF-8, jusqu’à 32 Mio"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "UTF-8のRime .dict.yaml、32 MiBまで"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "UTF-8 Rime .dict.yaml, 최대 32 MiB"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime .dict.yaml em UTF-8, até 32 MiB"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "UTF-8 Rime .dict.yaml，最多 32 MiB"
           }
         }
       }

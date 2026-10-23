@@ -8,6 +8,11 @@ final class CandidatePanel: NSPanel {
     /// The input controller currently showing the panel.
     weak var owner: AnyObject?
     let view = CandidateView()
+    private var pendingHide: DispatchWorkItem?
+    private var hiddenPresentation: (alpha: CGFloat, ignoresMouseEvents: Bool)?
+
+    /// Hidden immediately between words, even while its window is kept ordered for the next word.
+    var isShowing: Bool { isVisible && pendingHide == nil }
 
     var onSelect: ((Int) -> Void)? {
         get { view.onSelect }
@@ -37,6 +42,7 @@ final class CandidatePanel: NSPanel {
         isFloatingPanel = true
         becomesKeyOnlyIfNeeded = true
         isReleasedWhenClosed = false
+        animationBehavior = .none
         // Just below the cursor level: stays above full-screen apps and popup menus.
         level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.cursorWindow)) - 100)
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
@@ -75,24 +81,46 @@ final class CandidatePanel: NSPanel {
     override var canBecomeMain: Bool { false }
 
     func show(_ model: PanelModel, anchor: NSRect) {
+        pendingHide?.cancel()
+        pendingHide = nil
         // A conversation grows up to about half the screen it's on, then scrolls (`PanelModel.transcript`).
         view.maxHeight = (Self.screen(for: anchor)?.visibleFrame.height).map { floor($0 / 2) }
         view.model = model
         let size = view.contentSize
-        setFrame(NSRect(origin: Self.origin(for: size, anchor: anchor, textInset: view.textInset), size: size), display: true)
+        let nextFrame = NSRect(origin: Self.origin(for: size, anchor: anchor, textInset: view.textInset), size: size)
+        if frame != nextFrame {
+            setFrame(nextFrame, display: true)
+            invalidateShadow()
+        }
         if !isVisible { orderFrontRegardless() }
-        invalidateShadow()
+        if let presentation = hiddenPresentation {
+            alphaValue = presentation.alpha
+            ignoresMouseEvents = presentation.ignoresMouseEvents
+            hiddenPresentation = nil
+        }
     }
 
     /// Whether `show(model, anchor:)` would change nothing: up already, with this model, where `anchor` puts it.
     func shows(_ model: PanelModel, anchor: NSRect) -> Bool {
-        guard isVisible, view.model == model else { return false }
+        guard isShowing, view.model == model else { return false }
         let size = view.contentSize
         return frame == NSRect(origin: Self.origin(for: size, anchor: anchor, textInset: view.textInset), size: size)
     }
 
     func hide() {
-        if isVisible { orderOut(nil) }
+        guard isShowing else { return }
+        // No stale candidates or invisible hit target. Reuse the ordered window during a burst of typing:
+        // ordering it out on every commit can stall the IME on a WindowServer fence in the client app.
+        hiddenPresentation = (alphaValue, ignoresMouseEvents)
+        alphaValue = 0
+        ignoresMouseEvents = true
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, !self.isShowing else { return }
+            self.orderOut(nil)
+            self.pendingHide = nil
+        }
+        pendingHide = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: work)
     }
 
     /// Places the panel's top-left just below the line rect, flipping above when there is no room,

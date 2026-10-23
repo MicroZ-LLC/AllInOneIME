@@ -302,6 +302,7 @@ public final class InputSession {
         let app = app ?? self.app
         composer.voiceEnabled = config.voiceInput && services.voiceSupported()
         composer.actionKey = config.actionKey
+        composer.commandTrigger = config.commandTrigger
         composer.typesResults = config.applying(app: app).typeOut
         composer.horizontalCandidates = config.candidateLayout == .horizontal
         if let englishWords {
@@ -329,6 +330,10 @@ public final class InputSession {
         // The interface language (config `uiLanguage`, else the system's) for the panel, notices and menu.
         UIText.choice = config.uiLanguage
         composer.messages = .make(language: UIText.language, terms: terms)
+        composer.messages.startedInBackground = composer.messages.startedInBackground
+            .replacingOccurrences(of: "@", with: config.commandTrigger)
+        composer.messages.codeNotRun = composer.messages.codeNotRun
+            .replacingOccurrences(of: "@", with: config.commandTrigger)
         composer.messages.actionKeyName = UIText.words.name(config.actionKey, terms: terms)
         // Where @note saves (named in the interface language): its name in the command list, and whether the note leaves
         // the device (then it isn't saved during secure input). A folder's name is what is remembered of it (never a walk
@@ -450,7 +455,7 @@ public final class InputSession {
         if composer.draftInPanel, selectionReported != nil { wants.insert(.selectedRange) }
         // "@" may start a command where level one would start one (`Composer.handleLevelOne`: an engine, nothing composed
         // in it, no draft): on the selection, unless it comes right after a word ("bob@example.com").
-        if key.printableText == "@", !composer.isLevelTwo, composer.draft.isEmpty, let engine = composer.engine,
+        if key.printableText == services.loadSettings().commandTrigger, !composer.isLevelTwo, composer.draft.isEmpty, let engine = composer.engine,
            !engine.snapshot().isComposing {
             let terminal = (context.field ?? field).terminal
             if lastTyped.character != nil, !terminal { wants.insert(.beforeCaret) }
@@ -509,6 +514,7 @@ public final class InputSession {
         if !composer.isComposing {
             // Built again only when what it's made of changed (`CatalogCache`): not for each key.
             let config = services.loadSettings()
+            composer.commandTrigger = config.commandTrigger
             let (commands, changed) = catalog.catalog(config.customCommands, plugins: services.plugins(false),
                                                       index: services.loadExtensions(config, false), disabled: config.disabledExtensions)
             applyAgent(config)
@@ -910,8 +916,10 @@ public final class InputSession {
     /// then: the Mac may ask for a permission); script plugins get the language this request's own texts are in.
     private func place(generates: Bool) -> SessionTasks.Place {
         let terminal = self.terminal
+        let config = services.loadSettings()
         return SessionTasks.Place(app: app, terminal: terminal, pastesInTerminal: terminal && generates && services.pastesInTerminal(),
-                                  improveTranslates: services.loadSettings().improveTranslates, pluginLanguage: UIText.pluginLanguage)
+                                  improveTranslates: config.improveTranslates, pluginLanguage: UIText.pluginLanguage,
+                                  commandTrigger: config.commandTrigger)
     }
 
     /// Asks again for the results shown, revised as the refinement's last instruction says ("shorter"; `SessionTasks.refine`).

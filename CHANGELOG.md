@@ -2,6 +2,19 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
+## 0.6.7 (unreleased)
+
+### Added
+
+- Personal pinyin dictionaries: import or update UTF-8 Rime `.dict.yaml` vocabulary in Settings → Input → Chinese (pinyin), see each file's name and entry count, and remove it. Dictionaries supplement rime-ice, redeploy automatically, and stay on this Mac. Source files, existing Rime customizations, learned words and fuzzy-pinyin settings are preserved; unsupported files are refused before changes.
+- The command trigger can be changed in Settings → General from `@` to a single symbol such as `~`. Command suggestions, nested commands, and custom or plugin commands use the chosen symbol; `@` becomes ordinary text when another symbol is selected. Existing settings keep `@`.
+
+### Fixed
+
+- Candidates appear and disappear without window animations, including notices and the Translate as You Type chip. Committing a word hides the panel immediately; continuous typing reuses its window, which closes after 400 ms of idle time. This avoids repeated window transitions while typing in apps such as Slack and Notes. An unchanged panel frame no longer triggers another resize or shadow update.
+- The input menu reuses the cached config instead of parsing `config.json` for every request. A broken file still shows an error and disables choices that would overwrite it; repairing the file refreshes the menu.
+- Pinyin's lunar date (`nl` and `NYYYYMMDD`) finds its bundled database in a fresh Rime user folder. An existing database of your own is kept.
+
 ## 0.6.6 (2026-10-20)
 
 ### Added

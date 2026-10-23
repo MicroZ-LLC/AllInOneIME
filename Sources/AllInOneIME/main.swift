@@ -13,10 +13,11 @@ let usage = """
       --disable         disable, and remove it from your input sources
       --status          show registration, process and configuration status
       --settings        run as the input method and open the settings window
-      --selftest [DIR] [--rime-data DATA]
+      --selftest [DIR] [--rime-data DATA] [--typing-lag-only]
                         drive the input controller (real Rime engine on DATA, else the installed
                         Chinese pack; live Bedrock call) with a fake text field; writes panel snapshots
-                        to DIR (default /tmp/allinoneime-selftest)
+                        to DIR (default /tmp/allinoneime-selftest); --typing-lag-only runs just the
+                        offline window lifecycle, menu cache and rapid pinyin checks
       --install-pack ID [--library URL] [--key BASE64] [--packs-dir DIR]
                         download and install a language pack (zh-pinyin) as Settings does; plain http
                         is allowed to this Mac only, for a test server
@@ -466,7 +467,7 @@ case "--selftest":
         RimeDirectories.override = URL(fileURLWithPath: arguments[index + 1])
     }
     let directory = URL(fileURLWithPath: arguments.count > 1 && !arguments[1].hasPrefix("--") ? arguments[1] : "/tmp/allinoneime-selftest")
-    exit(MainActor.assumeIsolated { SelfTest.run(snapshotDirectory: directory) })
+    exit(MainActor.assumeIsolated { SelfTest.run(snapshotDirectory: directory, typingLagOnly: arguments.contains("--typing-lag-only")) })
 case "--showcase":
     let directory = URL(fileURLWithPath: arguments.count > 1 ? arguments[1] : "/tmp/allinoneime-showcase")
     MainActor.assumeIsolated { PanelShowcase.run(output: directory, dark: arguments.contains("dark"), chinese: arguments.contains("zh")) }

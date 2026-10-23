@@ -87,7 +87,7 @@ public enum SessionText {
         if let preview = composer.snippetPreview { return "\(how) → “" + selectionPreview(preview, limit: 80) + "”" }
         // On the selection: what the action key does with it; `@improve` / `@translate` with something typed rewrite it as asked.
         if let selected = composer.selectionInUse {
-            if command.kind == .convert, !WritingMode.parse(command, composer.sentText).text.isEmpty {
+            if command.kind == .convert, !WritingMode.parse(command, composer.sentText, trigger: composer.commandTrigger).text.isEmpty {
                 return "\(how) → " + t.tr("按你写的要求改选中的文字", "rewrite the selection as you asked")
             }
             let text = composer.sentText.isEmpty ? selected : composer.sentText
@@ -155,6 +155,7 @@ public enum SessionText {
         }
         if let command = composer.draftCommand, !Composer.usesSelection(command) {
             return t.tr("@\(command.name) 不用选中的文字，它保持原样", "@\(command.name) doesn't use the selection; it stays as it is")
+                .replacingOccurrences(of: "@", with: composer.commandTrigger)
         }
         return t.tr("对选中的文字：“\(selectionPreview(selection))”（\(count) 字）",
                     "On the selection: “\(selectionPreview(selection))” (\(count) characters)")

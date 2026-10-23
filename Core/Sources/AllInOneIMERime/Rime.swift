@@ -7,6 +7,10 @@ import WinSDK
 
 /// Process-wide librime instance (level one). Main thread only.
 public final class RimeService {
+    public enum DeploymentStatus: Sendable {
+        case idle, deploying, succeeded, failed
+    }
+
     public static let shared = RimeService()
 
     let api: UnsafeMutablePointer<RimeApi>
@@ -25,13 +29,36 @@ public final class RimeService {
     /// False while librime is deploying (compiling schemas), or syncing the learned words (`syncUserData`); sessions
     /// cannot be created then.
     public var isReady: Bool {
-        isStarted && api.pointee.is_maintenance_mode() == 0 && !isSyncing
+        isStarted && api.pointee.is_maintenance_mode() == 0 && !isSyncing && !redeployWanted
+    }
+
+    /// librime's deploy notification, including compilation failure. Notifications can arrive on
+    /// its deployment thread; consumers read this after `isReady`, which also waits for a queued deploy.
+    public var deploymentStatus: DeploymentStatus {
+        deploymentLock.lock(); defer { deploymentLock.unlock() }
+        return lastDeploymentStatus
+    }
+    /// A local preparation error, if the requested deployment could not safely start.
+    public var deploymentError: String? {
+        deploymentLock.lock(); defer { deploymentLock.unlock() }
+        return lastDeploymentError
+    }
+    private let deploymentLock = NSLock()
+    private var lastDeploymentStatus: DeploymentStatus = .idle
+    private var lastDeploymentError: String?
+    private func setDeploymentStatus(_ value: DeploymentStatus, error: String? = nil) {
+        deploymentLock.lock()
+        lastDeploymentStatus = value
+        lastDeploymentError = error
+        deploymentLock.unlock()
     }
 
     private let syncLock = NSLock()
     private var syncing = false
     /// A redeploy asked for while the learned words were syncing.
     private var redeployWanted = false
+    private var invalidateSchemaWanted = false
+    private var redeployPoll: DispatchWorkItem?
     /// The learned words' sync is running (on a thread of its own).
     public var isSyncing: Bool { syncLock.lock(); defer { syncLock.unlock() }; return syncing }
     private func setSyncing(_ on: Bool) { syncLock.lock(); syncing = on; syncLock.unlock() }
@@ -42,6 +69,7 @@ public final class RimeService {
         guard !isStarted else { return }
         let fm = FileManager.default
         try fm.createDirectory(at: userDataDir, withIntermediateDirectories: true)
+        try Self.prepareLunarDatabase(sharedDataDir: sharedDataDir, userDataDir: userDataDir)
         if let logDir { try fm.createDirectory(at: logDir, withIntermediateDirectories: true) }
         // Our schema-list patch goes into the user directory so it applies (and can be edited there).
         let patch = "default.custom.yaml"
@@ -64,12 +92,33 @@ public final class RimeService {
         traits.min_log_level = 1  // warnings and errors only
         traits.log_dir = c(logDir?.path ?? "")
         api.pointee.setup(&traits)
+        api.pointee.set_notification_handler({ context, _, type, value in
+            guard let context, let type, let value, String(cString: type) == "deploy" else { return }
+            let service = Unmanaged<RimeService>.fromOpaque(context).takeUnretainedValue()
+            switch String(cString: value) {
+            case "start": service.setDeploymentStatus(.deploying)
+            case "success": service.setDeploymentStatus(.succeeded)
+            case "failure": service.setDeploymentStatus(.failed)
+            default: break
+            }
+        }, Unmanaged.passUnretained(self).toOpaque())
         api.pointee.initialize(nil)
         _ = api.pointee.start_maintenance(fullCheck ? 1 : 0)
         self.sharedDataDir = sharedDataDir
         self.userDataDir = userDataDir
         englishLoad = EnglishLoad(sharedDataDir)
         isStarted = true
+    }
+
+    /// rime-ice's lunar translator opens `lua/lunar.db` relative to the user folder, unlike its scripts,
+    /// which librime also finds in the shared folder. Supply the data there without replacing the user's own.
+    static func prepareLunarDatabase(sharedDataDir: URL, userDataDir: URL) throws {
+        let fm = FileManager.default
+        let source = sharedDataDir.appendingPathComponent("lua/lunar.db")
+        let destination = userDataDir.appendingPathComponent("lua/lunar.db")
+        guard fm.fileExists(atPath: source.path), !fm.fileExists(atPath: destination.path) else { return }
+        try fm.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try fm.copyItem(at: source, to: destination)
     }
 
     /// rime-ice's English dictionary in the shared data (`EnglishDictionary`), for the English words put among the
@@ -100,16 +149,67 @@ public final class RimeService {
     /// Re-deploys everything (e.g. after editing files in the user directory). Existing sessions are
     /// dropped first so none is used while data is rebuilt; controllers create new ones when ready.
     /// Session ids are reused by librime, so the generation marks every older session as dead.
-    public func redeploy() {
+    public func redeploy(invalidateGeneratedSchema: Bool = false) {
         guard isStarted else { return }
-        // Not while the learned words sync on their thread: done when that ends.
-        guard !isSyncing else {
-            redeployWanted = true
+        redeployWanted = true
+        invalidateSchemaWanted = invalidateSchemaWanted || invalidateGeneratedSchema
+        startRequestedRedeploy()
+    }
+
+    private func startRequestedRedeploy() {
+        guard redeployWanted, !isSyncing else { return }
+        // start_maintenance refuses a second request while deploying. Keep it until the current
+        // deployment is over, so a newly imported file cannot be mistaken for an older success.
+        guard api.pointee.is_maintenance_mode() == 0 else {
+            if redeployPoll == nil {
+                let poll = DispatchWorkItem { [weak self] in
+                    self?.redeployPoll = nil
+                    self?.startRequestedRedeploy()
+                }
+                redeployPoll = poll
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: poll)
+            }
             return
+        }
+        redeployWanted = false
+        redeployPoll?.cancel()
+        redeployPoll = nil
+        if invalidateSchemaWanted {
+            invalidateSchemaWanted = false
+            do { try invalidateGeneratedSchema() }
+            catch {
+                setDeploymentStatus(.failed, error: "build/rime_ice.schema.yaml: " + error.localizedDescription)
+                return
+            }
         }
         generation += 1
         api.pointee.cleanup_all_sessions()
-        _ = api.pointee.start_maintenance(1)
+        setDeploymentStatus(.deploying)
+        if api.pointee.start_maintenance(1) == 0, deploymentStatus == .deploying {
+            setDeploymentStatus(.failed)
+        }
+    }
+
+    /// A previous maintenance job may have recreated the cache after Settings invalidated it.
+    /// Do this only for a requested settings activation, after that job has actually finished.
+    private func invalidateGeneratedSchema() throws {
+        guard let userDataDir else { return }
+        let fm = FileManager.default
+        let build = userDataDir.appendingPathComponent("build", isDirectory: true)
+        let compiled = build.appendingPathComponent("rime_ice.schema.yaml")
+        do {
+            let directory = try fm.attributesOfItem(atPath: build.path)
+            guard directory[.type] as? FileAttributeType == .typeDirectory else {
+                throw CocoaError(.fileWriteNoPermission, userInfo: [NSFilePathErrorKey: build.path])
+            }
+            let file = try fm.attributesOfItem(atPath: compiled.path)
+            guard file[.type] as? FileAttributeType == .typeRegular else {
+                throw CocoaError(.fileWriteNoPermission, userInfo: [NSFilePathErrorKey: compiled.path])
+            }
+            try fm.removeItem(at: compiled)
+        } catch let error as CocoaError where error.code == .fileReadNoSuchFile || error.code == .fileNoSuchFile {
+            // A first deployment, or the store already removed this generated cache.
+        }
     }
 
     /// The learned words on every Mac (`RimeSync`): librime's user-dictionary sync alone, on a thread of its own. It
@@ -176,6 +276,8 @@ public final class RimeService {
     public func waitUntilReady(timeout: TimeInterval) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while !isReady && Date() < deadline {
+            // This developer helper may block the main thread: service a queued redeploy here too.
+            if redeployWanted { startRequestedRedeploy() }
             Thread.sleep(forTimeInterval: 0.05)
         }
         return isReady

@@ -13,15 +13,16 @@ public enum WritingMode: String, Equatable, Sendable {
     /// The mode for `command` (nil: as `@improve`) and the text without the other command written
     /// inside it: "@translate @improve 你好" → (.both, "你好"). `improveTranslates`
     /// (`Config.improveTranslates`): `@improve` alone does both.
-    public static func parse(_ command: Command?, _ text: String, improveTranslates: Bool = false) -> (mode: WritingMode, text: String) {
-        let parsed = commands(command, text)
+    public static func parse(_ command: Command?, _ text: String, improveTranslates: Bool = false,
+                             trigger: String = "@") -> (mode: WritingMode, text: String) {
+        let parsed = commands(command, text, trigger: trigger)
         return (parsed.mode == .improve && improveTranslates ? .both : parsed.mode, parsed.text)
     }
 
-    private static func commands(_ command: Command?, _ text: String) -> (mode: WritingMode, text: String) {
+    private static func commands(_ command: Command?, _ text: String, trigger: String) -> (mode: WritingMode, text: String) {
         let own: WritingMode = command == .translate ? .translate : .improve
         let other: Command = own == .translate ? .improve : .translate
-        let token = "@" + other.name
+        let token = trigger + other.name
         var words = text.components(separatedBy: " ")
         guard let index = words.firstIndex(of: token) else { return (own, text) }
         words.remove(at: index)

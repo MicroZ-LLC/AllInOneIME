@@ -351,7 +351,7 @@ extension AllInOneIMEInputController {
     @MainActor
     func refreshTranslateChip() {
         let panel = CandidatePanel.shared
-        let shown = panel.isVisible && panel.owner === self && panel.view.model.chip != nil
+        let shown = panel.isShowing && panel.owner === self && panel.view.model.chip != nil
         guard shown || translateChip() != nil else { return }
         showPanel(clientOverride ?? client())
     }
@@ -373,6 +373,6 @@ extension AllInOneIMEInputController {
     func hideTranslateChip() {
         TranslateModeShared.listOpen = false
         let panel = CandidatePanel.shared
-        if panel.isVisible, panel.owner === self, panel.view.model.chip != nil { panel.hide() }
+        if panel.isShowing, panel.owner === self, panel.view.model.chip != nil { panel.hide() }
     }
 }

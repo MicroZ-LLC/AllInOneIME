@@ -164,7 +164,7 @@ extension Composer {
 
     /// ⌫ with nothing typed after the command: the attachment goes (a screenshot still being read is forgotten).
     func removeAttachment() -> Bool {
-        guard attachment != nil, let command = draftCommand, draft == "@\(command.name) " else { return false }
+        guard attachment != nil, let command = draftCommand, draft == "\(commandTrigger)\(command.name) " else { return false }
         attachment = nil
         replyState.recognitionID = nil
         replyState.startWhenRead = false

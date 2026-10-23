@@ -143,7 +143,8 @@ extension InterfaceWords {
         }
         switch command {
         case .improve, .translate:
-            return action(WritingMode.parse(command, draft, improveTranslates: config.improveTranslates).mode, input: input, config: config)
+            return action(WritingMode.parse(command, draft, improveTranslates: config.improveTranslates,
+                                            trigger: config.commandTrigger).mode, input: input, config: config)
         case .question: return tr("提问", "ask")
         case .reply: return tr("写三条回复", "write three replies")
         case .agent:

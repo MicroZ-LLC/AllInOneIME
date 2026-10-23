@@ -254,7 +254,7 @@ extension SelfTest {
         let japanese = OutputLanguage("ja")
         settings.setOrder([OutputLanguage.english, japanese, .chinese])
         let panel = CandidatePanel.shared
-        func chip() -> String { panel.isVisible ? panel.view.model.chip.map { "\($0.source) → \($0.target)" } ?? "none" : "hidden" }
+        func chip() -> String { panel.isShowing ? panel.view.model.chip.map { "\($0.source) → \($0.target)" } ?? "none" : "hidden" }
         let (zhEn, enEn, zhJa) = (tr("中 → 英", "ZH → EN"), tr("英 → 英", "EN → EN"), tr("中 → 日", "ZH → JA"))
         /// A click on a part of the chip, through the panel's own mouse handling.
         func click(_ part: CandidateView.ChipPart) {

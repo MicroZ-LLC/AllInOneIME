@@ -63,6 +63,15 @@ public struct Config: Codable, Equatable, Sendable {
     public var jargonFile: String?
     /// The key that runs the @ command at the start of the draft.
     public var actionKey: ActionKey
+    /// One printable symbol that starts a command. Older config files use @.
+    public var commandTrigger: String = "@" {
+        didSet { commandTrigger = Self.validCommandTrigger(commandTrigger) ? commandTrigger : "@" }
+    }
+    public static func validCommandTrigger(_ value: String) -> Bool {
+        guard value.unicodeScalars.count == 1, let scalar = value.unicodeScalars.first,
+              (33...126).contains(scalar.value) else { return false }
+        return !CharacterSet.alphanumerics.contains(scalar)
+    }
     /// The interface language (`InterfaceLanguage.code(forSetting:shipped:)`): "zh" (Simplified Chinese) and "en", as
     /// older versions write them, or another shipped language's code ("fr"); nil follows the system. A code this version
     /// doesn't ship is kept, and followed as nil.
@@ -264,7 +273,7 @@ public struct Config: Codable, Equatable, Sendable {
     /// Every key a config file may hold (`allKeys`: what the Assistant's checks and changes know as the config's own).
     enum CodingKeys: String, CodingKey, CaseIterable {
         case awsProfile, region, modelId, maxTokens, temperature, timeoutSeconds, rewriteStyles
-        case outputLanguage, outputLanguages, inputLanguages, defaultInput, improveTranslates, voiceInput, jargonFile, actionKey, uiLanguage, customCommands, claudeInBackground, agent, agentCommand, agentPageContext
+        case outputLanguage, outputLanguages, inputLanguages, defaultInput, improveTranslates, voiceInput, jargonFile, actionKey, commandTrigger, uiLanguage, customCommands, claudeInBackground, agent, agentCommand, agentPageContext
         case extensionFolders, findRaycastScripts, hiddenExtensionFolders, disabledExtensions, extensionPreferences
         case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutMistakes, typeOutSpeed, fuzzyPinyin, keyboardLayouts, candidateLayout
         case englishWords, addedEnglishWords, learnsEnglishWords
@@ -309,6 +318,8 @@ public struct Config: Codable, Equatable, Sendable {
         jargonFile = try c.decodeIfPresent(String.self, forKey: .jargonFile)
         // One this version can't read (a later one's, or a recorded key gone wrong) is the default, not an error.
         actionKey = (try? c.decodeIfPresent(ActionKey.self, forKey: .actionKey)).flatMap { $0 } ?? d.actionKey
+        let trigger = (try? c.decodeIfPresent(String.self, forKey: .commandTrigger)).flatMap { $0 } ?? "@"
+        commandTrigger = Self.validCommandTrigger(trigger) ? trigger : "@"
         uiLanguage = (try? c.decodeIfPresent(String.self, forKey: .uiLanguage)).flatMap { $0 }.flatMap { $0.isEmpty ? nil : $0 }
         // An entry of a type this version doesn't know (a later one's) is kept aside, not an error for the whole list;
         // anything else wrong in one still is.
@@ -478,6 +489,7 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(voiceInput, forKey: .voiceInput)
         try c.encode(jargonFile, forKey: .jargonFile)  // null: the default file
         try c.encode(actionKey, forKey: .actionKey)
+        if commandTrigger != "@" { try c.encode(commandTrigger, forKey: .commandTrigger) }
         try c.encode(uiLanguage, forKey: .uiLanguage)  // null: follow the system
         var commands = c.nestedUnkeyedContainer(forKey: .customCommands)
         for command in customCommands { try commands.encode(command) }

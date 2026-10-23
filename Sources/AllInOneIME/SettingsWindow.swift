@@ -821,6 +821,7 @@ final class SettingsModel: ObservableObject {
 
 struct SettingsView: View {
     @ObservedObject var model: SettingsModel
+    @StateObject private var personalDictionaries = PersonalDictionariesModel()
     @State private var customModel = false
     @State private var customProviderModel = false
     @State private var pluginToRemove: InstalledPlugin?
@@ -840,6 +841,7 @@ struct SettingsView: View {
     /// The page shown (Assistant when none is asked for) and what's typed in the sidebar's search field.
     @State private var page: SettingsPage
     @State private var query = ""
+    @State private var commandTriggerEntry = "@"
     /// The input language whose settings the Input page shows.
     @State private var inputTab: Language = .chinese
     /// The language packs and their downloads (Chinese is a download: the app ships English only).
@@ -894,6 +896,29 @@ struct SettingsView: View {
                 }
             } label: {
                 titled(tr("执行键", "Action key"), Self.actionKeyNote(model.config.actionKey))
+            }
+            .disabled(!model.canSave)
+            LabeledContent {
+                HStack(spacing: 8) {
+                    TextField("@", text: $commandTriggerEntry)
+                        .frame(width: 48)
+                        .textFieldStyle(.roundedBorder)
+                        .onChange(of: commandTriggerEntry) {
+                            if Config.validCommandTrigger(commandTriggerEntry) {
+                                model.config.commandTrigger = commandTriggerEntry
+                            }
+                        }
+                        .onSubmit { commandTriggerEntry = model.config.commandTrigger }
+                    if model.config.commandTrigger != "@" {
+                        Button(tr("恢复 @", "Use @")) {
+                            commandTriggerEntry = "@"
+                        }
+                    }
+                }
+            } label: {
+                titled(tr("命令触发符", "Command trigger"),
+                       tr("输入一个符号，例如 @ 或 ~。打在句首打开命令列表。",
+                          "Type one symbol, such as @ or ~, to open commands at the start of a sentence."))
             }
             .disabled(!model.canSave)
             // Results typed in character by character, like a person typing.
@@ -1181,7 +1206,7 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack {
                         IconTile(icon: CommandIcons.icon(for: command))
-                        Text("@" + command.name).font(.body.monospaced())
+                        Text(model.config.commandTrigger + command.name).font(.body.monospaced())
                         Text(UIText.customKind(command)).foregroundStyle(.secondary)
                         if let summary = command.summary {
                             Text(summary).foregroundStyle(.secondary).lineLimit(1)
@@ -1201,10 +1226,12 @@ struct SettingsView: View {
                 commandEdit = CommandEdit(index: nil, command: CustomCommand(name: "", type: .prompt))
             }
         } header: {
-            SectionTitle(tr("自定义 @ 命令", "Custom @ Commands"), icon: CommandIcons.commands)
+            SectionTitle(tr("自定义 @ 命令", "Custom @ Commands")
+                            .replacingOccurrences(of: "@", with: model.config.commandTrigger), icon: CommandIcons.commands)
         } footer: {
             Text(tr("保存后，在任意输入框开头打 @ 加名字就能用，和 @improve 一样。",
-                    "Once saved, type @ and its name at the start of any text field, like @improve."))
+                    "Once saved, type @ and its name at the start of any text field, like @improve.")
+                    .replacingOccurrences(of: "@", with: model.config.commandTrigger))
                 .font(.caption).foregroundStyle(.secondary)
                     .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)  // under the card, from its left
         }
@@ -1266,7 +1293,8 @@ struct SettingsView: View {
             SectionTitle(tr("脚本扩展", "Script Extensions"), icon: CommandIcons.scripts)
         } footer: {
             Text(tr("每个脚本是一个 @ 命令，名字取自文件名（convert-timestamp.sh → @converttimestamp）。参数写在命令后面，多个用逗号隔开：@flights beijing, new york。脚本可以上屏结果、显示进度、给出列表来选，或在后台运行，完成后通知你。写法见 docs/extensions.md。",
-                    "Each script is an @ command named after its file (convert-timestamp.sh → @converttimestamp). Write its arguments after it, with commas between: @flights beijing, new york. A script can insert its result, show progress, offer a list to pick from, or run in the background and notify you. See docs/extensions.md for how to write one."))
+                    "Each script is an @ command named after its file (convert-timestamp.sh → @converttimestamp). Write its arguments after it, with commas between: @flights beijing, new york. A script can insert its result, show progress, offer a list to pick from, or run in the background and notify you. See docs/extensions.md for how to write one.")
+                    .replacingOccurrences(of: "@", with: model.config.commandTrigger))
                 .font(.caption).foregroundStyle(.secondary)
                     .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)  // under the card, from its left
         }
@@ -1314,7 +1342,7 @@ struct SettingsView: View {
         return VStack(alignment: .leading, spacing: 2) {
             HStack {
                 IconTile(icon: CommandIcons.icon(for: command))
-                Text("@" + name).font(.body.monospaced()).foregroundStyle(on ? .primary : .secondary)
+                Text(model.config.commandTrigger + name).font(.body.monospaced()).foregroundStyle(on ? .primary : .secondary)
                 Text(command.title).lineLimit(1).foregroundStyle(on ? .primary : .secondary)
                 if command.source == .raycast { Text("Raycast").font(.caption).foregroundStyle(.secondary) }
                 Spacer()
@@ -1339,7 +1367,7 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack {
                         IconTile(icon: CommandIcons.icon(for: plugin))
-                        Text("@" + plugin.name).font(.body.monospaced())
+                        Text(model.config.commandTrigger + plugin.name).font(.body.monospaced())
                         Text(plugin.manifest.summary?.text(chinese: UIText.chinese) ?? "").foregroundStyle(.secondary).lineLimit(1)
                         Spacer()
                         if let update = model.libraryUpdate(for: plugin) {
@@ -1357,7 +1385,8 @@ struct SettingsView: View {
             }
             if model.plugins.isEmpty, model.skippedPlugins.isEmpty {
                 Text(tr("还没有插件。插件是别人写好的 @ 命令，比如 @stock 查股价；装好后和其他命令一样用。",
-                        "No plugins yet. Plugins are ready-made @ commands, like @stock for stock quotes; once installed they work like any command."))
+                        "No plugins yet. Plugins are ready-made @ commands, like @stock for stock quotes; once installed they work like any command.")
+                        .replacingOccurrences(of: "@", with: model.config.commandTrigger))
                     .font(.caption).foregroundStyle(.secondary)
             }
             HStack {
@@ -1899,8 +1928,11 @@ struct SettingsView: View {
                     ICloudSyncSection(model: model)
                 case .input:
                     inputSection
-                    inputLanguageSection
-                    if shownInput == .chinese { EnglishWordsSection(model: model) }
+                    inputLanguageSection.disabled(personalDictionaries.isWorking)
+                    if shownInput == .chinese {
+                        PersonalDictionariesSection(model: model, dictionaries: personalDictionaries)
+                        EnglishWordsSection(model: model)
+                    }
                 case .writing:
                     translateSection
                     rewriteSection
@@ -1948,7 +1980,7 @@ struct SettingsView: View {
                 commandToDelete = nil
             }
         } message: {
-            if let command = commandToDelete { Text("@" + command.name) }
+            if let command = commandToDelete { Text(model.config.commandTrigger + command.name) }
         }
         .confirmationDialog(tr("删除这个插件？", "Remove this plugin?"),
                             isPresented: Binding(get: { pluginToRemove != nil }, set: { if !$0 { pluginToRemove = nil } })) {
@@ -1957,7 +1989,7 @@ struct SettingsView: View {
                 pluginToRemove = nil
             }
         } message: {
-            if let plugin = pluginToRemove { Text("@" + plugin.name) }
+            if let plugin = pluginToRemove { Text(model.config.commandTrigger + plugin.name) }
         }
         .onChange(of: model.config.awsProfile) { model.save() }
         .onChange(of: model.config.provider) {
@@ -1975,6 +2007,10 @@ struct SettingsView: View {
         .onChange(of: model.config.improveTranslates) { model.save() }
         .onChange(of: model.config.voiceInput) { model.save() }
         .onChange(of: model.config.actionKey) { model.save() }
+        .onChange(of: model.config.commandTrigger) {
+            commandTriggerEntry = model.config.commandTrigger
+            model.save()
+        }
         .onChange(of: model.config.claudeInBackground) { model.save() }
         .onChange(of: model.config.agent) { model.save() }
         .onChange(of: model.config.agentCommand) { model.save() }
@@ -1997,6 +2033,7 @@ struct SettingsView: View {
         .onChange(of: model.config.customCommands) { model.refreshExtensions() }  // a name an extension had may be taken now
         .onChange(of: model.config.notes) { model.refreshNotesFolder() }
         .onAppear {
+            commandTriggerEntry = model.config.commandTrigger
             model.refreshPlugins()
             model.refreshExtensions(discover: page == .commands)
             model.refreshKeys()
@@ -2060,12 +2097,14 @@ struct SettingsView: View {
                       + "Type @ first for commands: @improve polishes and rewrites, @translate "
                       + "translates, @question asks, @agent hands it to a coding agent (Claude Code …), @open finds files, @note saves to Notes, "
                       + "@reminder adds a reminder. When done, \(key).")
+            .replacingOccurrences(of: "@", with: model.config.commandTrigger)
     }
 
     /// What @improve does for each input language: "@improve: Chinese → polish / rewrite; Korean → …".
     private var inputSummary: String {
         let each = model.config.inputLanguages.map { "\(UIText.name($0)) → \(UIText.action(input: $0, config: model.config))" }
-        return tr("@improve：打", "@improve: ") + each.joined(separator: tr("；打", "; ", key: "improve.separator")) + tr("。", ".")
+        return tr("@improve：打", "@improve: ").replacingOccurrences(of: "@", with: model.config.commandTrigger)
+            + each.joined(separator: tr("；打", "; ", key: "improve.separator")) + tr("。", ".")
     }
 
     /// Adds an input language; one whose pack isn't installed is added once the pack has downloaded
@@ -2424,7 +2463,7 @@ struct SettingsView: View {
                         .background(Color(nsColor: CommandIcons.color(entry.color) ?? .systemPink), in: RoundedRectangle(cornerRadius: 5))
                     VStack(alignment: .leading, spacing: 2) {
                         HStack {
-                            Text("@" + entry.name).font(.body.monospaced())
+                            Text(model.config.commandTrigger + entry.name).font(.body.monospaced())
                             Text(entry.version).font(.caption).foregroundStyle(.secondary)
                         }
                         Text(entry.summary?.text(chinese: UIText.chinese) ?? "").foregroundStyle(.secondary).lineLimit(2)
@@ -2947,7 +2986,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         switch self {
         case .assistant: return "assistant config change settings describe sentence doctor check problems fix diagnose 助手 设置 改设置 描述 一句话 检查 问题 修复 诊断"
         case .general: return "action key return 执行键 回车 type out typing speed typos mistakes forget 逐字上屏 打字速度 打错 忘掉 menu bar panel 菜单栏 面板 interface language 界面语言 中文 english recent questions history @question clear 最近的问题 提问 记录 历史 清除 continue conversation claude code chatgpt gemini copy 接着聊 对话 追问 复制 icloud drive sync macs learned words hidden words remove 同步 云盘 多台 学到的词 隐藏的词 移除"
-        case .input: return "input languages pinyin english chinese shift 输入语言 拼音 中文 英文 fuzzy 模糊音 zh ch sh candidate layout horizontal vertical 候选 排列 横排 竖排 english words dictionary learn bedrock 英文词 词典 词库 学习"
+        case .input: return "input languages pinyin english chinese shift 输入语言 拼音 中文 英文 fuzzy 模糊音 zh ch sh candidate layout horizontal vertical 候选 排列 横排 竖排 english words dictionary learn bedrock personal import dict yaml 个人 自定义 导入 英文词 词典 词库 学习"
         case .writing: return "translate languages 翻译 语言 rewrite styles polish concise formal casual tactful jargon 改写 润色 简洁 正式 口语 委婉 黑话 jargon list 黑话库 improve"
         case .commands: return "custom commands 自定义 命令 prompt program terminal link 程序 终端 网页 raycast script commands scripts extensions bundles preferences 脚本 扩展 扩展包 偏好 文件夹 folder spotlight 聚焦 extension sources git repository link clone update pin ssh 扩展来源 仓库 链接 从链接添加 克隆 更新 固定"
         case .plugins: return "plugins library 插件 插件库 stock xe search 搜索 brave @note note notes save to notion obsidian folder markdown vault token integration 笔记 备忘录 存到 文件夹 令牌 集成"

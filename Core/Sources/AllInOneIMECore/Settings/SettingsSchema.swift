@@ -62,13 +62,18 @@ struct SettingsSchema {
             SettingsDocument.Section(id: "plugins", title: tr("插件", "Plugins"), fields: plugins()),
             SettingsDocument.Section(id: "extensions", title: tr("脚本扩展", "Script Extensions"),
                                      footer: tr("每个脚本是一个 @ 命令，名字取自文件名（convert-timestamp.sh → @converttimestamp）。参数写在命令后面，多个用逗号隔开：@flights beijing, new york。脚本可以上屏结果、显示进度、给出列表来选，或在后台运行，完成后通知你。写法见 docs/extensions.md。",
-                                                "Each script is an @ command named after its file (convert-timestamp.sh → @converttimestamp). Write its arguments after it, with commas between: @flights beijing, new york. A script can insert its result, show progress, offer a list to pick from, or run in the background and notify you. See docs/extensions.md for how to write one."),
+                                                "Each script is an @ command named after its file (convert-timestamp.sh → @converttimestamp). Write its arguments after it, with commas between: @flights beijing, new york. A script can insert its result, show progress, offer a list to pick from, or run in the background and notify you. See docs/extensions.md for how to write one.")
+                                                .replacingOccurrences(of: "@", with: config.commandTrigger),
                                      fields: scriptExtensions()),
-            SettingsDocument.Section(id: "search", title: tr("网页搜索（@search）", "Web Search (@search)"), fields: search()),
-            SettingsDocument.Section(id: "notes", title: tr("笔记（@note）", "Notes (@note)"), fields: notes()),
-            SettingsDocument.Section(id: "commands", title: tr("自定义 @ 命令", "Custom @ Commands"),
+            SettingsDocument.Section(id: "search", title: tr("网页搜索（@search）", "Web Search (@search)")
+                                        .replacingOccurrences(of: "@", with: config.commandTrigger), fields: search()),
+            SettingsDocument.Section(id: "notes", title: tr("笔记（@note）", "Notes (@note)")
+                                        .replacingOccurrences(of: "@", with: config.commandTrigger), fields: notes()),
+            SettingsDocument.Section(id: "commands", title: tr("自定义 @ 命令", "Custom @ Commands")
+                                        .replacingOccurrences(of: "@", with: config.commandTrigger),
                                      footer: tr("保存后，在任意输入框开头打 @ 加名字就能用，和 @improve 一样。",
-                                                "Once saved, type @ and its name at the start of any text field, like @improve."),
+                                                "Once saved, type @ and its name at the start of any text field, like @improve.")
+                                                .replacingOccurrences(of: "@", with: config.commandTrigger),
                                      fields: commands()),
             SettingsDocument.Section(id: "advanced", title: tr("高级", "Advanced"),
                                      footer: tr("改完立即生效，不用重启。", "Changes apply right away, with no restart."),
@@ -187,6 +192,14 @@ struct SettingsSchema {
                    choices: keys), to: &fields) { value in
             guard let key = value.string.flatMap(ActionKey.named) else { return }
             store.config.actionKey = key
+        }
+        add(text("commandTrigger", tr("命令触发符", "Command trigger"),
+                 tr("输入一个符号，例如 @ 或 ~。打在句首打开命令列表。", "Type one symbol, such as @ or ~, to open commands at the start of a sentence."),
+                 value: config.commandTrigger, placeholder: "@"), to: &fields) { value in
+            guard let trigger = value.string, Config.validCommandTrigger(trigger) else {
+                throw SettingsProblem(.badValue, field: "commandTrigger", message: SettingsService.badValue)
+            }
+            store.config.commandTrigger = trigger
         }
         add(toggle("typeOut", tr("逐字上屏", "Type results out"),
                    tr("命令的结果（翻译、润色、回答…）像人打字一样一个字一个字打进去；打拼音选词还是马上上屏。按 Esc 停下，按别的键把剩下的一次打完。",
@@ -523,7 +536,7 @@ struct SettingsSchema {
         let installed = PluginStore.load(from: library.directory).plugins
         var list = Field(id: "plugins.installed", kind: .items, label: tr("插件", "Plugins"))
         list.items = installed.map { plugin in
-            SettingsDocument.Item(id: plugin.name, title: "@" + plugin.name,
+            SettingsDocument.Item(id: plugin.name, title: config.commandTrigger + plugin.name,
                                   detail: [plugin.manifest.version, plugin.manifest.summary?.text(chinese: UIText.chinese)]
                                       .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "),
                                   actions: [SettingsAction.remove])
@@ -548,7 +561,7 @@ struct SettingsSchema {
                 case .installed: (actions, state) = ([], tr("已安装", "Installed"))
                 case .local: (actions, state) = ([], tr("已有同名本地插件", "Local plugin installed"))
                 }
-                return SettingsDocument.Item(id: entry.name, title: "@" + entry.name + " " + entry.version,
+                return SettingsDocument.Item(id: entry.name, title: config.commandTrigger + entry.name + " " + entry.version,
                                              detail: [entry.summary?.text(chinese: UIText.chinese), state].compactMap { $0 }
                                                  .filter { !$0.isEmpty }.joined(separator: " · "),
                                              actions: actions)
@@ -633,7 +646,7 @@ struct SettingsSchema {
             let detail = [UIText.customKind(command), command.summary].compactMap { $0 }.joined(separator: " · ")
                 + (Command.builtins.contains { $0.name == command.name.lowercased() }
                    ? "\n" + tr("和内置命令重名，不会生效，请改名", "Same name as a built-in command: rename it to use it") : "")
-            return SettingsDocument.Item(id: command.name, title: "@" + command.name, detail: detail, value: value,
+            return SettingsDocument.Item(id: command.name, title: config.commandTrigger + command.name, detail: detail, value: value,
                                          actions: [SettingsAction.save, SettingsAction.delete])
         }
         add(list, to: &fields)

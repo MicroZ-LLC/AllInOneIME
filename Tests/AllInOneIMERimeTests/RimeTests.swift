@@ -130,6 +130,31 @@ struct RimeEngineTests {
         s.clearComposition()
     }
 
+    @Test func lunarTranslatorFindsItsDatabaseInAFreshUserFolder() throws {
+        let s = try RimeFixture.session()
+        defer { s.clearComposition() }
+        #expect(FileManager.default.fileExists(atPath: RimeFixture.userData.appendingPathComponent("lua/lunar.db").path))
+        type("nl", into: s)
+        #expect(s.snapshot().candidates.contains { $0.text.contains("年") && !$0.text.contains("错误") })
+        s.clearComposition()
+        type("N20240101", into: s)
+        #expect(s.snapshot().candidates.contains { $0.text.contains("兔年") && $0.text.contains("二十") })
+    }
+
+    @Test func lunarDatabaseKeepsTheUsersOwnData() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-lunar-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let user = folder.appendingPathComponent("user")
+        try RimeService.prepareLunarDatabase(sharedDataDir: RimeFixture.sharedData, userDataDir: user)
+        let database = user.appendingPathComponent("lua/lunar.db")
+        #expect(try Data(contentsOf: database) == Data(contentsOf: RimeFixture.sharedData.appendingPathComponent("lua/lunar.db")))
+        try Data("user database".utf8).write(to: database)
+        try RimeService.prepareLunarDatabase(sharedDataDir: RimeFixture.sharedData, userDataDir: user)
+        #expect(try String(contentsOf: database, encoding: .utf8) == "user database")
+        // Other schemas need no lunar database: a shared folder without it still starts normally.
+        try RimeService.prepareLunarDatabase(sharedDataDir: folder.appendingPathComponent("missing"), userDataDir: user)
+    }
+
     @Test func composerDraftsChineseAndTranslatesOnSecondSpace() throws {
         let composer = Composer(engine: try RimeFixture.session(), actionKey: .space)
         startImprove(composer)

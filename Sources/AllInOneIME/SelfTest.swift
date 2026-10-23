@@ -1712,7 +1712,7 @@ enum SelfTest {
         check(pump(timeout: 2) { notes.count == 7 && CandidatePanel.shared.view.model.status == .hint("已存到备忘录") } && notice() == nil,
               "its field gone, the outcome shows by itself and the progress notice is taken down (\(notice() ?? "none"))")
         controller.activateServer(client)
-        _ = pump(timeout: 3) { !CandidatePanel.shared.isVisible }  // the notice near the pointer goes before the next section
+        _ = pump(timeout: 3) { !CandidatePanel.shared.isShowing }  // the notice near the pointer goes before the next section
         check(posted.count == 0, "the stand-ins post nothing for the menu bar panel (\(posted.count))")
         check(client.inserted == insertedBefore && !controller.composer.isComposing, "@note and @reminder inserted nothing")
         controller.commitComposition(client)
@@ -1890,7 +1890,7 @@ enum SelfTest {
         check(controller.panelModel().horizontal && size.width > size.height && size.height < columnSize.height,
               "the candidates are in a row (\(Int(size.width))×\(Int(size.height)); a column: \(Int(columnSize.width))×\(Int(columnSize.height)))")
         let caretX = client.caretRect.minX, textX = panel.frame.minX + panel.view.textInset
-        check(panel.isVisible && abs(textX - caretX) < 1 && panel.frame.maxY <= client.caretRect.minY,
+        check(panel.isShowing && abs(textX - caretX) < 1 && panel.frame.maxY <= client.caretRect.minY,
               "under the caret, the first candidate's text at the caret (\(Int(textX)) / \(Int(caretX)))")
         readmeSnapshot("1b-pinyin-horizontal", controller, client, in: snapshotDirectory)
         snapshot("1b-pinyin-horizontal-dark", in: snapshotDirectory, appearance: .darkAqua)
@@ -2538,7 +2538,7 @@ enum SelfTest {
             Mirror(reflecting: Composer.Messages.english).children.compactMap { $0.value as? String }),
         uniquingKeysWith: { first, _ in first })
 
-    static func run(snapshotDirectory: URL) -> Int32 {
+    static func run(snapshotDirectory: URL, typingLagOnly: Bool = false) -> Int32 {
         waitForOtherSelfTests()
         _ = NSApplication.shared
         // The recent @questions in a file of the self-test's own: the user's are neither listed nor changed.
@@ -2629,6 +2629,11 @@ enum SelfTest {
         controller.services.takeRenameNotice = { _ in nil }  // the user's own rename notice left for them (the @reply section has its own)
         controller.warmsUpVision = false  // the real clipboard's types left alone (the @reply section reads its own)
         giveUp = { for _ in 0..<4 where controller.composer.isComposing { _ = escape(controller, client) } }
+        testTypingLag(controller, client)
+        if typingLagOnly {
+            check((try? Data(contentsOf: Config.userURL)) == userConfig, "the user's config was left unchanged")
+            return summary()
+        }
         // @translate: into the output languages but the sentence's own; with @improve, one request. For the
         // README image the live requests translate into English only (three versions).
         // It runs before `settings` is pinned below: its own settings here (the README's Chinese interface,
@@ -2864,7 +2869,7 @@ enum SelfTest {
         let state = controller.composer.engineState
         check(state.candidates.first?.text == "你好", "first candidate for 'nihao' is 你好 (\(state.candidates.prefix(5).map(\.text)))")
         check(client.marked.replacingOccurrences(of: " ", with: "") == "nihao", "pinyin is marked inline (\(client.marked))")
-        check(panel.isVisible, "candidate panel is visible")
+        check(panel.isShowing, "candidate panel is visible")
         snapshot("1-pinyin", in: snapshotDirectory)
         check(escape(controller, client) && client.marked.isEmpty && !controller.composer.isComposing, "Esc cancels the pinyin")
 
@@ -2950,7 +2955,7 @@ enum SelfTest {
         snapshot("2b-sentence-draft", in: snapshotDirectory)
         let started = Date()
         check(act(controller, client), "the action key starts the translation")
-        check(panel.isVisible && client.marked == "improve › " + sentence, "panel visible, the command stays marked")
+        check(panel.isShowing && client.marked == "improve › " + sentence, "panel visible, the command stays marked")
         var streamingSnapshotTaken = false
         let finished = pump(timeout: 20) {
             if !streamingSnapshotTaken, case .translating = controller.composer.phase,
@@ -2979,7 +2984,7 @@ enum SelfTest {
         let second = choices.count > 2 ? choices[2].text : ""
         check(press(controller, client, "2", code: 0x13), "digit 2 consumed")
         check(client.inserted.last == second && !second.isEmpty, "digit 2 commits '\(second)'")
-        check(client.marked.isEmpty && !panel.isVisible, "marked text cleared and panel hidden")
+        check(client.marked.isEmpty && !panel.isShowing, "marked text cleared and panel hidden")
 
         section("cache hit + Space commits", needs: [.composing, .bedrock])
         improve(controller, client)

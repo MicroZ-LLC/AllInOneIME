@@ -36,7 +36,7 @@ extension Composer {
         guard translateMode != nil, selection == nil else { return false }
         if modeTranslating { return true }
         guard !isLevelTwo else { return false }
-        if !draft.isEmpty { return !draft.hasPrefix("@") }
+        if !draft.isEmpty { return !draft.hasPrefix(commandTrigger) }
         return modeCollects && (engineState.isComposing || !hangul.isEmpty || pendingAccent != nil)
     }
 
@@ -51,7 +51,7 @@ extension Composer {
     /// translating, saying so. Which languages is the chip's to show (「中 → 英」), not the field's.
     var modeShownDraft: String? {
         guard inModeComposition, translateMode != nil else { return nil }
-        let text = draft.replacingOccurrences(of: "@", with: "＠").replacingOccurrences(of: "\n", with: Self.lineBreak)
+        let text = draft.replacingOccurrences(of: commandTrigger, with: hiddenTrigger).replacingOccurrences(of: "\n", with: Self.lineBreak)
         return text + (modeTranslating ? " · " + translateModeMessages.translating : "")
     }
 

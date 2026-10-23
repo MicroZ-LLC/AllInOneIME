@@ -445,6 +445,13 @@ public final class Composer {
             commandsGeneration &+= 1
         }
     }
+    /// The symbol the user types to open the command palette.
+    public var commandTrigger = "@"
+    var triggerCharacter: Character { commandTrigger.first ?? "@" }
+    var hiddenTrigger: String {
+        let scalar = commandTrigger.unicodeScalars.first?.value ?? 64
+        return UnicodeScalar(scalar + 0xFEE0).map(String.init) ?? commandTrigger
+    }
     /// `commands` by name, for the draft's command (`parse`), and how many times they were set: what the
     /// command list matched is kept per query while they and the usage stay the same (`paletteMatches`).
     /// With many script extensions, a key mustn't go through all of them again and again.
@@ -460,7 +467,7 @@ public final class Composer {
 
     /// The command at the start of `text` and what follows it (as `Command.parse`, by name).
     private func parse(_ text: String) -> (command: Command, content: String)? {
-        guard text.hasPrefix("@"), let space = text.firstIndex(of: " ") else { return nil }
+        guard text.hasPrefix(commandTrigger), let space = text.firstIndex(of: " ") else { return nil }
         guard let command = commandsByName[text[text.index(after: text.startIndex)..<space].lowercased()] else { return nil }
         return (command, String(text[text.index(after: space)...]))
     }
@@ -786,7 +793,7 @@ public final class Composer {
     /// Where the text after the command starts (the cursor never goes into "@question ").
     private var textStart: Int {
         guard let command = draftCommand else { return 0 }
-        let header = "@\(command.name) "
+        let header = "\(commandTrigger)\(command.name) "
         return draft.hasPrefix(header) ? header.count : 0
     }
 
@@ -845,7 +852,7 @@ public final class Composer {
     /// the draft as typed.
     public var shownDraft: String {
         if let shown = modeShownDraft { return shown }
-        guard draft.contains("@") else { return draft }
+        guard draft.contains(triggerCharacter) else { return draft }
         let chars = Array(draft)
         let names = commandsByName
         let paletteAt = palette.map { draft.distance(from: draft.startIndex, to: $0.at) }
@@ -857,7 +864,7 @@ public final class Composer {
         var out = ""
         var i = 0
         while i < chars.count {
-            guard chars[i] == "@" else {
+            guard chars[i] == triggerCharacter else {
                 // A note keeps its lines (`pasted`); the draft is shown on one line.
                 if chars[i].isNewline { out += Self.lineBreak } else { out.append(chars[i]) }
                 i += 1
@@ -875,10 +882,10 @@ public final class Composer {
                 out += String(chars[(i + 1)..<j])  // its name being typed
                 i = j
             } else if chars.count == 1 || !inCommand && i == 0 {
-                out.append("@")
+                out += commandTrigger
                 i += 1
             } else {
-                out.append("＠")
+                out += hiddenTrigger
                 i += 1
             }
         }
@@ -1043,7 +1050,7 @@ public final class Composer {
     /// (`@reply 告诉他 @st`, not inside a word), where the commands that can run inside a text are offered.
     /// Not inside a note, a reminder, a search, code or a terminal command: they take their text as typed (`takesTextAsTyped`).
     private var palette: (query: String, nested: Bool, at: String.Index)? {
-        guard !isLevelTwo, voice == .off, !engineState.isComposing, tail.isEmpty, let at = draft.lastIndex(of: "@") else { return nil }
+        guard !isLevelTwo, voice == .off, !engineState.isComposing, tail.isEmpty, let at = draft.lastIndex(of: triggerCharacter) else { return nil }
         let query = draft[draft.index(after: at)...]
         guard query.first?.isNumber != true, query.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber) }) else { return nil }
         if at == draft.startIndex { return (String(query), false, at) }
@@ -1076,7 +1083,7 @@ public final class Composer {
         // The writing commands (built in, first in the catalog) that pair with the draft's and aren't written yet.
         let written = Set(draft.split(separator: " ").map(String.init))
         let pairs = commands.prefix { $0.custom == nil && $0.plugin == nil && $0.script == nil }
-            .filter { $0.kind == .convert && $0 != draftCommand && !written.contains("@" + $0.name) }
+            .filter { $0.kind == .convert && $0 != draftCommand && !written.contains(commandTrigger + $0.name) }
         return pairs + innerCommands.commands
     }
     private var innerCommands: (generation: Int, commands: [Command]) = (-1, [])
@@ -1197,7 +1204,7 @@ public final class Composer {
         let found = currentRecipients
         guard found.indices.contains(index), let command = draftCommand else { return [] }
         messageRecipient = found[index]
-        draft = "@\(command.name) "
+        draft = "\(commandTrigger)\(command.name) "
         clearRecipientResults()
         setLevelOnePhase()
         return [.updateMarkedText, .showPanel]
@@ -1294,7 +1301,7 @@ public final class Composer {
     /// code inside the text, until its argument is typed: `nestedLatinFrom`).
     private var typesHangul: Bool {
         inputLanguage == .korean && !isLevelTwo && voice == .off && engine != nil && palette == nil
-            && draftCommand?.typesLatin != true && nestedLatinFrom == nil && !(draft.hasPrefix("@") && draftCommand == nil)
+            && draftCommand?.typesLatin != true && nestedLatinFrom == nil && !(draft.hasPrefix(commandTrigger) && draftCommand == nil)
     }
 
     /// A letter key in Korean: its jamo joins the syllable being typed, and a finished one goes in. ⌫ takes
@@ -1726,7 +1733,7 @@ public final class Composer {
     /// here. Nil otherwise: the controller then puts the text on the clipboard instead.
     public func restoreDraft(_ command: Command, text: String) -> [Effect]? {
         guard phase == .idle, draft.isEmpty, voice == .off, !(engine?.snapshot().isComposing ?? false) else { return nil }
-        draft = "@\(command.name) " + text
+        draft = "\(commandTrigger)\(command.name) " + text
         draftHasOutsideText = true
         setLevelOnePhase()
         return [.updateMarkedText, .showPanel]
@@ -1895,13 +1902,13 @@ public final class Composer {
             if !draft.isEmpty, let response = handleDraftKey(event, afterVoice: afterVoice) { return response }
             if draft.isEmpty {
                 // "@" first: the command palette ("@question …").
-                if event.printableText == "@" {
+                if event.printableText == commandTrigger {
                     // Right after a word it's text, as in "bob@example.com" or "ssh user@host": no list.
                     if let before = characterBeforeCaret(), Self.continuesWord(before) { return .passThrough }
                     // Text selected in the field: the command works on it, written in the panel (the field keeps it selected).
                     selection = readSelection().flatMap { $0.text.isEmpty ? nil : $0 }
                     selectionFits = (selection?.text.count ?? 0) <= Self.maxSelectionLength
-                    draft = "@"
+                    draft = commandTrigger
                     paletteHighlight = 0
                     setLevelOnePhase()
                     return .consumed([.updateMarkedText, .showPanel])
@@ -2166,7 +2173,7 @@ public final class Composer {
         }
         // A snippet that needs nothing typed goes in when the action key picks it; Tab and Space only complete its name.
         if run, command.snippet?.needsTyping == false, palette?.nested != true {
-            draft = "@\(command.name) "
+            draft = "\(commandTrigger)\(command.name) "
             paletteHighlight = 0
             setLevelOnePhase()
             let effects = startAction().effects
@@ -2175,14 +2182,14 @@ public final class Composer {
         // A script extension that takes no input runs when the action key picks it (or asks first); Tab and
         // Space only complete its name.
         if run, command.script?.input == ScriptCommand.Input.none, palette?.nested != true {
-            draft = "@\(command.name) "
+            draft = "\(commandTrigger)\(command.name) "
             paletteHighlight = 0
             setLevelOnePhase()
             let run = startAction().effects
             return isLevelTwo ? run : [.updateMarkedText, .showPanel] + run
         }
         let nested = palette?.nested == true
-        draft = (palette.map { String(draft[..<$0.at]) } ?? "") + "@\(command.name) "
+        draft = (palette.map { String(draft[..<$0.at]) } ?? "") + "\(commandTrigger)\(command.name) "
         paletteHighlight = 0
         // File names, paths and code are typed as letters; the input mode comes back when the command is
         // done (inside a text: once its argument is typed and a space follows).
@@ -2201,7 +2208,7 @@ public final class Composer {
         let live = currentLiveResults
         guard live.indices.contains(liveHighlight) else { return [] }
         let result = live[liveHighlight]
-        draft = "@open " + Self.abbreviatingHome(result.path) + (result.isFolder ? "/" : "")
+        draft = commandTrigger + "open " + Self.abbreviatingHome(result.path) + (result.isFolder ? "/" : "")
         liveResults = []
         liveResultsQuery = nil
         resetLiveHighlight()
@@ -2224,7 +2231,7 @@ public final class Composer {
         let query = paletteQuery ?? ""
         let pinyin = !query.isEmpty && event.printableText?.allSatisfy(\.isLetter) == true
             && engine.map { !$0.snapshot().isAsciiMode } == true
-        let typed = finish(committing: pinyin ? "@" : draft)
+        let typed = finish(committing: pinyin ? commandTrigger : draft)
         var effects = typed
         if pinyin {
             for letter in query {
@@ -2265,7 +2272,7 @@ public final class Composer {
                 return .consumed([.showPanel])
             case .tab:
                 guard let complete = listItem?.autocomplete, let command = draftCommand else { return .consumed() }
-                draft = "@\(command.name) " + complete
+                draft = "\(commandTrigger)\(command.name) " + complete
                 return .consumed([.updateMarkedText, .showPanel])
             default:
                 break
@@ -2299,7 +2306,7 @@ public final class Composer {
             return .consumed(finishAsTyped(draft))
         case .backspace:
             // Right after a picked recipient: back to picking one.
-            if messageRecipient != nil, let command = draftCommand, draft == "@\(command.name) " {
+            if messageRecipient != nil, let command = draftCommand, draft == "\(commandTrigger)\(command.name) " {
                 messageRecipient = nil
                 if let engine, !engine.snapshot().isAsciiMode { typeLetters(engine) }  // names, pinyin, numbers: typed as letters
                 return .consumed([.updateMarkedText, .showPanel])
@@ -2908,7 +2915,7 @@ public final class Composer {
     /// typed and it is one line (the answer has a line per version); otherwise one rewrite of it, its lines kept, as the
     /// text typed after the command asks ("ja", "more formal": `Command.edit`).
     private func writing(_ command: Command, typed: String, selection: String, id: Int) -> Effect {
-        let (mode, rest) = WritingMode.parse(command, typed)
+        let (mode, rest) = WritingMode.parse(command, typed, trigger: commandTrigger)
         if rest.isEmpty, !selection.contains(where: \.isNewline) {
             // The other writing command typed after it ("@translate @improve") goes along, as for a typed sentence.
             return .startConversion(input: typed.isEmpty ? selection : typed + " " + selection, id: id)
@@ -3167,8 +3174,8 @@ public final class Composer {
     /// stay text (`draftHasOutsideText`); `codeLeft`: some did, which a notice says.
     func innerPlan(_ input: String) -> (plan: CommandPlan, snippets: [Command], codeLeft: Bool) {
         let usable = draftHasOutsideText ? commands.filter { !$0.runsCode } : commands
-        let filled = CommandPlan.make(input, commands: usable).fillingSnippets(snippetValues(typed: "", fields: []))
-        let codeLeft = draftHasOutsideText && CommandPlan.make(input, commands: commands).inner.contains { $0.command.runsCode }
+        let filled = CommandPlan.make(input, commands: usable, trigger: triggerCharacter).fillingSnippets(snippetValues(typed: "", fields: []))
+        let codeLeft = draftHasOutsideText && CommandPlan.make(input, commands: commands, trigger: triggerCharacter).inner.contains { $0.command.runsCode }
         return (filled.plan, filled.used, codeLeft)
     }
 
@@ -3482,7 +3489,7 @@ extension Composer {
         recalled = (entry, draft)
         questionPick = (index, draft)  // highlighted again when Esc comes back to the list
         cursorTail = ""
-        draft = "@\(command.name) " + entry.question
+        draft = "\(commandTrigger)\(command.name) " + entry.question
         result = ConversionResult(versions: [CandidateLine(entry.answer, isComplete: true)])
         // Its rounds, to go on with (`QuestionChat`).
         loadThread(entry, command: command)

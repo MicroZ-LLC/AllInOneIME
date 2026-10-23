@@ -10,7 +10,7 @@ extension AllInOneIMEInputController {
     @MainActor
     func makeMenu() -> NSMenu {
         let menu = NSMenu()
-        let config = try? Config.load()
+        let config = LiveConfig.currentIfValid
         UIText.choice = services.loadSettings().uiLanguage  // the menu can open before any text field in this process
         let settings = NSMenuItem(title: tr("设置…", "Settings…"), action: #selector(showPreferences(_:)), keyEquivalent: "")
         settings.target = self
@@ -93,7 +93,8 @@ extension AllInOneIMEInputController {
         }
         stylesItem.submenu = styles
         menu.addItem(stylesItem)
-        let improveTranslates = NSMenuItem(title: tr("@improve 同时翻译", "@improve Also Translates"),
+        let improveTranslates = NSMenuItem(title: tr("@improve 同时翻译", "@improve Also Translates")
+                                                .replacingOccurrences(of: "@", with: config?.commandTrigger ?? "@"),
                                            action: #selector(toggleImproveTranslates(_:)), keyEquivalent: "")
         improveTranslates.target = self
         improveTranslates.state = current.improveTranslates ? .on : .off

@@ -312,8 +312,9 @@ public struct Command: Hashable, Sendable {
 
     /// The draft's command and the text after it: "@question 量子计算" → (.question, "量子计算").
     /// Nil without a known command (the "@" must be first, the name followed by a space).
-    public static func parse(_ draft: String, in commands: [Command] = builtins) -> (command: Command, content: String)? {
-        guard draft.hasPrefix("@"), let space = draft.firstIndex(of: " ") else { return nil }
+    public static func parse(_ draft: String, in commands: [Command] = builtins,
+                             trigger: String = "@") -> (command: Command, content: String)? {
+        guard draft.hasPrefix(trigger), let space = draft.firstIndex(of: " ") else { return nil }
         let name = draft[draft.index(after: draft.startIndex)..<space].lowercased()
         guard let command = commands.first(where: { $0.name == name }) else { return nil }
         return (command, String(draft[draft.index(after: space)...]))

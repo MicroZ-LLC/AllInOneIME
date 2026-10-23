@@ -1082,6 +1082,53 @@
         }
       }
     },
+    ". Back up and check this file in the Rime user folder first." : {
+      "comment" : "。请先备份并检查 Rime 用户目录中的这个文件。 — Sources/AllInOneIMECore/PersonalDictionary.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ". Sichere und prüfe zuerst diese Datei im Rime-Benutzerordner."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ". Primero haz una copia y revisa este archivo en la carpeta de usuario de Rime."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ". Sauvegardez et vérifiez d’abord ce fichier dans le dossier utilisateur de Rime."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "。まずRimeユーザーフォルダ内のこのファイルをバックアップして確認してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ". 먼저 Rime 사용자 폴더의 이 파일을 백업하고 확인하세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ". Primeiro faça uma cópia e confira este arquivo na pasta de usuário do Rime."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "。請先備份並檢查 Rime 使用者資料夾中的這個檔案。"
+          }
+        }
+      }
+    },
     "(write the title on GitHub)" : {
       "comment" : "（标题在 GitHub 上写） — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
       "localizations" : {
@@ -10829,6 +10876,100 @@
         }
       }
     },
+    "Choose a .dict.yaml file." : {
+      "comment" : "请选择 .dict.yaml 文件。 — Sources/AllInOneIMECore/PersonalDictionary.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wähle eine .dict.yaml-Datei."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elige un archivo .dict.yaml."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisissez un fichier .dict.yaml."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ".dict.yamlファイルを選んでください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ".dict.yaml 파일을 선택하세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escolha um arquivo .dict.yaml."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請選擇 .dict.yaml 檔案。"
+          }
+        }
+      }
+    },
+    "Choose a dictionary file." : {
+      "comment" : "请选择一个词库文件。 — Sources/AllInOneIMECore/PersonalDictionary.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wähle eine Wörterbuchdatei."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elige un archivo de diccionario."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisissez un fichier de dictionnaire."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "辞書ファイルを選んでください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "사전 파일을 선택하세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escolha um arquivo de dicionário."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請選擇一個詞庫檔案。"
+          }
+        }
+      }
+    },
     "Choose a folder of scripts or extension bundles" : {
       "comment" : "选择放脚本或扩展包的文件夹 — Sources/AllInOneIMECore/Settings/SettingsSchema+Extensions.swift",
       "localizations" : {
@@ -10970,6 +11111,53 @@
         }
       }
     },
+    "columns must contain text, code and optionally weight, each exactly once." : {
+      "comment" : "columns 必须是 text、code，以及可选的 weight，每种只出现一次。 — Sources/AllInOneIMECore/PersonalDictionary.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "columns muss text, code und optional weight enthalten, jeweils genau einmal."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "columns debe incluir text, code y, opcionalmente, weight, cada uno una sola vez."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "columns doit contenir text, code et éventuellement weight, chacun une seule fois."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "columnsにはtext、code、および任意のweightをそれぞれ1回だけ指定してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "columns에는 text, code, 선택 사항인 weight를 각각 한 번만 지정해야 합니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "columns deve conter text, code e opcionalmente weight, cada um exatamente uma vez."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "columns 必須包含 text、code，以及可選的 weight，每種只出現一次。"
+          }
+        }
+      }
+    },
     "Command" : {
       "comment" : "命令 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
@@ -11015,6 +11203,18 @@
             "value" : "指令"
           }
         }
+      }
+    },
+    "Command trigger" : {
+      "comment" : "命令触发符 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Befehlsauslöser" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Activador de comandos" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Déclencheur de commande" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "コマンド起動記号" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "명령 호출 기호" } },
+        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Acionador de comandos" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "命令觸發符" } }
       }
     },
     "Config file" : {
@@ -12006,6 +12206,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法移除外掛："
+          }
+        }
+      }
+    },
+    "Couldn't safely update the personal dictionary files: " : {
+      "comment" : "无法安全更新个人词库文件： — Sources/AllInOneIMECore/PersonalDictionary.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die persönlichen Wörterbuchdateien konnten nicht sicher aktualisiert werden: "
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudieron actualizar de forma segura los archivos de diccionarios personales: "
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de mettre à jour les fichiers des dictionnaires personnels en toute sécurité : "
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "個人辞書のファイルを安全に更新できませんでした："
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "개인 사전 파일을 안전하게 업데이트할 수 없습니다: "
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível atualizar com segurança os arquivos dos dicionários pessoais: "
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法安全更新個人詞庫檔案："
           }
         }
       }
@@ -13984,6 +14231,100 @@
         }
       }
     },
+    "Every entry must have an explicit pinyin code." : {
+      "comment" : "每条词条都必须带明确的拼音编码。 — Sources/AllInOneIMECore/PersonalDictionary.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jeder Eintrag braucht einen ausdrücklich angegebenen Pinyin-Code."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cada entrada debe tener un código pinyin explícito."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chaque entrée doit comporter un code pinyin explicite."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべての項目に明示的なピンインコードが必要です。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "모든 항목에 명시적인 병음 코드가 있어야 합니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cada entrada deve ter um código pinyin explícito."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每條詞條都必須帶明確的拼音編碼。"
+          }
+        }
+      }
+    },
+    "Every entry needs text and a lowercase pinyin code, with spaces between syllables (v for ü)." : {
+      "comment" : "词条必须有文字和小写拼音编码，音节用空格分开（ü 写作 v）。 — Sources/AllInOneIMECore/PersonalDictionary.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jeder Eintrag braucht Text und einen Pinyin-Code in Kleinbuchstaben, mit Leerzeichen zwischen Silben (v für ü)."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cada entrada necesita texto y un código pinyin en minúsculas, con espacios entre sílabas (v en lugar de ü)."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chaque entrée doit contenir du texte et un code pinyin en minuscules, avec des espaces entre les syllabes (v pour ü)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "各項目に文字列と小文字のピンインコードが必要です。音節はスペースで区切り、üにはvを使ってください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "모든 항목에 텍스트와 소문자 병음 코드가 필요합니다. 음절은 공백으로 구분하고 ü는 v로 쓰세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cada entrada precisa de texto e código pinyin em minúsculas, com espaços entre sílabas (v para ü)."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "詞條必須有文字和小寫拼音編碼，音節用空格分開（ü 寫作 v）。"
+          }
+        }
+      }
+    },
     "extension.json isn't a JSON object" : {
       "comment" : "extension.json 不是 JSON 对象 — Sources/AllInOneIMECore/UIText+Names.swift",
       "localizations" : {
@@ -15870,6 +16211,53 @@
         }
       }
     },
+    "Import a file containing its own entries, without dependencies in import_tables." : {
+      "comment" : "请导入直接包含词条的词库，不能依赖 import_tables 中的其他文件。 — Sources/AllInOneIMECore/PersonalDictionary.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importiere eine Datei mit eigenen Einträgen ohne Abhängigkeiten in import_tables."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importa un archivo con sus propias entradas, sin dependencias en import_tables."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importez un fichier contenant ses propres entrées, sans dépendances dans import_tables."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "import_tablesで他のファイルに依存せず、項目を直接含むファイルを読み込んでください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "import_tables의 다른 파일에 의존하지 않고 항목을 직접 포함하는 파일을 가져오세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importe um arquivo com suas próprias entradas, sem dependências em import_tables."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請匯入直接包含詞條的詞庫，不能依賴 import_tables 中的其他檔案。"
+          }
+        }
+      }
+    },
     "In any case" : {
       "comment" : "不分大小写 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
@@ -16477,6 +16865,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Base URL 無效：%@"
+          }
+        }
+      }
+    },
+    "Invalid dictionary: " : {
+      "comment" : "词库无效： — Sources/AllInOneIMECore/PersonalDictionary.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ungültiges Wörterbuch: "
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diccionario no válido: "
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dictionnaire invalide : "
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無効な辞書："
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "잘못된 사전: "
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dicionário inválido: "
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "詞庫無效："
           }
         }
       }
@@ -17421,6 +17856,53 @@
         }
       }
     },
+    "Line %@: " : {
+      "comment" : "第 %@ 行： — Sources/AllInOneIMECore/PersonalDictionary.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zeile %@: "
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Línea %@: "
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ligne %@ : "
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@行目："
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@행: "
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linha %@: "
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第 %@ 行："
+          }
+        }
+      }
+    },
     "list" : {
       "comment" : "列表 — Sources/AllInOneIMECore/UIText+Names.swift",
       "localizations" : {
@@ -17746,6 +18228,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "「訊息」未能傳送（錯誤 %@）：請確認 iMessage 已登入，且號碼或電子郵件正確"
+          }
+        }
+      }
+    },
+    "Missing the --- dictionary header." : {
+      "comment" : "缺少 --- 词库头。 — Sources/AllInOneIMECore/PersonalDictionary.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Wörterbuchkopf mit --- fehlt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Falta el encabezado del diccionario con ---."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’en-tête du dictionnaire commençant par --- est absent."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "---で始まる辞書ヘッダーがありません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "--- 사전 헤더가 없습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Falta o cabeçalho do dicionário com ---."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "缺少 --- 詞庫標頭。"
           }
         }
       }
@@ -18410,6 +18939,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "名稱"
+          }
+        }
+      }
+    },
+    "name may contain Latin letters, digits, -, _ and ., up to 128 bytes." : {
+      "comment" : "name 只能包含英文字母、数字、-、_ 和 .，最多 128 字节。 — Sources/AllInOneIMECore/PersonalDictionary.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "name darf lateinische Buchstaben, Ziffern, -, _ und . enthalten, bis zu 128 Bytes."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "name puede contener letras latinas, números, -, _ y ., hasta 128 bytes."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "name peut contenir des lettres latines, des chiffres, -, _ et ., jusqu’à 128 octets."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "nameには英字、数字、-、_、.を128バイトまで使用できます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "name에는 영문자, 숫자, -, _, .을 최대 128바이트까지 사용할 수 있습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "name pode conter letras latinas, dígitos, -, _ e ., até 128 bytes."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "name 只能包含英文字母、數字、-、_ 和 .，最多 128 位元組。"
           }
         }
       }
@@ -22453,6 +23029,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "儲存後，在任何文字欄位開頭輸入 @ 加上它的名稱即可使用，就像 @improve。"
+          }
+        }
+      }
+    },
+    "Only a simple dictionary header and columns list are supported." : {
+      "comment" : "只支持简单的词库头和 columns 列表。 — Sources/AllInOneIMECore/PersonalDictionary.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nur ein einfacher Wörterbuchkopf und eine columns-Liste werden unterstützt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Solo se admiten un encabezado de diccionario sencillo y una lista columns."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seuls un en-tête de dictionnaire simple et une liste columns sont pris en charge."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "単純な辞書ヘッダーとcolumnsリストのみ対応しています。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "간단한 사전 헤더와 columns 목록만 지원합니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Somente um cabeçalho simples e uma lista columns são aceitos."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只支援簡單的詞庫標頭和 columns 列表。"
           }
         }
       }
@@ -30453,6 +31076,53 @@
         }
       }
     },
+    "Separate the entry's fields with tabs, in columns order." : {
+      "comment" : "词条需要按 columns 顺序用 Tab 分隔。 — Sources/AllInOneIMECore/PersonalDictionary.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trenne die Felder des Eintrags in der Reihenfolge von columns durch Tabulatoren."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Separa los campos de la entrada con tabuladores, en el orden de columns."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Séparez les champs de l’entrée par des tabulations, dans l’ordre de columns."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "項目の各フィールドをcolumnsの順にタブで区切ってください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "항목의 필드를 columns 순서대로 탭으로 구분하세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Separe os campos da entrada por tabulações, na ordem de columns."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "詞條需要按照 columns 順序用 Tab 分隔。"
+          }
+        }
+      }
+    },
     "Set “%@” for %@ in the settings first" : {
       "comment" : "先在设置里填好「%@」（%@） — Sources/AllInOneIMECore/Session/SessionTasks.swift",
       "localizations" : {
@@ -33967,6 +34637,335 @@
         }
       }
     },
+    "The current pinyin schema's spelling rules couldn't be read." : {
+      "comment" : "无法读取当前拼音方案的模糊音规则。 — Sources/AllInOneIMECore/PersonalDictionary.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Schreibregeln des aktuellen Pinyin-Schemas konnten nicht gelesen werden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudieron leer las reglas de escritura del esquema pinyin actual."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de lire les règles d’orthographe du schéma pinyin actuel."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在のピンインスキーマの綴り規則を読み取れませんでした。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "현재 병음 스키마의 철자 규칙을 읽을 수 없습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível ler as regras de escrita do esquema pinyin atual."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法讀取目前拼音方案的模糊音規則。"
+          }
+        }
+      }
+    },
+    "The dictionary has no entries with pinyin codes." : {
+      "comment" : "词库中没有带拼音编码的词条。 — Sources/AllInOneIMECore/PersonalDictionary.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Wörterbuch enthält keine Einträge mit Pinyin-Codes."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El diccionario no contiene entradas con códigos pinyin."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le dictionnaire ne contient aucune entrée avec un code pinyin."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "辞書にピンインコード付きの項目がありません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "사전에 병음 코드가 있는 항목이 없습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O dicionário não tem entradas com códigos pinyin."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "詞庫中沒有帶拼音編碼的詞條。"
+          }
+        }
+      }
+    },
+    "The dictionary header has a duplicate field." : {
+      "comment" : "词库头包含重复字段。 — Sources/AllInOneIMECore/PersonalDictionary.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Wörterbuchkopf enthält ein doppeltes Feld."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El encabezado del diccionario tiene un campo duplicado."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’en-tête du dictionnaire contient un champ en double."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "辞書ヘッダーに重複したフィールドがあります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "사전 헤더에 중복 필드가 있습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O cabeçalho do dicionário tem um campo duplicado."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "詞庫標頭包含重複欄位。"
+          }
+        }
+      }
+    },
+    "The dictionary header must contain name and be delimited by --- and ... ." : {
+      "comment" : "词库头必须包含 name，并以 --- 和 ... 分隔。 — Sources/AllInOneIMECore/PersonalDictionary.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Wörterbuchkopf muss name enthalten und durch --- und ... begrenzt sein."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El encabezado debe contener name y estar delimitado por --- y ... ."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’en-tête du dictionnaire doit contenir name et être délimité par --- et ... ."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "辞書ヘッダーにはnameを含め、---と...で区切ってください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "사전 헤더에는 name이 있어야 하며 ---와 ...로 구분해야 합니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O cabeçalho deve conter name e ser delimitado por --- e ... ."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "詞庫標頭必須包含 name，並以 --- 和 ... 分隔。"
+          }
+        }
+      }
+    },
+    "The dictionary header needs key: value." : {
+      "comment" : "词库头需要 key: value。 — Sources/AllInOneIMECore/PersonalDictionary.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Wörterbuchkopf braucht key: value."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El encabezado del diccionario requiere key: value."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’en-tête du dictionnaire doit utiliser key: value."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "辞書ヘッダーにはkey: value形式が必要です。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "사전 헤더에는 key: value 형식이 필요합니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O cabeçalho do dicionário precisa de key: value."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "詞庫標頭需要 key: value。"
+          }
+        }
+      }
+    },
+    "The file must be at most 32 MiB." : {
+      "comment" : "文件不能超过 32 MiB。 — Sources/AllInOneIMECore/PersonalDictionary.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Datei darf höchstens 32 MiB groß sein."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El archivo debe tener como máximo 32 MiB."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le fichier ne doit pas dépasser 32 Mio."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイルは32 MiB以下にしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "파일 크기는 32 MiB 이하여야 합니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O arquivo deve ter no máximo 32 MiB."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檔案不能超過 32 MiB。"
+          }
+        }
+      }
+    },
+    "The file must be UTF-8 text without NUL characters." : {
+      "comment" : "文件必须是 UTF-8 文本，且不能含有 NUL 字符。 — Sources/AllInOneIMECore/PersonalDictionary.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Datei muss UTF-8-Text ohne NUL-Zeichen sein."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El archivo debe ser texto UTF-8 sin caracteres NUL."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le fichier doit être du texte UTF-8 sans caractères NUL."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイルはNUL文字を含まないUTF-8テキストにしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "파일은 NUL 문자가 없는 UTF-8 텍스트여야 합니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O arquivo deve ser texto UTF-8 sem caracteres NUL."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檔案必須是 UTF-8 文字，且不能含有 NUL 字元。"
+          }
+        }
+      }
+    },
     "The image is too large: 30 MB at most" : {
       "comment" : "图片太大：最多 30 MB — Sources/AllInOneIMECore/Composer+Reply.swift",
       "localizations" : {
@@ -35142,6 +36141,53 @@
         }
       }
     },
+    "The Rime user folder has your own rime_ice.custom.yaml; no files were changed. Back it up and move it aside before importing, or attach your dictionary in Rime manually to keep those settings." : {
+      "comment" : "Rime 用户目录里有你自己的 rime_ice.custom.yaml，未改动任何文件。请先备份并移开它，再导入；需要保留其中的设置时，请在 Rime 中手动挂载词库。 — Sources/AllInOneIMECore/PersonalDictionary.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Im Rime-Benutzerordner liegt deine eigene rime_ice.custom.yaml; keine Dateien wurden geändert. Sichere und verschiebe sie vor dem Import oder binde dein Wörterbuch manuell in Rime ein, um diese Einstellungen zu behalten."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La carpeta de usuario de Rime contiene tu propio rime_ice.custom.yaml; no se cambió ningún archivo. Haz una copia y muévelo antes de importar, o incorpora el diccionario manualmente en Rime para conservar esos ajustes."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le dossier utilisateur de Rime contient votre propre rime_ice.custom.yaml ; aucun fichier n’a été modifié. Sauvegardez-le et déplacez-le avant l’importation, ou ajoutez votre dictionnaire manuellement dans Rime pour conserver ces réglages."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rimeユーザーフォルダに独自のrime_ice.custom.yamlがあります。ファイルは変更していません。読み込み前にバックアップして別の場所に移すか、設定を保つためにRimeで辞書を手動で追加してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime 사용자 폴더에 직접 만든 rime_ice.custom.yaml이 있어 파일을 변경하지 않았습니다. 가져오기 전에 백업하고 다른 곳으로 옮기거나, 기존 설정을 유지하려면 Rime에서 사전을 수동으로 연결하세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A pasta de usuário do Rime contém seu próprio rime_ice.custom.yaml; nenhum arquivo foi alterado. Faça uma cópia e mova-o antes de importar, ou adicione o dicionário manualmente no Rime para manter esses ajustes."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime 使用者資料夾裡有你自己的 rime_ice.custom.yaml，未改動任何檔案。請先備份並移開它，再匯入；需要保留其中的設定時，請在 Rime 中手動掛載詞庫。"
+          }
+        }
+      }
+    },
     "The search is too long: %@ characters and %@ words at most" : {
       "comment" : "要搜的内容太长：最多 %@ 个字、%@ 个词 — Sources/AllInOneIMECore/UIText+Errors.swift",
       "localizations" : {
@@ -35749,6 +36795,100 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這部裝置無法辨識影像中的文字"
+          }
+        }
+      }
+    },
+    "This dictionary isn't supported: " : {
+      "comment" : "暂不支持这个词库： — Sources/AllInOneIMECore/PersonalDictionary.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieses Wörterbuch wird nicht unterstützt: "
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este diccionario no es compatible: "
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce dictionnaire n’est pas pris en charge : "
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この辞書には対応していません："
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "지원하지 않는 사전: "
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este dicionário não é compatível: "
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫不支援這個詞庫："
+          }
+        }
+      }
+    },
+    "This quoted field isn't supported." : {
+      "comment" : "不支持这个带引号的字段。 — Sources/AllInOneIMECore/PersonalDictionary.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieses Feld mit Anführungszeichen wird nicht unterstützt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este campo entre comillas no es compatible."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce champ entre guillemets n’est pas pris en charge."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この引用符付きフィールドには対応していません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "따옴표로 묶인 이 필드는 지원하지 않습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este campo entre aspas não é compatível."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不支援這個帶引號的欄位。"
           }
         }
       }
@@ -36934,6 +38074,18 @@
         }
       }
     },
+    "Type one symbol, such as @ or ~, to open commands at the start of a sentence." : {
+      "comment" : "输入一个符号，例如 @ 或 ~。打在句首打开命令列表。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Gib am Satzanfang ein Symbol wie @ oder ~ ein, um Befehle zu öffnen." } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Escribe un símbolo, como @ o ~, al inicio de una frase para abrir los comandos." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Saisissez un symbole, comme @ ou ~, en début de phrase pour ouvrir les commandes." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "文頭で @ や ~ などの記号を1つ入力するとコマンドが開きます。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "문장 시작에 @ 또는 ~ 같은 기호 하나를 입력하면 명령이 열립니다." } },
+        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Digite um símbolo, como @ ou ~, no início de uma frase para abrir os comandos." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "在句首輸入一個符號，例如 @ 或 ~，即可開啟命令清單。" } }
+      }
+    },
     "Type results out" : {
       "comment" : "逐字上屏 — Sources/AllInOneIMECore/AIConfigText.swift",
       "localizations" : {
@@ -37310,6 +38462,53 @@
         }
       }
     },
+    "Unclosed quotation mark." : {
+      "comment" : "引号没有闭合。 — Sources/AllInOneIMECore/PersonalDictionary.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht geschlossenes Anführungszeichen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comillas sin cerrar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guillemet non fermé."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "引用符が閉じられていません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "따옴표가 닫히지 않았습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aspas não fechadas."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "引號沒有閉合。"
+          }
+        }
+      }
+    },
     "Undone; changed since, left as is: " : {
       "comment" : "已撤销；这些之后又改过，没有动： — Sources/AllInOneIMECore/AIConfigText.swift",
       "localizations" : {
@@ -37451,6 +38650,53 @@
         }
       }
     },
+    "Unsupported dictionary header field: " : {
+      "comment" : "不支持词库头字段： — Sources/AllInOneIMECore/PersonalDictionary.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht unterstütztes Feld im Wörterbuchkopf: "
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Campo del encabezado del diccionario no compatible: "
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Champ d’en-tête de dictionnaire non pris en charge : "
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未対応の辞書ヘッダーフィールド："
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "지원하지 않는 사전 헤더 필드: "
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Campo do cabeçalho do dicionário não compatível: "
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不支援詞庫標頭欄位："
+          }
+        }
+      }
+    },
     "Up to %@ output tokens" : {
       "comment" : "最多输出 %@ tokens — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
@@ -37541,6 +38787,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "更新（目前為 %@）"
+          }
+        }
+      }
+    },
+    "Use a list such as [text, code, weight], or indented - items." : {
+      "comment" : "列表需要用 [text, code, weight] 或缩进的 - 列表。 — Sources/AllInOneIMECore/PersonalDictionary.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verwende eine Liste wie [text, code, weight] oder eingerückte - Einträge."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa una lista como [text, code, weight] o elementos con - y sangría."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utilisez une liste comme [text, code, weight], ou des éléments - indentés."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "[text, code, weight]形式、またはインデントした-項目のリストを使ってください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "[text, code, weight] 형식이나 들여쓴 - 항목 목록을 사용하세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use uma lista como [text, code, weight] ou itens - recuados."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "列表需要用 [text, code, weight] 或縮排的 - 列表。"
           }
         }
       }
@@ -37776,6 +39069,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "網頁搜尋（@search）"
+          }
+        }
+      }
+    },
+    "weight must be a finite, nonnegative number." : {
+      "comment" : "weight 必须是有限的非负数。 — Sources/AllInOneIMECore/PersonalDictionary.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "weight muss eine endliche, nicht negative Zahl sein."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "weight debe ser un número finito no negativo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "weight doit être un nombre fini positif ou nul."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "weightには有限の0以上の数値を指定してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "weight는 유한한 음이 아닌 숫자여야 합니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "weight deve ser um número finito e não negativo."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "weight 必須是有限的非負數。"
           }
         }
       }
@@ -38387,6 +39727,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "寫下要提醒的事，例如「明天下午 3 點打電話給小明」"
+          }
+        }
+      }
+    },
+    "YAML references, tags and complex fields aren't supported." : {
+      "comment" : "不支持 YAML 引用、标签或复杂字段。 — Sources/AllInOneIMECore/PersonalDictionary.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YAML-Verweise, Tags und komplexe Felder werden nicht unterstützt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se admiten referencias, etiquetas ni campos complejos de YAML."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les références, balises et champs complexes YAML ne sont pas pris en charge."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YAMLの参照、タグ、複雑なフィールドには対応していません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YAML 참조, 태그, 복잡한 필드는 지원하지 않습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Referências, tags e campos complexos de YAML não são aceitos."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不支援 YAML 參照、標籤或複雜欄位。"
           }
         }
       }
