@@ -711,12 +711,14 @@ or tell Settings → Assistant "turn on autocomplete"; it stays on until you tur
 - **Keys:** Tab takes the suggestion, only while it's showing; ⇧Tab, ⌥Tab and a Tab pressed within 120 ms of it
   appearing go to the app as usual (indenting, the next field, Jupyter's completion). Type along with it and it shrinks
   as you go, with no new request; type something else, press Esc, an arrow or any other key, or click, and it goes (Esc
-  only takes it down; the other keys do what they always do). ⌘Z right after Tab takes it back, as any typing.
+  only takes it down, and means "not this one": it doesn't come back for that text; the other keys do what they always
+  do). ⌘Z right after Tab takes it back, as any typing.
 - **When:** after a pause, 150 ms with the model on this Mac (350 ms with a cloud provider, longer in an app where you
   keep waving suggestions away), only at the end of a line, never while pinyin or an @ command is being written (in
   Chinese it waits until the words are in; if they're the start of the suggestion, its rest comes back), never with text
   selected. Each key stops the request still running. Up to about 12 words or 25 Chinese characters, to the end of the
-  sentence. The last 20 suggestions are kept, so retyping or deleting back shows one again at once.
+  sentence. The last 20 suggestions are kept, each for its text (before and after the caret) in its app, so retyping or
+  deleting back shows one again at once.
 - **Never:** in password fields and while secure input is on, in a text that looks like a code or a card number, in
   terminals, password managers, remote desktops and virtual machines, in apps with No AI, and while Translate as You Type
   is on.

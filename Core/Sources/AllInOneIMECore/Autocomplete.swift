@@ -335,13 +335,27 @@ public enum Autocomplete {
 
     // MARK: Suggestions kept
 
-    /// The last suggestions and the text they continue: the same text again shows its suggestion at once, and so does text
-    /// typed since that runs into one (its rest is shown). No request for either.
+    /// The last suggestions and the text they continue, in the app they were made in: the same text again (before the
+    /// caret and after it, in the same app) shows its suggestion at once, and so does text typed since that runs into one
+    /// (its rest is shown). No request for either. One waved away with Esc goes, and is remembered as not wanted
+    /// (`rejected`): neither it nor an answer that says it again is shown for that text.
     public struct Cache: Equatable, Sendable {
         public struct Entry: Equatable, Sendable {
-            /// The text before the caret it was made for.
+            /// The text before the caret it was made for, and after it.
             public var before: String
+            public var after: String
+            /// The app it was made in, its bundle id in small letters (nil: none told).
+            public var app: String?
             public var text: String
+
+            public init(_ text: String, for context: Context, in app: String?) {
+                (before, after, self.app, self.text) = (context.before, context.after, app?.lowercased(), text)
+            }
+
+            /// Whether it was made for the same text after the caret, in the same app, as `context` in `app`.
+            func isFor(_ context: Context, in app: String?) -> Bool {
+                after == context.after && self.app == app?.lowercased()
+            }
         }
 
         public static let capacity = 20
@@ -350,24 +364,62 @@ public enum Autocomplete {
         static let matched = 200
 
         public private(set) var entries: [Entry] = []
+        /// The suggestions waved away (Esc), the last `capacity`.
+        public private(set) var rejected: [Entry] = []
 
         public init() {}
 
-        public mutating func add(_ text: String, after before: String) {
-            entries.removeAll { $0.before == before }
-            entries.append(Entry(before: before, text: text))
+        public mutating func add(_ entry: Entry) {
+            entries.removeAll { $0.before == entry.before && $0.after == entry.after && $0.app == entry.app }
+            entries.append(entry)
             if entries.count > Self.capacity { entries.removeFirst(entries.count - Self.capacity) }
         }
 
-        /// What is left of a suggestion for `before`: one made for it, or for text before it that `before` goes on with
-        /// as the suggestion did (typed along). Nil: none, or one typed to its end.
-        public func rest(after before: String) -> String? {
-            for entry in entries.reversed() {
-                for typed in 0..<entry.text.count where matches(entry, typed: typed, before: before) {
-                    return String(entry.text.dropFirst(typed))
+        /// `text` for `before` alone: no text after the caret, no app.
+        public mutating func add(_ text: String, after before: String) {
+            add(Entry(text, for: Context(before: before), in: nil))
+        }
+
+        /// What is left of a suggestion for `context` in `app`, and the one it is: one made for it, or for text before
+        /// it that `context.before` goes on with as the suggestion did (typed along), with the same text after the caret,
+        /// in the same app. Nil: none, or one typed to its end.
+        public func kept(for context: Context, in app: String?) -> (rest: String, entry: Entry)? {
+            for entry in entries.reversed() where entry.isFor(context, in: app) {
+                for typed in 0..<entry.text.count where matches(entry, typed: typed, before: context.before) {
+                    return (String(entry.text.dropFirst(typed)), entry)
                 }
             }
             return nil
+        }
+
+        /// What is left of a suggestion for `before` alone (`kept`).
+        public func rest(after before: String) -> String? {
+            kept(for: Context(before: before), in: nil)?.rest
+        }
+
+        /// `entry` waved away (Esc): it goes, and isn't shown again for its text (`isRejected`).
+        public mutating func reject(_ entry: Entry) {
+            entries.removeAll { $0.before == entry.before && $0.after == entry.after && $0.app == entry.app }
+            rejected.removeAll { $0 == entry }
+            rejected.append(entry)
+            if rejected.count > Self.capacity { rejected.removeFirst(rejected.count - Self.capacity) }
+        }
+
+        /// Whether `text`, a suggestion for `context` in `app`, is one waved away there: what was left of it at that text
+        /// (typed along or not), in the same words but for spaces at its ends and its closing mark.
+        public func isRejected(_ text: String, for context: Context, in app: String?) -> Bool {
+            let words = Self.words(text)
+            return rejected.contains { entry in
+                entry.isFor(context, in: app) && (0..<entry.text.count).contains { typed in
+                    matches(entry, typed: typed, before: context.before) && Self.words(entry.text.dropFirst(typed)) == words
+                }
+            }
+        }
+
+        static func words<S: StringProtocol>(_ text: S) -> String {
+            var words = text.trimmingCharacters(in: .whitespaces)
+            while let last = words.last, ".!?…。！？".contains(last) { words.removeLast() }
+            return words
         }
 
         /// Whether `before` is `entry.before` followed by the suggestion's first `typed` characters.
@@ -593,12 +645,25 @@ public final class AutocompleteStore: @unchecked Sendable {
         if on { learn { $0.restart() } }
     }
 
-    public func keep(_ text: String, after before: String) {
-        state.withLock { $0.cache.add(text, after: before) }
+    /// `entry` kept (`Autocomplete.Cache`), unless it is one waved away for its text: false then.
+    @discardableResult
+    public func keep(_ entry: Autocomplete.Cache.Entry) -> Bool {
+        state.withLock { state in
+            guard !state.cache.isRejected(entry.text, for: Autocomplete.Context(before: entry.before, after: entry.after),
+                                          in: entry.app) else { return false }
+            state.cache.add(entry)
+            return true
+        }
     }
 
-    public func kept(after before: String) -> String? {
-        state.withLock { $0.cache.rest(after: before) }
+    /// What is left of a suggestion kept for `context` in `app`, and the one it is (`Autocomplete.Cache.kept`).
+    public func kept(for context: Autocomplete.Context, in app: String?) -> (rest: String, entry: Autocomplete.Cache.Entry)? {
+        state.withLock { $0.cache.kept(for: context, in: app) }
+    }
+
+    /// A suggestion waved away with Esc: not this one (`Autocomplete.Cache.reject`).
+    public func reject(_ entry: Autocomplete.Cache.Entry) {
+        state.withLock { $0.cache.reject(entry) }
     }
 
     /// Whether it stopped in `app` for want of use (`Autocomplete.Learning`).

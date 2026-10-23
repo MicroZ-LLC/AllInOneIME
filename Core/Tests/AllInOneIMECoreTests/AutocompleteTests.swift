@@ -486,18 +486,22 @@ struct AutocompleteTests {
 
     @Test func escTakesItDownAndAnyOtherKeyGoesOnToTheApp() {
         withInterfaceLanguage("en") {
-            let r = rig()
+            let r = rig(model: ContinuingModel { $0 == "<before>Hello worl</before>" ? "d, how are you? Fine." : "ld, how are you? Fine." })
             r.host.type("Hello wor")
             r.pauseEnds(expecting: "x")
             #expect(r.host.press(FakeHost.escape))
             #expect(r.host.ghost == nil)
-            // Shown again from what was kept, for the same text: no request.
+            // Not this one: not shown again for the same text, from what was kept or said again by the model.
             r.host.type("l")
             r.host.press(KeyEvent(keyCode: VirtualKey.delete, characters: "\u{7F}"))
             r.host.document = "Hello wor"
             r.host.type("l")
+            r.pauseEnds()
+            #expect(r.host.ghost == nil && r.model.requests.count == 2 && r.store.metrics.fromCache == 0)
+            r.host.document = "Bye wor"
+            r.host.type("l")
             r.pauseEnds(expecting: "x")
-            #expect(r.host.ghost == "d, how are you?" && r.model.requests.count == 1 && r.store.metrics.fromCache == 1)
+            #expect(r.host.ghost == "ld, how are you?")
             r.clock.advance(1)
             #expect(!r.host.press(KeyEvent(keyCode: VirtualKey.right, characters: "\u{F703}")))
             #expect(r.host.ghost == nil)

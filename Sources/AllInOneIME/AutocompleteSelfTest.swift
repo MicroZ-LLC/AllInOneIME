@@ -96,7 +96,7 @@ final class AutocompleteStubModel: AppleModelBackend, @unchecked Sendable {
 
     /// What it says after text ending this way (the request's `<before>…</before>`).
     static let answers: [(ending: String, answer: String)] = [
-        ("Hello wor", "ld, how are you? I hope"), ("you? Se", "e you soon. Bye"), ("你好", "，今天怎么样？还好吗"),
+        ("Hello wor", "ld, how are you? I hope"), ("you? Se", "e you soon. Bye"), ("you? See yo", "u soon. Bye"), ("你好", "，今天怎么样？还好吗"),
         ("Let me know", " when you are free."), ("Write to", " [EMAIL_1] by Friday."),
     ]
 
@@ -309,8 +309,13 @@ extension SelfTest {
         check(ghost("ou soon.") && model.prompts.count == 2, "typed along: the rest moves on, no request (\(GhostOverlay.shared.text ?? "none"))")
         check(harnessKey(controller, harness, "\u{1B}", code: VirtualKey.escape) && ghost(nil) && harness.text.hasSuffix("See y"),
               "Esc takes it down, the text as it was")
+        // Not this one: typed on, it isn't shown again, though the model says it again; another one is.
         harnessType("o", controller, harness)
-        check(ghost("u soon."), "shown again from what was kept, typed on (\(GhostOverlay.shared.text ?? "none"))")
+        settled()
+        check(GhostOverlay.shared.text == nil && model.prompts.count == 3,
+              "Esc: not this one, not shown again typed on (\(GhostOverlay.shared.text ?? "none"), \(model.prompts.count) requests)")
+        harnessType("u", controller, harness)
+        check(ghost(" and more."), "another suggestion is (\(GhostOverlay.shared.text ?? "none"))")
         now += 0.5
         check(!harnessKey(controller, harness, "\t", code: VirtualKey.tab, flags: .shift) && ghost(nil),
               "⇧Tab goes to the app, the suggestion goes")
