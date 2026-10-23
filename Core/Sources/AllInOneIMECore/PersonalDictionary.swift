@@ -104,10 +104,13 @@ public struct PersonalDictionaryStore: Sendable {
     @discardableResult
     public func applyFuzzyPinyin(_ ids: [String]) throws -> FuzzyPinyin.Outcome {
         try Self.locked {
-            let (state, recovered) = try readState()
-            if try !checkPatch(requireOwnership: false) {
-                return state.dictionaries.isEmpty && FuzzyPinyin.known(ids).isEmpty ? .unchanged : .userFile
+            // The user's own file (or a link): left alone before anything else is read, as fuzzy pinyin always did,
+            // whatever the dictionaries' files are like.
+            guard try checkPatch(requireOwnership: false) else {
+                let listed = (try? readState().state.dictionaries.isEmpty) == false
+                return !listed && FuzzyPinyin.known(ids).isEmpty ? .unchanged : .userFile
             }
+            let (state, recovered) = try readState()
             if !state.dictionaries.isEmpty { try checkWrapper() }
             // After a first import that never finished, its wrapper goes too (if it is this app's).
             let leftWrapper = recovered && state.dictionaries.isEmpty && (try? checkWrapper()) != nil
@@ -141,7 +144,12 @@ public struct PersonalDictionaryStore: Sendable {
     private static let dictionaryName = "allinoneime_personal"
     private static let tableMarker = "# Written by AllInOneIME: personal dictionary. Edits here are replaced."
     private static let wrapperMarker = "# Written by AllInOneIME: personal dictionaries. Edits here are replaced."
-    private static let patchMarker = "# Written by AllInOneIME: personal dictionaries and fuzzy pinyin (Settings → Input). Edits here are replaced."
+    /// The patch's first line is fuzzy pinyin's (`FuzzyPinyin.marker`) with the dictionaries too, so that an earlier
+    /// version (0.6.6) still takes the file as its own, and its fuzzy pinyin switch works (it writes the file without
+    /// them, and this version adds them again); the second says what else it holds.
+    private static let patchDictionaries = "# And the personal dictionaries (Settings → Input → Chinese)."
+    /// The first line 0.6.7's first builds wrote instead, which 0.6.6 took for the user's: still this app's.
+    private static let earlyPatchMarker = "# Written by AllInOneIME: personal dictionaries and fuzzy pinyin (Settings → Input). Edits here are replaced."
     private var folder: URL { userDirectory.appendingPathComponent(Self.folderName, isDirectory: true) }
     private var manifest: URL { folder.appendingPathComponent("manifest.json") }
     private var wrapper: URL { userDirectory.appendingPathComponent(Self.dictionaryName + ".dict.yaml") }
@@ -208,11 +216,18 @@ public struct PersonalDictionaryStore: Sendable {
         return try encoder.encode(state)
     }
 
-    /// False means a user-written file was left as is (fuzzy pinyin's existing behavior).
+    /// False means the user's own file is there, left as is (fuzzy pinyin's existing behavior): one without this
+    /// app's first line, or not a file (a link, even to nothing). `requireOwnership`: throws `userFile` then.
     @discardableResult
     private func checkPatch(requireOwnership: Bool) throws -> Bool {
-        guard let bytes = try contentsIfPresent(patch) else { return true }
-        let owned = [FuzzyPinyin.marker, Self.patchMarker].contains { bytes.starts(with: Data(($0 + "\n").utf8)) }
+        let owned: Bool
+        if let attributes = try? FileManager.default.attributesOfItem(atPath: patch.path) {
+            let bytes = attributes[.type] as? FileAttributeType == .typeRegular ? try Data(contentsOf: patch) : nil
+            owned = bytes.map { bytes in [FuzzyPinyin.marker, Self.earlyPatchMarker].contains { bytes.starts(with: Data(($0 + "\n").utf8)) } }
+                ?? false
+        } else {
+            owned = true  // none
+        }
         if !owned, requireOwnership { throw PersonalDictionaryError.userFile }
         return owned
     }
@@ -236,8 +251,8 @@ public struct PersonalDictionaryStore: Sendable {
             changes.append(Change(url: patch, data: fuzzy.map { Data($0.utf8) }))
             if includeWrapper { changes.append(Change(url: wrapper, data: nil)) }
         } else {
-            var text = fuzzy?.replacingOccurrences(of: FuzzyPinyin.marker, with: Self.patchMarker)
-                ?? Self.patchMarker + "\npatch:\n"
+            let header = FuzzyPinyin.marker + "\n" + Self.patchDictionaries + "\n"
+            var text = fuzzy.map { header + $0.dropFirst(FuzzyPinyin.marker.count + 1) } ?? header + "patch:\n"
             // The dictionary changes; the database of learned words deliberately keeps its old identity.
             text += "  translator/dictionary: \(Self.dictionaryName)\n  translator/user_dict: rime_ice\n"
             changes.append(Change(url: patch, data: Data(text.utf8)))
