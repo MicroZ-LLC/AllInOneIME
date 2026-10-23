@@ -55,6 +55,37 @@ struct SuggestionsSessionTests {
 }
 
 extension SuggestionsSessionTests {
+    /// An approval without terms (made before they were kept) holds no more, as one lapsed: the source shows no rows and
+    /// nothing is sent, not even its list loaded, it is marked lapsed, and Settings says to turn it on again. Turned on
+    /// again, it is asked.
+    @Test func anApprovalWithoutTermsHoldsNoMore() async throws {
+        try await inEnglish {
+            let world = SuggestionsWorld()
+            let plugin = try world.github(enable: false)
+            let issues = try #require(plugin.manifest.completions.first)
+            var approval = try #require(CompletionSourceApproval(enabling: issues, of: plugin))
+            approval.terms = nil
+            world.switches.enabled = [approval]
+            #expect(!approval.holds(for: issues, of: plugin), "Settings: enable it again")
+            let lapsed = Locked<[CompletionSourceApproval]>(initialState: [])
+            let field = world.field { services in
+                services.suggestions.approvalsLapsed = { marked in lapsed.withLock { $0 += marked } }
+            }
+            field.type("#70")
+            field.idle()
+            #expect(field.rows.isEmpty, "no rows (\(field.issuesShown))")
+            #expect(world.runtime.calls.isEmpty, "nothing sent (\(world.runtime.calls.count) calls, \(world.runtime.queries))")
+            #expect(lapsed.withLock { $0 } == [approval], "marked lapsed (\(lapsed.withLock { $0 }))")
+
+            world.switches.enabled = [try #require(CompletionSourceApproval(enabling: issues, of: plugin))]
+            field.host.send(.configChanged)
+            field.type(" #70")
+            #expect(field.settle { world.runtime.queries.count > 0 }, "enabled again: asked (\(world.runtime.calls.count) calls)")
+        }
+    }
+}
+
+extension SuggestionsSessionTests {
     /// Each call into a plugin's script carries the hosts the user approved with the source: its child process fetches
     /// from those only (that plugin.json still lists, `PluginHost.completion`); and the SHA-256 of the script approved,
     /// which the child checks before it runs the script (a plugin updated meanwhile: none run).

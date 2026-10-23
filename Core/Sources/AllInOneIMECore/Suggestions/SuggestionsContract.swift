@@ -262,8 +262,9 @@ public struct CompletionSourceApproval: Codable, Equatable, Hashable, Sendable {
     public var hosts: [String]
     public var query: Bool
     public var scriptSHA256: String
-    /// Nil: not kept (an approval made without them), which holds whatever they are now. Settings always keeps them
-    /// (`init(enabling:of:)`).
+    /// Nil: not kept (an approval made before they were), which holds no more, whatever they are now: the source is off
+    /// until turned on again, as when it lapsed (a plugin updated since may have dropped its prefix, and what is typed
+    /// would be sent). Settings always keeps them (`init(enabling:of:)`).
     public var terms: Terms?
     /// Its plugin was found changed since (`lapsed(_:plugins:sha256:)`): it holds no more, whatever the plugin is now,
     /// until the source is turned on again (a new approval). Written only when set.

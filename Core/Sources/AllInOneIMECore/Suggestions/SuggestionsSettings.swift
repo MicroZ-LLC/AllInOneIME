@@ -44,7 +44,7 @@ extension CompletionSourceApproval {
     }
 
     /// Whether it still holds for `source` of `plugin` as they are now: the same hosts (in any order or case), query,
-    /// script and terms. Else the source needs enabling again (spec 1.5).
+    /// script and terms (one without terms never does). Else the source needs enabling again (spec 1.5).
     public func holds(for source: CompletionSource, of plugin: InstalledPlugin) -> Bool {
         guard let script = plugin.scriptURL, let sha = PluginStore.sha256(of: script) else { return false }
         return holds(for: source, hosts: plugin.manifest.hosts, scriptSHA256: sha)
@@ -64,11 +64,12 @@ extension CompletionSourceApproval {
         }
     }
 
-    /// `holds(for:of:)` with the plugin's hosts and its script's SHA-256 as they are now. Never once marked lapsed.
+    /// `holds(for:of:)` with the plugin's hosts and its script's SHA-256 as they are now. Never once marked lapsed, nor
+    /// without terms.
     func holds(for source: CompletionSource, hosts: [String], scriptSHA256 sha: String) -> Bool {
         !lapsed && self.source == source.name && query == source.query && scriptSHA256 == sha
             && Set(self.hosts.map { $0.lowercased() }) == Set(hosts.map { $0.lowercased() })
-            && terms.map { $0 == Terms(source) } ?? true
+            && terms == Terms(source)
     }
 }
 

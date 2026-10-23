@@ -248,8 +248,10 @@ struct SuggestionsTests {
         var config = Config.default
         config.suggestions = false
         config.pluginPreferences = ["github": ["repos": "octo-org/octo-repo"]]
+        let issues = CompletionSource(name: "issues", title: LocalizedText(en: "Issues"), prefix: "#", query: true, queryMinChars: 2)
         config.completionSources = [CompletionSourceApproval(plugin: "github", source: "issues", hosts: ["api.github.com"], query: true,
-                                                             scriptSHA256: String(repeating: "a", count: 64))]
+                                                             scriptSHA256: String(repeating: "a", count: 64),
+                                                             terms: CompletionSourceApproval.Terms(issues))]
         config.appProfiles = ["com.example.app": AppProfile(suggestions: false)]
         let decoded = try JSONDecoder().decode(Config.self, from: JSONEncoder().encode(config))
         #expect(decoded.suggestions == false && decoded.pluginPreferences == config.pluginPreferences)
@@ -562,7 +564,9 @@ struct SuggestionsTests {
         let store = SettingsStore(configURL: url)
         let plugin = try #require(PluginStore.load(from: plugins).plugins.first)
         store.config.setCompletionSource(try #require(plugin.manifest.completions.first), of: plugin, enabled: true)
-        let other = CompletionSourceApproval(plugin: "aws", source: "accounts", hosts: [], query: false, scriptSHA256: String(repeating: "b", count: 64))
+        let accounts = CompletionSource(name: "accounts", title: LocalizedText(en: "Accounts"), compare: .exact, list: true)
+        let other = CompletionSourceApproval(plugin: "aws", source: "accounts", hosts: [], query: false, scriptSHA256: String(repeating: "b", count: 64),
+                                             terms: CompletionSourceApproval.Terms(accounts))
         store.config.completionSources.append(other)
         store.save()
         #expect(try Config.load(from: url).completionSources.count == 2)
