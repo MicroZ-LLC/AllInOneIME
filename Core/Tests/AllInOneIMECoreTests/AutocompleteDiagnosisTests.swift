@@ -57,17 +57,17 @@ struct TrimCase: Sendable, CustomTestStringConvertible {
 
 @Suite(.serialized)
 struct AutocompleteDiagnosisTests {
-    /// The owner's settings: Bedrock with Claude Haiku picked, autocomplete on but never asked about the cloud (no
-    /// `autocompleteCloud`), "frobnicate" learned as an English word; typing English. Not the owner's "~" command
-    /// trigger: a session puts its trigger in the process's interface text (`UIText.commandTrigger`), which the suites
-    /// running alongside read as @ (CommandTriggerTextTests, SessionTextTests).
+    /// The owner's settings as diagnosed, on the model the bugs were found with: autocomplete on with Apple's on-device
+    /// model (then, the one it used with Bedrock picked; now, with Apple Intelligence picked: `Autocomplete.route`),
+    /// Claude Haiku as Bedrock's model, "frobnicate" learned as an English word; typing English. Not the owner's "~"
+    /// command trigger: a session puts its trigger in the process's interface text (`UIText.commandTrigger`), which the
+    /// suites running alongside read as @ (CommandTriggerTextTests, SessionTextTests).
     static func ownersConfig() -> Config {
         var config = Config.default
         config.uiLanguage = "en"
-        config.provider = .bedrock
+        config.provider = .apple
         config.modelId = "us.anthropic.claude-haiku-5-5"
         config.autocomplete = true
-        config.autocompleteCloud = nil
         config.englishWords = ["frobnicate"]
         config.setOrder([Language.english])
         config.setOrder([OutputLanguage.english, .chinese])
@@ -130,7 +130,7 @@ struct AutocompleteDiagnosisTests {
 
     /// The owner's case as reproduced: "iss" typed at the end of a line, with "Frobnicate" (the word just taught to
     /// English-word learning, as macOS capitalizes it at a line's start) on the line after it. The request goes to the
-    /// on-device model, not Haiku (no yes to the cloud), with the text after the caret; the model answers with that text,
+    /// on-device model (Apple Intelligence picked), with the text after the caret; the model answers with that text,
     /// 10 characters, and it is shown.
     @Test(.bug(id: "AC-1", "a suggestion that copies the text after the caret is shown"))
     func theOwnersFrobnicateIsTheTextAfterTheCaretCopied() async {
@@ -332,19 +332,20 @@ struct AutocompleteDiagnosisTests {
 
     // MARK: - AC-9: the yes to the cloud
 
-    /// The yes is to the provider named in the question ("Use Amazon Bedrock for Autocomplete?"), but it is kept as a plain
-    /// Bool: once the provider changes (here, or on another Mac: "provider" is synced through iCloud, "autocompleteCloud"
-    /// isn't), each pause sends the text before the caret to the new one, and nothing asks.
+    /// The yes to one provider was kept as a plain Bool, and a pause then sent the text to whichever provider was picked
+    /// later. Since 0.6.7's decision there is no yes to keep: autocomplete asks the provider Settings has now, as the @
+    /// commands do, and turning it on says which (`Autocomplete.Words`). Picked elsewhere (here, or on another Mac:
+    /// "provider" is synced through iCloud), the next pause asks the new one, with its own model.
     @Test(.bug(id: "AC-9", "the yes to one cloud provider sends text to another"))
-    func theYesToOneProviderIsNotAYesToAnother() {
+    func thePauseAsksTheProviderPickedNow() {
         var config = Self.ownersConfig()
-        Autocomplete.answer(true, in: &config)  // "Use Amazon Bedrock" in the question
-        #expect(Autocomplete.route(config) == .cloud(.bedrock), "control")
-        #expect(ICloudSync.settingsKeys.contains("provider") && ICloudSync.neverSynced.contains("autocompleteCloud"), "control")
+        config.provider = .bedrock
+        #expect(Autocomplete.route(config) == .cloud(.bedrock))
+        #expect(ICloudSync.settingsKeys.contains("provider") && !Config.allKeys.contains("autocompleteCloud"), "control")
         config.provider = .openai
         config.openai = ProviderSettings(model: "gpt-small", baseURL: "https://api.openai.com/v1")
-        #expect(Autocomplete.route(config) == .onDevice, "AC-9: now \(Autocomplete.route(config)), never asked about OpenAI")
-        #expect(Autocomplete.asksForCloud(config), "AC-9: turning it on again wouldn't ask")
+        #expect(Autocomplete.route(config) == .cloud(.openai), "AC-9: now \(Autocomplete.route(config))")
+        #expect(Autocomplete.Words(language: "en").model(config) == "OpenAI-compatible API · gpt-small")
     }
 
     // MARK: - The owner's note in Notes (0.6.7, c1f3b998)

@@ -31,6 +31,7 @@ struct AutocompleteCadenceTests {
         init(answer: String = " and more.", store: AutocompleteStore = AutocompleteStore(), _ settings: Config? = nil) {
             var config = settings ?? .default
             if settings == nil {
+                config.provider = .apple  // the on-device model: the stand-in
                 config.uiLanguage = "en"
                 config.setOrder([Language.english])
                 config.setOrder([OutputLanguage.english, .chinese])
