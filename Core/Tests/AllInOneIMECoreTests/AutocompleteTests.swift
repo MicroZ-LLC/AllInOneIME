@@ -876,6 +876,25 @@ struct AutocompleteTests {
         }
     }
 
+    /// A suggestion the shell couldn't show (no room for its text after the caret, at the field's edge): it ends unseen,
+    /// nothing of it counted, and Tab is the app's. One that has gone by then is left alone.
+    @Test func aSuggestionTheShellCouldntShowLeavesTabToTheApp() async {
+        await withInterfaceLanguage("en") {
+            let r = rig()
+            r.host.type("Hello wor")
+            r.pauseEnds(expecting: "ld, how are you?")
+            r.host.send(.ghostNotShown("something else"))
+            #expect(r.host.ghost == "ld, how are you?", "another suggestion's: this one stays")
+            r.host.send(.ghostNotShown("ld, how are you?"))
+            #expect(r.host.ghost == nil)
+            r.clock.advance(0.5)
+            #expect(!r.host.press(FakeHost.tab), "Tab is the app's")
+            #expect(r.host.document == "Hello wor", "nothing of it put in: \(r.host.document)")
+            let metrics = r.store.metrics
+            #expect(metrics.shown == 1 && metrics.accepted == 0 && metrics.dismissed == 0, "\(metrics)")
+        }
+    }
+
     /// What Tab puts in goes in as the input method's own commits do: the letters typed before it in English mode ("zorbl"
     /// of "zorble") are the start of a word, not one, and never learned as one (`EnglishModeWords`).
     @Test func whatTabPutsInEndsNoWordTypedInEnglishMode() async {

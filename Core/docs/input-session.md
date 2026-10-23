@@ -63,7 +63,7 @@ field that takes the focus again after `.close` starts over: its engine is made 
 | `keyboardLayout` | the input language's layout told to the field |
 | `startTimer` | `DispatchQueue.main.asyncAfter`, then `SessionEvent.timer` |
 | `readField` | what the field says read once the event is done (secure input, the selection, the text around the caret), then `SessionEvent.field` |
-| `ghost` | autocomplete's suggestion in gray after the caret, a window of its own (`GhostOverlay`); where the field tells no caret rect, a line of the candidate panel |
+| `ghost` | autocomplete's suggestion in gray after the caret, a window of its own (`GhostOverlay`); where the field tells no caret rect, a line of the candidate panel; with too little room for its text after the caret, nothing, and `SessionEvent.ghostNotShown` (it ends unseen, Tab is the app's) |
 | `platform(.startVoice …)` | dictation (macOS 26's speech recognition), `SessionEvent.voice` as it hears |
 
 ## Autocomplete

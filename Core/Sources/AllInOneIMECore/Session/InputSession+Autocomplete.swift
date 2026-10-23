@@ -338,6 +338,14 @@ extension InputSession {
         emit(.ghost(text))
     }
 
+    /// The shell couldn't show the suggestion up, `text` (`SessionEvent.ghostNotShown`): it ends unseen, so Tab isn't its.
+    /// One that has gone by then (another one up, or none) is left alone.
+    func autocompleteNotShown(_ text: String) {
+        guard let suggestion = autocomplete.suggestion, !suggestion.hidden, suggestion.text == text else { return }
+        log.notice("autocomplete: no room to show the suggestion")
+        autocompleteEnded(.unseen)
+    }
+
     /// The suggestion ends (`end`): it goes from the screen, and what happened to it is counted and learned for the
     /// app, where it stops after `Autocomplete.Learning.window` not taken (said once, `AutocompleteMessages.stopped`),
     /// unless the app is set to always or never (Settings → Apps): there it goes by that.

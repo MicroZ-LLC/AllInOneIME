@@ -31,6 +31,9 @@ public enum SessionEvent: Sendable {
     case voice(VoiceUpdate)
     /// The settings changed: applied now (a shell that doesn't read them again on every key).
     case configChanged
+    /// Autocomplete's suggestion (`SessionOutput.ghost`, its text) couldn't be shown: no room for its text after the caret
+    /// (the field's edge, the screen's). It ends unseen, and Tab is the app's.
+    case ghostNotShown(String)
     /// The field's session ends: nothing more comes, unless the field takes the focus again (it starts over then).
     case close
 }

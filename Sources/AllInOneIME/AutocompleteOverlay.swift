@@ -54,15 +54,21 @@ final class GhostOverlay: NSPanel {
     }
 
     /// `text` right after the caret at `place`, its baseline on the line's text's, cut at the screen's edge and at the
-    /// field's (`field`, its frame where it is known: `GhostPlacement`).
-    func show(_ text: String, at place: Place, field: NSRect? = nil) {
+    /// field's (`field`, its frame where it is known: `GhostPlacement`). False, and nothing up: too little room there for
+    /// its text (less than its first few characters).
+    @discardableResult
+    func show(_ text: String, at place: Place, field: NSRect? = nil) -> Bool {
         ghost.text = text
         ghost.font = Self.font(place.font, lineHeight: place.line.height)
         let line = place.line
         let screen = NSScreen.screens.first { $0.frame.contains(NSPoint(x: place.x, y: line.midY)) } ?? NSScreen.main
         // Across: from the caret on, as far as the screen and the field go.
         let caret = NSRect(x: place.x, y: line.minY, width: 0, height: line.height)
-        var frame = GhostPlacement.frame(size: ghost.fittingSize, caret: caret, visible: screen?.visibleFrame, field: field)
+        guard var frame = GhostPlacement.frame(size: ghost.fittingSize, caret: caret, visible: screen?.visibleFrame, field: field,
+                                               chrome: ghost.chrome, minimumText: ghost.minimumTextWidth) else {
+            hide()
+            return false
+        }
         // The text's baseline is the line's bottom and the font's descent: AppKit puts what makes a line taller than
         // its font (a line height multiple, a minimum) above the text, and a line's spacing below its rect.
         let baseline = line.minY + ghost.descent
@@ -74,6 +80,7 @@ final class GhostOverlay: NSPanel {
         alphaValue = Self.invisible ? 0 : 1
         orderFrontRegardless()
         watchPointer()
+        return true
     }
 
     func hide() {
@@ -130,16 +137,23 @@ final class GhostView: NSView {
         return NSSize(width: label.width + 8, height: label.height + 2)
     }
 
+    /// What of its width isn't the text's: the key cap and the gaps beside it.
+    var chrome: CGFloat { keySize.width + 8 }
+
+    /// The least room its text is shown in: its first few characters (all of a shorter one); with less, nothing shows
+    /// (`GhostPlacement`).
+    var minimumTextWidth: CGFloat { ceil((String(text.prefix(4)) as NSString).size(withAttributes: attributes).width) }
+
     override var fittingSize: NSSize {
         let size = (text as NSString).size(withAttributes: attributes)
-        return NSSize(width: ceil(size.width) + 6 + keySize.width + 2, height: ceil(max(size.height, keySize.height)))
+        return NSSize(width: ceil(size.width) + chrome, height: ceil(max(size.height, keySize.height)))
     }
 
     override func draw(_ dirtyRect: NSRect) {
         let string = NSAttributedString(string: text, attributes: attributes)
         let size = string.size()
         let key = keySize
-        let room = bounds.width - key.width - 8
+        let room = bounds.width - chrome
         // Cut where it doesn't fit (the screen's edge), with an ellipsis; one line of the font, on `baseline`.
         string.draw(with: NSRect(x: 0, y: baseline - descent, width: max(room, 0), height: Self.lineHeight(font)),
                     options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine])
@@ -426,7 +440,10 @@ extension AllInOneIMEInputController {
             if ghostInPanel { hidePanelLine() }
             if ghostField == nil { ghostField = .some(fieldFrame?() ?? FocusedField.frame()) }
             GhostOverlay.shared.owner = self
-            GhostOverlay.shared.show(text, at: place, field: ghostField ?? nil)
+            if !GhostOverlay.shared.show(text, at: place, field: ghostField ?? nil) {
+                // Too close to the field's edge for its text: not shown at all, and Tab isn't its.
+                received(.ghostNotShown(text))
+            }
             return
         }
         GhostOverlay.shared.hide()

@@ -193,6 +193,8 @@ public final class InputSession {
             case .configChanged:
                 settings(app: nil)
                 suggestionsSettingsChanged()
+            case let .ghostNotShown(text):
+                autocompleteNotShown(text)
             case .close:
                 autocompleteLeft(.unseen)
                 suggestionsLeft()
