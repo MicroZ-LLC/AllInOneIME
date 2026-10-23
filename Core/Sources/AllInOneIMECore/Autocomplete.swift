@@ -385,8 +385,9 @@ public enum Autocomplete {
     // MARK: Learning per app
 
     /// What happened to the suggestions in each app: in one where none of the last `window` was taken, it stops (said
-    /// once), until the app is set to autocomplete always or the switch is turned on again. Where they are often waved
-    /// away it waits longer before asking (`pause`). Kept on this device.
+    /// once), until the app is set to autocomplete always or the switch is turned on again; never in an app set to
+    /// always or never (it goes by that). Where they are often waved away it waits longer before asking (`pause`). Kept
+    /// on this device.
     public struct Learning: Codable, Equatable, Sendable {
         public static let window = 30
 
@@ -404,13 +405,14 @@ public enum Autocomplete {
 
         public init() {}
 
-        /// One suggestion's end in `app`: taken or not. True when it stops there now.
-        public mutating func record(_ taken: Bool, in app: String) -> Bool {
+        /// One suggestion's end in `app`: taken or not. True when it stops there now; never where it `mayStop` not (the
+        /// app's own choice decides there).
+        public mutating func record(_ taken: Bool, in app: String, mayStop: Bool = true) -> Bool {
             let key = app.lowercased()
             var entry = apps[key] ?? App()
             entry.outcomes = Array((entry.outcomes + [taken]).suffix(Self.window))
             entry.dismissedInARow = taken ? 0 : entry.dismissedInARow + 1
-            let stops = !entry.stopped && entry.outcomes.count >= Self.window && !entry.outcomes.contains(true)
+            let stops = mayStop && !entry.stopped && entry.outcomes.count >= Self.window && !entry.outcomes.contains(true)
             if stops { entry.stopped = true }
             apps[key] = entry
             return stops

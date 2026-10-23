@@ -262,7 +262,8 @@ extension InputSession {
     }
 
     /// The suggestion ends (`end`): it goes from the screen, and what happened to it is counted and learned for the app,
-    /// where it stops after `Autocomplete.Learning.window` not taken (said once, `AutocompleteMessages.stopped`).
+    /// where it stops after `Autocomplete.Learning.window` not taken (said once, `AutocompleteMessages.stopped`), unless
+    /// the app is set to always or never (Settings → Apps): there it goes by that.
     func autocompleteEnded(_ end: SuggestionEnd) {
         guard let suggestion = autocomplete.suggestion else { return }
         autocomplete.suggestion = nil
@@ -283,7 +284,9 @@ extension InputSession {
                 break
             }
         }
-        guard let app, services.autocomplete.learn({ $0.record(end == .accepted || end == .typedThrough, in: app) }) else { return }
+        guard let app else { return }
+        let mayStop = services.loadSettings().profile(for: app)?.autocomplete == nil
+        guard services.autocomplete.learn({ $0.record(end == .accepted || end == .typedThrough, in: app, mayStop: mayStop) }) else { return }
         services.autocomplete.count { $0.stoppedApps += 1 }
         log.notice("autocomplete stopped in an app: none of its last \(Autocomplete.Learning.window) suggestions was taken")
         say(AutocompleteMessages(language: UIText.language).stopped(in: services.appName(app) ?? app), long: true)
