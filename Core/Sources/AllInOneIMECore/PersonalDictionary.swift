@@ -37,10 +37,15 @@ public enum PersonalDictionaryError: Error, LocalizedError {
 ///
 /// Parsing is synchronous and can read up to 32 MiB: a UI caller should import on a worker queue.
 /// All writes are serialized with fuzzy-pinyin changes, validated before mutation, and rolled back
-/// if a write fails. The caller redeploys Rime after a successful import or removal.
+/// if a write fails. One the app never finished (it quit or crashed partway: the manifest is written
+/// last) is recovered from when the files are next read (`readState`). The caller redeploys Rime after
+/// a successful import or removal.
 public struct PersonalDictionaryStore: Sendable {
     public let userDirectory: URL
     public let schema: URL
+    /// Called before each file is written or removed, with its URL: the tests', a write that fails (or the app that
+    /// stops) partway. Nil: none.
+    var beforeWrite: (@Sendable (URL) throws -> Void)?
 
     public init(userDirectory: URL, schema: URL) {
         self.userDirectory = userDirectory
@@ -48,7 +53,7 @@ public struct PersonalDictionaryStore: Sendable {
     }
 
     public func list() throws -> [PersonalDictionary] {
-        try Self.locked { try readState().dictionaries.map(\.dictionary) }
+        try Self.locked { try readState().state.dictionaries.map(\.dictionary) }
     }
 
     @discardableResult
@@ -56,7 +61,7 @@ public struct PersonalDictionaryStore: Sendable {
         // Read and validate the entire source before touching the installed setup, outside the write lock.
         let parsed = try Parsed.read(source)
         return try Self.locked {
-            let before = try readState()
+            let before = try readState().state
             try checkPatch(requireOwnership: true)
             try checkWrapper()
             let record = Stored(name: parsed.name, fileName: source.lastPathComponent, entryCount: parsed.entries.count,
@@ -75,14 +80,14 @@ public struct PersonalDictionaryStore: Sendable {
             changes += try configurationChanges(for: after, fuzzyPinyin: fuzzyPinyin, checkAlgebra: true)
             changes.append(Change(url: manifest, data: try encode(after)))
             try write(changes)
-            removeObsoleteTables(before: before, after: after)
+            removeUnlistedTables(after)
             return record.dictionary
         }
     }
 
     public func removeDictionary(named name: String, fuzzyPinyin: [String]) throws {
         try Self.locked {
-            let before = try readState()
+            let before = try readState().state
             guard before.dictionaries.contains(where: { $0.name == name }) else { return }
             try checkPatch(requireOwnership: true)
             try checkWrapper()
@@ -91,7 +96,7 @@ public struct PersonalDictionaryStore: Sendable {
             var changes = try configurationChanges(for: after, fuzzyPinyin: fuzzyPinyin, checkAlgebra: true)
             changes.append(Change(url: manifest, data: try encode(after)))
             try write(changes)
-            removeObsoleteTables(before: before, after: after)
+            removeUnlistedTables(after)
         }
     }
 
@@ -99,13 +104,17 @@ public struct PersonalDictionaryStore: Sendable {
     @discardableResult
     public func applyFuzzyPinyin(_ ids: [String]) throws -> FuzzyPinyin.Outcome {
         try Self.locked {
-            let state = try readState()
+            let (state, recovered) = try readState()
             if try !checkPatch(requireOwnership: false) {
                 return state.dictionaries.isEmpty && FuzzyPinyin.known(ids).isEmpty ? .unchanged : .userFile
             }
             if !state.dictionaries.isEmpty { try checkWrapper() }
-            let changes = try configurationChanges(for: state, fuzzyPinyin: ids, checkAlgebra: false,
-                                                   includeWrapper: !state.dictionaries.isEmpty)
+            // After a first import that never finished, its wrapper goes too (if it is this app's).
+            let leftWrapper = recovered && state.dictionaries.isEmpty && (try? checkWrapper()) != nil
+            var changes = try configurationChanges(for: state, fuzzyPinyin: ids, checkAlgebra: false,
+                                                   includeWrapper: !state.dictionaries.isEmpty || leftWrapper)
+            // Recovered: the manifest as it is now (the tables it lists all there).
+            if recovered { changes.append(Change(url: manifest, data: try encode(state))) }
             let patchChange = changes.first { $0.url == patch }
             let previous = try contentsIfPresent(patch)
             let wanted = patchChange?.data
@@ -114,6 +123,7 @@ public struct PersonalDictionaryStore: Sendable {
                 return try contentsIfPresent(change.url) != change.data
             }
             try write(changes)
+            removeUnlistedTables(state)
             if previous == wanted, !repairedWrapper { return .unchanged }
             return wanted == nil ? .removed : .written
         }
@@ -152,18 +162,29 @@ public struct PersonalDictionaryStore: Sendable {
         var dictionary: PersonalDictionary { PersonalDictionary(name: name, fileName: fileName, entryCount: entryCount) }
     }
 
-    private func readState() throws -> State {
+    /// The dictionaries the manifest lists, each table checked as this app's. What a write the app never finished
+    /// leaves is recovered from (`write` writes the tables first and the manifest last): the folder without a manifest
+    /// is a first import's, nothing listed yet; a table the manifest lists that isn't there can't be loaded, and is left
+    /// out. `recovered` says so: the next change writes the manifest again (`applyFuzzyPinyin` too, which Rime's start
+    /// makes); each change removes the tables it doesn't list (`removeUnlistedTables`). A manifest that isn't this app's, or a table
+    /// edited by hand, throws: those files are left for the user to look at.
+    private func readState() throws -> (state: State, recovered: Bool) {
         do { try checkRegular(folder, directory: true) }
-        catch let error as CocoaError where error.code == .fileReadNoSuchFile || error.code == .fileNoSuchFile { return State() }
-        guard let bytes = try contentsIfPresent(manifest), let state = try? JSONDecoder().decode(State.self, from: bytes),
+        catch let error as CocoaError where error.code == .fileReadNoSuchFile || error.code == .fileNoSuchFile { return (State(), false) }
+        guard let bytes = try contentsIfPresent(manifest) else { return (State(), true) }
+        guard let state = try? JSONDecoder().decode(State.self, from: bytes),
               state.format == State().format,
               Set(state.dictionaries.map(\.name)).count == state.dictionaries.count,
               Set(state.dictionaries.map(\.token)).count == state.dictionaries.count,
               state.dictionaries.allSatisfy({ !$0.name.isEmpty && $0.entryCount > 0 && Self.isToken($0.token) }) else {
             throw PersonalDictionaryError.managedFile(Self.folderName + "/manifest.json")
         }
+        var found = state
+        found.dictionaries = []
         for item in state.dictionaries {
             let table = tableURL(item)
+            // Not there at all (not even a dangling link): left out.
+            guard (try? FileManager.default.attributesOfItem(atPath: table.path)) != nil else { continue }
             try checkRegular(table)
             let handle = try FileHandle(forReadingFrom: table)
             defer { try? handle.close() }
@@ -171,8 +192,9 @@ public struct PersonalDictionaryStore: Sendable {
             guard try handle.read(upToCount: marker.count) == marker else {
                 throw PersonalDictionaryError.managedFile(reference(item) + ".dict.yaml")
             }
+            found.dictionaries.append(item)
         }
-        return state
+        return (found, found.dictionaries.count != state.dictionaries.count)
     }
 
     private static func isToken(_ value: String) -> Bool {
@@ -337,6 +359,7 @@ public struct PersonalDictionaryStore: Sendable {
             for (index, change) in changes.enumerated() {
                 attempted = index + 1
                 guard originals[index] != change.data else { continue }
+                try beforeWrite?(change.url)
                 if let data = change.data { try data.write(to: change.url, options: .atomic) }
                 else if originals[index] != nil { try fm.removeItem(at: change.url) }
             }
@@ -353,12 +376,20 @@ public struct PersonalDictionaryStore: Sendable {
         }
     }
 
-    private func removeObsoleteTables(before: State, after: State) {
-        let current = Set(after.dictionaries.map(\.token))
-        for item in before.dictionaries where !current.contains(item.token) {
-            // These were validated as owned before the transaction. A failed cleanup only leaves an
-            // unreferenced app-owned table; it cannot change the active vocabulary or erase user data.
-            try? FileManager.default.removeItem(at: tableURL(item))
+    /// The tables in the folder `state` doesn't list: one replaced or removed, and a new one whose import never
+    /// finished. Only this app's (a token's name, the marker first); a failed cleanup only leaves an unreferenced
+    /// table, which can't change the active vocabulary or erase user data.
+    private func removeUnlistedTables(_ state: State) {
+        let fm = FileManager.default
+        let listed = Set(state.dictionaries.map { $0.token + ".dict.yaml" })
+        let marker = Data((Self.tableMarker + "\n").utf8)
+        for name in (try? fm.contentsOfDirectory(atPath: folder.path)) ?? [] where !listed.contains(name) {
+            guard name.hasSuffix(".dict.yaml"), Self.isToken(String(name.dropLast(".dict.yaml".count))) else { continue }
+            let table = folder.appendingPathComponent(name)
+            guard (try? checkRegular(table)) != nil, let handle = try? FileHandle(forReadingFrom: table) else { continue }
+            let owned = (try? handle.read(upToCount: marker.count)) == marker
+            try? handle.close()
+            if owned { try? fm.removeItem(at: table) }
         }
     }
 
