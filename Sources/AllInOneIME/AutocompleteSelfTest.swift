@@ -319,7 +319,8 @@ extension SelfTest {
         check(harnessKey(controller, harness, "\u{1B}", code: VirtualKey.escape) && ghost(nil) && harness.text.hasSuffix("See y"),
               "Esc takes it down, the text as it was")
         harnessType("o", controller, harness)
-        check(ghost("u soon."), "shown again from what was kept, typed on (\(GhostOverlay.shared.text ?? "none"))")
+        check(ghost(" and more.") && model.prompts.count == 3,
+              "waved away: not shown again as it's typed along; the model asked again (\(GhostOverlay.shared.text ?? "none"))")
         now += 0.5
         check(!harnessKey(controller, harness, "\t", code: VirtualKey.tab, flags: .shift) && ghost(nil),
               "⇧Tab goes to the app, the suggestion goes")
@@ -540,6 +541,7 @@ extension SelfTest {
             (.anthropic, "https://autocomplete-selftest.invalid", false, nil)
         try? config.write()
         let destination = "anthropic autocomplete-selftest.invalid"
+        controller.activateServer(harness)  // a field afresh: "Hello wor"'s suggestion waved away before is shown again
         controller.toggleAutocomplete(nil)
         let panel = AutocompleteConsentPanel.shown
         check(panel?.isVisible == true && NSApp.modalWindow == nil && file()?.autocomplete == true && file()?.autocompleteCloud == nil,

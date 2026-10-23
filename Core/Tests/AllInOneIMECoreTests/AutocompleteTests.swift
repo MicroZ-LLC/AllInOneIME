@@ -706,20 +706,36 @@ struct AutocompleteTests {
         }
     }
 
+    /// The model's answer to what ends "Hello wor" or "Hello worl" (the rest of "Hello world, how are you?"), and to
+    /// anything else.
+    static func helloWorld() -> ContinuingModel {
+        ContinuingModel { prompt in
+            prompt.hasSuffix("Hello wor</before>") ? "ld, how are you?" : prompt.hasSuffix("Hello worl</before>") ? "d, how are you?" : " and so on."
+        }
+    }
+
     @Test func escTakesItDownAndAnyOtherKeyGoesOnToTheApp() {
         withInterfaceLanguage("en") {
-            let r = rig()
+            let r = rig(model: Self.helloWorld())
             r.host.type("Hello wor")
             r.pauseEnds(expecting: "x")
+            #expect(r.host.ghost == "ld, how are you?")
             #expect(r.host.press(FakeHost.escape))
             #expect(r.host.ghost == nil)
-            // Shown again from what was kept, for the same text: no request.
+            // Waved away: not shown again for the same text, nor as it's typed along, from what was kept or asked again.
             r.host.type("l")
+            r.pauseEnds()
+            #expect(r.host.ghost == nil && r.model.requests.count == 2 && r.store.metrics.fromCache == 0)
             r.host.press(KeyEvent(keyCode: VirtualKey.delete, characters: "\u{7F}"))
-            r.host.document = "Hello wor"
-            r.host.type("l")
+            r.host.document = "Hello wo"
+            r.host.type("r")
+            r.pauseEnds()
+            #expect(r.host.ghost == nil && r.model.requests.count == 3 && r.store.metrics.shown == 1)
+            // Other text: suggestions as before; any key but Tab and Esc goes on to the app.
+            r.host.document = "Hello there"
+            r.host.type(",")
             r.pauseEnds(expecting: "x")
-            #expect(r.host.ghost == "d, how are you?" && r.model.requests.count == 1 && r.store.metrics.fromCache == 1)
+            #expect(r.host.ghost == " and so on.")
             r.clock.advance(1)
             #expect(!r.host.press(KeyEvent(keyCode: VirtualKey.right, characters: "\u{F703}")))
             #expect(r.host.ghost == nil)

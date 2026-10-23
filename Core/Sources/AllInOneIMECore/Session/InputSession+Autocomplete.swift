@@ -7,6 +7,8 @@ struct AutocompleteField {
     struct Suggestion {
         /// What is left of it to go in.
         var text: String
+        /// The text before the caret it continues now (what it was made for, and what was typed along it since).
+        var before: String
         /// When it came up (`SessionServices.uptime`), or came back after what was composed.
         var shownAt: TimeInterval
         var hidden = false
@@ -15,6 +17,9 @@ struct AutocompleteField {
     }
 
     var suggestion: Suggestion?
+    /// The suggestions waved away (Esc) in this field, with the text they were up after: none is shown again for its text,
+    /// nor as it's typed along, kept or answered again.
+    var dismissed = Autocomplete.Cache()
     /// Whether autocomplete may run in this field by the settings as the session last took them (a field took the focus,
     /// the settings changed: `autocompleteTakeSettings`): on in its app (the switch, or the app's own choice), and none of
     /// what never changes while the field has the focus keeps it from running (a terminal, a password manager …). While
@@ -156,6 +161,10 @@ extension InputSession {
             return true
         }
         if event.key == .escape, event.modifiers.subtracting(.capsLock).subtracting(.sides).isEmpty {
+            // Waved away: what was kept of it goes, and in this field it isn't shown again for this text, nor as it's typed
+            // along, whatever a request answers.
+            services.autocomplete.forget(after: suggestion.before)
+            autocomplete.dismissed.add(suggestion.text, after: suggestion.before)
             autocompleteEnded(.dismissed)
             return true
         }
@@ -196,6 +205,7 @@ extension InputSession {
         if var suggestion = autocomplete.suggestion {
             if !inserted.isEmpty, suggestion.text.hasPrefix(inserted), autocompleteMayRun() {
                 suggestion.text.removeFirst(inserted.count)
+                suggestion.before += inserted
                 suggestion.typed += inserted.count
                 if suggestion.hidden { (suggestion.hidden, suggestion.shownAt) = (false, now) }
                 autocomplete.suggestion = suggestion
@@ -264,7 +274,7 @@ extension InputSession {
         let typed = services.pointerUsedWithin(services.uptime() - autocomplete.typedAt) ? "" : autocomplete.typed.text
         guard let request = Autocomplete.context(text, selection: selection, typed: typed) else { return }
         if let kept = services.autocomplete.kept(after: request.before) {
-            autocompleteShow(kept, fromCache: true)
+            if !autocomplete.dismissed.contains(kept, after: request.before) { autocompleteShow(kept, after: request.before, fromCache: true) }
             return
         }
         autocomplete.asked = id
@@ -296,6 +306,10 @@ extension InputSession {
                 log.notice("autocomplete \(request): nothing to suggest")
                 return
             }
+            guard !autocomplete.dismissed.contains(text, after: answer.before) else {
+                log.notice("autocomplete \(request): the suggestion waved away here for this text")
+                return
+            }
             services.autocomplete.keep(text, after: answer.before)
             guard autocomplete.suggestion == nil, autocompleteMayRun() else { return }
             let waited = services.uptime() - autocomplete.pauseStarted
@@ -304,14 +318,15 @@ extension InputSession {
                 log.notice("autocomplete \(request): too late (\(Int(waited * 1000)) ms)")
                 return
             }
-            autocompleteShow(text, fromCache: false)
+            autocompleteShow(text, after: answer.before, fromCache: false)
         }
     }
 
-    /// `text` up after the caret (`SessionOutput.ghost`), counted with how long it took from the pause's start.
-    func autocompleteShow(_ text: String, fromCache: Bool) {
+    /// `text` up after the caret (`SessionOutput.ghost`), continuing `before`, counted with how long it took from the
+    /// pause's start.
+    func autocompleteShow(_ text: String, after before: String, fromCache: Bool) {
         let now = services.uptime()
-        autocomplete.suggestion = AutocompleteField.Suggestion(text: text, shownAt: now)
+        autocomplete.suggestion = AutocompleteField.Suggestion(text: text, before: before, shownAt: now)
         let waited = now - autocomplete.pauseStarted
         services.autocomplete.count { $0.shown(text, after: waited, fromCache: fromCache) }
         emit(.ghost(text))

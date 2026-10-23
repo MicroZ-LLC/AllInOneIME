@@ -394,7 +394,7 @@ public enum Autocomplete {
     // MARK: Suggestions kept
 
     /// The last suggestions and the text they continue: the same text again shows its suggestion at once, and so does text
-    /// typed since that runs into one (its rest is shown). No request for either.
+    /// typed since that runs into one (its rest is shown). No request for either. One waved away with Esc goes (`forget`).
     public struct Cache: Equatable, Sendable {
         public struct Entry: Equatable, Sendable {
             /// The text before the caret it was made for.
@@ -421,9 +421,27 @@ public enum Autocomplete {
         /// as the suggestion did (typed along). Nil: none, or one typed to its end.
         public func rest(after before: String) -> String? {
             for entry in entries.reversed() {
-                for typed in 0..<entry.text.count where matches(entry, typed: typed, before: before) {
-                    return String(entry.text.dropFirst(typed))
-                }
+                if let rest = rest(of: entry, after: before) { return rest }
+            }
+            return nil
+        }
+
+        /// The suggestion up after `before` waved away (Esc): every one kept that would show there goes, for this text and
+        /// as it's typed along.
+        public mutating func forget(after before: String) {
+            let cache = self
+            entries.removeAll { cache.rest(of: $0, after: before) != nil }
+        }
+
+        /// Whether one of these would show `text` after `before`: for that text, or as it was typed along.
+        public func contains(_ text: String, after before: String) -> Bool {
+            entries.contains { rest(of: $0, after: before) == text }
+        }
+
+        /// What is left of `entry` for `before` (nil: `before` isn't its text, nor its text typed along it).
+        private func rest(of entry: Entry, after before: String) -> String? {
+            for typed in 0..<entry.text.count where matches(entry, typed: typed, before: before) {
+                return String(entry.text.dropFirst(typed))
             }
             return nil
         }
@@ -717,6 +735,11 @@ public final class AutocompleteStore: @unchecked Sendable {
 
     public func kept(after before: String) -> String? {
         state.withLock { $0.cache.rest(after: before) }
+    }
+
+    /// The suggestion up after `before` waved away: what was kept that would show there goes (`Autocomplete.Cache.forget`).
+    public func forget(after before: String) {
+        state.withLock { $0.cache.forget(after: before) }
     }
 
     /// Whether it stopped in `app` for want of use (`Autocomplete.Learning`).
