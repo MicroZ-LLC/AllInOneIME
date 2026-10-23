@@ -230,7 +230,7 @@ public enum Autocomplete {
     }
 
     /// Where the first sentence of `text` ends (after its mark, and a closing quote or bracket after it): 。！？ anywhere,
-    /// . ! ? … followed by a space or the end of the text (not "3.5" nor "e.g.x").
+    /// . ! ? … followed by a space or the end of the text (not "3.5" nor "e.g.x", nor the full stop of "Mr." or "e.g.").
     static func sentenceEnd(in text: String) -> String.Index? {
         var index = text.startIndex
         while index < text.endIndex {
@@ -240,13 +240,23 @@ public enum Autocomplete {
                 var end = text.index(after: index)
                 while end < text.endIndex, "\"'”’」』）)]".contains(text[end]) { end = text.index(after: end) }
                 // A Western mark ends a sentence before a space or the end only; not a full stop with nothing before it
-                // ("..." starting the answer).
+                // ("..." starting the answer), nor an abbreviation's.
                 let ends = "。！？".contains(character) || end == text.endIndex || text[end] == " "
-                if ends, text[..<index].contains(where: { $0.isLetter || $0.isNumber }) { return end }
+                if ends, text[..<index].contains(where: { $0.isLetter || $0.isNumber }),
+                   !(character == "." && endsWithAbbreviation(text[..<index])) { return end }
             }
             index = text.index(after: index)
         }
         return nil
+    }
+
+    /// Abbreviations whose full stop doesn't end a sentence (in small letters, without their last full stop).
+    static let abbreviations: Set<String> = ["mr", "mrs", "ms", "dr", "prof", "jr", "sr", "e.g", "i.e", "etc", "vs", "cf"]
+
+    /// Whether `text` ends with one of `abbreviations`, a word of its own ("Mr" in "Please tell Mr", not "summer").
+    static func endsWithAbbreviation(_ text: Substring) -> Bool {
+        let word = text.reversed().prefix { $0.isLetter || $0 == "." }
+        return abbreviations.contains(String(word.reversed()).lowercased())
     }
 
     /// Words (runs of anything but spaces and wide characters) in `text`, and each wide character as one.

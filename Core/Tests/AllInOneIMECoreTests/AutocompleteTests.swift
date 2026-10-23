@@ -76,6 +76,8 @@ struct AutocompleteTests {
         #expect(Autocomplete.trimmed("今天下午三点开会。然后吃饭", before: "我们") == "今天下午三点开会。")
         // A decimal point or an abbreviation's dot inside isn't a sentence's end.
         #expect(Autocomplete.trimmed(" version 3.5 of the app", before: "We shipped") == " version 3.5 of the app")
+        #expect(Autocomplete.trimmed(" Dr. Chen, i.e. the new lead. Then", before: "Ask") == " Dr. Chen, i.e. the new lead.")
+        #expect(Autocomplete.trimmed(" until the summer. Then", before: "Wait") == " until the summer.")
         // Closing quotes stay with the sentence.
         #expect(Autocomplete.trimmed(" said “no.” Then", before: "She") == " said “no.”")
     }
