@@ -2821,6 +2821,53 @@
         }
       }
     },
+    "A word you pick from one is learned like any other, into pinyin's learned words, which sync to your other Macs when Sync through iCloud has Learned words on." : {
+      "comment" : "从词库里选过的词和别的词一样会学进拼音学到的词；开了「通过 iCloud 同步」的「学到的词」时，会同步到你的其他 Mac。 — Sources/AllInOneIME/PersonalDictionariesSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein Wort, das du daraus wählst, wird wie jedes andere gelernt – in die gelernten Wörter von Pinyin, die mit deinen anderen Macs synchronisiert werden, wenn bei „Über iCloud synchronisieren“ die gelernten Wörter eingeschaltet sind."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una palabra que eliges de uno se aprende como cualquier otra, en las palabras aprendidas de pinyin, que se sincronizan con tus otros Mac cuando «Sincronizar a través de iCloud» tiene activadas las palabras aprendidas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un mot que vous y choisissez est appris comme les autres, dans les mots appris du pinyin, qui se synchronisent avec vos autres Mac quand « Synchroniser via iCloud » a les mots appris activés."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "辞書から選んだ単語もほかの単語と同じようにピンインの学習した単語に入り、「iCloudで同期」で「学習した単語」がオンのときはほかの Mac にも同期されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "사전에서 고른 단어도 다른 단어처럼 병음의 학습한 단어에 들어가며, 'iCloud로 동기화'에서 학습한 단어가 켜져 있으면 다른 Mac에도 동기화됩니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uma palavra que você escolhe de um dicionário é aprendida como qualquer outra, nas palavras aprendidas do pinyin, que sincronizam com seus outros Macs quando “Sincronizar pelo iCloud” está com as palavras aprendidas ativadas."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "從詞庫裡選過的詞和別的詞一樣會學進拼音學到的詞；開了「透過 iCloud 同步」的「學到的詞」時，會同步到你的其他 Mac。"
+          }
+        }
+      }
+    },
     "About" : {
       "comment" : "关于 — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {

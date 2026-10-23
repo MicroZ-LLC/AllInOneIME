@@ -6,7 +6,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ### Added
 
-- Personal pinyin dictionaries: import or update UTF-8 Rime `.dict.yaml` vocabulary in Settings → Input → Chinese (pinyin), see each file's name and entry count, and remove it. Dictionaries supplement rime-ice, redeploy automatically, and stay on this Mac. Source files, existing Rime customizations, learned words and fuzzy-pinyin settings are preserved; unsupported files are refused before changes.
+- Personal pinyin dictionaries: import or update UTF-8 Rime `.dict.yaml` vocabulary in Settings → Input → Chinese (pinyin), see each file's name and entry count, and remove it. Dictionaries supplement rime-ice, redeploy automatically, and stay on this Mac (words picked from them are learned, and sync with the learned words when that's on). Source files, existing Rime customizations, learned words and fuzzy-pinyin settings are preserved; unsupported files are refused before changes.
 - The command trigger can be changed in Settings → General from `@` to another symbol: `#`, `%`, `&`, `*`, `+`, `|` or `~` (symbols that typing needs are refused, with the reason). Command suggestions, nested commands, and custom or plugin commands use the chosen symbol; `@` becomes ordinary text when another symbol is selected. Existing settings keep `@`.
 
 ### Fixed
