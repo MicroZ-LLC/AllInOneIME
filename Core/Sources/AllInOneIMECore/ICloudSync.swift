@@ -62,7 +62,7 @@ public enum ICloudSync {
     /// (they're in the keychain); extension sources and their clones run code; extension folders and plugins are paths on
     /// this Mac, and so is where `@note` saves (`notes`: a folder's path); the sync setting itself is per Mac, and so are
     /// autocomplete's switch and the yes to it sending text to a cloud provider (`autocomplete`, `autocompleteCloud`:
-    /// turning it on asks that on this Mac); `typeOutSpeed` is only read (from older files); `outputLanguage` and
+    /// turning it on asks that on this Mac), and so is its choice for an app (`thisMacsOwnAppFields`); `typeOutSpeed` is only read (from older files); `outputLanguage` and
     /// `defaultInput` come with their lists. `@agent`'s agent and its program are what this Mac has installed, and
     /// whether it takes Chrome's page is this Mac's choice (as they always were: never synced). Apps without typos and the recent apps aren't config keys
     /// either: named so that no later version adds them.
@@ -375,7 +375,10 @@ public enum ICloudSync {
                 out["redaction"] = .object(redaction)
             }
             if case let .object(apps)? = encoded["appProfiles"] {
-                for (app, profile) in apps { out[appPrefix + app] = profile }
+                // Without autocomplete, each Mac's own (`thisMacsOwnAppFields`): an app with nothing else isn't synced.
+                for (app, profile) in apps {
+                    if let synced = syncedPart(of: profile) { out[appPrefix + app] = synced }
+                }
             }
         }
         if categories.contains(.jargon) { out[commandsKey] = encoded[commandsKey] }
@@ -648,14 +651,40 @@ public enum ICloudSync {
     }
 
     /// The fields this version knows of an object-valued key (`redaction`, a provider's settings, an app's settings); nil
-    /// for any other key.
+    /// for any other key. An app's own autocomplete is known (never carried up from iCloud), but never synced
+    /// (`thisMacsOwnAppFields`).
     public static func knownFields(of key: String) -> Set<String>? {
-        if key.hasPrefix(appPrefix) { return ["inputLanguage", "rewriteStyles", "typeOut", "noAI", "translateAlways"] }
+        if key.hasPrefix(appPrefix) { return ["inputLanguage", "rewriteStyles", "typeOut", "noAI", "translateAlways", "autocomplete"] }
         switch key {
         case "redaction": return ["enabled", "emails", "phones", "cards", "keys", "ips", "customWords"]
         case "anthropic", "gemini", "openai": return ["model", "baseURL", "effort", "temperature"]
         default: return nil
         }
+    }
+
+    /// The fields of an app's settings each Mac has for itself, as autocomplete's switch is this Mac's own (`neverSynced`):
+    /// whether autocomplete runs in the app, always or never (`AppProfile.autocomplete`). Never sent; another Mac's settings
+    /// for the app neither replace nor remove this Mac's (`withThisMacsOwn`).
+    public static let thisMacsOwnAppFields: Set<String> = ["autocomplete"]
+
+    /// An app's settings as they sync (`profile` as the config file writes it): without `thisMacsOwnAppFields`; nil when
+    /// nothing else is left.
+    static func syncedPart(of profile: AIConfig.JSONValue) -> AIConfig.JSONValue? {
+        guard case var .object(fields) = profile else { return profile }
+        for field in thisMacsOwnAppFields { fields[field] = nil }
+        return fields.isEmpty ? nil : .object(fields)
+    }
+
+    /// `incoming`, an app's settings from iCloud (nil: removed there), with this Mac's own fields of them (`own`, as the
+    /// config file writes the app's settings now) in place of iCloud's: nil when nothing is left.
+    static func withThisMacsOwn(_ incoming: AIConfig.JSONValue?, own: AIConfig.JSONValue?) -> AIConfig.JSONValue? {
+        var fields: [String: AIConfig.JSONValue] = [:]
+        if case let .object(theirs)? = incoming { fields = theirs } else if let incoming { return incoming }
+        for field in thisMacsOwnAppFields {
+            fields[field] = nil
+            if case let .object(mine)? = own, let value = mine[field] { fields[field] = value }
+        }
+        return fields.isEmpty ? nil : .object(fields)
     }
 
     /// `mine` with the fields of `theirs` this version doesn't know (`knownFields`) carried over, as `AIConfig.merged`
@@ -1050,9 +1079,12 @@ public enum ICloudSync {
                     var apps: [String: AIConfig.JSONValue] = [:]
                     if case let .object(existing)? = file["appProfiles"] { apps = existing }
                     // The app as this Mac spells it, if it has settings (bundle ids are matched ignoring case).
+                    let own = apps.first { $0.key.caseInsensitiveCompare(app) == .orderedSame }?.value
                     for other in apps.keys where other.caseInsensitiveCompare(app) == .orderedSame { apps[other] = nil }
                     let spelled = current.profileKey(for: app) ?? app
-                    apps[spelled] = value
+                    // Its autocomplete is this Mac's own: iCloud's is left out, this Mac's stays (also when iCloud's
+                    // settings for the app are gone).
+                    apps[spelled] = withThisMacsOwn(value, own: own)
                     file["appProfiles"] = .object(apps)
                 } else {
                     file[key] = value

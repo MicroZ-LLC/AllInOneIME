@@ -49,6 +49,30 @@ struct ICloudSyncCommandTriggerTests {
         #expect(taken.config.commandTrigger == "#" && taken.applied == ["commandTrigger"])
     }
 
+    /// Autocomplete in an app is each Mac's own, as its switch is: the app's other settings sync, its autocomplete never
+    /// goes up, and another Mac's settings for the app never replace this one's choice, nor delete it with theirs.
+    @Test func anAppsAutocompleteIsEachMacsOwn() throws {
+        let rig = try SyncRig()
+        let a = try rig.mac("A"), b = try rig.mac("B")
+        a.sync(at: t(0))
+        b.sync(at: t(1))
+        try b.edit(at: t(2)) { $0.appProfiles["com.apple.mail"] = AppProfile(autocomplete: false) }
+        #expect(b.sync(at: t(3)).uploaded.isEmpty, "only autocomplete: nothing to sync")
+        try a.edit(at: t(4)) { $0.appProfiles["com.apple.mail"] = AppProfile(noAI: true, autocomplete: true) }
+        #expect(a.sync(at: t(5)).uploaded == ["appProfiles.com.apple.mail"])
+        let entry = try #require(try rig.settingsJSON()["appProfiles.com.apple.mail"] as? [String: Any])
+        #expect(entry["value"] as? [String: Bool] == ["noAI": true], "\(entry)")
+        #expect(b.sync(at: t(6)).applied == ["appProfiles.com.apple.mail"])
+        #expect(try b.config().profile(for: "com.apple.mail") == AppProfile(noAI: true, autocomplete: false))
+        #expect(try a.config().profile(for: "com.apple.mail") == AppProfile(noAI: true, autocomplete: true))
+        // A removes Mail's settings: B's own autocomplete there stays.
+        try a.edit(at: t(7)) { $0.appProfiles["com.apple.mail"] = nil }
+        a.sync(at: t(8))
+        b.sync(at: t(9))
+        #expect(try b.config().profile(for: "com.apple.mail") == AppProfile(autocomplete: false))
+        #expect(a.sync(at: t(10)).applied.isEmpty && b.sync(at: t(11)).uploaded.isEmpty)
+    }
+
     /// Each key a config file may hold syncs (as itself, or with the key that carries it) or never does.
     @Test func everyConfigKeyIsSyncedOrNeverSynced() {
         // Synced under other keys: the apps one by one, the hidden words as `redaction.customWords`.

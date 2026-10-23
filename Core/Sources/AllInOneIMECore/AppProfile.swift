@@ -18,7 +18,8 @@ public struct AppProfile: Codable, Equatable, Sendable {
     /// doesn't leave it (Settings → Apps: 「总是边打边译」).
     public var translateAlways: Bool?
     /// Autocomplete (`Autocomplete`) in the app always (true) or never (false), whatever the switch and what was
-    /// learned there (Settings → Apps: 「续写」); nil: as everywhere.
+    /// learned there (Settings → Apps: 「续写」); nil: as everywhere. This Mac's own, as the switch is: never synced
+    /// (`ICloudSync.thisMacsOwnAppFields`).
     public var autocomplete: Bool?
 
     public init(inputLanguage: Language? = nil, rewriteStyles: [String]? = nil, typeOut: Bool? = nil, noAI: Bool? = nil,
