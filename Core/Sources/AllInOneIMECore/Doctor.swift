@@ -313,9 +313,11 @@ public enum Doctor {
         case .granted:
             out.append(Finding(area: .permissions, status: .ok, title: t.tr("辅助功能权限已允许", "Accessibility is allowed")))
         case .denied, .notDetermined:
+            // Not allowed for the build that runs, though System Settings may show the switch on: after an update macOS
+            // can keep it for the previous build's signature.
             out.append(Finding(area: .permissions, status: .warning, title: t.tr("辅助功能权限没有允许", "Accessibility isn't allowed"),
-                               detail: t.tr("有的 App 里读不到选中的文字。如果列表里已有 AllInOneIME，先关闭再打开（macOS 可能仍保留旧版本的权限）",
-                                            "the selection can't be read in some apps. If it's already on there, turn it off and on again (macOS can keep the permission for the previous version)"),
+                               detail: t.tr("有的 App 里读不到选中的文字。如果系统设置 → 隐私与安全性 → 辅助功能里 AllInOneIME 已经打开，先关掉再打开（macOS 可能还留着上一个版本的权限）",
+                                            "the selection can't be read in some apps. If AllInOneIME is already on in System Settings → Privacy & Security → Accessibility, turn it off and on again (macOS can keep the permission for the previous version)"),
                                fix: .openPrivacy(.accessibility)))
         case .unknown: break
         }

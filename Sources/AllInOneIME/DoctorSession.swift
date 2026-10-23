@@ -79,6 +79,8 @@ enum DoctorSession {
         facts.awsProfile = read.awsProfile.map { $0.mapError { Doctor.ProbeError(UIText.describe($0)) } }
         facts.awsStatus = read.awsStatus
         facts.apple = AppleModel.system.availability
+        // This process's own: the input method's, which reads the selection (the settings window runs in it), so this
+        // build's signature. System Settings may still show the switch on for the build before an update.
         facts.accessibility = AXIsProcessTrusted() ? .granted : .denied
         switch VoiceInput.microphoneAccess {
         case .granted: facts.microphone = .granted

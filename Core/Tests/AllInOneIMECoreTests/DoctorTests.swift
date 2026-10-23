@@ -163,13 +163,19 @@ struct DoctorTests {
         ])
     }
 
+    /// After an update System Settings may show AllInOneIME allowed while this build isn't: the finding says where to turn
+    /// it off and on, and Fix opens that pane.
     @Test func accessibilityDenialExplainsStaleSystemSettingsEntry() {
-        let denied = Doctor.findings(facts { $0.accessibility = .denied }, chinese: false)
-            .first { $0.area == .permissions && $0.fix == .openPrivacy(.accessibility) }
-        #expect(denied?.detail?.contains("turn it off and on again") == true)
-        let chinese = Doctor.findings(facts { $0.accessibility = .denied }, chinese: true)
-            .first { $0.area == .permissions && $0.fix == .openPrivacy(.accessibility) }
-        #expect(chinese?.detail?.contains("先关闭再打开") == true)
+        let denied = Doctor.findings(facts { $0.accessibility = .denied }, chinese: false).first { $0.area == .permissions }
+        #expect(denied?.status == .warning && denied?.fix == .openPrivacy(.accessibility))
+        #expect(denied?.text(chinese: false) == "⚠ Accessibility isn't allowed — the selection can't be read in some apps. "
+                + "If AllInOneIME is already on in System Settings → Privacy & Security → Accessibility, turn it off and on again "
+                + "(macOS can keep the permission for the previous version)")
+        let chinese = Doctor.findings(facts { $0.accessibility = .denied }, chinese: true).first { $0.area == .permissions }
+        #expect(chinese?.detail == "有的 App 里读不到选中的文字。如果系统设置 → 隐私与安全性 → 辅助功能里 AllInOneIME 已经打开，"
+                + "先关掉再打开（macOS 可能还留着上一个版本的权限）")
+        let allowed = Doctor.findings(facts { $0.accessibility = .granted }, chinese: false).first { $0.area == .permissions }
+        #expect(allowed?.status == .ok && allowed?.detail == nil)
     }
 
     @Test func theReportForTheModelNamesFixesByID() {

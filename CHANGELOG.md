@@ -15,6 +15,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 - The input menu reuses the cached config instead of parsing `config.json` for every request. A broken file still shows an error and disables choices that would overwrite it; repairing the file refreshes the menu.
 - Pinyin's lunar date (`nl` and `NYYYYMMDD`) finds its bundled database in a fresh Rime user folder. An existing database of your own is kept.
 - Settings → Assistant → Check for problems names the error librime logged while the lunar date's database was missing ("Rime: a file it needs is missing: lua/lunar.db (the lunar date)") instead of "error in Rime" three times, and lists each event in the logs once, with how many times it came up in the last week. Once the file is in place (this version puts it there), those lines show as an earlier error that is resolved, not as a warning.
+- Check for problems' "Accessibility isn't allowed" now says what to do when System Settings → Privacy & Security → Accessibility already shows AllInOneIME on: after an update macOS can keep the permission for the previous version, so turn it off and on again there (Fix opens that pane). The check is the running input method's own permission.
 
 ## 0.6.6 (2026-10-20)
 

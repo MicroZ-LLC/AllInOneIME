@@ -36518,49 +36518,49 @@
         }
       }
     },
-    "the selection can't be read in some apps. If it's already on there, turn it off and on again (macOS can keep the permission for the previous version)" : {
-      "comment" : "有的 App 里读不到选中的文字。如果列表里已有 AllInOneIME，先关闭再打开（macOS 可能仍保留旧版本的权限） — Sources/AllInOneIMECore/Doctor.swift",
+    "the selection can't be read in some apps. If AllInOneIME is already on in System Settings → Privacy & Security → Accessibility, turn it off and on again (macOS can keep the permission for the previous version)" : {
+      "comment" : "有的 App 里读不到选中的文字。如果系统设置 → 隐私与安全性 → 辅助功能里 AllInOneIME 已经打开，先关掉再打开（macOS 可能还留着上一个版本的权限） — Sources/AllInOneIMECore/Doctor.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die Auswahl kann in manchen Apps nicht gelesen werden. Wenn AllInOneIME bereits in der Liste steht, schalte es aus und wieder ein (macOS kann die Berechtigung der vorherigen Version behalten)."
+            "value" : "in manchen Apps kann die Auswahl nicht gelesen werden. Wenn AllInOneIME in Systemeinstellungen → Datenschutz & Sicherheit → Bedienungshilfen schon eingeschaltet ist, schalte es aus und wieder ein (macOS kann die Berechtigung für die vorherige Version behalten)"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No se puede leer la selección en algunas apps. Si AllInOneIME ya aparece en la lista, desactívalo y vuelve a activarlo (macOS puede conservar el permiso de la versión anterior)."
+            "value" : "la selección no se puede leer en algunas apps. Si AllInOneIME ya está activado en Ajustes del Sistema → Privacidad y seguridad → Accesibilidad, desactívalo y vuelve a activarlo (macOS puede conservar el permiso de la versión anterior)"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "La sélection ne peut pas être lue dans certaines apps. Si AllInOneIME figure déjà dans la liste, désactivez-le puis réactivez-le (macOS peut conserver l’autorisation de la version précédente)."
+            "value" : "la sélection ne peut pas être lue dans certaines apps. Si AllInOneIME est déjà activé dans Réglages Système → Confidentialité et sécurité → Accessibilité, désactivez-le puis réactivez-le (macOS peut conserver l’autorisation de la version précédente)"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "一部のアプリでは選択したテキストを読み取れません。AllInOneIMEが一覧にある場合は、一度オフにしてからオンにしてください（macOSが前のバージョンの許可を保持していることがあります）。"
+            "value" : "一部のAppでは選択したテキストを読み取れません。システム設定 → プライバシーとセキュリティ → アクセシビリティでAllInOneIMEがすでにオンになっている場合は、一度オフにしてからオンにしてください（macOSが前のバージョンの許可を保持していることがあります）"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "일부 앱에서는 선택한 텍스트를 읽을 수 없습니다. 목록에 AllInOneIME가 이미 있다면 껐다가 다시 켜세요(macOS가 이전 버전의 권한을 유지할 수 있습니다)."
+            "value" : "일부 앱에서는 선택 영역을 읽을 수 없음. 시스템 설정 → 개인정보 보호 및 보안 → 손쉬운 사용에서 AllInOneIME가 이미 켜져 있다면 껐다가 다시 켜세요(macOS가 이전 버전의 권한을 유지할 수 있습니다)"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "A seleção não pode ser lida em alguns apps. Se AllInOneIME já estiver na lista, desative e ative novamente (o macOS pode manter a permissão da versão anterior)."
+            "value" : "a seleção não pode ser lida em alguns apps. Se o AllInOneIME já estiver ativado em Ajustes do Sistema → Privacidade e Segurança → Acessibilidade, desative e ative de novo (o macOS pode manter a permissão da versão anterior)"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "有些 App 無法讀取選取的文字。如果清單中已有 AllInOneIME，請先關閉再開啟（macOS 可能仍保留舊版本的權限）。"
+            "value" : "有些 App 中讀不到選取的文字。如果系統設定 → 隱私權與安全性 → 輔助使用裡 AllInOneIME 已經打開，請先關閉再打開（macOS 可能仍保留上一個版本的權限）"
           }
         }
       }
