@@ -124,6 +124,17 @@ struct AutocompleteTests {
         #expect(Autocomplete.trimmed("<after>am tomorrow</after>", before: "Call me at 9") == "am tomorrow")
     }
 
+    @Test func anUnfinishedWordIsFinishedNotGluedOn() {
+        #expect(Autocomplete.trimmed("<after>later today</after>", before: "Thanks for the mee") == nil)
+        #expect(Autocomplete.trimmed("Tomorrow works.", before: "Thanks for the mee") == nil)
+        #expect(Autocomplete.trimmed("<after>ting tomorrow</after>", before: "Thanks for the mee") == "ting tomorrow")
+        // A piece that is no word may finish one the word list lacks; a word of the field written whole: its rest.
+        #expect(Autocomplete.trimmed("<after>ur à tous</after>", before: "Bonjo") == "ur à tous")
+        #expect(Autocomplete.trimmed("<after>Zorblax 2.</after>", before: "Zorblax 1 is out. Next: zor") == "blax 2.")
+        // After a word on its own, a new word: its space.
+        #expect(Autocomplete.trimmed("<after>later today</after>", before: "Let's talk") == " later today")
+    }
+
     @Test func theEndOfTheTextSaidAgainIsNotShown() {
         // All of the answer is the end of the text, from a word's start, in any case: nothing.
         #expect(Autocomplete.trimmed("Hello.", before: "Just say hello") == nil)

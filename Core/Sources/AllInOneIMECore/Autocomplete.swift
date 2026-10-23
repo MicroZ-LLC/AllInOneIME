@@ -172,6 +172,8 @@ public enum Autocomplete {
         // ("iss" → "issue"): only the rest.
         line = droppingEcho(line, before: before)
         line = droppingUnfinishedWord(line, before: before)
+        // An unfinished word gets its rest, never a word of its own glued on ("tomo" + "later").
+        if gluesAWordOn(line, before: before) { return nil }
         // A space between words where the model left it out, none where it's wrong (after a space, a line's start, CJK).
         let last = before.last
         if last == nil || last!.isWhitespace || last!.isWide {
@@ -361,6 +363,22 @@ public enum Autocomplete {
         let typed = lastWord(before)
         guard !typed.isEmpty, !isWord(typed.lowercased()), line.lowercased().hasPrefix(typed.lowercased()) else { return line }
         return String(line.dropFirst(typed.count))
+    }
+
+    /// Whether `line` would glue a word of its own onto the unfinished word `before` ends with instead of finishing it:
+    /// "tomo" + "later", "iss" + "it means", a capital right after a small letter ("iss" + "Frobnicate"), a word of the
+    /// field before or after the caret copied ("iss" + "frobnicate"). Not where the two make one word, nor after a word
+    /// on its own (a new word, `needsSpace`); a piece that is no word at all ("Bonjo" + "ur") may finish one the word list
+    /// doesn't have.
+    static func gluesAWordOn(_ line: String, before: String, after: String = "") -> Bool {
+        let typed = lastWord(before), next = String(line.prefix { $0.isASCII && $0.isLetter })
+        guard let last = typed.last, let first = next.first else { return false }
+        let (end, start) = (typed.lowercased(), next.lowercased())
+        if isWord(end + start) || isWord(end) || endsWithContraction(before) { return false }
+        if last.isLowercase && first.isUppercase { return true }
+        if isWord(start) { return true }
+        let field = before.dropLast(typed.count) + " " + after
+        return field.split { !($0.isASCII && $0.isLetter) }.contains { $0.lowercased() == start }
     }
 
     /// The Latin letters `text` ends with: the word being typed ("iss" in "Frobnicate. iss"), none after a space or a mark.
