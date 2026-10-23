@@ -189,7 +189,8 @@ refused on its own, its reason shown under the plugin in Settings; the plugin an
 plugin's problem.
 
 The script, in its child process as `run` is (`AllInOneIME --run-plugin <dir> --completion load|query`, `ctx` on standard
-input), with the same `fetch` to its `hosts`:
+input), with the same `fetch` to its `hosts`: those the user approved when turning the source on, and only while
+plugin.json still lists them (the hosts approved come on standard input too):
 
 - `load(ctx)` returns `{ items: [Item], fetchedAt?: unixSeconds }`, the whole list: at most 20,000 items and 4 MB. It may
   take the plugin's `timeoutSeconds` (20 at most).

@@ -322,6 +322,35 @@ struct SuggestionsTests {
         #expect(PluginHost.completionFunction(["/p", "--language", "en"]) == nil)
     }
 
+    /// The child process reads plugin.json again, which may have changed since the source was enabled (the session's
+    /// plugins may be a little older): it may fetch only from the hosts the user approved (on standard input) that
+    /// plugin.json still lists; none approved, none.
+    @Test(.enabled(if: Available.javaScript)) func theChildProcessFetchesOnlyFromApprovedHosts() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("suggestions-hosts-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try Data(#"""
+            { "name": "tracker", "version": "1.1.0", "type": "script", "script": "main.js",
+              "hosts": ["api.github.com", "collector.example.com", "API.EXAMPLE.ORG"],
+              "completions": [ { "name": "issues", "title": "Issues", "prefix": "#", "list": true } ] }
+            """#.utf8).write(to: folder.appendingPathComponent("plugin.json"))
+        try Data(#"function load(ctx) { fetch("https://api.github.com/x"); return { items: [] }; }"#.utf8)
+            .write(to: folder.appendingPathComponent("main.js"))
+        let context = CompletionContext(source: "issues", preferences: [:], language: .english)
+        for (approved, allowed) in [(["api.github.com", "api.example.org"], ["api.github.com", "API.EXAMPLE.ORG"]), ([], [])] {
+            let given = Locked<[String]?>(initialState: nil)
+            let input = try JSONEncoder().encode(PluginHost.CompletionInput(context, text: nil, hosts: approved))
+            let result = PluginHost.completion(directory: folder.path, function: .load, input: input) { hosts in
+                given.withLock { $0 = hosts }
+                return StubFetcher(["https://api.github.com/x": (200, "{}")])
+            }
+            #expect(given.withLock { $0 } == allowed, "approved \(approved): \(String(describing: given.withLock { $0 }))")
+            #expect(result == .success(#"{"items":[]}"#), "\(result)")
+        }
+        #expect(PluginHost.completion(directory: folder.path, function: .load, input: Data("{}".utf8)) { _ in StubFetcher() }
+                == .failure("No completion context on standard input"))
+    }
+
     // MARK: - The list cached on disk
 
     /// A list is written to its cache file in one step, the file new and the user's only from the start, by way of a

@@ -53,3 +53,19 @@ struct SuggestionsSessionTests {
         }
     }
 }
+
+extension SuggestionsSessionTests {
+    /// Each call into a plugin's script carries the hosts the user approved with the source: its child process fetches
+    /// from those only (that plugin.json still lists, `PluginHost.completion`).
+    @Test func theCallsCarryTheApprovedHosts() throws {
+        try inEnglish {
+            let world = SuggestionsWorld()
+            try world.github()
+            let field = world.field()
+            field.type("#70")
+            #expect(field.settle { !world.runtime.loads.isEmpty && !world.runtime.queryCalls.isEmpty }, "\(world.runtime.calls.count) calls")
+            let calls = world.runtime.loads + world.runtime.queryCalls
+            #expect(calls.allSatisfy { $0.hosts == ["api.github.com"] }, "\(calls.map(\.hosts))")
+        }
+    }
+}

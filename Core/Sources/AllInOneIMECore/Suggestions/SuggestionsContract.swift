@@ -201,18 +201,22 @@ public struct CompletionContext: Equatable, Sendable {
 
 /// A call into a plugin's completion script: which plugin and source, its `ctx`, and how long it may take (`load`: the
 /// plugin's `timeoutSeconds`, 20 s at most, `PluginManifest.timeout`; `query`: 3 s at most). The runtime stops it then
-/// and throws.
+/// and throws. `hosts`: those the user approved with the source (`CompletionSourceApproval.hosts`): the script may
+/// fetch from those only (that its plugin.json still lists when it runs); none, from none.
 public struct CompletionCall: Equatable, Sendable {
     public var plugin: InstalledPlugin
     public var source: CompletionSource
     public var context: CompletionContext
     public var timeout: TimeInterval
+    public var hosts: [String]
 
-    public init(plugin: InstalledPlugin, source: CompletionSource, context: CompletionContext, timeout: TimeInterval) {
+    public init(plugin: InstalledPlugin, source: CompletionSource, context: CompletionContext, timeout: TimeInterval,
+                hosts: [String] = []) {
         self.plugin = plugin
         self.source = source
         self.context = context
         self.timeout = timeout
+        self.hosts = hosts
     }
 }
 

@@ -63,6 +63,8 @@ extension InputSession {
         var plugin: InstalledPlugin
         var source: CompletionSource
         var key: CompletionSourceKey
+        /// The hosts the user approved with it: its script fetches from those only (`CompletionCall.hosts`).
+        var hosts: [String]
     }
 
     // MARK: - The sources
@@ -79,8 +81,10 @@ extension InputSession {
             let approvals = settings.enabled.filter { $0.plugin == plugin.name }
             guard !approvals.isEmpty, let script = plugin.scriptURL, let sha = store.sha256(of: script) else { continue }
             for source in plugin.manifest.completions where source.inactiveReason(config) == nil {
-                guard approvals.contains(where: { $0.holds(for: source, hosts: plugin.manifest.hosts, scriptSHA256: sha) }) else { continue }
-                active.append(ActiveSource(plugin: plugin, source: source, key: CompletionSourceKey(plugin: plugin.name, source: source.name)))
+                guard let approval = approvals.first(where: { $0.holds(for: source, hosts: plugin.manifest.hosts, scriptSHA256: sha) })
+                else { continue }
+                active.append(ActiveSource(plugin: plugin, source: source, key: CompletionSourceKey(plugin: plugin.name, source: source.name),
+                                           hosts: approval.hosts))
             }
         }
         return active
@@ -611,11 +615,12 @@ extension InputSession {
         s.store.setQueryTask(active.key, id: id, task: task)
     }
 
-    /// The call into `active`'s script: its `ctx` (its preferences filled in off the session's thread, `completionPreferences`).
+    /// The call into `active`'s script: its `ctx` (its preferences filled in off the session's thread, `completionPreferences`),
+    /// the hosts approved.
     func completionCall(_ active: ActiveSource, timeout: TimeInterval) -> CompletionCall {
         CompletionCall(plugin: active.plugin, source: active.source,
                        context: CompletionContext(source: active.source.name, preferences: [:], language: UIText.pluginLanguage),
-                       timeout: timeout)
+                       timeout: timeout, hosts: active.hosts)
     }
 
     /// What reads `plugin`'s preferences for its script (off the session's thread: passwords come from the secret store):
