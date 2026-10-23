@@ -26,6 +26,7 @@
 - 「检查问题」的「辅助功能权限没有允许」现在会说明：如果系统设置 → 隐私与安全性 → 辅助功能里 AllInOneIME 看起来已经打开，那是更新后 macOS 还留着上一个版本的权限，在那里先关掉再打开即可（「修复」会打开那一页）。检查的是正在运行的输入法自己的权限。
 - 不接受 temperature 的模型不再报错：推理模型，以及 Bedrock 上不能同时设 temperature 和 top_p 的 Claude 模型（「`temperature` and `top_p` cannot both be specified for this model」）。在 Amazon Bedrock、Claude API 和兼容 OpenAI 的服务上，这样的请求会去掉 temperature 再发一次，并记住这个模型（存在 `~/Library/Caches/AllInOneIME/unsupported-temperature.json`，不写进 `config.json`），之后的请求一开始就不带；设置 → AI 服务 →「模型参数」里写着记住了几个，temperature 开关旁的「重置」会重新发给它们。设置 → 助手和「检查问题」也一样：在 Bedrock 上它们的请求里 temperature 为 0；用 Claude API 和兼容 OpenAI 的服务时，发的是这个服务设置里的 temperature（设了的话），和那里的每个请求一样。别的模型照样用你设的 temperature。
 - 设置 → 助手只在已经是你要的样子时才说「已经是这样设置的了」。回答把开关拨反了（「打开逐字上屏」答成关，跟现在一样），或者只是把你没提的设置保持原样，现在会说哪里没看懂：「没看懂要打开还是关闭「逐字上屏」」「没看懂这句话要改哪项设置」。
+- 配置里某个自定义命令的值类型不对（`"minChars": "two"`、`"argv": "ls"`）时，不再整个配置都读不出来：只有这一个命令不用，设置 → 自定义命令里列出它和原因（「这个命令没有用上：「minChars」应该是整数」），可以删除；配置的其余部分照常读取。
 
 ## 0.6.6（2026-10-20）
 
