@@ -76,17 +76,19 @@ public enum EnglishWords {
     /// The same on Windows, by their program's file name (an app id "win:mstsc.exe", wire protocol §4): Remote Desktop
     /// Connection (mstsc), the Remote Desktop client and the session window of Azure Virtual Desktop and Windows App
     /// (msrdcw, msrdc), Hyper-V's VM window (vmconnect), VMware Workstation and Player, VirtualBox's VM window, Horizon's
-    /// client and its session window (vmware-view, vmware-remotemks), Citrix's session window and Desktop Viewer (wfica32,
-    /// cdviewer), AnyDesk, TeamViewer, RustDesk, Parsec (parsecd), Splashtop Business (strwinclt), NoMachine (nxplayer.bin),
-    /// Amazon WorkSpaces, VNC viewers (RealVNC's, TigerVNC's, UltraVNC's vncviewer, TightVNC's tvnviewer), the remote
-    /// desktop managers (Remote Desktop Connection Manager, Royal TS, mRemoteNG, Devolutions' Remote Desktop Manager);
-    /// SSH clients the engine doesn't know as terminals (Termius, SecureCRT, Xshell, Bitvise's terminal, FinalShell,
-    /// electerm).
+    /// client (vmware-view; horizon-client since Omnissa's 8.14) and its session window (vmware-remotemks), Citrix's
+    /// session window and Desktop Viewer (wfica32, cdviewer), AnyDesk, TeamViewer, RustDesk, Parsec (parsecd), Splashtop
+    /// Business (strwinclt), NoMachine's player (nxplayer.exe, and the nxplayer.bin it ships beside it, its name on the
+    /// Mac and Linux too), Amazon WorkSpaces, VNC viewers (RealVNC's, TigerVNC's, UltraVNC's vncviewer, TightVNC's
+    /// tvnviewer), the remote desktop managers (Remote Desktop Connection Manager, Royal TS, mRemoteNG, Devolutions' Remote
+    /// Desktop Manager, RemoteDesktopManager64 in its older versions); SSH clients the engine doesn't know as terminals
+    /// (Termius, SecureCRT, Xshell, Bitvise's terminal, FinalShell, electerm).
     static let remotePrograms: Set<String> = [
         "mstsc.exe", "msrdc.exe", "msrdcw.exe", "vmconnect.exe", "vmware.exe", "vmplayer.exe", "virtualboxvm.exe",
-        "vmware-view.exe", "vmware-remotemks.exe", "wfica32.exe", "cdviewer.exe", "anydesk.exe", "teamviewer.exe",
-        "rustdesk.exe", "parsecd.exe", "strwinclt.exe", "nxplayer.bin", "workspaces.exe", "vncviewer.exe", "tvnviewer.exe",
-        "rdcman.exe", "royalts.exe", "mremoteng.exe", "remotedesktopmanager.exe",
+        "vmware-view.exe", "horizon-client.exe", "vmware-remotemks.exe", "wfica32.exe", "cdviewer.exe", "anydesk.exe",
+        "teamviewer.exe", "rustdesk.exe", "parsecd.exe", "strwinclt.exe", "nxplayer.exe", "nxplayer.bin", "workspaces.exe",
+        "vncviewer.exe", "tvnviewer.exe", "rdcman.exe", "royalts.exe", "mremoteng.exe", "remotedesktopmanager.exe",
+        "remotedesktopmanager64.exe",
         "termius.exe", "securecrt.exe", "xshell.exe", "bvterm.exe", "finalshell.exe", "electerm.exe",
     ]
     /// And packaged apps, by their package's name (an app id "win:<package>_<publisher>!<app>"): Microsoft's Remote
