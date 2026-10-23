@@ -172,9 +172,10 @@ public enum Doctor {
         if facts.recentErrors.isEmpty {
             out.append(Finding(area: .recentErrors, status: .ok, title: t.tr("最近的日志里没有错误", "No recent errors in the logs")))
         } else if errors == 0 {
-            let resolved = facts.recentErrors.contains(where: isResolvedLogEvent)
-            out.append(Finding(area: .recentErrors, status: resolved ? .ok : .warning,
-                               title: resolved ? t.tr("之前的 Rime 错误已解决", "An earlier Rime error is resolved")
+            // Fine only when all there is is an error resolved since: other lines beside it are still worth a look.
+            let resolvedOnly = facts.recentErrors.allSatisfy(isResolvedLogEvent)
+            out.append(Finding(area: .recentErrors, status: resolvedOnly ? .ok : .warning,
+                               title: resolvedOnly ? t.tr("之前的 Rime 错误已解决", "An earlier Rime error is resolved")
                                    : t.tr("日志里有别的记录", "Other lines in the logs"), detail: logDetail))
         } else {
             out.append(Finding(area: .recentErrors, status: .warning,

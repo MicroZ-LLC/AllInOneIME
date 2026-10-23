@@ -140,6 +140,11 @@ struct DoctorTests {
         let finding = Doctor.findings(facts { $0.recentErrors = available }, chinese: false).first { $0.area == .recentErrors }
         #expect(finding?.status == .ok && finding?.title == "An earlier Rime error is resolved")
         #expect(!(missing + available).joined().contains("alice"))
+        // With other lines beside it, those are still worth a look: the resolved one doesn't hide them.
+        let both = available + ["2 other log lines"]
+        let other = Doctor.findings(facts { $0.recentErrors = both }, chinese: false).first { $0.area == .recentErrors }
+        #expect(other?.status == .warning && other?.title == "Other lines in the logs", "\(String(describing: other))")
+        #expect(other?.detail == "Earlier Rime run: lua/lunar.db was missing; this version provides it, 3 times; 2 other log lines")
     }
 
     /// The same event is named once, with how many times it came up in all the lines (not only the newest few), and the
