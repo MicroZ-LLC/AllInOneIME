@@ -1,7 +1,7 @@
 {
  "document": {
   "language": "zh-Hans",
-  "loadError": "配置文件格式错误（C:/Users/zwj10/AppData/Local/Temp/aio-docs-dc1bbexo/config.json）：DecodingError.dataCorrupted: Data was corrupted. Debug description: The given data was not valid JSON.",
+  "loadError": "配置文件格式错误（C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-jceupn5u\\config.json）：DecodingError.dataCorrupted: Data was corrupted. Debug description: The given data was not valid JSON.",
   "platform": "windows",
   "sections": [
    {
@@ -799,7 +799,7 @@
       "id": "configFile",
       "kind": "info",
       "label": "配置文件",
-      "value": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-dc1bbexo/config.json"
+      "value": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-jceupn5u\\config.json"
      }
     ],
     "footer": "改完立即生效，不用重启。",

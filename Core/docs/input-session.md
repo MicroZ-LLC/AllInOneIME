@@ -99,8 +99,10 @@ its ⌃⏎ Win+Enter); on the Mac as it was recorded. Which key does what is the
 which the shell sets): the presenter and the session's messages name the keys by its roles, whatever roles the terms
 came with, so the text names the keys the composer acts on. The settings document names the keys and places of the
 platform it is made for (`SettingsSchema.terms`: on Windows Enter, a terminal window, this PC, `cmd /c`, the Credential
-Manager, `%USERPROFILE%`). Other text outside the panel and the composer's messages still names the Mac: `@settings`'
-"⏎ opens Settings", `@doctor`'s and some errors' ("no key for it on this Mac", "Run `aws sso login` in Terminal").
+Manager, `%USERPROFILE%`), and its paths as that platform writes them, whatever the system it is made on (on Windows
+`%APPDATA%\AllInOneIME\jargon.txt` for the jargon list's default, backslashes: `SettingsSchema.shown(path:)`). Other
+text outside the panel and the composer's messages still names the Mac: `@settings`' "⏎ opens Settings", `@doctor`'s
+and some errors' ("no key for it on this Mac", "Run `aws sso login` in Terminal").
 
 ## Services
 

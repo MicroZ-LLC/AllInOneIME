@@ -39,6 +39,12 @@ extension SettingsServiceTests {
                 #expect(windows.contains("cmd /c {input}") && windows.contains(#"%USERPROFILE%\\.config\\allinoneime\\extensions"#),
                         "\(language), \(key)")
                 #expect(windows.contains("Enter"), "\(language), \(key)")
+                // Its paths as Windows writes them, whatever the system it is made on: the jargon list's default file
+                // from %APPDATA%, none with a drive and forward slashes ("C:/Users/…"; an address's "https:/" is none).
+                #expect(windows.contains(#"%APPDATA%\\AllInOneIME\\jargon.txt"#), "\(language), \(key)")
+                if let drive = windows.range(of: #"(?<![A-Za-z])[A-Za-z]:/"#, options: .regularExpression) {
+                    Issue.record("\(language), \(key): \(Self.found(String(windows[drive]), in: windows))")
+                }
             }
         }
         let english = try withInterfaceLanguage("en") { try wordingDocument(.windows, Self.wordingConfig("en")) }
@@ -64,6 +70,52 @@ extension SettingsServiceTests {
             #expect(mac.contains(text), "\(text)")
         }
         #expect(!mac.contains("%USERPROFILE%") && !mac.contains("cmd /c"))
+    }
+
+    /// The paths in Windows' document as Windows writes them, by the document's platform, not the system it is made on:
+    /// the jargon list's default file from %APPDATA% (where it is there), the config file and the error that names it
+    /// with backslashes. The Mac's as they were.
+    @Test func theWindowsDocumentsPathsAreWindows() throws {
+        func document(_ platform: SettingsPlatform, _ text: String = "{}") throws -> (SettingsDocument, URL) {
+            let (service, url) = try service(text, platform: platform)
+            defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+            return (withInterfaceLanguage("en") { service.document() }, url)
+        }
+        let (windows, url) = try document(.windows)
+        #expect(windows.field("jargonFile")?.placeholder == #"%APPDATA%\AllInOneIME\jargon.txt"#)
+        #expect(windows.field("configFile")?.value == .string(CorePaths.windowsWritten(url.path)))
+        let (mac, macURL) = try document(.mac)
+        #expect(mac.field("jargonFile")?.placeholder == "~/.config/allinoneime/jargon.txt")
+        #expect(mac.field("configFile")?.value == .string(macURL.path))
+        // A file that can't be read: its error names it so too.
+        let (broken, brokenURL) = try document(.windows, "{ not JSON")
+        let error = try #require(broken.loadError)
+        #expect(error.contains(CorePaths.windowsWritten(brokenURL.path)), "\(error)")
+        let (macBroken, macBrokenURL) = try document(.mac, "{ not JSON")
+        #expect(macBroken.loadError?.contains(macBrokenURL.path) == true, "\(macBroken.loadError ?? "")")
+    }
+
+    @Test func aPathAsWindowsWritesIt() {
+        #expect(CorePaths.windowsWritten("C:/Users/Li Ming/AppData/Roaming/AllInOneIME/config.json")
+                == #"C:\Users\Li Ming\AppData\Roaming\AllInOneIME\config.json"#)
+        #expect(CorePaths.windowsWritten("//server/share/config.json") == #"\\server\share\config.json"#)
+        #expect(CorePaths.windowsWritten(#"D:\Notes"#) == #"D:\Notes"#)
+        // Not a Windows path (a test's on another system): as it is.
+        #expect(CorePaths.windowsWritten("/tmp/x/config.json") == "/tmp/x/config.json")
+        #expect(CorePaths.windowsWritten("~/.config/allinoneime/jargon.txt") == "~/.config/allinoneime/jargon.txt")
+        // The jargon list's placeholder typed as it is: the default file, its %NAME%s written out (in any case).
+        let environment = ["AppData": #"C:\Users\Li Ming\AppData\Roaming"#]
+        #expect(CorePaths.windowsExpanded(#"%APPDATA%\AllInOneIME\jargon.txt"#, environment: environment)
+                == #"C:\Users\Li Ming\AppData\Roaming\AllInOneIME\jargon.txt"#)
+        #expect(CorePaths.windowsExpanded(#"%NOSUCH%\x %"#, environment: environment) == #"%NOSUCH%\x %"#)
+        #if os(Windows)
+        var config = Config.default
+        config.jargonFile = #"%APPDATA%\AllInOneIME\jargon.txt"#
+        #expect(config.jargonURL.standardizedFileURL.path.lowercased() == JargonLibrary.defaultURL.standardizedFileURL.path.lowercased())
+        #endif
+        #if os(macOS)
+        #expect(ExtensionStore.abbreviated(JargonLibrary.defaultURL.path) == "~/.config/allinoneime/jargon.txt")
+        #endif
     }
 
     @Test func aFolderAsWindowsWritesIt() {

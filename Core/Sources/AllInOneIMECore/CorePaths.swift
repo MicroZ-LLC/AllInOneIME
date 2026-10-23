@@ -39,6 +39,34 @@ public enum CorePaths {
     /// `path`'s parts, split on every separator (`isSeparator`), empty ones dropped.
     public static func components(_ path: String) -> [Substring] { path.split(whereSeparator: isSeparator) }
 
+    /// A Windows path as Windows writes it, whatever the system: one Foundation writes with forward slashes, from a
+    /// drive ("C:/Users/…") or a share ("//server/share/…"), with backslashes ("C:\Users\…"); any other ("~/…", "/tmp/…":
+    /// not one of Windows') as it is.
+    public static func windowsWritten(_ path: String) -> String {
+        let start = Array(path.prefix(3))
+        let drive = start.count == 3 && start[0].isASCII && start[0].isLetter && start[1] == ":" && start[2] == "/"
+        guard drive || path.hasPrefix("//") else { return path }
+        return path.replacingOccurrences(of: "/", with: "\\")
+    }
+
+    /// `path` with its `%NAME%`s written out from `environment` (Windows' names, in any case; one it lacks, and a lone
+    /// "%", stay as they are): "%APPDATA%\AllInOneIME\jargon.txt" → "C:\Users\…\AppData\Roaming\AllInOneIME\jargon.txt".
+    public static func windowsExpanded(_ path: String, environment: [String: String]) -> String {
+        var expanded = "", rest = Substring(path)
+        while let start = rest.firstIndex(of: "%"), let end = rest[rest.index(after: start)...].firstIndex(of: "%") {
+            let name = String(rest[rest.index(after: start)..<end])
+            expanded += rest[..<start]
+            if let value = environment.first(where: { !name.isEmpty && $0.key.caseInsensitiveCompare(name) == .orderedSame })?.value {
+                expanded += value
+                rest = rest[rest.index(after: end)...]
+            } else {
+                expanded += "%"
+                rest = rest[rest.index(after: start)...]
+            }
+        }
+        return expanded + rest
+    }
+
     /// Whether `part` of a path could lead out of its folder: "..", and on Windows what Windows reads as it or as
     /// something else than a name: a part of dots and spaces only (it drops a name's trailing ones), one with a ":"
     /// (a drive, "C:", or a file's stream, "a:b"), or a device's name (`isDeviceName`: "NUL", "con.txt").

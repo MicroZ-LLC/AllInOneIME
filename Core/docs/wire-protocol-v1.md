@@ -629,7 +629,10 @@ given and sends back what the user did. It opens no sessions.
   default). Messages (`@imessage`) has no setting. A field's `platforms`, when present, says where it applies. Its
   text is the platform's too: Windows' names its keys (Enter, Ctrl+Space) and places (a terminal window, this PC,
   `cmd /c` for a shell, the Credential Manager), and writes a folder in the home folder from `%USERPROFILE%`
-  (`extensions.folders`' placeholder and titles; one typed so is taken, its `%NAME%`s written out).
+  (`extensions.folders`' placeholder and titles; one typed so is taken, its `%NAME%`s written out). Its paths are
+  Windows', whatever the system it is made on: the jargon list's default file `%APPDATA%\AllInOneIME\jargon.txt`
+  (`jargonFile`'s placeholder; a `jargonFile` with `%NAME%`s is read with them written out), the config file and the
+  error that names it with backslashes (`configFile`, `loadError`).
 - **Field ids** (stable; a later version may add fields, and a client draws any it is given):
 
 | Section | Fields |
