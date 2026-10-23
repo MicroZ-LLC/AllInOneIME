@@ -14,7 +14,7 @@ import Foundation
 /// read once it's over (`SessionOutput.readField`), the request runs in a slot of its own that every key stops, and the
 /// suggestion is an output (`SessionOutput.ghost`) the shell draws after the caret.
 public enum Autocomplete {
-    /// What goes with a request: the text before the caret (its last characters) and after it.
+    /// What goes with a request: the text before the caret (its last characters) and after it (`following`).
     public static let beforeLimit = 1500
     public static let afterLimit = 200
     /// The most a suggestion is: about a dozen words, or 25 characters of Chinese or Japanese, to the end of a sentence.
@@ -172,8 +172,8 @@ public enum Autocomplete {
 
     // MARK: What is sent
 
-    /// What a request continues: the text before the caret, the last `beforeLimit` characters of it, and after it, the
-    /// first `afterLimit`.
+    /// What a request continues: the text before the caret, the last `beforeLimit` characters of it, and what of the text
+    /// after it a model needs so as not to write it again (`following`).
     public struct Context: Equatable, Sendable {
         public var before: String
         public var after: String
@@ -198,7 +198,17 @@ public enum Autocomplete {
         let line = before.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline).last.map(String.init) ?? ""
         guard line.filter({ !$0.isWhitespace }).count >= 2 else { return nil }
         if looksLikeNumbers(line) { return nil }
-        return Context(before: String(before.suffix(beforeLimit)), after: String(after.prefix(afterLimit)))
+        return Context(before: String(before.suffix(beforeLimit)), after: following(after))
+    }
+
+    /// What of the text after the caret goes with a request: up to the end of its first line with something on it (what a
+    /// small model says again in place of a suggestion, and what the answer is checked against: `copiesWhatFollows`),
+    /// `afterLimit` characters at most. Nothing past it, nor only spaces: the field's later lines aren't for the model to
+    /// go on with.
+    static func following(_ after: String) -> String {
+        guard let start = after.firstIndex(where: { !$0.isWhitespace }) else { return "" }
+        let end = after[start...].firstIndex(where: \.isNewline) ?? after.endIndex
+        return String(after[..<end].prefix(afterLimit))
     }
 
     /// A line of digits with no letters (four or more digits): a one-time code, a card's number, a phone number.
@@ -210,12 +220,16 @@ public enum Autocomplete {
 
     /// What of the model's answer `raw` is shown after `before`: its first line, without quotes around it or the end of
     /// `before` said again, up to the end of the first sentence, a dozen words or 25 Chinese characters at most (cut
-    /// between words), spaces where they belong. Nil: nothing worth showing.
-    public static func trimmed(_ raw: String, before: String) -> String? {
+    /// between words), spaces where they belong. Nil: nothing worth showing, as when it says what is already there, the
+    /// text after the caret (`after`).
+    public static func trimmed(_ raw: String, before: String, after: String = "") -> String? {
         var text = raw.replacingOccurrences(of: "\r\n", with: "\n")
-        // What the model put around it: tags, quotes, a code fence.
-        for tag in ["<continuation>", "</continuation>", "<after>", "</after>", "<before>", "</before>", "<caret>", "```"] {
-            text = text.replacingOccurrences(of: tag, with: "")
+        // What the model put around it: tags, quotes, a code fence; a tag cut short at the end, where the answer was
+        // read only that far or the model left it so ("…提升</", "</after").
+        for tag in tags { text = text.replacingOccurrences(of: tag, with: "") }
+        if let cut = tags.flatMap({ tag in (2..<tag.count).map { tag.prefix($0) } }).filter({ text.hasSuffix($0) && $0.first == "<" })
+            .map(\.count).max() {
+            text.removeLast(cut)
         }
         // The first line with something on it: the continuation starts on the caret's line.
         guard let first = text.split(separator: "\n", omittingEmptySubsequences: false).first(where: {
@@ -224,8 +238,18 @@ public enum Autocomplete {
         var line = String(first).replacingOccurrences(of: "\t", with: " ")
         line = line.filter { !$0.isNewline && $0.unicodeScalars.allSatisfy(KeyEvent.isPrintable) }
         line = stripQuotes(line)
-        // The end of what was typed said again ("…see you" → "see you tomorrow"): only the rest.
+        // Chinese, Japanese or Korean after text with none of it ("Hi" + "你好。"): not the user's language.
+        if line.contains(where: { $0.isWide && $0.isLetter }), !before.suffix(200).contains(where: \.isWide) { return nil }
+        // Only the end of what was typed said again ("iss" after "iss"): nothing to add.
+        if saysTheEndAgain(line, before: before) { return nil }
+        // The end of what was typed said again ("…see you" → "see you tomorrow"), the unfinished word written whole
+        // ("iss" → "issue"): only the rest.
         line = droppingEcho(line, before: before)
+        line = droppingUnfinishedWord(line, before: before)
+        // The text after the caret said again ("Frobnicate" with "\nFrobnicate" after it): it's there already.
+        if copiesWhatFollows(line, after: after) { return nil }
+        // An unfinished word gets its rest, never a word of its own glued on ("tomo" + "later").
+        if gluesAWordOn(line, before: before, after: after) { return nil }
         // A space between words where the model left it out, none where it's wrong (after a space, a line's start, CJK).
         let last = before.last
         if last == nil || last!.isWhitespace || last!.isWide {
@@ -239,8 +263,11 @@ public enum Autocomplete {
         return line
     }
 
-    /// Whether `raw` already holds all that would be shown (`trimmed`): a line's end, a sentence's end, or more words than
-    /// a suggestion has. The request stops reading there.
+    /// What a model puts around an answer.
+    static let tags = ["<continuation>", "</continuation>", "<after>", "</after>", "<before>", "</before>", "<caret>", "```"]
+
+    /// Whether `raw` already holds all that would be shown (`trimmed`): a line's end, a sentence's end, or more words or
+    /// Chinese characters than a suggestion has. The request stops reading there.
     public static func isEnough(_ raw: String) -> Bool {
         let body = raw.drop { $0.isWhitespace || $0.isNewline }
         if body.contains(where: \.isNewline) { return true }
@@ -249,14 +276,49 @@ public enum Autocomplete {
         return words(in: text) > maxWords || text.filter(\.isWide).count > maxWideCharacters
     }
 
-    /// Whether `line` starts a new word after `before` though the model wrote no space (a small model often doesn't): the
-    /// word `before` ends with is one on its own ("the" + "file"), and isn't the start of one `line` finishes ("wor" +
-    /// "ld"), by the English word list the core has (`RedactionWords`). Latin letters only.
+    /// Whether `line` starts a new word after `before` though the model wrote no space (a small model often doesn't), when
+    /// it starts with a Latin letter or a digit:
+    /// - after a word on its own ("the" + "file", "to" + "another", "yesterday's" + "meeting") that isn't the start of
+    ///   one `line` finishes ("wor" + "ld"), by the English words the core has (`isWord`);
+    /// - after , ; : ! ? …, and a full stop before a capital or a digit ("update." + "I will") or after an abbreviation
+    ///   ("e.g." + "grep"), not a number's ("3." + "5", "1," + "000", "10:" + "30");
+    /// - after a digit, before a word ("room 4" + "on the second floor"), not "4" + "th" nor "3" + "pm".
     static func needsSpace(_ line: String, before: String) -> Bool {
-        func letters<S: Sequence<Character>>(_ text: S) -> String { String(text.prefix { $0.isASCII && $0.isLetter }).lowercased() }
-        let end = String(letters(before.reversed()).reversed()), start = letters(line)
-        guard !end.isEmpty, !start.isEmpty else { return false }
-        return !RedactionWords.isEnglish(end + start) && RedactionWords.isEnglish(end)
+        guard let last = before.last, let next = line.first, next.isASCII, next.isLetter || next.isNumber else { return false }
+        let start = String(line.prefix { $0.isASCII && $0.isLetter }).lowercased()
+        if last.isASCII, last.isLetter {
+            let end = lastWord(before).lowercased()
+            guard !start.isEmpty else { return false }
+            return !isWord(end + start) && (isWord(end) || endsWithContraction(before))
+        }
+        let afterDigit = before.dropLast().last?.isNumber == true
+        switch last {
+        case ",", ";", ":": return !(afterDigit && next.isNumber)
+        case "!", "?", "…": return true
+        case ".":
+            if afterDigit && next.isNumber { return false }
+            return next.isUppercase || next.isNumber || endsWithAbbreviation(before.dropLast()) || before.hasSuffix("...")
+        default:
+            return last.isNumber && isWord(start) && !unitsAfterNumbers.contains(start)
+        }
+    }
+
+    /// Words of one or two letters (the English word list has none): "to" + "another", "Hi" + "there".
+    static let shortWords: Set<String> = [
+        "a", "i", "am", "an", "as", "at", "be", "by", "do", "go", "he", "hi", "if", "in", "is", "it", "me", "my", "no", "of",
+        "oh", "ok", "on", "or", "so", "to", "up", "us", "we",
+    ]
+
+    /// Words that go right after a number: "3am", "4a".
+    static let unitsAfterNumbers: Set<String> = ["a", "am"]
+
+    /// Whether `text` ends with an English contraction's ending, a word's end: "yesterday's", "don't", "we're", "I'll".
+    static func endsWithContraction(_ text: String) -> Bool {
+        let end = lastWord(text)
+        let rest = text.dropLast(end.count)
+        guard ["s", "t", "d", "m", "ll", "re", "ve"].contains(end.lowercased()), let mark = rest.last, mark == "'" || mark == "’"
+        else { return false }
+        return rest.dropLast().last?.isLetter == true
     }
 
     /// `text` up to the end of its first sentence, `maxWords` words and `maxWideCharacters` wide characters.
@@ -288,7 +350,7 @@ public enum Autocomplete {
     }
 
     /// Where the first sentence of `text` ends (after its mark, and a closing quote or bracket after it): 。！？ anywhere,
-    /// . ! ? … followed by a space or the end of the text (not "3.5" nor "e.g.x").
+    /// . ! ? … followed by a space or the end of the text (not "3.5" nor "e.g.x", nor the full stop of "Mr." or "e.g.").
     static func sentenceEnd(in text: String) -> String.Index? {
         var index = text.startIndex
         while index < text.endIndex {
@@ -298,21 +360,31 @@ public enum Autocomplete {
                 var end = text.index(after: index)
                 while end < text.endIndex, "\"'”’」』）)]".contains(text[end]) { end = text.index(after: end) }
                 // A Western mark ends a sentence before a space or the end only; not a full stop with nothing before it
-                // ("..." starting the answer).
+                // ("..." starting the answer), nor an abbreviation's.
                 let ends = "。！？".contains(character) || end == text.endIndex || text[end] == " "
-                if ends, text[..<index].contains(where: { $0.isLetter || $0.isNumber }) { return end }
+                if ends, text[..<index].contains(where: { $0.isLetter || $0.isNumber }),
+                   !(character == "." && endsWithAbbreviation(text[..<index])) { return end }
             }
             index = text.index(after: index)
         }
         return nil
     }
 
-    /// Words (runs of anything but spaces and wide characters) in `text`, and each wide character as one.
+    /// Abbreviations whose full stop doesn't end a sentence (in small letters, without their last full stop).
+    static let abbreviations: Set<String> = ["mr", "mrs", "ms", "dr", "prof", "jr", "sr", "e.g", "i.e", "etc", "vs", "cf"]
+
+    /// Whether `text` ends with one of `abbreviations`, a word of its own ("Mr" in "Please tell Mr", not "summer").
+    static func endsWithAbbreviation(_ text: Substring) -> Bool {
+        let word = text.reversed().prefix { $0.isLetter || $0 == "." }
+        return abbreviations.contains(String(word.reversed()).lowercased())
+    }
+
+    /// Words (runs of anything but spaces and wide characters) in `text`, as `cut` counts them: the wide characters are
+    /// counted apart (`maxWideCharacters`), so a Chinese answer isn't read only to its 12th character.
     static func words(in text: String) -> Int {
         var count = 0, inWord = false
         for character in text {
             if character.isWide {
-                count += 1
                 inWord = false
             } else if character == " " {
                 inWord = false
@@ -351,6 +423,96 @@ public enum Autocomplete {
             length -= 1
         }
         return line
+    }
+
+    /// Whether `line` says the text after the caret (`after`, its first line with something on it) again: its start, all
+    /// of that line and more, or two words or more of it ("Frobnicate" with "\nFrobnicate" after the caret, "带伞" with
+    /// "\n记得带伞"). By words (`tokens`), in any case, whatever the marks between them.
+    static func copiesWhatFollows(_ line: String, after: String) -> Bool {
+        guard let next = after.split(whereSeparator: \.isNewline).first(where: { !$0.allSatisfy(\.isWhitespace) }) else { return false }
+        let said = tokens(line), there = tokens(String(next))
+        guard !said.isEmpty, !there.isEmpty else { return false }
+        if there.starts(with: said) || said.starts(with: there) { return true }
+        return said.count >= 2 && there.count > said.count
+            && (1...(there.count - said.count)).contains { there[$0..<($0 + said.count)].elementsEqual(said) }
+    }
+
+    /// The words of `text` in small letters, each Chinese, Japanese or Korean character one, without spaces and marks.
+    static func tokens(_ text: String) -> [String] {
+        var tokens: [String] = [], word = ""
+        for character in text.lowercased() {
+            if character.isWide || !(character.isLetter || character.isNumber) {
+                if !word.isEmpty { tokens.append(word) }
+                word = ""
+                if character.isWide, character.isLetter || character.isNumber { tokens.append(String(character)) }
+            } else {
+                word.append(character)
+            }
+        }
+        if !word.isEmpty { tokens.append(word) }
+        return tokens
+    }
+
+    /// Whether all of `line` is the end of `before` again, from the start of a word there ("iss" after "iss", "the rep"
+    /// after "…send you the rep"; in any case, give or take the spaces and marks around it).
+    static func saysTheEndAgain(_ line: String, before: String) -> Bool {
+        let said = line.lowercased().drop { !($0.isLetter || $0.isNumber) }
+        let core = String(said.reversed().drop { !($0.isLetter || $0.isNumber) }.reversed())
+        let text = before.lowercased()
+        guard let first = core.first, text.hasSuffix(core) else { return false }
+        guard let previous = text.dropLast(core.count).last else { return true }
+        return first.isWide || !(previous.isLetter || previous.isNumber)
+    }
+
+    /// `line` without what it says again of the unfinished word `before` ends with: all of it, where the model wrote the
+    /// word whole ("iss" + "issue" → "ue"), or its last letters, where the rest finishes the word from before them
+    /// ("tomo" + "morrow" → "rrow", "comm" + "mand" → "and"). Only an unfinished word ("that" + "that's right" stays).
+    static func droppingUnfinishedWord(_ line: String, before: String) -> String {
+        let typed = lastWord(before).lowercased(), said = line.lowercased()
+        guard !typed.isEmpty, !isWord(typed) else { return line }
+        if said.hasPrefix(typed) { return String(line.dropFirst(typed.count)) }
+        let next = String(said.prefix { $0.isASCII && $0.isLetter })
+        guard !next.isEmpty, !isWord(typed + next) else { return line }
+        let overlap = (1..<typed.count).reversed().first { count in
+            next.count > count && next.hasPrefix(typed.suffix(count)) && isWord(String(typed.dropLast(count)) + next)
+        }
+        return overlap.map { String(line.dropFirst($0)) } ?? line
+    }
+
+    /// Whether `line` would glue a word of its own onto the unfinished word `before` ends with instead of finishing it:
+    /// "tomo" + "later", "iss" + "it means", a capital right after a small letter ("iss" + "Frobnicate"), a word of the
+    /// field before or after the caret copied ("iss" + "frobnicate"). Not where the two make one word, nor after a word
+    /// on its own (a new word, `needsSpace`); a piece that is no word at all ("Bonjo" + "ur") may finish one the word list
+    /// doesn't have.
+    static func gluesAWordOn(_ line: String, before: String, after: String = "") -> Bool {
+        let typed = lastWord(before), next = String(line.prefix { $0.isASCII && $0.isLetter })
+        guard let last = typed.last, let first = next.first else { return false }
+        let (end, start) = (typed.lowercased(), next.lowercased())
+        if isWord(end + start) || isWord(end) || endsWithContraction(before) { return false }
+        if last.isLowercase && first.isUppercase { return true }
+        if isWord(start) { return true }
+        let field = before.dropLast(typed.count) + " " + after
+        return field.split { !($0.isASCII && $0.isLetter) }.contains { $0.lowercased() == start }
+    }
+
+    /// The Latin letters `text` ends with: the word being typed ("iss" in "Frobnicate. iss"), none after a space or a mark.
+    static func lastWord(_ text: String) -> String {
+        String(text.reversed().prefix { $0.isASCII && $0.isLetter }.reversed())
+    }
+
+    /// Whether `text` reads as English: half its Latin words at least, but the one being typed, are English words
+    /// (`isWord`), or it has none yet ("iss"). What the spaces of an answer are put in by are English words
+    /// (`needsSpace`, `gluesAWordOn`): "Wir sehen uns" isn't.
+    static func looksEnglish(_ text: String) -> Bool {
+        var words = text.split { !($0.isASCII && $0.isLetter) }.map { $0.lowercased() }
+        if let last = text.last, last.isASCII, last.isLetter { words.removeLast() }
+        return words.isEmpty || words.filter(isWord).count * 2 >= words.count
+    }
+
+    /// Whether `word` (in small letters) is a word on its own, by the English word list the core has (`RedactionWords`)
+    /// and the short words it leaves out (`shortWords`).
+    static func isWord(_ word: String) -> Bool {
+        shortWords.contains(word) || RedactionWords.isEnglish(word)
     }
 
     // MARK: Keys
@@ -774,38 +936,85 @@ public final class AutocompleteStore: @unchecked Sendable {
 
 extension Prompt {
     /// Bump when the wording of autocomplete's request changes.
-    public static let autocompleteVersion = 1
+    public static let autocompleteVersion = 2
 
-    /// Autocomplete's instructions, for where it is typed (`AppClass`).
-    static func autocompleteSystem(app: String?) -> String {
+    /// Autocomplete's instructions, for where it is typed (`AppClass`). Unspaced (`spaced` false), the answer is asked
+    /// to start with no space (`autocompleteRequest`).
+    static func autocompleteSystem(app: String?, spaced: Bool = true) -> String {
         let place: String
         switch AppClass(app: app) {
         case .chat: place = "a chat message"
         case .mail: place = "an email"
         case .other: place = "a document or a text field"
         }
+        let start = spaced
+            ? "If the text stops inside a word, first finish that word, with no space before it; otherwise start with a "
+                + "space before the next word (none in Chinese or Japanese)."
+            : "If the text stops inside a word, first finish that word. Never start with a space: one is put in where a "
+                + "new word starts."
         return """
-            You suggest how the user's text goes on, like the gray suggestion after the caret in an editor. The text is \
-            \(place). The text before the caret is between <before> and </before>; the text after the caret, if any, \
-            between <after> and </after>.
+            You are the autocomplete of a text field: you suggest the next words the user is about to type, shown in gray \
+            after the caret. The text is \(place). The text before the caret is between <before> and </before>. The text \
+            between <after> and </after>, if any, is already in the field after the caret: never write it.
 
             Rules:
             - Answer with only the words that come right after the caret, as plain text: no tags, no quotes, no \
-            explanations, never the text before the caret again.
+            explanations.
+            - Write as the user, going on with their own text: never reply to it, answer it or greet them.
+            - \(start)
+            - Never repeat the text before the caret.
             - Use the same language, tone and style as the text.
             - At most one sentence, ending where that sentence ends; at most \(Autocomplete.maxWords) words (\
             \(Autocomplete.maxWideCharacters) characters in Chinese or Japanese).
-            - Start exactly where the text stops: with a space if a new word follows, without one if the last word isn't \
-            finished.
             - If you can't tell how it goes on, answer with nothing at all.
             """
     }
 
-    /// Autocomplete's request: the instructions, then the text before the caret (and after it) as the message.
-    public static func autocompleteRequest(_ context: Autocomplete.Context, app: String?) -> ConverseRequest {
-        ConverseRequest(system: [.init(autocompleteSystem(app: app))],
-                        messages: [.init(role: "user", text: autocompleteMessage(context))],
-                        inferenceConfig: .init(maxTokens: Autocomplete.maxTokens, temperature: 0.2))
+    typealias AutocompleteExample = (context: Autocomplete.Context, answer: String)
+
+    /// Autocomplete's few-shot examples, for Apple's on-device model (a small one, which without them answers in the
+    /// request's tags, replies to the text, says it again and glues words on): a new word, the text after the caret not
+    /// written, the writer's own text going on (not a reply), a word finished.
+    static let autocompleteEnglishExamples: [AutocompleteExample] = [
+        (.init(before: "Can we push the deadline to"), " next Wednesday?"),
+        (.init(before: "Hi Mark,\nJust a quick reminder about", after: "\nCheers,"), " the budget review on Friday."),
+        (.init(before: "Thank you for the invitation."), " I would be happy to join."),
+        (.init(before: "Please review the attached docu"), "ment before our call."),
+    ]
+    static let autocompleteChineseExamples: [AutocompleteExample] = [
+        (.init(before: "这周五晚上我们"), "一起去吃火锅吧？"),
+        (.init(before: "下班后我打算", after: "\n别忘了带钥匙"), "去超市买点水果。"),
+        (.init(before: "感谢大家的支持，"), "我们下周会公布最终结果。"),
+    ]
+
+    /// The examples for text that ends with `before`, in its script (the model answers in the examples' language): the
+    /// English ones after Latin letters (without the space at the start, `spaced` false), the Chinese ones after
+    /// Chinese, none after Japanese, Korean or another script.
+    static func autocompleteExamples(for before: String, spaced: Bool = true) -> [AutocompleteExample] {
+        let end = String(before.suffix(200))
+        if end.unicodeScalars.contains(where: { (0x3040...0x30FF).contains($0.value) || (0xAC00...0xD7AF).contains($0.value) }) {
+            return []
+        }
+        if end.contains(where: \.isWide) { return autocompleteChineseExamples }
+        guard AppleModel.mostlyLatin(end) else { return [] }
+        return spaced ? autocompleteEnglishExamples : autocompleteEnglishExamples.map { ($0.context, String($0.answer.drop { $0 == " " })) }
+    }
+
+    /// Autocomplete's request: the instructions, then the text before the caret (and after it) as the message; for the
+    /// on-device model (`onDevice`), few-shot examples before it (`autocompleteExamples`). On English (`Autocomplete
+    /// .looksEnglish`) the on-device model is asked for no space at the start: it can't tell a word being finished from
+    /// a new one ("rep" + " report", "comm" + " mand"), and a space is put in by the English words where a new one starts
+    /// (`Autocomplete.needsSpace`). Other languages keep the model's own spaces.
+    public static func autocompleteRequest(_ context: Autocomplete.Context, app: String?, onDevice: Bool = false) -> ConverseRequest {
+        let end = String(context.before.suffix(200))
+        let spaced = !onDevice || !(AppleModel.mostlyLatin(end) && Autocomplete.looksEnglish(end))
+        let examples = onDevice ? autocompleteExamples(for: context.before, spaced: spaced).flatMap { example in
+            [ConverseRequest.Message(role: "user", text: autocompleteMessage(example.context)),
+             ConverseRequest.Message(role: "assistant", text: example.answer)]
+        } : []
+        return ConverseRequest(system: [.init(autocompleteSystem(app: app, spaced: spaced))],
+                               messages: examples + [.init(role: "user", text: autocompleteMessage(context))],
+                               inferenceConfig: .init(maxTokens: Autocomplete.maxTokens, temperature: 0.2))
     }
 
     static func autocompleteMessage(_ context: Autocomplete.Context) -> String {
@@ -851,7 +1060,7 @@ extension Converter {
         var redaction = Redaction(config.redaction)
         let hidden = redaction?.hide([context.before, context.after]) ?? [context.before, context.after]
         let sent = Autocomplete.Context(before: hidden[0], after: hidden[1])
-        let request = Prompt.autocompleteRequest(sent, app: app)
+        let request = Prompt.autocompleteRequest(sent, app: app, onDevice: route == .onDevice)
         let body = redaction?.protect(request, sent: Prompt.autocompleteMessage(sent)) ?? request
         var text = ""
         var inputTokens: Int?, outputTokens: Int?
@@ -865,7 +1074,7 @@ extension Converter {
             if Autocomplete.isEnough(text) { break }
         }
         try Task.checkCancellation()
-        let restored = Autocomplete.trimmed(text, before: sent.before).map { redaction?.restore($0) ?? $0 }
+        let restored = Autocomplete.trimmed(text, before: sent.before, after: sent.after).map { redaction?.restore($0) ?? $0 }
         // A placeholder the model made up, or one that didn't come back whole: nothing rather than a placeholder.
         let shown = restored.flatMap { AppleModel.placeholder.firstMatch(in: $0, range: NSRange(location: 0, length: ($0 as NSString).length)) == nil ? $0 : nil }
         return Autocomplete.Answer(text: shown, before: context.before, route: route,

@@ -76,6 +76,8 @@ struct AutocompleteTests {
         #expect(Autocomplete.trimmed("今天下午三点开会。然后吃饭", before: "我们") == "今天下午三点开会。")
         // A decimal point or an abbreviation's dot inside isn't a sentence's end.
         #expect(Autocomplete.trimmed(" version 3.5 of the app", before: "We shipped") == " version 3.5 of the app")
+        #expect(Autocomplete.trimmed(" Dr. Chen, i.e. the new lead. Then", before: "Ask") == " Dr. Chen, i.e. the new lead.")
+        #expect(Autocomplete.trimmed(" until the summer. Then", before: "Wait") == " until the summer.")
         // Closing quotes stay with the sentence.
         #expect(Autocomplete.trimmed(" said “no.” Then", before: "She") == " said “no.”")
     }
@@ -107,6 +109,67 @@ struct AutocompleteTests {
         #expect(Autocomplete.trimmed("\n\n", before: "Hi") == nil)
     }
 
+    @Test func anAnswerInAnotherScriptThanTheTextsIsNotShown() {
+        // Real (0.6.7's request): "Hi" + "你好。"; with examples, "Thanks for the update." + "我们下周再聚。".
+        #expect(Autocomplete.trimmed("你好。", before: "Hi") == nil)
+        #expect(Autocomplete.trimmed("我们下周再聚。", before: "Thanks for the update.") == nil)
+        // Text with Chinese in it may go on in it.
+        #expect(Autocomplete.trimmed("周五见。", before: "Swift 课程，") == "周五见。")
+    }
+
+    @Test func aNewWordGetsTheSpaceTheModelLeftOut() {
+        #expect(Autocomplete.trimmed("<after>be late</after>", before: "I might") == " be late")
+        #expect(Autocomplete.trimmed("<after>worry about it.</after>", before: "Don't you") == " worry about it.")
+        #expect(Autocomplete.trimmed("<after>worry.</after>", before: "Please don't") == " worry.")
+        #expect(Autocomplete.trimmed("<after>Thanks!</after>", before: "Done!") == " Thanks!")
+        #expect(Autocomplete.trimmed("<after>grep.</after>", before: "Use a tool, e.g.") == " grep.")
+        #expect(Autocomplete.trimmed("<after>maybe later</after>", before: "Well...") == " maybe later")
+        // None inside a number, a time, a web address, after a number's ending.
+        #expect(Autocomplete.trimmed("<after>000 people</after>", before: "About 1,") == "000 people")
+        #expect(Autocomplete.trimmed("<after>30 tomorrow</after>", before: "See you at 10:") == "30 tomorrow")
+        #expect(Autocomplete.trimmed("<after>com for details</after>", before: "Go to example.") == "com for details")
+        #expect(Autocomplete.trimmed("<after>th floor</after>", before: "Room 4") == "th floor")
+        #expect(Autocomplete.trimmed("<after>am tomorrow</after>", before: "Call me at 9") == "am tomorrow")
+    }
+
+    @Test func anUnfinishedWordIsFinishedNotGluedOn() {
+        #expect(Autocomplete.trimmed("<after>later today</after>", before: "Thanks for the mee") == nil)
+        #expect(Autocomplete.trimmed("Tomorrow works.", before: "Thanks for the mee") == nil)
+        #expect(Autocomplete.trimmed("<after>ting tomorrow</after>", before: "Thanks for the mee") == "ting tomorrow")
+        // A piece that is no word may finish one the word list lacks; a word of the field written whole: its rest.
+        #expect(Autocomplete.trimmed("<after>ur à tous</after>", before: "Bonjo") == "ur à tous")
+        #expect(Autocomplete.trimmed("<after>Zorblax 2.</after>", before: "Zorblax 1 is out. Next: zor") == "blax 2.")
+        // After a word on its own, a new word: its space.
+        #expect(Autocomplete.trimmed("<after>later today</after>", before: "Let's talk") == " later today")
+        // The unfinished word's last letters said again (real, on-device): what finishes it from before them.
+        #expect(Autocomplete.trimmed("morrow at ten.", before: "Sounds good, see you tomo") == "rrow at ten.")
+        #expect(Autocomplete.trimmed("mand: make install", before: "Run this comm") == "and: make install")
+        #expect(Autocomplete.trimmed("so good.", before: "This is") == " so good.")
+    }
+
+    @Test func theTextAfterTheCaretSaidAgainIsNotShown() {
+        // Its start, all of its first line with something on it and more, two words of it or more.
+        #expect(Autocomplete.trimmed("Best regards,", before: "Thanks again.", after: "\n\nBest regards,\nTom") == nil)
+        #expect(Autocomplete.trimmed(" see you then.", before: "Great,", after: "\nSee you then! Bye") == nil)
+        #expect(Autocomplete.trimmed("<after>带伞</after>", before: "周末我想去", after: "\n记得带伞") == nil)
+        #expect(Autocomplete.trimmed("the report tomorrow morning.", before: "I will send you the report", after: "\ntomorrow morning") == nil)
+        // Not one word of it the same elsewhere, nor a next line without words.
+        #expect(Autocomplete.trimmed(" the park.", before: "Let's go to", after: "\nThe end") == " the park.")
+        #expect(Autocomplete.trimmed(" the next one.", before: "Let's go to", after: "\nAfter that, the next one") == nil)
+        #expect(Autocomplete.trimmed(" tomorrow.", before: "See you", after: "  \n---\nTomorrow") == " tomorrow.")
+    }
+
+    @Test func theEndOfTheTextSaidAgainIsNotShown() {
+        // All of the answer is the end of the text, from a word's start, in any case: nothing.
+        #expect(Autocomplete.trimmed("Hello.", before: "Just say hello") == nil)
+        #expect(Autocomplete.trimmed("<after>会议</after>", before: "明天下午三点的会议") == nil)
+        // The unfinished word written whole: its rest. A word that is one on its own stays.
+        #expect(Autocomplete.trimmed("Schedule a call.", before: "Please sched") == "ule a call.")
+        #expect(Autocomplete.trimmed("documents by Friday.", before: "Sign the docu") == "ments by Friday.")
+        #expect(Autocomplete.trimmed("there.", before: "Over there") == nil)
+        #expect(Autocomplete.trimmed("there is more.", before: "Over there") == " there is more.")
+    }
+
     @Test func aCloudProvidersTokensAreTold() throws {
         let start = try HTTPProviders.events(fromData: #"{"type":"message_start","message":{"id":"m","usage":{"input_tokens":120}}}"#,
                                              provider: .anthropic)
@@ -127,6 +190,15 @@ struct AutocompleteTests {
         #expect(Autocomplete.isEnough(" and then\nmore"))
         #expect(Autocomplete.isEnough(" a b c d e f g h i j k l m n"))
         #expect(Autocomplete.isEnough("然后我们去吃饭。"))
+        // Chinese characters count up to 25, not as words (real: "<after>性能优化和用户体验提升</" was read only so far).
+        #expect(!Autocomplete.isEnough("<after>性能优化和用户体验提升"))
+        #expect(Autocomplete.isEnough(String(repeating: "很", count: 26)))
+    }
+
+    @Test func aTagCutShortAtTheEndGoes() {
+        #expect(Autocomplete.trimmed("<after>性能优化和用户体验提升</", before: "主要改进包括") == "性能优化和用户体验提升")
+        #expect(Autocomplete.trimmed("<after>sure thing</after", before: "OK,") == " sure thing")
+        #expect(Autocomplete.trimmed(" and more <a", before: "Lunch") == " and more")
     }
 
     // MARK: - What is sent
@@ -160,6 +232,43 @@ struct AutocompleteTests {
         #expect(chat.inferenceConfig.maxTokens == Autocomplete.maxTokens)
         let mail = Prompt.autocompleteRequest(Autocomplete.Context(before: "Dear Ann", after: "\nBest"), app: "com.apple.mail")
         #expect(mail.system[0].text.contains("an email") && mail.messages[0].content[0].text.hasSuffix("<after>\nBest</after>"))
+    }
+
+    @Test func onlyTheNextLineAfterTheCaretIsSent() {
+        // What a model needs so as not to write it again: up to the end of the first line with something on it.
+        #expect(Autocomplete.context(FieldText(before: "Dear Ann,", after: "\n\nBest regards,\nTom\n"))?.after == "\n\nBest regards,")
+        #expect(Autocomplete.context(FieldText(before: "Dear Ann,", after: "  \n \n"))?.after == "")
+    }
+
+    @Test func theOnDeviceModelHasExamplesInTheTextsOwnScript() {
+        func request(_ before: String, onDevice: Bool = true) -> ConverseRequest {
+            Prompt.autocompleteRequest(Autocomplete.Context(before: before), app: nil, onDevice: onDevice)
+        }
+        func answers(_ request: ConverseRequest) -> [String] {
+            request.messages.filter { $0.role == "assistant" }.map { $0.content[0].text }
+        }
+        // English: four, asked to start with no space (the English words put it in), and the text last, as it was.
+        let english = request("Sounds good, see you tomo")
+        #expect(english.messages.count == 9 && english.messages.last?.content[0].text == "<before>Sounds good, see you tomo</before>")
+        #expect(answers(english).contains("next Wednesday?") && !answers(english).contains { $0.hasPrefix(" ") })
+        #expect(english.system[0].text.contains("Never start with a space"))
+        // Another language in Latin letters keeps the model's spaces; Chinese gets the Chinese ones; Japanese none.
+        let german = request("Vielen Dank für die schnelle Antwort. Wir sehen uns")
+        #expect(answers(german).contains(" next Wednesday?") && !german.system[0].text.contains("Never start with a space"))
+        #expect(answers(request("谢谢你的帮助，")) == Prompt.autocompleteChineseExamples.map(\.answer))
+        #expect(request("明日の会議は").messages.count == 1)
+        // A cloud model gets none.
+        #expect(request("Sounds good, see you tomo", onDevice: false).messages.count == 1)
+        // As the on-device model takes it: the examples earlier turns, the text the prompt.
+        let apple = AppleModel.request(from: english, maxTokens: Autocomplete.maxTokens, contextSize: 4096)
+        #expect(apple.examples.count == 4 && apple.prompt == "<before>Sounds good, see you tomo</before>")
+    }
+
+    @Test func englishIsToldByItsWords() {
+        #expect(Autocomplete.looksEnglish("Thanks for the quick reply. I will send you the rep"))
+        #expect(Autocomplete.looksEnglish("iss"))
+        #expect(!Autocomplete.looksEnglish("Vielen Dank für die schnelle Antwort. Wir sehen uns"))
+        #expect(!Autocomplete.looksEnglish("Merci pour votre message. Je vous envoie le rapport"))
     }
 
     // MARK: - The model
@@ -296,6 +405,17 @@ struct AutocompleteTests {
             _ = try await off.autocomplete(Autocomplete.Context(before: "See you"), app: nil)
         }
         #expect(!keyAsked.withLock { $0 })
+    }
+
+    @Test func theConverterShowsNothingThatIsAfterTheCaretAlready() async throws {
+        let model = ContinuingModel { _ in " tomorrow at noon." }
+        var config = Config.default
+        config.provider = .apple
+        let fixed = config
+        let converter = Converter(loadConfig: { fixed }, appleModel: model)
+        let answer = try await converter.autocomplete(Autocomplete.Context(before: "See you", after: "\nTomorrow at noon, then"), app: nil)
+        #expect(answer.text == nil && model.requests.count == 1)
+        #expect(model.requests.first?.examples.count == 4 && model.requests.first?.prompt == "<before>See you</before>\n<after>\nTomorrow at noon, then</after>")
     }
 
     @Test func theConverterHidesValuesAndPutsThemBack() async throws {
@@ -630,23 +750,23 @@ struct AutocompleteTests {
     }
 
     /// What Tab puts in goes in as the input method's own commits do: the letters typed before it in English mode ("zorbl"
-    /// of "zorbling") are the start of a word, not one, and never learned as one (`EnglishModeWords`).
+    /// of "zorble") are the start of a word, not one, and never learned as one (`EnglishModeWords`).
     @Test func whatTabPutsInEndsNoWordTypedInEnglishMode() {
         withInterfaceLanguage("en") {
             let learned = Locked(initialState: [String]())
-            let r = rig(model: ContinuingModel { _ in "ing went well. Then" }) {
+            let r = rig(model: ContinuingModel { _ in "e went well. Then" }) {
                 $0.englishDictionary = { EnglishDictionary(["hello", "world", "it"]) }
                 $0.learnEnglishWord = { word in learned.withLock { $0.append(word) } }
             }
             for _ in 0..<2 {
                 r.host.type(" zorbl")
                 r.pauseEnds(expecting: "x")
-                #expect(r.host.ghost == "ing went well.")
+                #expect(r.host.ghost == "e went well.")
                 r.clock.advance(0.5)
                 #expect(r.host.press(FakeHost.tab))
                 r.host.type(" ok ")
             }
-            #expect(r.host.document == " zorbling went well. ok  zorbling went well. ok ")
+            #expect(r.host.document == " zorble went well. ok  zorble went well. ok ")
             #expect(learned.withLock { $0 }.isEmpty)
         }
     }
