@@ -6,6 +6,12 @@ import Foundation
 /// what the text field's session knows besides the composer. It never reads the process's language (`UIText.language`):
 /// two sessions (two text fields, on Windows two contexts) may show theirs in two.
 public struct PanelPresenter {
+    /// `text` with "@" before a command's name ("@calculator 23*17") written with `trigger`; an "@" not followed by a
+    /// letter (an address's, "%@") left as it is.
+    static func withTrigger(_ text: String, _ trigger: String) -> String {
+        trigger == "@" ? text : text.replacingOccurrences(of: #"(?<![\w.])@(?=[A-Za-z])"#, with: trigger, options: .regularExpression)
+    }
+
     /// The settings, as they are now.
     public var config: Config
     /// The interface language's code (`InterfaceLanguage`): "zh-Hans", "en", …
@@ -318,8 +324,11 @@ public struct PanelPresenter {
             // Five at a time; the rest scroll into view (the position on the right).
             let first = composer.paletteFirstVisible, total = composer.paletteMatches.count
             model.rows = composer.paletteVisible.enumerated().map {
-                Row(label: String($0.offset + 1), text: composer.commandTrigger + $0.element.name,
-                    comment: t.summary($0.element, status: $0.element.script.flatMap(scriptStatus), terms: terms),
+                // The name alone: the trigger was just typed, and the list is the commands'. A summary's examples
+                // ("@calculator 23*17") written with the trigger in use.
+                Row(label: String($0.offset + 1), text: $0.element.name,
+                    comment: Self.withTrigger(t.summary($0.element, status: $0.element.script.flatMap(scriptStatus), terms: terms),
+                                              composer.commandTrigger),
                     kind: .candidate, icon: IconToken.command($0.element))
             }
             model.highlighted = composer.paletteHighlighted - first

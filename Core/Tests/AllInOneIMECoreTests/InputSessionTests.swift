@@ -92,7 +92,7 @@ struct InputSessionTests {
         inEnglish {
             let host = host()
             host.press(FakeHost.at)
-            #expect(host.marked == "@" && host.panel?.rows.first?.text.hasPrefix("@") == true)
+            #expect(host.marked == "@" && host.panel?.rows.first.map { !$0.text.hasPrefix("@") && !$0.text.isEmpty } == true)
             host.type("i")
             host.press(FakeHost.enter)
             #expect(host.marked == "improve › " && host.composer.draft == "@improve ", "@i ⏎ picks @improve (\(host.marked))")
