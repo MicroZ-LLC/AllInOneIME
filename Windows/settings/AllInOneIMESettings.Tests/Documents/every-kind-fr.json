@@ -518,7 +518,7 @@
      {
       "id": "temperature",
       "kind": "number",
-      "label": "Envoyer la température (certains modèles ne la prennent pas en charge ; désactivez-la si les requêtes échouent)",
+      "label": "Envoyer la température (omise pour les modèles qui la refusent)",
       "max": 1,
       "min": 0,
       "optional": true,

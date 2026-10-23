@@ -386,6 +386,15 @@ struct SettingsServiceTests {
         }
     }
 
+    /// Bedrock's temperature: a model that refuses it gets none (`TemperatureSupport`), so the switch no longer says to turn
+    /// it off when requests fail.
+    @Test func theTemperatureIsLeftOutForModelsThatRefuseIt() throws {
+        let (english, _) = try service(#"{"provider": "bedrock", "uiLanguage": "en"}"#)
+        #expect(english.document().field("temperature")?.label == "Send temperature (left out for models that refuse it)")
+        let (chinese, _) = try service(#"{"provider": "bedrock", "uiLanguage": "zh"}"#)
+        #expect(chinese.document().field("temperature")?.label == "发送 temperature（不接受的模型会自动不发）")
+    }
+
     /// A file that can't be read: shown read-only, saying why, and left as it is.
     @Test func aBrokenFile() throws {
         let (service, url) = try service("{ nope")

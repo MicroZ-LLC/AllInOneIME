@@ -30982,8 +30982,56 @@
         }
       }
     },
+    "Send temperature (left out for models that refuse it)" : {
+      "comment" : "发送 temperature（不接受的模型会自动不发） — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Temperatur senden (Modelle, die sie ablehnen, bekommen keine)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enviar temperatura (se omite en los modelos que la rechazan)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Envoyer la température (omise pour les modèles qui la refusent)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "temperatureを送信（受け付けないモデルには自動的に送りません）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "temperature 보내기 (받지 않는 모델에는 자동으로 보내지 않음)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enviar temperatura (omitida nos modelos que a recusam)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "傳送 temperature（不接受的模型會自動不送）"
+          }
+        }
+      }
+    },
     "Send temperature (some models don't support it; turn it off if requests fail)" : {
       "comment" : "发送 temperature（有的模型不支持，报错时关掉） — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
