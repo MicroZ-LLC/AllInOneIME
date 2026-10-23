@@ -678,6 +678,11 @@ struct SettingsSchema {
             return SettingsDocument.Item(id: command.name, title: config.commandTrigger + command.name, detail: detail, value: value,
                                          actions: [SettingsAction.save, SettingsAction.delete])
         }
+        // Those config.json has that can't be read (decision 25): why, and Delete only (no editor reads them).
+        list.items? += config.refusedCustomCommands.enumerated().map { index, refused in
+            SettingsDocument.Item(id: CustomCommand.Refused.itemPrefix + String(index), title: config.commandTrigger + (refused.name ?? "?"),
+                                  detail: UIText.describe(refused), actions: [SettingsAction.delete])
+        }
         add(list, to: &fields)
         return fields
     }

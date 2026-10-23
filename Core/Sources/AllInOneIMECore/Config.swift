@@ -136,9 +136,17 @@ public struct Config: Codable, Equatable, Sendable {
     /// The entries of `customCommands` in the file this version can't read (a later one's type): kept as they are and
     /// written back after the others, never offered. Their names are taken (`unreadCustomCommandNames`).
     public var unreadCustomCommands: [AIConfig.JSONValue] = []
+    /// The other entries of `customCommands` in the file this version can't read (a field with a value of the wrong kind,
+    /// `"minChars": "two"`; no name): each refused alone, with its reason (spec Suggestions v1, decision 25). Kept as they
+    /// are and written back after the others (before `unreadCustomCommands`), never run; Settings → Custom Commands shows
+    /// each with its reason. Their names are taken (`unreadCustomCommandNames`).
+    public var refusedCustomCommands: [CustomCommand.Refused] = []
 
-    /// The names of `unreadCustomCommands`: no command of this version's may have one (`CustomCommand.problem(among:)`).
-    public var unreadCustomCommandNames: [String] { unreadCustomCommands.compactMap(CustomCommand.Entry.name) }
+    /// The names of the entries kept without being read, `unreadCustomCommands`' and `refusedCustomCommands`': no command
+    /// of this version's may have one (`CustomCommand.problem(among:)`).
+    public var unreadCustomCommandNames: [String] {
+        unreadCustomCommands.compactMap(CustomCommand.Entry.name) + refusedCustomCommands.compactMap(\.name)
+    }
     /// Folders of script extensions (`ScriptCommand`, docs/extensions.md), as "~/…": each script, bundle
     /// command and Raycast script in them is an @ command, after the custom ones. A new user has
     /// `ExtensionStore.defaultFolder`.
@@ -403,8 +411,8 @@ public struct Config: Codable, Equatable, Sendable {
         let trigger = (try? c.decodeIfPresent(String.self, forKey: .commandTrigger)).flatMap { $0 } ?? "@"
         commandTrigger = Self.validCommandTrigger(trigger) ? trigger : "@"
         uiLanguage = (try? c.decodeIfPresent(String.self, forKey: .uiLanguage)).flatMap { $0 }.flatMap { $0.isEmpty ? nil : $0 }
-        // An entry of a type this version doesn't know (a later one's) is kept aside, not an error for the whole list;
-        // anything else wrong in one still is.
+        // Read one by one: an entry of a type this version doesn't know (a later one's) is kept aside, and one it can't
+        // read otherwise (a value of the wrong kind) is refused alone (decision 25); neither is an error for the file.
         let entries = try c.decodeIfPresent([CustomCommand.Entry].self, forKey: .customCommands)
         customCommands = entries?.compactMap(\.command) ?? d.customCommands
         let unread = entries?.compactMap(\.unread) ?? []
@@ -412,6 +420,11 @@ public struct Config: Codable, Equatable, Sendable {
         if !unread.isEmpty {
             Self.log.notice("kept \(unread.count) custom command(s) of a type this version doesn't know, to write back as "
                             + "they are: " + unread.compactMap(CustomCommand.Entry.name).map { "@" + $0 }.joined(separator: ", "))
+        }
+        refusedCustomCommands = entries?.compactMap(\.refused) ?? []
+        if !refusedCustomCommands.isEmpty {
+            Self.log.notice("refused \(refusedCustomCommands.count) custom command(s) it can't read, to write back as they are: "
+                            + refusedCustomCommands.map { "@" + ($0.name ?? "?") + " (\($0.reason))" }.joined(separator: ", "))
         }
         extensionFolders = try c.decodeIfPresent([String].self, forKey: .extensionFolders) ?? d.extensionFolders
         findRaycastScripts = try c.decodeIfPresent(Bool.self, forKey: .findRaycastScripts) ?? d.findRaycastScripts
@@ -582,6 +595,7 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(uiLanguage, forKey: .uiLanguage)  // null: follow the system
         var commands = c.nestedUnkeyedContainer(forKey: .customCommands)
         for command in customCommands { try commands.encode(command) }
+        for entry in refusedCustomCommands { try commands.encode(entry.json) }
         for entry in unreadCustomCommands { try commands.encode(entry) }
         try c.encode(extensionFolders, forKey: .extensionFolders)
         try c.encode(findRaycastScripts, forKey: .findRaycastScripts)
@@ -715,19 +729,21 @@ extension Config {
 }
 
 extension CustomCommand {
-    /// An entry of `Config.customCommands` as the file has it: a command this version reads, or the JSON of one whose
+    /// An entry of `Config.customCommands` as the file has it: a command this version reads; the JSON of one whose
     /// `type` is a string this version doesn't know and whose `name` is a string (a later version's: kept,
-    /// `Config.unreadCustomCommands`). Any other entry that can't be read is the error it always was.
+    /// `Config.unreadCustomCommands`); or the JSON of any other it can't read, refused with its reason
+    /// (`Config.refusedCustomCommands`, decision 25). No entry is an error for the whole list.
     struct Entry: Decodable {
         var command: CustomCommand?
         var unread: AIConfig.JSONValue?
+        var refused: Refused?
 
         init(from decoder: Decoder) throws {
             do {
                 command = try CustomCommand(from: decoder)
             } catch {
-                guard let json = try? AIConfig.JSONValue(from: decoder), Self.name(json) != nil else { throw error }
-                unread = json
+                guard let json = try? AIConfig.JSONValue(from: decoder) else { throw error }
+                if Self.name(json) != nil { unread = json } else { refused = Refused(json) }
             }
         }
 
@@ -737,6 +753,93 @@ extension CustomCommand {
             guard case let .object(fields) = json, case let .string(type)? = fields["type"], CommandType(rawValue: type) == nil,
                   case let .string(name)? = fields["name"] else { return nil }
             return name
+        }
+    }
+}
+
+extension CustomCommand {
+    /// An entry of `Config.customCommands` that isn't a command this version can read, nor a later version's: a field
+    /// with a value of the wrong kind (`"minChars": "two"`), no `name` or `type`, not an object. Refused alone (spec
+    /// Suggestions v1, decision 25): it never runs, Settings → Custom Commands says why (`UIText.describe`), and its JSON
+    /// is written back as the file had it.
+    public struct Refused: Hashable, Sendable {
+        /// The entry as the file has it.
+        public var json: AIConfig.JSONValue
+        public var reason: Reason
+
+        /// What is wrong with it: the first field, in `fields`' order, that is.
+        public enum Reason: Hashable, Sendable, CustomStringConvertible {
+            /// The field (`argv[1]` for one of its arguments) has a value of another kind than `ValueKind`.
+            case wrongKind(field: String, ValueKind)
+            /// `name` or `type` isn't there, or is null.
+            case missing(field: String)
+            /// Not a JSON object, or nothing found wrong in its fields.
+            case unreadable
+
+            /// For the log: field names only.
+            public var description: String {
+                switch self {
+                case let .wrongKind(field, kind): return "\(field): not \(kind)"
+                case let .missing(field): return "\(field): missing"
+                case .unreadable: return "not a command"
+                }
+            }
+        }
+
+        /// The kinds of value a command's fields take.
+        public enum ValueKind: Hashable, Sendable {
+            case text, number, wholeNumber, trueOrFalse
+            /// Of texts (`argv`).
+            case list
+
+            func fits(_ value: AIConfig.JSONValue) -> Bool {
+                switch (self, value) {
+                case (.text, .string), (.number, .number), (.trueOrFalse, .bool), (.list, .array): return true
+                case let (.wholeNumber, .number(number)): return Int(exactly: number) != nil
+                default: return false
+                }
+            }
+        }
+
+        /// The kind of value each field of a command takes in config.json, `name` and `type` (required) first, then in
+        /// `CustomCommand`'s order: every field but `insert`, which takes any JSON (a source's rules read it).
+        static let fields: [(name: String, kind: ValueKind)] = [
+            ("name", .text), ("type", .text), ("summary", .text), ("prompt", .text), ("argv", .list), ("stdin", .text),
+            ("ascii", .trueOrFalse), ("timeoutSeconds", .number), ("icon", .text), ("color", .text), ("url", .text),
+            ("text", .text), ("prefix", .text), ("minChars", .wholeNumber), ("compare", .text), ("refresh", .text),
+            ("query", .trueOrFalse), ("queryMinChars", .wholeNumber),
+        ]
+
+        init(_ json: AIConfig.JSONValue) {
+            self.json = json
+            reason = Self.reason(json)
+        }
+
+        /// The start of its item's id in the settings document's list of custom commands, before its place among the
+        /// refused (`Config.refusedCustomCommands`): no command's name has a ":".
+        public static let itemPrefix = "refused:"
+
+        /// Its name, when it has one that is a text.
+        public var name: String? {
+            guard case let .object(fields) = json, case let .string(name)? = fields["name"] else { return nil }
+            return name
+        }
+
+        /// What is wrong with `json`, an entry that isn't a command this version reads nor a later version's: a `type`
+        /// it doesn't know comes with a `name` that isn't a string, so the name is what's wrong.
+        static func reason(_ json: AIConfig.JSONValue) -> Reason {
+            guard case let .object(values) = json else { return .unreadable }
+            for (field, kind) in fields {
+                guard let value = values[field], value != .null else {
+                    if field == "name" || field == "type" { return .missing(field: field) }
+                    continue
+                }
+                guard kind.fits(value) else { return .wrongKind(field: field, kind) }
+                if case let .array(items) = value, let index = items.firstIndex(where: { !ValueKind.text.fits($0) }) {
+                    return .wrongKind(field: "\(field)[\(index)]", .text)
+                }
+            }
+            return .unreadable
         }
     }
 }

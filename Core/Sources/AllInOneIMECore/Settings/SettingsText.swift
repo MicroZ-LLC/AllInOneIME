@@ -119,6 +119,26 @@ extension UIText {
         case let .suggestions(reason): return tr("不能作为建议来源：", "Can't be a suggestion source: ") + reason
         }
     }
+
+    /// Why a custom command in config.json isn't used (`CustomCommand.Refused`), as Settings → Custom Commands says it
+    /// under its name: "This command isn't used: “minChars” should be a whole number".
+    public static func describe(_ refused: CustomCommand.Refused) -> String {
+        let reason: String
+        switch refused.reason {
+        case let .wrongKind(field, kind):
+            let kind = switch kind {
+            case .text: tr("文字", "text")
+            case .number: tr("数字", "a number")
+            case .wholeNumber: tr("整数", "a whole number")
+            case .trueOrFalse: tr("true 或 false", "true or false")
+            case .list: tr("列表 [ … ]", "a list, [ … ]")
+            }
+            reason = tr("「\(field)」应该是\(kind)", "“\(field)” should be \(kind)")
+        case let .missing(field): reason = tr("缺少「\(field)」", "“\(field)” is missing")
+        case .unreadable: reason = tr("读不出一个命令", "it can't be read as a command")
+        }
+        return tr("这个命令没有用上：\(reason)", "This command isn't used: \(reason)")
+    }
 }
 
 extension TypeOut {

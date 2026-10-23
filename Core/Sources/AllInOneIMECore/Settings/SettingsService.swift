@@ -558,9 +558,19 @@ public final class SettingsService: @unchecked Sendable {
     }
 
     /// A custom command saved (`value`: its definition; `item`: the name it had, none for a new one) or deleted
-    /// (`item`), by name, with the editor's rules.
+    /// (`item`), by name, with the editor's rules; one config.json has that can't be read deleted by its item's id.
     private func command(_ action: SettingsAction) -> Result<SettingsActionOutcome, SettingsProblem> {
         guard store.canSave else { return .failure(Self.broken(loadError ?? "", action.field)) }
+        if action.name == SettingsAction.delete, let item = action.item, item.hasPrefix(CustomCommand.Refused.itemPrefix) {
+            let refused = store.config.refusedCustomCommands
+            guard let index = Int(item.dropFirst(CustomCommand.Refused.itemPrefix.count)), refused.indices.contains(index) else {
+                return .failure(SettingsProblem(.badValue, field: action.field, message: Self.badValue))
+            }
+            return saving(action.field) {
+                store.deleteRefusedCommand(refused[index])
+                return nil
+            }.map { SettingsActionOutcome() }
+        }
         if action.name == SettingsAction.delete {
             guard let name = action.item, store.config.customCommands.contains(where: { $0.name.lowercased() == name.lowercased() }) else {
                 return .failure(SettingsProblem(.badValue, field: action.field, message: Self.badValue))

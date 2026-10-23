@@ -140,6 +140,9 @@ final class SettingsModel: ObservableObject {
         commandSourceChanged(saved: nil, was: shown)
     }
 
+    /// The Delete dialog's Delete of a command config.json has that can't be read (`SettingsStore.deleteRefusedCommand`).
+    func deleteRefusedCommand(_ refused: CustomCommand.Refused) { store.deleteRefusedCommand(refused) }
+
     /// Switches the window's language at once (a config value, `Config.uiLanguage`; nil: follow the system) and saves
     /// the choice.
     func setUILanguage(_ language: String?) {
@@ -840,6 +843,7 @@ struct SettingsView: View {
     @State private var commandEdit: CommandEdit?
     /// The name of the command the Delete dialog asks about (by name: sync may change the list while it is open).
     @State private var commandToDelete: CustomCommand?
+    @State private var refusedToDelete: CustomCommand.Refused?
     /// The provider whose key row shows its paste field (Replace…, or the Assistant opening Settings at the key).
     @State private var editingKey: Provider?
     /// The key sheet: a provider other than the one in use whose key the Assistant asked for.
@@ -1254,6 +1258,19 @@ struct SettingsView: View {
                     if command.type == .suggestions {
                         CommandSourceStatus(command: command, config: model.config).padding(.leading, 36)
                     }
+                }
+            }
+            // Those config.json has that can't be read (a value of the wrong kind): never run, kept, said why; Delete only.
+            ForEach(Array(model.config.refusedCustomCommands.enumerated()), id: \.offset) { _, refused in
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack {
+                        Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange).frame(width: 20)
+                        Text(model.config.commandTrigger + (refused.name ?? "?")).font(.body.monospaced())
+                        Spacer()
+                        Button(tr("删除", "Delete")) { refusedToDelete = refused }
+                    }
+                    Text(UIText.describe(refused)).font(.caption).foregroundStyle(.orange).padding(.leading, 36)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             Button(tr("添加命令…", "Add Command…")) {
@@ -2042,6 +2059,15 @@ struct SettingsView: View {
             }
         } message: {
             if let command = commandToDelete { Text(model.config.commandTrigger + command.name) }
+        }
+        .confirmationDialog(tr("删除这个命令？", "Delete this command?"),
+                            isPresented: Binding(get: { refusedToDelete != nil }, set: { if !$0 { refusedToDelete = nil } })) {
+            Button(tr("删除", "Delete"), role: .destructive) {
+                if let refused = refusedToDelete { model.deleteRefusedCommand(refused) }
+                refusedToDelete = nil
+            }
+        } message: {
+            if let refused = refusedToDelete { Text(model.config.commandTrigger + (refused.name ?? "?")) }
         }
         .confirmationDialog(tr("删除这个插件？", "Remove this plugin?"),
                             isPresented: Binding(get: { pluginToRemove != nil }, set: { if !$0 { pluginToRemove = nil } })) {

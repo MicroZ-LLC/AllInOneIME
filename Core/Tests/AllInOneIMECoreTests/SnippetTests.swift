@@ -156,15 +156,14 @@ private func rendered(_ template: String, input: String = "") -> String {
         let kept = try decode(#"{"name": "sig", "type": "snippet", "text": "Best"}, {"name": "Future", "type": "hologram", "beam": 1}"#)
         #expect(kept.customCommands.map(\.name) == ["sig"] && kept.unreadCustomCommandNames == ["Future"])
 
-        // A known type written wrong is the error it always was, not kept out of sight.
-        #expect(throws: (any Error).self) { try decode(#"{"name": "ls", "type": "run", "argv": "ls"}"#) }
-        #expect(throws: (any Error).self) { try decode(#"{"name": "x", "type": "prompt", "prompt": 5}"#) }
-        // A later type without a name that's a string, or a type that isn't a string: errors too.
-        #expect(throws: (any Error).self) { try decode(#"{"name": 5, "type": "hologram"}"#) }
-        #expect(throws: (any Error).self) { try decode(#"{"type": "hologram"}"#) }
-        #expect(throws: (any Error).self) { try decode(#"{"name": "x", "type": 7}"#) }
-        #expect(throws: (any Error).self) { try decode(#"{"name": "x"}"#) }
-        #expect(throws: (any Error).self) { try decode(#""just text""#) }
+        // A known type written wrong, a later type without a name that's a string, a type that isn't a string: not a later
+        // version's, so not kept as one; each refused alone, the file still read (decision 25: RefusedCustomCommandTests).
+        for entry in [#"{"name": "ls", "type": "run", "argv": "ls"}"#, #"{"name": "x", "type": "prompt", "prompt": 5}"#,
+                      #"{"name": 5, "type": "hologram"}"#, #"{"type": "hologram"}"#, #"{"name": "x", "type": 7}"#, #"{"name": "x"}"#,
+                      #""just text""#] {
+            let config = try decode(entry)
+            #expect(config.customCommands.isEmpty && config.unreadCustomCommands.isEmpty && config.refusedCustomCommands.count == 1, "\(entry)")
+        }
     }
 
     @Test func theirNamesAreTaken() throws {

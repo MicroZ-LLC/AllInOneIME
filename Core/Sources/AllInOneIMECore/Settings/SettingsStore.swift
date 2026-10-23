@@ -254,6 +254,15 @@ public final class SettingsStore {
         save()
     }
 
+    /// A Delete of a command config.json has that can't be read (`Config.refusedCustomCommands`): `refused`, wherever it
+    /// is now; one only.
+    public func deleteRefusedCommand(_ refused: CustomCommand.Refused) {
+        refresh()
+        guard let index = config.refusedCustomCommands.firstIndex(of: refused) else { return }
+        config.refusedCustomCommands.remove(at: index)
+        save()
+    }
+
     // MARK: Switches with more to them
 
     /// The interface language (`Config.uiLanguage`; nil: follow the system), switched at once and saved. Not saved (a
