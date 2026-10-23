@@ -6,7 +6,7 @@ import Testing
 /// their snippets put in through a session in Code (spec 6.19, decision 22): a snippet's second and later lines get the
 /// caret's line's indentation, only Code's language's pack gives rows (the others installed don't), what two snippets put
 /// in alike is one row, a row says what it is (not its language), and a snippet picked comes first among its trigger's.
-/// The rig: Acceptance/SuggestionsAcceptanceTests.swift, SuggestionsCode.swift.
+/// The rig: Acceptance/SuggestionsAcceptanceTests.swift (Code's world and fields: `addCode`, `codeField`).
 @Suite(.serialized, SuggestionsOneAtATime())
 struct SuggestionsCodingPacksTests {
     func inEnglish(_ body: () throws -> Void) async rethrows { try await withInterfaceLanguage("en", body) }

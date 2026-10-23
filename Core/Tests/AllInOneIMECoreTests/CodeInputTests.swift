@@ -7,7 +7,8 @@ import AllInOneIMETestSupport
 /// Code, an input next to the input languages (decision 22): a tap of Shift goes through the languages, then Code; its
 /// rows come from its coding language's pack alone; picking a coding language whose pack isn't installed downloads it;
 /// an app may start in Code; the long press of Shift turns Translate as You Type on or off at once (no chooser), and
-/// says it can't in Code. The rig: Acceptance/SuggestionsAcceptanceTests.swift, SuggestionsCode.swift.
+/// says it can't in Code. The rig: Acceptance/SuggestionsAcceptanceTests.swift (Code's world and fields: `addCode`,
+/// `codeField`).
 @Suite(.serialized, SuggestionsOneAtATime())
 struct CodeInputTests {
     func inEnglish(_ body: () throws -> Void) async rethrows { try await withInterfaceLanguage("en", body) }
