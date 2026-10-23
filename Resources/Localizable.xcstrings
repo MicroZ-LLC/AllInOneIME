@@ -4161,7 +4161,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "AllInOneIME : mode programmation activé"
+            "value" : "AllInOneIME : mode programmation activé"
           }
         },
         "ja" : {
@@ -6006,7 +6006,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Modifié depuis que vous l’avez activé (ses hôtes, ses recherches ou son script) : il est désactivé, réactivez-le pour l’utiliser."
+            "value" : "Modifié depuis que vous l’avez activé (ses hôtes, ses recherches ou son script) : il est désactivé, réactivez-le pour l’utiliser."
           }
         },
         "ja" : {
@@ -7463,7 +7463,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Le mode programmation est activé : maintenez Maj une seconde et choisissez à nouveau Mode programmation pour le désactiver."
+            "value" : "Le mode programmation est activé : maintenez Maj une seconde et choisissez à nouveau Mode programmation pour le désactiver."
           }
         },
         "ja" : {
@@ -7745,7 +7745,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Complétion %@ non chargée : "
+            "value" : "Complétion %@ non chargée : "
           }
         },
         "ja" : {
@@ -7792,7 +7792,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Complétions non chargées : "
+            "value" : "Complétions non chargées : "
           }
         },
         "ja" : {
@@ -8121,7 +8121,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Impossible d’obtenir la liste de la bibliothèque : "
+            "value" : "Impossible d’obtenir la liste de la bibliothèque : "
           }
         },
         "ja" : {
@@ -8732,7 +8732,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Supprimer le paquet de langage %@ ?"
+            "value" : "Supprimer le paquet de langage %@ ?"
           }
         },
         "ja" : {
@@ -9014,7 +9014,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Non téléchargé : "
+            "value" : "Non téléchargé : "
           }
         },
         "ja" : {
@@ -11229,7 +11229,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Maintenez Maj une seconde dans un champ de texte : un petit sélecteur s’ouvre au curseur, appuyez sur 2 pour Mode programmation (ou choisissez-le avec ↑↓ et ⏎). L’icône de la barre des menus l’indique tant qu’il est actif, dans toutes les apps, jusqu’à ce que vous le choisissiez à nouveau. Chaque champ commence alors en anglais (Maj bascule toujours), et les lignes sous le curseur proposent mots-clés et extraits des paquets ci-dessous et mots déjà présents dans le champ : Tab complète. Lui et Traduire en tapant ne sont jamais actifs ensemble."
+            "value" : "Maintenez Maj une seconde dans un champ de texte : un petit sélecteur s’ouvre au curseur, appuyez sur 2 pour Mode programmation (ou choisissez-le avec ↑↓ et ⏎). L’icône de la barre des menus l’indique tant qu’il est actif, dans toutes les apps, jusqu’à ce que vous le choisissiez à nouveau. Chaque champ commence alors en anglais (Maj bascule toujours), et les lignes sous le curseur proposent mots-clés et extraits des paquets ci-dessous et mots déjà présents dans le champ : Tab complète. Lui et Traduire en tapant ne sont jamais actifs ensemble."
           }
         },
         "ja" : {
@@ -12034,7 +12034,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ses mots-clés et extraits ne s’affichent plus ; vous pouvez le retélécharger depuis la bibliothèque ci-dessous."
+            "value" : "Ses mots-clés et extraits ne s’affichent plus ; vous pouvez le retélécharger depuis la bibliothèque ci-dessous."
           }
         },
         "ja" : {
@@ -14062,7 +14062,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Aucun paquet pour l’instant : le mode programmation ne propose que les mots déjà présents dans le champ. Téléchargez-en un depuis la bibliothèque ci-dessous."
+            "value" : "Aucun paquet pour l’instant : le mode programmation ne propose que les mots déjà présents dans le champ. Téléchargez-en un depuis la bibliothèque ci-dessous."
           }
         },
         "ja" : {
@@ -15285,7 +15285,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pas encore chargé : il se charge à la première utilisation."
+            "value" : "Pas encore chargé : il se charge à la première utilisation."
           }
         },
         "ja" : {
@@ -17353,7 +17353,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Les paquets viennent de la bibliothèque de langues, chacun vérifié avec son index signé ; elle n’est chargée que si vous le demandez (%@)."
+            "value" : "Les paquets viennent de la bibliothèque de langues, chacun vérifié avec son index signé ; elle n’est chargée que si vous le demandez (%@)."
           }
         },
         "ja" : {
@@ -18258,7 +18258,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Complétions des plug-ins (#12 → une issue GitHub, par exemple) et mots-clés et extraits du mode programmation, Tab insère. Désactivé : aucune dans cette app."
+            "value" : "Complétions des plug-ins (#12 → une issue GitHub, par exemple) et mots-clés et extraits du mode programmation, Tab insère. Désactivé : aucune dans cette app."
           }
         },
         "ja" : {
@@ -18305,7 +18305,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Complétions des plug-ins (#12 → une issue GitHub, par exemple) et mots-clés et extraits du mode programmation : Tab insère"
+            "value" : "Complétions des plug-ins (#12 → une issue GitHub, par exemple) et mots-clés et extraits du mode programmation : Tab insère"
           }
         },
         "ja" : {
@@ -18352,7 +18352,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Complétions des plug-ins (#12 liste des issues GitHub, par exemple) et mots-clés et extraits du mode programmation : quelques lignes sous le curseur, Tab insère. Le même interrupteur que Suggestions dans le menu de saisie ; celles de chaque plug-in s’activent dans Plug-ins, et une app peut les désactiver dans Apps."
+            "value" : "Complétions des plug-ins (#12 liste des issues GitHub, par exemple) et mots-clés et extraits du mode programmation : quelques lignes sous le curseur, Tab insère. Le même interrupteur que Suggestions dans le menu de saisie ; celles de chaque plug-in s’activent dans Plug-ins, et une app peut les désactiver dans Apps."
           }
         },
         "ja" : {
@@ -21135,7 +21135,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Les lignes choisies passent en premier la fois suivante ; elles restent sur ce Mac uniquement."
+            "value" : "Les lignes choisies passent en premier la fois suivante ; elles restent sur ce Mac uniquement."
           }
         },
         "ja" : {
@@ -23156,7 +23156,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Les suggestions sont désactivées, le mode programmation n’affiche donc aucune ligne : activez-les ci-dessus."
+            "value" : "Les suggestions sont désactivées, le mode programmation n’affiche donc aucune ligne : activez-les ci-dessus."
           }
         },
         "ja" : {
