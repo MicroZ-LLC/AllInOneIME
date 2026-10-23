@@ -165,6 +165,52 @@ extension AIConfig {
         "말고", "않", "그만", "대신", "다른", "느려", "느리", "비싸", "에서", "빼", "제외", "싫", "지 마", "지마", "못",
     ]
 
+    /// What `text` (what the user typed) asks of a switch, by the words `AIConfigFit.relevance` reads: true to turn it on
+    /// ("turn on", "enable", "打开", "开启", "オンに", "켜", "einschalten", "activer", "encender", "ligar" …), false to turn it
+    /// off ("turn off", "disable", "关闭", "关掉", "オフに", "꺼", "ausschalten", "désactiver", "apagar", "desligar" …). Nil when
+    /// it says neither or both, or has a negation anywhere ("don't turn it off", "不要关闭", "nicht ausschalten"): on the safe
+    /// side, such a sentence is left to the model.
+    public static func switchAsked(_ text: String) -> Bool? {
+        let words = AIConfigFit.Words(text)
+        guard words.lowered.range(of: negationPattern, options: .regularExpression) == nil,
+              !negationCJK.contains(where: words.lowered.contains) else { return nil }
+        let off = switchOff.contains(where: words.contains)
+        // "비활성화" (off) has "활성화" (on) in it: the words of one way out before the other's are looked for. Latin words
+        // are looked for at the start of a word already ("deaktivieren" isn't "aktivieren").
+        var rest = words.lowered
+        for word in switchOff where word.unicodeScalars.contains(where: { $0.value >= 0x2E80 }) {
+            rest = rest.replacingOccurrences(of: word, with: " ")
+        }
+        let on = switchOn.contains(where: AIConfigFit.Words(rest).contains)
+        return on == off ? nil : on
+    }
+
+    /// The words of `switchAsked`, lowercased: English, Simplified and Traditional Chinese, Japanese, Korean, German,
+    /// French, Spanish and Portuguese. Not German's "an" and "ein" (English's "an": "it's an annoyance"), nor 开 and 关
+    /// alone (开始, 关于).
+    static let switchOn = [
+        "on", "enable", "打开", "开启", "启用", "启动", "开通", "开了", "开着", "打開", "開啟", "啟用", "啟動", "開了", "開著",
+        "オンに", "をオン", "有効", "켜", "활성화", "einschalt", "anschalt", "aktivier", "activ", "allum", "enciend",
+        "encend", "habilit", "ativ", "liga", "ligue",
+    ]
+    static let switchOff = [
+        "off", "disable", "deactivate", "stop", "关闭", "关掉", "关了", "关上", "停用", "禁用", "取消", "關閉", "關掉", "關了", "關上",
+        "オフに", "をオフ", "無効", "消し", "止め", "やめ", "停止", "꺼", "끄", "비활성화", "해제", "aus", "ausschalt", "abschalt",
+        "deaktivier", "désactiv", "desactiv", "éteins", "éteind", "coupe", "arrête", "apag", "deshabilit", "desativ", "deslig",
+        "desabilit",
+    ]
+
+    /// A negation in Latin script, a whole word: English (and "n't"), German, French (and "n'"), Spanish, Portuguese.
+    static let negationPattern: String = {
+        let words = ["not", "no", "never", "dont", "doesnt", "didnt", "cant", "wont", "nicht", "kein", "keine", "keinen", "nie",
+                     "niemals", "ne", "pas", "jamais", "nunca", "não", "nao"]
+        return #"(?<![\p{L}\p{N}])(?:\#(words.joined(separator: "|")))(?![\p{L}\p{N}])|\p{L}n['’]t(?!\p{L})|(?<!\p{L})n['’](?=\p{L})"#
+            + #"|(?<!\p{Hangul})안(?!\p{Hangul})"#
+    }()
+
+    /// A negation in Chinese, Japanese or Korean, anywhere: 不, 别, 没; ない, ません; 않, 말, 못, 지 마.
+    static let negationCJK = ["不", "别", "別", "没", "沒", "勿", "ない", "ません", "않", "말", "못", "지 마", "지마"]
+
     /// The words that name each provider, lowercased: the services, not their models (Claude and Llama are on Bedrock
     /// too, DeepSeek and Qwen on the OpenAI-compatible services and on Bedrock).
     static let providerNames: [Provider: [String]] = [
@@ -359,21 +405,33 @@ extension AIConfig {
         case notUnderstood
         /// Everything it asked for is refused: keys that can't be set here.
         case notAllowed
-        /// Everything it asked for is already so.
+        /// Everything it asked for is already so, as the sentence asks.
         case alreadySet
+        /// A switch already so, which the sentence turns the other way (`switchAsked`: "打开逐字上屏" answered with it off,
+        /// as it is): whether to turn it on or off wasn't understood.
+        case unclearSwitch(Key)
+        /// Settings already so that the sentence isn't about, while it names others (`AIConfigFit.relevance`: "候选竖排"
+        /// answered with the input languages as they are): which setting it is about wasn't understood.
+        case unclearSetting
     }
 
     /// `proposal` checked against `config` with the rules Settings uses, a row per change, in the allowlist's order (the
     /// input languages before the default one, an app's settings after the others). A change to what is already set is
-    /// left out. Nil, with the reason, when nothing can be applied.
+    /// left out. Autocomplete is as the sentence turns it (`followingSentence`). Nil, with the reason, when nothing can be
+    /// applied: "already set" only when what is already so is what the sentence asks for, else what wasn't understood.
     public static func preview(_ proposal: Proposal, config: Config, environment env: Environment,
                                droppedKey: (dropped: Bool, provider: Provider?) = (false, nil)) -> Result<Preview, Failure> {
-        let (rows, unchanged) = check(proposal, config: config, environment: env, droppedKey: droppedKey)
+        let proposal = followingSentence(proposal, config: config, env: env)
+        let (rows, unchanged, unclear) = check(proposal, config: config, environment: env, droppedKey: droppedKey)
         // The model's note is shown too: never a key in it.
         let preview = Preview(rows: rows, note: proposal.note.map { maskingKeys($0) }, droppedKey: droppedKey.dropped)
         guard preview.canApply else {
             if rows.contains(where: \.isRefused) { return .failure(.notAllowed) }
-            return .failure(unchanged > 0 ? .alreadySet : .notUnderstood)
+            // A switch the other way first: "already set" would say the opposite of what the sentence asked is done.
+            if let other = unclear.first(where: { if case .unclearSwitch = $0 { return true } else { return false } }) {
+                return .failure(other)
+            }
+            return .failure(unchanged > 0 ? .alreadySet : unclear.first ?? .notUnderstood)
         }
         return .success(preview)
     }
@@ -388,9 +446,13 @@ extension AIConfig {
         return text.failure(failure)
     }
 
-    /// Every row of `proposal` (refused ones too, none for what is already so), and how many changes were already so.
+    /// Every row of `proposal` with Autocomplete as the sentence turns it (`followingSentence`; refused rows too, none for
+    /// what is already so), how many changes were already so as the sentence asks, and what wasn't understood of the
+    /// others already so (`unclear`).
     public static func check(_ proposal: Proposal, config: Config, environment env: Environment,
-                             droppedKey: (dropped: Bool, provider: Provider?) = (false, nil)) -> (rows: [Row], unchanged: Int) {
+                             droppedKey: (dropped: Bool, provider: Provider?) = (false, nil))
+        -> (rows: [Row], unchanged: Int, unclear: [Failure]) {
+        let proposal = followingSentence(proposal, config: config, env: env)
         let text = Text(language: env.language)
         var working = config
         var rows: [Row] = []
@@ -405,10 +467,11 @@ extension AIConfig {
             }
             return (rank(a.element.key), a.offset) < (rank(b.element.key), b.offset)
         }.map(\.element)
-        var unchanged = 0
+        var unchanged = 0, unclear: [Failure] = []
+        let asked = Asked(env.typedText, config: config, apps: env.apps)
         for change in sorted {
             guard let row = shown(change, check(change, in: working, env: env, text: text), text: text) else {
-                unchanged += 1
+                if let doubt = asked.unclear(change) { unclear.append(doubt) } else { unchanged += 1 }
                 continue
             }
             if let edit = row.edit { apply([edit], to: &working) }
@@ -428,7 +491,7 @@ extension AIConfig {
             rows.removeAll { $0.edit == .provider(target) }
             rows.append(Row(key: Setting.provider.path, label: text.needsKey(target), new: text.addKey(target, choose: true),
                             status: .needsKey(target)))
-            return (rows, unchanged)
+            return (rows, unchanged, unclear)
         }
         // A key typed into the sentence was dropped: a row that opens Settings at the key field of the provider it is for
         // (or the one switched to, or in use).
@@ -437,7 +500,47 @@ extension AIConfig {
             rows.append(Row(key: "\(provider.rawValue).apiKey", label: text.keyLabel(provider), new: text.enterKey(provider),
                             status: .needsKey(provider)))
         }
-        return (rows, unchanged)
+        return (rows, unchanged, unclear)
+    }
+
+    /// What the user typed, as far as a change already so is checked against it: the way it turns a switch
+    /// (`switchAsked`; none for the others when it turns Autocomplete, which `followingSentence` has as it asks), whether
+    /// it names Autocomplete or may mean it, and the parts of the settings it names (`AIConfigFit.relevance`).
+    struct Asked {
+        let on: Bool?
+        let namesAutocomplete: Bool
+        let parts: Set<AIConfigPrompt.Part>
+
+        init(_ typed: String, config: Config, apps: AppCatalog) {
+            let context = AIConfigPrompt.Context(config: config, apps: apps)
+            on = autocompleteAsked(typed, context: context) == nil ? switchAsked(typed) : nil
+            namesAutocomplete = (autocompleteNames + autocompleteHints).contains(where: AIConfigFit.Words(typed).contains)
+            var parts = Set(AIConfigFit.relevance([typed], context: context).parts)
+            // The provider and Bedrock's settings are one ("use Claude Haiku" on Bedrock is its model).
+            if !parts.isDisjoint(with: [.provider, .aws]) { parts.formUnion([.provider, .aws]) }
+            self.parts = parts
+        }
+
+        /// What wasn't understood when `change`, already so, may not be what the sentence asks for: a switch it turns the
+        /// other way, or a setting it isn't about while it names others. Nil when it may be: a sentence that says neither
+        /// on nor off, or names no setting, is taken at the answer's word.
+        func unclear(_ change: Change) -> Failure? {
+            let part: AIConfigPrompt.Part, isSwitch: Bool
+            switch change.key {
+            case let .setting(setting): (part, isSwitch) = (.of(setting), setting.isFlag)
+            case .iCloudSync: (part, isSwitch) = (.iCloudSync, true)
+            case .autocomplete:
+                // Named, it is as the sentence turns it (or the sentence doesn't say which way). Not named while others
+                // are, it is another setting than theirs, though in the same part.
+                if namesAutocomplete { return nil }
+                if !parts.isEmpty { return .unclearSetting }
+                (part, isSwitch) = (.typing, true)
+            case .app: (part, isSwitch) = (.apps, false)
+            case .forbidden: return nil
+            }
+            if isSwitch, case let .bool(value) = change.value, let on, value != on { return .unclearSwitch(change.key) }
+            return !parts.isEmpty && !parts.contains(part) ? .unclearSetting : nil
+        }
     }
 
     /// `row` as it may be shown: a change whose value (or app, or key) looks like a key is refused, saying so without
