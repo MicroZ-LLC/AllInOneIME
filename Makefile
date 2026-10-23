@@ -62,7 +62,7 @@ KO_PACK      := $(BUILD_DIR)/packs/ko-hangul-1.0.0.tar.xz
 HI_PACK      := $(BUILD_DIR)/packs/hi-phonetic-1.0.0.tar.xz
 PACK_RELEASES := https://github.com/MicroZ-LLC/AllInOneIME-languages/releases/download
 
-.PHONY: all deps pack packs install-pack build app settings-app installer-app strings strings-check redaction-words dmg update-zip update-manifest update-test test check-ios icon install uninstall cli status selftest electron-harness screenshots panel-images realtest realtest-build realtest-run realtest-when-unlocked realtest-cancel clean distclean
+.PHONY: all deps pack packs coding-packs install-pack build app settings-app installer-app strings strings-check redaction-words dmg update-zip update-manifest update-test test check-ios icon install uninstall cli status selftest electron-harness screenshots panel-images realtest realtest-build realtest-run realtest-when-unlocked realtest-cancel clean distclean
 
 all: app
 
@@ -359,6 +359,24 @@ pack: $(RIME_BUILT)
 
 # Every pack: Chinese, Korean, Hindi.
 packs: pack $(KO_PACK) $(HI_PACK)
+
+# The coding language packs (Core/CodingPacks/, Settings → Coding Languages), each one JSON file: build/coding-packs/
+# <language>-<version>.json, a release asset of the language library like the input languages' packs, and its entry for
+# the signed coding-packs.json (.json.entry; `swift Scripts/build-packs-index.swift --coding OUT_DIR
+# build/coding-packs/*.entry`). The minimum app version is this one.
+CODING_PACKS_DIR := $(BUILD_DIR)/coding-packs
+coding-packs:
+	rm -rf $(CODING_PACKS_DIR) && mkdir -p $(CODING_PACKS_DIR)
+	for pack in $(CORE)/CodingPacks/*.json; do \
+		language=$$(/usr/bin/plutil -extract language raw "$$pack") && version=$$(/usr/bin/plutil -extract version raw "$$pack") \
+		&& title=$$(/usr/bin/plutil -extract title raw "$$pack") && name="$$language-$$version" \
+		&& cp "$$pack" "$(CODING_PACKS_DIR)/$$name.json" \
+		&& sha=$$(shasum -a 256 "$$pack" | cut -d' ' -f1) && size=$$(stat -f %z "$$pack") \
+		&& printf '{"language":"%s","minAppVersion":"%s","sha256":"%s","size":%s,"title":"%s","url":"%s","version":"%s"}\n' \
+			"$$language" "$(VERSION)" "$$sha" "$$size" "$$title" "$(PACK_RELEASES)/coding-$$name/$$name.json" "$$version" \
+			> "$(CODING_PACKS_DIR)/$$name.json.entry" \
+		&& echo "Built $(CODING_PACKS_DIR)/$$name.json ($$size bytes), sha256 $$sha" || exit 1; \
+	done
 
 $(KO_PACK): $(CORE)/LanguagePacks/ko-hangul/hangul.json
 	Scripts/make-language-pack.sh $(CORE)/LanguagePacks/ko-hangul ko-hangul 1.0.0 $(VERSION) "AllInOneIME" "$(PACK_RELEASES)/ko-hangul-1.0.0/ko-hangul-1.0.0.tar.xz" $@

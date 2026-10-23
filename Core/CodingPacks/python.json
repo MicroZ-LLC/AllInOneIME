@@ -1,0 +1,107 @@
+{
+ "language": "python",
+ "title": "Python",
+ "version": "1.0.0",
+ "keywords": [
+  "False",
+  "None",
+  "True",
+  "and",
+  "as",
+  "assert",
+  "async",
+  "await",
+  "break",
+  "class",
+  "continue",
+  "def",
+  "del",
+  "elif",
+  "else",
+  "except",
+  "finally",
+  "for",
+  "from",
+  "global",
+  "if",
+  "import",
+  "in",
+  "is",
+  "lambda",
+  "match",
+  "case",
+  "nonlocal",
+  "not",
+  "or",
+  "pass",
+  "raise",
+  "return",
+  "try",
+  "while",
+  "with",
+  "yield",
+  "print",
+  "range",
+  "len",
+  "enumerate",
+  "isinstance",
+  "self",
+  "super",
+  "__init__",
+  "__name__",
+  "__main__",
+  "dict",
+  "list",
+  "tuple",
+  "set",
+  "str",
+  "int",
+  "float",
+  "bool",
+  "sorted",
+  "reversed",
+  "zip",
+  "open",
+  "staticmethod",
+  "classmethod",
+  "property",
+  "dataclass"
+ ],
+ "snippets": [
+  {
+   "trigger": "def",
+   "body": "def ${1:name}(${2}):\n    $0",
+   "title": "function"
+  },
+  {
+   "trigger": "class",
+   "body": "class ${1:Name}:\n    def __init__(self):\n        $0\n",
+   "title": "class with __init__"
+  },
+  {
+   "trigger": "ifmain",
+   "body": "if __name__ == \"__main__\":\n    $0",
+   "title": "main guard"
+  },
+  {
+   "trigger": "for",
+   "body": "for ${1:item} in ${2:items}:\n    $0",
+   "title": "for loop"
+  },
+  {
+   "trigger": "with",
+   "body": "with open(${1:path}) as ${2:f}:\n    $0",
+   "title": "with open"
+  },
+  {
+   "trigger": "try",
+   "body": "try:\n    $0\nexcept ${1:Exception} as e:\n    raise",
+   "title": "try / except"
+  },
+  {
+   "trigger": "print",
+   "body": "print($0)",
+   "title": "print"
+  }
+ ]
+}

@@ -1,0 +1,109 @@
+{
+ "language": "javascript",
+ "title": "JavaScript",
+ "version": "1.0.0",
+ "keywords": [
+  "async",
+  "await",
+  "break",
+  "case",
+  "catch",
+  "class",
+  "const",
+  "continue",
+  "debugger",
+  "default",
+  "delete",
+  "do",
+  "else",
+  "export",
+  "extends",
+  "finally",
+  "for",
+  "function",
+  "if",
+  "import",
+  "in",
+  "instanceof",
+  "let",
+  "new",
+  "null",
+  "return",
+  "static",
+  "super",
+  "switch",
+  "this",
+  "throw",
+  "true",
+  "false",
+  "try",
+  "typeof",
+  "undefined",
+  "var",
+  "void",
+  "while",
+  "yield",
+  "console",
+  "document",
+  "window",
+  "Promise",
+  "Array",
+  "Object",
+  "JSON",
+  "Math",
+  "Number",
+  "String",
+  "Boolean",
+  "Map",
+  "Set",
+  "fetch",
+  "require",
+  "module",
+  "exports",
+  "prototype",
+  "length",
+  "forEach",
+  "filter",
+  "reduce",
+  "addEventListener",
+  "querySelector",
+  "setTimeout"
+ ],
+ "snippets": [
+  {
+   "trigger": "function",
+   "body": "function ${1:name}(${2:args}) {\n  $0\n}",
+   "title": "function"
+  },
+  {
+   "trigger": "arrow",
+   "body": "const ${1:name} = (${2}) => {\n  $0\n};",
+   "title": "arrow function"
+  },
+  {
+   "trigger": "for",
+   "body": "for (const ${1:item} of ${2:items}) {\n  $0\n}",
+   "title": "for … of"
+  },
+  {
+   "trigger": "if",
+   "body": "if (${1:condition}) {\n  $0\n}",
+   "title": "if"
+  },
+  {
+   "trigger": "try",
+   "body": "try {\n  $0\n} catch (error) {\n  console.error(error);\n}",
+   "title": "try / catch"
+  },
+  {
+   "trigger": "console",
+   "body": "console.log($0);",
+   "title": "console.log"
+  },
+  {
+   "trigger": "import",
+   "body": "import { $0 } from \"${1:module}\";",
+   "title": "import"
+  }
+ ]
+}
