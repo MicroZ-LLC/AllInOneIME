@@ -89,6 +89,7 @@ extension SelfTest {
         // chip to go off, no chip, no notice up (its timer cancelled), the language picked last as it was.
         defer {
             TranslateModeShared.state = TranslateMode.State()
+            SuggestionsShared.codingMode = false
             TranslateModeShared.chipToken += 1
             (TranslateModeShared.listOpen, TranslateModeShared.toldSecureInput) = (false, false)
             controller.perform(controller.composer.setTranslateMode(nil), client: client)
@@ -362,9 +363,11 @@ extension SelfTest {
             return renameTold ? nil : messages.renamed(old: "reply", new: "myreply")
         }
         client.bundleIDOverride = mail
+        SuggestionsShared.codingMode = true
         controller.activateServer(client)
         controller.services.takeRenameNotice = renames
         check(TranslateModeShared.state.isOn && controller.composer.translateMode?.target == .english, "an app that translates always turns it on")
+        check(!SuggestionsShared.codingMode && !MenuBarIcon.shared.coding, "…and coding mode off (they're exclusive)")
         let renamed = controller.composer.messages.reply.renamed(old: "reply", new: "myreply")
         check(renameTold && controller.notice == renamed, "…a rename told then is the notice up (\(controller.notice ?? "none"))")
         endNotice()

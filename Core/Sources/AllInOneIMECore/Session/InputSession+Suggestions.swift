@@ -734,6 +734,19 @@ extension InputSession {
 
     // MARK: - The chooser (spec 2, 6.2)
 
+    /// Translate as You Type came on otherwise than from the chooser (an app set to translate always, as a field of it
+    /// took the focus: the shell's): coding mode, exclusive with it, goes off, its rows with it. What the shell is to do.
+    public func translateAsYouTypeCameOn() -> [SessionOutput] {
+        collect {
+            let s = services.suggestions
+            guard s.codingMode() else { return }
+            s.setCodingMode(false)
+            log.notice("coding mode off (Translate as You Type came on)")
+            applyCodingMode()
+            suggestionsUpdate()
+        }
+    }
+
     func chooserOpen() {
         guard !secureInputActive() else { return }
         // The mode that is on highlighted (⏎ turns it off), else Translate as You Type.

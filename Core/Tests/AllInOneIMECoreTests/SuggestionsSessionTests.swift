@@ -304,3 +304,28 @@ extension SuggestionsSessionTests {
         }
     }
 }
+
+extension SuggestionsSessionTests {
+    /// Translate as You Type coming on otherwise than from the chooser (an app set to translate always, as a field of it
+    /// takes the focus) turns coding mode off: the two are exclusive (spec 2) however one comes on.
+    @Test func translateAsYouTypeComingOnTurnsCodingModeOff() {
+        inEnglish {
+            let world = SuggestionsWorld()
+            world.codingMode = true
+            world.packs = [SuggestionsSessionTests.pack]
+            let field = world.field()
+            field.type("co")
+            #expect(field.settle { !field.rows.isEmpty }, "coding mode's rows")
+            world.translateAsYouType = true
+            field.host.send(.configChanged)
+            let outputs = field.host.session.translateAsYouTypeCameOn()
+            #expect(!world.codingMode, "coding mode off")
+            #expect(outputs.contains { if case .panel(nil) = $0 { true } else { false } }, "its rows gone: \(outputs)")
+            world.codingMode = false
+            #expect(field.host.session.translateAsYouTypeCameOn().isEmpty, "coding mode off already: nothing")
+        }
+    }
+
+    static let pack = CodingLanguagePack(language: "example", title: "Example", version: "1.0.0", keywords: ["compute_total", "const"],
+                                         snippets: [])
+}

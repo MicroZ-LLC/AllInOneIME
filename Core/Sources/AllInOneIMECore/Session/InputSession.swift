@@ -212,7 +212,7 @@ public final class InputSession {
     }
 
     /// Runs `body`, gathering what it has the shell do: returned by the outermost call.
-    private func collect(_ body: () -> Void) -> [SessionOutput] {
+    func collect(_ body: () -> Void) -> [SessionOutput] {
         depth += 1
         body()
         depth -= 1

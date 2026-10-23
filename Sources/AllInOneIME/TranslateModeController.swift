@@ -121,8 +121,8 @@ extension AllInOneIMEInputController {
     }
 
     /// A text field became active (`activateServer`, after the app's settings): another app leaves the mode, with no
-    /// notice, unless it translates always (`AppProfile.translateAlways`), where it comes on. The composer of this field
-    /// follows, and the chip shows here (or no longer).
+    /// notice, unless it translates always (`AppProfile.translateAlways`), where it comes on (coding mode goes off). The
+    /// composer of this field follows, and the chip shows here (or no longer).
     @MainActor
     func translateModeActivated(app: String?) {
         TranslateModeShared.listOpen = false
@@ -134,6 +134,8 @@ extension AllInOneIMEInputController {
         switch transition {
         case let .entered(session):
             log.notice("Translate as You Type on (the app translates always)")
+            // Exclusive with coding mode, however either comes on.
+            apply(self.session.translateAsYouTypeCameOn(), client: nil)
             showOnNotice(session, allowed: allowed)
         case .left:
             log.notice("Translate as You Type off (another app)")
