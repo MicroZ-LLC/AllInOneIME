@@ -68,6 +68,8 @@ public final class RimeService {
     private var invalidateSchemaWanted = false
     private var redeployPoll: DispatchWorkItem?
     private let redeployLock = NSLock()
+    /// Called as a redeploy is about to start librime's maintenance (the tests': another thread asks for one right then).
+    var beforeMaintenance: (() -> Void)?
     /// A redeploy is asked for or being started: not ready.
     private var redeployPending: Bool {
         redeployLock.lock(); defer { redeployLock.unlock() }
@@ -237,8 +239,9 @@ public final class RimeService {
     }
 
     /// Starts the redeploy asked for, unless it can't start yet (then the main queue asks again in 0.1 s) or another
-    /// thread is starting it. It stays pending (`isReady` false) until librime's maintenance for it is under way: a
-    /// thread waiting for it (`waitUntilReady`) never finds the older deployment's end and takes it for this one's.
+    /// thread is starting one (which, done, starts this one in turn). It stays pending (`isReady` false) until librime's
+    /// maintenance for it is under way: a thread waiting for it (`waitUntilReady`) never finds the older deployment's end
+    /// and takes it for this one's.
     private func startRequestedRedeploy() {
         redeployLock.lock()
         guard redeployWanted, !starting, !isSyncing else { return redeployLock.unlock() }
@@ -267,7 +270,11 @@ public final class RimeService {
         defer {
             redeployLock.lock()
             starting = false
+            // One asked for meanwhile (another thread's, which found this one starting and left it): started in turn, as
+            // soon as this one's maintenance is over (the main queue's poll); else it stayed pending for good.
+            let again = redeployWanted
             redeployLock.unlock()
+            if again { startRequestedRedeploy() }
         }
         if let sharedDataDir, let userDataDir { Self.supplyLunarDatabase(sharedDataDir: sharedDataDir, userDataDir: userDataDir) }
         if invalidateSchema {
@@ -280,6 +287,7 @@ public final class RimeService {
         generation += 1
         api.pointee.cleanup_all_sessions()
         setDeploymentStatus(.deploying)
+        beforeMaintenance?()
         if api.pointee.start_maintenance(1) == 0, deploymentStatus == .deploying {
             setDeploymentStatus(.failed)
         }

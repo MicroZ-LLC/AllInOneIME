@@ -7,7 +7,7 @@ import Darwin
 
 /// A scenario run in a copy of this test process (`RimeWorkerTests`), with a folder of its own: librime starts once per
 /// process, so a test that starts it with its own user folder (or shared data) needs a process of its own. The
-/// scenarios, by name: `LunarDatabaseTests.scenarios`, `PersonalDictionaryBuildTests.scenarios`.
+/// scenarios, by name: `LunarDatabaseTests.scenarios`, `PersonalDictionaryBuildTests.scenarios`, `RedeployTests.scenarios`.
 enum RimeWorker {
     static let scenarioKey = "ALLINONEIME_RIME_WORKER"
     static let rootKey = "ALLINONEIME_RIME_WORKER_ROOT"
@@ -17,6 +17,7 @@ enum RimeWorker {
     }
     static var required: Bool { RimeFixture.dataRequired }
     static let scenarios = LunarDatabaseTests.scenarios.merging(PersonalDictionaryBuildTests.scenarios) { first, _ in first }
+        .merging(RedeployTests.scenarios) { first, _ in first }
 
     /// Runs `scenario` in `root` (made here) and waits for it: it must exit cleanly, having run.
     static func run(_ scenario: String, root: URL) throws {
