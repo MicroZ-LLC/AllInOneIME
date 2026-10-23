@@ -125,7 +125,9 @@ public final class FakeHost: @unchecked Sendable {
     }
 
     /// Hands the session its work's answers as they come, on this thread, until `condition` holds (true) or `timeout`
-    /// seconds have gone by (false).
+    /// seconds have gone by (false). This thread is blocked meanwhile, and the work runs on the concurrency pool: never
+    /// wait here holding what other tests wait for blocked (a lock), which would leave the work no thread; a test's turn
+    /// at the process's state is a `TestTurn`, waited for suspended.
     @discardableResult
     public func settle(timeout: TimeInterval = 10, until condition: () -> Bool) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
@@ -142,7 +144,8 @@ public final class FakeHost: @unchecked Sendable {
     }
 
     /// Waits until an answer of the session's work that `matches` has come in, handing nothing to the session (true), or
-    /// `timeout` seconds have gone by (false): the session hears it late, after what the test does meanwhile.
+    /// `timeout` seconds have gone by (false): the session hears it late, after what the test does meanwhile. Blocking,
+    /// as `settle`.
     @discardableResult
     public func waitForAnswer(timeout: TimeInterval = 10, where matches: (SessionEvent) -> Bool) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)

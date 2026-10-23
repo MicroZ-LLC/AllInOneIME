@@ -132,8 +132,8 @@ struct AutocompleteDiagnosisTests {
     /// on-device model, not Haiku (no yes to the cloud), with the text after the caret; the model answers with that text,
     /// 10 characters, and it is shown.
     @Test(.bug(id: "AC-1", "a suggestion that copies the text after the caret is shown"))
-    func theOwnersFrobnicateIsTheTextAfterTheCaretCopied() {
-        withInterfaceLanguage("en") {
+    func theOwnersFrobnicateIsTheTextAfterTheCaretCopied() async {
+        await withInterfaceLanguage("en") {
             // Real: the on-device model's answers to these two requests (3 of 3 and 5 of 5 runs).
             let model = DiagnosisModel { prompt in
                 prompt == "<before>iss</before>\n<after>\nFrobnicate</after>" ? "Frobnicate" : "<after>iss</after>"
@@ -155,8 +155,8 @@ struct AutocompleteDiagnosisTests {
 
     /// The same with the word before the caret: a small model copies a word of the field after a partial word.
     @Test(.bug(id: "AC-1", "a suggestion that copies a word of the field after a partial word is shown"))
-    func aWordOfTheFieldCopiedAfterAPartialWordIsNotShown() {
-        withInterfaceLanguage("en") {
+    func aWordOfTheFieldCopiedAfterAPartialWordIsNotShown() async {
+        await withInterfaceLanguage("en") {
             // Real: 3 of 3 runs.
             let model = DiagnosisModel { _ in "<after>frobnicate</after>" }
             let f = field(model: model)
@@ -171,8 +171,8 @@ struct AutocompleteDiagnosisTests {
     /// Kept suggestions are found by the text before the caret alone, in any field of any app: the one AC-1 made in
     /// TextEdit (for "iss" with "Frobnicate" after it) comes up in an empty note that only says "iss", with no request.
     @Test(.bug(id: "AC-7", "the kept suggestions ignore the text after the caret and the app"))
-    func aSuggestionKeptForOneFieldIsNotShownInAnotherThatDiffersAfterTheCaret() {
-        withInterfaceLanguage("en") {
+    func aSuggestionKeptForOneFieldIsNotShownInAnotherThatDiffersAfterTheCaret() async {
+        await withInterfaceLanguage("en") {
             let model = DiagnosisModel { prompt in
                 prompt == "<before>iss</before>\n<after>\nFrobnicate</after>" ? "Frobnicate" : "<after>ue</after>"
             }
@@ -205,8 +205,8 @@ struct AutocompleteDiagnosisTests {
 
     /// "iss" typed into an empty field with the owner's settings, the model answering as the on-device one does.
     @Test(.bug(id: "AC-2"), .bug(id: "AC-5"), arguments: issAnswers)
-    func whatIsShownAfterTheOwnersIss(_ answer: TrimCase) {
-        withInterfaceLanguage("en") {
+    func whatIsShownAfterTheOwnersIss(_ answer: TrimCase) async {
+        await withInterfaceLanguage("en") {
             let f = field(model: DiagnosisModel { _ in answer.raw })
             f.host.type("iss")
             f.pauseEnds()
@@ -310,8 +310,8 @@ struct AutocompleteDiagnosisTests {
     /// In an app set to autocomplete always (Settings → Apps), the 30th suggestion in a row not taken says it stopped
     /// there, though it doesn't (`Autocomplete.isOn` goes by the app's choice first).
     @Test(.bug(id: "AC-8", "“it stopped there” is said in an app set to Always, where it doesn't stop"))
-    func anAppSetToAlwaysIsNotSaidToHaveStopped() {
-        withInterfaceLanguage("en") {
+    func anAppSetToAlwaysIsNotSaidToHaveStopped() async {
+        await withInterfaceLanguage("en") {
             let settings = Settings()
             settings.config.appProfiles = ["com.example.editor": AppProfile(autocomplete: true)]
             let store = AutocompleteStore()

@@ -90,14 +90,15 @@ struct PanelPresenterTests {
     }
 
     /// The panel is in the presenter's language, not the process's: two sessions can show two.
-    @Test func thePresentersLanguageWhateverTheProcesssIs() {
+    @Test func thePresentersLanguageWhateverTheProcesssIs() async {
         let c = composer()
         c.setInputMode(.english)
         improveDraft(c)
         type("hello", c)
-        let (english, chinese) = withInterfaceLanguage("zh") { (en.model(for: c), zh.model(for: c)) }
-        #expect(english == withInterfaceLanguage("en") { en.model(for: c) })
-        #expect(chinese == withInterfaceLanguage("en") { zh.model(for: c) })
+        let (english, chinese) = await withInterfaceLanguage("zh") { (en.model(for: c), zh.model(for: c)) }
+        let (englishInEnglish, chineseInEnglish) = await withInterfaceLanguage("en") { (en.model(for: c), zh.model(for: c)) }
+        #expect(english == englishInEnglish)
+        #expect(chinese == chineseInEnglish)
         #expect(english.footer == "⌃V paste · ⌫ delete · Esc clear" && chinese.footer == "⌃V 粘贴 · ⌫ 删字 · Esc 清除")
         #expect(english.status == .hint("Space twice → polish / rewrite"))
     }

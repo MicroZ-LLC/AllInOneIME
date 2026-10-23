@@ -26,11 +26,11 @@ extension SettingsServiceTests {
     static let macOnlyWords = ["⏎", "⌥", "⌘", "⌃", "your Mac", "this Mac", "zsh", "~/", "keychain", "in Terminal", "Return",
                           "Mac 上", "钥匙串", "⏎ 回车"]
 
-    @Test func windowsDocumentNamesWindowsKeysAndPlaces() throws {
+    @Test func windowsDocumentNamesWindowsKeysAndPlaces() async throws {
         for language in ["en", "zh-Hans", "fr", "ja", "de", "es", "ko", "pt-BR", "zh-Hant"] {
             for key in ["enter", "space", "optionTap"] {
                 // What the window shows: not the ids (an extension folder's is its path as the config keeps it).
-                let windows = try withInterfaceLanguage(language) { try wordingDocument(.windows, Self.wordingConfig(language, actionKey: key)) }
+                let windows = try await withInterfaceLanguage(language) { try wordingDocument(.windows, Self.wordingConfig(language, actionKey: key)) }
                     .replacingOccurrences(of: #""id":"[^"]*""#, with: "", options: .regularExpression)
                 for mac in Self.macOnlyWords where language == "en" || mac.unicodeScalars.contains(where: { !$0.isASCII }) || mac == "zsh"
                     || mac == "~/" {
@@ -47,7 +47,7 @@ extension SettingsServiceTests {
                 }
             }
         }
-        let english = try withInterfaceLanguage("en") { try wordingDocument(.windows, Self.wordingConfig("en")) }
+        let english = try await withInterfaceLanguage("en") { try wordingDocument(.windows, Self.wordingConfig("en")) }
         for text in ["\"Enter\"", "Enter runs a command typed with @", "this PC", "Run in a terminal", "in a terminal window",
                      "write cmd /c {input}", "and Enter, then again", "Enter inserts it"] {
             #expect(english.contains(text), "\(text)")
@@ -89,8 +89,8 @@ extension SettingsServiceTests {
         return "…" + text[start..<end] + "…"
     }
 
-    @Test func theMacsDocumentIsAsItWas() throws {
-        let mac = try withInterfaceLanguage("en") { try wordingDocument(.mac, Self.wordingConfig("en")) }
+    @Test func theMacsDocumentIsAsItWas() async throws {
+        let mac = try await withInterfaceLanguage("en") { try wordingDocument(.mac, Self.wordingConfig("en")) }
         for text in ["⏎ Return", "Return runs a command typed with @", "Programs run on your Mac", "Run in Terminal", "It opens in Terminal",
                      "write zsh -c {input}", "(bedrock and ⏎, then again)", "⏎ inserts it", "~/.config/allinoneime/extensions",
                      "@improve, @translate, @question … and ⏎"] {
@@ -102,23 +102,23 @@ extension SettingsServiceTests {
     /// The paths in Windows' document as Windows writes them, by the document's platform, not the system it is made on:
     /// the jargon list's default file from %APPDATA% (where it is there), the config file and the error that names it
     /// with backslashes. The Mac's as they were.
-    @Test func theWindowsDocumentsPathsAreWindows() throws {
-        func document(_ platform: SettingsPlatform, _ text: String = "{}") throws -> (SettingsDocument, URL) {
+    @Test func theWindowsDocumentsPathsAreWindows() async throws {
+        func document(_ platform: SettingsPlatform, _ text: String = "{}") async throws -> (SettingsDocument, URL) {
             let (service, url) = try service(text, platform: platform)
             defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
-            return (withInterfaceLanguage("en") { service.document() }, url)
+            return (await withInterfaceLanguage("en") { service.document() }, url)
         }
-        let (windows, url) = try document(.windows)
+        let (windows, url) = try await document(.windows)
         #expect(windows.field("jargonFile")?.placeholder == #"%APPDATA%\AllInOneIME\jargon.txt"#)
         #expect(windows.field("configFile")?.value == .string(CorePaths.windowsWritten(url.path)))
-        let (mac, macURL) = try document(.mac)
+        let (mac, macURL) = try await document(.mac)
         #expect(mac.field("jargonFile")?.placeholder == "~/.config/allinoneime/jargon.txt")
         #expect(mac.field("configFile")?.value == .string(macURL.path))
         // A file that can't be read: its error names it so too.
-        let (broken, brokenURL) = try document(.windows, "{ not JSON")
+        let (broken, brokenURL) = try await document(.windows, "{ not JSON")
         let error = try #require(broken.loadError)
         #expect(error.contains(CorePaths.windowsWritten(brokenURL.path)), "\(error)")
-        let (macBroken, macBrokenURL) = try document(.mac, "{ not JSON")
+        let (macBroken, macBrokenURL) = try await document(.mac, "{ not JSON")
         #expect(macBroken.loadError?.contains(macBrokenURL.path) == true, "\(macBroken.loadError ?? "")")
     }
 
@@ -182,11 +182,11 @@ extension SettingsServiceTests {
         #expect(try Config.load(from: url).extensionFolders.isEmpty)
     }
 
-    @Test func theKeyStoreIsNamedForThePlatform() {
+    @Test func theKeyStoreIsNamedForThePlatform() async {
         let windows = Platform(terms: .windows)
-        let saved = withInterfaceLanguage("en") { Platform.$override.withValue(windows) { SettingsStore.couldntSaveKey } }
+        let saved = await withInterfaceLanguage("en") { Platform.$override.withValue(windows) { SettingsStore.couldntSaveKey } }
         #expect(saved == "Couldn't save to the Credential Manager: ")
-        let mac = withInterfaceLanguage("en") { Platform.$override.withValue(Platform(terms: .mac)) { SettingsStore.couldntSaveKey } }
+        let mac = await withInterfaceLanguage("en") { Platform.$override.withValue(Platform(terms: .mac)) { SettingsStore.couldntSaveKey } }
         #expect(mac == "Couldn't save to the keychain: ")
     }
 }

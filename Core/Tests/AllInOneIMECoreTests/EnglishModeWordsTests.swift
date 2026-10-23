@@ -264,8 +264,8 @@ struct EnglishModeLearningTests {
 
     func candidates(_ host: FakeHost) -> [String] { host.composer.engineState.candidates.map(\.text) }
 
-    @Test func wordsTypedInEnglishModeAreLearnedTheSecondTimeAndOfferedAmongPinyinsCandidates() {
-        withInterfaceLanguage("en") {
+    @Test func wordsTypedInEnglishModeAreLearnedTheSecondTimeAndOfferedAmongPinyinsCandidates() async {
+        await withInterfaceLanguage("en") {
             let learned = Learned()
             let host = host(learned: learned)
             english(host)
@@ -299,8 +299,8 @@ struct EnglishModeLearningTests {
         }
     }
 
-    @Test func theSecondTimeIsTheSameAsTypingPinyin() {
-        withInterfaceLanguage("en") {
+    @Test func theSecondTimeIsTheSameAsTypingPinyin() async {
+        await withInterfaceLanguage("en") {
             // Once in English mode, once put in as typed while typing pinyin (⏎): learned, in either order, in any field.
             let learned = Learned()
             var services = SessionServices(loadSettings: { Self.settings })
@@ -321,8 +321,8 @@ struct EnglishModeLearningTests {
         }
     }
 
-    @Test func anEditedWordIsNone() {
-        withInterfaceLanguage("en") {
+    @Test func anEditedWordIsNone() async {
+        await withInterfaceLanguage("en") {
             let learned = Learned()
             let host = host(learned: learned)
             english(host)
@@ -335,8 +335,8 @@ struct EnglishModeLearningTests {
         }
     }
 
-    @Test func aWordTypedAmongChineseEndsWithATapOfShift() {
-        withInterfaceLanguage("en") {
+    @Test func aWordTypedAmongChineseEndsWithATapOfShift() async {
+        await withInterfaceLanguage("en") {
             let learned = Learned()
             let host = host(learned: learned)
             for _ in 0..<2 {
@@ -350,8 +350,8 @@ struct EnglishModeLearningTests {
         }
     }
 
-    @Test func aWordWithACapitalFirstIsNeverLearnedNorRemembered() {
-        withInterfaceLanguage("en") {
+    @Test func aWordWithACapitalFirstIsNeverLearnedNorRemembered() async {
+        await withInterfaceLanguage("en") {
             // A name in prose ("Zorblax said"), or a sentence's first word.
             let learned = Learned()
             let host = host(learned: learned)
@@ -365,8 +365,8 @@ struct EnglishModeLearningTests {
         }
     }
 
-    @Test func neverInAPasswordFieldDuringSecureInputInAnAppWithNoAIOrWithLearningOff() {
-        withInterfaceLanguage("en") {
+    @Test func neverInAPasswordFieldDuringSecureInputInAnAppWithNoAIOrWithLearningOff() async {
+        await withInterfaceLanguage("en") {
             let learned = Learned()
             // A password field: secure input on, as the shell tells it with each key.
             let field = host(learned: learned)
@@ -403,8 +403,8 @@ struct EnglishModeLearningTests {
         }
     }
 
-    @Test func neverInATerminalAnSSHClientARemoteDesktopOrAVirtualMachine() {
-        withInterfaceLanguage("en") {
+    @Test func neverInATerminalAnSSHClientARemoteDesktopOrAVirtualMachine() async {
+        await withInterfaceLanguage("en") {
             let learned = Learned()
             let terminal = host(learned: learned, app: "com.googlecode.iterm2", terminal: true)
             english(terminal)
@@ -424,8 +424,8 @@ struct EnglishModeLearningTests {
 
     /// A password manager: a password shown in a plain field there, or typed before secure input comes on, is no word,
     /// as autocomplete never runs there (`PasswordManagers`).
-    @Test func neverInAPasswordManager() {
-        withInterfaceLanguage("en") {
+    @Test func neverInAPasswordManager() async {
+        await withInterfaceLanguage("en") {
             let learned = Learned()
             for app in ["com.1password.1password", "com.agilebits.onepassword7", "com.apple.Passwords", "com.bitwarden.desktop",
                         "org.keepassxc.keepassxc"] {
@@ -441,8 +441,8 @@ struct EnglishModeLearningTests {
         }
     }
 
-    @Test func neverWhatLooksLikeASecretOrHoldsAHiddenWord() {
-        withInterfaceLanguage("en") {
+    @Test func neverWhatLooksLikeASecretOrHoldsAHiddenWord() async {
+        await withInterfaceLanguage("en") {
             let learned = Learned()
             var config = Self.settings
             config.redaction.customWords = ["phoenix"]
@@ -455,8 +455,8 @@ struct EnglishModeLearningTests {
         }
     }
 
-    @Test func aClickWhileTypingDropsTheWord() {
-        withInterfaceLanguage("en") {
+    @Test func aClickWhileTypingDropsTheWord() async {
+        await withInterfaceLanguage("en") {
             let learned = Learned()
             var clicked = false
             let host = host(learned: learned, pointerUsed: { clicked })
@@ -470,8 +470,8 @@ struct EnglishModeLearningTests {
         }
     }
 
-    @Test func theLastWordStandsWhenTheFieldLosesTheFocus() {
-        withInterfaceLanguage("en") {
+    @Test func theLastWordStandsWhenTheFieldLosesTheFocus() async {
+        await withInterfaceLanguage("en") {
             let learned = Learned()
             let host = host(learned: learned)
             english(host)
@@ -485,8 +485,8 @@ struct EnglishModeLearningTests {
         }
     }
 
-    @Test func noneWithoutRimeIcesDictionary() {
-        withInterfaceLanguage("en") {
+    @Test func noneWithoutRimeIcesDictionary() async {
+        await withInterfaceLanguage("en") {
             let learned = Learned()
             let host = host(learned: learned, dictionary: false)
             english(host)

@@ -98,8 +98,8 @@ struct AutocompleteCadenceTests {
     /// time, 8 and 7: the pause grew in the app where they were waved away).
     @Test(.bug(id: "AC-12", "the pause is shorter than the time between keys: a read and a request for nearly every key"),
           arguments: [" and more.", ""])
-    func typingThreeSentencesAtFiveKeysASecondAsksOnlyAtThePauses(_ answer: String) {
-        withInterfaceLanguage("en") {
+    func typingThreeSentencesAtFiveKeysASecondAsksOnlyAtThePauses(_ answer: String) async {
+        await withInterfaceLanguage("en") {
             var typist = Typist(answer: answer)
             for sentence in Self.sentences { typist.type(sentence, every: 0.2, rest: 1) }
             let keys = Self.sentences.joined().count
@@ -112,8 +112,8 @@ struct AutocompleteCadenceTests {
     /// rhythm, half as long again as the time between their keys, so it doesn't run out between two of them either; it
     /// never grows past `longest`.
     @Test(.bug(id: "AC-12", "the pause doesn't follow the user's typing"))
-    func thePauseFollowsTheUsersRhythm() {
-        withInterfaceLanguage("en") {
+    func thePauseFollowsTheUsersRhythm() async {
+        await withInterfaceLanguage("en") {
             var typist = Typist(answer: "")
             typist.type(Self.sentences[0], every: 0.4, rest: 1)
             let (reads, requests) = (typist.reads, typist.requests)
@@ -141,11 +141,11 @@ struct AutocompleteCadenceTests {
     /// A request only once the line has a word to go on from: not for one or two letters ("is" asked, the model
     /// answered "a": "isa").
     @Test(.bug(id: "AC-12", "one or two letters in an empty field are asked about"))
-    func aWordToGoOnFromFirst() {
+    func aWordToGoOnFromFirst() async {
         func asks(_ before: String) -> Bool { Autocomplete.context(FieldText(before: before, after: "")) != nil }
         #expect(!asks("is") && !asks("Hi") && !asks("Long line\nok") && !asks("你"))
         #expect(asks("iss") && asks("Hi ") && asks("Hi,") && asks("I w") && asks("你好") && asks("Hello wor") && asks("Line\nI am"))
-        withInterfaceLanguage("en") {
+        await withInterfaceLanguage("en") {
             var typist = Typist(answer: "a")
             typist.type("is", every: 0.2, rest: 1)
             #expect(typist.reads == 1 && typist.requests == 0 && typist.host.ghost == nil)
@@ -155,8 +155,8 @@ struct AutocompleteCadenceTests {
     /// The answer has as long as before to come, counted from when it was asked for (the pause over), not from the last
     /// key: a longer pause leaves the model no less time.
     @Test(.bug(id: "AC-12", "a longer pause leaves the model less time"))
-    func tooLateCountsFromTheRequest() {
-        withInterfaceLanguage("en") {
+    func tooLateCountsFromTheRequest() async {
+        await withInterfaceLanguage("en") {
             let typist = Typist(answer: "")
             typist.model.hold = true
             typist.host.type("Hello wor")

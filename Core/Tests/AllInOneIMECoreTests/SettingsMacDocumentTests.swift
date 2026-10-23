@@ -20,14 +20,15 @@ extension SettingsServiceTests {
     /// The Mac's documents as lines, one a value: the whole document with the action key Return, and the action key's
     /// field with each other key. What is the system's own is left out ("$any"): the config file's path, the interface
     /// languages (by the system's names), Apple's model (offered where the system has it).
-    func macDocumentLines() throws -> [String] {
+    func macDocumentLines() async throws -> [String] {
         typealias JSON = AIConfig.JSONValue
         var lines: [String] = []
         for language in Self.macGoldenLanguages {
             for key in ["enter", "space", "optionTap", "optionSpace"] {
                 let (service, url) = try service(Self.macGoldenConfig(language, actionKey: key), platform: .mac)
                 defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
-                let document = try JSONDecoder().decode(JSON.self, from: JSONEncoder().encode(withInterfaceLanguage(language) { service.document() }))
+                let shown = await withInterfaceLanguage(language) { service.document() }
+                let document = try JSONDecoder().decode(JSON.self, from: JSONEncoder().encode(shown))
                 lines.append("== \(language), actionKey \(key)")
                 if key == "enter" {
                     Self.flatten(Self.withoutTheSystemsOwn(document), "", into: &lines)
@@ -97,8 +98,8 @@ extension SettingsServiceTests {
         }
     }
 
-    @Test func theMacsDocumentIsItsGolden() throws {
-        let lines = try macDocumentLines()
+    @Test func theMacsDocumentIsItsGolden() async throws {
+        let lines = try await macDocumentLines()
         let text = lines.joined(separator: "\n") + "\n"
         if ProcessInfo.processInfo.environment["SETTINGS_WRITE_GOLDENS"] == "1" {
             let source = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
