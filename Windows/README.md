@@ -22,7 +22,7 @@ The Windows shell of AllInOneIME, on the core in `../Core` (the same Swift packa
 Scripts/build-rime-data.sh                    # in Git Bash: librime and rime-ice's data, in ThirdParty (once)
 swift build                                   # Swift 6.4 for Windows, with Visual Studio's MSVC and Windows SDK
 swift run allinoneime-cli --help
-swift test                                    # the pipe's security (2), the Rime tests (30), the engine's (102)
+swift test                                    # the pipe's (4), the Rime tests (36), the engine's (111)
 ```
 
 The engine and the command line link librime (`rime.lib`, `Scripts/fetch-librime.sh`); the engine finds `rime.dll`
@@ -174,7 +174,9 @@ mode the goldens bring their own (`#! settings`); `settings.jsonl` replays over 
 - **Not done yet on Windows:** results typed out step by step (they go in at once), the keyboard layout of an input
   language (French's AZERTY), Translate as You Type's chip, the command usage order and the recent questions kept
   between runs, `@open`'s search (a plain walk of a few folders, not an index), UI-less mode (`ITfUIElement`) for
-  full-screen games.
+  full-screen games; personal pinyin dictionaries (0.6.7, the Mac's Settings → Input → Chinese: the core's
+  `PersonalDictionaryStore` would write librime's files here as it is, but the settings document has no field for
+  them and the Settings app no file to pick yet). The command trigger (0.6.7) works as on the Mac.
 
 ## Installing (M4)
 
@@ -289,6 +291,21 @@ in the settings, a settings window's 1 MiB frames, the review's lows), the Engli
 failed, 0 warnings**, and the package is installed; `tip/test/run-e2e.sh --installed` after it: PASS, the session's
 input method (the user's own, AllInOneIME) the same before and after. The English words' capture shows "frobnicate"
 second among the candidates of "frobn", after librime's first.
+
+Run on 2026-10-22 with 0.6.7's package (the 0.6.7 core, the third round's fixes, the command trigger on Windows):
+**64 passed, 0 failed, 0 warnings**, and the package is installed; `tip/test/run-e2e.sh --installed` after it: PASS,
+the session's input method (AllInOneIME) the same before and after. Two runs before it failed one check each: the
+candidate window still up 400 ms after the commit in the driver's console (the switch's "中" notice, 1.5 s, outlived
+the candidates, as it should: the driver now lets it go first; 4 of 4 runs in the console after that), and the
+session's input method after the e2e runs (Windows brought back the user's own, AllInOneIME, which that run's record,
+made after the repair below, didn't have as theirs). The user's own setup had changed since 2026-10-20: AllInOneIME was
+their only Chinese input method. The test's first step, taking out the copy installed before for a clean record, took
+Chinese (Simplified) out of the language list with it (`remove-keyboard`'s `InstallLayoutOrTip(ILOT_UNINSTALL)` drops
+a language left without an input method), and TSF's sort order kept AllInOneIME's entry for it, so the test stopped
+there ("something of AllInOneIME's is here already") with the list changed. It was put back by hand: Chinese with
+Microsoft Pinyin, as recorded on 2026-10-20, for the test's runs, then AllInOneIME alone again once 0.6.7 was
+installed. Not fixed yet: an uninstall that takes the user's only Chinese input method takes the language with it (it
+should leave Windows' own there), and the test's first step should keep the list it found before it uninstalls.
 
 - **Install and upgrade:** the files (librime, rime-data, the command line, which runs on the runtime beside it), the
   20 runtime DLLs, the COM server at the installed path, both profiles and the
