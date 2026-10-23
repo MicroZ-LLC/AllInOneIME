@@ -40,9 +40,9 @@ import AllInOneIMETestSupport
 // MARK: - One at a time
 
 /// The Suggestions suites' session tests run one at a time, a test waiting its turn without holding a thread. Each holds
-/// the interface language's lock (`withInterfaceLanguage`) while it waits for its session's work (the runtime's calls,
-/// Autocomplete's request), which needs a thread of the concurrency pool (as many as the cores): other Suggestions tests
-/// blocked on that lock meanwhile held them all on a 4-core machine, and the work waited for never ran.
+/// the interface language's turn (`withInterfaceLanguage`) while it waits for its session's work (the runtime's calls,
+/// Autocomplete's request), which needs a thread of the concurrency pool (as many as the cores): tests that held a
+/// thread while they waited for their turn could take them all, and the work waited for would never run.
 struct SuggestionsOneAtATime: SuiteTrait, TestTrait, TestScoping {
     var isRecursive: Bool { true }
 
@@ -345,13 +345,14 @@ enum SuggestionsPlugins {
     }
 
     /// What the user enables in Settings → Plugins: the source, with the plugin's hosts, whether it queries, its script's
-    /// SHA-256, as they are now.
+    /// SHA-256 and the terms it is looked up by (prefix, queryMinChars, compare), as they are now.
     static func approval(_ plugin: InstalledPlugin, _ source: String) -> CompletionSourceApproval {
         let script = (plugin.scriptURL.flatMap { try? Data(contentsOf: $0) }) ?? Data()
         let sha = SHA256.hash(data: script).map { String(format: "%02x", $0) }.joined()
-        let queries = plugin.manifest.completions.first { $0.name == source }?.query ?? false
-        return CompletionSourceApproval(plugin: plugin.name, source: source, hosts: plugin.manifest.hosts, query: queries,
-                                        scriptSHA256: sha)
+        let declared = plugin.manifest.completions.first { $0.name == source }
+        return CompletionSourceApproval(plugin: plugin.name, source: source, hosts: plugin.manifest.hosts,
+                                        query: declared?.query ?? false, scriptSHA256: sha,
+                                        terms: declared.map(CompletionSourceApproval.Terms.init))
     }
 }
 
