@@ -5096,7 +5096,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@%@ est une source de suggestions, pas une commande : tapez %@ dans n’importe quel champ de texte pour voir ses lignes, Tab insère"
+            "value" : "%@%@ est une source de suggestions, pas une commande : tapez %@ dans n’importe quel champ de texte pour voir ses lignes, Tab insère"
           }
         },
         "ja" : {
@@ -8492,7 +8492,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Un modèle d’insertion n’est pas valide : fermez chaque { par }, comme {arg} {title}"
+            "value" : "Un modèle d’insertion n’est pas valide : fermez chaque { par }, comme {arg} {title}"
           }
         },
         "ja" : {
@@ -10942,7 +10942,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ne peut pas être une source de suggestions : "
+            "value" : "Ne peut pas être une source de suggestions : "
           }
         },
         "ja" : {
@@ -23792,7 +23792,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pas encore chargée : elle se charge la première fois que vous tapez son préfixe."
+            "value" : "Pas encore chargée : elle se charge la première fois que vous tapez son préfixe."
           }
         },
         "ja" : {
@@ -31602,7 +31602,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lancé sans entrée, il affiche tous les éléments : un par ligne, « correspondance⇥titre⇥url » (titre et url facultatifs), ou le JSON des plug-ins."
+            "value" : "Lancé sans entrée, il affiche tous les éléments : un par ligne, « correspondance⇥titre⇥url » (titre et url facultatifs), ou le JSON des plug-ins."
           }
         },
         "ja" : {
@@ -36903,7 +36903,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Les suggestions sont désactivées, cette source ne s’affiche donc pas : activez-les dans Général."
+            "value" : "Les suggestions sont désactivées, cette source ne s’affiche donc pas : activez-les dans Général."
           }
         },
         "ja" : {
@@ -40338,7 +40338,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Le préfixe ne peut pas commencer par la touche magique %@ : la taper ouvre la liste des commandes"
+            "value" : "Le préfixe ne peut pas commencer par la touche magique %@ : la taper ouvre la liste des commandes"
           }
         },
         "ja" : {
@@ -40620,7 +40620,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Le programme s’exécute sur ce PC : pour sa liste quand vous tapez le préfixe (puis à l’intervalle d’actualisation), et avec Chercher pendant la frappe avec ce qui suit le préfixe comme seul argument, rien d’autre ; jamais dans les champs de mot de passe. N’ajoutez que des programmes que vous avez écrits et en lesquels vous avez confiance."
+            "value" : "Le programme s’exécute sur ce PC : pour sa liste quand vous tapez le préfixe (puis à l’intervalle d’actualisation), et avec Chercher pendant la frappe avec ce qui suit le préfixe comme seul argument, rien d’autre ; jamais dans les champs de mot de passe. N’ajoutez que des programmes que vous avez écrits et en lesquels vous avez confiance."
           }
         },
         "ja" : {
@@ -40667,7 +40667,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Le programme s’exécute sur votre Mac : pour sa liste quand vous tapez le préfixe (puis à l’intervalle d’actualisation), et avec Chercher pendant la frappe avec ce qui suit le préfixe comme seul argument, rien d’autre ; jamais dans les champs de mot de passe. N’ajoutez que des programmes que vous avez écrits et en lesquels vous avez confiance."
+            "value" : "Le programme s’exécute sur votre Mac : pour sa liste quand vous tapez le préfixe (puis à l’intervalle d’actualisation), et avec Chercher pendant la frappe avec ce qui suit le préfixe comme seul argument, rien d’autre ; jamais dans les champs de mot de passe. N’ajoutez que des programmes que vous avez écrits et en lesquels vous avez confiance."
           }
         },
         "ja" : {
@@ -40714,7 +40714,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "La liste du programme a plus de 20 000 éléments : non utilisée"
+            "value" : "La liste du programme a plus de 20 000 éléments : non utilisée"
           }
         },
         "ja" : {
@@ -40761,7 +40761,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "La liste du programme dépasse 4 Mo : non utilisée"
+            "value" : "La liste du programme dépasse 4 Mo : non utilisée"
           }
         },
         "ja" : {
@@ -42883,7 +42883,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tapez-le et les lignes du programme qui correspondent s’affichent sous le curseur ; Tab insère. 1 à 16 lettres, chiffres ou . _ - #, comme JIRA-"
+            "value" : "Tapez-le et les lignes du programme qui correspondent s’affichent sous le curseur ; Tab insère. 1 à 16 lettres, chiffres ou . _ - #, comme JIRA-"
           }
         },
         "ja" : {
@@ -44058,7 +44058,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ce que vous tapez après le préfixe va au programme comme un seul argument : à la place de {input} dans la commande, sinon en dernier."
+            "value" : "Ce que vous tapez après le préfixe va au programme comme un seul argument : à la place de {input} dans la commande, sinon en dernier."
           }
         },
         "ja" : {

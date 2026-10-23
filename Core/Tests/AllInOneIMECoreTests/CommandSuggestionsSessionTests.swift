@@ -71,6 +71,10 @@ struct CommandSuggestionsSessionTests {
 
     static let key = CompletionSourceKey(command: "jira")
 
+    /// How long a test waits for what a program prints: a program started while a whole test run keeps the Mac busy may
+    /// take seconds.
+    static let wait: TimeInterval = 15
+
     // MARK: - List and query
 
     /// Typing the prefix shows the rows of the program's list (run once, with no argument), no approval asked: a line
@@ -82,7 +86,7 @@ struct CommandSuggestionsSessionTests {
             world.switches.commands = [Self.jira(program)]
             let field = world.field()
             field.type("JIRA-1")
-            #expect(field.settle { field.rows.count == 3 }, "\(field.rows.map(\.text))")
+            #expect(field.settle(timeout: Self.wait) { field.rows.count == 3 }, "\(field.rows.map(\.text))")
             #expect(field.rows.map(\.text) == ["JIRA-12", "JIRA-123", "JIRA-17"])
             #expect(field.rows.map(\.comment) == ["Fix login", "Slow search", "Dark mode"])
             #expect(field.footer.contains("Jira issues"), "\(field.footer)")
@@ -108,10 +112,10 @@ struct CommandSuggestionsSessionTests {
             }]
             let field = world.field()
             field.type("JIRA-1")
-            #expect(field.settle { field.rows.count == 3 }, "\(field.rows.map(\.text))")
+            #expect(field.settle(timeout: Self.wait) { field.rows.count == 3 }, "\(field.rows.map(\.text))")
             #expect(program.calls == [[]], "1 character: the list only (\(program.calls))")
             field.type("2")
-            #expect(field.settle { field.rows.map(\.text) == ["JIRA-12", "JIRA-123", "JIRA-129"] }, "\(field.rows.map(\.text))")
+            #expect(field.settle(timeout: Self.wait) { field.rows.map(\.text) == ["JIRA-12", "JIRA-123", "JIRA-129"] }, "\(field.rows.map(\.text))")
             #expect(program.calls == [[], ["12"]], "\(program.calls)")
         }
     }
@@ -127,7 +131,7 @@ struct CommandSuggestionsSessionTests {
             world.switches.commands = [Self.jira(program) { $0.insert = CustomCommand.InsertPreset.titleAndLink.insert }]
             let field = world.field(app: SuggestionsApps.slack)
             field.type("JIRA-5")
-            #expect(field.settle { field.rows.map(\.text) == ["JIRA-5", "JIRA-50"] }, "\(field.rows.map(\.text))")
+            #expect(field.settle(timeout: Self.wait) { field.rows.map(\.text) == ["JIRA-5", "JIRA-50"] }, "\(field.rows.map(\.text))")
             field.press(SuggestionKeys.tab)
             #expect(field.document == "JIRA-5 Five https://jira.example.com/browse/JIRA-5", "\(field.document)")
         }
@@ -144,7 +148,7 @@ struct CommandSuggestionsSessionTests {
             let typed = clock.measure { field.type("JIRA-1") }
             #expect(typed < .milliseconds(400), "\(typed)")
             #expect(field.rows.isEmpty)
-            #expect(field.settle { field.rows.map(\.text) == ["JIRA-12"] }, "\(field.rows.map(\.text))")
+            #expect(field.settle(timeout: Self.wait) { field.rows.map(\.text) == ["JIRA-12"] }, "\(field.rows.map(\.text))")
         }
     }
 
@@ -184,10 +188,10 @@ struct CommandSuggestionsSessionTests {
             let field = world.field()
             field.type("see JIRA-q7x")
             let written = program.script.path + ".env.1"
-            #expect(field.settle { FileManager.default.fileExists(atPath: written) }, "\(program.calls)")
+            #expect(field.settle(timeout: Self.wait) { FileManager.default.fileExists(atPath: written) }, "\(program.calls)")
             // The list (at the focus) and the query run side by side: in either order.
             #expect(Set(program.calls) == [[], ["q7x"]] && program.calls.count == 2, "\(program.calls)")
-            #expect(field.settle { field.rows.map(\.text) == ["JIRA-q7x9"] }, "\(field.rows.map(\.text))")
+            #expect(field.settle(timeout: Self.wait) { field.rows.map(\.text) == ["JIRA-q7x9"] }, "\(field.rows.map(\.text))")
             let environment = try String(contentsOfFile: written, encoding: .utf8)
             #expect(!environment.contains("q7x") && !environment.contains("see"), "not in the environment")
         }
@@ -204,7 +208,7 @@ struct CommandSuggestionsSessionTests {
             world.switches.commands = [Self.jira(program) { $0.timeoutSeconds = 1 }]
             let field = world.field()
             field.type("JIRA-1")
-            #expect(field.settle(timeout: 5) { world.lastStatus?.error != nil }, "\(world.statuses.withLock { $0 })")
+            #expect(field.settle(timeout: Self.wait) { world.lastStatus?.error != nil }, "\(world.statuses.withLock { $0 })")
             #expect(world.lastStatus?.error?.contains("Stopped after 1") == true, "\(String(describing: world.lastStatus))")
             #expect(world.lastStatus?.paused == false && field.rows.isEmpty)
             #expect(program.calls.count == 1)
@@ -212,7 +216,7 @@ struct CommandSuggestionsSessionTests {
             field.idle(0.5)
             #expect(program.calls.count == 1, "backing off: not run again (\(program.calls.count))")
             field.pause(61)
-            #expect(field.settle { program.calls.count == 2 }, "a minute later: again (\(program.calls.count))")
+            #expect(field.settle(timeout: Self.wait) { program.calls.count == 2 }, "a minute later: again (\(program.calls.count))")
         }
     }
 
@@ -225,17 +229,17 @@ struct CommandSuggestionsSessionTests {
             world.switches.commands = [Self.jira(program)]
             let field = world.field()
             field.type("JIRA-1")
-            #expect(field.settle { program.calls.count == 1 && world.lastStatus?.error != nil }, "\(program.calls.count)")
+            #expect(field.settle(timeout: Self.wait) { program.calls.count == 1 && world.lastStatus?.error != nil }, "\(program.calls.count)")
             #expect(world.lastStatus?.error == "jira: not logged in", "\(String(describing: world.lastStatus))")
             for (failure, wait) in [60.0, 300, 1800, 7200].enumerated() {
                 field.pause(wait - 5)
                 field.idle(0.2)
                 #expect(program.calls.count == failure + 1, "before the back-off ends: not run (\(program.calls.count))")
                 field.pause(10)
-                #expect(field.settle { program.calls.count == failure + 2 && (world.statuses.withLock { $0 }.count >= failure + 2) },
+                #expect(field.settle(timeout: Self.wait) { program.calls.count == failure + 2 && (world.statuses.withLock { $0 }.count >= failure + 2) },
                         "after \(wait) s: run again (\(program.calls.count))")
             }
-            #expect(field.settle { world.lastStatus?.paused == true }, "the fifth failure pauses it (\(String(describing: world.lastStatus)))")
+            #expect(field.settle(timeout: Self.wait) { world.lastStatus?.paused == true }, "the fifth failure pauses it (\(String(describing: world.lastStatus)))")
             #expect(world.store.status(Self.key)?.error == "jira: not logged in")
             field.pause(7300)
             #expect(program.calls.count == 5, "paused: not run (\(program.calls.count))")
@@ -243,7 +247,7 @@ struct CommandSuggestionsSessionTests {
             world.switches.refreshes = [CompletionSourceRefresh(plugin: CompletionSourceKey.customCommands, source: "jira",
                                                                 requested: world.clock.now)]
             field.host.send(.configChanged)
-            #expect(field.settle { program.calls.count == 6 }, "Refresh now: run at once (\(program.calls.count))")
+            #expect(field.settle(timeout: Self.wait) { program.calls.count == 6 }, "Refresh now: run at once (\(program.calls.count))")
         }
     }
 
@@ -275,7 +279,7 @@ struct CommandSuggestionsSessionTests {
             if off == .app {
                 let other = world.field(app: "com.apple.TextEdit")
                 other.type("JIRA-1")
-                #expect(other.settle { other.rows.count == 3 }, "\(other.rows.map(\.text))")
+                #expect(other.settle(timeout: Self.wait) { other.rows.count == 3 }, "\(other.rows.map(\.text))")
             }
         }
     }
@@ -321,19 +325,19 @@ struct CommandSuggestionsSessionTests {
             for (app, inserted) in expected {
                 let field = world.field(app: app)
                 field.type("JIRA-1")
-                #expect(field.settle { field.rows.count == 3 }, "\(app): \(field.rows.map(\.text))")
+                #expect(field.settle(timeout: Self.wait) { field.rows.count == 3 }, "\(app): \(field.rows.map(\.text))")
                 field.press(SuggestionKeys.tab)
                 #expect(field.document == inserted, "\(preset) in \(app)")
             }
             // A row without a title: the match alone.
             let untitled = world.field()
             untitled.type("JIRA-17")
-            #expect(untitled.settle { untitled.rows.map(\.text) == ["JIRA-17"] } || preset != .match, "\(untitled.rows.map(\.text))")
+            #expect(untitled.settle(timeout: Self.wait) { untitled.rows.map(\.text) == ["JIRA-17"] } || preset != .match, "\(untitled.rows.map(\.text))")
             // A terminal: Tab completes what the rows' matches share (from the prefix on, `minChars` 0), whatever the
             // preset; nothing more when they share only what was typed.
             let terminal = world.field(app: "com.apple.Terminal", terminal: true)
             terminal.type("JIRA-")
-            #expect(terminal.settle { terminal.rows.count == 3 }, "\(terminal.rows.map(\.text))")
+            #expect(terminal.settle(timeout: Self.wait) { terminal.rows.count == 3 }, "\(terminal.rows.map(\.text))")
             #expect(terminal.press(SuggestionKeys.tab))
             #expect(terminal.document == "JIRA-1", "\(preset) in a terminal: what they share (\(terminal.document))")
             #expect(!terminal.press(SuggestionKeys.tab), "nothing more shared: Tab is the terminal's")
@@ -353,16 +357,16 @@ struct CommandSuggestionsSessionTests {
             world.switches.commands = [Self.jira(program)]
             let field = world.field()
             field.type("JIRA-1")
-            #expect(field.settle { field.rows.count == 3 })
+            #expect(field.settle(timeout: Self.wait) { field.rows.count == 3 })
             let file = cache.appendingPathComponent("custom-commands.jira.json")
-            #expect(field.settle { FileManager.default.fileExists(atPath: file.path) }, "cached")
+            #expect(field.settle(timeout: Self.wait) { FileManager.default.fileExists(atPath: file.path) }, "cached")
             let permissions = try FileManager.default.attributesOfItem(atPath: file.path)[.posixPermissions] as? NSNumber
             #expect(permissions?.intValue == 0o600)
 
             world.switches.commands = []
             field.host.send(.configChanged)
             SuggestionsStore.disk.sync {}
-            #expect(field.settle { !FileManager.default.fileExists(atPath: file.path) }, "deleted with the command")
+            #expect(field.settle(timeout: Self.wait) { !FileManager.default.fileExists(atPath: file.path) }, "deleted with the command")
         }
     }
 

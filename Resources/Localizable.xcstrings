@@ -2087,7 +2087,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ est introuvable sur ce Mac : tant qu’il n’est pas installé, cette source affiche une erreur."
+            "value" : "%@ est introuvable sur ce Mac : tant qu’il n’est pas installé, cette source affiche une erreur."
           }
         },
         "ja" : {
@@ -5430,7 +5430,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Comme le insert d’un plug-in : default (apps ordinaires), chat (apps de messagerie et navigateurs), terminal (terminaux et éditeurs de code : la correspondance seule) ; chacun un modèle ou une liste essayée dans l’ordre, avec {match} {arg} {title} {url}."
+            "value" : "Comme le insert d’un plug-in : default (apps ordinaires), chat (apps de messagerie et navigateurs), terminal (terminaux et éditeurs de code : la correspondance seule) ; chacun un modèle ou une liste essayée dans l’ordre, avec {match} {arg} {title} {url}."
           }
         },
         "ja" : {
@@ -22268,7 +22268,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lancé sans entrée, il affiche tous les éléments : un par ligne, « correspondance⇥titre⇥url » (titre et url facultatifs), ou le JSON des plug-ins. Tapez le préfixe et les lignes qui correspondent s’affichent sous le curseur ; Tab insère. Jamais via un shell (pour en avoir un, écrivez zsh -c …) ; mettez entre guillemets les arguments avec des espaces."
+            "value" : "Lancé sans entrée, il affiche tous les éléments : un par ligne, « correspondance⇥titre⇥url » (titre et url facultatifs), ou le JSON des plug-ins. Tapez le préfixe et les lignes qui correspondent s’affichent sous le curseur ; Tab insère. Jamais via un shell (pour en avoir un, écrivez zsh -c …) ; mettez entre guillemets les arguments avec des espaces."
           }
         },
         "ja" : {
