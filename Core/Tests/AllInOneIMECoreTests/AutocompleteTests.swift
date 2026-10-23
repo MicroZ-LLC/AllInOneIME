@@ -420,7 +420,7 @@ struct AutocompleteTests {
         #expect(!keyAsked.withLock { $0 })
         let on = try AIConfig.parse(#"{"changes": [{"key": "autocomplete", "value": true}]}"#)
         #expect(AIConfig.check(on, config: config, environment: Self.assistant([.hosted, .bedrock])).rows.map { $0.text(chinese: false) }
-            == ["Autocomplete: off → on. Uses Apple Intelligence; set your own AI provider for faster suggestions"])
+            == ["Autocomplete (Beta): off → on. Uses Apple Intelligence; set your own AI provider for faster suggestions"])
     }
 
     /// A converter whose cloud providers are stubs (`StubURLProtocol`), with a key and AWS credentials that are no one's
@@ -654,22 +654,22 @@ struct AutocompleteTests {
         let on = try AIConfig.parse(#"{"changes": [{"key": "autocomplete", "value": true}]}"#)
         var config = Config.default  // Bedrock
         let rows = AIConfig.check(on, config: config, environment: env).rows
-        #expect(rows.map { $0.text(chinese: false) } == ["Autocomplete: off → on. Each pause sends the caret's line and up to 200 characters before it in the same language (and 200 after) to Amazon Bedrock · us.anthropic.claude-haiku-4-5-20251001-v1:0"])
+        #expect(rows.map { $0.text(chinese: false) } == ["Autocomplete (Beta): off → on. Each pause sends the caret's line and up to 200 characters before it in the same language (and 200 after) to Amazon Bedrock · us.anthropic.claude-haiku-4-5-20251001-v1:0"])
         let undo = AIConfig.apply(rows.compactMap { $0.edit }, to: &config)
         #expect(config.autocomplete && undo == [.autocomplete(false)])
         config.autocomplete = false
         config.provider = .anthropic
         config.redaction = RedactionSettings(enabled: true)
         #expect(AIConfig.check(on, config: config, environment: env).rows.map { $0.text(chinese: false) }
-            == ["Autocomplete: off → on. Each pause sends the caret's line and up to 200 characters before it in the same language (and 200 after) to Claude API · claude-haiku-5-5, hidden words removed"])
+            == ["Autocomplete (Beta): off → on. Each pause sends the caret's line and up to 200 characters before it in the same language (and 200 after) to Claude API · claude-haiku-5-5, hidden words removed"])
         #expect(AIConfig.check(on, config: config, environment: Self.assistant([.bedrock, .anthropic], chinese: true)).rows.map { $0.text(chinese: true) }
-            == ["续写：关 → 开。每次停顿会把光标所在行和它前面同一语言的最多 200 字（和光标后 200 字）发给 Claude API · claude-haiku-5-5，先去掉隐藏词"])
+            == ["续写（Beta）：关 → 开。每次停顿会把光标所在行和它前面同一语言的最多 200 字（和光标后 200 字）发给 Claude API · claude-haiku-5-5，先去掉隐藏词"])
         config.provider = .apple
-        #expect(AIConfig.check(on, config: config, environment: env).rows.map { $0.text(chinese: false) } == ["Autocomplete: off → on"])
+        #expect(AIConfig.check(on, config: config, environment: env).rows.map { $0.text(chinese: false) } == ["Autocomplete (Beta): off → on"])
         // Off says nothing more.
         (config.autocomplete, config.provider) = (true, .anthropic)
         let off = try AIConfig.parse(#"{"changes": [{"key": "autocomplete", "value": false}]}"#)
-        #expect(AIConfig.check(off, config: config, environment: env).rows.map { $0.text(chinese: false) } == ["Autocomplete: on → off"])
+        #expect(AIConfig.check(off, config: config, environment: env).rows.map { $0.text(chinese: false) } == ["Autocomplete (Beta): on → off"])
         let refused = try AIConfig.parse(#"{"changes": [{"key": "autocomplete", "value": "yes"}]}"#)
         #expect(AIConfig.check(refused, config: config, environment: env).rows.allSatisfy { $0.isRefused })
         // The on-device model's small context gets it with the typing settings.

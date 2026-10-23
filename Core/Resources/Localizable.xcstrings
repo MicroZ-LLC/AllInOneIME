@@ -9989,6 +9989,7 @@
     },
     "Autocomplete" : {
       "comment" : "续写 — Sources/AllInOneIMECore/Autocomplete.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -10030,6 +10031,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "續寫"
+          }
+        }
+      }
+    },
+    "Autocomplete (Beta)" : {
+      "comment" : "续写（Beta） — Sources/AllInOneIMECore/Autocomplete.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autovervollständigen (Beta)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autocompletar (Beta)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Complétion automatique (Beta)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オートコンプリート（Beta）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자동 완성 (Beta)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autocompletar (Beta)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "續寫（Beta）"
           }
         }
       }

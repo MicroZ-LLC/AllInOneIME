@@ -254,7 +254,7 @@ extension SelfTest {
         // The self-test's config is Bedrock's: the switch names it and its model, and what each pause would send there,
         // before it's turned on.
         let bedrock = "Amazon Bedrock · " + ((try? Config.load())?.modelId ?? "")
-        check(menuItem(toggle)?.title == tr("续写（\(bedrock)）", "Autocomplete (\(bedrock))") && menuItem(toggle)?.state == .off,
+        check(menuItem(toggle)?.title == tr("续写（Beta） · \(bedrock)", "Autocomplete (Beta) · \(bedrock)") && menuItem(toggle)?.state == .off,
               "the input menu has 续写, off, with the provider and its model (\(menuItem(toggle)?.title ?? "none"))")
         check(line()?.title.hasPrefix(tr("每次停顿会把光标所在行和它前面同一语言的最多 200 字", "Each pause sends the caret's line and up to 200 characters before it in the same language")) == true
               && line()?.title.contains(bedrock) == true && line()?.isEnabled == false,
@@ -580,7 +580,7 @@ extension SelfTest {
         let items = controller.menu()?.items ?? []
         let index = items.firstIndex { $0.action == toggle }
         let line = index.flatMap { items.indices.contains($0 + 1) ? items[$0 + 1] : nil }
-        check(index.map { items[$0].title } == tr("续写（Claude API · claude-selftest）", "Autocomplete (Claude API · claude-selftest)")
+        check(index.map { items[$0].title } == tr("续写（Beta） · Claude API · claude-selftest", "Autocomplete (Beta) · Claude API · claude-selftest")
               && line?.tag == AllInOneIMEInputController.autocompleteDestinationTag && line?.title.contains("Claude API · claude-selftest") == true,
               "the input menu: the provider and its model, and what each pause sends there (\(line?.title ?? "none"))")
         // The next pause asks it, as the session's settings have it.

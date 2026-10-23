@@ -496,7 +496,7 @@ Settings → Apps gives an app settings of its own, each optional; what an app d
 | Type results out, or not | on in a chat app, off in Mail | `typeOut` |
 | No AI in this app | `@improve`, `@translate`, `@question`, `@agent` and your prompt commands send nothing there and say so; typing and the other commands work | `noAI` |
 | Always Translate as You Type | WeChat always in Translate as You Type (see [Translate as You Type](#translate-as-you-type)) | `translateAlways` |
-| Autocomplete: always, never, or as everywhere | always in Mail (even with the switch off, and it never stops there for want of use), never in a chat app; code editors are off unless set to always; this Mac's own, never synced (see [Autocomplete](#autocomplete-new)) | `autocomplete` |
+| Autocomplete: always, never, or as everywhere | always in Mail (even with the switch off, and it never stops there for want of use), never in a chat app; code editors are off unless set to always; this Mac's own, never synced (see [Autocomplete](#autocomplete-beta-new)) | `autocomplete` |
 
 "Add App…" lists the apps you typed in lately, or picks one in /Applications. The input menu's "This App: <name>" has
 quick switches for the app you're typing in (No AI, Type Results Out, Autocomplete, the language it starts in). In the config they're
@@ -633,7 +633,7 @@ the input method starts, every 30 minutes (after a pause in typing) and on Sync 
 
 Click AllInOneIME's icon in the menu bar (the ∞-and-cursor mark, without a box; the boxed one is the input source) and the panel drops down under it; a click elsewhere closes it:
 
-- Autocomplete: its switch, on top, with the model it asks, where the text goes and how many suggestions were shown and taken (see [Autocomplete](#autocomplete-new)).
+- Autocomplete: its switch, on top, with the model it asks, where the text goes and how many suggestions were shown and taken (see [Autocomplete](#autocomplete-beta-new)).
 - Notes: the notes saved with `@note`, the newest 5; click one to open it where it went: in Notes, in Obsidian or the file's own app, or the Notion page. A file that's gone is no longer listed.
 - Reminders: the reminders not done yet in the AllInOneIME list of Reminders (`@reminder` adds to that list), the soonest due first, 8 shown; click the circle to tick one off, or the title to open Reminders.
 - Claude Tasks: like `@tasks`, the background Claude tasks (what `@agent` hands off to Claude Code), up to 30, 5 shown at a time: scroll for more, or search their titles and replies in the search box; with their progress and the first line of the last reply; click one to open it in Terminal and go on.
@@ -757,13 +757,14 @@ next translation follow) and from then on. The keys work as before; one closes t
 - **Privacy**: as for `@translate`: sent only when you press ⏎, to your own AI provider, with sensitive information hidden
   when that's on.
 
-## Autocomplete (new)
+## Autocomplete (beta, new)
 
 <img src="docs/en/autocomplete.png" width="520" alt="Hello wor, then in gray: ld, how are you? and a small Tab key">
 
 Pause while you write, and the rest of the sentence shows in gray right after the caret; **Tab** puts it in. Turn it on
-with **Autocomplete** in the input menu (the menu bar's input source menu) or in the [menu bar panel](#menu-bar-panel),
-or tell Settings → Assistant "turn on autocomplete"; it stays on until you turn it off (`autocomplete` in the config).
+with **Autocomplete (Beta)** in the input menu (the menu bar's input source menu) or in the
+[menu bar panel](#menu-bar-panel), or tell Settings → Assistant "turn on autocomplete"; it stays on until you turn it
+off (`autocomplete` in the config).
 
 - **Keys:** Tab takes the suggestion, only while it's showing; ⇧Tab, ⌥Tab and a Tab pressed within 120 ms of it
   appearing go to the app as usual (indenting, the next field, Jupyter's completion). Type along with it and it shrinks
@@ -792,10 +793,10 @@ or tell Settings → Assistant "turn on autocomplete"; it stays on until you tur
 - **The model:** the AI provider you picked in Settings → AI Provider, the one the @ commands use, with its model and
   settings (Bedrock, Claude API, Gemini, OpenAI-compatible). Turning Autocomplete on is the choice to send it your text,
   so the switch says where it goes, on or off: the input menu's item and the menu bar panel name the provider and its
-  model ("Autocomplete (Claude API · claude-haiku-5-5)") with the line "Each pause sends the caret's line and up to 200
-  characters before it in the same language (and 200 after) to …, hidden words removed" ("hidden words removed" when
-  hiding sensitive information is on, as for the @ commands); Settings → Assistant's row and its confirmation say the
-  same. Nothing asks first and nothing is
+  model ("Autocomplete (Beta) · Claude API · claude-haiku-5-5") with the line "Each pause sends the caret's line and up
+  to 200 characters before it in the same language (and 200 after) to …, hidden words removed" ("hidden words removed"
+  when hiding sensitive information is on, as for the @ commands); Settings → Assistant's row and its confirmation say
+  the same. Nothing asks first and nothing is
   kept: pick another provider (in Settings, through Settings → Assistant or on another Mac with iCloud sync) and the next
   pause asks that one. Each request is small: a dozen words back (48 tokens), no thinking where the model can be asked
   for none (Claude Haiku 5.5, Sonnet 5 and 5.5, Opus 5), the lowest effort otherwise; a slow model (one that always
@@ -824,7 +825,7 @@ or tell Settings → Assistant "turn on autocomplete"; it stays on until you tur
 ## Suggestions and Code (new)
 
 Rows in the candidate panel as you type, from plugins and, in Code, from the language you code in; **Tab** puts one in.
-They take the place of [autocomplete](#autocomplete-new)'s gray text while they show.
+They take the place of [autocomplete](#autocomplete-beta-new)'s gray text while they show.
 
 - **Your own program:** a custom command of type `suggestions` is a source too, its prefix and its items yours: a program
   that prints `match⇥title⇥url` lines ([Suggestions from a program of your own](#suggestions-from-a-program-of-your-own-new)).

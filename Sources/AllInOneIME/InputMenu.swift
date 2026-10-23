@@ -189,7 +189,7 @@ extension AllInOneIMEInputController {
         var items: [NSMenuItem] = []
         // The model it asks, and where the text goes, whether it's on or not: turning it on is the choice to send it there.
         let model = AutocompleteSwitch.modelName(current)
-        let autocomplete = NSMenuItem(title: tr("续写（\(model)）", "Autocomplete (\(model))"), action: #selector(toggleAutocomplete(_:)),
+        let autocomplete = NSMenuItem(title: tr("续写（Beta） · \(model)", "Autocomplete (Beta) · \(model)"), action: #selector(toggleAutocomplete(_:)),
                                       keyEquivalent: "")
         autocomplete.target = self
         autocomplete.state = current.autocomplete ? .on : .off

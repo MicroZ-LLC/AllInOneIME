@@ -1143,7 +1143,7 @@ struct FloatingPanelView: View {
     private var autocompleteSwitch: some View {
         Toggle(isOn: Binding(get: { panel.autocomplete }, set: { on in panel.click { panel.setAutocomplete(on) } })) {
             VStack(alignment: .leading, spacing: 1) {
-                Text(tr("续写", "Autocomplete")).font(.system(size: 13))
+                Text(tr("续写（Beta）", "Autocomplete (Beta)")).font(.system(size: 13))
                 if let model = panel.autocompleteModel {
                     Text(tr("模型：\(model)", "Model: \(model)")).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
                 }

@@ -1392,7 +1392,8 @@ extension AIConfig {
 }
 
 extension AIConfig.Text {
-    public var autocompleteLabel: String { tr("续写", "Autocomplete") }
+    /// The switch's name, everywhere it shows: Beta while its suggestions aren't good enough yet.
+    public var autocompleteLabel: String { tr("续写（Beta）", "Autocomplete (Beta)") }
 }
 
 // MARK: - The candidate panel's line

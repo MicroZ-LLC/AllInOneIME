@@ -228,7 +228,7 @@ struct AppProfilesSection: View {
                 Text(tr("不续写", "Never", key: "autocomplete.never")).tag(Bool?.some(false))
             } label: {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(tr("续写", "Autocomplete"))
+                    Text(tr("续写（Beta）", "Autocomplete (Beta)"))
                     Text(tr("停一下，光标后出现灰字，按 Tab 接受。「总是」在这里不管全局开关，也不会因为没用上而停下。代码编辑器（Xcode、VS Code、Cursor、JetBrains 等）里默认关，设成「总是」才开。",
                             "Pause, and the rest of the sentence shows in gray after the caret; Tab takes it. Always: here whatever the switch, and it doesn't stop for want of use. Off in code editors (Xcode, VS Code, Cursor, JetBrains…) unless set to Always."))
                         .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
@@ -307,7 +307,7 @@ extension AllInOneIMEInputController {
         add(tr("不用 AI", "No AI"), #selector(toggleAppNoAI(_:)), on: profile.noAI == true)
         add(tr("逐字上屏", "Type Results Out"), #selector(toggleAppTypeOut(_:)), on: current.applying(app: app).typeOut)
         menu.addItem(.separator())
-        let continues = NSMenuItem(title: tr("续写：", "Autocomplete:"), action: nil, keyEquivalent: "")
+        let continues = NSMenuItem(title: tr("续写（Beta）：", "Autocomplete (Beta):"), action: nil, keyEquivalent: "")
         continues.isEnabled = false
         menu.addItem(continues)
         add(AppProfileText.autocompleteEverywhere(current, app: app), #selector(setAppAutocomplete(_:)), on: profile.autocomplete == nil)
