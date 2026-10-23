@@ -60,6 +60,8 @@ public final class InputSession {
     private var englishWords: EnglishWordsEngine?
     /// What its words were last made of (the user's, the jargon list's terms): made again only when that changes.
     private var englishWordsMadeOf: [String]?
+    /// The words typed in English mode in this field, learned once they stand (`learnTypedInEnglish`).
+    private var englishModeWords = EnglishModeWords()
     /// The default input mode last applied (applied again when the setting changes).
     private var appliedDefaultInput: Language?
     /// A dead key typed before the next key.
@@ -133,6 +135,7 @@ public final class InputSession {
                 focus(info)
             case .blur:
                 perform(composer.commitAll())
+                learnTypedInEnglish(englishModeWords.leftField())
                 releasePage()  // `@agent` asked for a page it didn't send
                 fieldSession += 1
                 fieldText = nil
@@ -163,6 +166,7 @@ public final class InputSession {
             case .configChanged:
                 settings(app: nil)
             case .close:
+                learnTypedInEnglish(englishModeWords.leftField())
                 tasks.close()  // what runs for the field stops (a save, a message, an agent goes on)
                 noticeToken += 1  // its timer does nothing now
                 composer.engine = nil
@@ -201,6 +205,7 @@ public final class InputSession {
     // MARK: - Focus
 
     private func focus(_ info: FieldInfo) {
+        learnTypedInEnglish(englishModeWords.leftField())  // the field's before: by what it is
         lastTyped.forget()
         fieldText = nil
         fieldSession += 1
@@ -272,6 +277,7 @@ public final class InputSession {
         mixed.rawCommitted = { [weak self] in self?.learnEnglishWord($0) }
         englishWords = mixed
         englishWordsMadeOf = nil  // its words are given by `settings`
+        englishModeWords = EnglishModeWords()
         return mixed
     }
 
@@ -285,9 +291,59 @@ public final class InputSession {
               EnglishWords.learns(typed, in: FieldInfo(app: app, terminal: terminal, secure: field.secure),
                                   secureInput: secureInputActive(), config: services.loadSettings, offered: englishWords.words,
                                   dictionary: englishWords.dictionary, typedOnce: services.englishTypedOnce) else { return }
+        learned(typed, englishWords)
+        log.notice("learned an English word (\(typed.count) letters)")
+    }
+
+    /// Words typed in English mode that stood (`EnglishModeWords`: letters gone straight to the app, a space, a mark or ⏎
+    /// after them, no ⌫ on them), learned as letters put in as typed are, by the same rule and the same second time
+    /// (`EnglishWords.learnsTypedInEnglish`), never one with a capital first. English mode shows nothing of them: they come
+    /// up among pinyin's candidates.
+    private func learnTypedInEnglish(_ words: [String]) {
+        for typed in words {
+            guard let englishWords,
+                  EnglishWords.learnsTypedInEnglish(typed, in: FieldInfo(app: app, terminal: terminal, secure: field.secure),
+                                                    secureInput: secureInputActive(), config: services.loadSettings,
+                                                    offered: englishWords.words, dictionary: englishWords.dictionary,
+                                                    typedOnce: services.englishTypedOnce) else { continue }
+            learned(typed, englishWords)
+            log.notice("learned an English word typed in English mode (\(typed.count) letters)")
+        }
+    }
+
+    /// `typed` offered in this field at once, kept for every field (`SessionServices.learnEnglishWord`).
+    private func learned(_ typed: String, _ englishWords: EnglishWordsEngine) {
         englishWords.words.append(typed)
         services.learnEnglishWord(typed)
-        log.notice("learned an English word (\(typed.count) letters)")
+    }
+
+    /// Whether a key goes straight to the app as English typed (a tap of Shift: English mode), with nothing composed: what
+    /// `EnglishModeWords` follows. Only with English words among pinyin's candidates (`englishWords`).
+    private var typesEnglishStraightIn: Bool {
+        englishWords != nil && !composer.isComposing && composer.inputLanguage == .english
+    }
+
+    /// The key went to the app (`passedOn`), else the input method took it (what it put in was told as it went in):
+    /// followed for the words typed in English mode, `english` whether it was typed in English mode.
+    private func followEnglishTyping(_ key: KeyEvent, english: Bool, passedOn: Bool) {
+        guard englishWords != nil else { return }
+        let now = ProcessInfo.processInfo.systemUptime, since = pointerUsedSince(now: now)
+        learnTypedInEnglish(passedOn ? englishModeWords.typed(key, english: english, at: now, pointerUsedSince: since)
+                                     : englishModeWords.inputMethodTook(inserting: nil, at: now, pointerUsedSince: since))
+    }
+
+    /// The input method put `text` in (a commit, a result, a word picked): what `EnglishModeWords` follows.
+    private func followEnglishInserted(_ text: String) {
+        guard englishWords != nil else { return }
+        let now = ProcessInfo.processInfo.systemUptime
+        learnTypedInEnglish(englishModeWords.inputMethodTook(inserting: text, at: now, pointerUsedSince: pointerUsedSince(now: now)))
+    }
+
+    /// Whether the mouse or trackpad was used since a time, as of `now` (`ProcessInfo.systemUptime`): a click may have
+    /// moved the caret. Asked once or twice a word, not for each key.
+    private func pointerUsedSince(now: TimeInterval) -> (TimeInterval) -> Bool {
+        let pointer = services.pointerUsedWithin
+        return { pointer(now - $0) }
     }
 
     // MARK: - Settings
@@ -498,6 +554,7 @@ public final class InputSession {
                 perform([.notice(composer.messages.secureInputPaused)])  // in the session's interface language
             }
             lastTyped.forget()
+            englishModeWords = EnglishModeWords()  // nothing typed here is followed, nor the word before kept
             return false
         }
         secureNoticeShown = false
@@ -544,10 +601,12 @@ public final class InputSession {
             perform(composer.selectionMoved())
         }
         keyContext = context
+        let english = typesEnglishStraightIn
         let response = composer.handleKeyDown(key)
         keyContext = nil
         if composer.pendingAccent == nil { deadKeys.reset() }
         perform(response.effects)
+        followEnglishTyping(key, english: english, passedOn: !response.handled)
         let inserted = response.effects.compactMap { if case let .commit(text) = $0 { text } else { nil } }.last
         lastTyped.answered(key, passedOn: !response.handled, inserted: inserted, at: ProcessInfo.processInfo.systemUptime)
         return response.handled
@@ -642,16 +701,23 @@ public final class InputSession {
                 guard !composer.draftInPanel else { break }
                 let text = composer.markedText
                 emit(.marked(text, cursor: String(text.prefix(composer.markedCursor)).utf16.count, converted: composer.isLevelTwo))
-            case .inputLanguageChanged:
+            case let .inputLanguageChanged(language):
                 emit(.keyboardLayout)
+                if language != .english, englishWords != nil {
+                    // Out of English mode (a tap of Shift into Chinese): the word typed ends there.
+                    let now = ProcessInfo.processInfo.systemUptime
+                    learnTypedInEnglish(englishModeWords.leftEnglish(at: now, pointerUsedSince: pointerUsedSince(now: now)))
+                }
             case let .commit(text):
                 emit(.commit(text))
                 lastInserted = text
                 lastTyped.forget()  // a key that typed it says so (`key`)
+                followEnglishInserted(text)
             case let .commitAfterKey(text):
                 // Once this key is done: a terminal would send what is inserted during it in the key's place.
                 emit(.commitAfterKey(text))
                 lastTyped.forget()
+                followEnglishInserted(text)
             case let .replaceSelection(text, selection):
                 if let (rest, end) = SessionText.afterSelection(text, selection).map({ ($0.text, $0.at) }) {
                     emit(.replace(rest, range: end..<end))
@@ -662,10 +728,12 @@ public final class InputSession {
                 }
                 lastInserted = text
                 lastTyped.forget()
+                followEnglishInserted(text)
             case let .typeOut(text):
                 emit(.typeOut(text))
                 lastInserted = nil
                 lastTyped.forget()
+                followEnglishInserted(text)
             case let .moveCaret(back):
                 emit(.moveCaret(back: back, after: lastInserted))
             case let .startConversion(input, id):

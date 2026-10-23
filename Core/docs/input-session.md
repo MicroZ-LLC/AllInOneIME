@@ -153,7 +153,9 @@ The engine (merged in 0.6.6/integration) drives a `Composer` through `AllInOneIM
    `EnglishWordsEngine`), `learnEnglishWord` (`EnglishWords.learn` into the engine's `config.json`) and `englishTypedOnce` (one for
    all the engine's sessions, as the Mac's: a word is learned the second time, in any field; the engine does all three
    already, on the Composer: `EngineHost.levelOne` and `learn`, by the session's rule, `EnglishWords.learns`, with the
-   field's `terminal` its own: a terminal's program or window, PowerShell ISE), `runProgram` and `runPlugin`
+   field's `terminal` its own: a terminal's program or window, PowerShell ISE; the words typed in English mode the
+   session follows itself, from the keys it is handed and what it puts in: `EnglishModeWords`, learned by
+   `EnglishWords.learnsTypedInEnglish`, which the engine's Composer doesn't do yet), `runProgram` and `runPlugin`
    (this program as a child, `--run-js`, `--run-plugin`), `loadExtensions`, `searchFiles` (`SystemActions.search`),
    `runInTerminal`, `continueInAgent` and `launchInTerminal` (`SystemActions.launchInTerminal`), `noteDestination` (a
    folder or Notion; Apple Notes refuses), `addReminder`, `messageSender`, `startAgent`, `listAgents` and

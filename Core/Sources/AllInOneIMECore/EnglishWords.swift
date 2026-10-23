@@ -2,7 +2,7 @@ import Foundation
 
 /// English words among pinyin's candidates (「英文词」), besides those of rime-ice's own English dictionary
 /// (`EnglishDictionary`, its `melt_eng`, which librime offers itself): the user's (`Config.englishWords`, added in Settings
-/// or learned from letters they put in as typed), the Latin terms of their jargon list, and product and technical words
+/// or learned from letters they put in as typed, or typed in English mode), the Latin terms of their jargon list, and product and technical words
 /// rime-ice lacks (`curated`). `EnglishWordsEngine` puts those whose letters start with what is typed among librime's
 /// candidates: nothing is deployed again for a word added, and every shell on the core has them.
 public enum EnglishWords {
@@ -105,7 +105,7 @@ public enum EnglishWords {
     }
 
     /// Whether letters put in as typed in `field` (`EnglishWordsEngine.rawCommitted`) are learned, as every shell learns
-    /// them (`InputSession`, the Windows engine): the second time (`typedOnce`; the first time they are only remembered,
+    /// them (`InputSession`, the Windows engine; words typed in English mode too, `learnsTypedInEnglish`): the second time (`typedOnce`; the first time they are only remembered,
     /// in memory) when they may be a word (`learnable`, not one of `offered` already). Never during secure input
     /// (`secureInput`) or in a password field (`FieldInfo.secure`), in a terminal (a password prompt of sudo's or ssh's
     /// doesn't turn secure input on in every one), in a remote desktop, a virtual machine or an SSH client (`isRemote`),
@@ -115,9 +115,23 @@ public enum EnglishWords {
         guard !secureInput, !field.secure, !field.terminal, !isRemote(field.app) else { return false }
         let config = config()
         return config.learnsEnglishWords && config.allowsAI(in: field.app)
+            && !dictionary.contains(typed)  // most words typed in English mode: told before the words offered are gone through
             && learnable(typed, known: Set(offered.map(key)), dictionary: dictionary, hidden: config.redaction.customWords,
                          fuzzy: config.fuzzyPinyin)
             && typedOnce.again(typed)
+    }
+
+    /// Whether a word typed in English mode (`EnglishModeWords`: letters that went straight to the app, between a space or
+    /// a mark and a space, a mark or ⏎) is learned: by the rule letters put in as typed while typing pinyin are (`learns`:
+    /// the second time, the first only remembered; never during secure input, in a password field, a terminal, a remote
+    /// desktop, a virtual machine or an SSH client, an app with no AI, with learning off; never pinyin, a word rime-ice or
+    /// the user has, what looks like a secret or holds a hidden word), and never one with a capital first, which in prose
+    /// is a name (a person's, a place's) or a sentence's first word: not even remembered.
+    public static func learnsTypedInEnglish(_ typed: String, in field: FieldInfo, secureInput: Bool, config: () -> Config,
+                                            offered: [String], dictionary: EnglishDictionary, typedOnce: TypedOnce) -> Bool {
+        guard let first = typed.first, !first.isUppercase else { return false }
+        return learns(typed, in: field, secureInput: secureInput, config: config, offered: offered, dictionary: dictionary,
+                      typedOnce: typedOnce)
     }
 
     /// What is never learned or taken from the jargon list: what hiding sensitive information would hide from the AI

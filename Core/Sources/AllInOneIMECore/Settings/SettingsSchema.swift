@@ -296,8 +296,8 @@ struct SettingsSchema {
         let store = store
         add(toggle("learnsEnglishWords", tr("学习打出的英文词", "Learn the English words you type"),
                    terms.keyStyle == .symbols
-                       ? tr("打拼音时把同样的字母原样上屏两次（比如打 bedrock 按 ⏎，再来一次），这个词以后就出现在候选里。密码框、终端、远程桌面和虚拟机、关了 AI 的 App 里不学，像密钥、号码的也不学。",
-                            "Put the same letters in as typed twice while typing pinyin (bedrock and ⏎, then again) and the word comes up among the candidates from then on. Never in password fields, terminals, remote desktops and virtual machines, or apps with AI off, nor anything that looks like a key or a number.")
+                       ? tr("打拼音时把同样的字母原样上屏两次（比如打 bedrock 按 ⏎，再来一次），或者在英文模式下把同一个词打两次，这个词以后就出现在拼音的候选里（英文模式下照常打字，什么都不显示）。密码框、终端、远程桌面和虚拟机、关了 AI 的 App 里不学，像密钥、号码的不学，英文模式下大写字母开头的词也不学。",
+                            "Put the same letters in as typed twice while typing pinyin (bedrock and ⏎, then again), or type the same word twice in English mode, and it comes up among pinyin's candidates from then on (English mode itself shows nothing). Never in password fields, terminals, remote desktops and virtual machines, or apps with AI off, nor anything that looks like a key or a number, nor a word typed in English mode with a capital first.")
                        : tr("打拼音时把同样的字母原样上屏两次（比如打 bedrock 按 Enter，再来一次），这个词以后就出现在候选里。密码框、终端、远程桌面和虚拟机、关了 AI 的应用里不学，像密钥、号码的也不学。",
                             "Put the same letters in as typed twice while typing pinyin (bedrock and Enter, then again) and the word comes up among the candidates from then on. Never in password fields, terminals, remote desktops and virtual machines, or apps with AI off, nor anything that looks like a key or a number."),
                    config.learnsEnglishWords), to: &fields) { store.config.learnsEnglishWords = Self.bool($0) }
