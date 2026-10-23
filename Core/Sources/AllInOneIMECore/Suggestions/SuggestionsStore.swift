@@ -333,6 +333,12 @@ public final class SuggestionsStore: @unchecked Sendable {
         return id
     }
 
+    /// When `key`'s last load started (nil: none this launch). A session starts a load as it handles an event, or not
+    /// then: the tests see at once that it didn't.
+    func lastLoadStarted(_ key: CompletionSourceKey) -> Date? {
+        state.withLock { $0.sources[key]?.attemptAt }
+    }
+
     /// When a source of `keys` may be due next after `now` (a refresh, a back-off or a pause ending), for a timer: nil,
     /// none is.
     func nextDue(_ keys: [(key: CompletionSourceKey, refresh: TimeInterval)], now: Date) -> Date? {
