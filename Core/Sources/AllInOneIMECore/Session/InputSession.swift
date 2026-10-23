@@ -717,7 +717,8 @@ public final class InputSession {
 
     // MARK: - Effects
 
-    private func perform(_ effects: [Composer.Effect]) {
+    /// Does what the composer answered (and what autocomplete's Tab puts in, as a commit of the input method's own).
+    func perform(_ effects: [Composer.Effect]) {
         defer {
             wakePageIfAgent()
             if !composer.isComposing { replyWithPage = nil }  // the draft is done: the page's text goes with it

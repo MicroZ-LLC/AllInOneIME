@@ -465,6 +465,28 @@ struct AutocompleteTests {
         }
     }
 
+    /// What Tab puts in goes in as the input method's own commits do: the letters typed before it in English mode ("zorbl"
+    /// of "zorbling") are the start of a word, not one, and never learned as one (`EnglishModeWords`).
+    @Test func whatTabPutsInEndsNoWordTypedInEnglishMode() {
+        withInterfaceLanguage("en") {
+            let learned = Locked(initialState: [String]())
+            let r = rig(model: ContinuingModel { _ in "ing went well. Then" }) {
+                $0.englishDictionary = { EnglishDictionary(["hello", "world", "it"]) }
+                $0.learnEnglishWord = { word in learned.withLock { $0.append(word) } }
+            }
+            for _ in 0..<2 {
+                r.host.type(" zorbl")
+                r.pauseEnds(expecting: "x")
+                #expect(r.host.ghost == "ing went well.")
+                r.clock.advance(0.5)
+                #expect(r.host.press(FakeHost.tab))
+                r.host.type(" ok ")
+            }
+            #expect(r.host.document == " zorbling went well. ok  zorbling went well. ok ")
+            #expect(learned.withLock { $0 }.isEmpty)
+        }
+    }
+
     @Test func aTabRightAsItAppearsOrWithAModifierIsTheApps() {
         withInterfaceLanguage("en") {
             let r = rig()

@@ -118,13 +118,14 @@ extension InputSession {
                 autocompleteEnded(.dismissed)
                 return nil
             }
-            emit(.commit(suggestion.text))
+            // As the input method's own commits go in: what was typed before it in English mode is the start of a word,
+            // never one (`EnglishModeWords`).
+            perform([.commit(suggestion.text)])
             autocompleteEnded(.accepted)
             log.notice("autocomplete: suggestion taken (\(suggestion.text.count) characters)")
             autocomplete.typed.add(suggestion.text)
             autocomplete.typedAt = now
             autocomplete.acceptedAt = now
-            lastTyped.forget()
             // What it put in is a commit like any: a pause after it asks for what follows.
             autocompleteSchedulePause()
             return true
