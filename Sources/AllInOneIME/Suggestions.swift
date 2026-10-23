@@ -112,12 +112,7 @@ enum SuggestionsShared {
     /// texts from the config, the passwords from the keychain, as extensions' are.
     nonisolated static func pluginPreferences(_ plugin: InstalledPlugin) -> [String: String] {
         let read = { MainActor.assumeIsolated { LiveConfig.current.pluginPreferences[plugin.name] ?? [:] } }
-        let texts = Thread.isMainThread ? read() : DispatchQueue.main.sync(execute: read)
-        var values = texts
-        for preference in plugin.manifest.preferences where preference.kind == .password {
-            values[preference.name] = APIKeys.keychainKey(account: PluginPreference.keychainAccount(plugin: plugin.name, name: preference.name))
-        }
-        return values
+        return PluginPreference.stored(for: plugin, texts: Thread.isMainThread ? read() : DispatchQueue.main.sync(execute: read))
     }
 }
 

@@ -604,6 +604,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         let language: Language = InterfaceLanguage.isChinese(settings.interfaceLanguage(config)) ? .chinese : .english
         let terminal = ComposerSession.isTerminal(session.field.process)
         let (improveTranslates, trigger) = (config.improveTranslates, config.commandTrigger)
+        let pluginTexts = config.pluginPreferences
         func logged(_ command: Command) -> String { command.custom == nil || command.plugin != nil ? command.name : "custom" }
         log("session \(session.sid): request \(id) (\(input.count) characters\(command.map { ", @\(logged($0))" } ?? "")"
             + (plan.map { ", \($0.inner.count) inside" } ?? "") + ")")
@@ -614,7 +615,10 @@ public final class EngineHost: WireHost, @unchecked Sendable {
             if let command, command.kind == .link { return LinkTemplate.passThrough(input) }
             if command?.kind == .message { return CommandPipeline.unchanged(input) }
             if let command, command.kind == .run, let plugin = command.plugin {
-                return PluginRunner.run(plugin, input: input, language: language, executable: executable)
+                // Its preferences (`ctx.preferences`): the texts as the settings had them, the passwords read once it runs.
+                return PluginRunner.run(plugin, input: input, language: language,
+                                        preferences: { PluginPreference.stored(for: plugin, texts: pluginTexts[plugin.name] ?? [:]) },
+                                        executable: executable)
             }
             if let command, command.kind == .run, let custom = command.custom { return CommandRunner.run(custom, input: input) }
             if command == nil || command?.kind == .convert {

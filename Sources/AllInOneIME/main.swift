@@ -424,7 +424,7 @@ if arguments.first == "--run-plugin" {
     if let function = PluginHost.completionFunction(Array(arguments.dropFirst())) {
         exit(PluginHost.runCompletion(directory: invocation.directory, function: function))
     }
-    exit(PluginHost.run(directory: invocation.directory, language: invocation.language))
+    exit(PluginHost.run(directory: invocation.directory, language: invocation.language, preferences: invocation.preferences))
 }
 // The same for `@js` code (`InlineCode`): the code on standard input, what it prints on standard output.
 if arguments.first == InlineCode.javaScriptHostOption {

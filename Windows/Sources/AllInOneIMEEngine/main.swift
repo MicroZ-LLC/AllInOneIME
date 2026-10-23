@@ -452,7 +452,7 @@ if arguments.first == "--run-plugin" {
     if let function = PluginHost.completionFunction(Array(arguments.dropFirst())) {
         exit(PluginHost.runCompletion(directory: invocation.directory, function: function))
     }
-    exit(PluginHost.run(directory: invocation.directory, language: invocation.language))
+    exit(PluginHost.run(directory: invocation.directory, language: invocation.language, preferences: invocation.preferences))
 }
 // And the process of each console window it opens, which stays open after the program in it ends.
 if arguments.first == ConsoleHold.option {

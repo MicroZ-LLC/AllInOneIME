@@ -49,6 +49,30 @@ extension CompletionSourceApproval {
 extension PluginPreference {
     /// A password preference's item in the secret store (as extensions' are): "plugin.<plugin>.<name>".
     public static func keychainAccount(plugin: String, name: String) -> String { "plugin.\(plugin).\(name)" }
+
+    /// `plugin`'s preferences as the user set them: `texts` (from the settings, `Config.pluginPreferences`), and its
+    /// passwords from the secret store. Not on a thread a key is handled on: the secret store may take a while.
+    public static func stored(for plugin: InstalledPlugin, texts: [String: String]) -> [String: String] {
+        var values = texts
+        for preference in plugin.manifest.preferences where preference.kind == .password {
+            values[preference.name] = APIKeys.keychainKey(account: keychainAccount(plugin: plugin.name, name: preference.name))
+        }
+        return values
+    }
+
+    /// What `plugin`'s script gets (`ctx.preferences`): those `set` (not empty), else the manifest's defaults; only those
+    /// it declares.
+    public static func values(for plugin: InstalledPlugin, set: [String: String]) -> [String: String] {
+        var values: [String: String] = [:]
+        for preference in plugin.manifest.preferences {
+            if let value = set[preference.name], !value.isEmpty {
+                values[preference.name] = value
+            } else if let value = preference.defaultValue {
+                values[preference.name] = value
+            }
+        }
+        return values
+    }
 }
 
 extension CompletionSource {

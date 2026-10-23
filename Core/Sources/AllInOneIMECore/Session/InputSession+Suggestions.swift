@@ -619,22 +619,10 @@ extension InputSession {
     }
 
     /// What reads `plugin`'s preferences for its script (off the session's thread: passwords come from the secret store):
-    /// those the user set, else the manifest's defaults; only those it declares.
+    /// those the user set, else the manifest's defaults; only those it declares (`PluginPreference.values`).
     func completionPreferences(_ plugin: InstalledPlugin) -> @Sendable () -> [String: String] {
         let read = services.suggestions.preferences
-        let declared = plugin.manifest.preferences
-        return {
-            let set = read(plugin)
-            var values: [String: String] = [:]
-            for preference in declared {
-                if let value = set[preference.name], !value.isEmpty {
-                    values[preference.name] = value
-                } else if let value = preference.defaultValue {
-                    values[preference.name] = value
-                }
-            }
-            return values
-        }
+        return { PluginPreference.values(for: plugin, set: read(plugin)) }
     }
 
     /// Why a script's call failed, as Settings says it.

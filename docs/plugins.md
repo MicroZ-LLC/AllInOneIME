@@ -105,6 +105,9 @@ fetch([url, …], {headers}) → [{status, ok, text, json()} | {ok: false, error
   (config `uiLanguage`, the settings window's "Interface language", else the system's), so a plugin can answer
   in it. Older apps call `run(input)` alone (and an unknown language leaves `{}`), so don't rely on it: read
   it as `(context && context.language) || "en"`.
+- `context.preferences` (from 0.6.7), for a plugin that declares `preferences` (see Completions below): its settings as
+  `load` and `query` get them, the defaults filled in, passwords too (on standard input, never on a command line:
+  `AllInOneIME --run-plugin <dir> --with-preferences` reads `{ "input", "preferences" }` there).
 - Nothing else: not the app being typed in, the field, or anything about the user.
 
 ## The library (milestone 2, done)

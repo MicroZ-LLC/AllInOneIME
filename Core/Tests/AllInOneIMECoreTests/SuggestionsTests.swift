@@ -226,6 +226,80 @@ struct SuggestionsTests {
         #expect(throws: PluginScriptError.self) {
             try PluginScript.evaluateCompletion(source: script, function: .load, context: context, fetcher: StubFetcher(), engine: engine.engine)
         }
+        // Words after "#" ("#general" in a chat) could never be a row ("#1234" is a match): nothing asked, nothing sent.
+        let asked = fetcher.asked.count
+        for words in ["general", "fix", "12a"] {
+            let none = try PluginScript.evaluateCompletion(source: script, function: .query, text: words, context: context, fetcher: fetcher,
+                                                           engine: engine.engine)
+            #expect(try CompletionOutput.read(Data(none.utf8)).get().items.isEmpty, "\(engine.name) \(words): \(none)")
+        }
+        #expect(fetcher.asked.count == asked, "\(engine.name): \(fetcher.asked.dropFirst(asked).map(\.url))")
+    }
+
+    /// `@github <words>` searches the titles of the repositories the user set, with their token, as `load` and `query`
+    /// do (`run` gets the plugin's preferences in its context too); `@github 12` looks that issue up.
+    @Test(.enabled(if: Available.javaScript), arguments: TestEngine.all)
+    func theGitHubCommandSearchesTheRepositoriesSet(_ engine: TestEngine) throws {
+        let script = try String(contentsOf: Self.github.appendingPathComponent("main.js"), encoding: .utf8)
+        let search = "https://api.github.com/search/issues?per_page=10&q=repo%3Aocto-org%2Focto-repo%20in%3Atitle%20login"
+        let fetcher = StubFetcher([
+            search: (200, #"{"items": [{"number": 7, "title": "Login fails", "state": "open", "repository_url": "https://api.github.com/repos/octo-org/octo-repo", "html_url": "https://github.com/octo-org/octo-repo/issues/7"}]}"#),
+            "https://api.github.com/repos/octo-org/octo-repo/issues/12": (200, String(Self.issuesJSON([(12, "Panel position")]).dropFirst().dropLast())),
+        ])
+        let preferences = ["repos": "octo-org/octo-repo", "token": "t0ken"]
+        let found = try PluginScript.evaluate(source: script, input: "login", language: .english, preferences: preferences, fetcher: fetcher,
+                                              engine: engine.engine)
+        #expect(found == "#7 Login fails  https://github.com/octo-org/octo-repo/issues/7", "\(engine.name): \(found)")
+        #expect(fetcher.asked.first?.headers["Authorization"] == "Bearer t0ken", "\(engine.name): \(fetcher.asked)")
+        let issue = try PluginScript.evaluate(source: script, input: "#12", language: .english, preferences: preferences, fetcher: fetcher,
+                                              engine: engine.engine)
+        #expect(issue == "#12 Panel position  https://github.com/octo-org/octo-repo/issues/12", "\(engine.name): \(issue)")
+    }
+
+    /// A script plugin with preferences is told so after its folder (`--with-preferences`) and gets the text and its
+    /// preferences as JSON on standard input, never on the command line; one without is run as before (the text alone).
+    @Test func aPluginWithPreferencesGetsThemOnStandardInput() throws {
+        let manifest = try JSONDecoder().decode(PluginManifest.self, from: Data(contentsOf: Self.github.appendingPathComponent("plugin.json")))
+        let github = InstalledPlugin(manifest: manifest, directory: Self.github, isLocal: true)
+        let command = PluginRunner.command(for: github, executable: "/Apps/AllInOneIME", language: .english)
+        #expect(command.argv == ["/Apps/AllInOneIME", "--run-plugin", Self.github.path, "--language", "en", "--with-preferences"])
+        let input = PluginRunner.standardInput("login", preferences: ["repos": "octo-org/octo-repo", "token": "t0ken"])
+        #expect(try JSONDecoder().decode(PluginHost.RunInput.self, from: Data(input.utf8))
+                == PluginHost.RunInput(input: "login", preferences: ["repos": "octo-org/octo-repo", "token": "t0ken"]))
+        #expect(PluginHost.invocation([Self.github.path, "--language", "en", "--with-preferences"])
+                == PluginHost.Invocation(directory: Self.github.path, language: .english, preferences: true))
+        #expect(PluginHost.invocation([Self.github.path, "--language", "en"])?.preferences == false)
+        // What a script gets: those set, else the manifest's defaults; only those it declares.
+        #expect(PluginPreference.values(for: github, set: ["token": "t0ken", "other": "x"])
+                == ["repos": "MicroZ-LLC/AllInOneIME", "token": "t0ken"])
+        #expect(PluginPreference.values(for: github, set: ["repos": "", "token": ""]) == ["repos": "MicroZ-LLC/AllInOneIME"])
+    }
+
+    /// The app's own child process (`--run-plugin <folder> --with-preferences`) reads them back: `run(input, ctx)` gets
+    /// `ctx.preferences`, the defaults filled in.
+    @Test(.enabled(if: PlugLangCLI.available, "build the app first: swift build at the repo root, or set ALLINONEIME_TEST_BINARY"))
+    func theChildProcessGivesRunThePreferences() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("suggestions-run-\(UUID().uuidString)/probe", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: folder.deletingLastPathComponent()) }
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try Data(#"""
+            { "name": "probe", "version": "1.0.0", "type": "script", "script": "main.js",
+              "preferences": [ { "name": "repos", "type": "text", "title": "Repositories", "default": "octo-org/octo-repo" },
+                               { "name": "token", "type": "password", "title": "Token" } ] }
+            """#.utf8).write(to: folder.appendingPathComponent("plugin.json"))
+        try Data("""
+            function run(input, ctx) {
+              const p = ctx.preferences;
+              return [input, ctx.language].concat(Object.keys(p).sort().map(k => k + "=" + p[k])).join(" ");
+            }
+            """.utf8).write(to: folder.appendingPathComponent("main.js"))
+        let plugin = try #require(PluginStore.load(from: folder.deletingLastPathComponent()).plugins.first)
+        var text = ""
+        for try await update in PluginRunner.run(plugin, input: "hi", language: .english, preferences: { ["token": "t0ken"] },
+                                                 executable: try #require(PlugLangCLI.binary)) where update.isFinal {
+            text = update.result.versions.first?.text ?? ""
+        }
+        #expect(text == "hi en repos=octo-org/octo-repo token=t0ken", "\(text)")
     }
 
     @Test(.enabled(if: Available.javaScript), arguments: TestEngine.all)

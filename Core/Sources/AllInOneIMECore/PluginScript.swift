@@ -72,8 +72,16 @@ public enum PluginScript {
         return ["language": language.rawValue]
     }
 
-    public static func evaluate(source: String, input: String, language: Language? = nil, fetcher: PluginFetcher,
-                                engine: any ScriptEngine = Platform.current.scripts) throws -> String {
+    /// `context(language:)`, and a plugin's `preferences` (those it declares, passwords too: for the script only) where
+    /// it has some, as `load` and `query` get them.
+    static func context(language: Language?, preferences: [String: String]?) -> [String: Any] {
+        var context: [String: Any] = context(language: language)
+        if let preferences { context["preferences"] = preferences }
+        return context
+    }
+
+    public static func evaluate(source: String, input: String, language: Language? = nil, preferences: [String: String]? = nil,
+                                fetcher: PluginFetcher, engine: any ScriptEngine = Platform.current.scripts) throws -> String {
         guard let context = engine.makeContext() else { throw PluginScriptError.failed("JavaScript is not available") }
         var thrown: String? { context.exception.map { $0.toString() ?? "error" } }
         let native = context.function { arguments in
@@ -93,7 +101,7 @@ public enum PluginScript {
             throw PluginScriptError.noRunFunction
         }
         // `run(input)` plugins work as before: JavaScript ignores the extra argument.
-        let value = run.call([input, Self.context(language: language)])
+        let value = run.call([input, Self.context(language: language, preferences: preferences)])
         if let thrown { throw PluginScriptError.failed(Self.clean(thrown)) }
         guard let value, value.isString, let text = value.toString() else {
             throw PluginScriptError.failed("run(input) must return text")
