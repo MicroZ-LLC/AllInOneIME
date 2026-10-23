@@ -233,7 +233,9 @@ enum CodingRows {
                 let (text, caretBack) = expand(snippet.body)
                 guard text.hasPrefix(identifier), snippets.insert(snippet.trigger + "\u{0}" + snippet.body).inserted else { continue }
                 let code = appClass == .codeEditor
-                rows.append(SuggestionRow(text: snippet.trigger, comment: (snippet.title ?? snippetWord) + " · " + pack.title,
+                // Its title where it says more than its trigger, that it's a snippet, its language.
+                let title = snippet.title.flatMap { $0 == snippet.trigger ? nil : $0 }
+                rows.append(SuggestionRow(text: snippet.trigger, comment: ([title, snippetWord, pack.title].compactMap { $0 }).joined(separator: " · "),
                                           insertion: code ? snippet.trigger : text, caretBack: code ? 0 : caretBack,
                                           completion: snippet.trigger, typed: identifier,
                                           pick: SuggestionPick(plugin: "", source: pack.language, match: "snippet:" + snippet.trigger),
