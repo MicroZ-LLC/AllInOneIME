@@ -872,12 +872,12 @@ extension Converter {
 
 extension AIConfig {
     /// Autocomplete turned on or off in a sentence (`Key.autocomplete`). On with a cloud provider picked, the row says
-    /// that it uses the model on this Mac until the user agrees, in the input method, to send text to the provider.
+    /// that it uses the model on this Mac until the user allows the provider, in the input menu.
     static func checkAutocomplete(_ value: JSONValue, in config: Config, text: Text) -> Row? {
         let (label, path) = (text.autocompleteLabel, Key.autocomplete.path)
         guard case let .bool(on) = value else { return Row(key: path, label: label, status: .refused(text.notValid)) }
         guard on != config.autocomplete else { return nil }
-        let onDevice = on && Autocomplete.asksForCloud(config) ? text.autocompleteOnDevice : ""
+        let onDevice = on && Autocomplete.asksForCloud(config) ? text.autocompleteOnDevice(config.provider) : ""
         return Row(key: path, label: label, old: text.onOff(config.autocomplete), new: text.onOff(on) + onDevice, status: .change,
                    edit: .autocomplete(on))
     }
@@ -885,10 +885,12 @@ extension AIConfig {
 
 extension AIConfig.Text {
     public var autocompleteLabel: String { tr("续写", "Autocomplete") }
-    /// After "Autocomplete: off → on" with a cloud provider picked.
-    var autocompleteOnDevice: String {
-        tr("（先用本机模型；要用所选的 AI 服务，在输入法菜单里打开「续写」时同意）",
-           " (it uses the model on this Mac; to use your AI provider, agree when you turn on Autocomplete in the input menu)")
+    /// After "Autocomplete: off → on" with a cloud provider picked (`provider`): where to allow it, the input menu's item
+    /// for it (`AutocompleteSwitch`, the Mac's).
+    func autocompleteOnDevice(_ provider: Provider) -> String {
+        let name = provider.displayName
+        return tr("（先用本机模型；要用 \(name)，在输入法菜单里选「续写用 \(name)」）",
+                  " (it uses the model on this Mac; to use \(name), choose “Autocomplete with \(name)” in the input menu)")
     }
 }
 

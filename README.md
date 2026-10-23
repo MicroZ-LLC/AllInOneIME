@@ -728,7 +728,9 @@ or tell Settings → Assistant "turn on autocomplete"; it stays on until you tur
   provider picked in Settings (Bedrock, Claude API, Gemini, OpenAI-compatible, AllInOneIME Cloud), turning Autocomplete
   on asks first, once: "Each pause sends up to 1,500 characters before the caret (and up to 200 after it) to …". Answer
   "Use …" or "On This Mac Only"; the input menu's "Autocomplete with …" changes it later (`autocompleteCloud`, never
-  synced). Requests are cheap but frequent: a heavy day can be 1,000–2,000 of them.
+  synced). Requests are cheap but frequent: a heavy day can be 1,000–2,000 of them. While it's on, the input menu's
+  item and the menu bar panel say which model it uses: "Autocomplete (Apple Intelligence on this Mac)", or the
+  provider's name once you allowed it.
 - **Each app:** in an app where none of the last 30 suggestions was taken it stops by itself and says so once; Settings →
   Apps (or the input menu's This App) sets it to always or never there. Turning Autocomplete off and on again starts
   every app over.

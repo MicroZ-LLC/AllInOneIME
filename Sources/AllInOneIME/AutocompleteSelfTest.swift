@@ -269,9 +269,15 @@ extension SelfTest {
         check(menuItem(toggle)?.state == .on && menuItem(cloud)?.title == tr("续写用 Amazon Bedrock", "Autocomplete with Amazon Bedrock")
               && menuItem(cloud)?.state == .off,
               "the menu: 续写 checked, 续写用 Amazon Bedrock unchecked (\(menuItem(cloud)?.title ?? "none"))")
+        let onDevice = tr("本机 Apple Intelligence", "Apple Intelligence on this Mac")
+            + (AppleModel.system.availability == .available ? "" : tr("，不可用", ", not available"))
+        check(menuItem(toggle)?.title == tr("续写（\(onDevice)）", "Autocomplete (\(onDevice))"),
+              "续写 says the model it uses: the one on this Mac (\(menuItem(toggle)?.title ?? "none"))")
         answer = true
         controller.toggleAutocompleteCloud(nil)
         check((try? Config.load())?.autocompleteCloud == true && menuItem(cloud)?.state == .on, "agreed: it may use Bedrock")
+        check(menuItem(toggle)?.title == tr("续写（Amazon Bedrock）", "Autocomplete (Amazon Bedrock)"),
+              "续写 says the model it uses: Bedrock now (\(menuItem(toggle)?.title ?? "none"))")
         controller.toggleAutocompleteCloud(nil)
         check((try? Config.load())?.autocompleteCloud == false && asked.count == 3, "taken back without asking")
         controller.toggleAutocomplete(nil)
@@ -288,7 +294,8 @@ extension SelfTest {
         let screen = NSScreen.screens.first?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1440, height: 875)
         panel.show(below: CGRect(x: screen.maxX - 200, y: screen.maxY, width: 22, height: 24))
         panel.setAutocomplete(true)
-        check(panel.autocomplete && stand.autocomplete, "the menu bar panel's switch turns it on")
+        check(panel.autocomplete && stand.autocomplete && panel.autocompleteModel == tr("本机 Apple Intelligence", "Apple Intelligence on this Mac"),
+              "the menu bar panel's switch turns it on, and says the model (\(panel.autocompleteModel ?? "none"))")
         panel.closeDropDown()
 
         section("autocomplete: a harness window, a stand-in model", needs: .composing)

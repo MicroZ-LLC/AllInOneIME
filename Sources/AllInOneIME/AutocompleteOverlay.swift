@@ -210,6 +210,18 @@ enum AutocompleteSwitch {
         }
     }
 
+    /// The model it uses with `config` (`Autocomplete.route`), for the input menu and the menu bar panel: Apple
+    /// Intelligence on this Mac (and that it isn't available, where it isn't), or the cloud provider agreed to.
+    static func modelName(_ config: Config) -> String {
+        switch Autocomplete.route(config) {
+        case let .cloud(provider):
+            return provider.displayName
+        case .onDevice:
+            let name = tr("本机 Apple Intelligence", "Apple Intelligence on this Mac")
+            return AppleModel.system.availability == .available ? name : name + tr("，不可用", ", not available")
+        }
+    }
+
     /// Whether the model it would ask can answer: a cloud provider agreed to, or the on-device model available.
     static func modelReady(_ config: Config) -> Bool {
         Autocomplete.route(config) != .onDevice || AppleModel.system.availability == .available

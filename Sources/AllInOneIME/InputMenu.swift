@@ -174,14 +174,16 @@ extension AllInOneIMEInputController {
 
 
     /// `menu` (`makeMenu`'s) with autocomplete's switch after "@improve Also Translates": one switch for every app (an
-    /// app's own choice is in "This App"), what was counted of it on the item's tooltip; with a cloud provider picked,
-    /// whether it may send text there.
+    /// app's own choice is in "This App"), on, the model it uses in its title, what was counted of it on the item's
+    /// tooltip; with a cloud provider picked, whether it may send text there.
     @MainActor
     func addingAutocomplete(to menu: NSMenu) -> NSMenu {
         let config = LiveConfig.currentIfValid
         let current = config ?? .default
         var items: [NSMenuItem] = []
-        let autocomplete = NSMenuItem(title: tr("续写", "Autocomplete"), action: #selector(toggleAutocomplete(_:)), keyEquivalent: "")
+        let model = AutocompleteSwitch.modelName(current)
+        let title = current.autocomplete ? tr("续写（\(model)）", "Autocomplete (\(model))") : tr("续写", "Autocomplete")
+        let autocomplete = NSMenuItem(title: title, action: #selector(toggleAutocomplete(_:)), keyEquivalent: "")
         autocomplete.target = self
         autocomplete.state = current.autocomplete ? .on : .off
         autocomplete.isEnabled = config != nil  // don't overwrite a config file that failed to parse

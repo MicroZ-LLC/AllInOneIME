@@ -274,7 +274,7 @@ struct AutocompleteTests {
         let on = try AIConfig.parse(#"{"changes": [{"key": "autocomplete", "value": true}]}"#)
         var config = Config.default  // Bedrock, not agreed to
         let rows = AIConfig.check(on, config: config, environment: env).rows
-        #expect(rows.map { $0.text(chinese: false) } == ["Autocomplete: off → on (it uses the model on this Mac; to use your AI provider, agree when you turn on Autocomplete in the input menu)"])
+        #expect(rows.map { $0.text(chinese: false) } == ["Autocomplete: off → on (it uses the model on this Mac; to use Amazon Bedrock, choose “Autocomplete with Amazon Bedrock” in the input menu)"])
         let undo = AIConfig.apply(rows.compactMap { $0.edit }, to: &config)
         #expect(config.autocomplete && config.autocompleteCloud == nil && undo == [.autocomplete(false)])
         config.provider = .apple
