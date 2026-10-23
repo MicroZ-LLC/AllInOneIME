@@ -1,7 +1,7 @@
 {
  "language": "javascript",
  "title": "JavaScript",
- "version": "1.0.0",
+ "version": "1.0.1",
  "keywords": [
   "async",
   "await",
@@ -76,7 +76,7 @@
    "title": "function"
   },
   {
-   "trigger": "arrow",
+   "trigger": "const",
    "body": "const ${1:name} = (${2}) => {\n  $0\n};",
    "title": "arrow function"
   },

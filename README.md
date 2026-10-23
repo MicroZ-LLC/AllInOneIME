@@ -765,8 +765,9 @@ one in. They take the place of [autocomplete](#autocomplete-new)'s gray text whi
   until then (the menu bar icon shows `{}`), each text field starts in English (a tap of Shift still switches), and from
   two letters on the rows offer keywords and snippets of the coding languages you installed and the words already in the
   field (`de` → `def`, `define_task`); a snippet goes in with its line breaks, the caret where it belongs. No AI writes
-  code: autocomplete is off in coding mode. Install languages in Settings → **Coding Languages** (Python, JavaScript…),
-  downloaded from the language library and checked against its signed list, kept apart from the input languages.
+  code: autocomplete is off in coding mode. Install languages in Settings → **Coding Languages** (Python, Java, Go,
+  TypeScript, JavaScript, C, C++), downloaded from the language library and checked against its signed list, kept apart
+  from the input languages.
 - **Privacy:** a plugin's script never sees what you type, the app or the field, only, for a lookup you turned on, what
   follows its prefix (sent to the hosts it lists). The lists, what you type and the lookups are never logged, sent to the
   AI, learned as English words or synced; the lists are cached in `~/Library/Caches/AllInOneIME/suggestions/` (readable
