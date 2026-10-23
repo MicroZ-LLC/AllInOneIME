@@ -15,7 +15,8 @@ import Foundation
 /// read once it's over (`SessionOutput.readField`), the request runs in a slot of its own that every key stops, and the
 /// suggestion is an output (`SessionOutput.ghost`) the shell draws after the caret.
 public enum Autocomplete {
-    /// What goes with a request: the text before the caret (its last characters) and after it (`following`).
+    /// What a request is made from: the text before the caret (its last characters; of them it sends the caret's line
+    /// and the sentences before it in its language, `sent`) and after it (`following`).
     public static let beforeLimit = 1500
     public static let afterLimit = 200
     /// The most a suggestion is: about a dozen words, or 25 characters of Chinese or Japanese, to the end of a sentence.
@@ -84,7 +85,8 @@ public enum Autocomplete {
         }
 
         /// Where the text goes with `config`, said where it's turned on: to the provider and its model, what is before
-        /// the caret (`beforeLimit`) and after it (`afterLimit`), the hidden words removed where hiding is on
+        /// the caret (its line and the sentences before it in its language, `sent`) and after it (`afterLimit`), the
+        /// hidden words removed where hiding is on
         /// (`Redaction`, as for the @ commands). With AllInOneIME Cloud picked, that it uses Apple Intelligence, and what
         /// is faster. Nil with Apple Intelligence picked: nothing leaves this Mac.
         public func destination(_ config: Config) -> String? {
@@ -92,10 +94,10 @@ public enum Autocomplete {
             case .cloud:
                 let name = model(config)
                 return config.redaction.enabled
-                    ? words.tr("每次停顿会把光标前最多 1,500 字（和光标后 200 字）发给 \(name)，先去掉隐藏词",
-                               "Each pause sends up to 1,500 characters before the caret (and 200 after) to \(name), hidden words removed")
-                    : words.tr("每次停顿会把光标前最多 1,500 字（和光标后 200 字）发给 \(name)",
-                               "Each pause sends up to 1,500 characters before the caret (and 200 after) to \(name)")
+                    ? words.tr("每次停顿会把光标所在行和它前面同一语言的最多 200 字（和光标后 200 字）发给 \(name)，先去掉隐藏词",
+                               "Each pause sends the caret's line and up to 200 characters before it in the same language (and 200 after) to \(name), hidden words removed")
+                    : words.tr("每次停顿会把光标所在行和它前面同一语言的最多 200 字（和光标后 200 字）发给 \(name)",
+                               "Each pause sends the caret's line and up to 200 characters before it in the same language (and 200 after) to \(name)")
             case .onDevice:
                 guard config.provider == .hosted else { return nil }
                 return words.tr("用的是 Apple Intelligence；设置自己的 AI 服务，灰字来得更快",
@@ -150,8 +152,9 @@ public enum Autocomplete {
 
     // MARK: What is sent
 
-    /// What a request continues: the text before the caret, the last `beforeLimit` characters of it, and what of the text
-    /// after it a model needs so as not to write it again (`following`).
+    /// What a request continues: the text before the caret, the last `beforeLimit` characters of it (what the answer is
+    /// checked against, `trimmed`; the request sends its line and the sentences before it in its language, `sent`), and
+    /// what of the text after it a model needs so as not to write it again (`following`).
     public struct Context: Equatable, Sendable {
         public var before: String
         public var after: String
@@ -1159,8 +1162,9 @@ extension Prompt {
                                inferenceConfig: .init(maxTokens: Autocomplete.maxTokens, temperature: 0.2))
     }
 
+    /// The request's text: what is sent of the text before the caret (`Autocomplete.sent`), and after it.
     static func autocompleteMessage(_ context: Autocomplete.Context) -> String {
-        "<before>\(context.before)</before>" + (context.after.isEmpty ? "" : "\n<after>\(context.after)</after>")
+        "<before>\(Autocomplete.sent(context.before))</before>" + (context.after.isEmpty ? "" : "\n<after>\(context.after)</after>")
     }
 }
 

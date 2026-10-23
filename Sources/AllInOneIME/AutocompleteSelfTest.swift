@@ -256,7 +256,7 @@ extension SelfTest {
         let bedrock = "Amazon Bedrock · " + ((try? Config.load())?.modelId ?? "")
         check(menuItem(toggle)?.title == tr("续写（\(bedrock)）", "Autocomplete (\(bedrock))") && menuItem(toggle)?.state == .off,
               "the input menu has 续写, off, with the provider and its model (\(menuItem(toggle)?.title ?? "none"))")
-        check(line()?.title.hasPrefix(tr("每次停顿会把光标前最多 1,500 字", "Each pause sends up to 1,500 characters before the caret")) == true
+        check(line()?.title.hasPrefix(tr("每次停顿会把光标所在行和它前面同一语言的最多 200 字", "Each pause sends the caret's line and up to 200 characters before it in the same language")) == true
               && line()?.title.contains(bedrock) == true && line()?.isEnabled == false,
               "under it, what each pause sends there (\(line()?.title ?? "none"))")
         // Turned on: on at once, and nothing asks.
@@ -520,7 +520,7 @@ extension SelfTest {
 
         testAutocompleteCloudSwitch(controller, harness, ghost: { ghost($0) })
 
-        // The cloud provider picked, through a local endpoint: the text before the caret, at most 1,500 characters, the
+        // The cloud provider picked, through a local endpoint: the caret's line, whole (at most 1,500 characters), the
         // values hidden, the tokens counted. The session's settings and the endpoint's converter name the same address, as
         // one config file does.
         settings.provider = .anthropic
@@ -539,7 +539,7 @@ extension SelfTest {
             .components(separatedBy: "</before>").first ?? ""
         print("  sent: …\(before.suffix(60)) (\(before.count) characters)")
         check(before.count == 1500 - "ann@example.com".count + "[EMAIL_1]".count && !body.contains("ann@example.com") && body.contains("[EMAIL_1]"),
-              "what went there: the last 1,500 characters before the caret, the email hidden (\(before.count) characters)")
+              "what went there: the caret's line, its last 1,500 characters, the email hidden (\(before.count) characters)")
         // The answer is read only as far as the suggestion goes: the tokens read are told at its start, those written at its end.
         check(store.metrics.cloudInputTokens == tokens + 120, "the tokens it read counted (\(store.metrics.cloudInputTokens - tokens))")
         harnessKey(controller, harness, "\u{1B}", code: VirtualKey.escape)
