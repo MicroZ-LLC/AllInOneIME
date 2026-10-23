@@ -1,0 +1,6 @@
+{ "language": "java", "title": "Java", "version": "1.0.0",
+  "keywords": ["abstract", "boolean", "class", "else", "extends", "final", "for", "if", "implements", "import", "interface",
+               "new", "private", "protected", "public", "return", "static", "void", "while"],
+  "snippets": [
+    { "trigger": "if", "body": "if (${1:condition}) {\n    $0\n}", "title": "if statement" },
+    { "trigger": "class", "body": "class ${1:Name} {\n    $0\n}", "title": "class" } ] }

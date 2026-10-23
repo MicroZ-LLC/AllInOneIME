@@ -27,8 +27,9 @@ final class SuggestionsGhostModel: AppleModelBackend, @unchecked Sendable {
 }
 
 /// Suggestions v1, spec 0: at the caret one kind shows at a time; rows (lists, queries, coding) win over ghost text and
-/// own Tab while shown. Spec 2: no AI continuation while coding mode is on. The AI continuation is Autocomplete's (its
-/// gray text after the caret, `SessionOutput.ghost`), on the on-device model here (spec 6.3). The rig:
+/// own Tab while shown. Decision 22: no AI continuation in Code (no autocomplete gray text). The AI continuation is
+/// Autocomplete's (its gray text after the caret, `SessionOutput.ghost`), on a stand-in for the on-device model here (spec
+/// 6.3): the user's provider is Apple Intelligence, so autocomplete asks nothing else (never a real provider). The rig:
 /// SuggestionsAcceptanceTests.swift.
 @Suite(.serialized, SuggestionsOneAtATime())
 struct SuggestionsGhostTextAcceptanceTests {
@@ -40,14 +41,18 @@ struct SuggestionsGhostTextAcceptanceTests {
         func advance(_ seconds: TimeInterval) { value.withLock { $0 += seconds } }
     }
 
-    /// A field with autocomplete on (the on-device model answering `answer`).
-    func field(_ world: SuggestionsWorld, model: SuggestionsGhostModel, uptime: Uptime) -> SuggestionsField {
+    /// A field with autocomplete on, the provider Apple Intelligence (its on-device model, the stand-in answering
+    /// `answer`); `code`: a field that starts in Code.
+    func field(_ world: SuggestionsWorld, model: SuggestionsGhostModel, uptime: Uptime, app: String = SuggestionsApps.editor,
+               code: Bool = false) -> SuggestionsField {
         world.config.autocomplete = true
-        return world.field { services in
+        world.config.provider = .apple
+        let adjust = { (services: inout SessionServices) in
             services.converter = Converter(loadConfig: { world.config }, appleModel: model)
             services.uptime = { uptime.now }
             services.autocomplete = AutocompleteStore()
         }
+        return code ? world.codeField(app: app, adjust) : world.field(app: app, adjust)
     }
 
     /// The pause after typing runs out (on autocomplete's own clock): what autocomplete asks is answered.
@@ -93,22 +98,24 @@ struct SuggestionsGhostTextAcceptanceTests {
         }
     }
 
-    /// Coding mode on: no AI continuation (no request, no ghost text).
-    @Test func noAIContinuationInCodingMode() async {
-        await inEnglish {
+    /// In Code: no AI continuation (no request, no ghost text). In a language (a field of another app of the same world),
+    /// autocomplete as before.
+    @Test func noAIContinuationInCode() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
-            world.codingMode = true
+            world.addCode("python", packs: [try SuggestionsCodingAcceptanceTests.pack("python")])
             let (model, uptime) = (SuggestionsGhostModel(answer: "ld, how are you?"), Uptime())
-            let field = field(world, model: model, uptime: uptime)
+            let field = field(world, model: model, uptime: uptime, code: true)
+            #expect(field.host.composer.input == .code)
             field.type("Hello wor")
             pauseEnds(field, uptime)
             #expect(field.host.ghost == nil && model.requests.isEmpty, "\(model.requests.count) requests")
 
-            world.codingMode = false
-            let prose = self.field(world, model: model, uptime: uptime)
+            let prose = self.field(world, model: model, uptime: uptime, app: "com.apple.TextEdit")
+            #expect(prose.host.composer.input == .language(.english))
             prose.type("Hello wor")
             pauseEnds(prose, uptime)
-            #expect(prose.host.ghost != nil, "off: autocomplete as before")
+            #expect(prose.host.ghost != nil, "in English: autocomplete as before")
         }
     }
 }

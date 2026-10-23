@@ -10,7 +10,8 @@ import AllInOneIMETestSupport
 // the user sees (the candidate panel's rows, its footer) and what goes into the field out. The plugin's side is a fake
 // runtime that answers `load` and `query` with what a script would return (the fixtures in Fixtures/Suggestions/); the
 // time is a clock the test moves (and that moves on while a test waits), the session's timers fire once due on it; what
-// the shell keeps (the switches, the picks, coding mode, Translate as You Type, the cache's folder) is the test's.
+// the shell keeps (the switches, the picks, the coding packs installed, Translate as You Type, the cache's folder) is the
+// test's.
 // Declarations they use: Sources/AllInOneIMECore/Suggestions/SuggestionsContract.swift.
 //
 // Spec 4, bullet by bullet:
@@ -22,19 +23,22 @@ import AllInOneIMETestSupport
 //   class: SuggestionsRowsAcceptanceTests
 // - never-run rules (secure fields, remote apps, the master, app and source switches, a plugin changed since it was
 //   enabled), privacy (nothing logged, nothing learned as English words): SuggestionsSwitchesAcceptanceTests
-// - coding mode: the chooser on a long press of Shift, packs' keywords and snippets, document words, `$0`, exclusive
-//   with Translate as You Type: SuggestionsCodingAcceptanceTests
+// - Code, the input (decision 22, which replaced coding mode and decision 13's chooser): a tap of Shift through the
+//   inputs, the long press toggling Translate as You Type with no chooser, an app starting in Code, the coding language's
+//   pack alone, its keywords and snippets, document words, `$0`, no Translate as You Type and no English words in Code:
+//   SuggestionsCodingAcceptanceTests
 // - plugin.json's `completions` and `preferences` read and refused, a coding pack's format:
 //   SuggestionsManifestAcceptanceTests
-// - rows over ghost text (Autocomplete): SuggestionsGhostTextAcceptanceTests
+// - rows over ghost text (Autocomplete), none in Code: SuggestionsGhostTextAcceptanceTests
 //
-// Spec 6, decision by decision: 1 (digits never pick rows) Rows, Coding; 2 (the chooser in the session) Coding; 3
+// Spec 6, decision by decision: 1 (digits never pick rows) Rows, Coding; 2 (the long press in the session) Coding; 3
 // GhostText; 4 (when a query is asked again) Sources; 5, 6 (bad items dropped one by one, stripped first) Sources; 7
 // (case, the prefix's too) Token, Rows; 8 (without prefix: digits, exact) Token, Manifest; 9 (an entry refused, the
 // plugin loaded) Manifest, Sources; 10, 11 (the terminal and code editor class, the app classes) Rows, Coding; 12 (Esc
 // for the token) Rows; 13 (what is offered) Rows, Coding; 14 (the command trigger) Switches; 15 (English words) Switches;
 // 16 (no field text) Coding; 17 (picked order, pauses and back-off, the cache on disk) Rows, Sources, Switches; 19, 21,
-// 23 (a snippet's later lines indented, its caret at its first tab stop in reading order) Coding.
+// 23 (a snippet's later lines indented, its caret at its first tab stop in reading order) Coding; 20 (Return picks Code's
+// rows as in an IDE) Coding; 22 (Code, an input) Coding, GhostText, Switches.
 //
 // This file: what they share.
 
@@ -386,16 +390,16 @@ enum SuggestionsItems {
 
 // MARK: - The world a field is in
 
-/// Everything around the fields of a test: the settings, what the shell keeps (switches, picks, coding mode, Translate as
-/// You Type, the English words learned), the plugins installed, the runtime, the clock. Fields made of the same world
-/// share it, as fields of one launch do.
+/// Everything around the fields of a test: the settings, what the shell keeps (switches, picks, the coding packs
+/// installed, Translate as You Type, the English words learned), the plugins installed, the runtime, the clock. Fields made
+/// of the same world share it, as fields of one launch do.
 final class SuggestionsWorld: @unchecked Sendable {
     var config: Config
     var switches = SuggestionsSettings()
-    var codingMode = false
     var translateAsYouType = false
     var picks: [SuggestionPick] = []
     private(set) var recordedPicks: [SuggestionPick] = []
+    /// The coding language packs installed (the Code input's rows are its coding language's: `Config.codingLanguage`).
     var packs: [CodingLanguagePack] = []
     var plugins: [InstalledPlugin] = []
     var englishDictionary: EnglishDictionary?
@@ -479,8 +483,6 @@ final class SuggestionsWorld: @unchecked Sendable {
         suggestions.cacheFolder = cacheFolder
         suggestions.preferences = { plugin in preferences.withLock { $0[plugin.name] ?? [:] } }
         suggestions.codingPacks = { self.packs }
-        suggestions.codingMode = { self.codingMode }
-        suggestions.setCodingMode = { self.codingMode = $0 }
         suggestions.translateAsYouType = { self.translateAsYouType }
         suggestions.setTranslateAsYouType = { self.translateAsYouType = $0 }
         suggestions.loadPicks = { self.picks }
@@ -491,6 +493,23 @@ final class SuggestionsWorld: @unchecked Sendable {
         suggestions.reportStatus = { status in statuses.withLock { $0.append(status) } }
         services.suggestions = suggestions
         return services
+    }
+
+    /// This world with the Code input (decision 22) in coding language `language` ("python": `Config.codingLanguage`, as
+    /// Settings → Input or the input menu sets it) and `packs` installed. Code is an input once `language`'s pack is
+    /// among them.
+    func addCode(_ language: String, packs: [CodingLanguagePack]) {
+        config.codingLanguage = language
+        self.packs = packs
+    }
+
+    /// A field of `app` that starts in Code: the app's starting input set to Code (Settings → Apps, the input menu's This
+    /// App: `"inputLanguage": "code"` in its profile), as a user sets it; with `adjust`'s services. Other fields of `app`
+    /// made after it start in Code too.
+    func codeField(app: String = "com.example.editor", terminal: Bool = false,
+                   _ adjust: (inout SessionServices) -> Void = { _ in }) -> SuggestionsField {
+        config.changeProfile(for: app) { $0.startingInput = .code }
+        return field(app: app, terminal: terminal, adjust)
     }
 
     /// A text field of `app` that has the focus (`terminal`: a terminal's, `passwordField`: a password field as Windows
@@ -681,7 +700,7 @@ struct SuggestionsField {
         noteTimers()
     }
 
-    /// A tap of Shift (switches the input language).
+    /// A tap of Shift (the next input: the input languages, then Code).
     func tapShift() {
         host.modifiers(ModifierChange(key: .modifier(.shift, .left), modifiers: [.shift, .leftShift], timestamp: world.clock.timestamp))
         noteTimers()
@@ -705,7 +724,8 @@ extension SuggestionsField: CustomReflectable {
 
 extension SuggestionsWorld: CustomReflectable {
     var customMirror: Mirror {
-        Mirror(self, children: ["codingMode": codingMode, "translateAsYouType": translateAsYouType, "learned": learned,
+        Mirror(self, children: ["codingLanguage": config.codingLanguage as Any, "packs": packs.map(\.language),
+                                "translateAsYouType": translateAsYouType, "learned": learned,
                                 "recordedPicks": recordedPicks.map(\.match), "now": clock.now], displayStyle: .class)
     }
 }

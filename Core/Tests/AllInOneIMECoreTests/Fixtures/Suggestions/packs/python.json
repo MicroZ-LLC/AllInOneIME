@@ -4,4 +4,5 @@
   "snippets": [
     { "trigger": "def", "body": "def ${1:name}(${2}):\n    $0", "title": "function" },
     { "trigger": "class", "body": "class ${1:Name}:\n    def __init__(self):\n        $0\n", "title": "class with __init__" },
-    { "trigger": "print", "body": "print($0)", "title": "print" } ] }
+    { "trigger": "print", "body": "print($0)", "title": "print" },
+    { "trigger": "if", "body": "if ${1:condition}:\n    $0", "title": "if block" } ] }

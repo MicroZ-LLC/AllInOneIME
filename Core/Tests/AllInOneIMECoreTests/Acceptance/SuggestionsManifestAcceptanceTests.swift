@@ -268,7 +268,9 @@ struct SuggestionsManifestAcceptanceTests {
     /// The fixture packs (Fixtures/Suggestions/packs/): a snippet's title is optional.
     @Test func theFixturePacksAreRead() throws {
         let python = try JSONDecoder().decode(CodingLanguagePack.self, from: SuggestionsFixtures.data("python", in: "packs"))
-        #expect(python.language == "python" && python.keywords.contains("lambda") && python.snippets.count == 3)
+        #expect(python.language == "python" && python.keywords.contains("lambda") && python.snippets.count == 4)
+        let java = try JSONDecoder().decode(CodingLanguagePack.self, from: SuggestionsFixtures.data("java", in: "packs"))
+        #expect(java.language == "java" && java.snippets.first?.trigger == "if")
         let javascript = try JSONDecoder().decode(CodingLanguagePack.self, from: SuggestionsFixtures.data("javascript", in: "packs"))
         #expect(javascript.snippets.last == .init(trigger: "console", body: "console.log($0);", title: nil))
     }
