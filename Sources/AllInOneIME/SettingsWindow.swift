@@ -889,7 +889,7 @@ struct SettingsView: View {
 
     @ViewBuilder private var generalSection: some View {
         Section {
-            // Return by default; "Record…" takes the next key pressed (or a tap of ⌥).
+            // Return by default; a click on it takes the next key pressed (or a tap of ⌥).
             LabeledContent {
                 KeyRecorder(key: $model.config.actionKey)
             } label: {
@@ -899,24 +899,25 @@ struct SettingsView: View {
             // One of the symbols that type as themselves in every mode (`Config.commandTriggers`): picked, never typed,
             // so there is nothing to refuse.
             LabeledContent {
-                // Shown like the action key: the symbol as text; a click opens the symbols to pick from.
+                // Shown like the action key: the symbol as text, and a click opens the symbols to pick from, the one in
+                // use checked (a toggle each: the menu's own checkmark). Drawn by SwiftUI as a plain button: AppKit's
+                // borderless pop-up gives its title the controls' color, not the text's, and an inset on the right.
                 Menu {
                     ForEach(Config.commandTriggers, id: \.self) { symbol in
-                        Button {
-                            model.config.commandTrigger = symbol
-                        } label: {
-                            if symbol == model.config.commandTrigger {
-                                Label(symbol == "@" ? tr("@（默认）", "@ (default)") : symbol, systemImage: "checkmark")
-                            } else {
-                                Text(symbol == "@" ? tr("@（默认）", "@ (default)") : symbol)
-                            }
-                        }
+                        Toggle(symbol == "@" ? tr("@（默认）", "@ (default)") : symbol,
+                               isOn: Binding(get: { model.config.commandTrigger == symbol },
+                                             set: { if $0 { model.config.commandTrigger = symbol } }))
                     }
                 } label: {
-                    Text(model.config.commandTrigger).font(.body.monospaced())
+                    HStack(alignment: .firstTextBaseline, spacing: 3) {
+                        Text(model.config.commandTrigger).foregroundStyle(.primary)
+                        Image(systemName: "chevron.down").font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
+                    }
+                    .contentShape(Rectangle())
                 }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.visible)
+                .menuStyle(.button)
+                .buttonStyle(.plain)
+                .menuIndicator(.hidden)
                 .fixedSize()
                 .accessibilityLabel(tr("命令触发符：", "Command trigger: ") + model.config.commandTrigger)
             } label: {
@@ -2836,6 +2837,8 @@ private struct KeyRecorder: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        // The name flush with the row's end, as the other rows' controls are; the outline reaches past it.
+        .padding(.horizontal, -6)
         .help(tr("点一下，再按新的键", "Click, then press the new key"))
         .accessibilityLabel(tr("执行键：", "Action key: ") + UIText.pickerName(key))
         .accessibilityHint(tr("点一下录制新的键", "Click to record another key"))
