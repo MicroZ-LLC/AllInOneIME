@@ -12,18 +12,33 @@ final class StubURLProtocol: URLProtocol, @unchecked Sendable {
     }
 
     private struct State {
-        var responses: [String: Response] = [:]
-        var requests: [String: URLRequest] = [:]
+        /// What the host answers, in turn; the last one again after that.
+        var responses: [String: [Response]] = [:]
+        /// What it was asked since it was registered, in order.
+        var requests: [String: [URLRequest]] = [:]
     }
 
     private static let state = OSAllocatedUnfairLock(initialState: State())
 
     static func register(host: String, _ response: Response) {
-        state.withLock { $0.responses[host] = response }
+        register(host: host, [response])
+    }
+
+    /// `responses` in turn, one a request (a request sent again gets the next).
+    static func register(host: String, _ responses: [Response]) {
+        state.withLock {
+            $0.responses[host] = responses
+            $0.requests[host] = []
+        }
     }
 
     static func lastRequest(host: String) -> URLRequest? {
-        state.withLock { $0.requests[host] }
+        state.withLock { $0.requests[host]?.last }
+    }
+
+    /// Every request to `host` since it was registered, their bodies as `httpBody`.
+    static func requests(host: String) -> [URLRequest] {
+        state.withLock { $0.requests[host] ?? [] }
     }
 
     static func session() -> URLSession {
@@ -36,11 +51,26 @@ final class StubURLProtocol: URLProtocol, @unchecked Sendable {
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
-        let request = self.request
+        var request = self.request
+        // URLSession hands the body over as a stream, which reads once: kept as data, for every look at it.
+        if request.httpBody == nil, let stream = request.httpBodyStream {
+            var data = Data(), buffer = [UInt8](repeating: 0, count: 4096)
+            stream.open()
+            while true {
+                let count = stream.read(&buffer, maxLength: buffer.count)
+                if count <= 0 { break }
+                data.append(buffer, count: count)
+            }
+            stream.close()
+            request.httpBody = data
+        }
         let host = request.url?.host ?? ""
+        let asked = request
         let response = Self.state.withLock { state -> Response? in
-            state.requests[host] = request
-            return state.responses[host]
+            state.requests[host, default: []].append(asked)
+            guard let next = state.responses[host]?.first else { return nil }
+            if state.responses[host]!.count > 1 { state.responses[host]!.removeFirst() }
+            return next
         }
         guard let response, let url = request.url,
               let http = HTTPURLResponse(url: url, statusCode: response.status, httpVersion: "HTTP/1.1",
