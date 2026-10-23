@@ -148,6 +148,66 @@ In the app (`PluginLibrary`, Settings → Plugins → "Browse Library…"):
   the library shows it as local.
 - Installing or removing a plugin rescans the plugins folder, so the command list has it at the next keystroke.
 
+## Completions (suggestions)
+
+A `script` plugin may also complete what is typed (Suggestions, 0.6.7): rows in the candidate panel, Tab inserts one.
+It declares its sources in `completions` (optional; `api` 1 stays valid) and its settings in `preferences`:
+
+```json
+{ "name": "github", "type": "script", "script": "main.js", "hosts": ["api.github.com"],
+  "preferences": [
+    { "name": "repos", "type": "text", "title": {"en": "Repositories", "zh": "仓库"},
+      "placeholder": "owner/repo, owner/other", "default": "MicroZ-LLC/AllInOneIME" },
+    { "name": "token", "type": "password", "title": {"en": "Token (optional, for private repositories)", "zh": "Token（可选，私有仓库用）"} } ],
+  "completions": [
+    { "name": "issues", "title": {"en": "GitHub issues", "zh": "GitHub issue"},
+      "prefix": "#", "minChars": 1, "compare": "prefix",
+      "list": true, "refresh": "15m",
+      "query": true, "queryMinChars": 2,
+      "insert": { "default": "{arg}", "chat": ["{arg} {url}", "{arg}"], "terminal": "{match}" } } ] }
+```
+
+| Key | Default | Meaning |
+|---|---|---|
+| `name` | required | `[a-z0-9]{1,24}`, unique in the plugin |
+| `title` | required | shown in Settings and in the rows' footer |
+| `prefix` | none | the text a token starts with (`#`, `PROJ-`; any case, `＃` counts as `#`); not `@` |
+| `minChars` | 1 with a prefix, 3 without | characters after the prefix before rows show |
+| `compare` | `prefix` | `prefix` (`#12` shows `#1234`) or `exact`; without a prefix only `exact`, and only for tokens of digits (a 12-digit account id) |
+| `list` | `false` | the script exports `load(ctx)`; its last good list is kept |
+| `refresh` | `1h` | `5m` … `7d`: how often the list is loaded again while the source is used (not after a week unused) |
+| `query` | `false` | the script exports `query(text, ctx)`, a live lookup |
+| `queryMinChars` | 3 | characters after the prefix before `query` is first called (at least 1) |
+| `insert` | `{"default": "{arg}"}` | what a row inserts per app class: `default`, `chat` (chat apps and browsers), `terminal` (terminals and code editors: anything but `null` is `{match}` there); a template or a list tried in turn (the first whose variables all exist), `null` for no rows in that class |
+
+An entry that breaks these rules (or any entry of a `prompt` or `link` plugin, or of one with `timeoutSeconds` over 20) is
+refused on its own, its reason shown under the plugin in Settings; the plugin and its command still load. A preference is
+`text` (kept in the config) or `password` (kept in the keychain, like extensions' passwords); one of another type is the
+plugin's problem.
+
+The script, in its child process as `run` is (`AllInOneIME --run-plugin <dir> --completion load|query`, `ctx` on standard
+input), with the same `fetch` to its `hosts`:
+
+- `load(ctx)` returns `{ items: [Item], fetchedAt?: unixSeconds }`, the whole list: at most 20,000 items and 4 MB. It may
+  take the plugin's `timeoutSeconds` (20 at most).
+- `query(text, ctx)` returns `{ items: [Item] }`; `text` is only what follows the prefix (`"12"` for `#12`). 3 seconds at
+  most. It's called once the token has `queryMinChars` after the prefix, then again only when what its answers give for
+  the longer token leaves fewer than 5 rows (after a pause of 150 ms in typing), one call at a time; a newer token
+  cancels the call before.
+- `Item`: `{ match, title?, subtitle?, arg?, variables? }`: `match` (1–64 letters, digits and `. _ - @ #`, the prefix
+  included) is what the token is compared with; `arg` (default `match`) and `variables` (texts) fill the templates
+  (`{match}`, `{arg}`, `{url}`). The order is the rank; the rows the user picked before come first.
+- `ctx` is `{ source, preferences, language }` (`"zh"` or `"en"`): nothing about the app, the field or the text around
+  the caret.
+- An output that isn't an object with an `items` array, too large, a throw or a timeout keeps the old list; failures
+  back off (1 min, 5 min, 30 min, 2 h) and the fifth in a row pauses the source until Refresh now, an update or a day
+  later. Bad items are dropped one by one; control, bidi and zero-width characters are taken out of everything first.
+- Only what wasn't typed goes in: `#12` and the row `#1234` insert `34` and the rest of the template.
+
+The user turns each source on in Settings → Plugins; the switch says what it does and, for a source with `query`, where
+what is typed after the prefix goes. An update that changes `hosts`, `query` or the script needs turning on again.
+[Core/Plugins/github](../Core/Plugins/github/) is the example.
+
 ## Milestones
 
 1. **@stock end to end, installed by hand** (this branch): manifest and store, the JavaScript host with

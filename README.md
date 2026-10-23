@@ -389,6 +389,11 @@ with the date of the rate (rates by ExchangeRate-API). `@calculator` is a calcul
 `@calculator 23*17` → `391` (the built-in `@calculate` before 0.6.5), and `@calendar` does dates: `@calendar +10` →
 "Tue, Oct 27 · in 10 days". Writing one: [docs/plugins.md](docs/plugins.md).
 
+Plugins can also complete what you type (new): `@github`'s issues come up as rows as soon as you type `#12`, and Tab
+inserts `#1234`. Each plugin's completions are off until you turn them on under it in Settings → Plugins, which says
+what they do and, for one that looks things up as you type, where what you type after `#` goes. See
+[Suggestions and coding mode](#suggestions-and-coding-mode-new).
+
 Commands that fetch something (plugins and programs) also work inside a sentence: `@reply tell her @stock AAPL is up today`.
 The inner ones run first, their output takes their place, and the outer command works on the result. The argument is
 the word after the command, plus the uppercase codes or numbers right after it (`@stock AAPL TSLA`, `@stock 600519 700`);
@@ -666,13 +671,12 @@ Only the first 150 terms are read. With "Jargon" checked, the list is sent to Be
 
 ## Translate as You Type
 
-A prototype, to try. Hold Shift on its own for 1 second to turn Translate as You Type on (or off); a quick tap of Shift
-still switches the input language. At 0.5 s a hint near the caret says "Keep holding → Translate as You Type", and at 1 s
-"Translate as You Type on: Chinese → English · hold Shift again to turn off" (naming the language it translates into)
-confirms it for about 1.5 s (turning it off:
-"Keep holding → Translate as You Type off", then "Translate as You Type off"); let go before then and nothing changes.
-Shift with a letter (a capital) or with another key never turns it on. While it's on, the menu bar icon carries a small
-dot. There is no command for it.
+A prototype, to try. Hold Shift on its own for 1 second: a small chooser opens at the caret, **Translate as You Type** and
+**Coding mode** (↑↓ or 1–2, ⏎, Esc). Pick Translate as You Type (1) to turn it on, and again to turn it off; a quick tap of
+Shift still switches the input language. "Translate as You Type on: Chinese → English · hold Shift again to turn off"
+(naming the language it translates into) confirms it for about 1.5 s ("Translate as You Type off" when it goes off).
+Shift with a letter (a capital), with another key or with a click never opens the chooser. It can't be on with coding
+mode: choosing one turns the other off. While it's on, the menu bar icon carries a small dot. There is no command for it.
 
 While it's on, what you type collects into a draft, with the languages on the chip by it ("ZH → EN"; 「中 → 英」 in the
 Chinese interface). It translates into the language you picked last on its chip (below), in every app and after a
@@ -734,6 +738,39 @@ or tell Settings → Assistant "turn on autocomplete"; it stays on until you tur
   tokens a cloud provider read. The input menu's Autocomplete item and the menu bar panel show the first lines.
 - Where a text field doesn't tell where its caret is, the suggestion is a line of the candidate panel instead ("Tab").
   Where it can't read its text (WeChat), what you typed into it since it took the focus stands in; a click forgets it.
+
+## Suggestions and coding mode (new)
+
+Rows in the candidate panel as you type, from plugins and, in coding mode, from the languages you code in; **Tab** puts
+one in. They take the place of [autocomplete](#autocomplete-new)'s gray text while they show.
+
+- **Plugins' completions:** a plugin declares what it completes after a prefix, `#12` for `@github`'s issues, or a whole
+  12-digit AWS account id with no prefix. Its list is kept on this Mac (loaded again every 15 minutes or so while you
+  use it, never when you haven't for a week), and some also look up what you type, from 2 characters after the prefix,
+  so a brand-new issue shows too. Up to 5 rows, the ones you picked before first (by how often and how recently); the
+  footer names the source, and the list's age when it's older than 10 minutes. It works in English and in pinyin: `#`
+  typed while pinyin is composed puts the words in and starts the token. What you typed stays as typed; only the rest
+  goes in (`#12` and the row `#1234` add `34`).
+- **Keys:** in most apps Tab inserts the highlighted row (the first), ↓ ↑ move the highlight and ⏎ then inserts it, Esc
+  hides the rows until what you type changes. In chat apps and browsers (Slack, WeChat, Teams, Chrome, Edge…) only Tab
+  is taken, with the plugin's chat form (`#1234 https://github.com/…`): ⏎ always sends. In terminals and code editors
+  (Xcode, VS Code, JetBrains…) Tab completes only what the rows share. Digits never pick a row: they go on typing (`#7`
+  then `1` is `#71`). No rows in launchers, remote desktops, virtual machines and SSH clients.
+- **Turning them on:** each plugin's completions in Settings → Plugins (a switch each: last refresh, items, last error,
+  Refresh now; its preferences, passwords in the keychain). A plugin update that changes the hosts it reaches, its
+  lookup or its script turns them off until you turn them on again. **Suggestions** in the input menu turns them all off
+  or on; Settings → Apps per app. With `#` as the command trigger, a source after `#` can't work (Settings says so).
+- **Coding mode:** hold Shift for a second and pick **Coding mode** (2); again to turn it off. It stays on in every app
+  until then (the menu bar icon shows `{}`), each text field starts in English (a tap of Shift still switches), and from
+  two letters on the rows offer keywords and snippets of the coding languages you installed and the words already in the
+  field (`de` → `def`, `define_task`); a snippet goes in with its line breaks, the caret where it belongs. No AI writes
+  code: autocomplete is off in coding mode. Install languages in Settings → **Coding Languages** (Python, JavaScript…),
+  downloaded from the language library and checked against its signed list, kept apart from the input languages.
+- **Privacy:** a plugin's script never sees what you type, the app or the field, only, for a lookup you turned on, what
+  follows its prefix (sent to the hosts it lists). The lists, what you type and the lookups are never logged, sent to the
+  AI, learned as English words or synced; the lists are cached in `~/Library/Caches/AllInOneIME/suggestions/` (readable
+  only by you) and deleted when you turn their source off. The rows you pick are remembered on this Mac only, without
+  the field's own words. Never in password fields or during secure input.
 
 ## Voice input
 
@@ -955,6 +992,11 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
   Intelligence on this Mac. To a cloud provider only after you agreed, when you turned it on; then with sensitive
   information hidden as for any request. Nothing of it is kept but its last 20 suggestions in memory and its counts (no
   text) in the input method's own preferences.
+- Suggestions: a plugin's completions run its script only once you turned them on, and it reaches only the hosts it
+  lists; it never sees what you type, the app or the field, but for a lookup (which Settings names, with where it goes)
+  what follows its prefix. Coding mode's rows come from the packs you installed and the field's text, on this Mac. The
+  lists, the tokens and the lookups are never logged, sent to the AI, learned or synced; see
+  [Suggestions and coding mode](#suggestions-and-coding-mode-new).
 - Voice is recorded only while you hold right ⌥ and is recognized on the Mac; the recognized text is sent only in the commands above, when you press the action key.
 - The input method reads the clipboard text, once, only when you press ⌃V or ⌘V in a command; content that password managers mark as concealed isn't read. The text is shown in the command first and, again, is sent only when you press the action key. Recent macOS versions ask whether AllInOneIME may read the clipboard: allow it. To stop being asked every time, set AllInOneIME's paste permission to always allow in System Settings → Privacy & Security.
 - In password fields macOS switches to its own keyboard (U.S. or ABC) and back when you leave them. Whenever the app you type in holds secure input, AllInOneIME doesn't compose text and can't record: keys go in as typed. And while the system is in secure input (password fields, Terminal's Secure Keyboard Entry, etc.), nothing is sent to the AI.
