@@ -1,6 +1,6 @@
 {
   "name": "github",
-  "version": "1.0.2",
+  "version": "1.0.1",
   "api": 1,
   "minAppVersion": "0.6.7",
   "type": "script",
@@ -22,6 +22,6 @@
       "prefix": "#", "minChars": 1, "compare": "prefix",
       "list": true, "refresh": "15m",
       "query": true, "queryMinChars": 2,
-      "insert": { "default": ["{arg} {title} {url}", "{arg} {title}", "{arg}"], "terminal": "{match}" } }
+      "insert": { "default": ["{arg} {title}", "{arg}"], "chat": ["{arg} {title} {url}", "{arg} {url}", "{arg}"], "terminal": "{match}" } }
   ]
 }
