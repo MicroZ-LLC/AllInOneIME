@@ -604,8 +604,9 @@ extension Character {
 // MARK: - What is kept between fields
 
 /// Autocomplete's state across a shell's text fields and launches: the suggestions kept (`Autocomplete.Cache`, in
-/// memory), what is learned per app and what is counted (in `defaults`), what was said once. The shell gives one to every
-/// session (`SessionServices.autocomplete`); the default keeps it all in memory. Safe from any thread.
+/// memory), what is learned per app and what is counted (in `defaults`, written a moment after it changes, off the
+/// session's thread), what was said once. The shell gives one to every session (`SessionServices.autocomplete`); the
+/// default keeps it all in memory. Safe from any thread.
 public final class AutocompleteStore: @unchecked Sendable {
     private struct State {
         var cache = Autocomplete.Cache()
@@ -615,6 +616,8 @@ public final class AutocompleteStore: @unchecked Sendable {
         var prewarmed: TimeInterval?
         /// The switch as last seen (`saw`), nil before.
         var switchSeen: Bool?
+        /// What was counted and learned waits to be written (`keepSoon`).
+        var writeWaiting = false
     }
 
     static let learningKey = "autocompleteLearning"
@@ -622,6 +625,10 @@ public final class AutocompleteStore: @unchecked Sendable {
     static let switchKey = "autocompleteSwitch"
     /// The on-device model is loaded ahead of the first pause when a field takes the focus, at most once in this long.
     static let prewarmEvery: TimeInterval = 60
+    /// How long what was counted and learned waits before it's written (`keepSoon`): what changes meanwhile goes with it.
+    static let writeDelay: TimeInterval = 2
+    /// Where it's written: off the session's thread (a key's end of a suggestion never waits for the defaults).
+    private static let writes = DispatchQueue(label: "com.aipinyin.autocomplete.store", qos: .utility)
 
     private let state: Locked<State>
     private let defaults: any KeyValueStore
@@ -643,24 +650,40 @@ public final class AutocompleteStore: @unchecked Sendable {
     public var learning: Autocomplete.Learning { state.withLock { $0.learning } }
     public var metrics: Autocomplete.Metrics { state.withLock { $0.metrics } }
 
-    /// Counts something (`Autocomplete.Metrics`), and keeps it.
+    /// Counts something (`Autocomplete.Metrics`), and keeps it (written a moment later: `keepSoon`).
     public func count(_ change: (inout Autocomplete.Metrics) -> Void) {
-        let metrics = state.withLock { state -> Autocomplete.Metrics in
-            change(&state.metrics)
-            return state.metrics
-        }
-        if let data = try? JSONEncoder().encode(metrics) { defaults.set(data, forKey: Self.metricsKey) }
+        state.withLock { change(&$0.metrics) }
+        keepSoon()
     }
 
-    /// Changes what is learned per app, and keeps it; what `change` returns.
+    /// Changes what is learned per app, and keeps it (written a moment later: `keepSoon`); what `change` returns.
     @discardableResult
     public func learn<T>(_ change: (inout Autocomplete.Learning) -> T) -> T {
-        let (result, learning) = state.withLock { state -> (T, Autocomplete.Learning) in
-            let result = change(&state.learning)
-            return (result, state.learning)
-        }
-        if let data = try? JSONEncoder().encode(learning) { defaults.set(data, forKey: Self.learningKey) }
+        let result = state.withLock { change(&$0.learning) }
+        keepSoon()
         return result
+    }
+
+    /// What was counted and learned, written to the defaults `writeDelay` from now, off the caller's thread: one write
+    /// for all that changes meanwhile (`flush`).
+    private func keepSoon() {
+        let first = state.withLock { state -> Bool in
+            defer { state.writeWaiting = true }
+            return !state.writeWaiting
+        }
+        guard first else { return }
+        Self.writes.asyncAfter(deadline: .now() + Self.writeDelay) { self.flush() }
+    }
+
+    /// What was counted and learned, written to the defaults now (what was waiting to be: `keepSoon`).
+    public func flush() {
+        let (metrics, learning) = state.withLock { state in
+            state.writeWaiting = false
+            return (state.metrics, state.learning)
+        }
+        let encoder = JSONEncoder()
+        if let data = try? encoder.encode(metrics) { defaults.set(data, forKey: Self.metricsKey) }
+        if let data = try? encoder.encode(learning) { defaults.set(data, forKey: Self.learningKey) }
     }
 
     /// The switch turned on or off (counted; on, every app starts over).

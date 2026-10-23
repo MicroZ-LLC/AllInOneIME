@@ -372,8 +372,10 @@ public final class InputSession {
 
     private func settings(app: String?) {
         let config = services.loadSettings()
-        // Autocomplete's switch turned on or off elsewhere (Settings → Assistant, the file): counted, every app over.
+        // Autocomplete's switch turned on or off elsewhere (Settings → Assistant, the file): counted, every app over. Whether
+        // it may run in this field now (what a key looks at first).
         services.autocomplete.saw(switch: config.autocomplete)
+        autocompleteTakeSettings(config)
         let app = app ?? self.app
         composer.voiceEnabled = config.voiceInput && services.voiceSupported()
         composer.actionKey = config.actionKey

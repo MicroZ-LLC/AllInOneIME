@@ -15,6 +15,11 @@ struct AutocompleteField {
     }
 
     var suggestion: Suggestion?
+    /// Whether autocomplete may run in this field by the settings as the session last took them (a field took the focus,
+    /// the settings changed: `autocompleteTakeSettings`): on in its app (the switch, or the app's own choice), and none of
+    /// what never changes while the field has the focus keeps it from running (a terminal, a password manager …). While
+    /// it may not, a key does nothing for it: nothing asked of the pointer, nothing typed kept.
+    var active = false
     /// Counts the pauses: an older one's timer, read and request do nothing.
     var pause = 0
     /// When the pause began: the last key that typed.
@@ -91,9 +96,17 @@ extension InputSession {
         autocomplete = AutocompleteField()
         autocomplete.pause = pause
         tasks.cancel(.autocomplete)
+        autocompleteTakeSettings(services.loadSettings())
         guard autocompleteMayRun(), Autocomplete.route(services.loadSettings()) == .onDevice,
               services.autocomplete.prewarmDue(at: services.uptime()) else { return }
         services.converter.prewarmOnDevice()
+    }
+
+    /// Whether autocomplete may run in this field by `config` (`AutocompleteField.active`): what a key looks at first.
+    func autocompleteTakeSettings(_ config: Config) {
+        let info = FieldInfo(app: app, terminal: terminal, secure: field.secure)
+        autocomplete.active = Autocomplete.isOn(in: app, config: config, stopped: false)
+            && Autocomplete.blocker(in: info, secureInput: false, config: config, composing: false, translating: false) == nil
     }
 
     /// The field was left or clicked in (`ignored`), or is in secure input (`unseen`): the suggestion goes, the pause and
@@ -110,6 +123,7 @@ extension InputSession {
     /// With a suggestion up: Tab puts it in (true), or goes to the app as it would (`Autocomplete.tab`: ⇧Tab, ⌥Tab, a Tab
     /// right as it came up) and the suggestion goes; Esc takes it down (true). Nil: the key goes on.
     func autocompleteBeforeKey(_ event: KeyEvent) -> Bool? {
+        guard autocomplete.active || autocomplete.suggestion != nil || autocomplete.taken != nil else { return nil }
         let now = services.uptime()
         if let taken = autocomplete.taken, now - taken.at <= Autocomplete.undoWindow, Self.isUndo(event) {
             autocompleteTakenBack(characters: taken.characters)
@@ -159,9 +173,10 @@ extension InputSession {
     /// the suggestion takes it on (typed along: its rest shows, from the caret on); anything else ends it. A key that
     /// typed starts the pause (`autocompleteSchedulePause`).
     func autocompleteAfterKey(_ key: KeyEvent, handled: Bool, inserted: String) {
-        guard !autocomplete.passwordField else { return }  // nothing of a password field is kept, not even what was typed
+        // Off here (`AutocompleteField.active`): nothing to do. Nothing of a password field is kept, not even what was typed.
+        guard autocomplete.active, !autocomplete.passwordField else { return }
         let now = services.uptime()
-        if services.pointerUsedWithin(now - autocomplete.typedAt) { autocomplete.typed.forget() }
+        if !autocomplete.typed.text.isEmpty, services.pointerUsedWithin(now - autocomplete.typedAt) { autocomplete.typed.forget() }
         if !inserted.isEmpty {
             autocomplete.typed.add(inserted)
             autocomplete.typedAt = now

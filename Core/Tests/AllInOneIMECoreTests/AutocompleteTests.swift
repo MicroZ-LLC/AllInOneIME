@@ -502,11 +502,62 @@ struct AutocompleteTests {
         store.switched(on: false, at: start.addingTimeInterval(3600))
         store.switched(on: true, at: start.addingTimeInterval(7200))
         store.switched(on: false, at: start.addingTimeInterval(7200 + 2 * 86400))
+        store.flush()  // else written a moment later (`whatIsCountedIsWrittenLaterAllAtOnce`)
         let again = AutocompleteStore(defaults: defaults).metrics
         #expect(again.shown == 2 && again.fromCache == 1 && again.acceptance == 0.5 && again.acceptedShare == 3.0 / 8)
         #expect(again.p90 == 400 && again.turnedOn == 2 && again.turnedOffWithinADay == 1 && again.offWithinADayShare == 0.5)
         #expect(again.summary(language: "en") == "Shown 2 times · 50% taken · 90% within 400 ms")
         #expect(Autocomplete.Metrics().summary(language: "en") == nil)
+    }
+
+    /// Counting and learning never write the defaults as they happen (a key's end of a suggestion would wait for it): a
+    /// while later, all at once, off the session's thread.
+    @Test func whatIsCountedIsWrittenLaterAllAtOnce() throws {
+        final class Writes: KeyValueStore, @unchecked Sendable {
+            let kept = MemoryKeyValueStore()
+            private let lock = NSLock()
+            private var _keys: [String] = []
+            var keys: [String] { lock.withLock { _keys } }
+            func data(forKey key: String) -> Data? { kept.data(forKey: key) }
+            func string(forKey key: String) -> String? { kept.string(forKey: key) }
+            func bool(forKey key: String) -> Bool { kept.bool(forKey: key) }
+            func set(_ data: Data, forKey key: String) { lock.withLock { _keys.append(key) }; kept.set(data, forKey: key) }
+            func set(_ string: String, forKey key: String) { lock.withLock { _keys.append(key) }; kept.set(string, forKey: key) }
+            func set(_ bool: Bool, forKey key: String) { lock.withLock { _keys.append(key) }; kept.set(bool, forKey: key) }
+            func removeValue(forKey key: String) { kept.removeValue(forKey: key) }
+        }
+        let defaults = Writes()
+        let store = AutocompleteStore(defaults: defaults)
+        for _ in 0..<10 {
+            store.count { $0.shown("abc", after: 0.2, fromCache: false) }
+            store.learn { _ = $0.record(false, in: "com.example.editor") }
+        }
+        #expect(defaults.keys.isEmpty, "written as counted: \(defaults.keys)")
+        let deadline = Date().addingTimeInterval(10)
+        while defaults.keys.count < 2, Date() < deadline { Thread.sleep(forTimeInterval: 0.05) }
+        Thread.sleep(forTimeInterval: 0.2)
+        #expect(defaults.keys.sorted() == ["autocompleteLearning", "autocompleteMetrics"], "\(defaults.keys)")
+        let again = AutocompleteStore(defaults: defaults)
+        #expect(again.metrics.shown == 10 && again.learning.apps["com.example.editor"]?.outcomes.count == 10)
+    }
+
+    /// With the switch off (and no app set to always), a key does nothing for autocomplete: no pointer asked, nothing typed
+    /// kept, no pause.
+    @Test func offItDoesNothingForAKey() {
+        withInterfaceLanguage("en") {
+            let asked = Locked(initialState: 0)
+            let settings = Settings()
+            settings.config.autocomplete = false
+            let r = rig(settings) { $0.pointerUsedWithin = { _ in asked.withLock { $0 += 1 }; return false } }
+            r.host.type("Hello world, how are you?")
+            r.host.press(KeyEvent(keyCode: VirtualKey.delete, characters: "\u{7F}"))
+            #expect(asked.withLock { $0 } == 0 && r.host.session.autocomplete.typed.text.isEmpty && r.pauses.isEmpty)
+            // On in this app by its own choice: it runs.
+            settings.config.appProfiles = ["com.example.editor": AppProfile(autocomplete: true)]
+            r.host.focus()
+            r.host.type("Hello wor")
+            #expect(r.host.session.autocomplete.typed.text == "Hello wor" && !r.pauses.isEmpty)
+        }
     }
 
     // MARK: - In a session
