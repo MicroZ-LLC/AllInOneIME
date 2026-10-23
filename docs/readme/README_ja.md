@@ -22,7 +22,7 @@
 
 **[ダウンロード](https://allinoneime.com/download)** · **[ウェブサイト](https://allinoneime.com)** · **[ドキュメント](https://github.com/MicroZ-LLC/AllInOneIME/wiki)** · **[拡張機能](../extensions.md)**
 
-[使い方](#使い方) · [コマンド](#-コマンドベータ) · [独自のコマンド](#独自のコマンド) · [言語](#入力と翻訳) · [音声](#音声入力) · [インストール](#インストール) · [プライバシー](#プライバシー)
+[使い方](#使い方) · [コマンド](#-コマンドベータ) · [独自のコマンド](#独自のコマンド) · [言語](#入力と翻訳) · [インストール](#インストール) · [プライバシー](#プライバシー)
 
 <br>
 
@@ -35,7 +35,7 @@
 > [!NOTE]
 > 0.6.3 以降、AllInOneIME は Developer ID で署名され、Apple の公証を受けています。System Settings → Privacy & Security（システム設定 → プライバシーとセキュリティ）で許可する必要はもうありません。以前のバージョンからアップデートした後、AllInOneIME がキーチェーンに保存したキーごとに、macOS がログインパスワードを一度だけ尋ねます。パスワードを入力して「Always Allow」（常に許可）をクリックしてください。AllInOneIME のダウンロードは [GitHub Releases](https://github.com/MicroZ-LLC/AllInOneIME/releases) または [allinoneime.com](https://allinoneime.com) からのみにしてください。
 
-あらゆるテキスト欄で AI コマンドが使える macOS 用の入力メソッドです。文を `@` で始め、書き終えたら ⏎ を押します。`@improve` は書いた文を整えていくつかの書き換えを提案し、`@translate` は選んだ言語に翻訳し、`@question` は質問をし、`@agent` は Claude Code、Gemini CLI、Kiro CLI などのコーディングエージェントに引き渡し、`@open` はファイルやアプリを探したり Web アドレスを開いたりします。右 ⌥ を押したまま話すこともできます。`@` を付けなければ、キー入力はいつもどおりアプリに渡ります。中国語（ピンイン。Rime と rime-ice がベース）、フランス語、韓国語（ハングル）、ヒンディー語（ラテン文字からデーヴァナーガリー）も入力でき、自作のスクリプトを @ コマンドとして実行することもできます。
+あらゆるテキスト欄で AI コマンドが使える macOS 用の入力メソッドです。文を `@` で始め、書き終えたら ⏎ を押します。`@improve` は書いた文を整えていくつかの書き換えを提案し、`@translate` は選んだ言語に翻訳し、`@question` は質問をし、`@agent` は Claude Code、Gemini CLI、Kiro CLI などのコーディングエージェントに引き渡し、`@open` はファイルやアプリを探したり Web アドレスを開いたりします。`@` を付けなければ、キー入力はいつもどおりアプリに渡ります。中国語（ピンイン。Rime と rime-ice がベース）、フランス語、韓国語（ハングル）、ヒンディー語（ラテン文字からデーヴァナーガリー）も入力でき、自作のスクリプトを @ コマンドとして実行することもできます。
 
 マジックキー（コマンドを始める記号）は、デフォルトでは `@` です。Settings → General → Magic key（マジックキー）で別の記号を選べます：`#`、`%`、`&`、`*`、`+`、`|`、`~`。コマンドはその記号で始まり（例：`~translate`）、`@` は普通に入力されます。英字、数字、スペース、入力に必要な記号（`'` `-` `=` `[` `]` `` ` `` などのピンインのキーと、`,` `.` `?` `\` などピンインで中国語の句読点になる記号）は使えず、設定にその理由が表示されます。設定ファイルでは `"commandTrigger": "~"` です。
 
@@ -62,7 +62,6 @@
 | ⌘⏎、⌘1–⌘9 | `@question` の会話で：続けられる場所（インストールされているコーディングエージェント。`@agent` の引き渡し先が最初。Claude、ChatGPT、Gemini。またはコピー）を表示します。⌘1、⌘2… で選びます |
 | 行をクリック | 候補パネルで、その行の数字キーを押したのと同じように選びます（単語、リスト内のコマンド、結果、`@open` のファイル、宛先、拡張機能の行）。ポインタの下の行がハイライトされます。テキスト欄のフォーカスはそのままです |
 | Shift を軽く押す | 入力言語が複数あるとき、順番に次の言語へ切り替えます（英語 → 中国語 → フランス語 → …、最後は最初に戻ります） |
-| 右 ⌥ を押し続ける | 話して、離すと終了します。入力中の言語（英語、中国語、フランス語、韓国語、ヒンディー語）で認識されます。コマンド内ではテキストがその後ろに入り、それ以外では直接挿入されます |
 
 ## @ コマンド（ベータ）
 
@@ -83,7 +82,7 @@
 | `@reportissue` | 問題を報告します。ブラウザで GitHub の新しい issue のページを開き、コマンドの後に入力した内容をタイトルにして、記入用の「What happened / What you expected」（何が起きたか／何を期待したか）を付けます。アプリと macOS のバージョン、Mac のアーキテクチャ、インターフェースと入力の言語、インストール済みの言語パック、AI プロバイダの種類（公開モデルならそのモデル名、そうでなければ「custom」）、実行キー、カスタムコマンド・プラグイン・拡張機能の数を添えますが、それらの名前、あなたのテキスト、パス、キーは決して含めません。⏎（または実行キー）でまずそのすべてを候補パネルに表示し、もう一度 ⏎ を押すか行をクリックするとページが開くので、内容を確認して Submit をクリックします（あなたの GitHub アカウントで）。Esc で戻ります。入力メニュー（「Report an Issue…」）と Settings → About にもあります |
 | `@imessage` | iMessage を送ります。名前、電話番号、メールアドレスを入力し（中国語の名前はピンインでも可。フルでも頭文字でも）、候補パネルで宛先を選び（最近メッセージを送った相手が先頭。番号やアドレスをすべて入力しても可）、メッセージを書きます（中に `@stock AAPL` などのコマンドがあれば先に実行されます）。⏎ でパネルに「Send to Alex (…): message」と表示され、もう一度 ⏎ で送信、Esc で編集に戻ります。テキスト欄には何も入力されません。初回は、macOS が AllInOneIME による Contacts（連絡先）へのアクセスと Messages（メッセージ）の制御を許可するか尋ねるので、両方とも「OK」をクリックしてください |
 
-例：`@q` ⏎、`what is quantum computing` と入力して ⏎。`@note books to read: The Three-Body Problem` ⏎ でメモが保存されます。`@reminder call Bob tomorrow at 3pm` ⏎ で読み取った日時を確認し、もう一度 ⏎ で追加します。コマンドを選んだ後は、右 ⌥ を押したまま話すこともできます。中国語モードでは、`@open` は一時的に英字入力に切り替わり、終わると中国語に戻ります。
+例：`@q` ⏎、`what is quantum computing` と入力して ⏎。`@note books to read: The Three-Body Problem` ⏎ でメモが保存されます。`@reminder call Bob tomorrow at 3pm` ⏎ で読み取った日時を確認し、もう一度 ⏎ で追加します。中国語モードでは、`@open` は一時的に英字入力に切り替わり、終わると中国語に戻ります。
 
 `@py` と `@js` のコードは英字で入力し、全角の句読点（中国語モードからのもの）は ASCII になります。1 行で書き、文と文の間は `;` で区切ります。コードは別プロセスで実行され、10 秒で、または Esc でいつでも停止します。エラーのときは、エラーの最初の行が表示されます（例：`ZeroDivisionError: division by zero`）。複数行の出力は出力されたとおりに挿入されますが、ターミナルでは 1 行にまとめて入力されます（ターミナルは渡されたすべての行を実行するため）。エディタ内のターミナル（VS Code、Cursor、JetBrains）はエディタ本体と区別できないため、そこではどのコマンドの複数行の出力もそのまま入力されます。どちらもほかのコマンドの文の中で使えます：`@reply the answer is @py 2**100`。スペースを含むコードは引用符で囲みます：`@question explain @py "sum(x * x for x in range(10))"`。逆はできません。`@py` と `@js` のコードは常に入力したとおりに実行され、その中の `@commands` が先に実行されることはありません。
 
@@ -246,7 +245,7 @@ Raycast のモードは次のように対応します：`fullOutput` → `show`�
 
 ### 実行キー
 
-デフォルトは ⏎ です。設定の「Action key」（実行キー）で変更できます（設定ファイルの `actionKey`）：⏎、「Tap ⌥」（⌥ を軽く押す。左右どちらでも可で、押してすぐ離します。右 ⌥ を押し続けるのは引き続き音声入力用です）、⌥Space、Space（語を確定した後にもう一度 Space。英語モードでは 2 回）。実行キーが何であっても、@ コマンドは ⏎ でも実行されます。⌥Space がすでに Alfred や Raycast などのショートカットになっている場合は、そちらが先に受け取ります。
+デフォルトは ⏎ です。設定の「Action key」（実行キー）で変更できます（設定ファイルの `actionKey`）：⏎、「Tap ⌥」（⌥ を軽く押す。左右どちらでも可で、押してすぐ離します）、⌥Space、Space（語を確定した後にもう一度 Space。英語モードでは 2 回）。実行キーが何であっても、@ コマンドは ⏎ でも実行されます。⌥Space がすでに Alfred や Raycast などのショートカットになっている場合は、そちらが先に受け取ります。
 
 ### 結果をタイプ入力する
 
@@ -345,7 +344,7 @@ Settings → General → **Sync through iCloud**（iCloud で同期、デフォ�
 - **Fuzzy pinyin**（あいまいピンイン、中国語入力時）：区別しない音をどちらで入力してもよくなります（例：z ↔ zh、n ↔ l、in ↔ ing）。「Input」（入力）ページの入力言語バーで中国語（ピンイン）を選び、「Fuzzy pinyin」をオンにしてペアを選びます。辞書は 1～2 秒で再デプロイされます。Rime のユーザフォルダに `rime_ice.custom.yaml` を書き込みますが、そこにあるあなた自身のファイルを上書きすることはありません。
 - **Personal Dictionaries**（個人辞書、中国語入力時）：Settings → Input → Chinese (pinyin) → Personal Dictionaries → **Import or Update…**（インポートまたは更新）で、UTF-8 の Rime 語彙ファイル（`.dict.yaml`）を rime-ice に追加できます（先に中国語の言語パックが必要です）。一覧には Rime の `name`、ファイル名、項目数が表示されます。同じ `name` をもう一度インポートすると保存済みのコピーが置き換わります（元のファイルを編集するだけでは更新されません）。インポート・更新・削除のたびにピンインの辞書（rime-ice の全語彙とあなたの語彙）が再コンパイルされ、1 分ほどかかることがあります。その間は中国語を入力できず、ページに進行状況またはエラーが表示されます。コピーはこの Mac に残り、iCloud 同期や AI へのリクエストには含まれません。ただし、辞書から選んだ語はほかの語と同じように Rime のユーザー辞書に学習され、学習した語の同期がオンならほかの Mac にも同期され、辞書を削除しても残ります。自分の `rime_ice.custom.yaml` がある場合は、ファイルを変更する前にインポートが拒否されます。
 - **Translate (@translate)**（翻訳）：翻訳先の言語（スペイン語、フランス語、ドイツ語、日本語、韓国語、中国語、ヒンディー語、ベンガル語、タミル語、そのほかの主なインドの言語など）を追加し、ドラッグで並べ替えます。ラテン文字で入力したヒンディー語（「aap kaise ho」）はデーヴァナーガリーで返されます。`@translate` はこの順番で言語ごとに 1 行書きます（言語が 1 つなら 3 つのバージョン）。元の文と同じ言語はスキップされます。新規インストールでは、Mac の優先する言語のうち英語でない最初の言語に翻訳します。英語しかない場合、`@translate` は翻訳先の言語がまだないと通知し、その通知で ⏎ を押すとこのページが開いて「Add…」（追加…）が枠で示されます（文は入力したとおりに入ります）。このとき入力しながら翻訳もオンにならず、言語を追加する場所を案内します。
-- **Keyboard layouts**（キーボードレイアウト）：フランス語はカードで選んだレイアウトで入力します（設定ファイルの `keyboardLayouts`）。ほかの言語では、入力メソッドの下で macOS が最後に使ったラテン文字レイアウト（AZERTY、QWERTZ、スペイン語、US International など）を保持するので、いつもどおりに入力でき、`@` もレイアウト上の本来の位置にあります。デッドキーもコマンドのテキスト内で合成されます（⌥E の後に E → é、^ の後に e → ê）。ラテン文字のないレイアウト（ロシア語、ヒンディー語 InScript）は入力メソッドの下では使えません。⌃Space でそちらに切り替えるか、テキストをコマンドに貼り付ける（⌃V）か音声入力してください。
+- **Keyboard layouts**（キーボードレイアウト）：フランス語はカードで選んだレイアウトで入力します（設定ファイルの `keyboardLayouts`）。ほかの言語では、入力メソッドの下で macOS が最後に使ったラテン文字レイアウト（AZERTY、QWERTZ、スペイン語、US International など）を保持するので、いつもどおりに入力でき、`@` もレイアウト上の本来の位置にあります。デッドキーもコマンドのテキスト内で合成されます（⌥E の後に E → é、^ の後に e → ê）。ラテン文字のないレイアウト（ロシア語、ヒンディー語 InScript）は入力メソッドの下では使えません。⌃Space でそちらに切り替えるか、テキストをコマンドに貼り付けてください（⌃V）。
 - `@improve` は翻訳せずに推敲と書き換えを行います。`@translate @improve` と続けると、1 回のリクエストで翻訳と書き換えを行います。設定で「@improve also translates」をオンにすると、`@improve` が常にそのように動作します。
 
 個人辞書は次のような形式です（各項目のフィールドは**タブ**で区切ります）：
@@ -403,22 +402,9 @@ two-way door = a decision you can undo at any time
 - **アプリ**：ほかのアプリ（テキスト欄のないアプリも含みます）に切り替えると通知なしでオフになり、戻ってきてもオフのままです。ただし、Settings → Apps でそのアプリに「Always Translate as You Type」（常に入力しながら翻訳。中国語インターフェイスでは「总是边打边译」）を設定している場合（プロファイルの `translateAlways`）は、そのアプリで自動的にオンになります。No AI のアプリでは何もせず、テキストは入力したとおりに入り、通知が表示されます。セキュア入力中（パスワード欄）に入力したものも同じです。
 - **プライバシー**：`@translate` と同じです。⏎ を押したときにだけ、あなた自身の AI プロバイダに送られ、機密情報を隠す設定がオンなら隠されます。
 
-## 音声入力
-
-<img src="../en/voice.png" width="340" alt="右 ⌥ を押したまま話す">
-
-右 ⌥ を押したまま話し、離すとテキストが挿入されます。入力中の言語（英語、中国語、フランス語、韓国語、ヒンディー語）で認識されます。先にコマンドを入力してから（例：`@improve `、`@question `）話すと、テキストはコマンドの後ろに入り、⏎ で実行されます。右 ⌥ を離さずに ⏎ を押せば、話し終えるとすぐに実行することもできます。音声は macOS 内蔵の音声認識（SpeechAnalyzer）によって Mac 上で認識され、音声がアップロードされることはありません。macOS 26 以降が必要です。
-
-初回は：
-
-- macOS が AllInOneIME によるマイクの使用を許可するか尋ねます。事前に設定で「Allow Microphone」（マイクを許可）をクリックしておくこともできます。
-- この Mac にその言語の音声モデルがまだない場合は、一度だけ自動でダウンロードされます。設定でダウンロードすることもできます。
-
-録音はキーを約 0.2 秒押し続けてから始まるので、右 ⌥ を軽く押しただけではマイクはオンになりません（実行キーを「Tap ⌥」に設定している場合、軽く押すとアクションが実行されます）。押している間にほかのキーを押した場合（⌥ のショートカット、⌥← など）も、ショートカットとみなされて録音されません。録音中にほかのキーを押すと、録音はキャンセルされます。
-
 ## インストール
 
-動作には macOS 14 以降、音声入力には macOS 26 以降が必要です。インストーラはユニバーサルで、Apple シリコンと Intel の両方の Mac で動作します。これまでのテストは Apple シリコン上の macOS 27 だけです（Intel ビルドは Rosetta 上でのセルフテストのみ）。
+動作には macOS 14 以降が必要です。インストーラはユニバーサルで、Apple シリコンと Intel の両方の Mac で動作します。これまでのテストは Apple シリコン上の macOS 27 だけです（Intel ビルドは Rosetta 上でのセルフテストのみ）。
 
 1. [Releases](https://github.com/MicroZ-LLC/AllInOneIME/releases/latest) から `AllInOneIME-<version>.dmg` をダウンロードして（ダウンロードはここからのみ）開きます。
 2. その中の「Install AllInOneIME」をダブルクリックし、「Install」（インストール）をクリックします。入力メソッドは `~/Library/Input Methods` に、「AllInOneIME Settings」は `~/Applications` にインストールされます。このユーザ専用で、管理者パスワードは不要です。
@@ -438,7 +424,7 @@ AIPinyin（AllInOneIME の以前の名前）をインストールしていた場
 
 ### ソースからビルド
 
-音声入力が macOS 26 SDK を使うため、ビルドには Xcode 26 以降が必要です。
+ビルドには Xcode 26 以降（macOS 26 SDK）が必要です。
 
 ```sh
 git clone https://github.com/MicroZ-LLC/AllInOneIME.git
@@ -530,7 +516,6 @@ Settings → AI Provider → Privacy → 「Hide sensitive information before se
 | `keyboardLayouts` | 入力言語が使うキーボードレイアウトを言語コードで指定（今のところフランス語のみ）：`{"fr": "com.apple.keylayout.French-PC"}` | フランス語：`com.apple.keylayout.French`（AZERTY） |
 | `outputLanguages` | `@translate` の翻訳先を順番に：`["es", "fr", "de"]` など | `["en"]` |
 | `improveTranslates` | `@improve` でも翻訳する（`@translate @improve` と同じ） | `false` |
-| `voiceInput` | 右 ⌥ を押したまま話す | `true` |
 | `actionKey` | 実行キー：`"enter"`（⏎）、`"optionTap"`（Tap ⌥）、`"optionSpace"`（⌥Space）、`"space"`（Space） | `"enter"` |
 | `commandTrigger` | コマンドを始める記号：`"#"`、`"%"`、`"&"`、`"*"`、`"+"`、`"@"`、`"\|"`、`"~"` のいずれか。それ以外の値は `"@"` として扱われます | `"@"` |
 | `uiLanguage` | インターフェイスの言語（設定ウインドウ、候補パネルのヒント、メニュー）：`"zh"`（簡体字中国語）、`"en"`、またはアプリに含まれるほかの言語のコード：`"zh-Hant"`、`"ja"`、`"ko"`、`"de"`、`"fr"`、`"es"`、`"pt-BR"` | `null`（システムに従う） |
@@ -559,9 +544,8 @@ Settings → AI Provider → Privacy → 「Hide sensitive information before se
 - `@question` の会話をほかの場所で続けると（最後の往復の後の ⌘1…、または ⌘⏎）、会話は入力した内容とともに、選んだサービスに Web アドレスまたはクリップボード経由で送られます：この Mac のコーディングエージェント（Claude Code、Gemini CLI、Kiro CLI、または独自のもの。それぞれ独自のアカウントとサービスを使います）、claude.ai、chatgpt.com、gemini.google.com。会話は表示されていたとおりに送られます。AI へのリクエストで隠していた値（下記参照）も、あなたが自分で送り先を選ぶため、そのまま含まれます。どれかを選ぶまではどこにも送られません。「Copy the conversation」はクリップボードに入れるだけです。
 - AllInOneIME Cloud を使う場合、文は開発者のサーバを経由してモデルプロバイダに送られます（現在は OpenRouter 経由）。サーバが保持するのは件数だけで、テキストは決して保持しません。サインインで保持されるのはメールアドレスだけです。
 - 機密情報を隠す（Settings → AI Provider → Privacy、デフォルトはオフ）：どのリクエストも送信前に（`@improve`、`@translate`、`@question`、あなたのプロンプトコマンドとプロンプトプラグイン。AllInOneIME Cloud を含むすべてのプロバイダで）、メールアドレス、電話番号、支払いカード番号（Luhn チェック済み）、API キーとトークン（`sk-`、`sk-ant-`、`AKIA…`、`ghp_`、`xox…`、長いランダムな文字列）、IP アドレス、自分で登録した語（コードネーム、名前）を、Mac 上で `[EMAIL_1]`、`[PHONE_1]`、`[ITEM_1]` のようなプレースホルダに置き換えます。同じ値には同じプレースホルダが付きます。モデルの結果は表示や挿入の前に本来の値に戻され、パネルには「2 items hidden from the AI」と表示されます。モデルがプレースホルダを判別できないほど変えてしまった結果は、書かれたとおりに表示され、「⚠ placeholder changed」の印が付きます。隠した値を含む Jargon 用語リストの項目は送信されません。種類ごとにオフにできます。全角の形（`zhang＠example.com`、`１３８…`）も見つけ、値や語句が改行で分かれていても認識します。メール、番号、キーのような形式のある値は認識できますが、名前や住所（自分の語として登録してください）や、ほかの文字体系の似た形の文字は認識できません。あなたの AI サービスへのリクエストに適用されます。`@agent`（一緒に渡す Chrome のページも含む）、Web サイトからデータを取得する（`@stock`）またはサイトを開く（`@x`）プラグイン、スクリプト拡張機能は、入力したとおりのテキストを送ります。設定ファイルでは `redaction`（`enabled`、`emails`、`phones`、`cards`、`keys`、`ips`、`customWords`）です。
-- 音声は右 ⌥ を押している間だけ録音され、Mac 上で認識されます。認識されたテキストが送られるのは、上記のコマンドで実行キーを押したときだけです。
 - 入力メソッドがクリップボードのテキストを読み取るのは、コマンド内で ⌃V または ⌘V を押したときに一度だけです。パスワードマネージャが非表示扱いにした内容は読み取りません。テキストはまずコマンド内に表示され、これも実行キーを押したときにだけ送られます。最近の macOS では、AllInOneIME によるクリップボードの読み取りを許可するか尋ねられるので、許可してください。毎回尋ねられないようにするには、System Settings → Privacy & Security で AllInOneIME のペースト権限を常に許可に設定します。
-- パスワード欄では、macOS が独自のキーボード（U.S. または ABC）に切り替え、欄を離れると元に戻します。入力中のアプリがセキュア入力を保持している間、AllInOneIME は文字を合成せず、録音もできません。キーは入力したとおりに入ります。また、システムがセキュア入力の状態にある間（パスワード欄、Terminal の Secure Keyboard Entry（セキュアなキーボード入力）など）は、AI に何も送られません。
+- パスワード欄では、macOS が独自のキーボード（U.S. または ABC）に切り替え、欄を離れると元に戻します。入力中のアプリがセキュア入力を保持している間、AllInOneIME は文字を合成しません。キーは入力したとおりに入ります。また、システムがセキュア入力の状態にある間（パスワード欄、Terminal の Secure Keyboard Entry（セキュアなキーボード入力）など）は、AI に何も送られません。
 - `@note` と `@reminder` は AI に送られません。AllInOneIME はテキストをこの Mac の Notes と Reminders に渡すだけで、リマインダーの日時も Mac 上で読み取ります（それらのアプリがほかのデバイスに同期するかどうかは、iCloud などのアカウント次第です）。そのため、セキュア入力中でも使えます。フォルダへの `@note` は、この Mac にファイルを書き込みます（iCloud Drive や Obsidian Sync のフォルダのように、そのフォルダが同期されていれば同期されます）。Notion への `@note` は、メモを Notion（api.notion.com。キーチェーンに保存したインテグレーションのトークンを使用）に送ります。送るのはそのときだけで、セキュア入力中は送りません。
 - `@reportissue`（と「Report an Issue…」）は自分では何も送信しません。ブラウザで GitHub の新しい issue のページを開き、入力したタイトルと、上に挙げたバージョン、言語、プロバイダの種類、数を付けます。これらは先に候補パネルに表示されます。そこで Submit をクリックしない限り、GitHub には何も届きません。
 - `@open` はこの Mac 上だけを検索します。それで開いたもの（最新 200 件）を入力メソッド自身の環境設定（config.json ではなく）に記録し、先頭に表示するために使います。
@@ -581,7 +565,7 @@ make test         # unit tests, plus tests that run the real Rime engine (and ma
 make strings      # adds new interface text to Resources/Localizable.xcstrings, marks what's unused stale
 make pack         # the Chinese language pack: build/packs/zh-pinyin-<version>.tar.xz, its sha256, its packs.json entry
 make packs        # all the language packs: Chinese, and Korean and Hindi from Core/LanguagePacks/ (ko-hangul, hi-phonetic)
-make selftest     # drives the input method through a simulated text field: real Bedrock calls, plus on-device recognition tested with synthesized speech
+make selftest     # drives the input method through a simulated text field: real Bedrock calls
 make realtest     # types into a real app's text field (needs the screen unlocked; takes over the foreground for about 1 minute)
 make screenshots  # regenerates the screenshots in docs/
 make cli && .build/release/allinoneime-cli --styles concise,jargon "this is a blocker bug your team need fix it asap"   # try polishing and rewrites in the terminal
@@ -597,13 +581,13 @@ make update-test  # the in-app updater end to end: a temporary install, a test s
 
 コードの構成：ルートは macOS アプリです。`Core/` はすべてのプラットフォームが共有するコアで、独立した Swift パッケージです（macOS、Linux、Windows で単独でビルドとテストができます）。`Windows/` は Windows アプリの始まりです。
 
-- `Core/Sources/AllInOneIMECore`：Bedrock クライアント、SigV4、プロンプト、2 階層の入力ステートマシン（@ コマンドと音声ジェスチャを含む）。AppKit には依存しません
+- `Core/Sources/AllInOneIMECore`：Bedrock クライアント、SigV4、プロンプト、2 階層の入力ステートマシン（@ コマンドを含む）。AppKit には依存しません
 - `Core/Sources/AllInOneIMEText`：インターフェイスのテキストとその言語（`UIString`、`InterfaceText`、`InterfaceLanguage`、そして `.lproj` バンドルがない環境でカタログを読み取る `StringCatalog`）。設定を開くリンクもすべてここにあります（`AllInOneIMECore` がこれを再エクスポートします）
 - `Core/Sources/AllInOneIMEQuickJS`：QuickJS-ng（その C のソースは `Core/Sources/CQuickJS`）。JavaScriptCore のない環境（Windows、Linux、Android）で、プラグインと `@js` の JavaScript を実行します
 - `Core/Sources/AllInOneIMERime`：librime のラッパー
 - `Core/Sources/AllInOneIMECLI`：コマンドライン `allinoneime-cli`（`make cli`）。各プラットフォーム自身の `main` から実行されます
 - `Sources/AllInOneIMEMac`：Mac にしかないもの（キーレイアウト、コード署名、Spotlight、AppleScript、アップデータのインストール処理）と `Platform.mac`
-- `Sources/AllInOneIME`：InputMethodKit の入力メソッド、候補パネル、設定ウインドウ、音声認識
+- `Sources/AllInOneIME`：InputMethodKit の入力メソッド、候補パネル、設定ウインドウ
 - `Sources/AllInOneIMESettings`：「AllInOneIME Settings」ランチャー
 - `Sources/AllInOneIMEInstaller`：ディスクイメージ内の「Install AllInOneIME」。インストール、アップデート、アンインストールを行います
 
@@ -619,7 +603,7 @@ make update-test  # the in-app updater end to end: a temporary install, a test s
 
 アプリはマニフェストを読む前に、内蔵の公開鍵でその署名を確認し、新しくないバージョンは決してインストールせず、https で allinoneime.com またはこのリポジトリの GitHub リリースのファイルからのみダウンロードし、アーカイブのサイズと SHA-256 がマニフェストと一致し、両方のアプリのバンドル ID、バージョン、コード署名が確認でき、新しい入力メソッドが起動したときにだけインストールします。その後、入力メソッドは自身の実行ファイルをヘルパーとして処理を引き継ぎ（`--apply-update`）、ヘルパーは入力メソッドの終了を待って、インストーラと同じようにアプリを入れ替え（古いものは脇に移し、失敗したら元に戻します）、新しいものを登録します。ローカルサーバで試すには：`make update-test`、または `Scripts/build-update-manifest.swift` の `--test-key` と `AllInOneIME --install-update --manifest-url http://127.0.0.1:<port>/update.json --key <its public key> --target-dir <folder>` を使います。
 
-バンドル ID は今も `com.aipinyin.inputmethod.AIPinyin` です。macOS はこれを使って追加済みの入力ソースとマイクの権限を記憶しているため、変更すると入力メソッドの追加と権限の付与をやり直す必要があります。
+バンドル ID は今も `com.aipinyin.inputmethod.AIPinyin` です。macOS はこれを使って追加済みの入力ソースと付与された権限を記憶しているため、変更すると入力メソッドの追加と権限の付与をやり直す必要があります。
 
 ## ライセンス
 

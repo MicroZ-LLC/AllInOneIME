@@ -300,9 +300,11 @@ struct SettingsSchema {
             add(fuzzy, to: &fields) { store.setFuzzyPinyin(Self.strings($0)) }
             englishWords(&fields)
         }
-        add(toggle("voiceInput", tr("按住右 ⌥ 说话，松开结束", "Hold right ⌥ to talk, release to stop"),
-                   tr("在这台 Mac 上识别，不上传", "Recognized on this Mac, never uploaded"), config.voiceInput, platforms: [.mac]),
-            to: &fields) { store.config.voiceInput = Self.bool($0) }
+        if Features.voiceInput {  // off for now: no field, the setting kept as it is
+            add(toggle("voiceInput", tr("按住右 ⌥ 说话，松开结束", "Hold right ⌥ to talk, release to stop"),
+                       tr("在这台 Mac 上识别，不上传", "Recognized on this Mac, never uploaded"), config.voiceInput, platforms: [.mac]),
+                to: &fields) { store.config.voiceInput = Self.bool($0) }
+        }
         return fields
     }
 

@@ -16,8 +16,12 @@ extension UIText {
             return tr("@ 命令写完按 ⏎ 执行，拼音没选完也能直接按。没有 @ 时 ⏎ 就是普通回车。",
                       "Return runs a command typed with @, also on pinyin not yet picked. Without @, Return is a normal Return.")
         case .optionTap:
-            return tr("按一下 ⌥ 马上松开，左右都行；按住右 ⌥ 仍然是说话。@ 命令按 ⏎ 也执行。",
-                      "Press either ⌥ and let go right away; holding right ⌥ still dictates. @ commands also run on Return.")
+            // Holding the right ⌥ dictates only while voice input is on (`Features.voiceInput`).
+            return Features.voiceInput
+                ? tr("按一下 ⌥ 马上松开，左右都行；按住右 ⌥ 仍然是说话。@ 命令按 ⏎ 也执行。",
+                     "Press either ⌥ and let go right away; holding right ⌥ still dictates. @ commands also run on Return.")
+                : tr("按一下 ⌥ 马上松开，左右都行。@ 命令按 ⏎ 也执行。",
+                     "Press either ⌥ and let go right away. @ commands also run on Return.")
         case .optionSpace:
             return tr("拼音没选完也可以直接按 ⌥空格。⌥空格被 Alfred、Raycast 等占用时，改用「单按 ⌥」。@ 命令按 ⏎ 也执行。",
                       "⌥Space also works before the pinyin is picked. If Alfred, Raycast or another app uses ⌥Space, "

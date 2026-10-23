@@ -773,7 +773,8 @@ final class AllInOneIMEInputController: IMKInputController {
 
     @MainActor
     private func startVoice(id: Int, language: Language) {
-        guard #available(macOS 26.0, *), VoiceInput.isSupported else {
+        // Voice input is off for now (`Features.voiceInput`): the session never asks, and the microphone stays untouched.
+        guard Features.voiceInput, #available(macOS 26.0, *), VoiceInput.isSupported else {
             received(.voice(.failed(UIText.describe(VoiceError.unsupportedSystem), id: id)))
             return
         }

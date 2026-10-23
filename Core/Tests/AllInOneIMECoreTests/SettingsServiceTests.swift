@@ -30,13 +30,19 @@ struct SettingsServiceTests {
     // MARK: The document
 
     /// What only the Mac has is left out of Windows' document, and in the Mac's: iCloud sync, the menu bar icon, Chrome's
-    /// page, voice; a choice only the Mac has (Apple Notes) too, unless it is the value now (then shown, not to be picked).
+    /// page, voice (while voice input is on, `Features.voiceInput`; off for now: `VoiceOffTests`); a choice only the Mac
+    /// has (Apple Notes) too, unless it is the value now (then shown, not to be picked).
     @Test func macOnlyFieldsStayOnTheMac() throws {
         let windows = try service(#"{"provider": "anthropic"}"#).0.document()
         let mac = try service(#"{"provider": "anthropic"}"#, platform: .mac).0.document()
-        let macOnly: Set = ["iCloudSync", "menuBarIcon", "agentPageContext", "voiceInput", "checkForUpdates"]
+        let macOnly: Set = ["iCloudSync", "menuBarIcon", "agentPageContext", "checkForUpdates"]
         #expect(ids(windows).isDisjoint(with: macOnly))
         #expect(macOnly.isSubset(of: ids(mac)))
+        try Features.$voiceInputInTests.withValue(true) {
+            let windows = try service(#"{"provider": "anthropic"}"#).0.document()
+            let mac = try service(#"{"provider": "anthropic"}"#, platform: .mac).0.document()
+            #expect(!ids(windows).contains("voiceInput") && ids(mac).contains("voiceInput"))
+        }
         #expect(windows.platform == .windows && mac.platform == .mac)
         // Notes by default: Apple Notes is the value, shown on Windows but not to be picked.
         let destination = try #require(windows.field("notes.destination"))

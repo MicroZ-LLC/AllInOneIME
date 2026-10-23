@@ -622,8 +622,8 @@ given and sends back what the user did. It opens no sessions.
   in use, the typing speed while typing out is on, fuzzy pinyin and the English words with Chinese among the input
   languages. After a change, draw the new document: fields come and go.
 - **Which platform:** a document is made for the client's platform (the engine's: `windows`). The Mac's own fields
-  aren't in Windows' document: `iCloudSync`, `menuBarIcon`, `checkForUpdates`, `voiceInput`, `agentPageContext`
-  (Chrome's page). Nor are the Mac's choices: the action keys `optionTap` and `optionSpace`, Apple Notes
+  aren't in Windows' document: `iCloudSync`, `menuBarIcon`, `checkForUpdates`, `voiceInput` (while voice input is
+  on: off for now, `Features.voiceInput`, so in neither), `agentPageContext` (Chrome's page). Nor are the Mac's choices: the action keys `optionTap` and `optionSpace`, Apple Notes
   (`notes.destination` `notes`), the providers `apple` (Apple Intelligence) and `hosted` (its sign-in is the Mac's). A
   choice only the other platform has is shown, `disabled`, when it is the value now (Apple Notes, a new user's
   default). Messages (`@imessage`) has no setting. A field's `platforms`, when present, says where it applies. Its
@@ -638,7 +638,7 @@ given and sends back what the user did. It opens no sessions.
 | Section | Fields |
 |---|---|
 | `general` | `actionKey`, `typeOut`, `typeOutRate`, `typeOutVaries`, `typeOutMistakes`, `useSelection`, `rememberQuestions`, `uiLanguage`; the Mac's: `menuBarIcon`, `iCloudSync`, `checkForUpdates` |
-| `input` | `inputLanguages`, `candidateLayout`, `fuzzyPinyin`, `learnsEnglishWords`, `englishWords`; the Mac's: `voiceInput` |
+| `input` | `inputLanguages`, `candidateLayout`, `fuzzyPinyin`, `learnsEnglishWords`, `englishWords`; the Mac's: `voiceInput` (while voice input is on) |
 | `writing` | `outputLanguages`, `rewriteStyles`, `improveTranslates`, `jargonFile` |
 | `provider` | `provider`; `<p>.model`, `<p>.key`, `<p>.baseURL`, `<p>.effort` for `anthropic`, `gemini`, `openai`; `bedrock.modelId`, `bedrock.awsProfile`, `bedrock.region`; `provider.test` |
 | `request` | `maxTokens`, `temperature` (Bedrock), `timeoutSeconds` |

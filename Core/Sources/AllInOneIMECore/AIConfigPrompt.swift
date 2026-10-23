@@ -112,8 +112,8 @@ public enum AIConfigPrompt {
 
             Rules:
             - Use only the settings listed below, with the values they allow. Anything else (custom commands, plugins, \
-            extensions, voice, the action key, API keys and other secrets) can't be changed here: leave it out and say so \
-            in the note.
+            extensions, \(Features.voiceInput ? "voice, " : "")the action key, API keys and other secrets) can't be changed \
+            here: leave it out and say so in the note.
             - Change only what the user asks for. A list (languages, styles) is given whole, in order: "add French" keeps \
             the current ones and adds French; "English and French" replaces them.
             - Never write an API key, password or token, even if the user typed one: a provider that needs a key gets it \

@@ -135,7 +135,7 @@ struct ClickPickTests {
     }
 
     @Test func nothingWhileListening() {
-        let c = Composer(engine: FakeEngine(), actionKey: .enter)
+        let c = Composer(engine: FakeEngine(), voiceEnabled: true, actionKey: .enter)  // as if voice input were on
         type("@imp", c)
         _ = c.handleKeyDown(tab)
         _ = c.handleFlagsChanged(keyCode: VirtualKey.rightOption, modifiers: [.option, .rightOption], timestamp: 0)

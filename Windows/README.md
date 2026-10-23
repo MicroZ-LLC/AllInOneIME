@@ -168,8 +168,8 @@ mode the goldens bring their own (`#! settings`); `settings.jsonl` replays over 
 - **In AllInOneIME Settings:** the sign-in to AllInOneIME Cloud, the language packs (Korean, Hindi: their input isn't
   offered), the Git extension sources.
 - **What only macOS has:** Apple Notes (`@note`'s default destination: the text goes on the clipboard instead, and a
-  notice says so; a folder or Notion works), Reminders (`@reminder`), Messages (`@imessage`), dictation (the right
-  Alt key), reading a screenshot's text (`@reply` with an image), Claude Code background tasks (`@tasks`, `@agent` in
+  notice says so; a folder or Notion works), Reminders (`@reminder`), Messages (`@imessage`), reading a
+  screenshot's text (`@reply` with an image), Claude Code background tasks (`@tasks`, `@agent` in
   the background). Each says "Windows 版还不支持" / "Not available on Windows yet" in the panel or a notice.
 - **Not done yet on Windows:** results typed out step by step (they go in at once), the keyboard layout of an input
   language (French's AZERTY), Translate as You Type's chip, the command usage order and the recent questions kept

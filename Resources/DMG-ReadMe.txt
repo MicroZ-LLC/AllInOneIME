@@ -15,7 +15,7 @@ To update: Settings → About → Check for Updates, or install again from the n
 no need to uninstall first. Updating from 0.6.2 or earlier, macOS asks once for your login password
 for each key AllInOneIME saved in the keychain: enter it and click "Always Allow".
 To uninstall: open "Install AllInOneIME" and click Uninstall…. Settings and learned words are kept.
-Needs macOS 14 or later; voice input needs macOS 26 or later.
+Needs macOS 14 or later.
 Documentation: https://allinoneime.com/docs
 Made by Weijian Zhang (https://weijianz.com). Source available under FSL-1.1-ALv2 (LICENSE.txt).
 
@@ -35,7 +35,7 @@ AllInOneIME 安装说明
 从 0.6.2 或更早的版本更新后，AllInOneIME 存在钥匙串里的每个 key，macOS 都会问一次登录密码：
 输入后点「始终允许」。
 卸载：打开「安装 AllInOneIME」，点「卸载…」。设置和学到的词会保留。
-需要 macOS 14 或更新版本；语音输入需要 macOS 26 或更新版本。
+需要 macOS 14 或更新版本。
 使用说明：https://allinoneime.com/docs
 作者：Weijian Zhang（https://weijianz.com）。源码公开，采用 FSL-1.1-ALv2 许可（LICENSE.txt）。
 
