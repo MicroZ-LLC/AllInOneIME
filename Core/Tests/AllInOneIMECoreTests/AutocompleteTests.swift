@@ -109,6 +109,17 @@ struct AutocompleteTests {
         #expect(Autocomplete.trimmed("\n\n", before: "Hi") == nil)
     }
 
+    @Test func theEndOfTheTextSaidAgainIsNotShown() {
+        // All of the answer is the end of the text, from a word's start, in any case: nothing.
+        #expect(Autocomplete.trimmed("Hello.", before: "Just say hello") == nil)
+        #expect(Autocomplete.trimmed("<after>会议</after>", before: "明天下午三点的会议") == nil)
+        // The unfinished word written whole: its rest. A word that is one on its own stays.
+        #expect(Autocomplete.trimmed("Schedule a call.", before: "Please sched") == "ule a call.")
+        #expect(Autocomplete.trimmed("documents by Friday.", before: "Sign the docu") == "ments by Friday.")
+        #expect(Autocomplete.trimmed("there.", before: "Over there") == nil)
+        #expect(Autocomplete.trimmed("there is more.", before: "Over there") == " there is more.")
+    }
+
     @Test func aCloudProvidersTokensAreTold() throws {
         let start = try HTTPProviders.events(fromData: #"{"type":"message_start","message":{"id":"m","usage":{"input_tokens":120}}}"#,
                                              provider: .anthropic)

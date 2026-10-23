@@ -166,8 +166,12 @@ public enum Autocomplete {
         var line = String(first).replacingOccurrences(of: "\t", with: " ")
         line = line.filter { !$0.isNewline && $0.unicodeScalars.allSatisfy(KeyEvent.isPrintable) }
         line = stripQuotes(line)
-        // The end of what was typed said again ("…see you" → "see you tomorrow"): only the rest.
+        // Only the end of what was typed said again ("iss" after "iss"): nothing to add.
+        if saysTheEndAgain(line, before: before) { return nil }
+        // The end of what was typed said again ("…see you" → "see you tomorrow"), the unfinished word written whole
+        // ("iss" → "issue"): only the rest.
         line = droppingEcho(line, before: before)
+        line = droppingUnfinishedWord(line, before: before)
         // A space between words where the model left it out, none where it's wrong (after a space, a line's start, CJK).
         let last = before.last
         if last == nil || last!.isWhitespace || last!.isWide {
@@ -303,6 +307,35 @@ public enum Autocomplete {
             length -= 1
         }
         return line
+    }
+
+    /// Whether all of `line` is the end of `before` again, from the start of a word there ("iss" after "iss", "the rep"
+    /// after "…send you the rep"; in any case, give or take the spaces and marks around it).
+    static func saysTheEndAgain(_ line: String, before: String) -> Bool {
+        let said = line.lowercased().drop { !($0.isLetter || $0.isNumber) }
+        let core = String(said.reversed().drop { !($0.isLetter || $0.isNumber) }.reversed())
+        let text = before.lowercased()
+        guard let first = core.first, text.hasSuffix(core) else { return false }
+        guard let previous = text.dropLast(core.count).last else { return true }
+        return first.isWide || !(previous.isLetter || previous.isNumber)
+    }
+
+    /// `line` without the start of the word `before` ends with, where the model wrote that word whole ("iss" + "issue" →
+    /// "ue"): only an unfinished one ("that" + "that's right" stays).
+    static func droppingUnfinishedWord(_ line: String, before: String) -> String {
+        let typed = lastWord(before)
+        guard !typed.isEmpty, !isWord(typed.lowercased()), line.lowercased().hasPrefix(typed.lowercased()) else { return line }
+        return String(line.dropFirst(typed.count))
+    }
+
+    /// The Latin letters `text` ends with: the word being typed ("iss" in "Frobnicate. iss"), none after a space or a mark.
+    static func lastWord(_ text: String) -> String {
+        String(text.reversed().prefix { $0.isASCII && $0.isLetter }.reversed())
+    }
+
+    /// Whether `word` (in small letters) is a word on its own, by the English word list the core has (`RedactionWords`).
+    static func isWord(_ word: String) -> Bool {
+        RedactionWords.isEnglish(word)
     }
 
     // MARK: Keys
