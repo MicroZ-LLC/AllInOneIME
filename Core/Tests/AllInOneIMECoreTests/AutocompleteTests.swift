@@ -336,7 +336,8 @@ struct AutocompleteTests {
             #expect(r.host.noticeAlone == "Your AI provider changed: Autocomplete uses the model on this Mac until you agree to send text to Gemini API (“Autocomplete with Gemini API” in the input menu)")
             r.host.press(FakeHost.escape)
             r.host.type("l")
-            r.pauseEnds(expecting: "x")
+            r.pauseEnds()  // the suggestion waved away isn't shown again, typed along: nothing to wait for
+            #expect(r.host.ghost == nil)
             #expect(r.host.outputs.filter { if case let .notice(text) = $0 { text.hasPrefix("Your AI provider changed") } else { false } }.count == 1)
         }
     }
