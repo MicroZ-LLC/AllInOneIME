@@ -36040,6 +36040,7 @@
     },
     "Tab completes what they share" : {
       "comment" : "Tab 补全它们共同的开头 — Sources/AllInOneIMECore/Session/InputSession+Suggestions.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -36085,8 +36086,103 @@
         }
       }
     },
+    "Tab completes what they share · %@ goes to the app" : {
+      "comment" : "Tab 补全它们共同的开头 · %@ 交给应用 — Sources/AllInOneIMECore/Session/InputSession+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab vervollständigt das Gemeinsame · %@ geht an die App"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab completa lo que comparten · %@ va a la app"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab complète ce qu’elles ont en commun · %@ va à l’app"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab で共通部分を補完 · %@ はアプリへ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab으로 공통 부분 완성 · %@ 키는 앱으로"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab completa o que elas têm em comum · %@ vai para o app"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab 補全它們共同的開頭 · %@ 交給 App"
+          }
+        }
+      }
+    },
+    "Tab completes what they share · %@ inserts the first row" : {
+      "comment" : "Tab 补全它们共同的开头 · %@ 插入第一行 — Sources/AllInOneIMECore/Session/InputSession+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab vervollständigt das Gemeinsame · %@ fügt die erste Zeile ein"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab completa lo que comparten · %@ inserta la primera fila"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab complète ce qu’elles ont en commun · %@ insère la première ligne"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab で共通部分を補完 · %@ で最初の候補を挿入"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab으로 공통 부분 완성 · %@ 첫 번째 항목 삽입"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab completa o que elas têm em comum · %@ insere a primeira linha"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab 補全它們共同的開頭 · %@ 插入第一行"
+          }
+        }
+      }
+    },
     "Tab inserts · ↑↓ %@ to pick · Esc hides" : {
       "comment" : "Tab 插入 · ↑↓ %@ 选择 · Esc 隐藏 — Sources/AllInOneIMECore/Session/InputSession+Suggestions.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -36132,8 +36228,56 @@
         }
       }
     },
+    "Tab inserts · ↑↓ then %@ to pick · Esc hides" : {
+      "comment" : "Tab 插入 · ↑↓ 再 %@ 选择 · Esc 隐藏 — Sources/AllInOneIMECore/Session/InputSession+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab fügt ein · ↑↓, dann %@ zum Wählen · Esc blendet aus"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab inserta · ↑↓ y luego %@ para elegir · Esc oculta"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab insère · ↑↓ puis %@ pour choisir · Échap masque"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab で挿入 · ↑↓ のあと %@ で選択 · Esc で隠す"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab 삽입 · ↑↓ 후 %@ 선택 · Esc 숨기기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab insere · ↑↓ e depois %@ para escolher · Esc oculta"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab 插入 · ↑↓ 再 %@ 選擇 · Esc 隱藏"
+          }
+        }
+      }
+    },
     "Tab inserts the first row" : {
       "comment" : "Tab 插入第一行 — Sources/AllInOneIMECore/Session/InputSession+Suggestions.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -36175,6 +36319,100 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tab 插入第一行"
+          }
+        }
+      }
+    },
+    "Tab inserts the first row · %@ goes to the app" : {
+      "comment" : "Tab 插入第一行 · %@ 交给应用 — Sources/AllInOneIMECore/Session/InputSession+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab fügt die erste Zeile ein · %@ geht an die App"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab inserta la primera fila · %@ va a la app"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab insère la première ligne · %@ va à l’app"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab で最初の候補を挿入 · %@ はアプリへ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab으로 첫 번째 항목 삽입 · %@ 키는 앱으로"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab insere a primeira linha · %@ vai para o app"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab 插入第一行 · %@ 交給 App"
+          }
+        }
+      }
+    },
+    "Tab or %@ inserts · ↑↓ to pick · Esc hides" : {
+      "comment" : "Tab 或 %@ 插入 · ↑↓ 选择 · Esc 隐藏 — Sources/AllInOneIMECore/Session/InputSession+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab oder %@ fügt ein · ↑↓ zum Wählen · Esc blendet aus"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab o %@ inserta · ↑↓ para elegir · Esc oculta"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab ou %@ insère · ↑↓ pour choisir · Échap masque"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab か %@ で挿入 · ↑↓ で選択 · Esc で隠す"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab 또는 %@ 삽입 · ↑↓ 선택 · Esc 숨기기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab ou %@ insere · ↑↓ para escolher · Esc oculta"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab 或 %@ 插入 · ↑↓ 選擇 · Esc 隱藏"
           }
         }
       }
