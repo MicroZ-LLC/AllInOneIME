@@ -17,6 +17,9 @@ struct SuggestionRow: Equatable {
     /// The source's title, for the footer, and when its list was made.
     var source: String
     var madeAt: Date?
+    /// Coding mode's (a pack's keyword or snippet, a word of the field), not a plugin's: Return picks it at once, as an
+    /// IDE does (`InputSession.suggestionsReturnRow`).
+    var coding = false
 
     /// What goes in for it: what wasn't typed yet (the typed part, its case, stays).
     var rest: String { String(insertion.dropFirst(typed.count)) }
@@ -429,7 +432,8 @@ enum CodingRows {
                 // Picked as itself, not as every snippet of its trigger ("if", "if/else", "main guard").
                 let pick = SuggestionPick(plugin: "", source: pack.language, match: "snippet:\(snippet.trigger):\(snippet.title ?? snippet.body)")
                 snippets.append((SuggestionRow(text: snippet.trigger, comment: "", insertion: insertion, caretBack: back,
-                                               completion: snippet.trigger, typed: identifier, pick: pick, source: pack.title),
+                                               completion: snippet.trigger, typed: identifier, pick: pick, source: pack.title,
+                                               coding: true),
                                  [pack.title], title))
             }
         }
@@ -445,13 +449,14 @@ enum CodingRows {
             for keyword in pack.keywords where keyword.hasPrefix(identifier) && keyword != identifier {
                 guard keywords.insert(keyword).inserted else { continue }
                 rows.append(SuggestionRow(text: keyword, comment: pack.title, insertion: keyword, completion: keyword, typed: identifier,
-                                          pick: SuggestionPick(plugin: "", source: pack.language, match: keyword), source: pack.title))
+                                          pick: SuggestionPick(plugin: "", source: pack.language, match: keyword), source: pack.title,
+                                          coding: true))
             }
         }
         let fieldWords = t.tr("这个字段里的词", "Words in this field")
         for word in words where word.hasPrefix(identifier) && word != identifier && !keywords.contains(word) {
             rows.append(SuggestionRow(text: word, comment: "", insertion: word, completion: word, typed: identifier, pick: nil,
-                                      source: fieldWords))
+                                      source: fieldWords, coding: true))
         }
         return rows
     }

@@ -22,7 +22,7 @@ struct SuggestionsField {
     var rowsToken: String?
     var appClass = SuggestionsAppClass.ordinary
     var highlighted = 0
-    /// ↓ or ↑ moved the highlight: Return inserts it.
+    /// ↓ or ↑ moved the highlight: Return inserts it (a coding row's without it, `suggestionsReturnRow`).
     var moved = false
     /// The token Esc hid the rows for (spec 6.12).
     var hiddenFor: String?
@@ -302,20 +302,40 @@ extension InputSession {
         return wants
     }
 
-    /// The row `key` would put in where rows show (`suggestionsBeforeKey`): Tab's, or Return's once ↓/↑ moved; nil: none.
+    /// The row `key` would put in where rows show (`suggestionsBeforeKey`): Tab's, or Return's
+    /// (`suggestionsReturnRow`); nil: none.
     func suggestionsRowPut(by key: KeyEvent) -> SuggestionRow? {
         guard suggesting.shown, suggesting.chooser == nil, !suggesting.rows.isEmpty, !composer.isComposing,
               key.modifiers.subtracting(.capsLock).subtracting(.sides).isEmpty else { return nil }
         switch (suggesting.appClass, key.key) {
         case (.ordinary, .tab): return suggesting.rows[suggesting.highlighted]
         case (.chat, .tab): return suggesting.rows[0]
-        case (.ordinary, .enter), (.ordinary, .keypadEnter): return suggesting.moved ? suggesting.rows[suggesting.highlighted] : nil
+        case (_, .enter), (_, .keypadEnter): return suggestionsReturnRow()
         default: return nil
         }
     }
 
+    /// The row Return puts in while the rows show; nil: Return is the app's. In an ordinary app the highlighted row once
+    /// ↓/↑ moved it, or at once where it is coding mode's (spec 2: as in an IDE); in a code editor the first row, where it
+    /// is coding mode's (the arrows are the editor's). Never in chat apps (Return sends) or terminals (it runs the
+    /// command), nor a coding row that adds nothing to what was typed (a snippet's trigger typed in full, in a code
+    /// editor): the app has Return then.
+    func suggestionsReturnRow() -> SuggestionRow? {
+        guard !suggesting.rows.isEmpty else { return nil }
+        switch suggesting.appClass {
+        case .ordinary:
+            let row = suggesting.rows[suggesting.highlighted]
+            return suggesting.moved || (row.coding && !row.rest.isEmpty) ? row : nil
+        case .codeEditor:
+            let row = suggesting.rows[0]
+            return !terminal && row.coding && !row.rest.isEmpty ? row : nil
+        case .chat, .none:
+            return nil
+        }
+    }
+
     /// Before the composer has `event`: the chooser's keys while it is open; the rows' keys of the app's class while they
-    /// show (spec 1.4: Tab, ↓ ↑, Return once moved, Esc; digits never). Nil: the key goes on.
+    /// show (spec 1.4: Tab, ↓ ↑, Return once moved or on a coding row, Esc; digits never). Nil: the key goes on.
     func suggestionsBeforeKey(_ event: KeyEvent, _ context: FieldContext) -> Bool? {
         // A key while Shift is held is no long press of it.
         chooserPress.keyDown()
@@ -347,9 +367,9 @@ extension InputSession {
             suggesting.moved = true
             suggestionsShow()
             return true
-        case (.ordinary, .enter), (.ordinary, .keypadEnter):
-            guard suggesting.moved else { return nil }
-            suggestionsInsert(suggesting.rows[suggesting.highlighted], key: event)
+        case (_, .enter), (_, .keypadEnter):
+            guard let row = suggestionsReturnRow() else { return nil }
+            suggestionsInsert(row, key: event)
             return true
         case (.ordinary, .escape):
             suggesting.hiddenFor = suggesting.token
@@ -622,7 +642,8 @@ extension InputSession {
     }
 
     /// The panel of the rows (or the chooser): no number on a row (digits are typed, spec 6.1), the keys of the app's
-    /// class in the footer, the source and its list's age (once older than 10 minutes) on its right, or the notice.
+    /// class in the footer, the source and its list's age (once older than 10 minutes) on its right, or the notice. The
+    /// highlighted row is drawn chosen only where Return takes it: until then it is only the row Tab takes.
     func suggestionsPanel() -> PanelModel? {
         if let highlighted = suggesting.chooser { return chooserPanel(highlighted) }
         guard suggesting.shown, let first = suggesting.rows.first else { return nil }
@@ -630,20 +651,33 @@ extension InputSession {
         let rows = suggesting.rows.enumerated().map { index, row in
             PanelModel.Row(label: "", text: row.text, comment: row.comment, kind: .candidate, choice: index)
         }
+        // What Return does, said: it inserts, it waits for ↓/↑, or it is the app's.
         let enter = Platform.current.terms.enter
+        let returnInserts = suggestionsReturnRow() != nil
         let footer: String
+        let highlighted: Int?
         switch suggesting.appClass {
-        case .ordinary: footer = t.tr("Tab 插入 · ↑↓ \(enter) 选择 · Esc 隐藏", "Tab inserts · ↑↓ \(enter) to pick · Esc hides")
-        case .chat: footer = t.tr("Tab 插入第一行", "Tab inserts the first row")
-        case .codeEditor, .none: footer = t.tr("Tab 补全它们共同的开头", "Tab completes what they share")
+        case .ordinary:
+            footer = returnInserts ? t.tr("Tab 或 \(enter) 插入 · ↑↓ 选择 · Esc 隐藏", "Tab or \(enter) inserts · ↑↓ to pick · Esc hides")
+                : t.tr("Tab 插入 · ↑↓ 再 \(enter) 选择 · Esc 隐藏", "Tab inserts · ↑↓ then \(enter) to pick · Esc hides")
+            highlighted = suggesting.highlighted
+        case .chat:
+            footer = t.tr("Tab 插入第一行 · \(enter) 交给应用", "Tab inserts the first row · \(enter) goes to the app")
+            highlighted = 0  // Tab's, never chosen: Return sends
+        case .codeEditor, .none:
+            footer = returnInserts ? t.tr("Tab 补全它们共同的开头 · \(enter) 插入第一行", "Tab completes what they share · \(enter) inserts the first row")
+                : t.tr("Tab 补全它们共同的开头 · \(enter) 交给应用", "Tab completes what they share · \(enter) goes to the app")
+            // The row Return puts in, else none: Tab completes what they all share.
+            highlighted = returnInserts ? 0 : nil
         }
         let shown = suggesting.rows[suggesting.appClass == .ordinary ? suggesting.highlighted : 0]
         var detail = shown.source
         if let madeAt = shown.madeAt ?? first.madeAt, let age = Self.listAge(madeAt, now: services.suggestions.now(), in: t) {
             detail += " · " + age
         }
-        return PanelModel(rows: rows, highlighted: suggesting.appClass == .codeEditor ? nil : (suggesting.appClass == .chat ? 0 : suggesting.highlighted),
-                          footer: footer, detail: notice ?? detail)
+        // Chosen (drawn selected) only where Return takes it; else only the row Tab takes, nothing chosen yet.
+        return PanelModel(rows: rows, highlighted: highlighted, highlightChosen: returnInserts, footer: footer,
+                          detail: notice ?? detail)
     }
 
     /// A list's age as the footer says it, once older than 10 minutes: "12 min ago", "2 h ago", "3 d ago".
