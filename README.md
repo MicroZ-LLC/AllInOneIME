@@ -781,12 +781,21 @@ or tell Settings → Assistant "turn on autocomplete"; it stays on until you tur
 - **Never:** in password fields (those Accessibility tells too, where secure input isn't on) and while secure input is on,
   in a text that looks like a code or a card number, in terminals, password managers, remote desktops and virtual
   machines, in apps with No AI, and while Translate as You Type is on.
+- **What it sends:** the line the caret is on, whole, and before it the most recent sentences in that line's language,
+  up to 200 characters, in their order; sentences in other languages are left out, with a line break where they were. So
+  a Chinese paragraph above an English line doesn't go with it (the model would go on in Chinese), nor English above a
+  Chinese line. Sentences end at . ! ? 。！？ and line breaks, and go by their script: Chinese (any Chinese character:
+  "我原本计划明天去hiking，" is Chinese), Japanese (kana), Korean, Hindi, each other script, and Latin letters (English,
+  French …) as one. After the caret, its next line with something on it, up to 200 characters, so that the model doesn't
+  write it again. What it shows is still checked against all the text before the caret (up to 1,500 characters): a
+  sentence already there isn't suggested again.
 - **The model:** the AI provider you picked in Settings → AI Provider, the one the @ commands use, with its model and
   settings (Bedrock, Claude API, Gemini, OpenAI-compatible). Turning Autocomplete on is the choice to send it your text,
   so the switch says where it goes, on or off: the input menu's item and the menu bar panel name the provider and its
-  model ("Autocomplete (Claude API · claude-haiku-5-5)") with the line "Each pause sends up to 1,500 characters before the
-  caret (and 200 after) to …, hidden words removed" ("hidden words removed" when hiding sensitive information is on, as
-  for the @ commands); Settings → Assistant's row and its confirmation say the same. Nothing asks first and nothing is
+  model ("Autocomplete (Claude API · claude-haiku-5-5)") with the line "Each pause sends the caret's line and up to 200
+  characters before it in the same language (and 200 after) to …, hidden words removed" ("hidden words removed" when
+  hiding sensitive information is on, as for the @ commands); Settings → Assistant's row and its confirmation say the
+  same. Nothing asks first and nothing is
   kept: pick another provider (in Settings, through Settings → Assistant or on another Mac with iCloud sync) and the next
   pause asks that one. Each request is small: a dozen words back (48 tokens), no thinking where the model can be asked
   for none (Claude Haiku 5.5, Sonnet 5 and 5.5, Opus 5), the lowest effort otherwise; a slow model (one that always
@@ -1058,8 +1067,9 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 - With AllInOneIME Cloud, the sentence goes through the developer's server to a model provider (currently through OpenRouter): the server keeps counts only, never the text. Signing in keeps only your email address.
 - Hide sensitive information (Settings → AI Provider → Privacy, off by default): before any request goes out (`@improve`, `@translate`, `@question`, your prompt commands and prompt plugins, with every provider including AllInOneIME Cloud), email addresses, phone numbers, payment card numbers (Luhn-checked), API keys and tokens (`sk-`, `sk-ant-`, `AKIA…`, `ghp_`, `xox…` and long random strings), IP addresses and your own words (a codename, a name) are replaced on the Mac with placeholders such as `[EMAIL_1]`, `[PHONE_1]`, `[ITEM_1]`; the same value gets the same placeholder. The model's results get the real values back before they're shown or inserted, and the panel says "2 items hidden from the AI". A result whose placeholder the model changed beyond recognition is shown as written, marked "⚠ placeholder changed". Jargon list entries holding a hidden value aren't sent. Each kind can be turned off. Full-width forms (`zhang＠example.com`, `１３８…`) are found too, and a value or phrase may be split by a line break. It recognizes formatted values like emails, numbers and keys; it can't recognize names or addresses (add those as your own words), nor look-alike letters from other alphabets. Applies to requests to your AI service; `@agent` (with the Chrome page it takes along), plugins that fetch from a website (`@stock`) or open one (`@x`) and script extensions send text as typed. In the config: `redaction` (`enabled`, `emails`, `phones`, `cards`, `keys`, `ips`, `customWords`).
 - Autocomplete (off by default) reads the text around the caret after each pause (up to 1,500 characters before it and
-  200 after it, never during secure input, in a password field or in the apps it never runs in) and sends it to the AI
-  provider you picked in Settings, the one the @ commands use, with sensitive information hidden as for any request;
+  200 after it, never during secure input, in a password field or in the apps it never runs in) and sends of it the
+  caret's line, up to 200 characters before it in the same language and up to 200 after it to the AI provider you
+  picked in Settings, the one the @ commands use, with sensitive information hidden as for any request;
   with Apple Intelligence or AllInOneIME Cloud picked, it stays on this Mac (Apple Intelligence; never AllInOneIME Cloud).
   Where it's turned on, the switch says where the text goes. Nothing of it is kept but its last 20 suggestions in memory
   and its counts (no text) in the input method's own preferences.

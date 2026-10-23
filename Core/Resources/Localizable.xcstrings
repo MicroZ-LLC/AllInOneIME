@@ -15778,8 +15778,103 @@
         }
       }
     },
+    "Each pause sends the caret's line and up to 200 characters before it in the same language (and 200 after) to %@" : {
+      "comment" : "每次停顿会把光标所在行和它前面同一语言的最多 200 字（和光标后 200 字）发给 %@ — Sources/AllInOneIMECore/Autocomplete.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bei jeder Pause gehen die Zeile der Einfügemarke und bis zu 200 Zeichen davor in derselben Sprache (und 200 danach) an %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cada pausa envía a %@ la línea del cursor y hasta 200 caracteres anteriores en el mismo idioma (y 200 después)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chaque pause envoie à %@ la ligne du curseur et jusqu’à 200 caractères avant elle dans la même langue (et 200 après)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手を止めるたびに、カーソルのある行と、その前の同じ言語の最大200文字（と後ろの200文字）を%@に送ります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "멈출 때마다 커서가 있는 줄과 그 앞의 같은 언어로 된 최대 200자(와 뒤의 200자)를 %@에 보냅니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cada pausa envia a linha do cursor e até 200 caracteres antes dela no mesmo idioma (e 200 depois) para %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每次停頓會把游標所在行和它前面同一語言的最多 200 字（和游標後 200 字）傳給 %@"
+          }
+        }
+      }
+    },
+    "Each pause sends the caret's line and up to 200 characters before it in the same language (and 200 after) to %@, hidden words removed" : {
+      "comment" : "每次停顿会把光标所在行和它前面同一语言的最多 200 字（和光标后 200 字）发给 %@，先去掉隐藏词 — Sources/AllInOneIMECore/Autocomplete.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bei jeder Pause gehen die Zeile der Einfügemarke und bis zu 200 Zeichen davor in derselben Sprache (und 200 danach) an %@, ohne die verborgenen Wörter"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cada pausa envía a %@ la línea del cursor y hasta 200 caracteres anteriores en el mismo idioma (y 200 después), sin las palabras ocultas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chaque pause envoie à %@ la ligne du curseur et jusqu’à 200 caractères avant elle dans la même langue (et 200 après), sans les mots masqués"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手を止めるたびに、カーソルのある行と、その前の同じ言語の最大200文字（と後ろの200文字）を%@に送ります。隠す単語は先に取り除きます"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "멈출 때마다 커서가 있는 줄과 그 앞의 같은 언어로 된 최대 200자(와 뒤의 200자)를 %@에 보냅니다. 숨긴 단어는 먼저 뺍니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cada pausa envia a linha do cursor e até 200 caracteres antes dela no mesmo idioma (e 200 depois) para %@, sem as palavras ocultas"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每次停頓會把游標所在行和它前面同一語言的最多 200 字（和游標後 200 字）傳給 %@，先去掉隱藏的詞"
+          }
+        }
+      }
+    },
     "Each pause sends up to 1,500 characters before the caret (and 200 after) to %@" : {
       "comment" : "每次停顿会把光标前最多 1,500 字（和光标后 200 字）发给 %@ — Sources/AllInOneIMECore/Autocomplete.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -15827,6 +15922,7 @@
     },
     "Each pause sends up to 1,500 characters before the caret (and 200 after) to %@, hidden words removed" : {
       "comment" : "每次停顿会把光标前最多 1,500 字（和光标后 200 字）发给 %@，先去掉隐藏词 — Sources/AllInOneIMECore/Autocomplete.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {

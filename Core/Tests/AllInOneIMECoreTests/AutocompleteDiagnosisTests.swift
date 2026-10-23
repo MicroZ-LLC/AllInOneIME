@@ -386,7 +386,8 @@ struct AutocompleteDiagnosisTests {
             f.host.type("today, ")
             f.place(Self.notesEnglishLine, caret: Self.notesEnglishLine.utf16.count)
             f.pauseEnds()
-            #expect(model.prompts == ["<before>\(Self.notesEnglishLine)</before>"])
+            // The English line's own pool: none of the Chinese paragraph above it is sent.
+            #expect(model.prompts == ["<before>I have an appointment today, </before>"])
             let examples = model.requests.first?.examples.map(\.response) ?? []
             #expect(examples == Prompt.autocompleteEnglishExamples.map { String($0.answer.drop { $0 == " " }) },
                     "AC-12: the examples were \(examples)")
