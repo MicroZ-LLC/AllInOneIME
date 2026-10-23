@@ -1384,6 +1384,8 @@ struct SettingsView: View {
                         Button(tr("删除", "Remove", key: "remove.delete")) { pluginToRemove = plugin }
                     }
                     Text(pluginDetail(plugin)).font(.caption).foregroundStyle(.secondary)
+                    // Its completion sources (suggestions) and preferences, under it.
+                    PluginCompletionsView(model: model, plugin: plugin).padding(.top, 4)
                 }
             }
             ForEach(model.skippedPlugins, id: \.folder) { skipped in
@@ -1953,6 +1955,7 @@ struct SettingsView: View {
                     pluginsSection
                     webSearchSection
                     notesSection
+                case .codingLanguages: CodingLanguagesPage(model: model)
                 case .voice: voiceSection
                 case .agent: AgentSettingsPage(model: model)
                 case .provider:
@@ -2950,12 +2953,12 @@ struct SectionTitle: View {
 
 /// The settings window's pages, in the sidebar's order.
 enum SettingsPage: String, CaseIterable, Identifiable {
-    case assistant, general, input, writing, commands, plugins, voice, agent, provider, advanced, about, apps
+    case assistant, general, input, writing, commands, plugins, codingLanguages, voice, agent, provider, advanced, about, apps
 
     var id: String { rawValue }
 
-    static let groups: [[SettingsPage]] = [[.assistant], [.general, .input, .writing, .voice, .apps], [.commands, .plugins, .agent, .provider],
-                                           [.advanced, .about]]
+    static let groups: [[SettingsPage]] = [[.assistant], [.general, .input, .writing, .voice, .apps],
+                                           [.commands, .plugins, .codingLanguages, .agent, .provider], [.advanced, .about]]
 
     var title: String {
         switch self {
@@ -2965,6 +2968,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .writing: return tr("翻译与改写", "Translate & Rewrite")
         case .commands: return tr("自定义命令", "Custom Commands")
         case .plugins: return tr("插件", "Plugins")
+        case .codingLanguages: return tr("编程语言", "Coding Languages")
         case .voice: return tr("语音输入", "Voice Input")
         case .agent: return tr("Agent", "Agent")
         case .provider: return tr("AI 服务", "AI Provider")
@@ -2982,6 +2986,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .writing: return CommandIcons.translate
         case .commands: return CommandIcons.commands
         case .plugins: return CommandIcons.plugins
+        case .codingLanguages: return CandidateView.Icon(symbol: "chevron.left.forwardslash.chevron.right", color: .systemGreen)
         case .voice: return CommandIcons.voice
         case .agent: return CommandIcons.agent
         case .provider: return CommandIcons.provider
@@ -2999,13 +3004,14 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .input: return "input languages pinyin english chinese shift 输入语言 拼音 中文 英文 fuzzy 模糊音 zh ch sh candidate layout horizontal vertical 候选 排列 横排 竖排 english words dictionary learn bedrock personal import dict yaml 个人 自定义 导入 英文词 词典 词库 学习"
         case .writing: return "translate languages 翻译 语言 rewrite styles polish concise formal casual tactful jargon 改写 润色 简洁 正式 口语 委婉 黑话 jargon list 黑话库 improve"
         case .commands: return "custom commands 自定义 命令 prompt program terminal link 程序 终端 网页 raycast script commands scripts extensions bundles preferences 脚本 扩展 扩展包 偏好 文件夹 folder spotlight 聚焦 extension sources git repository link clone update pin ssh 扩展来源 仓库 链接 从链接添加 克隆 更新 固定"
-        case .plugins: return "plugins library 插件 插件库 stock xe search 搜索 brave @note note notes save to notion obsidian folder markdown vault token integration 笔记 备忘录 存到 文件夹 令牌 集成"
+        case .plugins: return "plugins library 插件 插件库 stock xe search 搜索 brave @note note notes save to notion obsidian folder markdown vault token integration 笔记 备忘录 存到 文件夹 令牌 集成 completions suggestions # issues github refresh now preferences password 补全 建议 立即刷新 偏好 密码"
+        case .codingLanguages: return "coding languages mode programming code packs python javascript keywords snippets suggestions completions tab shift hold picked rows download library 编程 语言 编码模式 代码 语言包 关键字 代码片段 建议 补全 按住 选过的行 下载 语言库"
         case .voice: return "voice speech microphone dictation 语音 说话 麦克风 right option 右 ⌥"
         case .agent: return "@agent coding agent claude code gemini cli kiro custom command terminal installed not installed background notify tasks @tasks claude tasks 编程 交给 自定义 命令 终端 已安装 未安装 后台 通知 任务"
         case .provider: return "ai provider model bedrock aws profile region claude gemini openai deepseek ollama api key test connection tokens temperature timeout apple intelligence on-device local 服务 模型 密钥 测试连接 模型参数 超时 温度 本机 苹果 sso role assume credential_process sts mfa 角色 登录 privacy hide sensitive information redact placeholder email phone card key token ip address words 隐私 隐藏 敏感信息 脱敏 占位符 邮箱 电话 卡号 密钥 地址"
         case .advanced: return "config file rime folder 高级 配置文件 目录"
         case .about: return "about version website github license report issue bug feedback 关于 版本 网站 报告 问题 反馈"
-        case .apps: return "apps per-app app profiles each app bundle id starting input language rewrite styles tone type out no ai off slack mail wechat 每个 应用 按 App 设置 开始 输入语言 改写 风格 语气 逐字上屏 不用 AI 关掉"
+        case .apps: return "apps per-app app profiles each app bundle id starting input language rewrite styles tone type out no ai off slack mail wechat suggestions 每个 应用 按 App 设置 开始 输入语言 改写 风格 语气 逐字上屏 不用 AI 关掉 建议"
         }
     }
 
