@@ -1,7 +1,7 @@
 import Crypto
 import Foundation
 
-/// A completion source of a plugin, by their names.
+/// A completion source of a plugin, by their names; a custom command's under `customCommands` (`init(command:)`).
 public struct CompletionSourceKey: Hashable, Sendable {
     public var plugin: String
     public var source: String
@@ -11,14 +11,17 @@ public struct CompletionSourceKey: Hashable, Sendable {
         self.source = source
     }
 
-    /// Its file in the cache folder: "<plugin>.<source>.json" (names of small letters and digits).
+    /// Its file in the cache folder: "<plugin>.<source>.json" (names of small letters and digits), a custom command's
+    /// "custom-commands.<name>.json".
     var fileName: String { "\(plugin).\(source).json" }
 
     /// The source a cache file is of, by its name; nil for any other file.
     init?(fileName: String) {
         let parts = fileName.split(separator: ".", omittingEmptySubsequences: false)
         guard parts.count == 3, parts[2] == "json", CompletionDeclaration.isName(String(parts[1])),
-              (1...24).contains(parts[0].count), parts[0].allSatisfy({ $0.isASCII && $0.isLowercase && $0.isLetter }) else { return nil }
+              parts[0] == Self.customCommands
+                || (1...24).contains(parts[0].count) && parts[0].allSatisfy({ $0.isASCII && $0.isLowercase && $0.isLetter })
+        else { return nil }
         self.init(plugin: String(parts[0]), source: String(parts[1]))
     }
 }
@@ -98,7 +101,8 @@ public final class SuggestionsStore: @unchecked Sendable {
         var failedAt: Date?
         var error: String?
         var pausedAt: Date?
-        /// The plugin's version when it paused: another one (an update) resumes it.
+        /// Its plugin's version when it paused (a custom command's definition): another one (an update, an edit)
+        /// resumes it.
         var pausedVersion: String?
         /// The latest "Refresh now" acted on.
         var refreshDone: Date?
@@ -145,6 +149,9 @@ public final class SuggestionsStore: @unchecked Sendable {
             state.sources.map { key, source in Self.status(key, source) }.sorted { ($0.plugin, $0.source) < ($1.plugin, $1.source) }
         }
     }
+
+    /// How `key` is doing (nil: nothing known this launch).
+    public func status(_ key: CompletionSourceKey) -> CompletionSourceStatus? { status(plugin: key.plugin, source: key.source) }
 
     public func status(plugin: String, source: String) -> CompletionSourceStatus? {
         state.withLock { state in state.sources[CompletionSourceKey(plugin: plugin, source: source)].map {
@@ -201,9 +208,9 @@ public final class SuggestionsStore: @unchecked Sendable {
     }
 
     /// The results the tasks left, taken in at `now` (the session's thread): a good list replaces the old one (and is
-    /// cached in `folder`), a failure keeps it and backs off (the fifth in a row pauses the source, `version` its
-    /// plugin's then); a query's answer is kept for its text.
-    func commit(now: Date, folder: URL?, versions: [String: String]) -> Committed {
+    /// cached in `folder`), a failure keeps it and backs off (the fifth in a row pauses the source, `versions` its
+    /// version then: its plugin's, a custom command's definition); a query's answer is kept for its text.
+    func commit(now: Date, folder: URL?, versions: [CompletionSourceKey: String]) -> Committed {
         var committed = Committed()
         var writes: [(CompletionSourceKey, Source)] = []
         state.withLock { state in
@@ -230,7 +237,7 @@ public final class SuggestionsStore: @unchecked Sendable {
                             source.error = failure.message
                             if source.failures >= Self.failuresToPause {
                                 source.pausedAt = now
-                                source.pausedVersion = versions[key.plugin]
+                                source.pausedVersion = versions[key]
                             }
                         }
                         committed.statusChanged.append(key)
@@ -286,8 +293,9 @@ public final class SuggestionsStore: @unchecked Sendable {
     }
 
     /// Whether `key`'s list is to be loaded at `now`: "Refresh now" pressed since its last load (`refresh`), paused or not;
-    /// none while one is in flight (within `timeout`), it is paused (until an update of its plugin, `version`, or a day
-    /// later) or backing off; else when it has none, or it is past its `refresh` interval and was used in the last 7 days.
+    /// none while one is in flight (within `timeout`), it is paused (until an update of its plugin or an edit of its
+    /// command, `version`, or a day later) or backing off; else when it has none, or it is past its `refresh` interval and
+    /// was used in the last 7 days.
     func plan(_ key: CompletionSourceKey, refresh interval: TimeInterval, timeout: TimeInterval, version: String,
               request: CompletionSourceRefresh?, now: Date) -> Plan {
         with(key) { source in
@@ -476,8 +484,9 @@ public final class SuggestionsStore: @unchecked Sendable {
         }
     }
 
-    /// Forgets the sources not in `enabled` (disabled, or their plugin removed), and deletes their files in `folder`, and
-    /// what a write stopped half way left beside it (none is under way: the writes are on the same queue).
+    /// Forgets the sources not in `enabled` (disabled, their plugin removed, a custom command deleted:
+    /// `SuggestionsSettings.sourceKeys`), and deletes their files in `folder`, and what a write stopped half way left
+    /// beside it (none is under way: the writes are on the same queue).
     public func prune(keeping enabled: Set<CompletionSourceKey>, folder: URL?) {
         state.withLock { state in
             for key in state.sources.keys.filter({ !enabled.contains($0) }) {

@@ -103,7 +103,7 @@ struct CompletionItems: Sendable {
     }
 }
 
-/// The rows a plugin's completion source has for a token (spec 1.3, 1.4, 6.7, 6.8, 6.13).
+/// The rows a completion source has for a token (spec 1.3, 1.4, 6.7, 6.8, 6.13): a plugin's, a custom command's.
 enum PluginRows {
     /// The part of `token` after `source`'s prefix, when the source applies to it: it starts with the prefix (in any
     /// case, full-width forms as ASCII) and has `minChars` characters after it; without a prefix, it is all digits and
@@ -159,10 +159,10 @@ enum PluginRows {
     /// app of `appClass`, in their order: those whose insertion starts with what was typed. Only what matches is looked
     /// at, and only until `limit` rows are found (nil: all of them), `maxTried` items tried at most then; the items
     /// picked before (`picked`, their `match`) are rows wherever they are, looked up on their own.
-    static func rows(_ token: String, plugin: InstalledPlugin, source: CompletionSource, lists: [CompletionItems],
+    static func rows(_ token: String, key: CompletionSourceKey, source: CompletionSource, lists: [CompletionItems],
                      madeAt: Date?, appClass: SuggestionsAppClass, picked: Set<String> = [], limit: Int? = nil,
                      in t: InterfaceWords) -> [SuggestionRow] {
-        guard let maker = RowMaker(token, plugin: plugin, source: source, madeAt: madeAt, appClass: appClass, in: t) else { return [] }
+        guard let maker = RowMaker(token, key: key, source: source, madeAt: madeAt, appClass: appClass, in: t) else { return [] }
         // Where each row is: its list, then its place there.
         var found: [(list: Int, index: Int, row: SuggestionRow)] = []
         var (others, tried) = (0, 0)
@@ -190,9 +190,9 @@ enum PluginRows {
     /// What each row of `lists` for `token` completes (as `rows` has them, every one: its `completion`), in their order,
     /// until `visit` says to stop (false): what Tab in a terminal or code editor completes is what all of them share.
     /// Only the insertion is made, no row.
-    static func eachCompletion(_ token: String, plugin: InstalledPlugin, source: CompletionSource, lists: [CompletionItems],
+    static func eachCompletion(_ token: String, key: CompletionSourceKey, source: CompletionSource, lists: [CompletionItems],
                                appClass: SuggestionsAppClass, in t: InterfaceWords, _ visit: (String) -> Bool) {
-        guard let maker = RowMaker(token, plugin: plugin, source: source, madeAt: nil, appClass: appClass, in: t) else { return }
+        guard let maker = RowMaker(token, key: key, source: source, madeAt: nil, appClass: appClass, in: t) else { return }
         maker.each(in: lists) { _, _, item in maker.insertion(item) == nil || visit(item.match) }
     }
 
@@ -200,7 +200,8 @@ enum PluginRows {
     struct RowMaker {
         let token: String
         let lowered: String
-        let plugin: InstalledPlugin
+        /// The source's (a plugin's, a custom command's): what a row picked is kept by.
+        let key: CompletionSourceKey
         let source: CompletionSource
         let templates: [[CompletionTemplate.Part]]
         /// The template is `{match}` (the terminal and code editor class's): an item that answers the token puts in its
@@ -210,10 +211,10 @@ enum PluginRows {
         let madeAt: Date?
 
         /// Nil: the source has no rows in an app of `appClass` (`templates`).
-        init?(_ token: String, plugin: InstalledPlugin, source: CompletionSource, madeAt: Date?, appClass: SuggestionsAppClass,
+        init?(_ token: String, key: CompletionSourceKey, source: CompletionSource, madeAt: Date?, appClass: SuggestionsAppClass,
               in t: InterfaceWords) {
             guard let templates = PluginRows.templates(source, appClass) else { return nil }
-            (self.token, self.plugin, self.source, self.madeAt) = (token, plugin, source, madeAt)
+            (self.token, self.key, self.source, self.madeAt) = (token, key, source, madeAt)
             lowered = SuggestionsToken.normalized(token).lowercased()
             self.templates = templates.compactMap(CompletionTemplate.parts)
             matchOnly = self.templates == [[.variable("match")]]
@@ -233,7 +234,7 @@ enum PluginRows {
             guard let insertion = insertion(item) else { return nil }
             let (text, comment) = shown(item)
             return SuggestionRow(text: text, comment: comment, insertion: insertion, completion: item.match, typed: token,
-                                 pick: SuggestionPick(plugin: plugin.name, source: source.name, match: item.match),
+                                 pick: SuggestionPick(plugin: key.plugin, source: key.source, match: item.match),
                                  source: title, madeAt: madeAt)
         }
 

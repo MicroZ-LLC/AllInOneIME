@@ -89,6 +89,13 @@ struct CommandEditor: View {
             c.url = url.trimmingCharacters(in: .whitespaces)
         case .snippet:
             c.text = text
+        case .suggestions:
+            // Its own form comes with the Suggestions type's editor: the source's keys kept as they were.
+            let kept = original.command
+            guard let argv = CustomCommand.arguments(fromCommandLine: commandLine) else { return nil }
+            (c.argv, c.timeoutSeconds) = (argv, kept.timeoutSeconds)
+            (c.prefix, c.minChars, c.compare, c.refresh) = (kept.prefix, kept.minChars, kept.compare, kept.refresh)
+            (c.query, c.queryMinChars, c.insert) = (kept.query, kept.queryMinChars, kept.insert)
         }
         // Stored only when it differs from the type's default (Latin for programs, as typed for the AI and pages).
         if latin != CustomCommand.typesLatinByDefault(type), type != .snippet { c.ascii = latin }
@@ -168,7 +175,7 @@ struct CommandEditor: View {
                         Text(tr("{input} 换成命令后面写的内容（自动编码），放在 ? 后面。按执行键在浏览器打开，不上屏。只能用 https://。",
                                 "{input} becomes the text after the command (encoded), after the ?. The action key opens it in the browser; nothing is inserted. https:// only."))
                             .font(.caption).foregroundStyle(.secondary)
-                    case .run, .terminal:
+                    case .run, .terminal, .suggestions:
                         TextField(tr("命令", "Command"), text: $commandLine, prompt: Text("python3 -c {input}"))
                             .font(.body.monospaced())
                         Text(tr("{input} 换成命令后面写的内容，始终是一个参数，不经过 shell（要 shell 就写 zsh -c {input}）。参数里有空格时用引号。",

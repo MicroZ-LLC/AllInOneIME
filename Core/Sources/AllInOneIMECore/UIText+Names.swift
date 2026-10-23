@@ -120,7 +120,17 @@ extension InterfaceWords {
                 + program
         case .link: return tr("在浏览器打开 ", "Open in the browser: ") + (LinkTemplate.host(custom.url) ?? "")
         case .snippet: return tr("插入文字", "Insert text")
+        case .suggestions:
+            let prefix = custom.prefix ?? ""
+            return tr("打 \(prefix) 时给出建议", "Suggestions after \(prefix)")
         }
+    }
+
+    /// What a suggestion source says when it is picked or run as a command (`UIText.suggestionSource`).
+    public func suggestionSource(_ command: Command, trigger: String) -> String {
+        let prefix = command.custom?.prefix ?? ""
+        return tr("\(trigger)\(command.name) 是建议来源，不是命令：在任何输入框里打 \(prefix)，就会列出它的行，按 Tab 插入",
+                  "\(trigger)\(command.name) is a suggestion source, not a command: type \(prefix) in any text field to see its rows, Tab inserts")
     }
 
     /// What the action key does with a command draft, after "⏎ →".
@@ -139,6 +149,7 @@ extension InterfaceWords {
         case .run?: return tr("运行", "run")
         case .terminal?: return terms.terminal == .terminalApp ? tr("在终端运行", "run in Terminal") : tr("在终端运行", "run in a terminal")
         case .snippet?: return tr("插入文字", "Insert text")
+        case .suggestions?: return tr("看看它是什么", "see what it is")
         case .link?, nil: break
         }
         switch command {
@@ -320,6 +331,12 @@ extension UIText {
 
     /// A custom command without a summary of its own, by what it does.
     public static func customKind(_ custom: CustomCommand) -> String { words.customKind(custom) }
+
+    /// What a suggestion source (a custom command of type `suggestions`) says when it is picked or run as a command: what
+    /// it is, and where its rows come.
+    public static func suggestionSource(_ command: Command, trigger: String) -> String {
+        words.suggestionSource(command, trigger: trigger)
+    }
 
     /// What the action key does with a command draft, after "⏎ →".
     /// `draft`: the text typed, so `@translate @improve …` reads as both.

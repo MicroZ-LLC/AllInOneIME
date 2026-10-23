@@ -2,11 +2,11 @@ import Foundation
 
 extension Config {
     /// The switches suggestions follow, as the settings have them (`SuggestionsSettings`): the input menu's
-    /// (`suggestions`), the apps' (`AppProfile.suggestions`), the completion sources enabled; "Refresh now" is the shell's
-    /// (`refreshes`).
+    /// (`suggestions`), the apps' (`AppProfile.suggestions`), the completion sources enabled, the custom commands that are
+    /// sources; "Refresh now" is the shell's (`refreshes`).
     public func suggestionsSettings(refreshes: [CompletionSourceRefresh] = []) -> SuggestionsSettings {
         SuggestionsSettings(master: suggestions, apps: appProfiles.compactMapValues(\.suggestions), enabled: completionSources,
-                            refreshes: refreshes)
+                            refreshes: refreshes, commands: customCommands.filter { $0.type == .suggestions })
     }
 
     /// The approval `source` of `plugin` was enabled with (nil: not enabled).
@@ -30,6 +30,14 @@ extension Config {
             changed = true
         }
         return changed
+    }
+}
+
+extension SuggestionsSettings {
+    /// The sources there are: those enabled (approved, lapsed or not) and the custom commands' (`commands`). What isn't
+    /// among them is forgotten, its cached list deleted (`SuggestionsStore.prune`).
+    public var sourceKeys: Set<CompletionSourceKey> {
+        Set(enabled.map { CompletionSourceKey(plugin: $0.plugin, source: $0.source) } + commands.map { CompletionSourceKey(command: $0.name) })
     }
 }
 

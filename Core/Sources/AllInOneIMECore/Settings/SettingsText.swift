@@ -109,6 +109,14 @@ extension UIText {
         case .link(.invalid): return tr("网址格式不对", "The address isn't valid")
         case .emptyText: return tr("写上要插入的文字", "Write the text to insert")
         case .twoCursors: return tr("{cursor} 只能有一个", "{cursor} can appear only once")
+        case .badPrefix:
+            return tr("前缀要写 1 到 16 个英文字母、数字或 . _ - #，不能以 @ 开头，比如 JIRA-",
+                      "The prefix must be 1 to 16 letters, digits or . _ - #, not starting with @, like JIRA-")
+        case let .prefixIsMagicKey(trigger):
+            return tr("前缀不能以魔法键 \(trigger) 开头：打 \(trigger) 会打开命令列表", "The prefix can't start with the magic key \(trigger): typing it opens the command list")
+        case .badTemplate: return tr("插入模板写得不对：每个 { 都要有 }，比如 {arg} {title}", "An insert template isn't valid: close each { with }, like {arg} {title}")
+        case .timeoutTooLong: return tr("建议来源最多运行 20 秒", "A suggestion source can run 20 seconds at most")
+        case let .suggestions(reason): return tr("不能作为建议来源：", "Can't be a suggestion source: ") + reason
         }
     }
 }
