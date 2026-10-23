@@ -64,11 +64,26 @@ public final class SuggestionsStore: @unchecked Sendable {
         var message: String
     }
 
-    /// A load's or a query's result, as its task left it.
+    /// A load's or a query's result, as its task left it; the list cached on disk, as reading it left it.
     enum Pending {
         case load(id: Int, Result<LoadedList, LoadFailure>)
         /// nil: it failed (or was cancelled: `cancelled`).
         case query(id: Int, text: String, items: CompletionItems?, cancelled: Bool)
+        /// nil: none there, or not one.
+        case cache(CachedLoad?)
+    }
+
+    /// Whether a source's list cached on disk was looked at this launch.
+    enum CacheState {
+        case unread, reading, read
+    }
+
+    /// A list cached on disk, read (`CachedList`), its items ready to be matched.
+    struct CachedLoad: Sendable {
+        var items: CompletionItems
+        var fetchedAt: Double?
+        var loadedAt: Double
+        var lastUsed: Double?
     }
 
     struct Source {
@@ -88,8 +103,8 @@ public final class SuggestionsStore: @unchecked Sendable {
         /// The latest "Refresh now" acted on.
         var refreshDone: Date?
         var lastUsed: Date?
-        /// The disk cache was looked at this launch.
-        var cacheRead = false
+        /// The disk cache: looked at this launch, or being read.
+        var cache = CacheState.unread
         var answers: [String: Answer] = [:]
         var query: (id: Int, text: String, since: Date, task: Task<Void, Never>?)?
         var queryFailures = 0
@@ -175,12 +190,14 @@ public final class SuggestionsStore: @unchecked Sendable {
         state.withLock { $0.listeners[session] = deliver }
     }
 
-    /// What changed with a commit: the sources whose list or status changed (`statusChanged`), and those a query answered.
+    /// What changed with a commit: the sources whose list or status changed (`statusChanged`), those a query answered,
+    /// and those whose list came from the disk cache (`cached`).
     struct Committed {
         var statusChanged: [CompletionSourceKey] = []
         var listsChanged: [CompletionSourceKey] = []
         var answered: [CompletionSourceKey] = []
-        var isEmpty: Bool { statusChanged.isEmpty && answered.isEmpty }
+        var cached: [CompletionSourceKey] = []
+        var isEmpty: Bool { statusChanged.isEmpty && answered.isEmpty && cached.isEmpty }
     }
 
     /// The results the tasks left, taken in at `now` (the session's thread): a good list replaces the old one (and is
@@ -235,6 +252,19 @@ public final class SuggestionsStore: @unchecked Sendable {
                             source.answers[oldest] = nil
                         }
                         committed.answered.append(key)
+                    case let .cache(cached):
+                        // Read for this source as it is (not one forgotten meanwhile, a disabled one's), and still none
+                        // loaded.
+                        guard source.cache == .reading else { continue }
+                        source.cache = .read
+                        guard let cached, source.list == nil else { continue }
+                        source.list = cached.items
+                        source.loadedAt = Date(timeIntervalSince1970: cached.loadedAt)
+                        source.madeAt = Date(timeIntervalSince1970: cached.fetchedAt ?? cached.loadedAt)
+                        if let used = cached.lastUsed {
+                            source.lastUsed = max(source.lastUsed ?? .distantPast, Date(timeIntervalSince1970: used))
+                        }
+                        committed.cached.append(key)
                     }
                 }
                 state.sources[key] = source
@@ -261,6 +291,8 @@ public final class SuggestionsStore: @unchecked Sendable {
     func plan(_ key: CompletionSourceKey, refresh interval: TimeInterval, timeout: TimeInterval, version: String,
               request: CompletionSourceRefresh?, now: Date) -> Plan {
         with(key) { source in
+            // Its cache on disk being read: what is due is known once it is.
+            guard source.cache != .reading else { return Plan(load: false, resumed: false) }
             if let loading = source.loading {
                 guard now.timeIntervalSince(loading.since) > timeout + 10 else { return Plan(load: false, resumed: false) }
                 source.loading = nil  // its task never answered
@@ -306,7 +338,7 @@ public final class SuggestionsStore: @unchecked Sendable {
     func nextDue(_ keys: [(key: CompletionSourceKey, refresh: TimeInterval)], now: Date) -> Date? {
         state.withLock { state in
             keys.compactMap { key, refresh -> Date? in
-                guard let source = state.sources[key], source.loading == nil else { return nil }
+                guard let source = state.sources[key], source.loading == nil, source.cache != .reading else { return nil }
                 if let pausedAt = source.pausedAt { return pausedAt.addingTimeInterval(Self.pause) }
                 if source.failures > 0, let failedAt = source.failedAt {
                     return failedAt.addingTimeInterval(Self.backOff[min(source.failures, Self.backOff.count) - 1])
@@ -382,24 +414,24 @@ public final class SuggestionsStore: @unchecked Sendable {
 
     // MARK: - The cache on disk
 
-    /// The list cached for `key` in `folder`, read once a launch into a source that has none yet: true when one was.
-    func readCache(_ key: CompletionSourceKey, in folder: URL) -> Bool {
+    /// The list cached for `key` in `folder`, read once a launch into a source that has none yet: off the caller's thread
+    /// (it may be 4 MB of JSON, behind a write), taken in by the next `commit` (the sessions told as of a load); meanwhile
+    /// no load is planned for it. True when a read started.
+    func readCache(_ key: CompletionSourceKey, in folder: URL, from session: ObjectIdentifier,
+                   starter: @escaping @Sendable (SessionEvent) -> Void) -> Bool {
         guard with(key, { source -> Bool in
-            defer { source.cacheRead = true }
-            return !source.cacheRead && source.list == nil
+            guard source.cache == .unread else { return false }
+            source.cache = source.list == nil ? .reading : .read
+            return source.list == nil
         }) else { return false }
         let url = folder.appendingPathComponent(key.fileName)
-        guard let data = Self.disk.sync(execute: { try? Data(contentsOf: url) }),
-              let cached = try? JSONDecoder().decode(CachedList.self, from: data) else { return false }
-        let items = CompletionItems(cached.items)
-        return with(key) { source in
-            guard source.list == nil else { return false }
-            source.list = items
-            source.loadedAt = Date(timeIntervalSince1970: cached.loadedAt)
-            source.madeAt = Date(timeIntervalSince1970: cached.fetchedAt ?? cached.loadedAt)
-            if let used = cached.lastUsed { source.lastUsed = max(source.lastUsed ?? .distantPast, Date(timeIntervalSince1970: used)) }
-            return true
+        Self.disk.async {
+            let cached = (try? Data(contentsOf: url)).flatMap { try? JSONDecoder().decode(CachedList.self, from: $0) }
+            self.deposit(key, .cache(cached.map {
+                CachedLoad(items: CompletionItems($0.items), fetchedAt: $0.fetchedAt, loadedAt: $0.loadedAt, lastUsed: $0.lastUsed)
+            }), from: session, starter: starter)
         }
+        return true
     }
 
     /// The cache file's contents.

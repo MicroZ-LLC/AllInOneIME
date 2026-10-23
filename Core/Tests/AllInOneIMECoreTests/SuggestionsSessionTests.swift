@@ -124,3 +124,38 @@ extension SuggestionsSessionTests {
         }
     }
 }
+
+extension SuggestionsSessionTests {
+    /// The list cached on disk (up to 4 MB of JSON) is read and decoded off the session's thread (the main thread on the
+    /// Mac): a key never waits for the disk, the cached list shows once read, and no load starts before it is.
+    @Test func theCachedListIsReadOffTheSessionsThread() throws {
+        try inEnglish {
+            let world = SuggestionsWorld()
+            let cache = world.folder.appendingPathComponent("cache", isDirectory: true)
+            world.cacheFolder = cache
+            try world.github()
+            world.runtime.holdLoads = true
+            var cached = SuggestionsStore.Source()
+            cached.list = CompletionItems([SuggestionsItems.issue(7001, "From the cache")])
+            cached.loadedAt = world.clock.now
+            SuggestionsStore.write(cached, of: CompletionSourceKey(plugin: "github", source: "issues"), in: cache)
+            SuggestionsStore.disk.sync {}
+
+            // The disk busy for a while (another list being written, a slow volume).
+            let busy = DispatchSemaphore(value: 0)
+            SuggestionsStore.disk.async { _ = busy.wait(timeout: .now() + 3) }
+            let clock = ContinuousClock()
+            var field: SuggestionsField?
+            let took = clock.measure {
+                field = world.field()
+                field?.type("#7")
+            }
+            busy.signal()
+            let typed = try #require(field)
+            #expect(took < .milliseconds(500), "the focus and the keys waited for the disk: \(took)")
+            #expect(typed.waitForIssues(["#7001"]), "the cached list, once read: \(typed.issuesShown)")
+            #expect(world.runtime.loads.isEmpty, "fresh enough: no load (\(world.runtime.loads.count))")
+            world.runtime.releaseAll()
+        }
+    }
+}

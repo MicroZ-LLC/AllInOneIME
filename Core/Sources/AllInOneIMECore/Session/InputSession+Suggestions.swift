@@ -518,6 +518,7 @@ extension InputSession {
         let plugins = services.plugins(false)
         let committed = s.store.commit(now: s.now(), folder: s.cacheFolder,
                                        versions: Dictionary(plugins.map { ($0.name, $0.manifest.version) }, uniquingKeysWith: { a, _ in a }))
+        if !committed.cached.isEmpty { log.notice("suggestions: \(committed.cached.count) list(s) read from the cache") }
         for key in committed.statusChanged {
             if let status = s.store.status(plugin: key.plugin, source: key.source) {
                 log.notice("suggestions: a list \(status.error == nil ? "loaded (\(status.items) items)" : "failed\(status.paused ? ", paused" : "")")")
@@ -545,10 +546,11 @@ extension InputSession {
         if let due { emit(.startTimer(.suggestions(.refresh(suggesting.refresh)), after: max(due.timeIntervalSince(now), 1))) }
     }
 
-    /// `active`'s list loaded if it is due (`SuggestionsStore.plan`): its cache on disk read first, once a launch.
+    /// `active`'s list loaded if it is due (`SuggestionsStore.plan`): its cache on disk read first, once a launch (off the
+    /// session's thread: until it is, nothing is due).
     func suggestionsLoadIfDue(_ active: ActiveSource, settings: SuggestionsSettings, now: Date) {
         let s = services.suggestions
-        if let folder = s.cacheFolder, s.store.readCache(active.key, in: folder) { log.notice("suggestions: a list read from the cache") }
+        if let folder = s.cacheFolder { _ = s.store.readCache(active.key, in: folder, from: ObjectIdentifier(self), starter: tasks.deliver) }
         let request = settings.refreshes.last { $0.plugin == active.plugin.name && $0.source == active.source.name }
         let plan = s.store.plan(active.key, refresh: active.source.refresh, timeout: active.plugin.manifest.timeout,
                                 version: active.plugin.manifest.version, request: request, now: now)
