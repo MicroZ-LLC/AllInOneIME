@@ -81,8 +81,16 @@ public final class EngineHost: WireHost, @unchecked Sendable {
     /// The Settings app `@settings` opens, and its arguments (`Options`); set before the engine serves.
     public var settingsApp: String?
     public var settingsAppArguments: [String]
+    /// How a word learned is written into the settings file: through the settings service the Settings app changes the
+    /// file with (`SettingsService.writingFile`, under its lock), so that one never writes over the other's change with
+    /// what it read before; as it is without one (test mode). Set before the engine serves.
+    public var writingSettings: @Sendable (_ write: () throws -> Void) throws -> Void {
+        get { lock.lock(); defer { lock.unlock() }; return settingsWriter }
+        set { lock.lock(); settingsWriter = newValue; lock.unlock() }
+    }
 
     private let lock = NSLock()
+    private var settingsWriter: @Sendable (_ write: () throws -> Void) throws -> Void = { try $0() }
     private var scripted: ScriptedProvider?
     private var language: Language?
     private var states: [ObjectIdentifier: SessionState] = [:]
@@ -801,7 +809,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
     /// field): never in a password field or a private one (`WireField.keepsNothing`), in a terminal (`runsWhatIsTyped`),
     /// in a remote desktop, a virtual machine or an SSH client (its app, or its program: Windows App's session is
     /// msrdc.exe), in an app with no AI, or with learning off. Offered in this field at once; written into the settings
-    /// file (`EnglishWords.learn`) off the session's queue, for every field.
+    /// file (`EnglishWords.learn`) off the session's queue, for every field, through `writingSettings`.
     func learn(_ typed: String, in session: ComposerSession, engine: EnglishWordsEngine) {
         let field = session.field
         guard !EnglishWords.isRemote("win:" + field.process) else { return }
@@ -815,15 +823,18 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         engine.words.append(typed)
         log("session \(session.sid): learned an English word (\(typed.count) letters)")
         let log = self.log
+        let writing = writingSettings
         learnedWords.async {
             do {
-                // A new user's file is Windows' (Chinese with English), not the Mac's new user's (`Config.fresh`).
-                if !FileManager.default.fileExists(atPath: settings.url.path) {
-                    try FileManager.default.createDirectory(at: settings.url.deletingLastPathComponent(),
-                                                            withIntermediateDirectories: true)
-                    try EngineSettings.fresh.write(to: settings.url)
+                try writing {
+                    // A new user's file is Windows' (Chinese with English), not the Mac's new user's (`Config.fresh`).
+                    if !FileManager.default.fileExists(atPath: settings.url.path) {
+                        try FileManager.default.createDirectory(at: settings.url.deletingLastPathComponent(),
+                                                                withIntermediateDirectories: true)
+                        try EngineSettings.fresh.write(to: settings.url)
+                    }
+                    try EnglishWords.learn(typed, at: settings.url)
                 }
-                try EnglishWords.learn(typed, at: settings.url)
             } catch {
                 log("couldn't keep an English word: \(error)")
             }

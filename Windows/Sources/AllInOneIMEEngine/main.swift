@@ -353,6 +353,8 @@ func runEngine(_ options: EngineOptions) -> Never {
         let settings = hostOptions.settings
         service.interfaceLanguage = { settings.interfaceLanguage($0) }
         service.recentApps = { host.recentApps }
+        // The words learned are written under the service's lock: never inside a save of the Settings app's.
+        host.writingSettings = { try service.writingFile($0) }
         server.settings = service
         // After each change, wherever it was made (the Settings app, another program, a hand edit): the interface
         // language, and fuzzy pinyin in librime, as the Mac's settings window and iCloud sync apply them.

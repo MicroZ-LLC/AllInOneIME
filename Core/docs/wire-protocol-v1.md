@@ -765,7 +765,9 @@ given and sends back what the user did. It opens no sessions.
 - **Wire:** the messages in `WireMessages.swift`; `WireServer.settings` (a `SettingsService`; nil: none), its settings
   queue (§12.7), `checkSettings` (the file checked on that queue), and `useTestSettings` (`#! settings`, test mode).
 - **Windows engine:** one `SettingsService` over its config file (`--config`, else `%APPDATA%\AllInOneIME\config.json`),
-  checked for changes about once a second (`checkSettings`, from the watchdog's loop, which never waits for it). Its
+  checked for changes about once a second (`checkSettings`, from the watchdog's loop, which never waits for it). The
+  English words it learns are written into that file under the service's lock (`SettingsService.writingFile`), never
+  between a change's reading of the file and its writing, and read again at once (the windows are told). Its
   interface text in the nine languages of the core's String Catalog (`Localizable.xcstrings` beside it,
   `UIText.useCatalog`), in the language the settings pick (`UIText.choice`, applied after each change wherever it was
   made), else Windows' own.

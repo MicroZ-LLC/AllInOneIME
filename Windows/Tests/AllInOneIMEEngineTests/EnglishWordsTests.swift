@@ -137,6 +137,63 @@ struct EnglishWordsEngineTests {
         #expect(saved.inputLanguages == [.english, .chinese])
     }
 
+    /// Letters put in as typed in a password or a private field aren't even remembered as typed once: the same letters
+    /// in another field after it are the first time there, the next ones the second (`EnglishWords.learns` asks about the
+    /// field before it remembers).
+    @Test func typedOnceWhereNothingIsKeptThenElsewhereIsTheFirstTime() throws {
+        for scopes in [[31], [61]] {
+            let kept = WireField(app: "win:msedge.exe", process: "msedge.exe", scopes: scopes, layout: "00000409")
+            let (client, folder) = try client(field: kept)
+            defer { try? FileManager.default.removeItem(at: folder) }
+            putIn("frobnicate", client)
+            client.send(.focus(sid: 1, focus: 2, field: Self.notepad))
+            putIn("frobnicate", client)
+            #expect(savedWords(client).isEmpty, "\(scopes)")
+            putIn("frobnicate", client)
+            #expect(savedWords(client) == ["frobnicate"], "\(scopes): the second time in Notepad")
+        }
+    }
+
+    /// A word learned while the Settings app changes the settings is written through the settings service
+    /// (`writingSettings`, under its lock): not in the middle of the window's change, which would write back over it what
+    /// it read before; right after it, and the window hears of it.
+    @Test func aWordLearnedIsWrittenBetweenTheSettingsWindowsChanges() throws {
+        let (client, folder) = try client(#"{"inputLanguages": ["zh", "en"], "defaultInput": "zh", "extensionFolders": []}"#)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        // The engine's settings service on the same file, its keys in memory: never the user's.
+        let service = SettingsService(store: SettingsStore(configURL: client.host.settings.url), platform: .windows,
+                                      library: PluginLibrary(directory: folder.appendingPathComponent("plugins", isDirectory: true)),
+                                      secrets: .inMemory())
+        service.keySource = { _ in .none }
+        client.host.writingSettings = { try service.writingFile($0) }
+        // A change of the window's that takes its time: stopped inside it, under the service's lock, until let go.
+        let (inside, letGo, stops) = (DispatchSemaphore(value: 0), DispatchSemaphore(value: 0), Flag(true))
+        service.recentApps = {
+            if stops.value {
+                stops.value = false
+                inside.signal()
+                letGo.wait()
+            }
+            return []
+        }
+        let revision = service.revision
+        let window = Thread { _ = service.document() }
+        window.start()
+        #expect(inside.wait(timeout: .now() + 10) == .success)
+        putIn("frobnicate", client)
+        putIn("frobnicate", client)
+        Thread.sleep(forTimeInterval: 0.3)
+        #expect((try? Config.load(from: client.host.settings.url))?.englishWords == [], "written inside the window's change")
+        letGo.signal()
+        #expect(savedWords(client) == ["frobnicate"])
+        #expect(service.revision > revision, "the file read again")
+        guard case let .array(words)? = service.document().field("englishWords")?.value else {
+            Issue.record("no englishWords")
+            return
+        }
+        #expect(words == [.string("frobnicate")])
+    }
+
     @Test func visualStudiosTerminalIsATerminalsWindow() throws {
         // A window of the class Microsoft.Terminal.Wpf's terminal (Visual Studio's) has, and one inside it.
         let terminal = try TestWindow(className: "HwndTerminalClass")

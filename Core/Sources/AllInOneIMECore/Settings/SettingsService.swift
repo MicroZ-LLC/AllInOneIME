@@ -179,6 +179,18 @@ public final class SettingsService: @unchecked Sendable {
         changing { store.reloadIfChanged() }
     }
 
+    /// `write`, another writer's change of the config file in this process (the Windows engine's English words, learned
+    /// on a queue of their own), under the lock every change here is made under: never between a save's reading of the
+    /// file and its writing (`AIConfig.patchingFile`), nor between a list's reading and its edit (`SettingsStore.refresh`),
+    /// so that neither puts back what the file had before the other's change. The file is read again after it: the
+    /// windows hear of it at once (`changed`).
+    public func writingFile<T>(_ write: () throws -> T) throws -> T {
+        try changing { () -> Result<T, Error> in
+            defer { store.reloadIfChanged() }
+            return Result(catching: write)
+        }.get()
+    }
+
     /// Changes one setting (`Field.id`) to `value`, checked against what the field takes, and saves it.
     ///
     /// Made on the settings as a window showed them, it may say which: `revision` (the document's), and the change is

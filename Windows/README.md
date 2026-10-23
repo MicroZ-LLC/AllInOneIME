@@ -54,7 +54,8 @@ In every app that loads TSF text services (the classic Win32 ones, and WinUI one
   terms and the product words rime-ice lacks come up among librime's candidates as their letters are typed, unless
   rime-ice's own English dictionary (read from the rime-data) has them. Letters put in as typed while typing pinyin
   (Return) are learned the second time, in any field, into `config.json`, by the Mac's rule (`EnglishWords.learns`;
-  `learnsEnglishWords` turns it off): never in a password or PIN field nor a private one (the input scopes
+  `learnsEnglishWords` turns it off; written under the settings service's lock, so a save of AllInOneIME Settings' and
+  a word learned never write over each other, and the window shows the word at once): never in a password or PIN field nor a private one (the input scopes
   `IS_PASSWORD`, the PINs', `IS_PRIVATE`), in a terminal (the consoles, Windows Terminal, PowerShell ISE, mintty and
   the others the engine knows, Visual Studio's terminal by its window's class), in a remote desktop, a virtual
   machine's window or an SSH client (Remote Desktop Connection, the Remote Desktop app, Windows App, Hyper-V, VMware,
