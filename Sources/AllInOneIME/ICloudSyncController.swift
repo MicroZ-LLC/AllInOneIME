@@ -218,6 +218,16 @@ final class ICloudSyncController: ObservableObject {
         if !report.replacedCommands.isEmpty {
             log.notice("iCloud sync: custom commands merged; iCloud's of the same name kept over this Mac's: \(report.replacedCommands.joined(separator: ", "), privacy: .public)")
         }
+        // Suggestions commands from another Mac that run nothing here until allowed (decision 26): said once, as they come.
+        if !report.unconfirmedCommands.isEmpty {
+            log.notice("iCloud sync: \(report.unconfirmedCommands.count) suggestions command(s) from another Mac to allow in Settings")
+            let text = Self.unconfirmedNotice(report.unconfirmedCommands)
+            if let field = AllInOneIMEInputController.activeController {
+                field.showNotice(text, client: nil, long: true)
+            } else {
+                AllInOneIMEInputController.showLooseNotice(text, long: true)
+            }
+        }
         // A join changing what is hidden from the AI is said in the log.
         if report.joining.contains(.settings), report.configKeys.contains("redaction") {
             log.notice("iCloud sync: joining took the switches for hiding sensitive information from iCloud")
@@ -511,6 +521,19 @@ final class ICloudSyncController: ObservableObject {
             return source
         }
         watched = keys
+    }
+
+    /// The notice of suggestions commands that came from another Mac (`names`): they run nothing on this Mac until allowed
+    /// in Settings → Custom Commands.
+    static func unconfirmedNotice(_ names: [String]) -> String {
+        let trigger = LiveConfig.current.commandTrigger
+        let listed = names.map { trigger + $0 }.joined(separator: tr("、", ", "))
+        let page = SettingsPage.commands.title
+        return names.count == 1
+            ? tr("来自另一台 Mac 的建议命令 \(listed)：在设置 →「\(page)」里允许之前，它在这台 Mac 上什么都不运行",
+                 "\(listed), a suggestions command from another Mac, runs nothing on this Mac until you allow it in Settings → \(page)")
+            : tr("来自另一台 Mac 的建议命令 \(listed)：在设置 →「\(page)」里允许之前，它们在这台 Mac 上什么都不运行",
+                 "\(listed), suggestions commands from another Mac, run nothing on this Mac until you allow them in Settings → \(page)")
     }
 
     // MARK: Applying

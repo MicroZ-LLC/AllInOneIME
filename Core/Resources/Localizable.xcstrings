@@ -17808,6 +17808,53 @@
         }
       }
     },
+    "From another Mac: runs %@" : {
+      "comment" : "来自另一台 Mac：运行 %@ — Sources/AllInOneIMECore/Suggestions/CommandsFromOtherMacs.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Von einem anderen Mac: führt %@ aus"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De otro Mac: ejecuta %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "D’un autre Mac : exécute %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "別の Mac から：%@ を実行します"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다른 Mac에서 옴: %@ 실행"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De outro Mac: executa %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "來自另一台 Mac：執行 %@"
+          }
+        }
+      }
+    },
     "Fuzzy pinyin" : {
       "comment" : "模糊音 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
@@ -19967,6 +20014,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "它會在「終端機」中打開，並以你輸入的文字作為第一則訊息。"
+          }
+        }
+      }
+    },
+    "It runs nothing on this Mac until you allow it." : {
+      "comment" : "在这台 Mac 上允许之前，它什么都不运行。 — Sources/AllInOneIMECore/Suggestions/CommandsFromOtherMacs.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Er führt auf diesem Mac nichts aus, bis du ihn erlaubst."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No ejecuta nada en este Mac hasta que lo permitas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elle n’exécute rien sur ce Mac tant que vous ne l’autorisez pas."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この Mac で許可するまで、何も実行しません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Mac에서 허용하기 전까지 아무것도 실행하지 않습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ele não executa nada neste Mac até você permitir."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在這台 Mac 上允許之前，它什麼都不執行。"
           }
         }
       }
@@ -24727,6 +24821,7 @@
     },
     "Not loaded yet: it loads the first time you type its prefix." : {
       "comment" : "还没加载过：第一次打它的前缀时加载。 — Sources/AllInOneIMECore/Suggestions/SuggestionsSettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -24768,6 +24863,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "還沒載入過：第一次打它的前綴時載入。"
+          }
+        }
+      }
+    },
+    "Not loaded yet: it loads when a text field next gets the focus." : {
+      "comment" : "还没加载过：下次有输入框获得焦点时加载。 — Sources/AllInOneIMECore/Suggestions/SuggestionsSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noch nicht geladen: Sie lädt, sobald das nächste Mal ein Textfeld den Fokus bekommt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aún no se ha cargado: se carga la próxima vez que un campo de texto reciba el foco."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pas encore chargée : elle se charge la prochaine fois qu’un champ de texte reçoit le focus."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "まだ読み込んでいません。次にテキストフィールドにフォーカスが移ったときに読み込みます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "아직 불러오지 않았습니다. 다음에 텍스트 필드에 포커스가 가면 불러옵니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ainda não carregada: carrega na próxima vez que um campo de texto receber o foco."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒載入過：下次有輸入框取得焦點時載入。"
           }
         }
       }
@@ -41792,8 +41934,56 @@
         }
       }
     },
+    "The program runs on this PC: for its list when a text field gets the focus (it may be a password field: nothing of the field is given to it), then at the refresh interval; with Look up as you type, with what you type after the prefix as one argument, never in a password field. Add only programs you wrote and trust." : {
+      "comment" : "这个程序会在这台电脑上运行：有输入框获得焦点时拿列表（可能是密码框，但输入框里的内容一概不给它），之后按刷新间隔再拿；边打边查时把前缀后面打的字作为一个参数给它，密码框里从不查。只加你自己写的、信得过的程序。 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Programm läuft auf diesem PC: für seine Liste, wenn ein Textfeld den Fokus bekommt (das kann ein Passwortfeld sein: vom Feld bekommt es nichts), danach im Aktualisierungsintervall; beim Nachschlagen mit dem, was du nach dem Präfix tippst, als einem Argument, nie in einem Passwortfeld. Füge nur Programme hinzu, die du selbst geschrieben hast und denen du vertraust."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El programa se ejecuta en este PC: para su lista cuando un campo de texto recibe el foco (puede ser un campo de contraseña: no recibe nada del campo), luego en cada intervalo de actualización; con Buscar al escribir, con lo que escribes tras el prefijo como un solo argumento, nunca en un campo de contraseña. Añade solo programas que hayas escrito tú y de los que te fíes."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le programme s’exécute sur ce PC : pour sa liste quand un champ de texte reçoit le focus (ce peut être un champ de mot de passe : il ne reçoit rien du champ), puis à l’intervalle d’actualisation ; avec Chercher pendant la frappe, avec ce que vous tapez après le préfixe comme seul argument, jamais dans un champ de mot de passe. N’ajoutez que des programmes que vous avez écrits et en lesquels vous avez confiance."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このプログラムはこの PC 上で実行されます：テキストフィールドにフォーカスが移ったときに一覧を取得し（パスワード欄のこともありますが、欄の内容は何も渡しません）、以後は更新間隔ごとに取得します。入力しながら検索では、プレフィックスの後に入力した文字を 1 つの引数として渡し、パスワード欄では検索しません。自分で書いた信頼できるプログラムだけを追加してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 프로그램은 이 PC에서 실행됩니다: 텍스트 필드에 포커스가 가면 목록을 가져오고(암호 입력란일 수도 있지만 입력란의 내용은 아무것도 전달하지 않습니다), 이후 새로 고침 간격마다 가져옵니다. 입력하면서 조회할 때는 접두사 뒤에 입력한 내용을 하나의 인수로 전달하며, 암호 입력란에서는 조회하지 않습니다. 직접 작성했고 신뢰할 수 있는 프로그램만 추가하세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O programa é executado neste PC: para a lista quando um campo de texto recebe o foco (pode ser um campo de senha: ele não recebe nada do campo), depois a cada intervalo de atualização; com Buscar enquanto digita, com o que você digita depois do prefixo como um único argumento, nunca em um campo de senha. Adicione apenas programas que você escreveu e em que confia."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個程式會在這台電腦上執行：有輸入框取得焦點時拿列表（可能是密碼框，但輸入框裡的內容一概不給它），之後按更新間隔再拿；邊打邊查時把前綴後面打的字作為一個參數給它，密碼框裡從不查。只加入你自己寫的、信任的程式。"
+          }
+        }
+      }
+    },
     "The program runs on this PC: for its list when you type the prefix (then at the refresh interval), and with Look up as you type with what follows the prefix as one argument, nothing else; never in password fields. Add only programs you wrote and trust." : {
       "comment" : "这个程序会在这台电脑上运行：打前缀时按刷新间隔拿列表，边打边查时把前缀后面的字作为一个参数给它，别的什么都不给；密码框里不运行。只加你自己写的、信得过的程序。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -41839,8 +42029,56 @@
         }
       }
     },
+    "The program runs on your Mac: for its list when a text field gets the focus (it may be a password field: nothing of the field is given to it), then at the refresh interval; with Look up as you type, with what you type after the prefix as one argument, never in a password field. Add only programs you wrote and trust." : {
+      "comment" : "这个程序会在你的 Mac 上运行：有输入框获得焦点时拿列表（可能是密码框，但输入框里的内容一概不给它），之后按刷新间隔再拿；边打边查时把前缀后面打的字作为一个参数给它，密码框里从不查。只加你自己写的、信得过的程序。 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Programm läuft auf deinem Mac: für seine Liste, wenn ein Textfeld den Fokus bekommt (das kann ein Passwortfeld sein: vom Feld bekommt es nichts), danach im Aktualisierungsintervall; beim Nachschlagen mit dem, was du nach dem Präfix tippst, als einem Argument, nie in einem Passwortfeld. Füge nur Programme hinzu, die du selbst geschrieben hast und denen du vertraust."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El programa se ejecuta en tu Mac: para su lista cuando un campo de texto recibe el foco (puede ser un campo de contraseña: no recibe nada del campo), luego en cada intervalo de actualización; con Buscar al escribir, con lo que escribes tras el prefijo como un solo argumento, nunca en un campo de contraseña. Añade solo programas que hayas escrito tú y de los que te fíes."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le programme s’exécute sur votre Mac : pour sa liste quand un champ de texte reçoit le focus (ce peut être un champ de mot de passe : il ne reçoit rien du champ), puis à l’intervalle d’actualisation ; avec Chercher pendant la frappe, avec ce que vous tapez après le préfixe comme seul argument, jamais dans un champ de mot de passe. N’ajoutez que des programmes que vous avez écrits et en lesquels vous avez confiance."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このプログラムはこのMac上で実行されます：テキストフィールドにフォーカスが移ったときに一覧を取得し（パスワード欄のこともありますが、欄の内容は何も渡しません）、以後は更新間隔ごとに取得します。入力しながら検索では、プレフィックスの後に入力した文字を 1 つの引数として渡し、パスワード欄では検索しません。自分で書いた信頼できるプログラムだけを追加してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 프로그램은 Mac에서 실행됩니다: 텍스트 필드에 포커스가 가면 목록을 가져오고(암호 입력란일 수도 있지만 입력란의 내용은 아무것도 전달하지 않습니다), 이후 새로 고침 간격마다 가져옵니다. 입력하면서 조회할 때는 접두사 뒤에 입력한 내용을 하나의 인수로 전달하며, 암호 입력란에서는 조회하지 않습니다. 직접 작성했고 신뢰할 수 있는 프로그램만 추가하세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O programa é executado no seu Mac: para a lista quando um campo de texto recebe o foco (pode ser um campo de senha: ele não recebe nada do campo), depois a cada intervalo de atualização; com Buscar enquanto digita, com o que você digita depois do prefixo como um único argumento, nunca em um campo de senha. Adicione apenas programas que você escreveu e em que confia."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個程式會在你的 Mac 上執行：有輸入框取得焦點時拿列表（可能是密碼框，但輸入框裡的內容一概不給它），之後按更新間隔再拿；邊打邊查時把前綴後面打的字作為一個參數給它，密碼框裡從不查。只加入你自己寫的、信任的程式。"
+          }
+        }
+      }
+    },
     "The program runs on your Mac: for its list when you type the prefix (then at the refresh interval), and with Look up as you type with what follows the prefix as one argument, nothing else; never in password fields. Add only programs you wrote and trust." : {
       "comment" : "这个程序会在你的 Mac 上运行：打前缀时按刷新间隔拿列表，边打边查时把前缀后面的字作为一个参数给它，别的什么都不给；密码框里不运行。只加你自己写的、信得过的程序。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {

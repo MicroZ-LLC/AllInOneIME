@@ -238,9 +238,8 @@ struct CommandEditor: View {
                             "Programs run on your Mac: add only commands you wrote and trust. They run only when you press the action key, never in password fields."))
                         .font(.caption).foregroundStyle(.secondary)
                 } else if type == .suggestions {
-                    Text(tr("这个程序会在你的 Mac 上运行：打前缀时按刷新间隔拿列表，边打边查时把前缀后面的字作为一个参数给它，别的什么都不给；密码框里不运行。只加你自己写的、信得过的程序。",
-                            "The program runs on your Mac: for its list when you type the prefix (then at the refresh interval), and with Look up as you type with what follows the prefix as one argument, nothing else; never in password fields. Add only programs you wrote and trust."))
-                        .font(.caption).foregroundStyle(.secondary)
+                    // When it runs, as the settings document says it (Windows' window too).
+                    Text(UIText.suggestionsProgramRuns(on: .mac)).font(.caption).foregroundStyle(.secondary)
                 }
             }
             .formStyle(.grouped)

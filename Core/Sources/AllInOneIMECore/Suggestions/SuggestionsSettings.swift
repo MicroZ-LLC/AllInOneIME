@@ -3,10 +3,11 @@ import Foundation
 extension Config {
     /// The switches suggestions follow, as the settings have them (`SuggestionsSettings`): the input menu's
     /// (`suggestions`), the apps' (`AppProfile.suggestions`), the completion sources enabled, the custom commands that are
-    /// sources; "Refresh now" is the shell's (`refreshes`).
+    /// sources (not one from another Mac awaiting confirmation here: `awaitsConfirmation`); "Refresh now" is the shell's
+    /// (`refreshes`).
     public func suggestionsSettings(refreshes: [CompletionSourceRefresh] = []) -> SuggestionsSettings {
         SuggestionsSettings(master: suggestions, apps: appProfiles.compactMapValues(\.suggestions), enabled: completionSources,
-                            refreshes: refreshes, commands: customCommands.filter { $0.type == .suggestions })
+                            refreshes: refreshes, commands: customCommands.filter { $0.type == .suggestions && !awaitsConfirmation($0) })
     }
 
     /// The approval `source` of `plugin` was enabled with (nil: not enabled).
@@ -162,12 +163,16 @@ extension CompletionSourceStatus {
 
 extension CustomCommand {
     /// How a `suggestions` command is doing, as Settings says it under it (the Mac's editor and command list, the
-    /// settings document's): why it isn't used (`problem`: refused by a source's rules, its prefix the magic key's), that
-    /// Suggestions are off, or its source's status (its items, when it last updated, its last error, a pause); not
-    /// loaded yet. `problem`: what is said is why nothing of it shows. Nil: not a `suggestions` command.
+    /// settings document's): that it came from another Mac and runs nothing until allowed here (decision 26), why it
+    /// isn't used (`problem`: refused by a source's rules, its prefix the magic key's), that Suggestions are off, or its
+    /// source's status (its items, when it last updated, its last error, a pause); not loaded yet. `problem`: what is said
+    /// is why nothing of it shows. Nil: not a `suggestions` command.
     public func suggestionsState(_ config: Config, status: CompletionSourceStatus?, now: Date = Date(),
                                  in t: InterfaceWords = InterfaceWords(language: UIText.language)) -> (text: String, problem: Bool)? {
         guard let read = suggestionSource else { return nil }
+        if config.awaitsConfirmation(self) {
+            return (UIText.fromAnotherMac(self, in: t) + t.tr("。", ". ") + UIText.runsNothingUntilAllowed(in: t), true)
+        }
         switch read {
         case .failure:
             // What the source's rules refused, as the editor says it (the magic key is the next case's).
@@ -178,7 +183,7 @@ extension CustomCommand {
                 return (t.tr("建议关着，这个来源不会出现：在「通用」里打开。", "Suggestions are off, so this source doesn't show: turn them on in General."), true)
             }
             if let summary = status?.summary(now: now, in: t) { return (summary, status?.error != nil) }
-            return (t.tr("还没加载过：第一次打它的前缀时加载。", "Not loaded yet: it loads the first time you type its prefix."), false)
+            return (t.tr("还没加载过：下次有输入框获得焦点时加载。", "Not loaded yet: it loads when a text field next gets the focus."), false)
         }
     }
 }

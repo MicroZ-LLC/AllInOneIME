@@ -2587,6 +2587,100 @@
         }
       }
     },
+    "%@, a suggestions command from another Mac, runs nothing on this Mac until you allow it in Settings → %@" : {
+      "comment" : "来自另一台 Mac 的建议命令 %@：在设置 →「%@」里允许之前，它在这台 Mac 上什么都不运行 — Sources/AllInOneIME/ICloudSyncController.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, ein Vorschlagsbefehl von einem anderen Mac, führt auf diesem Mac nichts aus, bis du ihn unter Einstellungen → „%@“ erlaubst"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, un comando de sugerencias de otro Mac, no ejecuta nada en este Mac hasta que lo permitas en Ajustes → “%@”"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, une commande de suggestions venue d’un autre Mac, n’exécute rien sur ce Mac tant que vous ne l’autorisez pas dans Réglages → %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "別の Mac から来た候補コマンド %@ は、設定 →「%@」で許可するまで、この Mac で何も実行しません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다른 Mac에서 온 제안 명령 %@은(는) 설정 → %@에서 허용하기 전까지 이 Mac에서 아무것도 실행하지 않습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, um comando de sugestões de outro Mac, não executa nada neste Mac até você permiti-lo em Ajustes → %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "來自另一台 Mac 的建議命令 %@：在設定 →「%@」中允許之前，它在這台 Mac 上什麼都不執行"
+          }
+        }
+      }
+    },
+    "%@, suggestions commands from another Mac, run nothing on this Mac until you allow them in Settings → %@" : {
+      "comment" : "来自另一台 Mac 的建议命令 %@：在设置 →「%@」里允许之前，它们在这台 Mac 上什么都不运行 — Sources/AllInOneIME/ICloudSyncController.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, Vorschlagsbefehle von einem anderen Mac, führen auf diesem Mac nichts aus, bis du sie unter Einstellungen → „%@“ erlaubst"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, comandos de sugerencias de otro Mac, no ejecutan nada en este Mac hasta que los permitas en Ajustes → “%@”"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, des commandes de suggestions venues d’un autre Mac, n’exécutent rien sur ce Mac tant que vous ne les autorisez pas dans Réglages → %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "別の Mac から来た候補コマンド %@ は、設定 →「%@」で許可するまで、この Mac で何も実行しません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다른 Mac에서 온 제안 명령 %@은(는) 설정 → %@에서 허용하기 전까지 이 Mac에서 아무것도 실행하지 않습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, comandos de sugestões de outro Mac, não executam nada neste Mac até você permiti-los em Ajustes → %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "來自另一台 Mac 的建議命令 %@：在設定 →「%@」中允許之前，它們在這台 Mac 上什麼都不執行"
+          }
+        }
+      }
+    },
     "%@%% downloaded" : {
       "comment" : "已下载 %@%% — Sources/AllInOneIME/Updates.swift",
       "localizations" : {
@@ -2964,7 +3058,7 @@
       }
     },
     "A few minutes of pauses would use up AllInOneIME Cloud's free requests for the day, and your @ commands would fail" : {
-      "comment" : "AllInOneIME 云每天的免费次数，停顿几分钟就会用完，当天的 @ 命令就用不了了 — Sources/AllInOneIME/InputMenu.swift",
+      "comment" : "AllInOneIME 云每天的免费次数，停顿几分钟就会用完，当天的 @ 命令就用不了了 — Sources/AllInOneIME/AutocompleteOverlay.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -4564,6 +4658,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "AllInOneIME：邊打邊譯已開啟"
+          }
+        }
+      }
+    },
+    "Allow" : {
+      "comment" : "允许 — Sources/AllInOneIME/SettingsWindow.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erlauben"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permitir"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autoriser"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "許可"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "허용"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permitir"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "允許"
           }
         }
       }

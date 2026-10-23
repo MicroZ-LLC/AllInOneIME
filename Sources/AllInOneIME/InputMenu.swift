@@ -141,9 +141,7 @@ extension AllInOneIMEInputController {
                 return
             }
             do {
-                var config = try Config.load()
-                config.rewriteStyles = SessionText.toggled(name, in: config.rewriteStyles)
-                try config.write()
+                let config = try Config.change { $0.rewriteStyles = SessionText.toggled(name, in: $0.rewriteStyles) }
                 NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
                 log.notice("rewrite styles now \(config.rewriteStyles.joined(separator: ","), privacy: .public)")
             } catch {
@@ -162,10 +160,10 @@ extension AllInOneIMEInputController {
                 return
             }
             do {
-                var config = try Config.load()
-                config.outputLanguage = OutputLanguage(raw)
-                config.normalizeLanguages()
-                try config.write()
+                try Config.change { config in
+                    config.outputLanguage = OutputLanguage(raw)
+                    config.normalizeLanguages()
+                }
                 NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
                 log.notice("output language now \(raw, privacy: .public)")
             } catch {
@@ -197,15 +195,8 @@ extension AllInOneIMEInputController {
         autocomplete.toolTip = AutocompleteSwitch.store.metrics.summary(language: UIText.language)
             ?? tr("停一下，光标后出现灰字，按 Tab 接受", "Pause, and the rest of the sentence shows in gray after the caret; Tab takes it")
         items.append(autocomplete)
-        if let destination = AutocompleteSwitch.destination(current) {
-            let line = NSMenuItem(title: destination, action: nil, keyEquivalent: "")
-            line.isEnabled = false
-            line.indentationLevel = 1
+        if let line = AutocompleteSwitch.destinationItem(current) {
             line.tag = Self.autocompleteDestinationTag
-            if current.provider == .hosted {
-                line.toolTip = UIText.triggered(tr("AllInOneIME 云每天的免费次数，停顿几分钟就会用完，当天的 @ 命令就用不了了",
-                                                   "A few minutes of pauses would use up AllInOneIME Cloud's free requests for the day, and your @ commands would fail"))
-            }
             items.append(line)
         }
         let after = menu.items.firstIndex { $0.action == #selector(toggleImproveTranslates(_:)) }.map { $0 + 1 } ?? menu.items.count
@@ -222,9 +213,7 @@ extension AllInOneIMEInputController {
     @objc func toggleImproveTranslates(_ sender: Any?) {
         MainActor.assumeIsolated {
             do {
-                var config = try Config.load()
-                config.improveTranslates.toggle()
-                try config.write()
+                let config = try Config.change { $0.improveTranslates.toggle() }
                 NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
                 log.notice("@improve also translates: \(config.improveTranslates, privacy: .public)")
             } catch {
@@ -241,10 +230,10 @@ extension AllInOneIMEInputController {
                 return
             }
             do {
-                var config = try Config.load()
-                config.defaultInput = language
-                config.normalizeLanguages()
-                try config.write()
+                let config = try Config.change { config in
+                    config.defaultInput = language
+                    config.normalizeLanguages()
+                }
                 NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
                 log.notice("default input now \(config.defaultInput.rawValue, privacy: .public)")
                 applySettings()
@@ -302,9 +291,7 @@ extension AllInOneIMEInputController {
             }
             packs.pick(language) { language in
                 do {
-                    var config = try Config.load()
-                    config.codingLanguage = language
-                    try config.write()
+                    try Config.change { $0.codingLanguage = language }
                     NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
                     log.notice("Code's language now \(language, privacy: .public)")
                     AllInOneIMEInputController.activeController?.applySettings()

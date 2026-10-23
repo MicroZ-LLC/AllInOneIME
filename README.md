@@ -324,7 +324,11 @@ fi
   you, deleted with the command), back-off and pause are a plugin's. It's yours: no switch to turn on, it's on while it
   exists; **Suggestions** (General, the input menu) and an app's Suggestions (Settings → Apps) apply. The editor shows
   how it's doing (last updated, items, last error) and Refresh Now; the command list shows it too.
-- Custom commands sync through iCloud as they do; a program missing on another Mac is that source's error there.
+- Custom commands sync through iCloud as they do; a program missing on another Mac is that source's error there. One
+  that comes from another Mac runs nothing on this Mac until you allow it here once: Settings → Custom Commands shows it
+  as from another Mac, with the program it would run, and **Allow** or **Remove** (a notice says when one comes).
+  Allowing is this Mac's own, never synced; its program changed on another Mac asks again; one you make or edit on this
+  Mac never asks.
 
 #### Snippets: text you insert often (new)
 
@@ -599,6 +603,9 @@ the input method starts, every 30 minutes (after a pause in typing) and on Sync 
   out of range) isn't applied: the status line and Settings → Assistant's Check for problems say which.
 - A file iCloud hasn't downloaded yet is waited for, never taken as empty; a `settings.json` that can't be read is set
   aside as `settings (unreadable …).json`, never overwritten. Settings of a newer version are kept as they are.
+- A custom `suggestions` command from another Mac runs nothing on this one until you allow it once in Settings → Custom
+  Commands, which shows the program it would run (a notice says when one comes); a change of its program on another Mac
+  asks again. What you allowed stays on this Mac. `run` commands are as they were: they run only when you run them.
 - API keys and passwords go through iCloud Keychain, not iCloud Drive: with "API keys and passwords" on (while sync is
   on), a key saved or replaced on one Mac is there on the others. It's off by default: turning on sync alone moves no
   key, and nothing moves until you turn the row on. Turning it on moves this Mac's keys from the login

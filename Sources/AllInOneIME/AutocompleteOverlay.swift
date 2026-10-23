@@ -190,9 +190,7 @@ enum AutocompleteSwitch {
     @discardableResult
     static func set(_ on: Bool, notify field: AllInOneIMEInputController?) -> Bool {
         do {
-            var config = try Config.load()
-            config.autocomplete = on
-            try config.write()
+            let config = try Config.change { $0.autocomplete = on }
             // Counted here, before a session sees the file (`AutocompleteStore.saw`), which then counts nothing more.
             store.switched(on: on)
             NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
@@ -216,6 +214,20 @@ enum AutocompleteSwitch {
     /// AllInOneIME Cloud picked, that it uses Apple Intelligence. Nil with Apple Intelligence picked.
     static func destination(_ config: Config) -> String? {
         Autocomplete.Words(language: UIText.language).destination(config)
+    }
+
+    /// `destination` as a menu's line, under the choice it is about (the main switch, an app's in This App): not
+    /// choosable, indented; with AllInOneIME Cloud picked, its tooltip says why it isn't asked. Nil where `destination` is.
+    static func destinationItem(_ config: Config) -> NSMenuItem? {
+        guard let destination = destination(config) else { return nil }
+        let line = NSMenuItem(title: destination, action: nil, keyEquivalent: "")
+        line.isEnabled = false
+        line.indentationLevel = 1
+        if config.provider == .hosted {
+            line.toolTip = UIText.triggered(tr("AllInOneIME 云每天的免费次数，停顿几分钟就会用完，当天的 @ 命令就用不了了",
+                                               "A few minutes of pauses would use up AllInOneIME Cloud's free requests for the day, and your @ commands would fail"))
+        }
+        return line
     }
 
     /// Whether the model it would ask can answer: a cloud provider (whether it does is seen at the first pause), or the
