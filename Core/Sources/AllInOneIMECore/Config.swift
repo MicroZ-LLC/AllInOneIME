@@ -128,9 +128,10 @@ public struct Config: Codable, Equatable, Sendable {
     /// Those of `englishWords` the user added in Settings, as they are written (the others were learned): beyond
     /// `EnglishWords.maxWords` the oldest learned go first (`EnglishWords.capped`). None by default.
     public var addedEnglishWords: [String]
-    /// Letters put in as typed twice while typing pinyin ("bedrock" and ⏎) are learned as an English word (`EnglishWords.
-    /// learnable`): never during secure input, in a terminal, a remote desktop or a virtual machine, in an app with no AI,
-    /// or for what looks like a secret. On by default.
+    /// Letters put in as typed twice while typing pinyin ("bedrock" and ⏎), or a word typed twice in English mode
+    /// ("bedrock " after a tap of Shift: `EnglishModeWords`), are learned as an English word (`EnglishWords.learnable`):
+    /// never during secure input, in a terminal, a remote desktop or a virtual machine, in an app with no AI, or for what
+    /// looks like a secret. On by default.
     public var learnsEnglishWords: Bool
     /// The keyboard layout each input language types with, by language code ("fr": "com.apple.keylayout.French"),
     /// where it isn't the language's default (`Language.defaultKeyboardLayout`).
