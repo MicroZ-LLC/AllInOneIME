@@ -283,7 +283,7 @@ struct AutocompleteTests {
         config.provider = .apple
         config.autocompleteCloud = nil
         #expect(Autocomplete.route(config) == .onDevice && !Autocomplete.asksForCloud(config))
-        #expect(Autocomplete.Route.onDevice.pause == 0.15 && Autocomplete.Route.cloud(.anthropic).pause == 0.35)
+        #expect(Autocomplete.Route.onDevice.pause == 0.35 && Autocomplete.Route.cloud(.anthropic).pause == 0.5)
     }
 
     /// The yes is for where the requests went when it was given: the provider and its host (for Bedrock, the AWS profile
@@ -479,7 +479,7 @@ struct AutocompleteTests {
         let on = try AIConfig.parse(#"{"changes": [{"key": "autocomplete", "value": true}]}"#)
         var config = Config.default  // Bedrock, not agreed to
         let rows = AIConfig.check(on, config: config, environment: env).rows
-        #expect(rows.map { $0.text(chinese: false) } == ["Autocomplete: off → on (it uses the model on this Mac; to use your AI provider, agree when you turn on Autocomplete in the input menu)"])
+        #expect(rows.map { $0.text(chinese: false) } == ["Autocomplete: off → on (it uses the model on this Mac; to use Amazon Bedrock, choose “Autocomplete with Amazon Bedrock” in the input menu)"])
         let undo = AIConfig.apply(rows.compactMap { $0.edit }, to: &config)
         #expect(config.autocomplete && config.autocompleteCloud == nil && undo == [.autocomplete(false)])
         config.provider = .apple
@@ -733,7 +733,7 @@ struct AutocompleteTests {
             let r = rig()
             r.host.type("Hello wor")
             #expect(r.host.document == "Hello wor")
-            #expect(r.pauses.count == 9 && r.host.timerDelays[r.pauses.last!] == 0.15)
+            #expect(r.pauses.count == 9 && r.host.timerDelays[r.pauses.last!] == 0.35)
             r.pauseEnds(expecting: "ld, how are you?")
             #expect(r.host.ghost == "ld, how are you?" && r.host.fieldReads == 1)
             #expect(r.model.requests.first?.prompt == "<before>Hello wor</before>")
@@ -842,7 +842,8 @@ struct AutocompleteTests {
             #expect(r.host.ghost == "ld, how are you?")
             #expect(r.host.press(FakeHost.escape))
             #expect(r.host.ghost == nil)
-            // Waved away: not shown again for the same text, nor as it's typed along, from what was kept or asked again.
+            // Not this one: not shown again for the same text, nor as it's typed along, from what was kept or said again
+            // by the model.
             r.host.type("l")
             r.pauseEnds()
             #expect(r.host.ghost == nil && r.model.requests.count == 2 && r.store.metrics.fromCache == 0)
@@ -1068,7 +1069,7 @@ struct AutocompleteTests {
             let r = rig(store: store)
             #expect(r.store.pause(0.15, in: "com.example.editor") == 0.3)
             r.host.type("Hello wor")
-            #expect(r.host.timerDelays[r.pauses.last!] == 0.3)  // waved away often: it waits longer
+            #expect(r.host.timerDelays[r.pauses.last!] == 0.7)  // waved away often: it waits longer
             r.pauseEnds(expecting: "x")
             #expect(r.host.press(FakeHost.escape))
             #expect(store.stopped(in: "com.example.editor") && store.metrics.stoppedApps == 1)
@@ -1149,7 +1150,7 @@ struct AutocompleteTests {
             Autocomplete.answer(true, in: &settings.config)
             let r = rig(settings)
             r.host.type("Hi")
-            #expect(r.host.timerDelays[r.pauses.last!] == 0.35)
+            #expect(r.host.timerDelays[r.pauses.last!] == 0.5)
         }
     }
 

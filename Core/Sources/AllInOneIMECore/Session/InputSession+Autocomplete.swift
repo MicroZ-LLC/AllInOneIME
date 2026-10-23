@@ -7,19 +7,16 @@ struct AutocompleteField {
     struct Suggestion {
         /// What is left of it to go in.
         var text: String
-        /// The text before the caret it continues now (what it was made for, and what was typed along it since).
-        var before: String
         /// When it came up (`SessionServices.uptime`), or came back after what was composed.
         var shownAt: TimeInterval
         var hidden = false
         /// Its characters typed along so far.
         var typed = 0
+        /// It as kept (`Autocomplete.Cache`): what Esc waves away.
+        var kept: Autocomplete.Cache.Entry
     }
 
     var suggestion: Suggestion?
-    /// The suggestions waved away (Esc) in this field, with the text they were up after: none is shown again for its text,
-    /// nor as it's typed along, kept or answered again.
-    var dismissed = Autocomplete.Cache()
     /// Whether autocomplete may run in this field by the settings as the session last took them (a field took the focus,
     /// the settings changed: `autocompleteTakeSettings`): on in its app (the switch, or the app's own choice), and none of
     /// what never changes while the field has the focus keeps it from running (a terminal, a password manager …). While
@@ -29,9 +26,12 @@ struct AutocompleteField {
     var pause = 0
     /// When the pause began: the last key that typed.
     var pauseStarted: TimeInterval = 0
-    /// The pause whose read of the field is awaited, and the one whose request is (with the text it continues).
+    /// The pause whose read of the field is awaited, and the one whose request is, with what it continues.
     var reading: Int?
     var asked: Int?
+    var request: Autocomplete.Context?
+    /// When it was asked for (the pause over): what `Autocomplete.Route.late` goes by.
+    var askedAt: TimeInterval = 0
     /// What was typed into the field, for one that tells nothing of its text (`Autocomplete.Typed`), and when last.
     var typed = Autocomplete.Typed()
     /// The field was found to be a password field as it was read (`FieldContext.field`'s `secure`: the Mac's
@@ -161,10 +161,9 @@ extension InputSession {
             return true
         }
         if event.key == .escape, event.modifiers.subtracting(.capsLock).subtracting(.sides).isEmpty {
-            // Waved away: what was kept of it goes, and in this field it isn't shown again for this text, nor as it's typed
-            // along, whatever a request answers.
-            services.autocomplete.forget(after: suggestion.before)
-            autocomplete.dismissed.add(suggestion.text, after: suggestion.before)
+            // Not this one: in this app it isn't shown again for this text (before and after the caret), nor as it's typed
+            // along, whether kept or said again by the model (`Autocomplete.Cache.reject`).
+            services.autocomplete.reject(suggestion.kept)
             autocompleteEnded(.dismissed)
             return true
         }
@@ -185,6 +184,8 @@ extension InputSession {
         // Off here (`AutocompleteField.active`): nothing to do. Nothing of a password field is kept, not even what was typed.
         guard autocomplete.active, !autocomplete.passwordField else { return }
         let now = services.uptime()
+        // A key that types, pinyin's too: the user's rhythm, what the pause goes by.
+        if key.printableText != nil, key.modifiers.isDisjoint(with: [.command, .control]) { services.autocomplete.keyTyped(at: now) }
         if !autocomplete.typed.text.isEmpty, services.pointerUsedWithin(now - autocomplete.typedAt) { autocomplete.typed.forget() }
         if !inserted.isEmpty {
             autocomplete.typed.add(inserted)
@@ -205,7 +206,6 @@ extension InputSession {
         if var suggestion = autocomplete.suggestion {
             if !inserted.isEmpty, suggestion.text.hasPrefix(inserted), autocompleteMayRun() {
                 suggestion.text.removeFirst(inserted.count)
-                suggestion.before += inserted
                 suggestion.typed += inserted.count
                 if suggestion.hidden { (suggestion.hidden, suggestion.shownAt) = (false, now) }
                 autocomplete.suggestion = suggestion
@@ -218,8 +218,9 @@ extension InputSession {
         autocompleteSchedulePause()
     }
 
-    /// The pause starts: its timer, as long as the model's (`Autocomplete.Route.pause`), longer in an app where
-    /// suggestions are waved away (`Autocomplete.Learning.pause`).
+    /// The pause starts: its timer, as long as the model's (`Autocomplete.Route.pause`) or longer for one who types
+    /// slowly (`Autocomplete.Rhythm`), longer in an app where suggestions are waved away
+    /// (`Autocomplete.Learning.pause`).
     func autocompleteSchedulePause() {
         let base = Autocomplete.route(services.loadSettings()).pause
         autocomplete.pause += 1
@@ -254,10 +255,10 @@ extension InputSession {
         emit(.readField(id: token))
     }
 
-    /// What the field said once the pause was over: a suggestion kept for its text (`Autocomplete.Cache`), else a
-    /// request. Nothing where it isn't to run (`Autocomplete.context`: a selection, the caret before the line's end …).
-    /// A field the shell tells is a password field (`FieldInfo.secure`, though secure input is off) sends nothing, not
-    /// even what was typed into it (forgotten), and it's off there until another field takes the focus.
+    /// What the field said once the pause was over: a suggestion kept for its text in this app (`Autocomplete.Cache`),
+    /// else a request. Nothing where it isn't to run (`Autocomplete.context`: a selection, the caret before the line's
+    /// end …). A field the shell tells is a password field (`FieldInfo.secure`, though secure input is off) sends
+    /// nothing, not even what was typed into it (forgotten), and it's off there until another field takes the focus.
     func autocompleteRead(_ context: FieldContext, id: Int) {
         guard id == autocomplete.reading, id == autocomplete.pause, autocomplete.suggestion == nil else { return }
         autocomplete.reading = nil
@@ -273,18 +274,21 @@ extension InputSession {
         // What was typed stands in only where the field tells nothing, and not past a click.
         let typed = services.pointerUsedWithin(services.uptime() - autocomplete.typedAt) ? "" : autocomplete.typed.text
         guard let request = Autocomplete.context(text, selection: selection, typed: typed) else { return }
-        if let kept = services.autocomplete.kept(after: request.before) {
-            if !autocomplete.dismissed.contains(kept, after: request.before) { autocompleteShow(kept, after: request.before, fromCache: true) }
+        if let kept = services.autocomplete.kept(for: request, in: app) {
+            autocompleteShow(kept.rest, kept: kept.entry, fromCache: true)
             return
         }
         autocomplete.asked = id
+        autocomplete.request = request
+        autocomplete.askedAt = services.uptime()
         services.autocomplete.count { $0.asked += 1 }
         log.notice("autocomplete \(id): asked (\(request.before.count) + \(request.after.count) characters)")
         tasks.autocomplete(request, app: app, id: id, converter: services.converter)
     }
 
     /// Request `request` answered: its suggestion kept, and shown if it's still wanted and not too late
-    /// (`Autocomplete.Route.late`). A failure shows nothing; the on-device model unavailable is said once.
+    /// (`Autocomplete.Route.late`); neither if it is one waved away for this text. A failure shows nothing; the
+    /// on-device model unavailable is said once.
     func autocompleteAnswered(_ result: Result<Autocomplete.Answer, any Error>, request: Int) {
         guard autocomplete.asked == request, request == autocomplete.pause else { return }
         autocomplete.asked = nil
@@ -306,34 +310,36 @@ extension InputSession {
                 log.notice("autocomplete \(request): nothing to suggest")
                 return
             }
-            guard !autocomplete.dismissed.contains(text, after: answer.before) else {
-                log.notice("autocomplete \(request): the suggestion waved away here for this text")
+            let asked = autocomplete.request ?? Autocomplete.Context(before: answer.before)
+            let kept = Autocomplete.Cache.Entry(text, for: asked, in: app)
+            guard services.autocomplete.keep(kept) else {
+                log.notice("autocomplete \(request): the suggestion waved away again")
                 return
             }
-            services.autocomplete.keep(text, after: answer.before)
             guard autocomplete.suggestion == nil, autocompleteMayRun() else { return }
-            let waited = services.uptime() - autocomplete.pauseStarted
+            let waited = services.uptime() - autocomplete.askedAt
             guard waited <= answer.route.late else {
                 services.autocomplete.count { $0.late += 1 }
                 log.notice("autocomplete \(request): too late (\(Int(waited * 1000)) ms)")
                 return
             }
-            autocompleteShow(text, after: answer.before, fromCache: false)
+            autocompleteShow(text, kept: kept, fromCache: false)
         }
     }
 
-    /// `text` up after the caret (`SessionOutput.ghost`), continuing `before`, counted with how long it took from the
-    /// pause's start.
-    func autocompleteShow(_ text: String, after before: String, fromCache: Bool) {
+    /// `text` up after the caret (`SessionOutput.ghost`), what is left of `kept`, counted with how long it took from
+    /// the pause's start.
+    func autocompleteShow(_ text: String, kept: Autocomplete.Cache.Entry, fromCache: Bool) {
         let now = services.uptime()
-        autocomplete.suggestion = AutocompleteField.Suggestion(text: text, before: before, shownAt: now)
+        autocomplete.suggestion = AutocompleteField.Suggestion(text: text, shownAt: now, kept: kept)
         let waited = now - autocomplete.pauseStarted
         services.autocomplete.count { $0.shown(text, after: waited, fromCache: fromCache) }
         emit(.ghost(text))
     }
 
-    /// The suggestion ends (`end`): it goes from the screen, and what happened to it is counted and learned for the app,
-    /// where it stops after `Autocomplete.Learning.window` not taken (said once, `AutocompleteMessages.stopped`).
+    /// The suggestion ends (`end`): it goes from the screen, and what happened to it is counted and learned for the
+    /// app, where it stops after `Autocomplete.Learning.window` not taken (said once, `AutocompleteMessages.stopped`),
+    /// unless the app is set to always or never (Settings → Apps): there it goes by that.
     func autocompleteEnded(_ end: SuggestionEnd) {
         guard let suggestion = autocomplete.suggestion else { return }
         autocomplete.suggestion = nil
@@ -354,12 +360,19 @@ extension InputSession {
                 break
             }
         }
-        guard let app, services.autocomplete.learn({ $0.record(end == .accepted || end == .typedThrough, in: app) }) else { return }
+        guard let app else { return }
+        let mayStop = autocompleteMayStop(in: app)
+        guard services.autocomplete.learn({ $0.record(end == .accepted || end == .typedThrough, in: app, mayStop: mayStop) }) else { return }
         autocompleteStopped(in: app)
     }
 
+    /// Whether it may stop in `app` for want of use: not where the app is set to always or never (Settings → Apps).
+    private func autocompleteMayStop(in app: String) -> Bool {
+        services.loadSettings().profile(for: app)?.autocomplete == nil
+    }
+
     /// The suggestion Tab just put in taken back with ⌘Z (`Autocomplete.undoWindow`): not taken after all, counted and
-    /// learned so (`characters` of it had gone in); it may stop in the app now.
+    /// learned so (`characters` of it had gone in); it may stop in the app now (`autocompleteMayStop`).
     func autocompleteTakenBack(characters: Int) {
         services.autocomplete.count { metrics in
             metrics.accepted -= 1
@@ -368,7 +381,9 @@ extension InputSession {
             metrics.acceptedCharacters -= characters
         }
         log.notice("autocomplete: ⌘Z right after a suggestion went in: not taken after all")
-        guard let app, services.autocomplete.learn({ $0.takenBack(in: app) }) else { return }
+        guard let app else { return }
+        let mayStop = autocompleteMayStop(in: app)
+        guard services.autocomplete.learn({ $0.takenBack(in: app, mayStop: mayStop) }) else { return }
         autocompleteStopped(in: app)
     }
 

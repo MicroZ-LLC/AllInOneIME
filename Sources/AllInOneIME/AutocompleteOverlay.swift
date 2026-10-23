@@ -3,12 +3,12 @@ import AllInOneIMEMac
 import AppKit
 import InputMethodKit
 
-/// Autocomplete's suggestion (`SessionOutput.ghost`, the core's `Autocomplete`) after the caret: gray text in a window of
-/// its own, as tall as the caret's line, its text about the field's size, a small Tab key after it, cut at the field's
-/// edge where Accessibility tells its frame (`FocusedField.frame`). It takes no clicks;
-/// a click or the wheel anywhere takes it down (the session sees the pointer used, `SessionServices.pointerUsedWithin`,
-/// and ends the suggestion at the next key). Where the field tells no caret rect, the suggestion is a line of the
-/// candidate panel instead (`PanelModel.autocomplete`).
+/// Autocomplete's suggestion (`SessionOutput.ghost`, the core's `Autocomplete`) after the caret: gray text in a window
+/// of its own, on the caret's line, in the field's font where it tells it, on its text's baseline, a small Tab key
+/// after it, cut at the field's edge where Accessibility tells its frame (`FocusedField.frame`). It takes no clicks; a
+/// click or the wheel anywhere takes it down (the session sees the pointer used, `SessionServices.pointerUsedWithin`,
+/// and ends the suggestion at the next key). Where the field tells no caret rect, or rects that don't agree, the
+/// suggestion is a line of the candidate panel instead (`PanelModel.autocomplete`).
 @MainActor
 final class GhostOverlay: NSPanel {
     static let shared = GhostOverlay()
@@ -45,13 +45,31 @@ final class GhostOverlay: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 
-    /// `text` right after `caret` (a rect on the screen, as tall as its line), cut at the screen's edge and at the field's
-    /// (`field`, its frame where it is known: `GhostPlacement`).
-    func show(_ text: String, caret: NSRect, field: NSRect? = nil) {
+    /// Where a suggestion goes on the screen: the caret's line (a rect as tall as the line), where the caret is on it
+    /// (`x`), and the field's font there, if it tells one.
+    struct Place: Equatable {
+        var line: NSRect
+        var x: CGFloat
+        var font: NSFont?
+    }
+
+    /// `text` right after the caret at `place`, its baseline on the line's text's, cut at the screen's edge and at the
+    /// field's (`field`, its frame where it is known: `GhostPlacement`).
+    func show(_ text: String, at place: Place, field: NSRect? = nil) {
         ghost.text = text
-        ghost.fontSize = Self.fontSize(lineHeight: caret.height)
-        let screen = NSScreen.screens.first { $0.frame.contains(NSPoint(x: caret.minX, y: caret.midY)) } ?? NSScreen.main
-        setFrame(GhostPlacement.frame(size: ghost.fittingSize, caret: caret, visible: screen?.visibleFrame, field: field), display: true)
+        ghost.font = Self.font(place.font, lineHeight: place.line.height)
+        let line = place.line
+        let screen = NSScreen.screens.first { $0.frame.contains(NSPoint(x: place.x, y: line.midY)) } ?? NSScreen.main
+        // Across: from the caret on, as far as the screen and the field go.
+        let caret = NSRect(x: place.x, y: line.minY, width: 0, height: line.height)
+        var frame = GhostPlacement.frame(size: ghost.fittingSize, caret: caret, visible: screen?.visibleFrame, field: field)
+        // The text's baseline is the line's bottom and the font's descent: AppKit puts what makes a line taller than
+        // its font (a line height multiple, a minimum) above the text, and a line's spacing below its rect.
+        let baseline = line.minY + ghost.descent
+        frame.origin.y = line.minY
+        frame.size.height = max(line.height, baseline - line.minY + ghost.ascent)
+        setFrame(frame, display: true)
+        ghost.baseline = baseline - line.minY
         ghost.needsDisplay = true
         alphaValue = Self.invisible ? 0 : 1
         orderFrontRegardless()
@@ -66,9 +84,11 @@ final class GhostOverlay: NSPanel {
         monitor = nil
     }
 
-    /// The text's size for a line `lineHeight` high: about what the field's own text is.
-    static func fontSize(lineHeight: CGFloat) -> CGFloat {
-        min(max((lineHeight / 1.25).rounded(), 10), 40)
+    /// The suggestion's font: the field's (`font`), unless it is taller than the line (a bogus one, or a zoomed-out
+    /// view); else the system font about as big as text on a line `lineHeight` high.
+    static func font(_ font: NSFont?, lineHeight: CGFloat) -> NSFont {
+        if let font, (4...200).contains(font.pointSize), GhostView.lineHeight(font) <= lineHeight * 1.3 { return font }
+        return NSFont.systemFont(ofSize: min(max((lineHeight / 1.25).rounded(), 10), 40))
     }
 
     /// A click or the wheel anywhere takes it down: the caret may move, the text scroll.
@@ -80,19 +100,29 @@ final class GhostOverlay: NSPanel {
     }
 }
 
-/// The suggestion drawn: gray text, then a small key cap with "Tab" in it.
+/// The suggestion drawn: gray text on its baseline, then a small key cap with "Tab" in it.
 final class GhostView: NSView {
     var text = ""
-    var fontSize: CGFloat = 13
+    var font = NSFont.systemFont(ofSize: 13)
+    /// Where the text's baseline is, from the view's bottom.
+    var baseline: CGFloat = 3
 
     override var isFlipped: Bool { false }
 
+    /// A line of `font`, as AppKit lays it out: how tall, and how far its baseline is from its top.
+    static func lineHeight(_ font: NSFont) -> CGFloat { NSLayoutManager().defaultLineHeight(for: font) }
+    static func baselineOffset(_ font: NSFont) -> CGFloat { NSLayoutManager().defaultBaselineOffset(for: font) }
+
+    /// The font's line below its baseline, and above it.
+    var descent: CGFloat { Self.lineHeight(font) - Self.baselineOffset(font) }
+    var ascent: CGFloat { Self.baselineOffset(font) }
+
     private var attributes: [NSAttributedString.Key: Any] {
-        [.font: NSFont.systemFont(ofSize: fontSize), .foregroundColor: NSColor.placeholderTextColor]
+        [.font: font, .foregroundColor: NSColor.placeholderTextColor]
     }
 
     private var keyAttributes: [NSAttributedString.Key: Any] {
-        [.font: NSFont.systemFont(ofSize: max(fontSize * 0.6, 8), weight: .medium), .foregroundColor: NSColor.tertiaryLabelColor]
+        [.font: NSFont.systemFont(ofSize: max(font.pointSize * 0.6, 8), weight: .medium), .foregroundColor: NSColor.tertiaryLabelColor]
     }
 
     private var keySize: NSSize {
@@ -110,10 +140,11 @@ final class GhostView: NSView {
         let size = string.size()
         let key = keySize
         let room = bounds.width - key.width - 8
-        // Cut where it doesn't fit (the screen's edge), with an ellipsis.
-        string.draw(with: NSRect(x: 0, y: (bounds.height - size.height) / 2, width: max(room, 0), height: size.height),
+        // Cut where it doesn't fit (the screen's edge), with an ellipsis; one line of the font, on `baseline`.
+        string.draw(with: NSRect(x: 0, y: baseline - descent, width: max(room, 0), height: Self.lineHeight(font)),
                     options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine])
-        let keyRect = NSRect(x: min(size.width, max(room, 0)) + 6, y: (bounds.height - key.height) / 2, width: key.width,
+        // The key cap centered on the capitals.
+        let keyRect = NSRect(x: min(size.width, max(room, 0)) + 6, y: baseline + font.capHeight / 2 - key.height / 2, width: key.width,
                              height: key.height)
         let cap = NSBezierPath(roundedRect: keyRect.insetBy(dx: 0.5, dy: 0.5), xRadius: 3, yRadius: 3)
         NSColor.tertiaryLabelColor.setStroke()
@@ -207,6 +238,18 @@ enum AutocompleteSwitch {
         NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
         log.notice("autocomplete with the cloud provider: \(yes ? "yes" : "no", privacy: .public)")
         AllInOneIMEInputController.activeController?.applySettings()
+    }
+
+    /// The model it uses with `config` (`Autocomplete.route`), for the input menu and the menu bar panel: Apple
+    /// Intelligence on this Mac (and that it isn't available, where it isn't), or the cloud provider agreed to.
+    static func modelName(_ config: Config) -> String {
+        switch Autocomplete.route(config) {
+        case let .cloud(provider):
+            return provider.displayName
+        case .onDevice:
+            let name = tr("本机 Apple Intelligence", "Apple Intelligence on this Mac")
+            return AppleModel.system.availability == .available ? name : name + tr("，不可用", ", not available")
+        }
     }
 
     /// Whether the model it would ask can answer: a cloud provider agreed to, or the on-device model available.
@@ -366,15 +409,24 @@ extension AllInOneIMEInputController {
         }
     }
 
-    /// At the caret, where the field tells it (cut at the field's edge, its frame asked once a suggestion: as it's typed
-    /// along, the field stays where it is); else as a line of the candidate panel.
+    /// At the caret, where the field tells it (`ghostPlace`; cut at the field's edge, its frame asked once a suggestion:
+    /// as it's typed along, the field stays where it is); else as a line of the candidate panel.
     @MainActor
     func placeGhost(_ text: String, in client: IMKTextInput) {
-        if let caret = Self.caretRect(client) {
+        let rects = Self.caretRects(client)
+        let place = Self.ghostPlace(rects)
+        // What the field told, to check a real app by (`log stream --level debug --predicate 'subsystem ==
+        // "com.aipinyin.inputmethod.AIPinyin" AND eventMessage BEGINSWITH "autocomplete placed"'`): numbers only.
+        log.debug("""
+            autocomplete placed \(place == nil ? "in the panel" : "after the caret", privacy: .public) in \(client.bundleIdentifier() ?? "", privacy: .private): \
+            caret \(Self.describe(rects.caret), privacy: .public), previous character \(Self.describe(rects.previous), privacy: .public), \
+            line \(Self.describe(rects.line), privacy: .public), font \(Double(rects.font?.pointSize ?? 0), format: .fixed(precision: 1), privacy: .public) pt
+            """)
+        if let place {
             if ghostInPanel { hidePanelLine() }
             if ghostField == nil { ghostField = .some(fieldFrame?() ?? FocusedField.frame()) }
             GhostOverlay.shared.owner = self
-            GhostOverlay.shared.show(text, caret: caret, field: ghostField ?? nil)
+            GhostOverlay.shared.show(text, at: place, field: ghostField ?? nil)
             return
         }
         GhostOverlay.shared.hide()
@@ -406,15 +458,68 @@ extension AllInOneIMEInputController {
         passwordField?() ?? (FocusedField.isSecure() == true)
     }
 
-    /// Where the caret is on the screen (as tall as its line), as the field tells it: nil where it tells none (no caret,
-    /// an empty rect, off every screen).
+    /// Where the caret is on the screen (as tall as its line), as the field tells it for an empty range there: nil
+    /// where it tells none (no caret, an empty rect, off every screen).
     static func caretRect(_ client: IMKTextInput) -> NSRect? {
         let selected = client.selectedRange()
         guard selected.location != NSNotFound else { return nil }
-        let rect = client.firstRect(forCharacterRange: NSRange(location: selected.location, length: 0), actualRange: nil)
+        return onScreen(client.firstRect(forCharacterRange: NSRange(location: selected.location, length: 0), actualRange: nil))
+    }
+
+    /// What a field tells of its caret's place on the screen, three ways: the empty range at the caret (`caret`), the
+    /// character before it (`previous`), and the line as the candidate panel has it (`line`,
+    /// `attributes(forCharacterIndex:lineHeightRectangle:)`), with the font there. Nil for a rect it doesn't tell.
+    struct CaretRects {
+        var caret: NSRect?
+        var previous: NSRect?
+        var line: NSRect?
+        var font: NSFont?
+    }
+
+    static func caretRects(_ client: IMKTextInput) -> CaretRects {
+        var rects = CaretRects(caret: caretRect(client))
+        let selected = client.selectedRange()
+        if selected.location != NSNotFound, selected.location > 0 {
+            rects.previous = onScreen(client.firstRect(forCharacterRange: NSRange(location: selected.location - 1, length: 1), actualRange: nil))
+        }
+        var line = NSRect.zero
+        let attributes = client.attributes(forCharacterIndex: 0, lineHeightRectangle: &line) ?? [:]
+        rects.line = onScreen(line)
+        rects.font = (attributes[NSAttributedString.Key.font] ?? attributes[NSAttributedString.Key.font.rawValue]) as? NSFont
+        return rects
+    }
+
+    /// Where the suggestion goes: on the line the candidate panel goes by (the empty range's rect where the field tells
+    /// no line), at the caret's x, from the empty range's rect where that is on the line, else from the end of the
+    /// character before the caret. Nil, the candidate panel's line instead: no line told; the empty range's rect more
+    /// than a line from it (one of them is wrong: Notes's has been above the line); no x on the line.
+    static func ghostPlace(_ rects: CaretRects) -> GhostOverlay.Place? {
+        guard let line = rects.line ?? rects.caret else { return nil }
+        func apart(_ rect: NSRect) -> CGFloat { abs(rect.midY - line.midY) }
+        if let caret = rects.caret, apart(caret) > line.height { return nil }
+        let x: CGFloat
+        if let caret = rects.caret, apart(caret) <= line.height / 2 {
+            x = caret.maxX
+        } else if let previous = rects.previous, apart(previous) <= line.height / 2 {
+            x = previous.maxX
+        } else if rects.caret == nil {
+            x = line.minX
+        } else {
+            return nil
+        }
+        return GhostOverlay.Place(line: line, x: x, font: rects.font)
+    }
+
+    /// `rect` if it is one: not empty, not at the origin, on a screen.
+    static func onScreen(_ rect: NSRect) -> NSRect? {
         guard rect.height > 1, rect.origin != .zero,
               NSScreen.screens.contains(where: { $0.frame.intersects(rect.insetBy(dx: -2, dy: -2)) }) else { return nil }
         return rect
+    }
+
+    /// A rect for the log: "x 120.0 y 540.5 w 0.0 h 18.0", or "none".
+    static func describe(_ rect: NSRect?) -> String {
+        rect.map { String(format: "x %.1f y %.1f w %.1f h %.1f", $0.minX, $0.minY, $0.width, $0.height) } ?? "none"
     }
 
     /// What the field says once autocomplete's pause is over (`SessionOutput.readField`): secure input, a password field

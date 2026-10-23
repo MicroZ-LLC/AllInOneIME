@@ -41,9 +41,12 @@ public enum Autocomplete {
         case onDevice
         case cloud(Provider)
 
-        /// The pause before asking: the on-device model answers quickly; a cloud one is asked less often.
-        public var pause: TimeInterval { self == .onDevice ? 0.15 : 0.35 }
-        /// A suggestion that comes later than this after the pause began is dropped: late is worse than none.
+        /// The shortest pause before asking (longer for one who types slowly, `Rhythm`): longer than the time between
+        /// keys of most typing, so that a request goes when the user stops, not between two keys; a cloud model is
+        /// asked less often.
+        public var pause: TimeInterval { self == .onDevice ? 0.35 : 0.5 }
+        /// A suggestion that comes later than this after it was asked for (the pause over) is dropped: late is worse
+        /// than none.
         public var late: TimeInterval { self == .onDevice ? 2 : 3 }
     }
 
@@ -186,7 +189,7 @@ public enum Autocomplete {
 
     /// What a request is made of, from what the field says (`text`; nil: it tells nothing, so what was typed into it since
     /// it took the focus, `typed`, stands in) and its selection (`selection`, UTF-16). Nil, and nothing asked: text
-    /// selected, the caret not at the end of a line, too little written on the line yet (two characters), or a line that
+    /// selected, the caret not at the end of a line, no word on the line yet to go on from (`hasWord`), or a line that
     /// looks like a code or a card's number (digits and no letters).
     public static func context(_ text: FieldText?, selection: Range<Int>? = nil, typed: String = "") -> Context? {
         if let selection, !selection.isEmpty { return nil }
@@ -196,7 +199,7 @@ public enum Autocomplete {
         let rest = after.prefix { !$0.isNewline }
         guard rest.allSatisfy(\.isWhitespace) else { return nil }
         let line = before.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline).last.map(String.init) ?? ""
-        guard line.filter({ !$0.isWhitespace }).count >= 2 else { return nil }
+        guard line.filter({ !$0.isWhitespace }).count >= 2, hasWord(line) else { return nil }
         if looksLikeNumbers(line) { return nil }
         return Context(before: String(before.suffix(beforeLimit)), after: following(after))
     }
@@ -209,6 +212,23 @@ public enum Autocomplete {
         guard let start = after.firstIndex(where: { !$0.isWhitespace }) else { return "" }
         let end = after[start...].firstIndex(where: \.isNewline) ?? after.endIndex
         return String(after[..<end].prefix(afterLimit))
+    }
+
+    /// Whether `line` has a word to go on from: a whole one (a space or a mark after it: "Hi "), one of three letters
+    /// or more ("iss"), or two Chinese or Japanese characters. One or two letters alone ("is") aren't: the model can
+    /// only guess at what follows them.
+    static func hasWord(_ line: String) -> Bool {
+        if line.filter(\.isWide).count >= 2 { return true }
+        var run = 0
+        for character in line {
+            if (character.isLetter || character.isNumber) && !character.isWide {
+                run += 1
+                if run >= 3 { return true }
+            } else if run > 0 {
+                return true
+            }
+        }
+        return false
     }
 
     /// A line of digits with no letters (four or more digits): a one-time code, a card's number, a phone number.
@@ -553,15 +573,70 @@ public enum Autocomplete {
         public mutating func forget() { text = "" }
     }
 
+    // MARK: The user's rhythm
+
+    /// How fast the user types: the time between their last keys, and the pause that tells they stopped (`pause`), half
+    /// as long again as the usual time between their keys (the median), never shorter than the model's (`Route.pause`)
+    /// nor longer than `longest`. A pause shorter than the time between keys asks between two keys, for nothing.
+    public struct Rhythm: Equatable, Sendable {
+        /// The last keys' times between them kept, and how many it takes to go by them.
+        static let kept = 40
+        static let enough = 5
+        /// A gap between two keys this long is a stop, not the rhythm.
+        static let stop: TimeInterval = 1.5
+        public static let longest: TimeInterval = 1.2
+
+        public private(set) var intervals: [TimeInterval] = []
+        private var last: TimeInterval?
+
+        public init() {}
+
+        /// A key that typed, at `time` (seconds of uptime).
+        public mutating func key(at time: TimeInterval) {
+            if let last, time >= last, time - last < Self.stop {
+                intervals = Array((intervals + [time - last]).suffix(Self.kept))
+            }
+            last = time
+        }
+
+        /// The usual time between keys; nil before there are `enough`.
+        public var median: TimeInterval? {
+            guard intervals.count >= Self.enough else { return nil }
+            let sorted = intervals.sorted()
+            let middle = sorted.count / 2
+            return sorted.count % 2 == 1 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2
+        }
+
+        /// The pause before asking, at least `base`.
+        public func pause(_ base: TimeInterval) -> TimeInterval {
+            guard let median else { return base }
+            return max(base, min(median * 1.5, Self.longest))
+        }
+    }
+
     // MARK: Suggestions kept
 
-    /// The last suggestions and the text they continue: the same text again shows its suggestion at once, and so does text
-    /// typed since that runs into one (its rest is shown). No request for either. One waved away with Esc goes (`forget`).
+    /// The last suggestions and the text they continue, in the app they were made in: the same text again (before the
+    /// caret and after it, in the same app) shows its suggestion at once, and so does text typed since that runs into
+    /// one (its rest is shown). No request for either. One waved away with Esc goes, and is remembered as not wanted
+    /// (`rejected`): neither it nor an answer that says it again is shown for that text.
     public struct Cache: Equatable, Sendable {
         public struct Entry: Equatable, Sendable {
-            /// The text before the caret it was made for.
+            /// The text before the caret it was made for, and after it.
             public var before: String
+            public var after: String
+            /// The app it was made in, its bundle id in small letters (nil: none told).
+            public var app: String?
             public var text: String
+
+            public init(_ text: String, for context: Context, in app: String?) {
+                (before, after, self.app, self.text) = (context.before, context.after, app?.lowercased(), text)
+            }
+
+            /// Whether it was made for the same text after the caret, in the same app, as `context` in `app`.
+            func isFor(_ context: Context, in app: String?) -> Bool {
+                after == context.after && self.app == app?.lowercased()
+            }
         }
 
         public static let capacity = 20
@@ -570,42 +645,64 @@ public enum Autocomplete {
         static let matched = 200
 
         public private(set) var entries: [Entry] = []
+        /// The suggestions waved away (Esc), the last `capacity`.
+        public private(set) var rejected: [Entry] = []
 
         public init() {}
 
-        public mutating func add(_ text: String, after before: String) {
-            entries.removeAll { $0.before == before }
-            entries.append(Entry(before: before, text: text))
+        public mutating func add(_ entry: Entry) {
+            entries.removeAll { $0.before == entry.before && $0.after == entry.after && $0.app == entry.app }
+            entries.append(entry)
             if entries.count > Self.capacity { entries.removeFirst(entries.count - Self.capacity) }
         }
 
-        /// What is left of a suggestion for `before`: one made for it, or for text before it that `before` goes on with
-        /// as the suggestion did (typed along). Nil: none, or one typed to its end.
+        /// `text` for `before` alone: no text after the caret, no app.
+        public mutating func add(_ text: String, after before: String) {
+            add(Entry(text, for: Context(before: before), in: nil))
+        }
+
+        /// What is left of a suggestion for `context` in `app`, and the one it is: one made for it, or for text before
+        /// it that `context.before` goes on with as the suggestion did (typed along), with the same text after the
+        /// caret, in the same app; never one waved away there (`isRejected`). Nil: none, or one typed to its end.
+        public func kept(for context: Context, in app: String?) -> (rest: String, entry: Entry)? {
+            for entry in entries.reversed() where entry.isFor(context, in: app) {
+                for typed in 0..<entry.text.count where matches(entry, typed: typed, before: context.before) {
+                    let rest = String(entry.text.dropFirst(typed))
+                    if !isRejected(rest, for: context, in: app) { return (rest, entry) }
+                    break
+                }
+            }
+            return nil
+        }
+
+        /// What is left of a suggestion for `before` alone (`kept`).
         public func rest(after before: String) -> String? {
-            for entry in entries.reversed() {
-                if let rest = rest(of: entry, after: before) { return rest }
+            kept(for: Context(before: before), in: nil)?.rest
+        }
+
+        /// `entry` waved away (Esc): it goes, and isn't shown again for its text (`isRejected`).
+        public mutating func reject(_ entry: Entry) {
+            entries.removeAll { $0.before == entry.before && $0.after == entry.after && $0.app == entry.app }
+            rejected.removeAll { $0 == entry }
+            rejected.append(entry)
+            if rejected.count > Self.capacity { rejected.removeFirst(rejected.count - Self.capacity) }
+        }
+
+        /// Whether `text`, a suggestion for `context` in `app`, is one waved away there: what was left of it at that
+        /// text (typed along or not), in the same words but for spaces at its ends and its closing mark.
+        public func isRejected(_ text: String, for context: Context, in app: String?) -> Bool {
+            let words = Self.words(text)
+            return rejected.contains { entry in
+                entry.isFor(context, in: app) && (0..<entry.text.count).contains { typed in
+                    matches(entry, typed: typed, before: context.before) && Self.words(entry.text.dropFirst(typed)) == words
+                }
             }
-            return nil
         }
 
-        /// The suggestion up after `before` waved away (Esc): every one kept that would show there goes, for this text and
-        /// as it's typed along.
-        public mutating func forget(after before: String) {
-            let cache = self
-            entries.removeAll { cache.rest(of: $0, after: before) != nil }
-        }
-
-        /// Whether one of these would show `text` after `before`: for that text, or as it was typed along.
-        public func contains(_ text: String, after before: String) -> Bool {
-            entries.contains { rest(of: $0, after: before) == text }
-        }
-
-        /// What is left of `entry` for `before` (nil: `before` isn't its text, nor its text typed along it).
-        private func rest(of entry: Entry, after before: String) -> String? {
-            for typed in 0..<entry.text.count where matches(entry, typed: typed, before: before) {
-                return String(entry.text.dropFirst(typed))
-            }
-            return nil
+        static func words<S: StringProtocol>(_ text: S) -> String {
+            var words = text.trimmingCharacters(in: .whitespaces)
+            while let last = words.last, ".!?…。！？".contains(last) { words.removeLast() }
+            return words
         }
 
         /// Whether `before` is `entry.before` followed by the suggestion's first `typed` characters.
@@ -623,8 +720,9 @@ public enum Autocomplete {
     // MARK: Learning per app
 
     /// What happened to the suggestions in each app: in one where none of the last `window` was taken, it stops (said
-    /// once), until the app is set to autocomplete always or the switch is turned on again. Where they are often waved
-    /// away it waits longer before asking (`pause`). Kept on this device.
+    /// once), until the app is set to autocomplete always or the switch is turned on again; never in an app set to
+    /// always or never (it goes by that). Where they are often waved away it waits longer before asking (`pause`). Kept
+    /// on this device.
     public struct Learning: Codable, Equatable, Sendable {
         public static let window = 30
 
@@ -642,29 +740,31 @@ public enum Autocomplete {
 
         public init() {}
 
-        /// One suggestion's end in `app`: taken or not. True when it stops there now.
-        public mutating func record(_ taken: Bool, in app: String) -> Bool {
+        /// One suggestion's end in `app`: taken or not. True when it stops there now; never where it `mayStop` not (the
+        /// app's own choice decides there).
+        public mutating func record(_ taken: Bool, in app: String, mayStop: Bool = true) -> Bool {
             let key = app.lowercased()
             var entry = apps[key] ?? App()
             entry.outcomes = Array((entry.outcomes + [taken]).suffix(Self.window))
             entry.dismissedInARow = taken ? 0 : entry.dismissedInARow + 1
-            return settle(entry, key)
+            return settle(entry, key, mayStop: mayStop)
         }
 
         /// The suggestion just taken in `app` taken back at once (⌘Z right after Tab, `undoWindow`): not taken after all.
-        /// True when it stops there now.
-        public mutating func takenBack(in app: String) -> Bool {
+        /// True when it stops there now; never where it `mayStop` not (`record`).
+        public mutating func takenBack(in app: String, mayStop: Bool = true) -> Bool {
             let key = app.lowercased()
             guard var entry = apps[key], entry.outcomes.last == true else { return false }
             entry.outcomes[entry.outcomes.count - 1] = false
             entry.dismissedInARow += 1
-            return settle(entry, key)
+            return settle(entry, key, mayStop: mayStop)
         }
 
-        /// `entry` kept for `key`, stopped when none of the last `window` was taken: true when it stops now.
-        private mutating func settle(_ entry: App, _ key: String) -> Bool {
+        /// `entry` kept for `key`, stopped when none of the last `window` was taken and it `mayStop`: true when it stops
+        /// now.
+        private mutating func settle(_ entry: App, _ key: String, mayStop: Bool) -> Bool {
             var entry = entry
-            let stops = !entry.stopped && entry.outcomes.count >= Self.window && !entry.outcomes.contains(true)
+            let stops = mayStop && !entry.stopped && entry.outcomes.count >= Self.window && !entry.outcomes.contains(true)
             if stops { entry.stopped = true }
             apps[key] = entry
             return stops
@@ -798,6 +898,7 @@ public final class AutocompleteStore: @unchecked Sendable {
         var switchSeen: Bool?
         /// What was counted and learned waits to be written (`keepSoon`).
         var writeWaiting = false
+        var rhythm = Autocomplete.Rhythm()
     }
 
     static let learningKey = "autocompleteLearning"
@@ -894,17 +995,25 @@ public final class AutocompleteStore: @unchecked Sendable {
         if changed { defaults.set(on ? "on" : "off", forKey: Self.switchKey) }
     }
 
-    public func keep(_ text: String, after before: String) {
-        state.withLock { $0.cache.add(text, after: before) }
+    /// `entry` kept (`Autocomplete.Cache`), unless it is one waved away for its text: false then.
+    @discardableResult
+    public func keep(_ entry: Autocomplete.Cache.Entry) -> Bool {
+        state.withLock { state in
+            guard !state.cache.isRejected(entry.text, for: Autocomplete.Context(before: entry.before, after: entry.after),
+                                          in: entry.app) else { return false }
+            state.cache.add(entry)
+            return true
+        }
     }
 
-    public func kept(after before: String) -> String? {
-        state.withLock { $0.cache.rest(after: before) }
+    /// What is left of a suggestion kept for `context` in `app`, and the one it is (`Autocomplete.Cache.kept`).
+    public func kept(for context: Autocomplete.Context, in app: String?) -> (rest: String, entry: Autocomplete.Cache.Entry)? {
+        state.withLock { $0.cache.kept(for: context, in: app) }
     }
 
-    /// The suggestion up after `before` waved away: what was kept that would show there goes (`Autocomplete.Cache.forget`).
-    public func forget(after before: String) {
-        state.withLock { $0.cache.forget(after: before) }
+    /// A suggestion waved away with Esc: not this one (`Autocomplete.Cache.reject`).
+    public func reject(_ entry: Autocomplete.Cache.Entry) {
+        state.withLock { $0.cache.reject(entry) }
     }
 
     /// Whether it stopped in `app` for want of use (`Autocomplete.Learning`).
@@ -912,9 +1021,15 @@ public final class AutocompleteStore: @unchecked Sendable {
         state.withLock { $0.learning.stopped(app) }
     }
 
-    /// The pause before asking in `app` (`Autocomplete.Learning.pause`).
+    /// The pause before asking in `app`: at least `base`, as the user types (`Autocomplete.Rhythm`), longer where
+    /// suggestions are waved away (`Autocomplete.Learning.pause`).
     public func pause(_ base: TimeInterval, in app: String?) -> TimeInterval {
-        state.withLock { $0.learning.pause(base, in: app) }
+        state.withLock { $0.learning.pause($0.rhythm.pause(base), in: app) }
+    }
+
+    /// A key that typed at `time` (seconds of uptime), in any field: the user's rhythm (`Autocomplete.Rhythm`).
+    public func keyTyped(at time: TimeInterval) {
+        state.withLock { $0.rhythm.key(at: time) }
     }
 
     /// True the first time it's asked with `key` in this process: something said once.
@@ -1095,13 +1210,13 @@ extension Converter {
 
 extension AIConfig {
     /// Autocomplete turned on or off in a sentence (`Key.autocomplete`). On with a cloud provider picked, the row says
-    /// that it uses the model on this Mac until the user agrees, in the input method, to send text to the provider; with
-    /// AllInOneIME Cloud picked, that it only ever uses that model, and why (`Autocomplete.offersCloud`).
+    /// that it uses the model on this Mac until the user allows the provider, in the input menu; with AllInOneIME Cloud
+    /// picked, that it only ever uses that model, and why (`Autocomplete.offersCloud`).
     static func checkAutocomplete(_ value: JSONValue, in config: Config, text: Text) -> Row? {
         let (label, path) = (text.autocompleteLabel, Key.autocomplete.path)
         guard case let .bool(on) = value else { return Row(key: path, label: label, status: .refused(text.notValid)) }
         guard on != config.autocomplete else { return nil }
-        let onDevice = !on ? "" : Autocomplete.asksForCloud(config) ? text.autocompleteOnDevice
+        let onDevice = !on ? "" : Autocomplete.asksForCloud(config) ? text.autocompleteOnDevice(config.provider)
             : config.provider == .hosted ? text.autocompleteHostedOnDevice : ""
         return Row(key: path, label: label, old: text.onOff(config.autocomplete), new: text.onOff(on) + onDevice, status: .change,
                    edit: .autocomplete(on))
@@ -1110,10 +1225,12 @@ extension AIConfig {
 
 extension AIConfig.Text {
     public var autocompleteLabel: String { tr("续写", "Autocomplete") }
-    /// After "Autocomplete: off → on" with a cloud provider picked.
-    var autocompleteOnDevice: String {
-        tr("（先用本机模型；要用所选的 AI 服务，在输入法菜单里打开「续写」时同意）",
-           " (it uses the model on this Mac; to use your AI provider, agree when you turn on Autocomplete in the input menu)")
+    /// After "Autocomplete: off → on" with a cloud provider picked (`provider`): where to allow it, the input menu's
+    /// item for it (`AutocompleteSwitch`, the Mac's).
+    func autocompleteOnDevice(_ provider: Provider) -> String {
+        let name = provider.displayName
+        return tr("（先用本机模型；要用 \(name)，在输入法菜单里选「续写用 \(name)」）",
+                  " (it uses the model on this Mac; to use \(name), choose “Autocomplete with \(name)” in the input menu)")
     }
     /// After "Autocomplete: off → on" with AllInOneIME Cloud picked (`Autocomplete.offersCloud`).
     var autocompleteHostedOnDevice: String {

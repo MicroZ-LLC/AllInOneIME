@@ -712,14 +712,16 @@ or tell Settings → Assistant "turn on autocomplete"; it stays on until you tur
 - **Keys:** Tab takes the suggestion, only while it's showing; ⇧Tab, ⌥Tab and a Tab pressed within 120 ms of it
   appearing go to the app as usual (indenting, the next field, Jupyter's completion). Type along with it and it shrinks
   as you go, with no new request; type something else, press Esc, an arrow or any other key, or click, and it goes (Esc
-  only takes it down; the other keys do what they always do). ⌘Z right after Tab (the next key, within a few seconds)
-  takes it back, and the suggestion counts as not taken.
-- **When:** after a pause, 150 ms with the model on this Mac (350 ms with a cloud provider, longer in an app where you
-  keep waving suggestions away), only at the end of a line, never while pinyin or an @ command is being written (in
-  Chinese it waits until the words are in; if they're the start of the suggestion, its rest comes back), never with text
-  selected. Each key stops the request still running. Up to about 12 words or 25 Chinese characters, to the end of the
-  sentence. The last 20 suggestions are kept, so retyping or deleting back shows one again at once; one you waved away
-  with Esc doesn't come back in that field for the same text, nor as you type along it.
+  only takes it down, and means "not this one": it doesn't come back for that text in that app; the other keys do what
+  they always do). ⌘Z right after Tab (the next key, within a few seconds) takes it back, and the suggestion counts as
+  not taken.
+- **When:** after a pause that follows how you type: half as long again as your usual time between keys, at least 350 ms
+  with the model on this Mac (500 ms with a cloud provider), longer in an app where you keep waving suggestions away; so
+  nothing is asked while you type, only when you stop. Only at the end of a line that has a word to go on from (not one
+  or two letters alone), never while pinyin or an @ command is being written (in Chinese it waits until the words are
+  in; if they're the start of the suggestion, its rest comes back), never with text selected. Each key stops the request
+  still running. Up to about 12 words or 25 Chinese characters, to the end of the sentence. The last 20 suggestions are
+  kept, each for its text (before and after the caret) in its app, so retyping or deleting back shows one again at once.
 - **Never:** in password fields (those Accessibility tells too, where secure input isn't on) and while secure input is on,
   in a text that looks like a code or a card number, in terminals, password managers, remote desktops and virtual
   machines, in apps with No AI, and while Translate as You Type is on.
@@ -733,7 +735,9 @@ or tell Settings → Assistant "turn on autocomplete"; it stays on until you tur
   Settings, through Settings → Assistant or on another Mac with iCloud sync, and it uses the model on this Mac until you
   agree again (it says so once). Never AllInOneIME Cloud: its free requests a day are kept for the @ commands, and a few
   minutes of pauses would use them up (the input menu says so under Autocomplete). `autocompleteCloud`, never synced.
-  Requests are cheap but frequent: a heavy day can be 1,000–2,000 of them.
+  Requests are cheap but frequent: a heavy day can be 1,000–2,000 of them. While it's on, the input menu's item and the
+  menu bar panel say which model it uses: "Autocomplete (Apple Intelligence on this Mac)", or the provider's name once
+  you allowed it.
 - **Each app:** in an app where none of the last 30 suggestions was taken it stops by itself and says so once; Settings →
   Apps (or the input menu's This App) sets it to always or never there. Code editors (Xcode, VS Code, Cursor, JetBrains…,
   where Tab indents and takes their own completion) are off unless set to always. An app's choice is this Mac's own, as
@@ -742,8 +746,9 @@ or tell Settings → Assistant "turn on autocomplete"; it stays on until you tur
 - **What it counts**, only on this Mac: suggestions shown and taken, how much of what was shown went in, how long they took
   to come up (90% within … ms), Tabs undone right away, apps where it stopped, times it was turned off within a day, the
   tokens a cloud provider read. The input menu's Autocomplete item and the menu bar panel show the first lines.
-- The gray text stops at the field's edge where Accessibility tells the field's frame. Where a text field doesn't tell
-  where its caret is, the suggestion is a line of the candidate panel instead ("Tab").
+- The gray text sits on the caret's line as the candidate panel finds it, on the line's baseline, in the field's own font,
+  and stops at the field's edge where Accessibility tells the field's frame. Where a text field doesn't tell where its
+  caret is, or tells two places more than a line apart, the suggestion is a line of the candidate panel instead ("Tab").
   Where it can't read its text (WeChat), what you typed into it since it took the focus stands in; a click forgets it.
 
 ## Voice input

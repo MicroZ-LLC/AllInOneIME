@@ -12,6 +12,9 @@ final class HarnessTextClient: NSObject, IMKTextInput {
     let window: NSWindow
     let textView: NSTextView
     var bundleID = "com.aipinyin.selftest.harness"
+    /// How far up the rect for an empty range is told, off the caret's line (as Notes's has been); the line's rect
+    /// (`attributes(forCharacterIndex:lineHeightRectangle:)`) stays right.
+    var emptyRangeOffset: CGFloat = 0
 
     override init() {
         window = NSWindow(contentRect: NSRect(x: 240, y: 360, width: 520, height: 44), styleMask: [.titled], backing: .buffered,
@@ -58,10 +61,37 @@ final class HarnessTextClient: NSObject, IMKTextInput {
     func characterIndex(for point: NSPoint, tracking mappingMode: IMKLocationToOffsetMappingMode,
                         inMarkedRange: UnsafeMutablePointer<ObjCBool>!) -> Int { NSNotFound }
 
+    /// The caret's line and the font there, as an app tells them.
     func attributes(forCharacterIndex index: Int, lineHeightRectangle lineRect: UnsafeMutablePointer<NSRect>!) -> [AnyHashable: Any]! {
-        lineRect?.pointee = textView.firstRect(forCharacterRange: NSRange(location: textView.selectedRange().location, length: 0),
-                                               actualRange: nil)
-        return [:]
+        lineRect?.pointee = lineRectangle
+        return [NSAttributedString.Key.font: textView.font ?? NSFont.systemFont(ofSize: 15)]
+    }
+
+    var lineRectangle: NSRect {
+        textView.firstRect(forCharacterRange: NSRange(location: textView.selectedRange().location, length: 0), actualRange: nil)
+    }
+
+    /// Where the text's baseline is on the screen, at the character before the caret, as the text view laid it out.
+    var baseline: CGFloat? {
+        let index = textView.selectedRange().location - 1
+        guard index >= 0 else { return nil }
+        var point: NSPoint?
+        if let manager = textView.textLayoutManager, let content = manager.textContentManager,
+           let location = content.location(content.documentRange.location, offsetBy: index),
+           let fragment = manager.textLayoutFragment(for: location) {
+            let offset = content.offset(from: fragment.rangeInElement.location, to: location)
+            if let line = fragment.textLineFragments.first(where: { $0.characterRange.contains(offset) }) ?? fragment.textLineFragments.last {
+                let origin = fragment.layoutFragmentFrame.origin
+                point = NSPoint(x: origin.x, y: origin.y + line.typographicBounds.minY + line.glyphOrigin.y)
+            }
+        } else if let manager = textView.layoutManager {
+            let glyph = manager.glyphIndexForCharacter(at: index)
+            let fragment = manager.lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
+            point = NSPoint(x: fragment.minX, y: fragment.minY + manager.location(forGlyphAt: glyph).y)
+        }
+        guard let point else { return nil }
+        let inView = NSPoint(x: point.x + textView.textContainerOrigin.x, y: point.y + textView.textContainerOrigin.y)
+        return window.convertPoint(toScreen: textView.convert(inView, to: nil)).y
     }
 
     func validAttributesForMarkedText() -> [Any]! { [] }
@@ -78,7 +108,8 @@ final class HarnessTextClient: NSObject, IMKTextInput {
     }
 
     func firstRect(forCharacterRange aRange: NSRange, actualRange: NSRangePointer!) -> NSRect {
-        textView.firstRect(forCharacterRange: aRange, actualRange: actualRange)
+        let rect = textView.firstRect(forCharacterRange: aRange, actualRange: actualRange)
+        return aRange.length == 0 ? rect.offsetBy(dx: 0, dy: emptyRangeOffset) : rect
     }
 }
 
@@ -96,7 +127,7 @@ final class AutocompleteStubModel: AppleModelBackend, @unchecked Sendable {
 
     /// What it says after text ending this way (the request's `<before>…</before>`).
     static let answers: [(ending: String, answer: String)] = [
-        ("Hello wor", "ld, how are you? I hope"), ("you? Se", "e you soon. Bye"), ("你好", "，今天怎么样？还好吗"),
+        ("Hello wor", "ld, how are you? I hope"), ("you? Se", "e you soon. Bye"), ("you? See yo", "u soon. Bye"), ("你好", "，今天怎么样？还好吗"),
         ("Let me know", " when you are free."), ("Write to", " [EMAIL_1] by Friday."),
     ]
 
@@ -243,9 +274,15 @@ extension SelfTest {
         check(menuItem(toggle)?.state == .on && menuItem(cloud)?.title == tr("续写用 Amazon Bedrock", "Autocomplete with Amazon Bedrock")
               && menuItem(cloud)?.state == .off,
               "the menu: 续写 checked, 续写用 Amazon Bedrock unchecked (\(menuItem(cloud)?.title ?? "none"))")
+        let onDevice = tr("本机 Apple Intelligence", "Apple Intelligence on this Mac")
+            + (AppleModel.system.availability == .available ? "" : tr("，不可用", ", not available"))
+        check(menuItem(toggle)?.title == tr("续写（\(onDevice)）", "Autocomplete (\(onDevice))"),
+              "续写 says the model it uses: the one on this Mac (\(menuItem(toggle)?.title ?? "none"))")
         answer = true
         controller.toggleAutocompleteCloud(nil)
         check((try? Config.load()).flatMap(Autocomplete.cloudAnswer) == true && menuItem(cloud)?.state == .on, "agreed: it may use Bedrock")
+        check(menuItem(toggle)?.title == tr("续写（Amazon Bedrock）", "Autocomplete (Amazon Bedrock)"),
+              "续写 says the model it uses: Bedrock now (\(menuItem(toggle)?.title ?? "none"))")
         controller.toggleAutocompleteCloud(nil)
         check((try? Config.load()).flatMap(Autocomplete.cloudAnswer) == false && asked.count == 3, "taken back without asking")
         controller.toggleAutocomplete(nil)
@@ -262,7 +299,8 @@ extension SelfTest {
         let screen = NSScreen.screens.first?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1440, height: 875)
         panel.show(below: CGRect(x: screen.maxX - 200, y: screen.maxY, width: 22, height: 24))
         panel.setAutocomplete(true)
-        check(panel.autocomplete && stand.autocomplete, "the menu bar panel's switch turns it on")
+        check(panel.autocomplete && stand.autocomplete && panel.autocompleteModel == tr("本机 Apple Intelligence", "Apple Intelligence on this Mac"),
+              "the menu bar panel's switch turns it on, and says the model (\(panel.autocompleteModel ?? "none"))")
         panel.closeDropDown()
 
         section("autocomplete: a harness window, a stand-in model", needs: .composing)
@@ -304,8 +342,10 @@ extension SelfTest {
         check(ghost("ld, how are you?"), "a pause after typing: the rest of the sentence after the caret (\(GhostOverlay.shared.text ?? "none"))")
         let caret = AllInOneIMEInputController.caretRect(harness) ?? .zero
         let frame = GhostOverlay.shared.frame
-        check(caret != .zero && abs(frame.minX - caret.maxX - 1) < 1 && abs(frame.midY - caret.midY) < 1,
-              "drawn right after the caret, on its line (caret \(caret), text \(frame))")
+        let (baseline, ghostBaseline) = (harness.baseline ?? .nan, frame.minY + GhostOverlay.shared.ghost.baseline)
+        check(caret != .zero && abs(frame.minX - caret.maxX - 1) < 1 && abs(ghostBaseline - baseline) < 1
+              && GhostOverlay.shared.ghost.font == harness.textView.font,
+              "drawn right after the caret, on its text's baseline, in its font (caret \(caret), baseline \(baseline), text \(frame), its baseline \(ghostBaseline))")
         check(model.prompts.last == "<before>Hello wor</before>", "what was sent: the text before the caret (\(model.prompts.last ?? "none"))")
         snapshotGhost(harness, to: snapshotDirectory.appendingPathComponent("autocomplete.png"))
         now += 0.5
@@ -318,9 +358,13 @@ extension SelfTest {
         check(ghost("ou soon.") && model.prompts.count == 2, "typed along: the rest moves on, no request (\(GhostOverlay.shared.text ?? "none"))")
         check(harnessKey(controller, harness, "\u{1B}", code: VirtualKey.escape) && ghost(nil) && harness.text.hasSuffix("See y"),
               "Esc takes it down, the text as it was")
+        // Not this one: typed on, it isn't shown again, though the model says it again; another one is.
         harnessType("o", controller, harness)
-        check(ghost(" and more.") && model.prompts.count == 3,
-              "waved away: not shown again as it's typed along; the model asked again (\(GhostOverlay.shared.text ?? "none"))")
+        settled()
+        check(GhostOverlay.shared.text == nil && model.prompts.count == 3,
+              "Esc: not this one, not shown again typed on (\(GhostOverlay.shared.text ?? "none"), \(model.prompts.count) requests)")
+        harnessType("u", controller, harness)
+        check(ghost(" and more."), "another suggestion is (\(GhostOverlay.shared.text ?? "none"))")
         now += 0.5
         check(!harnessKey(controller, harness, "\t", code: VirtualKey.tab, flags: .shift) && ghost(nil),
               "⇧Tab goes to the app, the suggestion goes")
@@ -330,6 +374,26 @@ extension SelfTest {
         check(ghost(" when you are free."), "a suggestion for “Let me know” (\(GhostOverlay.shared.text ?? "none"))")
         check(!harnessKey(controller, harness, "\t", code: VirtualKey.tab) && ghost(nil) && harness.text == "Let me know\t",
               "a Tab right as it appears goes to the app (\(harness.text.debugDescription))")
+
+        // A field whose rect for the empty range at the caret is off its line (Notes's has been above it): on the line
+        // the candidate panel goes by, after the character before the caret; more than a line off, the panel's line.
+        let arrow = { _ = harnessKey(controller, harness, "\u{F703}", code: 0x7C) }
+        harness.text = "Hello wo"
+        harness.emptyRangeOffset = 12
+        harnessType("r", controller, harness)
+        let caretLine = harness.lineRectangle
+        check(ghost("ld, how are you?") && abs(GhostOverlay.shared.frame.minY - caretLine.minY) < 1
+              && abs(GhostOverlay.shared.frame.minX - caretLine.maxX - 1) < 1,
+              "the empty range's rect 12 pt above the line: drawn on the line (line \(caretLine), text \(GhostOverlay.shared.frame))")
+        arrow()
+        harness.text = "Hello wo"
+        harness.emptyRangeOffset = 60
+        harnessType("r", controller, harness)
+        let panelLine = pump(timeout: 3) { CandidatePanel.shared.view.model.rows.first?.label == "Tab" }
+        check(panelLine && CandidatePanel.shared.view.model.rows.first?.text == "ld, how are you?" && GhostOverlay.shared.text == nil,
+              "60 pt above, more than a line: a line of the candidate panel instead (\(CandidatePanel.shared.view.model.rows.map(\.text)))")
+        arrow()
+        harness.emptyRangeOffset = 0
 
         // Not before the end of a line; not with text selected.
         let asked1 = model.prompts.count
@@ -397,7 +461,7 @@ extension SelfTest {
         harness.text = "Hello wo"
         harnessType("r", controller, harness)
         check(ghost("ld, how are you?"), "an app set to always: on there with the switch off")
-        harnessKey(controller, harness, "\u{1B}", code: VirtualKey.escape)
+        arrow()  // not Esc: that would wave the suggestion away for this text
         (settings.autocomplete, settings.appProfiles) = (true, [:])
 
         // It stops in an app where none of the last 30 was taken, and says so once (the input menu reads the config file:
@@ -604,7 +668,7 @@ extension SelfTest {
             harness.text = text
             let started = Date()
             harnessType(typed, controller, harness)
-            // The real model's time: the pause (150 ms), the field read, the answer, the overlay placed (30 ms).
+            // The real model's time: the pause (350 ms at least), the field read, the answer, the overlay (30 ms).
             _ = pump(timeout: 10) { GhostOverlay.shared.text != nil || store.metrics.failed > failed }
             let seconds = Date().timeIntervalSince(started)
             print(String(format: "  on-device: %@ after %.2f s, from the last key", GhostOverlay.shared.text.map { "“\($0)”" } ?? "nothing shown", seconds))
