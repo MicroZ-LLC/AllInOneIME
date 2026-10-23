@@ -69,9 +69,7 @@ enum CompletionDeclaration {
         switch fields["prefix"] {
         case nil, .null?: break
         case let .string(text)?:
-            let normalized = SuggestionsToken.normalized(text)
-            guard !normalized.isEmpty, normalized.count <= maxPrefix, normalized.allSatisfy(SuggestionsToken.isTokenCharacter),
-                  normalized.first != "@" else {
+            guard let normalized = self.prefix(text) else {
                 return refuse("the prefix must be up to \(maxPrefix) letters, digits or . _ - #, not starting with @")
             }
             prefix = normalized
@@ -117,6 +115,15 @@ enum CompletionDeclaration {
         return .success(CompletionSource(name: name, title: title, prefix: prefix, minChars: minChars, compare: compare,
                                          list: list, refresh: refresh, query: query, queryMinChars: queryMinChars,
                                          insert: insert))
+    }
+
+    /// `text` as a prefix: its full-width forms as ASCII (`＃` `#`), 1 to `maxPrefix` token characters (letters, digits,
+    /// `. _ - #`), not starting with `@` (the command list's). Nil: it can't be one.
+    static func prefix(_ text: String) -> String? {
+        let normalized = SuggestionsToken.normalized(text)
+        guard !normalized.isEmpty, normalized.count <= maxPrefix, normalized.allSatisfy(SuggestionsToken.isTokenCharacter),
+              normalized.first != "@" else { return nil }
+        return normalized
     }
 
     /// `[a-z0-9]{1,24}`.

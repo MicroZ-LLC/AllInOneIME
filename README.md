@@ -244,7 +244,7 @@ When a save fails (no permission, say), the notice says why and the text comes b
 ### Your own commands
 
 In the settings, under "Custom @ Commands", click "Add Command…": give it a name and choose what it does (an AI
-instruction, a program, a program in Terminal, a web page, or a text to insert), or start from an example. Your commands come after the built-in
+instruction, a program, a program in Terminal, a web page, a text to insert, or suggestions from a program as you type), or start from an example. Your commands come after the built-in
 ones; names are English letters only and can't be a built-in command's; they work from the next sentence.
 They're kept in `customCommands` in the config file (`~/.config/allinoneime/config.json`), which you can also edit:
 
@@ -255,7 +255,8 @@ They're kept in `customCommands` in the config file (`~/.config/allinoneime/conf
   { "name": "sh", "type": "terminal", "argv": ["zsh", "-c", "{input}"] },
   { "name": "reply", "type": "prompt", "prompt": "Write a short, polite reply to the user's message." },
   { "name": "google", "type": "link", "url": "https://www.google.com/search?q={input}" },
-  { "name": "sig", "type": "snippet", "summary": "Email signature", "text": "Best,\nWei\n{cursor}" }
+  { "name": "sig", "type": "snippet", "summary": "Email signature", "text": "Best,\nWei\n{cursor}" },
+  { "name": "issues", "type": "suggestions", "summary": "Our issues", "prefix": "#", "argv": ["~/bin/gh-issues"] }
 ]
 ```
 
@@ -266,6 +267,7 @@ They're kept in `customCommands` in the config file (`~/.config/allinoneime/conf
 | `terminal` | Runs `argv` in a new Terminal window; nothing is inserted |
 | `link` | Puts the text into the web address `url` and opens it in the default browser; nothing is inserted |
 | `snippet` | Inserts `text` at once, with its placeholders filled in (below); no AI, no program |
+| `suggestions` | A source of [suggestions](#suggestions-and-code-new): type its `prefix` in any text field and the items `argv` prints show as rows, Tab inserts one ([below](#suggestions-from-a-program-of-your-own-new)); `@issues` itself only says what it is |
 
 - `{input}` becomes what you wrote after the command, and it always stays within the one argument it's in: no shell is involved. For a shell, say so, like `sh` above (`zsh -c`).
 - `stdin`: what goes to the program's standard input, with `{input}` replaced too.
@@ -276,6 +278,53 @@ They're kept in `customCommands` in the config file (`~/.config/allinoneime/conf
 - When the program in `argv` isn't found (say, no `python3`), the command isn't offered and `@python …` is inserted as text; once it's installed, the command appears in the next text field.
 
 `run` and `terminal` run code on your Mac: only add commands you wrote and trust. They, too, run only when you press the action key, and never during secure input.
+
+#### Suggestions from a program of your own (new)
+
+A `suggestions` command ("Suggestions" in the editor) makes a program of yours a source of suggestions, like a plugin's
+completions but without writing a plugin: type its prefix (`#`, `PROJ-`) in any text field and the rows that match show
+under the caret; Tab inserts one. The program runs as a `run` command's does (in your home folder, with your login
+shell's PATH, never through a shell unless `argv` starts one). Run with no input, it prints every item, one a line,
+`match⇥title⇥url` (a tab between them; title and url may be left out), or the plugins' JSON (`{"items": [...]}`,
+[docs/plugins.md](docs/plugins.md#completions-suggestions)). A line that isn't one (a match with a space, say) is skipped
+on its own. This one lists a GitHub repository's issues with GitHub's `gh` (which keeps its own sign-in):
+
+```sh
+#!/bin/sh
+# ~/bin/gh-issues: a repository's issues, a "match<TAB>title<TAB>url" line each (Suggestions, prefix #).
+# No argument: the open ones; one (Look up as you type): those whose title or number has it.
+repo=octo-org/octo-repo
+fields='.[] | "#\(.number)\t\(.title)\t\(.url)"'
+if [ $# -eq 0 ]; then
+  gh issue list -R "$repo" --limit 1000 --json number,title,url --jq "$fields"
+else
+  gh issue list -R "$repo" --state all --search "$1" --json number,title,url --jq "$fields"
+fi
+```
+
+```json
+{ "name": "issues", "type": "suggestions", "summary": "Our issues", "prefix": "#",
+  "argv": ["~/bin/gh-issues"], "refresh": "15m", "query": true, "queryMinChars": 2,
+  "insert": { "default": ["{arg} {title}", "{arg}"], "chat": ["{arg} {title} {url}", "{arg} {title}", "{arg}"] } }
+```
+
+- `prefix` (required: no source without one, and not the magic key), `minChars`, `compare`, `refresh`, `query`,
+  `queryMinChars` and `insert` mean what they mean in a plugin's `completions`, with the same limits and defaults
+  ([docs/plugins.md](docs/plugins.md#completions-suggestions)); one out of range keeps the command from being a source,
+  and Settings says why. The list runs again every `refresh` (`1h` by default) while you use it; `timeoutSeconds` (10
+  by default) is 20 at most, a lookup's 3 seconds.
+- With `query` (Look up as you type, from the `queryMinChars`th character after the prefix on), it also runs with what
+  you typed after the prefix, as one argument: where `{input}` is in `argv`, else last (`12` for `#12`). Nothing else of
+  the field goes to it, and never through a shell or in its environment; for the list, an argument that is only
+  `{input}` is left out.
+- A line's match is the row's text and what goes in (`{match}`, `{arg}`), its title the row's comment and `{title}`,
+  its url `{url}`. Insert in the editor: **Just the match** (`{arg}`, the default), **With its title** (`{arg} {title}`),
+  **With title and link** (`{arg} {title} {url}` in chat apps); **Advanced** has the templates as `insert` writes them.
+- Rows, keys, the rows you picked first, the list's cache (`~/Library/Caches/AllInOneIME/suggestions/`, readable only by
+  you, deleted with the command), back-off and pause are a plugin's. It's yours: no switch to turn on, it's on while it
+  exists; **Suggestions** (General, the input menu) and an app's Suggestions (Settings → Apps) apply. The editor shows
+  how it's doing (last updated, items, last error) and Refresh Now; the command list shows it too.
+- Custom commands sync through iCloud as they do; a program missing on another Mac is that source's error there.
 
 #### Snippets: text you insert often (new)
 
@@ -768,6 +817,8 @@ or tell Settings → Assistant "turn on autocomplete"; it stays on until you tur
 Rows in the candidate panel as you type, from plugins and, in Code, from the language you code in; **Tab** puts one in.
 They take the place of [autocomplete](#autocomplete-new)'s gray text while they show.
 
+- **Your own program:** a custom command of type `suggestions` is a source too, its prefix and its items yours: a program
+  that prints `match⇥title⇥url` lines ([Suggestions from a program of your own](#suggestions-from-a-program-of-your-own-new)).
 - **Plugins' completions:** a plugin declares what it completes after a prefix, `#12` for `@github`'s issues, or a whole
   12-digit AWS account id with no prefix. Its list is kept on this Mac (loaded again every 15 minutes or so while you
   use it, never when you haven't for a week), and some also look up what you type, from 2 characters after the prefix,
@@ -1014,7 +1065,8 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
   and its counts (no text) in the input method's own preferences.
 - Suggestions: a plugin's completions run its script only once you turned them on, and it reaches only the hosts it
   lists; it never sees what you type, the app or the field, but for a lookup (which Settings names, with where it goes)
-  what follows its prefix. Code's rows come from its language's pack and the field's text, on this Mac. The
+  what follows its prefix. A `suggestions` custom command's program runs on this Mac, given only (for a lookup) what you
+  typed after its prefix. Code's rows come from its language's pack and the field's text, on this Mac. The
   lists, the tokens and the lookups are never logged, sent to the AI, learned or synced; see
   [Suggestions and Code](#suggestions-and-code-new).
 - The input method reads the clipboard text, once, only when you press ⌃V or ⌘V in a command; content that password managers mark as concealed isn't read. The text is shown in the command first and, again, is sent only when you press the action key. Recent macOS versions ask whether AllInOneIME may read the clipboard: allow it. To stop being asked every time, set AllInOneIME's paste permission to always allow in System Settings → Privacy & Security.

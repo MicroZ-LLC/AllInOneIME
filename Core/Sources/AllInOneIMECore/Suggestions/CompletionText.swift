@@ -126,6 +126,18 @@ public enum CompletionOutput {
                 return tr("插件返回的不是带 items 列表的 JSON 对象", "The plugin didn't return a JSON object with an items list")
             }
         }
+
+        /// As Settings says it of a custom command's program (`readProgram`).
+        public var programMessage: String {
+            switch self {
+            case .tooLarge:
+                return tr("程序输出的列表超过 4 MB，没有用", "The program's list is larger than 4 MB: not used")
+            case .tooManyItems:
+                return tr("程序输出的列表超过 20,000 项，没有用", "The program's list has more than 20,000 items: not used")
+            case .notAList:
+                return tr("程序输出的 JSON 不是带 items 列表的对象", "The program printed JSON that isn't an object with an items list")
+            }
+        }
     }
 
     /// `data` read: a JSON object with an `items` array, at most `CompletionList.maxBytes` and `maxItems`; each item an
@@ -149,6 +161,44 @@ public enum CompletionOutput {
             number.isBoolean ? nil : number.doubleValue
         }
         return .success(CompletionList(items: items, fetchedAt: fetchedAt))
+    }
+
+    /// What a custom command's program printed (decision 24), read: the plugins' JSON when it starts with `{` (as `read`
+    /// reads it: one that isn't an object with an `items` array is a failure), else lines "match<TAB>title<TAB>url" (title
+    /// and url optional, what follows them ignored, blank lines skipped): the match is the item's `match` (and so its
+    /// `arg`), the title its `title`, the url its variable `{url}`. Either way an item's title is also its `{title}` (unless
+    /// its variables have one). The plugins' limits (4 MB, 20,000 items) and cleaning; a bad item or line is dropped on its
+    /// own, the same match (in any case) kept once, the first.
+    public static func readProgram(_ data: Data) -> Result<CompletionList, Failure> {
+        guard data.count <= CompletionList.maxBytes else { return .failure(.tooLarge(bytes: data.count)) }
+        if data.first(where: { !" \t\r\n".utf8.contains($0) }) == UInt8(ascii: "{") {
+            return read(data).map { list in
+                var list = list
+                for index in list.items.indices {
+                    guard let title = list.items[index].title, list.items[index].variables?["title"] == nil else { continue }
+                    list.items[index].variables = (list.items[index].variables ?? [:]).merging(["title": title]) { kept, _ in kept }
+                }
+                return list
+            }
+        }
+        var items: [CompletionItem] = []
+        var seen = Set<String>()
+        var lines = 0
+        for line in String(decoding: data, as: UTF8.self).split(whereSeparator: \.isNewline) {
+            let fields = line.split(separator: "\t", maxSplits: 3, omittingEmptySubsequences: false)
+                .map { clean(String($0)).trimmingCharacters(in: .whitespaces) }
+            guard !fields.allSatisfy(\.isEmpty) else { continue }
+            lines += 1
+            guard lines <= CompletionList.maxItems else { return .failure(.tooManyItems(lines)) }
+            let match = fields[0]
+            guard isMatch(match), seen.insert(match.lowercased()).inserted else { continue }
+            let title = fields.count > 1 && !fields[1].isEmpty ? String(fields[1].prefix(300)) : nil
+            let url = fields.count > 2 && !fields[2].isEmpty ? String(fields[2].prefix(2000)) : nil
+            var variables: [String: String] = [:]
+            (variables["title"], variables["url"]) = (title, url)
+            items.append(CompletionItem(match: match, title: title, variables: variables.isEmpty ? nil : variables))
+        }
+        return .success(CompletionList(items: items))
     }
 
     /// One item, cleaned; nil when it isn't one.

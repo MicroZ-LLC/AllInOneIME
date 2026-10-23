@@ -137,10 +137,17 @@ extension CompletionSource {
     /// Why the source is inactive with `config`, as Settings says it (nil: it isn't): the command trigger
     /// (`Config.commandTrigger`) is its prefix, or starts it, and the trigger wins (spec 6.14).
     public func inactiveReason(_ config: Config) -> String? {
-        guard let first = prefix?.first, String(first) == config.commandTrigger else { return nil }
+        guard isShadowed(by: config.commandTrigger) else { return nil }
         let trigger = config.commandTrigger
         return tr("\(trigger) 是魔法键，打 \(trigger) 会打开命令列表，所以这个补全不会出现（在「通用」里换一个魔法键就行）",
                   "\(trigger) is the magic key: typing it opens the command list, so these completions can't show (pick another magic key in General)")
+    }
+}
+
+extension CompletionSource {
+    /// Its prefix starts with `trigger`, the magic key (`Config.commandTrigger`): typing it opens the command list.
+    public func isShadowed(by trigger: String) -> Bool {
+        prefix?.first.map { String($0) == trigger } ?? false
     }
 }
 
@@ -312,22 +319,27 @@ extension CompletionSource.Compare: Codable {}
 
 /// The switches suggestions follow, as the shell has them from its settings: the input menu's "Suggestions" (nil: the
 /// default, on once a source is enabled), Settings → Apps' per-app "Suggestions" by app id (absent: the default), the
-/// completion sources enabled (one disabled: its cached list is deleted), and "Refresh now" pressed for a source.
-/// (No AI in an app doesn't turn completions off: no AI is involved.)
+/// completion sources enabled (one disabled: its cached list is deleted), the custom commands that are sources, and
+/// "Refresh now" pressed for a source. (No AI in an app doesn't turn completions off: no AI is involved.)
 public struct SuggestionsSettings: Equatable, Sendable {
     public var master: Bool?
     public var apps: [String: Bool]
     public var enabled: [CompletionSourceApproval]
-    /// "Refresh now" (Settings → Plugins), the latest for each source: one newer than the source's last load loads it
-    /// again now, paused or not (spec 3, 6.17).
+    /// "Refresh now" (Settings → Plugins, or a custom command's editor), the latest for each source: one newer than the
+    /// source's last load loads it again now, paused or not (spec 3, 6.17).
     public var refreshes: [CompletionSourceRefresh]
+    /// The custom commands of type `suggestions` (`Config.customCommands`'), each a source while it exists, with no
+    /// approval (decision 24: the user's own); one removed: its cached list is deleted. A command of another type, or
+    /// one refused (`CustomCommand.suggestionSource`), is none.
+    public var commands: [CustomCommand]
 
     public init(master: Bool? = nil, apps: [String: Bool] = [:], enabled: [CompletionSourceApproval] = [],
-                refreshes: [CompletionSourceRefresh] = []) {
+                refreshes: [CompletionSourceRefresh] = [], commands: [CustomCommand] = []) {
         self.master = master
         self.apps = apps
         self.enabled = enabled
         self.refreshes = refreshes
+        self.commands = commands
     }
 }
 
@@ -380,6 +392,43 @@ public struct CompletionSourceStatus: Equatable, Sendable {
     }
 }
 
+// MARK: - Custom commands as a source (decision 24)
+
+// A custom command of type `suggestions` (`CustomCommand.CommandType.suggestions`; its keys `prefix`, `minChars`,
+// `compare`, `refresh`, `query`, `queryMinChars`, `insert`, `argv` and `timeoutSeconds`, Command.swift) is a completion
+// source as a plugin's `completions` entry is, its keys read by the same rules, limits and defaults
+// (`CustomCommand.suggestionSource`, CommandSuggestions.swift: a prefix required, the list always on). One kind of
+// source: the session takes it with the plugins' (`SuggestionsSettings.commands`, no approval), the store keeps it as
+// theirs under `CompletionSourceKey(command:)` (its list, the disk cache, back-off and pause, statuses, "Refresh now",
+// the picks), its rows, keys and insertions are theirs. What differs is where its items come from: its program, run as a
+// `run` command's is (`CommandCompletionRuntime`), and what it may print (`CompletionOutput.readProgram`: the plugins'
+// JSON, or lines "match<TAB>title<TAB>url"). Typed as a command itself (`@jira`), it only says what it is.
+
+extension CompletionSourceKey {
+    /// What custom commands' sources are kept under (their `plugin`): a name no plugin can have.
+    public static let customCommands = "custom-commands"
+
+    /// The source of the custom command named `name` (its name in small letters: names are the same in any case).
+    public init(command name: String) {
+        self.init(plugin: Self.customCommands, source: name.lowercased())
+    }
+
+    /// It is a custom command's source.
+    public var isCustomCommand: Bool { plugin == Self.customCommands }
+}
+
+/// What runs a custom command's program for its suggestions (decision 24), as a `run` command's runs
+/// (`CommandRunner`: `argv` without a shell unless it says so, a program without "/" looked up in the user's shell PATH,
+/// `timeoutSeconds`): what it printed, as it is (the core reads it, `CompletionOutput.readProgram`). `list`: run with no
+/// input (`CustomCommand.suggestionArguments(query: nil)`); `query`: with what follows the prefix as one argument, in
+/// place of `{input}` where argv writes it, else the last; 3 seconds at most. Nothing else of the field goes to it, and
+/// nothing in its environment. Called off the session's thread; a call the core no longer wants is cancelled as a task
+/// is, which stops the program.
+public protocol CommandCompletionRuntime: Sendable {
+    func list(_ command: CustomCommand) async throws -> Data
+    func query(_ text: String, _ command: CustomCommand) async throws -> Data
+}
+
 // MARK: - Coding languages (spec 2)
 
 /// A coding language pack (JSON), downloaded and verified like a language pack: its keywords and snippets are the Code
@@ -427,6 +476,9 @@ public struct SuggestionsServices {
     public var store: SuggestionsStore
     /// Runs plugins' `load` and `query`.
     public var runtime: any CompletionRuntime
+    /// Runs custom commands' programs for their lists and queries: as `run` commands run (`CommandCompletionRunner`)
+    /// unless the shell gives another.
+    public var commandRuntime: any CommandCompletionRuntime
     /// The switches (read again as the settings change).
     public var settings: () -> SuggestionsSettings
     /// The time now.
@@ -475,6 +527,7 @@ public struct SuggestionsServices {
     public init() {
         store = SuggestionsStore()
         runtime = NoCompletionRuntime()
+        commandRuntime = CommandCompletionRunner()
         settings = { SuggestionsSettings() }
         now = { Date() }
         cacheFolder = nil

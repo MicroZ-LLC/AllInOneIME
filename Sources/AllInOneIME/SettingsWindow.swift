@@ -129,12 +129,15 @@ final class SettingsModel: ObservableObject {
     /// editor stays open saying so.
     @discardableResult
     func saveCommand(_ command: CustomCommand, editing original: String?, shown: CustomCommand? = nil) -> Bool {
-        store.saveCommand(command, editing: original, shown: shown)
+        guard store.saveCommand(command, editing: original, shown: shown) else { return false }
+        commandSourceChanged(saved: command, was: shown)
+        return true
     }
 
     /// The Delete dialog's Delete (`SettingsStore.deleteCommand`).
     func deleteCommand(named name: String, shown: CustomCommand? = nil) {
         store.deleteCommand(named: name, shown: shown)
+        commandSourceChanged(saved: nil, was: shown)
     }
 
     /// Switches the window's language at once (a config value, `Config.uiLanguage`; nil: follow the system) and saves
@@ -1247,6 +1250,10 @@ struct SettingsView: View {
                               systemImage: "exclamationmark.triangle")
                             .font(.caption).foregroundStyle(.orange)
                     }
+                    // A suggestion source: how it is doing (its items, last update, last error), or why it isn't used.
+                    if command.type == .suggestions {
+                        CommandSourceStatus(command: command, config: model.config).padding(.leading, 36)
+                    }
                 }
             }
             Button(tr("添加命令…", "Add Command…")) {
@@ -2022,7 +2029,8 @@ struct SettingsView: View {
         // Text fields save on Return; everything else (pickers, steppers, toggles) saves on change.
         .sheet(item: $commandEdit) { edit in
             CommandEditor(edit: edit, others: model.otherCommands(than: edit.original),
-                          plugins: model.plugins.map(\.name), unread: model.config.unreadCustomCommandNames) { command in
+                          plugins: model.plugins.map(\.name), unread: model.config.unreadCustomCommandNames, config: model.config,
+                          refreshNow: { model.refreshNow(command: $0) }) { command in
                 model.saveCommand(command, editing: edit.original, shown: edit.original == nil ? nil : edit.command)
             }
         }

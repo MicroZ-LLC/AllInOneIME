@@ -952,7 +952,7 @@ public final class Composer {
             return [Choice(label: "⏎", kind: .send, text: line.text, isComplete: line.isComplete)]
         case .report?:
             return pendingIssue.map { [Choice(label: "⏎", kind: .issue($0.url), text: $0.title, isComplete: true)] } ?? []
-        case .convert?, .terminal?, .settings?, .note?, .snippet?, nil:
+        case .convert?, .terminal?, .settings?, .note?, .snippet?, .suggestions?, nil:
             break
         }
         let original = originalText
@@ -1043,7 +1043,7 @@ public final class Composer {
         guard command.script == nil else { return false }
         switch command.kind {
         case .convert, .generate, .run, .link, .note, .snippet: return true
-        case .terminal, .search, .agents, .settings, .reminder, .message, .report: return false
+        case .terminal, .search, .agents, .settings, .reminder, .message, .report, .suggestions: return false
         }
     }
 
@@ -1091,7 +1091,8 @@ public final class Composer {
     private var takesTextAsTyped: Bool {
         guard let command = draftCommand else { return false }
         return command.kind == .note || command.kind == .reminder || command.kind == .search || command.kind == .terminal
-            || command.kind == .report || command.kind == .snippet || command.isCode || command.script != nil
+            || command.kind == .report || command.kind == .snippet || command.kind == .suggestions || command.isCode
+            || command.script != nil
     }
 
     /// The commands the list can offer: all of them at the start, inside a text the ones that run there,
@@ -2244,6 +2245,10 @@ public final class Composer {
             nestedLatinFrom = draft.count  // letters, not Hangul, until its argument is typed (`typesHangul`)
         }
         setLevelOnePhase()
+        // A suggestion source picked: what it is, said (it is no action: nothing runs).
+        if command.kind == .suggestions, !nested {
+            return [.updateMarkedText, .showPanel, .notice(UIText.suggestionSource(command, trigger: commandTrigger))]
+        }
         return [.updateMarkedText, .showPanel]
     }
 
@@ -2765,6 +2770,10 @@ public final class Composer {
         resetRefine()
         // Local, like a note: no AI, nothing sent, so neither a No-AI app nor secure input holds it back.
         if let command = parsed?.command, command.kind == .snippet { return .consumed(insertSnippet(command)) }
+        // A suggestion source isn't run: it only says what it is (its rows come as its prefix is typed in any field).
+        if let command = parsed?.command, command.kind == .suggestions {
+            return .consumed([.updateMarkedText, .notice(UIText.suggestionSource(command, trigger: commandTrigger))])
+        }
         let typed = sentText.trimmingCharacters(in: .whitespacesAndNewlines)
         // `@reply`, and any command while its screenshot is still being read (Composer+Reply.swift).
         if let response = startReply(parsed!.command, typed: typed) { return response }

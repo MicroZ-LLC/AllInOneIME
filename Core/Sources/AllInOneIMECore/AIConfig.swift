@@ -144,7 +144,7 @@ public enum AIConfig {
     // MARK: - The answer
 
     /// A JSON value as the answer has it.
-    public indirect enum JSONValue: Equatable, Sendable {
+    public indirect enum JSONValue: Hashable, Sendable {
         case null
         case bool(Bool)
         case number(Double)

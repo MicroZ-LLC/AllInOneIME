@@ -178,7 +178,7 @@ struct SettingsAppsExtensionsTests {
         let field = try #require(service.document().field("commands.custom"))
         let schema = try #require(field.schema)
         #expect(schema.map(\.id).starts(with: ["name", "type", "summary", "prompt"]))
-        #expect(schema.first { $0.id == "argv" }?.when == ["type": [.string("run"), .string("terminal")]])
+        #expect(schema.first { $0.id == "argv" }?.when == ["type": [.string("run"), .string("terminal"), .string("suggestions")]])
         let saved = service.performNow(SettingsAction(field: "commands.custom", name: "save", value: .object([
             "name": .string("upper"), "type": .string("run"), "argv": .string(#"python3 -c "print(input().upper())""#),
         ])))

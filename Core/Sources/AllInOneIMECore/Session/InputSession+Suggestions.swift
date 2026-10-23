@@ -59,37 +59,87 @@ extension InputSession {
     /// The pause in typing after which Code reads the field's words again.
     static let wordsPause: TimeInterval = 0.3
 
-    /// A completion source that may run here: its plugin's, enabled with what the plugin is now, not the command
-    /// trigger's.
+    /// A completion source that may run here: a plugin's, enabled with what the plugin is now, or a custom command's
+    /// (decision 24: the user's own, on while it exists); not the command trigger's.
     struct ActiveSource {
-        var plugin: InstalledPlugin
+        /// Where its items come from.
+        enum Origin {
+            /// A plugin's script: `hosts`, those the user approved with it (its script fetches from those only,
+            /// `CompletionCall.hosts`); `scriptSHA256`, the script approved (only that one runs).
+            case plugin(InstalledPlugin, hosts: [String], scriptSHA256: String)
+            /// A custom command's program (`CommandCompletionRuntime`).
+            case command(CustomCommand)
+        }
+
+        var origin: Origin
         var source: CompletionSource
         var key: CompletionSourceKey
-        /// The hosts the user approved with it: its script fetches from those only (`CompletionCall.hosts`).
-        var hosts: [String]
-        /// The SHA-256 of the script the user approved: only that one runs (`CompletionCall.scriptSHA256`).
-        var scriptSHA256: String
+
+        /// How long its list may take to load: its plugin's `timeoutSeconds`, its command's.
+        var timeout: TimeInterval {
+            switch origin {
+            case let .plugin(plugin, _, _): return plugin.manifest.timeout
+            case let .command(command): return command.timeout
+            }
+        }
+
+        /// How long a query may take: 3 seconds at most.
+        var queryTimeout: TimeInterval { min(InputSession.queryTimeout, timeout) }
+
+        /// What it is now, a pause ends when it changes: its plugin's version (an update), its command's definition (an
+        /// edit).
+        var version: String {
+            switch origin {
+            case let .plugin(plugin, _, _): return plugin.manifest.version
+            case let .command(command): return String(command.hashValue)  // the store is this launch's
+            }
+        }
+
+        /// What it returned read: a plugin's JSON, a program's JSON or lines (`CompletionOutput.readProgram`).
+        func read(_ data: Data) -> Result<CompletionList, CompletionOutput.Failure> {
+            switch origin {
+            case .plugin: return CompletionOutput.read(data, digitsOnly: source.prefix == nil)
+            case .command: return CompletionOutput.readProgram(data)
+            }
+        }
+
+        /// Why what it returned isn't used, as Settings says it: of the plugin, or of the program.
+        func describe(_ failure: CompletionOutput.Failure) -> String {
+            switch origin {
+            case .plugin: return failure.message
+            case .command: return failure.programMessage
+            }
+        }
     }
 
     // MARK: - The sources
 
     /// The completion sources enabled (`SuggestionsSettings.enabled`) with the hosts, query, script and terms (prefix,
     /// when the query is first asked, how it compares) their plugin has now (an update that changed one needs enabling
-    /// again), and active with the settings (`inactiveReason`).
+    /// again), then the custom commands' (`SuggestionsSettings.commands`: those its rules don't refuse, a name once), all
+    /// active with the settings (`inactiveReason`).
     func activeSources(_ settings: SuggestionsSettings, plugins: [InstalledPlugin]? = nil) -> [ActiveSource] {
-        guard !settings.enabled.isEmpty else { return [] }
+        guard !settings.enabled.isEmpty || !settings.commands.isEmpty else { return [] }
         let config = services.loadSettings()
         let store = services.suggestions.store
         var active: [ActiveSource] = []
-        for plugin in plugins ?? services.plugins(false) where !plugin.manifest.completions.isEmpty {
-            let approvals = settings.enabled.filter { $0.plugin == plugin.name }
-            guard !approvals.isEmpty, let script = plugin.scriptURL, let sha = store.sha256(of: script) else { continue }
-            for source in plugin.manifest.completions where source.inactiveReason(config) == nil {
-                guard let approval = approvals.first(where: { $0.holds(for: source, hosts: plugin.manifest.hosts, scriptSHA256: sha) })
-                else { continue }
-                active.append(ActiveSource(plugin: plugin, source: source, key: CompletionSourceKey(plugin: plugin.name, source: source.name),
-                                           hosts: approval.hosts, scriptSHA256: approval.scriptSHA256))
+        if !settings.enabled.isEmpty {
+            for plugin in plugins ?? services.plugins(false) where !plugin.manifest.completions.isEmpty {
+                let approvals = settings.enabled.filter { $0.plugin == plugin.name }
+                guard !approvals.isEmpty, let script = plugin.scriptURL, let sha = store.sha256(of: script) else { continue }
+                for source in plugin.manifest.completions where source.inactiveReason(config) == nil {
+                    guard let approval = approvals.first(where: { $0.holds(for: source, hosts: plugin.manifest.hosts, scriptSHA256: sha) })
+                    else { continue }
+                    active.append(ActiveSource(origin: .plugin(plugin, hosts: approval.hosts, scriptSHA256: approval.scriptSHA256),
+                                               source: source, key: CompletionSourceKey(plugin: plugin.name, source: source.name)))
+                }
             }
+        }
+        for command in settings.commands where !(command.argv?.first ?? "").isEmpty {
+            guard case let .success(source)? = command.suggestionSource, source.inactiveReason(config) == nil else { continue }
+            let key = CompletionSourceKey(command: command.name)
+            guard !active.contains(where: { $0.key == key }) else { continue }
+            active.append(ActiveSource(origin: .command(command), source: source, key: key))
         }
         return active
     }
@@ -101,11 +151,11 @@ extension InputSession {
         return settings.apps.first { $0.key.caseInsensitiveCompare(app) == .orderedSame }?.value != false
     }
 
-    /// Whether rows may show in this field at all: a source enabled or the input Code, and the switches on. None may: a
-    /// key asks nothing of the pointer for the token (`suggestionsAfterKey`).
+    /// Whether rows may show in this field at all: a source enabled, a custom command that is one, or the input Code, and
+    /// the switches on. None may: a key asks nothing of the pointer for the token (`suggestionsAfterKey`).
     func suggestionsMayShow() -> Bool {
         let settings = services.suggestions.settings()
-        return (!settings.enabled.isEmpty || composer.coding) && suggestionsOn(settings)
+        return (!settings.enabled.isEmpty || !settings.commands.isEmpty || composer.coding) && suggestionsOn(settings)
     }
 
     /// Whether Code reads the field's text here (its words, the caret's line's indentation): it is the input, the field is
@@ -531,7 +581,7 @@ extension InputSession {
             let answers = active.source.query && active.source.prefix != nil
                 ? s.store.answers(active.key, for: after.lowercased(), now: s.now()) : []
             var more = true
-            PluginRows.eachCompletion(token, plugin: active.plugin, source: active.source,
+            PluginRows.eachCompletion(token, key: active.key, source: active.source,
                                       lists: (list.map { [$0.items] } ?? []) + answers.map(\.items), appClass: appClass, in: t) { completion in
                 more = share(completion)
                 return more
@@ -615,7 +665,7 @@ extension InputSession {
             let lowered = after.lowercased()
             let answers = active.source.query && active.source.prefix != nil ? s.store.answers(active.key, for: lowered, now: now) : []
             let picked = Set(scores.keys.filter { $0.plugin == active.key.plugin && $0.source == active.key.source }.map(\.match))
-            rows += PluginRows.rows(token, plugin: active.plugin, source: active.source,
+            rows += PluginRows.rows(token, key: active.key, source: active.source,
                                     lists: (list.map { [$0.items] } ?? []) + answers.map(\.items), madeAt: list?.madeAt, appClass: appClass,
                                     picked: picked, limit: Self.maxSuggestionRows, in: t)
             // Never without a prefix (the declaration refuses it): any number typed would go out.
@@ -691,8 +741,9 @@ extension InputSession {
         let s = services.suggestions
         let settings = s.settings()
         let plugins = services.plugins(false)
+        let active = activeSources(settings, plugins: plugins)
         let committed = s.store.commit(now: s.now(), folder: s.cacheFolder,
-                                       versions: Dictionary(plugins.map { ($0.name, $0.manifest.version) }, uniquingKeysWith: { a, _ in a }))
+                                       versions: Dictionary(active.map { ($0.key, $0.version) }, uniquingKeysWith: { a, _ in a }))
         if !committed.cached.isEmpty { log.notice("suggestions: \(committed.cached.count) list(s) read from the cache") }
         for key in committed.statusChanged {
             if let status = s.store.status(plugin: key.plugin, source: key.source) {
@@ -701,8 +752,7 @@ extension InputSession {
             }
         }
         if prune {
-            s.store.prune(keeping: Set(settings.enabled.map { CompletionSourceKey(plugin: $0.plugin, source: $0.source) }),
-                          folder: s.cacheFolder)
+            s.store.prune(keeping: settings.sourceKeys, folder: s.cacheFolder)
             let lapsed = CompletionSourceApproval.lapsed(settings.enabled, plugins: plugins, sha256: s.store.sha256)
             if !lapsed.isEmpty {
                 log.notice("suggestions: \(lapsed.count) source(s) no longer approved (their plugin changed): off until enabled again")
@@ -710,11 +760,11 @@ extension InputSession {
             }
         }
         guard settings.master != false, !secureInputActive() else { return }
-        let active = activeSources(settings, plugins: plugins).filter(\.source.list)
+        let lists = active.filter(\.source.list)
         let now = s.now()
-        for source in active { suggestionsLoadIfDue(source, settings: settings, now: now) }
+        for source in lists { suggestionsLoadIfDue(source, settings: settings, now: now) }
         // The next refresh, back-off's end or pause's: a timer.
-        let due = s.store.nextDue(active.map { ($0.key, $0.source.refresh) }, now: now)
+        let due = s.store.nextDue(lists.map { ($0.key, $0.source.refresh) }, now: now)
         guard due != suggesting.refreshDue else { return }
         suggesting.refreshDue = due
         suggesting.refresh += 1
@@ -726,25 +776,22 @@ extension InputSession {
     func suggestionsLoadIfDue(_ active: ActiveSource, settings: SuggestionsSettings, now: Date) {
         let s = services.suggestions
         if let folder = s.cacheFolder { _ = s.store.readCache(active.key, in: folder, from: ObjectIdentifier(self), starter: tasks.deliver) }
-        let request = settings.refreshes.last { $0.plugin == active.plugin.name && $0.source == active.source.name }
-        let plan = s.store.plan(active.key, refresh: active.source.refresh, timeout: active.plugin.manifest.timeout,
-                                version: active.plugin.manifest.version, request: request, now: now)
-        if plan.resumed, let status = s.store.status(plugin: active.key.plugin, source: active.key.source) { s.reportStatus(status) }
+        let request = settings.refreshes.last { $0.plugin == active.key.plugin && $0.source == active.key.source }
+        let plan = s.store.plan(active.key, refresh: active.source.refresh, timeout: active.timeout,
+                                version: active.version, request: request, now: now)
+        if plan.resumed, let status = s.store.status(active.key) { s.reportStatus(status) }
         guard plan.load else { return }
         let id = s.store.startLoad(active.key, now: now)
-        let call = completionCall(active, timeout: active.plugin.manifest.timeout)
-        let (runtime, store, deliver, key, digitsOnly) = (s.runtime, s.store, tasks.deliver, active.key, active.source.prefix == nil)
+        let fetch = suggestionsFetch(active, query: nil)
+        let (store, deliver, key) = (s.store, tasks.deliver, active.key)
         let session = ObjectIdentifier(self)
-        let preferences = completionPreferences(active.plugin)
         log.notice("suggestions: loading a list")
         SuggestionsWork.start {
-            var call = call
-            call.context.preferences = preferences()
             let result: Result<SuggestionsStore.LoadedList, SuggestionsStore.LoadFailure>
             do {
-                switch CompletionOutput.read(try await runtime.load(call), digitsOnly: digitsOnly) {
+                switch active.read(try await fetch()) {
                 case let .success(list): result = .success(SuggestionsStore.LoadedList(list))
-                case let .failure(failure): result = .failure(.init(message: failure.message))
+                case let .failure(failure): result = .failure(.init(message: active.describe(failure)))
                 }
             } catch {
                 result = .failure(.init(message: InputSession.describeFailure(error)))
@@ -762,8 +809,7 @@ extension InputSession {
         let s = services.suggestions
         let lowered = text.lowercased()
         guard answers.first?.text != lowered, !s.store.queriesRest(active.key, now: now) else { return }
-        let timeout = min(Self.queryTimeout, active.plugin.manifest.timeout)
-        let inFlight = s.store.queryInFlight(active.key, timeout: timeout, now: now)
+        let inFlight = s.store.queryInFlight(active.key, timeout: active.queryTimeout, now: now)
         if let inFlight, lowered.hasPrefix(inFlight) { return }
         if let longest = answers.first {
             let token = SuggestionsToken.normalized(suggesting.token).lowercased()
@@ -780,19 +826,14 @@ extension InputSession {
             }
         }
         let id = s.store.startQuery(active.key, text: lowered, now: now)
-        let call = completionCall(active, timeout: timeout)
-        let (runtime, store, deliver, key, digitsOnly) = (s.runtime, s.store, tasks.deliver, active.key, active.source.prefix == nil)
+        let fetch = suggestionsFetch(active, query: text)
+        let (store, deliver, key) = (s.store, tasks.deliver, active.key)
         let session = ObjectIdentifier(self)
-        let preferences = completionPreferences(active.plugin)
         log.notice("suggestions: a query asked (\(text.count) characters)")
         let task = SuggestionsWork.start {
-            var call = call
-            call.context.preferences = preferences()
             var items: CompletionItems?
             do {
-                if case let .success(list) = CompletionOutput.read(try await runtime.query(text, call), digitsOnly: digitsOnly) {
-                    items = CompletionItems(list.items)
-                }
+                if case let .success(list) = active.read(try await fetch()) { items = CompletionItems(list.items) }
             } catch {}
             store.deposit(key, .query(id: id, text: lowered, items: items, cancelled: Task.isCancelled), from: session,
                           starter: deliver)
@@ -800,12 +841,31 @@ extension InputSession {
         s.store.setQueryTask(active.key, id: id, task: task)
     }
 
-    /// The call into `active`'s script: its `ctx` (its preferences filled in off the session's thread, `completionPreferences`),
-    /// the hosts and the script approved.
-    func completionCall(_ active: ActiveSource, timeout: TimeInterval) -> CompletionCall {
-        CompletionCall(plugin: active.plugin, source: active.source,
-                       context: CompletionContext(source: active.source.name, preferences: [:], language: UIText.pluginLanguage),
-                       timeout: timeout, hosts: active.hosts, scriptSHA256: active.scriptSHA256)
+    /// What fetches `active`'s list (`query` nil) or its answer for `query` (what follows the prefix), off the session's
+    /// thread: its plugin's script called (`CompletionCall`: its `ctx`, its preferences filled in then,
+    /// `completionPreferences`; the hosts and the script approved), or its custom command's program run
+    /// (`CommandCompletionRuntime`).
+    func suggestionsFetch(_ active: ActiveSource, query: String?) -> @Sendable () async throws -> Data {
+        let s = services.suggestions
+        switch active.origin {
+        case let .plugin(plugin, hosts, sha):
+            let call = CompletionCall(plugin: plugin, source: active.source,
+                                      context: CompletionContext(source: active.source.name, preferences: [:], language: UIText.pluginLanguage),
+                                      timeout: query == nil ? active.timeout : active.queryTimeout, hosts: hosts, scriptSHA256: sha)
+            let (runtime, preferences) = (s.runtime, completionPreferences(plugin))
+            return {
+                var call = call
+                call.context.preferences = preferences()
+                if let query { return try await runtime.query(query, call) }
+                return try await runtime.load(call)
+            }
+        case let .command(command):
+            let runtime = s.commandRuntime
+            return {
+                if let query { return try await runtime.query(query, command) }
+                return try await runtime.list(command)
+            }
+        }
     }
 
     /// What reads `plugin`'s preferences for its script (off the session's thread: passwords come from the secret store):

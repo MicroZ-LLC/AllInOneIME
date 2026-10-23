@@ -474,12 +474,18 @@ struct SettingsServiceTests {
         let (service, url) = try service(#"{"notes": {"destination": "notion"}}"#)
         var document = service.document()
         let schema = try #require(document.field("commands.custom")?.schema)
-        #expect(schema.map(\.id) == ["name", "type", "summary", "prompt", "text", "url", "argv", "stdin", "timeoutSeconds", "ascii", "programs"])
+        #expect(schema.map(\.id) == ["name", "type", "summary", "prompt", "text", "url", "prefix", "argv", "stdin", "timeoutSeconds",
+                                     "ascii", "programs", "query", "queryMinChars", "refresh", "insert", "suggestionsProgram"])
         let byID = Dictionary(uniqueKeysWithValues: schema.map { ($0.id, $0) })
-        #expect(byID["type"]?.choices?.map(\.value) == ["prompt", "run", "terminal", "link", "snippet"].map(AIConfig.JSONValue.string))
+        #expect(byID["type"]?.choices?.map(\.value) == ["prompt", "run", "terminal", "link", "snippet", "suggestions"].map(AIConfig.JSONValue.string))
         #expect(byID["type"]?.value == .string("prompt") && byID["name"]?.when == nil)
         #expect(byID["argv"]?.kind == .words && byID["argv"]?.ordered == true
-                && byID["argv"]?.when == ["type": [.string("run"), .string("terminal")]])
+                && byID["argv"]?.when == ["type": [.string("run"), .string("terminal"), .string("suggestions")]])
+        // A suggestion source's own (decision 24): only for its type; Insert's presets as config.json writes them.
+        for id in ["prefix", "query", "queryMinChars", "refresh", "insert", "suggestionsProgram"] {
+            #expect(byID[id]?.when == ["type": [.string("suggestions")]], "\(id)")
+        }
+        #expect(byID["insert"]?.choices?.map(\.value) == CustomCommand.InsertPreset.allCases.map { $0.insert ?? .object(["default": .string("{arg}")]) })
         #expect(byID["prompt"]?.multiline == true && byID["timeoutSeconds"]?.kind == .number && byID["timeoutSeconds"]?.max == 120)
         // Every key the schema names is a key of a command's definition.
         let definition: [String: AIConfig.JSONValue] = [

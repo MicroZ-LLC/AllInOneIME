@@ -57,10 +57,11 @@ enum SuggestionsShared {
         if let field = AllInOneIMEInputController.activeController {
             field.received(.configChanged)
         } else {
-            // No field: what's disabled is still forgotten now, and what no longer holds marked, with the plugins as they are.
-            let enabled = LiveConfig.current.completionSources
-            store.prune(keeping: Set(enabled.map { CompletionSourceKey(plugin: $0.plugin, source: $0.source) }), folder: cacheFolder)
-            markLapsed(CompletionSourceApproval.lapsed(enabled, plugins: LivePlugins.current(rescan: true)))
+            // No field: what's disabled (or a custom command that was a source, deleted) is still forgotten now, and what
+            // no longer holds marked, with the plugins as they are.
+            let config = LiveConfig.current
+            store.prune(keeping: settings(config).sourceKeys, folder: cacheFolder)
+            markLapsed(CompletionSourceApproval.lapsed(config.completionSources, plugins: LivePlugins.current(rescan: true)))
         }
         NotificationCenter.default.post(name: .allInOneIMESuggestionsChanged, object: nil)
     }

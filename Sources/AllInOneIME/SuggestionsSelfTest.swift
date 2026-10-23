@@ -231,3 +231,118 @@ extension SelfTest {
         }
     }
 }
+
+extension SelfTest {
+    /// A custom command of type Suggestions end to end (spec Suggestions v1, decision 24), in the fake field with the
+    /// candidate panel: a temporary sh script of the self-test's own as its program (lines "match⇥title⇥url" with no
+    /// argument; with one, a query's answer), run as `run` commands run (`CommandCompletionRunner`). "tk-1" shows its
+    /// list's rows, "tk-12" asks it with "12" as its one argument, Tab inserts the row with its title; in Code its rows
+    /// are a plugin's (Return the app's until ↓ or ↑); "@tk" only says what it is. Nothing of the user's is run;
+    /// everything left as it was found.
+    static func testCustomSuggestions(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
+        section("Suggestions: a custom command's program as a source (a temporary sh script)", needs: .composing)
+        let saved = (services: controller.services.suggestions, settings: settings)
+        let folder = snapshotDirectory.appendingPathComponent("suggestions-command", isDirectory: true)
+        defer {
+            (controller.services.suggestions, settings) = (saved.services, saved.settings)
+            try? FileManager.default.removeItem(at: folder)
+            controller.commitComposition(client)
+            client.bundleIDOverride = nil
+            controller.activateServer(client)
+            controller.composer.setInputMode(settings.defaultInput)
+            client.inserted.removeAll()
+            if let notice = controller.notice { controller.endNotice(notice) }
+        }
+        try? FileManager.default.removeItem(at: folder)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let script = folder.appendingPathComponent("tickets")
+        let log = folder.appendingPathComponent("calls.log")
+        let program = """
+            #!/bin/sh
+            printf '%s\\n' "$#:$*" >> '\(log.path)'
+            if [ $# -eq 0 ]; then
+              printf 'tk-12\\tFix login\\thttps://tickets.example.com/tk-12\\n'
+              printf 'tk-123\\tSlow search\\thttps://tickets.example.com/tk-123\\n'
+            else
+              printf 'tk-%s9\\tFound for %s\\n' "$1" "$1"
+            fi
+            """
+        guard (try? Data(program.utf8).write(to: script)) != nil,
+              (try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: script.path)) != nil else {
+            return check(false, "the self-test's program at \(script.path)")
+        }
+        let command = CustomCommand(name: "tk", type: .suggestions, summary: "Tickets", argv: [script.path], prefix: "tk-",
+                                    query: true, queryMinChars: 2, insert: CustomCommand.InsertPreset.title.insert)
+        check(command.isValid && command.problem(among: []) == nil, "the command is a source (\(String(describing: command.suggestionSource)))")
+        var services = saved.services
+        services.store = SuggestionsStore()
+        services.cacheFolder = nil
+        services.commandRuntime = CommandCompletionRunner()
+        services.settings = { SuggestionsSettings(commands: [command]) }
+        controller.services.suggestions = services
+        settings.customCommands = [command]
+        controller.commitComposition(client)
+        client.bundleIDOverride = "com.example.editor"
+        controller.activateServer(client)
+        controller.composer.setInputMode(.english)
+        client.inserted.removeAll()
+        func calls() -> [String] { ((try? String(contentsOf: log, encoding: .utf8)) ?? "").split(separator: "\n").map(String.init) }
+
+        // "tk-1": the list's rows, the program run once with no argument.
+        type("tk-1", controller, client)
+        let listed = pump(timeout: 5) { controller.session.panelModel().rows.map(\.text).starts(with: ["tk-12", "tk-123"]) }
+        check(listed && calls() == ["0:"], "\"tk-1\": the program's list as rows (\(controller.session.panelModel().rows.map(\.text))), run with no argument (\(calls()))")
+        // "tk-12": the query, "12" its one argument; its answer after the list's.
+        type("2", controller, client)
+        let queried = pump(timeout: 5) { controller.session.panelModel().rows.map(\.text) == ["tk-12", "tk-123", "tk-129"] }
+        let model = controller.session.panelModel()
+        check(queried && calls().contains("1:12") && (model.footer + " " + (model.detail ?? "")).contains("Tickets"),
+              "\"tk-12\": the query's row too (\(model.rows.map(\.text))), asked with \"12\" (\(calls())), the footer naming it")
+        snapshot("suggestions-command", in: snapshotDirectory)
+        check(CandidatePanel.shared.isShowing && CandidatePanel.shared.view.model.rows.count == model.rows.count, "…drawn in the candidate panel")
+        // Tab: the rest of the first row, with its title ("With its title").
+        check(press(controller, client, "\t", code: VirtualKey.tab) && client.inserted.last == " Fix login",
+              "Tab inserts what wasn't typed of \"tk-12 Fix login\": \"\(client.inserted.last ?? "")\"")
+
+        // Code (its Python pack from Core/CodingPacks for the while): its rows as a plugin's there, Return the app's until
+        // ↓ or ↑ moves (decision 20 is for Code's own rows).
+        if let pack = try? Data(contentsOf: coreFolder.appendingPathComponent("CodingPacks/python.json")),
+           (try? SuggestionsShared.packs.keep(pack, language: "python")) != nil {
+            SuggestionsShared.packsChanged()
+            controller.services.suggestions.codingPacks = { SuggestionsShared.codingPacks }
+            settings.codingLanguage = "python"
+            controller.commitComposition(client)
+            controller.activateServer(client)
+            controller.composer.setInput(.code)
+            client.inserted.removeAll()
+            type("tk-1", controller, client)
+            let coded = pump(timeout: 5) { controller.session.panelModel().rows.map(\.text).starts(with: ["tk-12", "tk-123"]) }
+            let codeModel = controller.session.panelModel()
+            check(coded && controller.composer.input == .code && !codeModel.highlightChosen,
+                  "Code: \"tk-1\" shows its rows (\(codeModel.rows.map(\.text))), the first only outlined")
+            check(!press(controller, client, "\r", code: VirtualKey.returnKey) && client.inserted.isEmpty,
+                  "…and Return stays the app's (\(client.inserted))")
+            controller.commitComposition(client)
+            settings.codingLanguage = saved.settings.codingLanguage
+            try? SuggestionsShared.packs.remove("python")
+            SuggestionsShared.packsChanged()
+        } else {
+            check(false, "the Python pack from Core/CodingPacks")
+        }
+
+        // "@tk": a source, not an action: what it is said, nothing runs, nothing goes in.
+        controller.commitComposition(client)
+        controller.activateServer(client)
+        controller.composer.setInputMode(.english)
+        client.inserted.removeAll()
+        let before = calls().count
+        _ = press(controller, client, "@", code: 0x13, flags: .shift)
+        type("tk", controller, client)
+        press(controller, client, "\r", code: VirtualKey.returnKey)
+        press(controller, client, "\r", code: VirtualKey.returnKey)
+        let said = controller.panelModel().detail ?? controller.notice ?? ""
+        check(said.contains("tk-") && client.inserted.isEmpty && calls().count == before,
+              "\"@tk\" ⏎ only says what it is: \"\(said)\", nothing inserted (\(client.inserted)), nothing run")
+        for _ in 0..<3 { press(controller, client, "\u{1B}", code: VirtualKey.escape) }
+    }
+}

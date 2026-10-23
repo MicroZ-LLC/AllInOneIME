@@ -48,6 +48,9 @@ public struct Command: Hashable, Sendable {
         case report
         /// Inserts a saved text (`custom.text`, `SnippetTemplate`) with its placeholders filled: no AI, no program.
         case snippet
+        /// A suggestion source (a custom command of type `suggestions`): its rows show as its prefix is typed in any
+        /// field; picked or run here, it only says what it is.
+        case suggestions
     }
 
     init(name: String, kind: Kind, custom: CustomCommand? = nil, plugin: InstalledPlugin? = nil, script: ScriptCommand? = nil,
@@ -219,6 +222,7 @@ public struct Command: Hashable, Sendable {
             case .terminal: kind = .terminal
             case .link: kind = .link
             case .snippet: kind = .snippet
+            case .suggestions: kind = .suggestions
             }
             return Command(name: name, kind: kind, custom: definition)
         } + extensionTier(scripts, snippets).compactMap { item in
@@ -255,8 +259,10 @@ public struct Command: Hashable, Sendable {
     }
 
     /// It runs a program in a child process (`ProcessLauncher`): `@py`, `@js`, a custom `run` command, a script
-    /// extension, a plugin's script.
-    public var needsChildProcess: Bool { isCode || kind == .run && (custom != nil || script != nil || plugin != nil) }
+    /// extension, a plugin's script; a custom suggestion source's program, as its prefix is typed.
+    public var needsChildProcess: Bool {
+        isCode || kind == .run && (custom != nil || script != nil || plugin != nil) || kind == .suggestions
+    }
 
     /// The extensions `catalog` leaves out because another command has their name (and alias), and which.
     public static func hiddenScripts(_ scripts: [ScriptCommand], custom: [CustomCommand], plugins: [InstalledPlugin] = [],
@@ -339,12 +345,17 @@ public struct Command: Hashable, Sendable {
 ///   inserted (`LinkTemplate`): `{ "name": "google", "type": "link", "url": "https://www.google.com/search?q={input}" }`.
 /// - `snippet`: `text` is inserted, its placeholders filled (`SnippetTemplate`); no AI, no program:
 ///   `{ "name": "sig", "type": "snippet", "summary": "Email signature", "text": "Best,\nWei\n{cursor}" }`.
+/// - `suggestions`: a suggestion source, as a plugin's `completions` entry is (spec Suggestions v1, decision 24): typing
+///   `prefix` in any text field shows rows of what `argv` prints (its list, run with no input; with `query`, also run
+///   with what follows the prefix), Tab inserts one. Typed itself (`@jira`), it only says what it is
+///   (`suggestionSource`, CommandSuggestions.swift):
+///   `{ "name": "jira", "type": "suggestions", "summary": "Jira issues", "prefix": "JIRA-", "argv": ["jira-list"] }`.
 ///
 /// `{input}` always stays inside the one argument it is written in: the text is never parsed by a
 /// shell unless `argv` itself says so (`["zsh", "-c", "{input}"]`).
 public struct CustomCommand: Codable, Hashable, Sendable {
     public enum CommandType: String, Codable, Sendable {
-        case prompt, run, terminal, link, snippet
+        case prompt, run, terminal, link, snippet, suggestions
     }
 
     /// Letters only, as typed after "@" (digits pick from the command list).
@@ -354,14 +365,15 @@ public struct CustomCommand: Codable, Hashable, Sendable {
     public var summary: String?
     /// `prompt`: the instruction for the model.
     public var prompt: String?
-    /// `run`, `terminal`: the program and its arguments. A program without a "/" is looked up in the
+    /// `run`, `terminal`, `suggestions`: the program and its arguments. A program without a "/" is looked up in the
     /// user's shell PATH.
     public var argv: [String]?
     /// `run`: what goes to the program's standard input (`{input}` is replaced); nil: nothing.
     public var stdin: String?
     /// Type the text as Latin letters (code, paths). Default: true for `run` and `terminal`.
     public var ascii: Bool?
-    /// `run`: the program is stopped after this many seconds (default 10).
+    /// `run`, `suggestions`: the program is stopped after this many seconds (default 10; a source's 20 at most, its
+    /// query's 3).
     public var timeoutSeconds: Double?
     /// Its icon in the command list: an SF Symbol name ("chart.bar"), and a color (a system color's
     /// name, "blue", or "#RRGGBB"); unset, one for its type.
@@ -371,10 +383,27 @@ public struct CustomCommand: Codable, Hashable, Sendable {
     public var url: String?
     /// `snippet`: the text it inserts, with its placeholders (`SnippetTemplate`).
     public var text: String?
+    /// `suggestions`: what a plugin's `completions` entry declares by these names, with its rules, limits and defaults
+    /// (docs/plugins.md, `CompletionDeclaration`; read as a source by `suggestionSource`), kept as config.json writes
+    /// them so that one that breaks a rule is refused with its reason (Settings shows it) rather than unreadable:
+    /// `prefix` the text a token starts with ("JIRA-"; required, not the magic key), `minChars` how many characters after
+    /// it before rows show (1), `compare` "prefix" or "exact" ("prefix"), `refresh` how often the list is run again
+    /// ("5m"…"7d", "1h"), `query` whether the program is also run with what follows the prefix (false), `queryMinChars`
+    /// from how many characters on (3), `insert` what a row inserts per app class (`{"default": "{arg}"}`;
+    /// `InsertPreset`).
+    public var prefix: String?
+    public var minChars: Int?
+    public var compare: String?
+    public var refresh: String?
+    public var query: Bool?
+    public var queryMinChars: Int?
+    public var insert: AIConfig.JSONValue?
 
     public init(name: String, type: CommandType, summary: String? = nil, prompt: String? = nil,
                 argv: [String]? = nil, stdin: String? = nil, ascii: Bool? = nil, timeoutSeconds: Double? = nil,
-                icon: String? = nil, color: String? = nil, url: String? = nil, text: String? = nil) {
+                icon: String? = nil, color: String? = nil, url: String? = nil, text: String? = nil,
+                prefix: String? = nil, minChars: Int? = nil, compare: String? = nil, refresh: String? = nil,
+                query: Bool? = nil, queryMinChars: Int? = nil, insert: AIConfig.JSONValue? = nil) {
         self.name = name
         self.type = type
         self.summary = summary
@@ -387,6 +416,13 @@ public struct CustomCommand: Codable, Hashable, Sendable {
         self.color = color
         self.url = url
         self.text = text
+        self.prefix = prefix
+        self.minChars = minChars
+        self.compare = compare
+        self.refresh = refresh
+        self.query = query
+        self.queryMinChars = queryMinChars
+        self.insert = insert
     }
 
     public static let placeholder = "{input}"
@@ -400,6 +436,7 @@ public struct CustomCommand: Codable, Hashable, Sendable {
         case .run, .terminal: return !(argv?.first ?? "").isEmpty
         case .link: return LinkTemplate.problem(url) == nil
         case .snippet: return Self.snippetProblem(text) == nil
+        case .suggestions: return !(argv?.first ?? "").isEmpty && (try? suggestionSource?.get()) != nil
         }
     }
 
@@ -461,12 +498,26 @@ extension CustomCommand {
         case emptyText
         /// A snippet with `{cursor}` more than once.
         case twoCursors
+        /// A suggestion source without a prefix, or with one that isn't 1–16 letters, digits or . _ - # (not starting
+        /// with @).
+        case badPrefix
+        /// A suggestion source whose prefix starts with the magic key (`Config.commandTrigger`), which opens the command
+        /// list there.
+        case prefixIsMagicKey(String)
+        /// A suggestion source's `insert` with a template that isn't one (a `{` not closed).
+        case badTemplate
+        /// A suggestion source stopped after more seconds than a list may take (`PluginManifest.maxTimeout`).
+        case timeoutTooLong
+        /// Anything else the rules of a source refuse (a value out of range in config.json): the reason, as for a
+        /// plugin's completion entry (`CompletionRefusal.reason`, in English).
+        case suggestions(String)
     }
 
     /// The first problem with this definition among `others` (the other custom commands), the installed plugins'
     /// names and `unread` (the names of the custom commands a later version wrote: `Config.unreadCustomCommandNames`),
-    /// or nil.
-    public func problem(among others: [CustomCommand], plugins: [String] = [], unread: [String] = []) -> Problem? {
+    /// or nil; a suggestion source's prefix also may not start with `trigger`, the magic key.
+    public func problem(among others: [CustomCommand], plugins: [String] = [], unread: [String] = [],
+                        trigger: String = "@") -> Problem? {
         let name = name.lowercased()
         if name.isEmpty { return .emptyName }
         if !name.allSatisfy({ $0.isASCII && $0.isLetter }) || name.count > 24 { return .nameNotLetters }
@@ -483,6 +534,9 @@ extension CustomCommand {
             if let problem = LinkTemplate.problem(url) { return .link(problem) }
         case .snippet:
             if let problem = Self.snippetProblem(text) { return problem }
+        case .suggestions:
+            if (argv?.first ?? "").isEmpty { return .emptyCommand }
+            if let problem = suggestionProblem(trigger: trigger) { return problem }
         }
         return nil
     }
