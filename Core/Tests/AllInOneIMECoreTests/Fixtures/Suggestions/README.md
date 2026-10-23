@@ -22,4 +22,5 @@ What a completion plugin's script returns, and the files a plugin and a coding l
     `tooManyBytes`) rather than kept here.
 - `plugins/`: `github` (the spec's example: `#` issues, a list and a live query, a password preference) and `aws`
   (account ids, no prefix, `exact`), each a `plugin.json` and its `main.js`.
-- `packs/`: coding language packs (`python`, `javascript`) in the pack format.
+- `packs/`: coding language packs (`python`, `java`, `javascript`) in the pack format; Python's and Java's both have an
+  `if` snippet, each its language's (Code's rows come from its coding language's pack alone: decision 22).

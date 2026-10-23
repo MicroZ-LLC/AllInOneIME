@@ -3,14 +3,17 @@ import Testing
 @testable import AllInOneIMECore
 import AllInOneIMETestSupport
 
-/// Suggestions v1, spec 2: coding mode (the chooser a long press of Shift opens, the session's: spec 6.2; on across
-/// fields and apps, English first in each field, exclusive with Translate as You Type) and its sources: the coding
-/// language packs' keywords and snippets (Fixtures/Suggestions/packs/; what is offered: spec 6.13), the words of the
-/// field's own text (none where it tells none: 6.16); the keys and insertion of spec 1.4 (rows picked with Tab, or ↓ and
-/// Return, never a digit: 6.1; code editors as terminals: 6.10, 6.11), a snippet's line breaks, its later lines indented
-/// as the caret's line (6.19), and its caret: at its first tab stop in reading order, `$0` or a numbered one left empty
-/// with its mirrors, where the field reports ranges, else every stop's text in and the caret at the end (6.21, 6.23). The
-/// rig: SuggestionsAcceptanceTests.swift.
+/// Suggestions v1, spec 2 as decision 22 has it: Code, an input next to the input languages (`Config.codingLanguage`,
+/// `Config.inputs`, a field's `Input`), which replaced coding mode and decision 13's chooser. A tap of Shift goes through
+/// the inputs (中 → EN → Code), Code only once its coding language's pack is installed; an app may start in Code; the
+/// long press of Shift toggles Translate as You Type at once, as in 0.6.6 (no chooser, ever), and in Code says it isn't
+/// available there. In Code: that coding language's pack alone (its keywords and snippets; what is offered: spec 6.13)
+/// and the field's own words (none where it tells none: 6.16), Return picking a row as in an IDE except in chat apps and
+/// terminals (6.20, 6.23), no Translate as You Type, no English words learned. The keys and insertion of spec 1.4 (rows
+/// picked with Tab, or ↓ and Return, never a digit: 6.1; code editors as terminals: 6.10, 6.11), a snippet's line breaks,
+/// its later lines indented as the caret's line (6.19), and its caret: at its first tab stop in reading order, `$0` or a
+/// numbered one left empty with its mirrors, where the field reports ranges, else every stop's text in and the caret at
+/// the end (6.21, 6.23). The rig: SuggestionsAcceptanceTests.swift.
 @Suite(.serialized, SuggestionsOneAtATime())
 struct SuggestionsCodingAcceptanceTests {
     func inEnglish(_ body: () throws -> Void) async rethrows { try await withInterfaceLanguage("en", body) }
@@ -19,16 +22,41 @@ struct SuggestionsCodingAcceptanceTests {
         try JSONDecoder().decode(CodingLanguagePack.self, from: SuggestionsFixtures.data(name, in: "packs"))
     }
 
-    /// A world in coding mode with the Python pack installed.
-    static func coding(input: Language = .english) throws -> SuggestionsWorld {
+    /// A world with the Code input in Python, the Python pack installed (and `more` packs too); fields start in `input`.
+    static func coding(input: Language = .english, more: [CodingLanguagePack] = []) throws -> SuggestionsWorld {
         let world = SuggestionsWorld(input: input)
-        world.packs = [try pack("python")]
-        world.codingMode = true
+        world.addCode("python", packs: [try pack("python")] + more)
+        return world
+    }
+
+    /// A world with the Code input in `pack`'s language, `pack` its only one installed.
+    static func coding(_ pack: CodingLanguagePack) -> SuggestionsWorld {
+        let world = SuggestionsWorld()
+        world.addCode(pack.language, packs: [pack])
         return world
     }
 
     /// The texts of the rows, each with its comment.
     static func texts(_ field: SuggestionsField) -> [String] { field.rows.map { $0.text + " " + $0.comment } }
+
+    /// What the session said since output `start`: its notices, on their own or on the panel.
+    static func said(_ field: SuggestionsField, since start: Int) -> [String] {
+        field.host.outputs.dropFirst(start).compactMap { output in
+            switch output {
+            case let .notice(text): return text
+            case let .panel(model?): return model.detail
+            default: return nil
+            }
+        }
+    }
+
+    /// Whether the panel shows anything like decision 13's chooser: rows, with nothing typed for any.
+    static func chooser(_ field: SuggestionsField) -> Bool { !field.rows.isEmpty }
+
+    /// Translate as You Type on in `field`, as the shell turns it on there (on in every field once on).
+    static func translateAsYouTypeOn(_ field: SuggestionsField) {
+        _ = field.host.session.apply(field.host.composer.setTranslateMode(TranslateMode.Session(target: .chinese)))
+    }
 
     /// Where the caret is once a row went in at the end of the field: the text before it, the field's text up to where the
     /// session's last `moveCaret` since output `since` put it (back from the end of what went in), else all of it.
@@ -69,160 +97,356 @@ struct SuggestionsCodingAcceptanceTests {
         return (put, outputs)
     }
 
-    // MARK: - The chooser
+    // MARK: - Shift: a tap goes through the inputs, a long press toggles Translate as You Type
 
-    /// The two modes the chooser lists, as the panel's rows.
-    static func chooser(_ field: SuggestionsField) -> Bool {
-        let rows = field.rows.map(\.text)
-        guard rows.count == 2 else { return false }
-        return rows[0].contains("Translate as You Type") && rows[1].contains("Coding mode")
-    }
-
-    /// Holding Shift for a second opens the chooser at the caret: Translate as You Type, Coding mode. Esc closes it,
-    /// nothing changed.
-    @Test func holdingShiftOpensTheChooser() async {
-        await inEnglish {
-            let world = SuggestionsWorld()
-            let field = world.field()
-            field.holdShift()
-            #expect(Self.chooser(field), "\(field.rows.map(\.text))")
-            #expect(field.press(SuggestionKeys.escape))
-            #expect(!Self.chooser(field) && !world.codingMode && !world.translateAsYouType)
-        }
-    }
-
-    /// A tap of Shift opens no chooser (it switches the input language, as before).
-    @Test func aTapOfShiftOpensNoChooser() async {
-        await inEnglish {
-            let world = SuggestionsWorld()
-            let field = world.field()
-            field.tapShift()
-            field.fireTimers()
-            #expect(!Self.chooser(field), "\(field.rows.map(\.text))")
-            #expect(field.host.composer.inputLanguage == .chinese, "switched to pinyin")
-            field.holdShift()
-            #expect(Self.chooser(field), "held, it opens: \(field.rows.map(\.text))")
-        }
-    }
-
-    /// 2 (or ↓ and Return) picks Coding mode: on. The chooser goes.
-    @Test func choosingCodingModeTurnsItOn() async {
-        await inEnglish {
-            let world = SuggestionsWorld()
-            let field = world.field()
-            field.holdShift()
-            #expect(Self.chooser(field))
-            #expect(field.press(SuggestionKeys.digit(2)))
-            #expect(world.codingMode && !world.translateAsYouType)
-            #expect(!Self.chooser(field))
-
-            let other = SuggestionsWorld()
-            let arrows = other.field()
-            arrows.holdShift()
-            #expect(arrows.press(SuggestionKeys.down))
-            #expect(arrows.press(SuggestionKeys.enter))
-            #expect(other.codingMode, "↓ and Return")
-        }
-    }
-
-    /// Choosing the mode that is on turns it off.
-    @Test func choosingTheModeThatIsOnTurnsItOff() async {
-        await inEnglish {
-            let world = SuggestionsWorld()
-            world.codingMode = true
-            let field = world.field()
-            field.holdShift()
-            #expect(Self.chooser(field))
-            #expect(field.press(SuggestionKeys.digit(2)))
-            #expect(!world.codingMode)
-
-            world.translateAsYouType = true
-            field.holdShift()
-            #expect(field.press(SuggestionKeys.digit(1)))
-            #expect(!world.translateAsYouType && !world.codingMode)
-        }
-    }
-
-    /// A long press of Shift isn't a tap: in pinyin mode it opens the chooser, and closing it leaves the input language
-    /// as it was.
-    @Test func aLongPressOfShiftDoesntSwitchTheInputLanguage() async {
-        await inEnglish {
-            let world = SuggestionsWorld(input: .chinese)
-            let field = world.field()
-            #expect(field.host.composer.inputLanguage == .chinese)
-            field.holdShift()
-            #expect(Self.chooser(field), "\(field.rows.map(\.text))")
-            #expect(field.press(SuggestionKeys.escape))
-            #expect(field.host.composer.inputLanguage == .chinese, "still pinyin")
-            field.type("nihao")
-            #expect(field.host.marked == "nihao", "\(field.host.marked)")
-        }
-    }
-
-    /// Shift held to type capitals opens no chooser, however long.
-    @Test func shiftHeldWhileTypingOpensNoChooser() async {
-        await inEnglish {
-            let world = SuggestionsWorld()
-            let field = world.field()
-            field.host.modifiers(ModifierChange(key: .modifier(.shift, .left), modifiers: [.shift, .leftShift], timestamp: world.clock.timestamp))
-            field.noteTimers()
-            world.clock.advance(0.2)
-            field.press(SuggestionKeys.key("H"))
-            world.clock.advance(1.5)
-            field.fireTimers()
-            #expect(!Self.chooser(field), "\(field.rows.map(\.text))")
-            field.host.modifiers(ModifierChange(key: .modifier(.shift, .left), modifiers: [], timestamp: world.clock.timestamp))
-            #expect(!Self.chooser(field) && !world.codingMode && !world.translateAsYouType)
-            field.holdShift()
-            #expect(Self.chooser(field), "held on its own, it opens: \(field.rows.map(\.text))")
-        }
-    }
-
-    /// Translate as You Type and coding mode are exclusive: choosing one turns the other off.
-    @Test func translateAsYouTypeAndCodingModeAreExclusive() async {
-        await inEnglish {
-            let world = SuggestionsWorld()
-            world.translateAsYouType = true
-            let field = world.field()
-            field.holdShift()
-            #expect(field.press(SuggestionKeys.digit(2)))
-            #expect(world.codingMode && !world.translateAsYouType, "coding on, Translate as You Type off")
-            field.holdShift()
-            #expect(field.press(SuggestionKeys.digit(1)))
-            #expect(world.translateAsYouType && !world.codingMode, "Translate as You Type on, coding off")
-        }
-    }
-
-    // MARK: - On across fields, English first
-
-    /// Coding mode stays on across fields and apps; each field starts in English (where pinyin comes first otherwise);
-    /// a tap of Shift still switches, and pinyin works as usual then.
-    @Test func codingModeStartsEachFieldInEnglish() async throws {
-        try await inEnglish {
-            let world = try Self.coding(input: .chinese)
-            for app in [SuggestionsApps.editor, "com.apple.TextEdit", SuggestionsApps.chrome] {
-                let field = world.field(app: app)
-                field.type("nihao")
-                #expect(field.host.marked.isEmpty && field.document == "nihao", "\(app): English (\(field.host.marked))")
-            }
-            let field = world.field()
-            field.tapShift()
-            field.type(" nihao")
-            #expect(field.host.marked == "nihao", "pinyin after a tap of Shift (\(field.host.marked))")
-            world.codingMode = false
-            let after = world.field()
-            after.type("nihao")
-            #expect(after.host.marked == "nihao", "off: the field starts in pinyin again (\(after.host.marked))")
-        }
-    }
-
-    // MARK: - Packs
-
-    /// The packs' keywords are rows from 2 characters on; what is typed exactly is not offered.
-    @Test func keywordsAreRowsFromTwoCharactersOn() async throws {
+    /// A long press of Shift turns Translate as You Type on at once, as in 0.6.6; another turns it off. Nothing opens in
+    /// between: no chooser (decision 22).
+    @Test func aLongPressOfShiftTogglesTranslateAsYouTypeDirectly() async throws {
         try await inEnglish {
             let world = try Self.coding()
             let field = world.field()
+            field.holdShift()
+            #expect(world.translateAsYouType, "on at once")
+            #expect(!Self.chooser(field), "no chooser: \(Self.texts(field))")
+            field.holdShift()
+            #expect(!world.translateAsYouType, "off again")
+            #expect(!Self.chooser(field), "\(Self.texts(field))")
+        }
+    }
+
+    /// A tap of Shift goes through the inputs as through the input languages: 中 → EN → Code → 中, each said as it comes
+    /// (Code by its name). No chooser. In Code the letters go straight in (no pinyin) and its rows come; back in Chinese,
+    /// pinyin as usual.
+    @Test func aTapOfShiftGoesThroughTheInputs() async throws {
+        try await inEnglish {
+            let world = try Self.coding(input: .chinese)
+            #expect(world.config.inputs == [.language(.chinese), .language(.english), .code], "\(world.config.inputs)")
+            let field = world.field()
+            #expect(field.host.composer.input == .language(.chinese))
+            var seen: [Input] = []
+            for _ in 0..<3 {
+                let before = field.host.outputs.count
+                field.tapShift()
+                field.fireTimers()
+                let input = field.host.composer.input
+                seen.append(input)
+                #expect(!Self.chooser(field), "\(input): \(Self.texts(field))")
+                if input == .code {
+                    #expect(Self.said(field, since: before).contains { $0.contains("Code") }, "\(Self.said(field, since: before))")
+                    field.type("pr")
+                    #expect(field.host.marked.isEmpty && field.document == "pr", "straight in: \(field.host.marked)")
+                    #expect(field.settle { field.shown(["print"]) == ["print"] }, "Code's rows: \(Self.texts(field))")
+                    field.press(SuggestionKeys.space)
+                }
+            }
+            #expect(seen == [.language(.english), .code, .language(.chinese)], "\(seen)")
+            #expect(!world.translateAsYouType, "a tap toggles nothing")
+            field.type("nihao")
+            #expect(field.host.marked == "nihao", "pinyin again: \(field.host.marked)")
+        }
+    }
+
+    /// In Code the long press says Translate as You Type isn't available there and turns nothing on: the field stays in
+    /// Code. Out of Code (a tap of Shift on to a language), it turns it on.
+    @Test func inCodeTheLongPressSaysTranslateAsYouTypeIsntAvailable() async throws {
+        try await inEnglish {
+            let world = try Self.coding()
+            let field = world.codeField()
+            #expect(field.host.composer.input == .code)
+            let before = field.host.outputs.count
+            field.holdShift()
+            let said = Self.said(field, since: before)
+            #expect(said.contains { $0.contains("Translate as You Type") }, "it says so: \(said)")
+            #expect(!world.translateAsYouType, "not on in Code")
+            #expect(field.host.composer.input == .code && !Self.chooser(field), "\(Self.texts(field))")
+            field.tapShift()
+            #expect(field.host.composer.input != .code)
+            field.holdShift()
+            #expect(world.translateAsYouType, "in a language: on")
+        }
+    }
+
+    /// No chooser in any input, ever: after a long press in Chinese, English or Code no rows show, and the keys that
+    /// picked in it are the app's (a digit typed, ↓ and Return passed on).
+    @Test func noChooserEver() async throws {
+        try await inEnglish {
+            let world = try Self.coding(input: .chinese)
+            let field = world.field()
+            var inputs: [Input] = []
+            for _ in 0..<3 {
+                let input = field.host.composer.input
+                inputs.append(input)
+                field.holdShift()
+                field.pause(5)  // what it said gone
+                #expect(!Self.chooser(field), "\(input): \(Self.texts(field))")
+                if input != .language(.chinese) {
+                    let start = field.document
+                    #expect(!field.press(SuggestionKeys.digit(2)) && field.document == start + "2", "\(input): \(field.document)")
+                    for key in [SuggestionKeys.down, SuggestionKeys.enter] {
+                        #expect(!field.press(key), "\(input): the app's")
+                    }
+                    field.press(SuggestionKeys.space)
+                }
+                world.translateAsYouType = false
+                field.tapShift()
+            }
+            #expect(inputs == [.language(.chinese), .language(.english), .code], "\(inputs)")
+        }
+    }
+
+    /// A long press of Shift isn't a tap: the input stays as it was, pinyin composing after it; Code stays Code.
+    @Test func aLongPressOfShiftDoesntSwitchTheInput() async throws {
+        try await inEnglish {
+            let world = try Self.coding(input: .chinese)
+            let field = world.field()
+            #expect(field.host.composer.input == .language(.chinese))
+            field.holdShift()
+            #expect(field.host.composer.input == .language(.chinese), "still pinyin")
+            field.type("nihao")
+            #expect(field.host.marked == "nihao", "\(field.host.marked)")
+
+            let code = world.codeField(app: "com.apple.TextEdit")
+            code.holdShift()
+            #expect(code.host.composer.input == .code, "still Code")
+            code.type("pr")
+            #expect(code.host.marked.isEmpty && code.document == "pr", "\(code.host.marked)")
+        }
+    }
+
+    /// Shift held to type capitals is no long press, however long: nothing toggles, nothing is said of Translate as You
+    /// Type (in Code neither). Held on its own, it toggles.
+    @Test func shiftHeldWhileTypingTogglesNothing() async throws {
+        try await inEnglish {
+            let world = try Self.coding()
+            for field in [world.field(), world.codeField(app: "com.apple.TextEdit")] {
+                let input = field.host.composer.input
+                let before = field.host.outputs.count
+                field.host.modifiers(ModifierChange(key: .modifier(.shift, .left), modifiers: [.shift, .leftShift], timestamp: world.clock.timestamp))
+                field.noteTimers()
+                world.clock.advance(0.2)
+                field.press(SuggestionKeys.key("H"))
+                world.clock.advance(1.5)
+                field.fireTimers()
+                field.host.modifiers(ModifierChange(key: .modifier(.shift, .left), modifiers: [], timestamp: world.clock.timestamp))
+                field.noteTimers()
+                #expect(!world.translateAsYouType && !Self.chooser(field), "\(input): \(Self.texts(field))")
+                #expect(!Self.said(field, since: before).contains { $0.contains("Translate as You Type") },
+                        "\(input): \(Self.said(field, since: before))")
+                #expect(field.host.composer.input == input)
+            }
+            let field = world.field(app: "com.apple.Notes")
+            field.holdShift()
+            #expect(world.translateAsYouType, "held on its own, it toggles")
+        }
+    }
+
+    /// Translate as You Type never runs in Code (decision 22): with it on in a field, whenever a tap of Shift has the
+    /// field in Code there is no chip and the letters go straight in, nothing collected to translate; a field that starts
+    /// in Code while it is on types as Code does.
+    @Test func translateAsYouTypeNeverRunsInCode() async throws {
+        try await inEnglish {
+            let world = try Self.coding()
+            let field = world.field()
+            Self.translateAsYouTypeOn(field)
+            for _ in 0..<3 {
+                field.tapShift()
+                guard field.host.composer.input == .code else { continue }
+                #expect(field.host.composer.translateModeChip() == nil, "no chip in Code")
+                let start = field.document
+                field.type("pr")
+                #expect(field.host.marked.isEmpty && field.document == start + "pr", "straight in: \(field.host.marked)")
+                field.press(SuggestionKeys.space)
+            }
+
+            let code = world.codeField(app: "com.apple.TextEdit")
+            Self.translateAsYouTypeOn(code)
+            #expect(code.host.composer.input == .code && code.host.composer.translateModeChip() == nil)
+            code.type("print")
+            #expect(code.host.marked.isEmpty && code.document == "print", "nothing to translate: \(code.host.marked)")
+        }
+    }
+
+    // MARK: - Code is a field's input
+
+    /// Code is a field's input, not a mode of every field: a field switched to it leaves the others as they are, each
+    /// new field (of any app) starting in its default input, pinyin here. A tap of Shift still goes on from Code, and
+    /// pinyin works as usual then.
+    @Test func codeIsAFieldsInputNotAModeOfEveryField() async throws {
+        try await inEnglish {
+            let world = try Self.coding(input: .chinese)
+            let first = world.field()
+            first.tapShift()
+            first.tapShift()
+            #expect(first.host.composer.input == .code)
+            for app in [SuggestionsApps.editor, "com.apple.TextEdit", SuggestionsApps.chrome] {
+                let field = world.field(app: app)
+                #expect(field.host.composer.input == .language(.chinese), "\(app): \(field.host.composer.input)")
+                field.type("nihao")
+                #expect(field.host.marked == "nihao", "\(app): pinyin (\(field.host.marked))")
+            }
+            first.tapShift()
+            first.type("nihao")
+            #expect(first.host.marked == "nihao", "pinyin after a tap of Shift (\(first.host.marked))")
+        }
+    }
+
+    /// Code is an input only once its coding language's pack is installed, as a language is once its pack is: Java
+    /// picked but not downloaded, a tap of Shift goes through the languages only. Once the pack is in, Shift reaches Code
+    /// (in the field there, and in a new one).
+    @Test func aTapOfShiftSkipsCodeUntilItsPackIsInstalled() async throws {
+        try await inEnglish {
+            let world = SuggestionsWorld()
+            world.addCode("java", packs: [try Self.pack("python")])
+            let field = world.field()
+            var seen: [Input] = []
+            for _ in 0..<4 {
+                field.tapShift()
+                seen.append(field.host.composer.input)
+            }
+            #expect(!seen.contains(.code), "no Java pack, no Code: \(seen)")
+            #expect(Set(seen) == [.language(.chinese), .language(.english)], "\(seen)")
+
+            world.packs.append(try Self.pack("java"))
+            field.host.send(.configChanged)
+            seen = []
+            for _ in 0..<3 {
+                field.tapShift()
+                seen.append(field.host.composer.input)
+            }
+            #expect(seen.contains(.code), "its pack in: \(seen)")
+            let other = world.field(app: "com.apple.TextEdit")
+            other.tapShift()
+            #expect(other.host.composer.input == .code, "English → Code: \(other.host.composer.input)")
+        }
+    }
+
+    /// An app may start in Code (Settings → Apps, the input menu's This App): written as the app's `"inputLanguage":
+    /// "code"`, read back the same. Its fields start in Code, other apps' in the default input; from Code a tap of Shift
+    /// goes on to the first language. Where Code's pack isn't installed, the app starts in the default input.
+    @Test func anAppMayStartInCode() async throws {
+        try await inEnglish {
+            let world = try Self.coding(input: .chinese)
+            let mail = "com.apple.mail"
+            world.config.changeProfile(for: mail) { $0.startingInput = .code }
+            let json = String(decoding: try JSONEncoder().encode(world.config), as: UTF8.self)
+            #expect(json.contains(#""inputLanguage":"code""#) && json.contains(#""codingLanguage":"python""#), "\(json)")
+            let read = try JSONDecoder().decode(Config.self, from: Data(json.utf8))
+            #expect(read.profile(for: mail)?.startingInput == .code && read.codingLanguage == "python")
+            #expect(read.inputs == [.language(.chinese), .language(.english), .code], "\(read.inputs)")
+
+            let field = world.field(app: mail)
+            #expect(field.host.composer.input == .code, "\(field.host.composer.input)")
+            field.type("pr")
+            #expect(field.host.marked.isEmpty && field.document == "pr", "\(field.host.marked)")
+            #expect(field.settle { field.shown(["print"]) == ["print"] }, "Code's rows: \(Self.texts(field))")
+            field.press(SuggestionKeys.space)
+            let notes = world.field(app: "com.apple.Notes")
+            #expect(notes.host.composer.input == .language(.chinese))
+            notes.type("nihao")
+            #expect(notes.host.marked == "nihao", "\(notes.host.marked)")
+            field.tapShift()
+            #expect(field.host.composer.input == .language(.chinese), "Code → 中: \(field.host.composer.input)")
+
+            let missing = SuggestionsWorld(input: .chinese)
+            missing.addCode("java", packs: [try Self.pack("python")])
+            missing.config.changeProfile(for: mail) { $0.startingInput = .code }
+            #expect(missing.field(app: mail).host.composer.input == .language(.chinese), "no Java pack: the default input")
+        }
+    }
+
+    /// Changing Code's coding language (the input menu, Settings → Input) changes a field's rows at once: the field
+    /// stays in Code, and the next token's rows are the new language's pack's (Java's `if` with its braces, not Python's).
+    @Test func changingCodesLanguageChangesItsRowsAtOnce() async throws {
+        try await inEnglish {
+            let world = try Self.coding(more: [try Self.pack("java")])
+            let field = world.codeField()
+            field.type("if")
+            #expect(field.settle { Self.texts(field).contains { $0.contains("if block") } }, "Python's: \(Self.texts(field))")
+            field.press(SuggestionKeys.space)
+            world.config.codingLanguage = "java"
+            field.host.send(.configChanged)
+            #expect(field.host.composer.input == .code, "still Code")
+            field.type("if")
+            #expect(field.settle { Self.texts(field).contains { $0.contains("if statement") } }, "Java's: \(Self.texts(field))")
+            #expect(!Self.texts(field).contains { $0.contains("if block") }, "\(Self.texts(field))")
+            #expect(field.press(SuggestionKeys.tab))
+            #expect(field.document == "if if () {\n    \n}", "\(field.document.debugDescription)")
+        }
+    }
+
+    /// Removing the pack of Code's language removes Code: Settings → Input's installed packs (the settings document's)
+    /// take the pack out and Code with it (no `codingLanguage`, Code no more among the inputs); a field in Code then is in
+    /// its default input, no Code rows, and Shift goes through the languages only.
+    @Test func removingThePackOfCodesLanguageRemovesCode() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("code-removed-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let plugins = folder.appendingPathComponent("plugins", isDirectory: true)
+        try FileManager.default.createDirectory(at: plugins, withIntermediateDirectories: true)
+        let url = folder.appendingPathComponent("config.json")
+        try Data(#"{"inputLanguages": ["zh", "en"], "codingLanguage": "python"}"#.utf8).write(to: url)
+        let packs = CodingPackStore(directory: folder.appendingPathComponent("CodingPacks", isDirectory: true))
+        _ = try packs.keep(SuggestionsFixtures.data("python", in: "packs"), language: "python")
+        let service = SettingsService(store: SettingsStore(configURL: url), platform: .mac, library: PluginLibrary(directory: plugins),
+                                      secrets: .inMemory(), codingLibrary: CodingPackLibrary(store: packs))
+        #expect(try Config.load(from: url).inputs == [.language(.chinese), .language(.english), .code])
+        let removed = await service.perform(SettingsAction(field: "code.installed", name: SettingsAction.remove, item: "python"))
+        #expect((try? removed.get()) != nil, "\(removed)")
+        #expect(packs.installed().isEmpty)
+        let after = try Config.load(from: url)
+        #expect(after.codingLanguage == nil && after.inputs == [.language(.chinese), .language(.english)], "\(after.inputs)")
+
+        try await inEnglish {
+            let world = try Self.coding()
+            let field = world.codeField()
+            #expect(field.host.composer.input == .code)
+            world.packs = []
+            world.config.codingLanguage = nil
+            field.host.send(.configChanged)
+            #expect(field.host.composer.input == .language(.english), "its default input: \(field.host.composer.input)")
+            field.type("re")
+            field.idle()
+            #expect(!field.shown(["return"]).contains("return"), "\(Self.texts(field))")
+            var seen: [Input] = []
+            for _ in 0..<3 {
+                field.tapShift()
+                seen.append(field.host.composer.input)
+            }
+            #expect(!seen.contains(.code), "\(seen)")
+        }
+    }
+
+    /// In Code no word is learned as an English word (decision 22): one typed in two fields in Code, which made no rows,
+    /// isn't; typed so in two fields in English mode, it is.
+    @Test func inCodeNoWordIsLearnedAsEnglish() async throws {
+        try await inEnglish {
+            let world = try Self.coding()
+            world.englishDictionary = EnglishDictionary(["hello", "world"])
+            for app in [SuggestionsApps.editor, "com.apple.TextEdit"] {
+                let field = world.codeField(app: app)
+                #expect(field.host.composer.input == .code)
+                field.type("zorblax ok ")
+                #expect(field.rows.isEmpty, "\(Self.texts(field))")
+            }
+            #expect(!world.learned.contains { EnglishWords.key($0) == "zorblax" }, "\(world.learned)")
+
+            let english = try Self.coding()
+            english.englishDictionary = EnglishDictionary(["hello", "world"])
+            for app in [SuggestionsApps.editor, "com.apple.TextEdit"] {
+                let prose = english.field(app: app)
+                #expect(prose.host.composer.input == .language(.english))
+                prose.type("zorblax ok ")
+            }
+            #expect(english.learned.map(EnglishWords.key) == ["zorblax"], "in English: learned (\(english.learned))")
+        }
+    }
+
+    // MARK: - The coding language's pack
+
+    /// The pack's keywords are rows from 2 characters on; what is typed exactly is not offered.
+    @Test func keywordsAreRowsFromTwoCharactersOn() async throws {
+        try await inEnglish {
+            let world = try Self.coding()
+            let field = world.codeField()
             field.type("r")
             field.idle()
             #expect(!Self.texts(field).contains { $0.contains("return") }, "one character: none (\(Self.texts(field)))")
@@ -232,31 +456,83 @@ struct SuggestionsCodingAcceptanceTests {
             field.type("turn")
             field.idle()
             #expect(!field.shown(["return"]).contains("return"), "typed exactly: not offered (\(Self.texts(field)))")
-
-            let all = try Self.coding()
-            all.packs.append(try Self.pack("javascript"))
-            let both = all.field()
-            both.type("aw")
-            #expect(both.settle { both.shown(["await"]) == ["await"] }, "a keyword of either pack, once: \(Self.texts(both))")
-            both.type(" fun")
-            #expect(both.settle { both.shown(["function"]).contains("function") }, "every installed pack applies: \(Self.texts(both))")
         }
     }
 
-    /// Off: the packs give no rows.
-    @Test func noCodingRowsWhileCodingModeIsOff() async throws {
+    /// Code's rows come from its coding language's pack alone, whatever else is installed (decision 22): in Python, `if`
+    /// is Python's (a colon), JavaScript's `function` isn't offered; in Java, `if` is Java's (parentheses and braces).
+    @Test func onlyTheCodingLanguagesPackGivesRows() async throws {
+        try await inEnglish {
+            let world = try Self.coding(more: [try Self.pack("java"), try Self.pack("javascript")])
+            let python = world.codeField()
+            python.type("if")
+            #expect(python.settle { Self.texts(python).contains { $0.contains("if block") } }, "\(Self.texts(python))")
+            #expect(!Self.texts(python).contains { $0.contains("if statement") }, "not Java's: \(Self.texts(python))")
+            var before = python.host.outputs.count
+            #expect(python.press(SuggestionKeys.tab))
+            #expect(python.document == "if :\n    ", "\(python.document.debugDescription)")
+            #expect(Self.beforeCaret(python, since: before) == "if ", "\(Self.beforeCaret(python, since: before).debugDescription)")
+
+            let other = world.codeField(app: "com.apple.TextEdit")
+            other.type("fun")
+            other.idle()
+            #expect(!other.shown(["function"]).contains("function"), "JavaScript's: \(Self.texts(other))")
+
+            world.config.codingLanguage = "java"
+            let java = world.codeField(app: "com.apple.Notes")
+            java.type("if")
+            #expect(java.settle { Self.texts(java).contains { $0.contains("if statement") } }, "\(Self.texts(java))")
+            #expect(!Self.texts(java).contains { $0.contains("if block") }, "not Python's: \(Self.texts(java))")
+            before = java.host.outputs.count
+            #expect(java.press(SuggestionKeys.tab))
+            #expect(java.document == "if () {\n    \n}", "\(java.document.debugDescription)")
+            #expect(Self.beforeCaret(java, since: before) == "if (", "\(Self.beforeCaret(java, since: before).debugDescription)")
+        }
+    }
+
+    /// Out of Code (a language, Code among the inputs), the pack gives no rows and Tab is the app's; a tap of Shift into
+    /// Code, they come.
+    @Test func noCodingRowsOutsideCode() async throws {
         try await inEnglish {
             let world = try Self.coding()
-            world.codingMode = false
             let field = world.field()
+            #expect(field.host.composer.input == .language(.english))
             field.type("re")
             field.idle()
             #expect(!field.shown(["return"]).contains("return"), "\(Self.texts(field))")
             #expect(!field.press(SuggestionKeys.tab))
-            world.codingMode = true
-            let on = world.field()
-            on.type("re")
-            #expect(on.settle { on.shown(["return"]).contains("return") }, "on: \(Self.texts(on))")
+            field.press(SuggestionKeys.space)
+            field.tapShift()
+            #expect(field.host.composer.input == .code)
+            field.type("re")
+            #expect(field.settle { field.shown(["return"]).contains("return") }, "in Code: \(Self.texts(field))")
+        }
+    }
+
+    /// Return picks Code's rows as in an IDE (6.20), without ↓ first, in ordinary apps and code editors; in chat apps
+    /// Return is the app's (it sends), and in terminals (it runs the command: 6.23).
+    @Test func returnPicksCodesRowsAsInAnIDEButNotInChatAppsOrTerminals() async throws {
+        try await inEnglish {
+            let world = try Self.coding()
+            let editor = world.codeField()
+            editor.type("pr")
+            #expect(editor.settle { editor.shown(["print"]) == ["print"] }, "\(Self.texts(editor))")
+            #expect(editor.press(SuggestionKeys.enter), "taken at once")
+            #expect(editor.document == "print()", "\(editor.document.debugDescription)")
+
+            let vsCode = world.codeField(app: SuggestionsApps.vsCode)
+            vsCode.type("pr")
+            #expect(vsCode.settle { vsCode.shown(["print"]) == ["print"] }, "\(Self.texts(vsCode))")
+            #expect(vsCode.press(SuggestionKeys.enter), "a code editor: taken")
+            #expect(vsCode.document.hasPrefix("print"), "\(vsCode.document.debugDescription)")
+
+            for (app, terminal) in [(SuggestionsApps.slack, false), (SuggestionsApps.chrome, false), ("com.apple.Terminal", true)] {
+                let field = world.codeField(app: app, terminal: terminal)
+                field.type("pr")
+                #expect(field.settle { !field.rows.isEmpty }, "\(app): \(Self.texts(field))")
+                #expect(!field.press(SuggestionKeys.enter), "\(app): the app's")
+                #expect(field.document == "pr", "\(app): \(field.document.debugDescription)")
+            }
         }
     }
 
@@ -265,7 +541,7 @@ struct SuggestionsCodingAcceptanceTests {
     @Test func aSnippetGoesInWithItsLineBreaksAndTheCaretAtItsFirstTabStop() async throws {
         try await inEnglish {
             let world = try Self.coding()
-            let field = world.field()
+            let field = world.codeField()
             field.type("cl")
             #expect(field.settle { field.rows.contains { ($0.text + $0.comment).contains("class with __init__") } },
                     "\(Self.texts(field))")
@@ -282,7 +558,7 @@ struct SuggestionsCodingAcceptanceTests {
     @Test func theCaretGoesToTheSnippetsDollarZero() async throws {
         try await inEnglish {
             let world = try Self.coding()
-            let field = world.field()
+            let field = world.codeField()
             field.type("pr")
             #expect(field.settle { field.shown(["print"]) == ["print"] }, "\(Self.texts(field))")
             let before = field.host.outputs.count
@@ -297,7 +573,7 @@ struct SuggestionsCodingAcceptanceTests {
     @Test func withoutRangesTheCaretStaysAtTheEnd() async throws {
         try await inEnglish {
             let world = try Self.coding()
-            let field = world.field()
+            let field = world.codeField()
             field.type("pr")
             #expect(field.settle { field.shown(["print"]) == ["print"] }, "\(Self.texts(field))")
             var context = field.host.context
@@ -318,7 +594,7 @@ struct SuggestionsCodingAcceptanceTests {
     @Test func theSpecsDefSnippet() async throws {
         try await inEnglish {
             let world = try Self.coding()
-            let field = world.field()
+            let field = world.codeField()
             field.type("de")
             #expect(field.settle { field.rows.contains { ($0.text + $0.comment).contains("function") } }, "\(Self.texts(field))")
             let index = try #require(field.rows.firstIndex { ($0.text + $0.comment).contains("function") })
@@ -332,10 +608,8 @@ struct SuggestionsCodingAcceptanceTests {
     /// `$0` before `$1` (6.23): the caret goes to `$0`, the first in reading order, and `${1:Exception}` keeps its text.
     @Test func whereDollarZeroComesFirstTheCaretGoesThereAndTheNumberedStopsKeepTheirText() async throws {
         try await inEnglish {
-            let world = SuggestionsWorld()
-            world.codingMode = true
-            world.packs = [Self.blocksPack]
-            let field = world.field()
+            let world = Self.coding(Self.blocksPack)
+            let field = world.codeField()
             field.type("tr")
             #expect(field.settle { Self.texts(field).contains { $0.contains("try/except") } }, "\(Self.texts(field))")
             let index = try #require(field.rows.firstIndex { ($0.text + $0.comment).contains("try/except") })
@@ -350,10 +624,8 @@ struct SuggestionsCodingAcceptanceTests {
     /// The stop the caret goes to is left empty with its mirrors, wherever they are (6.23); the other stops keep their text.
     @Test func theFirstStopsMirrorsAreLeftEmptyToo() async throws {
         try await inEnglish {
-            let world = SuggestionsWorld()
-            world.codingMode = true
-            world.packs = [Self.sortPack]
-            let field = world.field()
+            let world = Self.coding(Self.sortPack)
+            let field = world.codeField()
             field.type("so")
             #expect(field.settle { Self.texts(field).contains { $0.contains("sort a range") } }, "\(Self.texts(field))")
             let index = try #require(field.rows.firstIndex { ($0.text + $0.comment).contains("sort a range") })
@@ -369,15 +641,15 @@ struct SuggestionsCodingAcceptanceTests {
     @Test func withoutRangesEveryStopKeepsItsTextAndTheCaretStaysAtTheEnd() async throws {
         try await inEnglish {
             let world = try Self.coding()
-            world.packs.append(Self.sortPack)
-            let field = world.field()
+            let field = world.codeField()
             let (def, defOutputs) = Self.tabWithoutRanges(after: "def", in: field) {
                 field.rows.contains { ($0.text + $0.comment).contains("function") }
             }
             #expect("def" + def == "def name():\n    ", "\(def.debugDescription)")
             #expect(!defOutputs.contains { if case let .moveCaret(back, _) = $0 { back > 0 } else { false } }, "\(defOutputs)")
 
-            let other = world.field()
+            let sorting = Self.coding(Self.sortPack)
+            let other = sorting.codeField()
             let (sort, sortOutputs) = Self.tabWithoutRanges(after: "sort", in: other) {
                 other.rows.contains { ($0.text + $0.comment).contains("sort a range") }
             }
@@ -390,10 +662,8 @@ struct SuggestionsCodingAcceptanceTests {
     /// stop on a later line, indented as it is: `$0` in a try body, a numbered stop in a loop's (left empty).
     @Test func aSnippetsLaterLinesAreIndentedAsTheCaretsLine() async throws {
         try await inEnglish {
-            let world = SuggestionsWorld()
-            world.codingMode = true
-            world.packs = [Self.blocksPack]
-            let field = world.field()
+            let world = Self.coding(Self.blocksPack)
+            let field = world.codeField()
             field.host.document = "def main():\n    "
             field.type("tr")
             #expect(field.settle { Self.texts(field).contains { $0.contains("try/except") } }, "\(Self.texts(field))")
@@ -404,7 +674,7 @@ struct SuggestionsCodingAcceptanceTests {
             #expect(Self.beforeCaret(field, since: before) == "def main():\n    try:\n        ",
                     "the caret in the try body, indented: \(Self.beforeCaret(field, since: before).debugDescription)")
 
-            let loop = world.field()
+            let loop = world.codeField()
             loop.host.document = "for x in xs:\n\t"
             loop.type("wh")
             #expect(loop.settle { Self.texts(loop).contains { $0.contains("endless loop") } }, "\(Self.texts(loop))")
@@ -421,7 +691,7 @@ struct SuggestionsCodingAcceptanceTests {
     @Test func aDigitIsTypedNotAPick() async throws {
         try await inEnglish {
             let world = try Self.coding()
-            let field = world.field()
+            let field = world.codeField()
             field.type("pr")
             #expect(field.settle { field.shown(["print"]) == ["print"] }, "\(Self.texts(field))")
             field.press(SuggestionKeys.digit(1))
@@ -437,7 +707,7 @@ struct SuggestionsCodingAcceptanceTests {
     @Test func theWholeTriggerStillOffersTheSnippet() async throws {
         try await inEnglish {
             let world = try Self.coding()
-            let field = world.field()
+            let field = world.codeField()
             field.type("def")
             #expect(field.settle { field.rows.contains { ($0.text + $0.comment).contains("function") } }, "\(Self.texts(field))")
             #expect(field.rows.count == 1, "the snippet only, not the keyword: \(Self.texts(field))")
@@ -451,13 +721,11 @@ struct SuggestionsCodingAcceptanceTests {
     /// A snippet whose body doesn't start with what was typed isn't offered (spec 6.13); one whose body does is.
     @Test func aSnippetWhoseBodyDoesntStartWithWhatWasTypedIsntOffered() async {
         await inEnglish {
-            let world = SuggestionsWorld()
-            world.codingMode = true
-            world.packs = [CodingLanguagePack(language: "example", title: "Example", version: "1.0.0", keywords: [], snippets: [
+            let world = Self.coding(CodingLanguagePack(language: "example", title: "Example", version: "1.0.0", keywords: [], snippets: [
                 .init(trigger: "main", body: "if __name__ == \"__main__\":\n    $0", title: "main guard"),
                 .init(trigger: "mainloop", body: "mainloop()$0", title: "the main loop"),
-            ])]
-            let field = world.field()
+            ]))
+            let field = world.codeField()
             field.type("ma")
             #expect(field.settle { Self.texts(field).contains { $0.contains("the main loop") } }, "\(Self.texts(field))")
             field.idle()
@@ -485,9 +753,8 @@ struct SuggestionsCodingAcceptanceTests {
     /// shorter, or what is typed exactly, isn't offered.
     @Test func theFieldsOwnWordsAreRows() async {
         await inEnglish {
-            let world = SuggestionsWorld()
-            world.codingMode = true
-            let field = world.field()
+            let world = Self.coding(Self.emptyPack)
+            let field = world.codeField()
             let before = "result = compute_average(items)\ncox = 1\n"
             let after = "\nprint(compute_total(a), compute_total(b), compute_total(c))\n"
             type("c", into: field, before: before, after: after)
@@ -504,9 +771,8 @@ struct SuggestionsCodingAcceptanceTests {
     /// Among words as frequent, the nearest to the caret first.
     @Test func amongWordsAsFrequentTheNearestFirst() async {
         await inEnglish {
-            let world = SuggestionsWorld()
-            world.codingMode = true
-            let field = world.field()
+            let world = Self.coding(Self.emptyPack)
+            let field = world.codeField()
             type("ta", into: field, before: "table_far = 1\nother = 2\nstill = 3\ntable_near = 4\n", after: "")
             #expect(field.settle { field.shown(["table_near", "table_far"]) == ["table_near", "table_far"] }, "\(Self.texts(field))")
         }
@@ -515,13 +781,15 @@ struct SuggestionsCodingAcceptanceTests {
     /// The token is identifier characters: after "." a new one starts ("self.co" offers what "co" starts).
     @Test func aDotStartsANewToken() async {
         await inEnglish {
-            let world = SuggestionsWorld()
-            world.codingMode = true
-            let field = world.field()
+            let world = Self.coding(Self.emptyPack)
+            let field = world.codeField()
             type("self.co", into: field, before: "count_items(x)\n", after: "")
             #expect(field.settle { field.shown(["count_items"]) == ["count_items"] }, "\(Self.texts(field))")
         }
     }
+
+    /// A pack with nothing in it: Code's rows are the field's words alone.
+    static let emptyPack = CodingLanguagePack(language: "example", title: "Example", version: "1.0.0", keywords: [], snippets: [])
 
     /// Blocks whose first tab stop isn't on their first line: `$0` before `${1:…}` (6.23's try/except), and a numbered
     /// stop before `$0`.
@@ -544,10 +812,8 @@ struct SuggestionsCodingAcceptanceTests {
     @Test(arguments: [("com.apple.Terminal", true), (SuggestionsApps.vsCode, false)])
     func inTerminalsAndCodeEditorsTabCompletesTheCommonPrefixOnly(_ app: String, _ terminal: Bool) async {
         await inEnglish {
-            let world = SuggestionsWorld()
-            world.codingMode = true
-            world.packs = [Self.computePack]
-            let field = world.field(app: app, terminal: terminal)
+            let world = Self.coding(Self.computePack)
+            let field = world.codeField(app: app, terminal: terminal)
             field.type("co")
             #expect(field.settle { field.shown(["compute_total", "compute_average", "compute_sum"]).filter { $0 != "?" }.count == 3 },
                     "\(app): \(Self.texts(field))")
@@ -560,14 +826,12 @@ struct SuggestionsCodingAcceptanceTests {
         }
     }
 
-    /// Where the field tells nothing of its text (a terminal), only the packs' keywords and snippets are rows (spec 6.16):
+    /// Where the field tells nothing of its text (a terminal), only the pack's keywords and snippets are rows (spec 6.16):
     /// a word in the field it doesn't tell of isn't one.
     @Test func whereTheFieldTellsNoTextOnlyPacksApply() async {
         await inEnglish {
-            let world = SuggestionsWorld()
-            world.codingMode = true
-            world.packs = [Self.computePack]
-            let field = world.field(app: "com.apple.Terminal", terminal: true)
+            let world = Self.coding(Self.computePack)
+            let field = world.codeField(app: "com.apple.Terminal", terminal: true)
             field.host.tellsNoText = true
             field.host.document = "compute_zebra = 1\n"
             for character in "co" {

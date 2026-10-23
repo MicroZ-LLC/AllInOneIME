@@ -212,8 +212,8 @@ struct SuggestionsSwitchesAcceptanceTests {
     }
 
     /// Never learned as English words (spec 6.15): what a row inserts, typed in pinyin mode or English mode; a token that
-    /// made rows appear (in coding mode, a word of the field's own, typed twice). Other words learn as before: one typed
-    /// twice in English mode, which made no rows.
+    /// made rows appear (in Code, a word of the field's own, typed twice). Other words learn as before: one typed twice in
+    /// English mode, which made no rows.
     @Test func neitherRowsNorTokensThatShowedRowsAreLearnedAsEnglishWords() async throws {
         try await inEnglish {
             for input in [Language.chinese, .english] {
@@ -232,9 +232,10 @@ struct SuggestionsSwitchesAcceptanceTests {
             }
 
             let coding = SuggestionsWorld()
-            coding.codingMode = true
+            coding.addCode("python", packs: [try SuggestionsCodingAcceptanceTests.pack("python")])
             coding.englishDictionary = EnglishDictionary(["hello", "world"])
-            let field = coding.field()
+            let field = coding.codeField()
+            #expect(field.host.composer.input == .code)
             field.host.document = "quuxify(items)\n"
             for _ in 1...2 {
                 field.type("quux")
