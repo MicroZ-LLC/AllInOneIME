@@ -190,7 +190,8 @@ extension InputSession {
     }
 
     /// The pause starts: its timer, as long as the model's (`Autocomplete.Route.pause`) or longer for one who types
-    /// slowly (`Autocomplete.Rhythm`), longer in an app where suggestions are waved away (`Autocomplete.Learning.pause`).
+    /// slowly (`Autocomplete.Rhythm`), longer in an app where suggestions are waved away
+    /// (`Autocomplete.Learning.pause`).
     func autocompleteSchedulePause() {
         let base = Autocomplete.route(services.loadSettings()).pause
         autocomplete.pause += 1
@@ -270,8 +271,8 @@ extension InputSession {
         }
     }
 
-    /// `text` up after the caret (`SessionOutput.ghost`), what is left of `kept`, counted with how long it took from the
-    /// pause's start.
+    /// `text` up after the caret (`SessionOutput.ghost`), what is left of `kept`, counted with how long it took from
+    /// the pause's start.
     func autocompleteShow(_ text: String, kept: Autocomplete.Cache.Entry, fromCache: Bool) {
         let now = services.uptime()
         autocomplete.suggestion = AutocompleteField.Suggestion(text: text, shownAt: now, kept: kept)
@@ -280,9 +281,9 @@ extension InputSession {
         emit(.ghost(text))
     }
 
-    /// The suggestion ends (`end`): it goes from the screen, and what happened to it is counted and learned for the app,
-    /// where it stops after `Autocomplete.Learning.window` not taken (said once, `AutocompleteMessages.stopped`), unless
-    /// the app is set to always or never (Settings → Apps): there it goes by that.
+    /// The suggestion ends (`end`): it goes from the screen, and what happened to it is counted and learned for the
+    /// app, where it stops after `Autocomplete.Learning.window` not taken (said once, `AutocompleteMessages.stopped`),
+    /// unless the app is set to always or never (Settings → Apps): there it goes by that.
     func autocompleteEnded(_ end: SuggestionEnd) {
         guard let suggestion = autocomplete.suggestion else { return }
         autocomplete.suggestion = nil

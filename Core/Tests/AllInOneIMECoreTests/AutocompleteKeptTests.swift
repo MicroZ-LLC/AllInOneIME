@@ -3,8 +3,8 @@ import Testing
 @testable import AllInOneIMECore
 import AllInOneIMETestSupport
 
-/// The suggestions kept (`Autocomplete.Cache`): for the text before the caret and after it, in the app they were made in
-/// (AC-7); one waved away with Esc is not shown again for that text, kept or said again by the model (AC-10).
+/// The suggestions kept (`Autocomplete.Cache`): for the text before the caret and after it, in the app they were made
+/// in (AC-7); one waved away with Esc is not shown again for that text, kept or said again by the model (AC-10).
 @Suite(.serialized)
 struct AutocompleteKeptTests {
     static let iss = Autocomplete.Context(before: "iss", after: "\nFrobnicate")

@@ -92,10 +92,10 @@ struct AutocompleteCadenceTests {
 
     static let sentences = ["Thanks for the update.", " I will send you the report by Friday.", " Let me know if you have any questions."]
 
-    /// Three sentences typed at 5 keys a second (200 ms a key), each followed by a second's thought: the pause is longer
-    /// than the time between keys, so nothing is read or asked while the user types, only once they stop. Before: with
-    /// nothing to show, 99 reads and 98 requests for 99 keys (with a suggestion shown and typed past each time, 8 and 7:
-    /// the pause grew in the app where they were waved away).
+    /// Three sentences typed at 5 keys a second (200 ms a key), each followed by a second's thought: the pause is
+    /// longer than the time between keys, so nothing is read or asked while the user types, only once they stop.
+    /// Before: with nothing to show, 99 reads and 98 requests for 99 keys (with a suggestion shown and typed past each
+    /// time, 8 and 7: the pause grew in the app where they were waved away).
     @Test(.bug(id: "AC-12", "the pause is shorter than the time between keys: a read and a request for nearly every key"),
           arguments: [" and more.", ""])
     func typingThreeSentencesAtFiveKeysASecondAsksOnlyAtThePauses(_ answer: String) {
@@ -108,9 +108,9 @@ struct AutocompleteCadenceTests {
         }
     }
 
-    /// One who types slowly (a key every 400 ms): once their first keys have told it, the pause grows with their rhythm,
-    /// half as long again as the time between their keys, so it doesn't run out between two of them either; it never
-    /// grows past `longest`.
+    /// One who types slowly (a key every 400 ms): once their first keys have told it, the pause grows with their
+    /// rhythm, half as long again as the time between their keys, so it doesn't run out between two of them either; it
+    /// never grows past `longest`.
     @Test(.bug(id: "AC-12", "the pause doesn't follow the user's typing"))
     func thePauseFollowsTheUsersRhythm() {
         withInterfaceLanguage("en") {
@@ -138,8 +138,8 @@ struct AutocompleteCadenceTests {
         #expect(slowest.pause(0.35) == Autocomplete.Rhythm.longest)
     }
 
-    /// A request only once the line has a word to go on from: not for one or two letters ("is" asked, the model answered
-    /// "a": "isa").
+    /// A request only once the line has a word to go on from: not for one or two letters ("is" asked, the model
+    /// answered "a": "isa").
     @Test(.bug(id: "AC-12", "one or two letters in an empty field are asked about"))
     func aWordToGoOnFromFirst() {
         func asks(_ before: String) -> Bool { Autocomplete.context(FieldText(before: before, after: "")) != nil }

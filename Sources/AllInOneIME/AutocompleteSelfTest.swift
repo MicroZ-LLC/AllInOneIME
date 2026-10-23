@@ -366,8 +366,8 @@ extension SelfTest {
         check(!harnessKey(controller, harness, "\t", code: VirtualKey.tab) && ghost(nil) && harness.text == "Let me know\t",
               "a Tab right as it appears goes to the app (\(harness.text.debugDescription))")
 
-        // A field whose rect for the empty range at the caret is off its line (Notes's has been above it): on the line the
-        // candidate panel goes by, after the character before the caret; more than a line off, the panel's line.
+        // A field whose rect for the empty range at the caret is off its line (Notes's has been above it): on the line
+        // the candidate panel goes by, after the character before the caret; more than a line off, the panel's line.
         let arrow = { _ = harnessKey(controller, harness, "\u{F703}", code: 0x7C) }
         harness.text = "Hello wo"
         harness.emptyRangeOffset = 12
@@ -555,7 +555,7 @@ extension SelfTest {
             harness.text = text
             let started = Date()
             harnessType(typed, controller, harness)
-            // The real model's time: the pause (350 ms or more), the field read, the answer, the overlay placed (30 ms).
+            // The real model's time: the pause (350 ms at least), the field read, the answer, the overlay (30 ms).
             _ = pump(timeout: 10) { GhostOverlay.shared.text != nil || store.metrics.failed > failed }
             let seconds = Date().timeIntervalSince(started)
             print(String(format: "  on-device: %@ after %.2f s, from the last key", GhostOverlay.shared.text.map { "“\($0)”" } ?? "nothing shown", seconds))

@@ -6,7 +6,7 @@ import Foundation
 /// puts it in. One switch (`Config.autocomplete`, the input menu and the menu bar panel); an app's own choice
 /// (`AppProfile.autocomplete`); in an app where none of the last 30 suggestions was taken it stops by itself (`Learning`).
 ///
-/// The core has the logic: when it may run at all (`blocker`, `isOn`), how long the pause is (`Route.pause`, `Rhythm`), what is
+/// The core has the logic: when it may run at all (`blocker`, `isOn`), how long the pause is (`Route.pause`), what is
 /// sent (`context`, `Prompt.autocompleteRequest`, hidden values as usual), what of the answer is shown (`trimmed`), what
 /// Tab does (`tab`), the suggestions kept for the text they continue (`Cache`), what is learned per app (`Learning`) and
 /// counted (`Metrics`). The session runs it (InputSession+Autocomplete.swift): the pause is a timer, the field's text is
@@ -39,8 +39,8 @@ public enum Autocomplete {
         case cloud(Provider)
 
         /// The shortest pause before asking (longer for one who types slowly, `Rhythm`): longer than the time between
-        /// keys of most typing, so that a request goes when the user stops, not between two keys; a cloud model is asked
-        /// less often.
+        /// keys of most typing, so that a request goes when the user stops, not between two keys; a cloud model is
+        /// asked less often.
         public var pause: TimeInterval { self == .onDevice ? 0.35 : 0.5 }
         /// A suggestion that comes later than this after it was asked for (the pause over) is dropped: late is worse
         /// than none.
@@ -146,9 +146,9 @@ public enum Autocomplete {
         return Context(before: String(before.suffix(beforeLimit)), after: String(after.prefix(afterLimit)))
     }
 
-    /// Whether `line` has a word to go on from: a whole one (a space or a mark after it: "Hi "), one of three letters or
-    /// more ("iss"), or two Chinese or Japanese characters. One or two letters alone ("is") aren't: the model can only
-    /// guess at what follows them.
+    /// Whether `line` has a word to go on from: a whole one (a space or a mark after it: "Hi "), one of three letters
+    /// or more ("iss"), or two Chinese or Japanese characters. One or two letters alone ("is") aren't: the model can
+    /// only guess at what follows them.
     static func hasWord(_ line: String) -> Bool {
         if line.filter(\.isWide).count >= 2 { return true }
         var run = 0
@@ -397,8 +397,8 @@ public enum Autocomplete {
     // MARK: Suggestions kept
 
     /// The last suggestions and the text they continue, in the app they were made in: the same text again (before the
-    /// caret and after it, in the same app) shows its suggestion at once, and so does text typed since that runs into one
-    /// (its rest is shown). No request for either. One waved away with Esc goes, and is remembered as not wanted
+    /// caret and after it, in the same app) shows its suggestion at once, and so does text typed since that runs into
+    /// one (its rest is shown). No request for either. One waved away with Esc goes, and is remembered as not wanted
     /// (`rejected`): neither it nor an answer that says it again is shown for that text.
     public struct Cache: Equatable, Sendable {
         public struct Entry: Equatable, Sendable {
@@ -442,8 +442,8 @@ public enum Autocomplete {
         }
 
         /// What is left of a suggestion for `context` in `app`, and the one it is: one made for it, or for text before
-        /// it that `context.before` goes on with as the suggestion did (typed along), with the same text after the caret,
-        /// in the same app. Nil: none, or one typed to its end.
+        /// it that `context.before` goes on with as the suggestion did (typed along), with the same text after the
+        /// caret, in the same app. Nil: none, or one typed to its end.
         public func kept(for context: Context, in app: String?) -> (rest: String, entry: Entry)? {
             for entry in entries.reversed() where entry.isFor(context, in: app) {
                 for typed in 0..<entry.text.count where matches(entry, typed: typed, before: context.before) {
@@ -466,8 +466,8 @@ public enum Autocomplete {
             if rejected.count > Self.capacity { rejected.removeFirst(rejected.count - Self.capacity) }
         }
 
-        /// Whether `text`, a suggestion for `context` in `app`, is one waved away there: what was left of it at that text
-        /// (typed along or not), in the same words but for spaces at its ends and its closing mark.
+        /// Whether `text`, a suggestion for `context` in `app`, is one waved away there: what was left of it at that
+        /// text (typed along or not), in the same words but for spaces at its ends and its closing mark.
         public func isRejected(_ text: String, for context: Context, in app: String?) -> Bool {
             let words = Self.words(text)
             return rejected.contains { entry in
@@ -885,8 +885,8 @@ extension AIConfig {
 
 extension AIConfig.Text {
     public var autocompleteLabel: String { tr("续写", "Autocomplete") }
-    /// After "Autocomplete: off → on" with a cloud provider picked (`provider`): where to allow it, the input menu's item
-    /// for it (`AutocompleteSwitch`, the Mac's).
+    /// After "Autocomplete: off → on" with a cloud provider picked (`provider`): where to allow it, the input menu's
+    /// item for it (`AutocompleteSwitch`, the Mac's).
     func autocompleteOnDevice(_ provider: Provider) -> String {
         let name = provider.displayName
         return tr("（先用本机模型；要用 \(name)，在输入法菜单里选「续写用 \(name)」）",

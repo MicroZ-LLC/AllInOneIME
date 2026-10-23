@@ -2,11 +2,11 @@ import AllInOneIMECore
 import AppKit
 import InputMethodKit
 
-/// Autocomplete's suggestion (`SessionOutput.ghost`, the core's `Autocomplete`) after the caret: gray text in a window of
-/// its own, on the caret's line, in the field's font where it tells it, on its text's baseline, a small Tab key after it.
-/// It takes no clicks; a click or the wheel anywhere takes it down (the session sees the pointer used,
-/// `SessionServices.pointerUsedWithin`, and ends the suggestion at the next key). Where the field tells no caret rect, or
-/// rects that don't agree, the suggestion is a line of the candidate panel instead (`PanelModel.autocomplete`).
+/// Autocomplete's suggestion (`SessionOutput.ghost`, the core's `Autocomplete`) after the caret: gray text in a window
+/// of its own, on the caret's line, in the field's font where it tells it, on its text's baseline, a small Tab key
+/// after it. It takes no clicks; a click or the wheel anywhere takes it down (the session sees the pointer used,
+/// `SessionServices.pointerUsedWithin`, and ends the suggestion at the next key). Where the field tells no caret rect,
+/// or rects that don't agree, the suggestion is a line of the candidate panel instead (`PanelModel.autocomplete`).
 @MainActor
 final class GhostOverlay: NSPanel {
     static let shared = GhostOverlay()
@@ -61,8 +61,8 @@ final class GhostOverlay: NSPanel {
         let right = screen?.visibleFrame.maxX ?? place.x + size.width
         let x = place.x + 1
         let width = max(min(size.width, right - x), 24)
-        // The text's baseline is the line's bottom and the font's descent: AppKit puts what makes a line taller than its
-        // font (a line height multiple, a minimum) above the text, and a line's spacing below its rect.
+        // The text's baseline is the line's bottom and the font's descent: AppKit puts what makes a line taller than
+        // its font (a line height multiple, a minimum) above the text, and a line's spacing below its rect.
         let baseline = line.minY + ghost.descent
         let height = max(line.height, baseline - line.minY + ghost.ascent)
         setFrame(NSRect(x: x, y: line.minY, width: width, height: height), display: true)
@@ -137,7 +137,7 @@ final class GhostView: NSView {
         let size = string.size()
         let key = keySize
         let room = bounds.width - key.width - 8
-        // Cut where it doesn't fit (the screen's edge), with an ellipsis; one line of the font, its baseline on `baseline`.
+        // Cut where it doesn't fit (the screen's edge), with an ellipsis; one line of the font, on `baseline`.
         string.draw(with: NSRect(x: 0, y: baseline - descent, width: max(room, 0), height: Self.lineHeight(font)),
                     options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine])
         // The key cap centered on the capitals.
@@ -324,8 +324,8 @@ extension AllInOneIMEInputController {
         if panel.owner === self, !composer.wantsPanel { panel.hide() }
     }
 
-    /// Where the caret is on the screen (as tall as its line), as the field tells it for an empty range there: nil where
-    /// it tells none (no caret, an empty rect, off every screen).
+    /// Where the caret is on the screen (as tall as its line), as the field tells it for an empty range there: nil
+    /// where it tells none (no caret, an empty rect, off every screen).
     static func caretRect(_ client: IMKTextInput) -> NSRect? {
         let selected = client.selectedRange()
         guard selected.location != NSNotFound else { return nil }
