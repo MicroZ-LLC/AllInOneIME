@@ -6,7 +6,8 @@ import AllInOneIMETestSupport
 /// Return on coding mode's rows (the packs' keywords and snippets, the field's own words): it picks the highlighted row
 /// at once, as an IDE does, in ordinary apps and code editors (the first row there); in chat apps (Return sends) and
 /// terminals (Return runs the command) it stays the app's. Plugins' rows keep spec 1.4's rule: Return once ↓ or ↑ moved,
-/// in ordinary apps only. The footer says what Return does. The rig: Acceptance/SuggestionsAcceptanceTests.swift.
+/// in ordinary apps only. The footer says what Return does, and the highlight is drawn chosen only where Return takes
+/// it. The rig: Acceptance/SuggestionsAcceptanceTests.swift.
 @Suite(.serialized, SuggestionsOneAtATime())
 struct SuggestionsReturnTests {
     func inEnglish(_ body: () throws -> Void) async rethrows { try await withInterfaceLanguage("en", body) }
@@ -148,6 +149,53 @@ struct SuggestionsReturnTests {
             #expect(terminal.settle { !terminal.rows.isEmpty })
             #expect(terminal.host.panel?.footer == "Tab completes what they share · \(enter) goes to the app", "\(terminal.footer)")
             #expect(terminal.host.panel?.highlighted == nil, "no row Return puts in")
+        }
+    }
+
+    // MARK: - The highlight
+
+    /// Where Return doesn't pick the highlighted row yet, it isn't drawn chosen (`PanelModel.highlightChosen`), only
+    /// marked as the row Tab takes: a plugin's rows in an ordinary app until ↓ or ↑ moves it (chosen from then on), any
+    /// rows in a chat app. A coding row Return picks is chosen at once, in a code editor too.
+    @Test func theHighlightIsChosenOnlyWhereReturnTakesIt() async throws {
+        try await inEnglish {
+            let all = ["#7001", "#7002", "#7090", "#7100", "#789"]
+            let plugins = SuggestionsWorld()
+            try plugins.github()
+            let plugin = plugins.field(app: Self.notes)
+            plugin.type("#7")
+            #expect(plugin.waitForIssues(all), "\(plugin.issuesShown)")
+            #expect(plugin.host.panel?.highlighted == 0 && plugin.host.panel?.highlightChosen == false,
+                    "the first row, nothing chosen yet: \(String(describing: plugin.host.panel?.highlighted))")
+            #expect(plugin.press(SuggestionKeys.down))
+            #expect(plugin.host.panel?.highlighted == 1 && plugin.host.panel?.highlightChosen == true, "moved: chosen")
+            #expect(plugin.press(SuggestionKeys.up))
+            #expect(plugin.host.panel?.highlighted == 0 && plugin.host.panel?.highlightChosen == true, "moved back: still chosen")
+
+            let tab = plugins.field(app: Self.notes)
+            tab.type("#7")
+            #expect(tab.waitForIssues(all), "\(tab.issuesShown)")
+            #expect(tab.press(SuggestionKeys.tab), "Tab still takes the first row")
+            #expect(tab.document == "#7001", "\(tab.document)")
+
+            let chat = plugins.field(app: SuggestionsApps.slack)
+            chat.type("#7")
+            #expect(chat.waitForIssues(all), "\(chat.issuesShown)")
+            #expect(chat.host.panel?.highlighted == 0 && chat.host.panel?.highlightChosen == false, "a chat app: never chosen")
+
+            let world = try Self.coding()
+            for app in [Self.notes, SuggestionsApps.vsCode] {
+                let coding = world.field(app: app)
+                coding.type("ret")
+                #expect(coding.settle { !coding.rows.isEmpty })
+                #expect(coding.host.panel?.highlighted == 0 && coding.host.panel?.highlightChosen == true,
+                        "\(app): a coding row Return takes, chosen")
+            }
+            let codingChat = world.field(app: SuggestionsApps.slack)
+            codingChat.type("ret")
+            #expect(codingChat.settle { !codingChat.rows.isEmpty })
+            #expect(codingChat.host.panel?.highlighted == 0 && codingChat.host.panel?.highlightChosen == false,
+                    "a chat app's coding row: not chosen")
         }
     }
 }

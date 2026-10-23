@@ -609,7 +609,10 @@ final class CandidateView: NSView {
         NSGraphicsContext.saveGraphicsState()
         if let rowsClip { NSBezierPath(rect: rowsClip).addClip() }
         for (index, layout) in rowLayouts.enumerated() where index < model.rows.count {
-            let highlighted = index == model.highlighted
+            // Selected: what the key that picks takes. Highlighted with nothing chosen yet (`highlightChosen`): only
+            // outlined, faintly, as the row Tab takes.
+            let highlighted = index == model.highlighted && model.highlightChosen
+            let outlined = index == model.highlighted && !model.highlightChosen
             // In a row, the highlight is a pill around the candidate, as in macOS's own panel.
             let radius = model.horizontal ? layout.frame.height / 2 : Metrics.rowRadius
             if index == hovered, !highlighted {
@@ -619,6 +622,12 @@ final class CandidateView: NSView {
             if highlighted {
                 NSColor.selectedContentBackgroundColor.setFill()
                 NSBezierPath(roundedRect: layout.frame, xRadius: radius, yRadius: radius).fill()
+            }
+            if outlined {
+                let outline = NSBezierPath(roundedRect: layout.frame.insetBy(dx: 0.5, dy: 0.5), xRadius: radius - 0.5, yRadius: radius - 0.5)
+                outline.lineWidth = 1
+                NSColor.selectedContentBackgroundColor.withAlphaComponent(0.5).setStroke()
+                outline.stroke()
             }
             let (label, text) = strings(for: model.rows[index], highlighted: highlighted)
             label.draw(at: layout.labelOrigin)

@@ -132,6 +132,8 @@ extension SelfTest {
         snapshot("suggestions-rows", in: snapshotDirectory)
         check(CandidatePanel.shared.isShowing && CandidatePanel.shared.view.model.rows.count == model.rows.count,
               "…drawn in the candidate panel")
+        check(model.highlighted == 0 && !model.highlightChosen,
+              "…the first row outlined, not selected: ⏎ is the app's until ↓ or ↑ moves (\(String(describing: model.highlighted)))")
         // Tab: what wasn't typed of the first row.
         check(press(controller, client, "\t", code: VirtualKey.tab) && client.inserted.last == "34",
               "Tab inserts what wasn't typed of the first row: \"\(client.inserted.last ?? "")\"")
@@ -170,7 +172,7 @@ extension SelfTest {
             check(false, "the local accounts plugin loads")
         }
 
-        // Coding mode: the Python pack's rows; a snippet goes in with its caret at $0.
+        // Coding mode: the Python pack's rows, Return picking one at once; a snippet goes in with its caret at $0.
         controller.commitComposition(client)
         client.bundleIDOverride = "com.example.editor"
         controller.activateServer(client)
@@ -187,12 +189,13 @@ extension SelfTest {
             let coded = pump(timeout: 2) { controller.session.panelModel().rows.contains { $0.text == "print" } }
             check(coded, "coding mode: \"pr\" offers the pack's print (\(controller.session.panelModel().rows.map(\.text)))")
             snapshot("suggestions-coding", in: snapshotDirectory)
-            let rows = controller.session.panelModel().rows
-            if let index = rows.firstIndex(where: { $0.text == "print" && !$0.comment.isEmpty }) {
+            let panel = controller.session.panelModel()
+            check(panel.highlightChosen, "…the highlighted row selected: ⏎ takes it")
+            if let index = panel.rows.firstIndex(where: { $0.text == "print" && !$0.comment.isEmpty }) {
                 for _ in 0..<index { press(controller, client, "", code: VirtualKey.down) }
-                if index == 0 { press(controller, client, "\t", code: VirtualKey.tab) } else { press(controller, client, "\r", code: VirtualKey.returnKey) }
+                press(controller, client, "\r", code: VirtualKey.returnKey)
             }
-            check(client.inserted.last == "int()", "…the snippet goes in as \"int()\" (\(client.inserted.last ?? "-"))")
+            check(client.inserted.last == "int()", "…⏎ puts the snippet in as \"int()\" (\(client.inserted.last ?? "-"))")
             SuggestionsShared.codingMode = false
             try? SuggestionsShared.packs.remove("python")
             SuggestionsShared.packsChanged()

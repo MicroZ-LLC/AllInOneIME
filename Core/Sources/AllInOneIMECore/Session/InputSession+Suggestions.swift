@@ -642,7 +642,8 @@ extension InputSession {
     }
 
     /// The panel of the rows (or the chooser): no number on a row (digits are typed, spec 6.1), the keys of the app's
-    /// class in the footer, the source and its list's age (once older than 10 minutes) on its right, or the notice.
+    /// class in the footer, the source and its list's age (once older than 10 minutes) on its right, or the notice. The
+    /// highlighted row is drawn chosen only where Return takes it: until then it is only the row Tab takes.
     func suggestionsPanel() -> PanelModel? {
         if let highlighted = suggesting.chooser { return chooserPanel(highlighted) }
         guard suggesting.shown, let first = suggesting.rows.first else { return nil }
@@ -662,7 +663,7 @@ extension InputSession {
             highlighted = suggesting.highlighted
         case .chat:
             footer = t.tr("Tab 插入第一行 · \(enter) 交给应用", "Tab inserts the first row · \(enter) goes to the app")
-            highlighted = 0
+            highlighted = 0  // Tab's, never chosen: Return sends
         case .codeEditor, .none:
             footer = returnInserts ? t.tr("Tab 补全它们共同的开头 · \(enter) 插入第一行", "Tab completes what they share · \(enter) inserts the first row")
                 : t.tr("Tab 补全它们共同的开头 · \(enter) 交给应用", "Tab completes what they share · \(enter) goes to the app")
@@ -674,7 +675,9 @@ extension InputSession {
         if let madeAt = shown.madeAt ?? first.madeAt, let age = Self.listAge(madeAt, now: services.suggestions.now(), in: t) {
             detail += " · " + age
         }
-        return PanelModel(rows: rows, highlighted: highlighted, footer: footer, detail: notice ?? detail)
+        // Chosen (drawn selected) only where Return takes it; else only the row Tab takes, nothing chosen yet.
+        return PanelModel(rows: rows, highlighted: highlighted, highlightChosen: returnInserts, footer: footer,
+                          detail: notice ?? detail)
     }
 
     /// A list's age as the footer says it, once older than 10 minutes: "12 min ago", "2 h ago", "3 d ago".
