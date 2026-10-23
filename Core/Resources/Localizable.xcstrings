@@ -5127,6 +5127,7 @@
     },
     "↑↓ or 1–2 to choose, %@ to confirm, Esc to cancel" : {
       "comment" : "↑↓ 或 1–2 选，%@ 确定，Esc 取消 — Sources/AllInOneIMECore/Session/InputSession+Suggestions.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -8329,6 +8330,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "先前的 Rime 錯誤已解決"
+          }
+        }
+      }
+    },
+    "An input after the languages, a tap of Shift away: you type letters, and the rows under the caret offer this coding language's keywords and snippets and the words already in the field; %@ or Tab inserts." : {
+      "comment" : "排在输入语言后面，单按 Shift 切到它：打字母，光标下面列出这种编程语言的关键字、代码片段和输入框里已有的词，%@ 或 Tab 插入。 — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine Eingabe nach den Sprachen, ein Tippen auf Umschalt entfernt: Du tippst Buchstaben, und die Zeilen unter der Einfügemarke bieten Schlüsselwörter und Snippets dieser Programmiersprache und die Wörter, die schon im Feld stehen; %@ oder Tab fügt ein."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una entrada después de los idiomas, a un toque de Mayúsculas: escribes letras y las filas bajo el cursor ofrecen las palabras clave y los fragmentos de este lenguaje de programación y las palabras que ya hay en el campo; %@ o Tab inserta."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une saisie après les langues, à une pression de Maj : vous tapez des lettres, et les lignes sous le curseur proposent les mots-clés et extraits de ce langage de programmation et les mots déjà dans le champ ; %@ ou Tab insère."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "入力言語の後ろにある入力で、Shift を軽く押すと切り替わります。英字を打つと、カーソルの下にこのプログラミング言語のキーワード・スニペットと入力欄にある単語が並び、%@ か Tab で挿入します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "입력 언어 뒤에 있는 입력으로, Shift를 한 번 누르면 전환됩니다. 영문자를 입력하면 커서 아래에 이 프로그래밍 언어의 키워드·스니펫과 입력란에 이미 있는 단어가 나오고, %@ 또는 Tab으로 삽입합니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uma entrada depois dos idiomas, a um toque de Shift: você digita letras, e as linhas sob o cursor oferecem as palavras-chave e os trechos desta linguagem de programação e as palavras que já estão no campo; %@ ou Tab insere."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "排在輸入語言後面，單按 Shift 切到它：打字母，游標下面列出這種程式語言的關鍵字、程式碼片段和輸入框裡已有的詞，%@ 或 Tab 插入。"
           }
         }
       }
@@ -12052,6 +12100,100 @@
         }
       }
     },
+    "Code" : {
+      "comment" : "代码 — Sources/AllInOneIMECore/Composer.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Code"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Código"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Code"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コード"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "코드"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Código"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "程式碼"
+          }
+        }
+      }
+    },
+    "Code (%@)" : {
+      "comment" : "代码（%@） — Sources/AllInOneIMECore/Session/SessionText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Code (%@)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Código (%@)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Code (%@)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コード（%@）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "코드 (%@)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Código (%@)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "程式碼（%@）"
+          }
+        }
+      }
+    },
     "Coding language library" : {
       "comment" : "编程语言库 — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
       "localizations" : {
@@ -12148,6 +12290,7 @@
     },
     "Coding Languages" : {
       "comment" : "编程语言 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -12195,6 +12338,7 @@
     },
     "Coding mode" : {
       "comment" : "编码模式 — Sources/AllInOneIMECore/Session/InputSession+Suggestions.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -12242,6 +12386,7 @@
     },
     "Coding mode off" : {
       "comment" : "编码模式已关 — Sources/AllInOneIMECore/Session/InputSession+Suggestions.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -12289,6 +12434,7 @@
     },
     "Coding mode on: keywords, snippets and the field's words, Tab completes" : {
       "comment" : "编码模式已开：关键字、代码片段和字段里的词，Tab 补全 — Sources/AllInOneIMECore/Session/InputSession+Suggestions.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -17518,6 +17664,7 @@
     },
     "Hold Shift for a second and pick Coding mode (or 2) to turn it on, again to turn it off; it stays on in every app until then. While it's on each text field starts in English, and from two letters on the rows offer keywords, snippets and the words already in the field: Tab inserts. It can't be on with Translate as You Type." : {
       "comment" : "按住 Shift 一秒，选「编码模式」（或 2）打开，再选一次关闭；在所有 App 里一直开着，直到关掉。开着时每个输入框从英文开始，打两个字母起显示关键字、代码片段和输入框里已有的词，Tab 插入。和边打边译不能同时开。 — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -18922,6 +19069,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "保留前 %@ 種"
+          }
+        }
+      }
+    },
+    "keyword" : {
+      "comment" : "关键字 — Sources/AllInOneIMECore/Suggestions/SuggestionRows.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schlüsselwort"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "palabra clave"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "mot-clé"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キーワード"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "키워드"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "palavra-chave"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關鍵字"
           }
         }
       }
@@ -23069,6 +23263,53 @@
         }
       }
     },
+    "Not added" : {
+      "comment" : "不用 — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht hinzugefügt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sin añadir"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non ajouté"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "追加しない"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "추가 안 함"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não adicionado"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不用"
+          }
+        }
+      }
+    },
     "Not added: it's there already, or isn't an English word (a Latin letter first, then letters, digits or - . + & ' _ /)." : {
       "comment" : "没有添加：已经有了，或者不是英文词（英文字母开头，可以带数字和 - . + & ' _ /）。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
@@ -24669,6 +24910,7 @@
     },
     "On: choose it again to turn it off" : {
       "comment" : "已开：再选一次就关 — Sources/AllInOneIMECore/Session/InputSession+Suggestions.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -26835,8 +27077,103 @@
         }
       }
     },
+    "Plugins' completions (#12 lists GitHub issues, say; turn each plugin's on in Plugins) and Code's keywords and snippets (see Input): a few rows under the caret, Tab inserts. An app can turn them off in Apps." : {
+      "comment" : "插件的补全（比如打 #12 列出 GitHub issue；每个插件的补全在「插件」里打开）和代码输入的关键字、代码片段（在「输入」里）：光标下面列出几行，按 Tab 插入。某个应用里不要可以在「按 App 设置」里关掉。 — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vervollständigungen von Plug-ins (etwa listet #12 GitHub-Issues; die jedes Plug-ins schaltest du unter „Plug-ins“ ein) und Schlüsselwörter und Snippets der Eingabe Code (siehe „Eingabe“): ein paar Zeilen unter der Einfügemarke, Tab fügt ein. Eine App kann sie unter „Apps“ ausschalten."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sugerencias de plugins (#12 muestra issues de GitHub, por ejemplo; las de cada plugin se activan en Plugins) y palabras clave y fragmentos de la entrada Código (ver Entrada): unas filas bajo el cursor, Tab inserta. Una app puede desactivarlas en Apps."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Complétions des plug-ins (#12 liste des issues GitHub, par exemple ; celles de chaque plug-in s’activent dans Plug-ins) et mots-clés et extraits de la saisie Code (voir Saisie) : quelques lignes sous le curseur, Tab insère. Une app peut les désactiver dans Apps."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プラグインの補完（例：#12 で GitHub issue を一覧。各プラグインの補完は「プラグイン」でオン）とコード入力のキーワード・スニペット（「入力」を参照）：カーソルの下に数行、Tab で挿入。App ごとに「App別設定」でオフにできます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "플러그인 자동 완성(예: #12로 GitHub 이슈 목록, 플러그인마다 플러그인에서 켜기)과 코드 입력의 키워드·스니펫(입력 참고): 커서 아래 몇 줄, Tab으로 삽입. 앱별 설정에서 앱마다 끌 수 있습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sugestões de plug-ins (#12 lista issues do GitHub, por exemplo; as de cada plug-in são ativadas em Plug-ins) e palavras-chave e trechos da entrada Código (veja Entrada): algumas linhas sob o cursor, Tab insere. Um app pode desativá-las em Apps."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "外掛的補全（比如打 #12 列出 GitHub issue；每個外掛的補全在「外掛」裡打開）和程式碼輸入的關鍵字、程式碼片段（在「輸入」裡）：游標下面列出幾行，按 Tab 插入。某個應用程式裡不要可以在「各 App 設定」裡關掉。"
+          }
+        }
+      }
+    },
+    "Plugins' completions (#12 lists GitHub issues, say; turn each plugin's on in Plugins) and Code's keywords and snippets (see Input): a few rows under the caret, Tab inserts. The same switch as Suggestions in the input menu; an app can turn them off in Apps." : {
+      "comment" : "插件的补全（比如打 #12 列出 GitHub issue；每个插件的补全在「插件」里打开）和代码输入的关键字、代码片段（在「输入」里）：光标下面列出几行，按 Tab 插入。和输入法菜单里的「建议」是同一个开关；某个 App 里不要可以在「按 App 设置」里关掉。 — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vervollständigungen von Plug-ins (etwa listet #12 GitHub-Issues; die jedes Plug-ins schaltest du unter „Plug-ins“ ein) und Schlüsselwörter und Snippets der Eingabe Code (siehe „Eingabe“): ein paar Zeilen unter der Einfügemarke, Tab fügt ein. Derselbe Schalter wie „Vorschläge“ im Eingabemenü; eine App kann sie unter „Apps“ ausschalten."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sugerencias de plugins (#12 muestra issues de GitHub, por ejemplo; las de cada plugin se activan en Plugins) y palabras clave y fragmentos de la entrada Código (ver Entrada): unas filas bajo el cursor, Tab inserta. El mismo interruptor que Sugerencias en el menú de entrada; una app puede desactivarlas en Apps."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Complétions des plug-ins (#12 liste des issues GitHub, par exemple ; celles de chaque plug-in s’activent dans Plug-ins) et mots-clés et extraits de la saisie Code (voir Saisie) : quelques lignes sous le curseur, Tab insère. Le même interrupteur que Suggestions dans le menu de saisie ; une app peut les désactiver dans Apps."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プラグインの補完（例：#12 で GitHub issue を一覧。各プラグインの補完は「プラグイン」でオン）とコード入力のキーワード・スニペット（「入力」を参照）：カーソルの下に数行、Tab で挿入。入力メニューの「候補」と同じスイッチです。App ごとに「App別設定」でオフにできます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "플러그인 자동 완성(예: #12로 GitHub 이슈 목록, 플러그인마다 플러그인에서 켜기)과 코드 입력의 키워드·스니펫(입력 참고): 커서 아래 몇 줄, Tab으로 삽입. 입력 메뉴의 제안과 같은 스위치이며, 앱별 설정에서 앱마다 끌 수 있습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sugestões de plug-ins (#12 lista issues do GitHub, por exemplo; as de cada plug-in são ativadas em Plug-ins) e palavras-chave e trechos da entrada Código (veja Entrada): algumas linhas sob o cursor, Tab insere. O mesmo interruptor que Sugestões no menu de entrada; um app pode desativá-las em Apps."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "外掛的補全（比如打 #12 列出 GitHub issue；每個外掛的補全在「外掛」裡打開）和程式碼輸入的關鍵字、程式碼片段（在「輸入」裡）：游標下面列出幾行，按 Tab 插入。和輸入法選單裡的「建議」是同一個開關；某個 App 裡不要可以在「各 App 設定」裡關掉。"
+          }
+        }
+      }
+    },
     "Plugins' completions (#12 lists GitHub issues, say; turn each plugin's on in Plugins) and coding mode's keywords and snippets (see Coding Languages): a few rows under the caret, Tab inserts. An app can turn them off in Apps." : {
       "comment" : "插件的补全（比如打 #12 列出 GitHub issue；每个插件的补全在「插件」里打开）和编码模式的关键字、代码片段（在「编程语言」里）：光标下面列出几行，按 Tab 插入。某个应用里不要可以在「按 App 设置」里关掉。 — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -26884,6 +27221,7 @@
     },
     "Plugins' completions (#12 lists GitHub issues, say; turn each plugin's on in Plugins) and coding mode's keywords and snippets (see Coding Languages): a few rows under the caret, Tab inserts. The same switch as Suggestions in the input menu; an app can turn them off in Apps." : {
       "comment" : "插件的补全（比如打 #12 列出 GitHub issue；每个插件的补全在「插件」里打开）和编码模式的关键字、代码片段（在「编程语言」里）：光标下面列出几行，按 Tab 插入。和输入法菜单里的「建议」是同一个开关；某个 App 里不要可以在「按 App 设置」里关掉。 — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -35898,8 +36236,56 @@
         }
       }
     },
+    "Suggestions are off, so Code shows no rows: turn them on in General." : {
+      "comment" : "建议关着，代码输入不会列出什么：在「通用」里打开。 — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vorschläge sind aus, daher zeigt Code keine Zeilen: Schalte sie unter „Allgemein“ ein."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las sugerencias están desactivadas, así que Código no muestra filas: actívalas en General."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les suggestions sont désactivées, Code n’affiche donc aucune ligne : activez-les dans Général."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "候補がオフなので、コード入力でも何も表示されません。「一般」でオンにしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "제안이 꺼져 있어 코드 입력에서도 아무것도 표시되지 않습니다. 일반에서 켜세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "As sugestões estão desativadas, então Código não mostra linhas: ative-as em Geral."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建議關著，程式碼輸入不會列出什麼：在「一般」裡打開。"
+          }
+        }
+      }
+    },
     "Suggestions are off, so coding mode shows no rows: turn them on in General." : {
       "comment" : "建议关着，编码模式也不会列出什么：在「通用」里打开。 — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -37213,6 +37599,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未安裝%@語言套件"
+          }
+        }
+      }
+    },
+    "The %@ pack isn't installed: Code can be typed once it is (from the coding language library below)." : {
+      "comment" : "%@ 的语言包还没安装：从下面的编程语言库装好以后才能切到代码。 — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Paket für %@ ist nicht installiert: Code lässt sich tippen, sobald es da ist (aus der Bibliothek der Programmiersprachen unten)."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El paquete de %@ no está instalado: podrás escribir en Código cuando lo esté (desde la biblioteca de lenguajes de programación de abajo)."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le paquet %@ n’est pas installé : Code se saisit une fois qu’il l’est (depuis la bibliothèque de langages de programmation ci-dessous)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ のパックがまだインストールされていません。下のプログラミング言語ライブラリから入れるとコード入力が使えます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 팩이 설치되지 않았습니다. 아래 프로그래밍 언어 라이브러리에서 설치하면 코드 입력을 쓸 수 있습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O pacote de %@ não está instalado: dá para digitar em Código quando estiver (pela biblioteca de linguagens de programação abaixo)."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 的語言包還沒安裝：從下面的程式語言庫裝好以後才能切到程式碼。"
           }
         }
       }
@@ -41075,6 +41508,7 @@
     },
     "Translate as You Type" : {
       "comment" : "边打边译 — Sources/AllInOneIMECore/Session/InputSession+Suggestions.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -41116,6 +41550,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "邊打邊譯"
+          }
+        }
+      }
+    },
+    "Translate as You Type isn't available in Code" : {
+      "comment" : "代码输入里不能边打边译 — Sources/AllInOneIMECore/Session/InputSession+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„Beim Tippen übersetzen“ gibt es in Code nicht"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Traducir al escribir no está disponible en Código"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Traduire en tapant n’est pas disponible dans Code"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コード入力では「入力しながら翻訳」は使えません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "코드 입력에서는 입력하며 번역을 쓸 수 없습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Traduzir ao Digitar não está disponível em Código"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "程式碼輸入裡不能邊打邊譯"
           }
         }
       }
@@ -42767,6 +43248,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你輸入的文字會作為它的最後一個參數。"
+          }
+        }
+      }
+    },
+    "Windows doesn't type in Code yet: what you set here is kept for when it does." : {
+      "comment" : "Windows 上还不能切到代码输入：这里的设置先保存着。 — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unter Windows gibt es die Eingabe Code noch nicht: Was du hier einstellst, bleibt dafür gespeichert."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Windows todavía no escribe en Código: lo que configures aquí se guarda para cuando lo haga."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Windows ne saisit pas encore en Code : ce que vous réglez ici est conservé pour plus tard."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Windows ではまだコード入力に切り替えられません。ここでの設定はそのときのために保存されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Windows에서는 아직 코드 입력으로 전환할 수 없습니다. 여기서 정한 설정은 그때를 위해 저장됩니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O Windows ainda não digita em Código: o que você definir aqui fica guardado para quando digitar."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Windows 上還不能切到程式碼輸入：這裡的設定先儲存著。"
           }
         }
       }

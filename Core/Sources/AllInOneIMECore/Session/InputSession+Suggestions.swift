@@ -1,9 +1,9 @@
 import Foundation
 
 /// Suggestions in one text field's session (spec Suggestions v1, Suggestions/): the token typed into the field since a
-/// boundary, the rows its sources have for it (plugin lists and queries, coding packs and the field's own words), the
-/// keys they take per app class, the chooser a long press of Shift opens (Translate as You Type, coding mode), and the
-/// timers they wait on.
+/// boundary, the rows its sources have for it (plugin lists and queries; in Code, its coding language's pack and the
+/// field's own words), the keys they take per app class, the long press of Shift that turns Translate as You Type on and
+/// off (decision 22), and the timers they wait on.
 struct SuggestionsField {
     /// What was typed into this field since the last boundary, as typed (token characters only), and when it changed
     /// last (`SessionServices.uptime`); where no rows may show (`unasked`: the pointer isn't asked with a key there),
@@ -26,10 +26,8 @@ struct SuggestionsField {
     var moved = false
     /// The token Esc hid the rows for (spec 6.12).
     var hiddenFor: String?
-    /// The panel shows the rows or the chooser.
+    /// The panel shows the rows.
     var shown = false
-    /// The chooser is open, this row highlighted.
-    var chooser: Int?
     /// Shift's presses on its own counted (an older one's timer does nothing), and the hint of the one going on, up.
     var shift = 0
     var hint: String?
@@ -41,8 +39,8 @@ struct SuggestionsField {
     var refresh = 0
     var refreshDue: Date?
     /// The field's own words and the leading whitespace of the caret's line (a snippet's later lines get it), from what
-    /// the field said last: read once typing pauses (spec 2), or told with a key; the pause counted, and the one whose
-    /// read is awaited.
+    /// the field said last: read once typing in Code pauses (spec 2), or told with a key; the pause counted, and the one
+    /// whose read is awaited.
     var words: [String] = []
     var indent = ""
     var wordsPause = 0
@@ -52,15 +50,13 @@ struct SuggestionsField {
 }
 
 extension InputSession {
-    /// How long Shift is held on its own before the chooser opens (spec 2).
-    static let chooserHold: TimeInterval = 1
     /// The pause in typing before a query is asked again (spec 6.4).
     static let queryPause: TimeInterval = 0.15
     /// The most rows shown.
     static let maxSuggestionRows = 5
     /// A query takes this long at most.
     static let queryTimeout: TimeInterval = 3
-    /// The pause in typing after which coding mode reads the field's words again.
+    /// The pause in typing after which Code reads the field's words again.
     static let wordsPause: TimeInterval = 0.3
 
     /// A completion source that may run here: its plugin's, enabled with what the plugin is now, not the command
@@ -105,32 +101,32 @@ extension InputSession {
         return settings.apps.first { $0.key.caseInsensitiveCompare(app) == .orderedSame }?.value != false
     }
 
-    /// Whether rows may show in this field at all: a source enabled or coding mode on, and the switches on. None may: a
+    /// Whether rows may show in this field at all: a source enabled or the input Code, and the switches on. None may: a
     /// key asks nothing of the pointer for the token (`suggestionsAfterKey`).
     func suggestionsMayShow() -> Bool {
         let settings = services.suggestions.settings()
-        return (!settings.enabled.isEmpty || services.suggestions.codingMode()) && suggestionsOn(settings)
+        return (!settings.enabled.isEmpty || composer.coding) && suggestionsOn(settings)
     }
 
-    /// Whether coding mode reads the field's text here (its words, the caret's line's indentation): it is on, the field is
+    /// Whether Code reads the field's text here (its words, the caret's line's indentation): it is the input, the field is
     /// no terminal's, not in secure input, known to be no password field (`passwordField`), and rows may show in it (the
-    /// input menu's and the app's switches on, not an app with none: a remote desktop, a virtual machine, an SSH client, a
-    /// launcher). Nowhere else is the field read for it.
-    func codingModeReadsTheField() -> Bool {
-        services.suggestions.codingMode() && !terminal && !secureInputActive() && passwordField == false
+    /// switches on, not an app with none: a remote desktop, a virtual machine, an SSH client, a launcher). Nowhere else is
+    /// the field read for it.
+    func codeReadsTheField() -> Bool {
+        composer.coding && !terminal && !secureInputActive() && passwordField == false
             && SuggestionsAppClass(app: app, terminal: terminal) != .none && suggestionsOn(services.suggestions.settings())
     }
 
     /// Whether a key asks if the field is a password field (`FieldContext.Parts.passwordField`, the Mac's Accessibility):
-    /// not yet told in this field, and rows may show in it, or the chooser is open (its key may turn coding mode on). So
-    /// it's asked once a field, and only where suggestions may use it; rows show only once it's known to be none.
+    /// not yet told in this field, and rows may show in it. So it's asked once a field, and only where suggestions may use
+    /// it; rows show only once it's known to be none.
     func suggestionsWantPasswordField() -> Bool {
-        passwordField == nil && (suggesting.chooser != nil || suggestionsMayShow())
+        passwordField == nil && suggestionsMayShow()
     }
 
-    /// Whether rows, the chooser or coding mode hold the caret: no ghost text then (spec 0, 2).
+    /// Whether rows or Code hold the caret: no ghost text then (spec 0, decision 22).
     var suggestionsHoldTheCaret: Bool {
-        suggesting.shown || services.suggestions.codingMode()
+        suggesting.shown || composer.coding
     }
 
     // MARK: - Events
@@ -139,7 +135,7 @@ extension InputSession {
     /// disabled forgotten). Shift's changes meanwhile went to other fields: no press, Shift as it is now, so the change
     /// seen last here (Shift down as Shift+Tab left) passes for no copy of the next one.
     func suggestionsFocused() {
-        chooserPress.resync(shiftDown: services.suggestions.shiftDown())
+        shiftHold.resync(shiftDown: services.suggestions.shiftDown())
         let (refresh, shift) = (suggesting.refresh, suggesting.shift)
         suggesting = SuggestionsField()
         (suggesting.refresh, suggesting.shift) = (refresh, shift + 1)
@@ -171,20 +167,14 @@ extension InputSession {
         suggestionsUpdate()
     }
 
-    /// Secure input in the field, or a password field: nothing typed there is followed, no rows, no chooser.
+    /// Secure input in the field, or a password field: nothing typed there is followed, no rows.
     func suggestionsSecure() {
-        suggesting.chooser = nil
         suggestionsBoundary()
         suggestionsUpdate()
     }
 
-    /// A row of the panel clicked: the chooser's mode, or the row put in (true); false: not ours.
+    /// A row of the panel clicked: the row put in (true); false: not ours.
     func suggestionsPick(_ index: Int) -> Bool {
-        if suggesting.chooser != nil {
-            guard (0...1).contains(index) else { return true }
-            chooserChoose(index)
-            return true
-        }
         guard suggesting.shown, suggesting.rows.indices.contains(index) else { return false }
         suggestionsInsert(suggesting.rows[index], key: nil)
         return true
@@ -198,24 +188,24 @@ extension InputSession {
 
     func suggestionsTimer(_ timer: SuggestionsTimer) {
         switch timer {
-        case let .chooserHint(press), let .chooser(press):
-            guard press == suggesting.shift, let held = chooserPress.held, !secureInputActive(), composer.voice == .off else { return }
+        case let .holdHint(press), let .hold(press):
+            guard press == suggesting.shift, let held = shiftHold.held, !secureInputActive(), composer.voice == .off else { return }
             // Shift let go unseen (another app had the release, an event lost): the press is over, and the next one counts.
             guard services.suggestions.shiftHeld() else { return suggestionsModifiersMissed(shiftDown: false) }
-            switch chooserPress.poll(pointerUsed: services.pointerUsedWithin(held)) {
+            switch shiftHold.poll(pointerUsed: services.pointerUsedWithin(held)) {
             case .toggle?:
-                chooserPress.cancel()
-                chooserHintEnds()
-                chooserOpen()
+                shiftHold.cancel()
+                holdHintEnds()
+                shiftHoldToggles()
             case .hint?:
-                // Half way: "Keep holding → …", up about until the chooser comes.
-                if let hint = services.suggestions.chooserHint() {
+                // Half way: "Keep holding → Translate as You Type", up about until it comes on (none in Code: it can't).
+                if !composer.coding, let hint = services.suggestions.holdHint() {
                     suggesting.hint = hint
                     say(hint, lasting: TranslateMode.ShiftHold.toggleAfter - TranslateMode.ShiftHold.hintAfter + 0.3)
                 }
             case nil:
                 // Early, or the pointer used or moved (a Shift-click): the press ended.
-                if chooserPress.held == nil { chooserHintEnds() }
+                if shiftHold.held == nil { holdHintEnds() }
             }
         case let .query(wait):
             guard wait == suggesting.queryWait, suggesting.queryWaitFor == suggesting.token else { return }
@@ -232,43 +222,43 @@ extension InputSession {
             suggestionsMaintain()
             suggestionsUpdate()
         case let .words(pause):
-            // Typing paused: coding mode's words read again, by the shell after the key (`SessionOutput.readField`, this
-            // pause's id below 0).
-            guard pause == suggesting.wordsPause, codingModeReadsTheField() else { return }
+            // Typing paused: Code's words read again, by the shell after the key (`SessionOutput.readField`, this pause's
+            // id below 0).
+            guard pause == suggesting.wordsPause, codeReadsTheField() else { return }
             suggesting.wordsReading = pause
             emit(.readField(id: -pause))
         }
     }
 
-    /// What the field said once typing paused (`SuggestionsTimer.words`, `pause`): coding mode's words and the caret's
-    /// line's indentation from its text, the rows made again with them.
+    /// What the field said once typing paused (`SuggestionsTimer.words`, `pause`): Code's words and the caret's line's
+    /// indentation from its text, the rows made again with them.
     func suggestionsFieldRead(_ context: FieldContext, pause: Int) {
         guard pause == suggesting.wordsReading else { return }
         suggesting.wordsReading = nil
-        guard context.read.contains(.secure), !context.secure, codingModeReadsTheField(), context.read.contains(.text),
+        guard context.read.contains(.secure), !context.secure, codeReadsTheField(), context.read.contains(.text),
               let text = context.text else { return }
         (suggesting.words, suggesting.indent) = (CodingRows.words(text), CodingRows.indent(text.before))
         log.notice("suggestions: the field's words read (\(suggesting.words.count))")
         if !suggesting.token.isEmpty { suggestionsUpdate() }
     }
 
-    /// A modifier changed: Shift down on its own starts the long press the chooser opens after (`TranslateMode.ShiftHold`:
-    /// not with fn or another modifier held, not with Sticky Keys, not the same change handed over again); anything else
-    /// ends it.
+    /// A modifier changed: Shift down on its own starts the long press that turns Translate as You Type on or off
+    /// (`TranslateMode.ShiftHold`: not with fn or another modifier held, not with Sticky Keys, not the same change handed
+    /// over again); anything else ends it.
     func suggestionsModifiers(_ change: ModifierChange) {
-        if chooserPress.flagsChanged(key: change.key, modifiers: change.modifiers) {
+        if shiftHold.flagsChanged(key: change.key, modifiers: change.modifiers) {
             suggesting.shift += 1
-            emit(.startTimer(.suggestions(.chooserHint(suggesting.shift)), after: TranslateMode.ShiftHold.hintAfter))
-            emit(.startTimer(.suggestions(.chooser(suggesting.shift)), after: Self.chooserHold))
-        } else if chooserPress.held == nil {
+            emit(.startTimer(.suggestions(.holdHint(suggesting.shift)), after: TranslateMode.ShiftHold.hintAfter))
+            emit(.startTimer(.suggestions(.hold(suggesting.shift)), after: TranslateMode.ShiftHold.toggleAfter))
+        } else if shiftHold.held == nil {
             suggesting.shift += 1
-            chooserHintEnds()
+            holdHintEnds()
         }
     }
 
-    /// The press ended short of the chooser (released, a key, another modifier), or the chooser came: its hint goes, if
-    /// it's still the notice up.
-    func chooserHintEnds() {
+    /// The press ended short of its time (released, a key, another modifier), or its time came: its hint goes, if it's
+    /// still the notice up.
+    func holdHintEnds() {
         guard let hint = suggesting.hint else { return }
         suggesting.hint = nil
         _ = endNotice(hint)
@@ -276,9 +266,9 @@ extension InputSession {
 
     /// Modifier changes may have gone unseen (secure input, another field): no press, Shift as it is now.
     func suggestionsModifiersMissed(shiftDown: Bool) {
-        chooserPress.resync(shiftDown: shiftDown)
+        shiftHold.resync(shiftDown: shiftDown)
         suggesting.shift += 1
-        chooserHintEnds()
+        holdHintEnds()
     }
 
     /// Another app became active (the shell's), with a text field or not: Shift's changes go there now. A long press of
@@ -296,7 +286,7 @@ extension InputSession {
     func suggestionsFieldWants(for key: KeyEvent) -> FieldContext.Parts {
         var wants: FieldContext.Parts = []
         if suggesting.shown { wants.insert(.selectedRange) }
-        if let row = suggestionsRowPut(by: key), row.insertion.contains(where: \.isNewline), codingModeReadsTheField() {
+        if let row = suggestionsRowPut(by: key), row.insertion.contains(where: \.isNewline), codeReadsTheField() {
             wants.insert(.text)
         }
         return wants
@@ -305,7 +295,7 @@ extension InputSession {
     /// The row `key` would put in where rows show (`suggestionsBeforeKey`): Tab's, or Return's
     /// (`suggestionsReturnRow`); nil: none.
     func suggestionsRowPut(by key: KeyEvent) -> SuggestionRow? {
-        guard suggesting.shown, suggesting.chooser == nil, !suggesting.rows.isEmpty, !composer.isComposing,
+        guard suggesting.shown, !suggesting.rows.isEmpty, !composer.isComposing,
               key.modifiers.subtracting(.capsLock).subtracting(.sides).isEmpty else { return nil }
         switch (suggesting.appClass, key.key) {
         case (.ordinary, .tab): return suggesting.rows[suggesting.highlighted]
@@ -316,8 +306,8 @@ extension InputSession {
     }
 
     /// The row Return puts in while the rows show; nil: Return is the app's. In an ordinary app the highlighted row once
-    /// ↓/↑ moved it, or at once where it is coding mode's (spec 2: as in an IDE); in a code editor the first row, where it
-    /// is coding mode's (the arrows are the editor's). Never in chat apps (Return sends) or terminals (it runs the
+    /// ↓/↑ moved it, or at once where it is Code's (decision 20: as in an IDE); in a code editor the first row, where it
+    /// is Code's (the arrows are the editor's). Never in chat apps (Return sends) or terminals (it runs the
     /// command), nor a coding row that adds nothing to what was typed (a snippet's trigger typed in full, in a code
     /// editor): the app has Return then.
     func suggestionsReturnRow() -> SuggestionRow? {
@@ -334,19 +324,18 @@ extension InputSession {
         }
     }
 
-    /// Before the composer has `event`: the chooser's keys while it is open; the rows' keys of the app's class while they
-    /// show (spec 1.4: Tab, ↓ ↑, Return once moved or on a coding row, Esc; digits never). Nil: the key goes on.
+    /// Before the composer has `event`: the rows' keys of the app's class while they show (spec 1.4: Tab, ↓ ↑, Return
+    /// once moved or on a Code row, Esc; digits never). Nil: the key goes on.
     func suggestionsBeforeKey(_ event: KeyEvent, _ context: FieldContext) -> Bool? {
         // A key while Shift is held is no long press of it.
-        chooserPress.keyDown()
+        shiftHold.keyDown()
         suggesting.shift += 1
-        chooserHintEnds()
+        holdHintEnds()
         suggesting.lastKeyAt = services.uptime()
         suggesting.ranges = context.read.contains(.selectedRange) && context.selectedRange != nil
-        if let highlighted = suggesting.chooser { return chooserKey(event, highlighted) }
         // The caret's line as the field tells it now: a snippet the key puts in is indented as it is.
         if context.read.contains(.text), let text = context.text, CodingRows.indent(text.before) != suggesting.indent,
-           codingModeReadsTheField() {
+           codeReadsTheField() {
             suggesting.indent = CodingRows.indent(text.before)
             if suggesting.shown { suggestionsUpdate() }
         }
@@ -408,7 +397,7 @@ extension InputSession {
             }
         }
         suggestionsFollowed(started: started, mayShow: mayShow, at: now)
-        if codingModeReadsTheField() {
+        if codeReadsTheField() {
             // The field told its text with the key (a shell where that's cheap): its words now.
             if context.read.contains(.text), let text = context.text {
                 (suggesting.words, suggesting.indent) = (CodingRows.words(text), CodingRows.indent(text.before))
@@ -517,9 +506,9 @@ extension InputSession {
         return true
     }
 
-    /// What the completions of all the rows for the token that answer `typed` (the whole token, or coding's identifier)
+    /// What the completions of all the rows for the token that answer `typed` (the whole token, or Code's identifier)
     /// start with, in any case (`commonPrefix`): the plugins' items (looked through until nothing more is shared) and
-    /// coding mode's.
+    /// Code's.
     func suggestionsSharedCompletion(_ typed: String) -> String {
         let s = services.suggestions
         let appClass = SuggestionsAppClass(app: app, terminal: terminal)
@@ -549,9 +538,10 @@ extension InputSession {
             }
             if !more { break sources }
         }
-        if s.codingMode(), common.map({ $0.count > typed.count }) ?? true {
+        if composer.coding, common.map({ $0.count > typed.count }) ?? true {
             let identifier = SuggestionsToken.identifier(endingAt: SuggestionsToken.normalized(token))
-            for row in CodingRows.rows(identifier, packs: s.codingPacks(), words: terminal ? [] : suggesting.words, appClass: appClass, in: t)
+            for row in CodingRows.rows(identifier, pack: codePack(services.loadSettings()), words: terminal ? [] : suggesting.words,
+                                       appClass: appClass, in: t)
             where row.typed == typed {
                 if !share(row.completion) { break }
             }
@@ -586,9 +576,9 @@ extension InputSession {
         suggestionsShow()
     }
 
-    /// The panel as the rows and the chooser have it now: shown, or (theirs gone) back to the composer's.
+    /// The panel as the rows have it now: shown, or (theirs gone) back to the composer's.
     func suggestionsShow() {
-        if suggesting.chooser != nil || !suggesting.rows.isEmpty {
+        if !suggesting.rows.isEmpty {
             suggesting.shown = true
             if let panel = suggestionsPanel() { emit(.panel(panel)) }
         } else if suggesting.shown {
@@ -598,7 +588,7 @@ extension InputSession {
     }
 
     /// The rows for the token (5 at most) and the class of app they are for: the plugins' sources that apply (their
-    /// list's and queries' items, those picked before first), coding mode's (the packs', the field's words). None while
+    /// list's and queries' items, those picked before first), Code's (its coding language's pack, the field's words). None while
     /// something is composed, in secure input, in a password field or one not known to be none yet (`passwordField`),
     /// where a switch is off or the app has none (spec 1.5). Asks the queries
     /// due (spec 6.4) and marks the sources used. Each source's items are looked through only for what matches, until
@@ -607,7 +597,7 @@ extension InputSession {
         let appClass = SuggestionsAppClass(app: app, terminal: terminal)
         let s = services.suggestions
         let settings = s.settings()
-        guard !suggesting.token.isEmpty, !suggesting.dead, suggesting.hiddenFor != suggesting.token, suggesting.chooser == nil,
+        guard !suggesting.token.isEmpty, !suggesting.dead, suggesting.hiddenFor != suggesting.token,
               !composer.isComposing, !composer.wantsPanel, !secureInputActive(), passwordField == false, appClass != .none,
               suggestionsOn(settings)
         else { return ([], appClass) }
@@ -634,19 +624,19 @@ extension InputSession {
             }
         }
         rows = Frecency.ordered(rows, scores: scores)
-        if s.codingMode() {
+        if composer.coding {
             let identifier = SuggestionsToken.identifier(endingAt: SuggestionsToken.normalized(token))
-            rows += Frecency.ordered(CodingRows.rows(identifier, packs: s.codingPacks(), words: terminal ? [] : suggesting.words,
-                                                     indent: suggesting.indent, appClass: appClass, in: t), scores: scores)
+            rows += Frecency.ordered(CodingRows.rows(identifier, pack: codePack(services.loadSettings()),
+                                                     words: terminal ? [] : suggesting.words, indent: suggesting.indent,
+                                                     appClass: appClass, in: t), scores: scores)
         }
         return (Array(rows.prefix(Self.maxSuggestionRows)), appClass)
     }
 
-    /// The panel of the rows (or the chooser): no number on a row (digits are typed, spec 6.1), the keys of the app's
-    /// class in the footer, the source and its list's age (once older than 10 minutes) on its right, or the notice. The
-    /// highlighted row is drawn chosen only where Return takes it: until then it is only the row Tab takes.
+    /// The panel of the rows: no number on a row (digits are typed, spec 6.1), the keys of the app's class in the footer,
+    /// the source and its list's age (once older than 10 minutes) on its right, or the notice. The highlighted row is
+    /// drawn chosen only where Return takes it: until then it is only the row Tab takes.
     func suggestionsPanel() -> PanelModel? {
-        if let highlighted = suggesting.chooser { return chooserPanel(highlighted) }
         guard suggesting.shown, let first = suggesting.rows.first else { return nil }
         let t = InterfaceWords(language: UIText.language)
         let rows = suggesting.rows.enumerated().map { index, row in
@@ -832,100 +822,20 @@ extension InputSession {
         return text.isEmpty ? tr("插件出错了", "The plugin failed") : text
     }
 
-    // MARK: - The chooser (spec 2, 6.2)
+    // MARK: - The long press of Shift (decision 22)
 
-    /// Translate as You Type came on otherwise than from the chooser (an app set to translate always, as a field of it
-    /// took the focus: the shell's): coding mode, exclusive with it, goes off, its rows with it. What the shell is to do.
-    public func translateAsYouTypeCameOn() -> [SessionOutput] {
-        collect {
-            let s = services.suggestions
-            guard s.codingMode() else { return }
-            s.setCodingMode(false)
-            log.notice("coding mode off (Translate as You Type came on)")
-            applyCodingMode()
-            suggestionsUpdate()
-        }
-    }
-
-    func chooserOpen() {
+    /// Shift held on its own long enough: Translate as You Type on or off, as in 0.6.6 (the shell's, which says so). Not in
+    /// Code, where it can't run: said, and nothing changes (the input stays Code).
+    func shiftHoldToggles() {
         guard !secureInputActive() else { return }
-        // The mode that is on highlighted (⏎ turns it off), else Translate as You Type.
-        suggesting.chooser = services.suggestions.codingMode() ? 1 : 0
-        log.notice("the chooser of Translate as You Type and coding mode opened")
-        suggestionsShow()
-    }
-
-    /// The chooser's keys: ↑ ↓ move, 1 or 2 and Return choose, Esc closes; any other key closes it and goes on.
-    func chooserKey(_ event: KeyEvent, _ highlighted: Int) -> Bool? {
-        let plain = event.modifiers.subtracting(.capsLock).subtracting(.sides).subtracting(.shift).isEmpty
-        switch event.key {
-        case .arrow(.down), .arrow(.up):
-            suggesting.chooser = 1 - highlighted
-            suggestionsShow()
-            return true
-        case .enter, .keypadEnter:
-            chooserChoose(highlighted)
-            return true
-        case .escape:
-            chooserClose()
-            return true
-        case .character where plain && (event.characters == "1" || event.characters == "2"):
-            chooserChoose(event.characters == "1" ? 0 : 1)
-            return true
-        default:
-            chooserClose()
-            return nil
-        }
-    }
-
-    func chooserClose() {
-        suggesting.chooser = nil
-        suggestionsUpdate()
-    }
-
-    /// Translate as You Type (0) or coding mode (1) chosen: turned on, the other off (they're exclusive); the one on
-    /// turned off.
-    func chooserChoose(_ index: Int) {
         let s = services.suggestions
-        let t = InterfaceWords(language: UIText.language)
-        // The chooser goes first: what the mode then says (its notice) stays up.
-        suggesting.chooser = nil
-        suggestionsUpdate()
-        if index == 0 {
-            if s.translateAsYouType() {
-                s.setTranslateAsYouType(false)
-            } else {
-                if s.codingMode() {
-                    s.setCodingMode(false)
-                    applyCodingMode()
-                }
-                s.setTranslateAsYouType(true)
-            }
-            log.notice("Translate as You Type \(s.translateAsYouType() ? "on" : "off") (the chooser)")
-        } else {
-            let on = !s.codingMode()
-            if on, s.translateAsYouType() { s.setTranslateAsYouType(false) }
-            s.setCodingMode(on)
-            log.notice("coding mode \(on ? "on" : "off") (the chooser)")
-            applyCodingMode()
-            suggestionsUpdate()
-            say(on ? t.tr("编码模式已开：关键字、代码片段和字段里的词，Tab 补全", "Coding mode on: keywords, snippets and the field's words, Tab completes")
-                   : t.tr("编码模式已关", "Coding mode off"))
+        guard !composer.coding else {
+            log.notice("a long press of Shift in Code: Translate as You Type isn't available there")
+            say(InterfaceWords(language: UIText.language).tr("代码输入里不能边打边译", "Translate as You Type isn't available in Code"))
+            return
         }
-    }
-
-    func chooserPanel(_ highlighted: Int) -> PanelModel {
-        let s = services.suggestions
-        let t = InterfaceWords(language: UIText.language)
-        let on = t.tr("已开：再选一次就关", "On: choose it again to turn it off")
-        let rows = [
-            PanelModel.Row(label: "1", text: t.tr("边打边译", "Translate as You Type"), comment: s.translateAsYouType() ? on : "",
-                           kind: .candidate, choice: 0),
-            PanelModel.Row(label: "2", text: t.tr("编码模式", "Coding mode"), comment: s.codingMode() ? on : "", kind: .candidate, choice: 1),
-        ]
-        let enter = Platform.current.terms.enter
-        return PanelModel(rows: rows, highlighted: highlighted,
-                          footer: t.tr("↑↓ 或 1–2 选，\(enter) 确定，Esc 取消", "↑↓ or 1–2 to choose, \(enter) to confirm, Esc to cancel"),
-                          detail: notice)
+        let on = !s.translateAsYouType()
+        s.setTranslateAsYouType(on)
+        log.notice("Translate as You Type \(on ? "on" : "off") (a long press of Shift)")
     }
 }

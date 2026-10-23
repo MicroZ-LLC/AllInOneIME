@@ -62,25 +62,25 @@ public final class InputSession {
     private var englishWordsMadeOf: [String]?
     /// The words typed in English mode in this field, learned once they stand (`learnTypedInEnglish`).
     private var englishModeWords = EnglishModeWords()
-    /// The default input mode last applied (applied again when the setting changes).
-    private var appliedDefaultInput: Language?
+    /// The default input last applied (applied again when the setting changes).
+    private var appliedDefaultInput: Input?
     /// A dead key typed before the next key.
     private var deadKeys = DeadKeyComposer()
     /// The last character the user typed straight into the field (`characterBeforeCaret`).
     var lastTyped = LastTyped()
     /// Autocomplete in this field (InputSession+Autocomplete.swift).
     var autocomplete = AutocompleteField()
-    /// Suggestions in this field: the token, its rows, the chooser (InputSession+Suggestions.swift), and the long press
-    /// of Shift that opens the chooser, timed on the session's clock.
+    /// Suggestions in this field: the token, its rows (InputSession+Suggestions.swift), and the long press of Shift that
+    /// turns Translate as You Type on and off, timed on the session's clock.
     var suggesting = SuggestionsField()
     /// The field that has the focus is a password field where secure input isn't on, as the shell told it
     /// (`FieldContext.Parts.passwordField`: the Mac asks Accessibility once a field, and with each read autocomplete's
     /// pause makes); nil until told. Autocomplete and suggestions both go by it; one told stays one until another field
     /// takes the focus.
     var passwordField: Bool?
-    lazy var chooserPress = TranslateMode.ShiftHold(now: { [weak self] in self?.services.uptime() ?? 0 },
-                                                   pointer: { [weak self] in self?.services.suggestions.pointer() ?? .zero },
-                                                   stickyKeys: { [weak self] in self?.services.suggestions.stickyKeys() ?? false })
+    lazy var shiftHold = TranslateMode.ShiftHold(now: { [weak self] in self?.services.uptime() ?? 0 },
+                                                 pointer: { [weak self] in self?.services.suggestions.pointer() ?? .zero },
+                                                 stickyKeys: { [weak self] in self?.services.suggestions.stickyKeys() ?? false })
     /// Shown once each time composing is paused for secure input.
     private var secureNoticeShown = false
     /// The key being handled, and what the field said with it; the field's text as last read (`@reply` after dictation).
@@ -163,7 +163,7 @@ public final class InputSession {
                 perform(composer.commitAll())
                 suggestionsClicked()
             case let .pick(row):
-                // Suggestions' rows and the chooser put in, or choose, what a click picks.
+                // Suggestions' rows put in what a click picks.
                 if suggestionsPick(row) { return }
                 // What a click on the row picks (`PanelModel.Row.choice`): its number's, a conversation's answer by its
                 // round, nothing for a question.
@@ -177,7 +177,7 @@ public final class InputSession {
                 perform(composer.pasted(secureInputActive() ? .none : content, id: id))
             case let .field(context, id):
                 takePasswordField(context)
-                // Below 0: coding mode's read of the field's words; else autocomplete's.
+                // Below 0: Code's read of the field's words; else autocomplete's.
                 if id < 0 { suggestionsFieldRead(context, pause: -id) } else { autocompleteRead(context, id: id) }
             case let .task(id, update):
                 guard tasks.isCurrent(id) else { return }
@@ -371,9 +371,10 @@ public final class InputSession {
     }
 
     /// Whether a key goes straight to the app as English typed (a tap of Shift: English mode), with nothing composed: what
-    /// `EnglishModeWords` follows. Only with English words among pinyin's candidates (`englishWords`).
+    /// `EnglishModeWords` follows. Only with English words among pinyin's candidates (`englishWords`); never in Code, whose
+    /// letters are code (no English words are learned there).
     private var typesEnglishStraightIn: Bool {
-        englishWords != nil && !composer.isComposing && composer.inputLanguage == .english
+        englishWords != nil && !composer.isComposing && composer.inputLanguage == .english && !composer.coding
     }
 
     /// The key went to the app (`passedOn`), else the input method took it (what it put in was told as it went in):
@@ -464,21 +465,29 @@ public final class InputSession {
         composer.hangulTables = services.hangulTables()
         composer.hindiTables = services.hindiTables()
         let languages = services.usableLanguages(config.inputLanguages)
-        // Coding mode starts each field in English (Suggestions).
-        let defaultInput = services.suggestions.codingMode() && languages.contains(.english)
-            ? .english : config.startingInput(in: app, among: languages)
+        // Code, once its pack is installed (as a language once its pack is), named with its coding language.
+        let code = codePack(config)
+        let leftCode = composer.coding && code == nil
         composer.inputLanguages = languages
-        // With one input language, a field is always in it (it may have been switched before it was the only one).
-        let onlyOne = languages.count == 1
-        if appliedDefaultInput != defaultInput || onlyOne, composer.engine != nil, !composer.isComposing {
-            composer.setInputMode(defaultInput)
+        composer.hasCode = code != nil
+        composer.messages.codeMode = SessionText.inputName(.code, language: UIText.language,
+                                                           coding: config.codingLanguage.map { CodingLanguagePack.title(of: $0) })
+        let defaultInput = config.startingInput(in: app, among: languages, code: code != nil)
+        // With one input, a field is always in it (it may have been switched before it was the only one); a field in
+        // Code no longer there is in its default input again.
+        let onlyOne = languages.count == 1 && code == nil
+        if appliedDefaultInput != defaultInput || onlyOne || leftCode, composer.engine != nil, !composer.isComposing {
+            composer.setInput(defaultInput)
             appliedDefaultInput = defaultInput
         }
         emit(.keyboardLayout)
     }
 
-    /// Coding mode turned on or off here (the chooser): the field's default input applied again.
-    func applyCodingMode() { settings(app: nil) }
+    /// The Code input's pack (`Config.codingLanguage`), when it is installed: its rows are Code's. Nil: no Code here.
+    func codePack(_ config: Config) -> CodingLanguagePack? {
+        guard let language = config.codingLanguage else { return nil }
+        return services.suggestions.codingPacks().first { $0.language == language }
+    }
 
     /// What the keys and places are called here (`Platform.terms`), the keys by the roles the composer acts on
     /// (`Composer.modifierRoles`), as the panel names them (`PanelPresenter.model(for:)`).
@@ -592,7 +601,7 @@ public final class InputSession {
            key.key == .enter || key.key == .keypadEnter || key.key == .space || composer.isActionKey(key) {
             wants.insert(.text)
         }
-        // Suggestions: the selection where rows show, the field's words in coding mode.
+        // Suggestions: the selection where rows show, the field's words in Code.
         if !composer.isComposing { wants.formUnion(suggestionsFieldWants(for: key)) }
         return wants
     }
@@ -638,7 +647,7 @@ public final class InputSession {
         }
         // Autocomplete's suggestion: Tab puts it in, Esc takes it down; any key ends its pause and stops its request.
         if let taken = autocompleteBeforeKey(event) { return taken }
-        // Suggestions' rows take their keys (Tab, the arrows, Return, Esc, by the app's class), the chooser its own.
+        // Suggestions' rows take their keys (Tab, the arrows, Return, Esc, by the app's class).
         if let taken = suggestionsBeforeKey(event, context) { return taken }
         ensureLevelOne()
         // Commands added to the config apply from the next sentence on (the file is re-read only when it changed).
@@ -703,7 +712,7 @@ public final class InputSession {
             return
         }
         ensureLevelOne()
-        suggestionsModifiers(change)  // a long press of Shift opens the chooser
+        suggestionsModifiers(change)  // a long press of Shift turns Translate as You Type on or off
         // The key was held up to the event; the pointer is asked later, so look back that much further.
         let (late, pointerUsedWithin) = (change.late, services.pointerUsedWithin)
         composer.pointerUsedWithin = { pointerUsedWithin($0 + late) }
@@ -789,8 +798,8 @@ public final class InputSession {
                 emit(.marked(text, cursor: String(text.prefix(composer.markedCursor)).utf16.count, converted: composer.isLevelTwo))
             case let .inputLanguageChanged(language):
                 emit(.keyboardLayout)
-                if language != .english, englishWords != nil {
-                    // Out of English mode (a tap of Shift into Chinese): the word typed ends there.
+                if language != .english || composer.coding, englishWords != nil {
+                    // Out of English mode (a tap of Shift into Chinese, or into Code): the word typed ends there.
                     let now = ProcessInfo.processInfo.systemUptime
                     learnTypedInEnglish(englishModeWords.leftEnglish(at: now, pointerUsedSince: pointerUsedSince(now: now)))
                 }
@@ -1424,13 +1433,13 @@ public final class InputSession {
 
     // MARK: - The candidate panel and notices
 
-    /// The candidate panel as it is now: suggestions' rows or chooser where they show, else the composer's
+    /// The candidate panel as it is now: suggestions' rows where they show, else the composer's
     /// (`PanelPresenter`).
     public func panelModel() -> PanelModel { suggestionsShownPanel() ?? panelPresenter().model(for: composer) }
 
-    /// Suggestions' panel, where it is the one shown: the chooser, or the rows with nothing composed.
+    /// Suggestions' panel, where it is the one shown: the rows with nothing composed.
     private func suggestionsShownPanel() -> PanelModel? {
-        guard suggesting.chooser != nil || suggesting.shown && !composer.wantsPanel else { return nil }
+        guard suggesting.shown && !composer.wantsPanel else { return nil }
         return suggestionsPanel()
     }
 

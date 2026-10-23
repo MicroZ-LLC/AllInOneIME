@@ -128,10 +128,10 @@ struct SuggestionsTests {
             .init(trigger: "def", body: "def ${1:name}(${2}):\n    $0", title: "function"),
             .init(trigger: "name", body: "${1:name} = $0", title: "assignment"),
         ])
-        let def = try #require(CodingRows.rows("de", packs: [pack], words: [], appClass: .ordinary, in: t).first)
+        let def = try #require(CodingRows.rows("de", pack: pack, words: [], appClass: .ordinary, in: t).first)
         #expect(def.insertion == "def ():\n    " && def.caretBack == 8 && def.plainInsertion == "def name():\n    ")
         #expect(def.rest(ranges: true) == "f ():\n    " && def.rest(ranges: false) == "f name():\n    ")
-        let name = try #require(CodingRows.rows("na", packs: [pack], words: [], appClass: .ordinary, in: t).first)
+        let name = try #require(CodingRows.rows("na", pack: pack, words: [], appClass: .ordinary, in: t).first)
         #expect(name.insertion == "name = " && name.caretBack == 0 && name.plainInsertion == nil, "\(name)")
     }
 
@@ -583,12 +583,12 @@ struct SuggestionsTests {
         #expect((try? service.set("plugins.preference.github.repos", to: .string("octo-org/octo-repo")).get()) != nil)
         #expect(try Config.load(from: url).pluginPreferences == ["github": ["repos": "octo-org/octo-repo"]])
         #expect(service.document().field("suggestions")?.value == .bool(true))
-        #expect(service.document().field("codingLanguages.installed")?.items?.isEmpty == true)
+        #expect(service.document().field("code.installed")?.items?.isEmpty == true)
     }
 
-    /// Suggestions' switch is General's, not Coding Languages', on both platforms, saying what it covers (the input menu
-    /// only on the Mac, which has one), and turned off it is written as false. Off, coding mode and a plugin's source
-    /// that is on say nothing of theirs shows, and where Suggestions are turned on.
+    /// Suggestions' switch is General's, not Input's, on both platforms, saying what it covers (the input menu only on the
+    /// Mac, which has one), and turned off it is written as false. Off, the Code input and a plugin's source that is on say
+    /// nothing of theirs shows, and where Suggestions are turned on.
     @Test func suggestionsSwitchIsInGeneral() async throws {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("suggestions-general-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: folder) }
@@ -604,19 +604,22 @@ struct SuggestionsTests {
                 func section(_ id: String) -> [String] {
                     service.document().sections.first { $0.id == id }?.fields.map(\.id) ?? []
                 }
-                #expect(section("general").contains("suggestions") && !section("codingLanguages").contains("suggestions"),
+                #expect(section("general").contains("suggestions") && !section("input").contains("suggestions"),
                         "\(platform): \(section("general"))")
                 let help = try #require(service.document().field("suggestions")?.help)
-                #expect(help.contains("Plugins") && help.contains("Coding Languages") && help.contains("input menu") == (platform == .mac),
-                        "\(platform): \(help)")
-                #expect(service.document().field("codingLanguages.mode")?.status == nil)
+                #expect(help.contains("Plugins") && help.contains("Code's keywords") && help.contains("see Input")
+                        && help.contains("input menu") == (platform == .mac), "\(platform): \(help)")
+                // Code in Python, its pack installed: nothing to say of it yet.
+                try CodingPackStore(directory: folder.appendingPathComponent("CodingPacks", isDirectory: true)).keep(Self.pack(), language: "python")
+                #expect((try? service.set("codingLanguage", to: .string("python")).get()) != nil)
+                #expect(service.document().field("codingLanguage")?.status == nil)
                 #expect((try? service.set("plugins.completion.github.issues", to: .bool(true)).get()) != nil)
                 #expect(service.document().field("plugins.completion.github.issues")?.status?.contains("Suggestions are off") != true)
                 #expect((try? service.set("suggestions", to: .bool(false)).get()) != nil)
                 #expect(try Config.load(from: url).suggestions == false)
                 #expect(service.document().field("suggestions")?.value == .bool(false))
-                #expect(service.document().field("codingLanguages.mode")?.status
-                        == "Suggestions are off, so coding mode shows no rows: turn them on in General.")
+                #expect(service.document().field("codingLanguage")?.status
+                        == "Suggestions are off, so Code shows no rows: turn them on in General.")
                 #expect(service.document().field("plugins.completion.github.issues")?.status
                         == "Suggestions are off, so these completions don't show: turn them on in General.")
                 #expect((try? service.set("suggestions", to: .bool(true)).get()) != nil)

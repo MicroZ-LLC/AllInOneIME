@@ -109,8 +109,6 @@ enum SuggestionsShared {
         services.cacheFolder = cacheFolder
         services.preferences = { plugin in pluginPreferences(plugin) }
         services.codingPacks = { MainActor.assumeIsolated { codingPacks } }
-        services.codingMode = { MainActor.assumeIsolated { codingMode } }
-        services.setCodingMode = { on in MainActor.assumeIsolated { codingMode = on } }
         services.translateAsYouType = { MainActor.assumeIsolated { TranslateModeShared.state.isOn } }
         services.setTranslateAsYouType = { on in MainActor.assumeIsolated { field.value?.setTranslateMode(on) } }
         services.loadPicks = { MainActor.assumeIsolated { picks.all } }
@@ -121,16 +119,8 @@ enum SuggestionsShared {
         services.stickyKeys = { MainActor.assumeIsolated { TranslateModeShared.stickyKeys() } }
         services.shiftHeld = { MainActor.assumeIsolated { TranslateModeShared.shiftHeld() } }
         services.shiftDown = { MainActor.assumeIsolated { TranslateModeShared.shiftDown() } }
-        services.chooserHint = { MainActor.assumeIsolated { chooserHint } }
+        services.holdHint = { MainActor.assumeIsolated { field.value?.translateModeHoldHint() } }
         return services
-    }
-
-    /// Half way through a long press of Shift, near the caret: what keeping on holding leads to (the chooser opens with
-    /// that mode highlighted).
-    static var chooserHint: String {
-        if TranslateModeShared.state.isOn { return tr("继续按住 → 关闭边打边译", "Keep holding → Translate as You Type off") }
-        if codingMode { return tr("继续按住 → 关闭编码模式", "Keep holding → Coding mode off") }
-        return tr("继续按住 → 边打边译", "Keep holding → Translate as You Type")
     }
 
     /// `plugin`'s preferences as the user set them (off the main thread: the passwords come from the keychain): the

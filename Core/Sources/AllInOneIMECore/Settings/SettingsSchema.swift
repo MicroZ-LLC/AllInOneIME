@@ -76,7 +76,6 @@ struct SettingsSchema {
             SettingsDocument.Section(id: "agent", title: tr("Agent", "Agent"), fields: agent()),
             SettingsDocument.Section(id: "apps", title: tr("按 App 设置", "Apps"), fields: apps()),
             SettingsDocument.Section(id: "plugins", title: tr("插件", "Plugins"), fields: plugins()),
-            SettingsDocument.Section(id: "codingLanguages", title: tr("编程语言", "Coding Languages"), fields: codingLanguages()),
             SettingsDocument.Section(id: "extensions", title: tr("脚本扩展", "Script Extensions"),
                                      footer: tr("每个脚本是一个 @ 命令，名字取自文件名（convert-timestamp.sh → @converttimestamp）。参数写在命令后面，多个用逗号隔开：@flights beijing, new york。脚本可以上屏结果、显示进度、给出列表来选，或在后台运行，完成后通知你。写法见 docs/extensions.md。",
                                                 "Each script is an @ command named after its file (convert-timestamp.sh → @converttimestamp). Write its arguments after it, with commas between: @flights beijing, new york. A script can insert its result, show progress, offer a list to pick from, or run in the background and notify you. See docs/extensions.md for how to write one.")
@@ -281,6 +280,8 @@ struct SettingsSchema {
         add(languages, to: &fields) { value in
             store.config.setOrder(Self.strings(value).compactMap(Language.init(rawValue:)))
         }
+        // Code, after the languages and apart from them (decision 22).
+        code(&fields)
         add(choice("candidateLayout", tr("候选排列", "Candidate layout"),
                    UIText.triggered(config.candidateLayout == .horizontal
                        ? tr("选词（拼音、印地语）的候选并排（默认），像系统自带的输入法：← → 选词，↑↓ 或 - = 翻页。@ 命令列表和结果还是竖排。在下一个输入框生效。",

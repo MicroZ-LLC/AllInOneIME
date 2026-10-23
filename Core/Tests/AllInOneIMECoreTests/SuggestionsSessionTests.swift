@@ -303,19 +303,18 @@ extension SuggestionsSessionTests {
         }
     }
 
-    /// Coding mode turned on with the chooser in a password field Accessibility tells: no rows for what was typed there,
-    /// its words never read. A key while the chooser is open asks (it may turn coding mode on).
-    @Test func codingModeTurnedOnInAPasswordFieldShowsNoRows() async throws {
+    /// Code reached with a tap of Shift in a password field Accessibility tells: no rows for what was typed there, its
+    /// words never read. The first key in Code asks (rows may show from then on).
+    @Test func codeInAPasswordFieldShowsNoRows() async throws {
         try await inEnglish {
             for password in [true, false] {
-                let world = try SuggestionsCodingAcceptanceTests.coding()
-                world.codingMode = false
+                let world = SuggestionsWorld()
+                world.addCode("python", packs: [try SuggestionsCodingPacksTests.shipped("python")])
                 let field = world.field()
                 #expect(typeAsTheMac("de", into: field, passwordField: password) == 0, "no rows may show: nothing asked")
-                field.holdShift()
-                #expect(pressAsTheMac(SuggestionKeys.digit(2), in: field, passwordField: password).askedPassword)
-                #expect(world.codingMode)
-                typeAsTheMac("f", into: field, passwordField: password)
+                field.tapShift()
+                #expect(field.host.composer.coding, "a tap of Shift: Code")
+                #expect(pressAsTheMac(SuggestionKeys.key("f"), in: field, passwordField: password).askedPassword)
                 field.pause(1)
                 if password {
                     #expect(field.rows.isEmpty, "\(field.rows.map(\.text))")
@@ -334,13 +333,13 @@ extension SuggestionsSessionTests {
         text.filter { pressAsTheMacDoes(SuggestionKeys.key($0), in: field) }.count
     }
 
-    /// Coding mode reads the field's text once a pause in typing (spec 2: "read once per pause"), asked of the shell after
-    /// it (`SessionOutput.readField`), never with a key; its words are rows from then on.
-    @Test func codingModeReadsTheFieldOncePerPause() async throws {
+    /// Code reads the field's text once a pause in typing (spec 2: "read once per pause"), asked of the shell after it
+    /// (`SessionOutput.readField`), never with a key; its words are rows from then on.
+    @Test func codeReadsTheFieldOncePerPause() async throws {
         try await inEnglish {
             let world = SuggestionsWorld()
-            world.codingMode = true
-            let field = world.field()
+            world.addCode("example", packs: [Self.pack])
+            let field = world.codeField()
             let reads = typeAsTheMacDoes("total_amount = total_amount + to", into: field)
             #expect(reads == 0, "a key asked for the field's text \(reads) times")
             #expect(field.host.fieldReads == 0, "no pause yet: \(field.host.fieldReads) reads")
@@ -356,13 +355,13 @@ extension SuggestionsSessionTests {
         case masterOff, appOff, remoteDesktop, virtualMachine, sshClient, launcher
     }
 
-    /// Where no rows may show (Suggestions off in the input menu or for the app; a remote desktop, virtual machine, SSH
-    /// client or launcher) coding mode reads nothing of the field: not once typing pauses, nor with a key.
+    /// Where no rows may show (Suggestions off, or off for the app; a remote desktop, virtual machine, SSH client or
+    /// launcher) Code reads nothing of the field: not once typing pauses, nor with a key.
     @Test(arguments: NoRows.allCases)
-    func codingModeReadsNothingOfTheFieldWhereNoRowsMayShow(_ place: NoRows) async throws {
+    func codeReadsNothingOfTheFieldWhereNoRowsMayShow(_ place: NoRows) async throws {
         try await inEnglish {
             let world = SuggestionsWorld()
-            world.codingMode = true
+            world.addCode("example", packs: [Self.pack])
             var app = SuggestionsApps.editor
             switch place {
             case .masterOff: world.switches.master = false
@@ -372,7 +371,8 @@ extension SuggestionsSessionTests {
             case .sshClient: app = SuggestionsApps.sshClient
             case .launcher: app = "com.raycast.macos"
             }
-            let field = world.field(app: app)
+            let field = world.codeField(app: app)
+            #expect(field.host.composer.coding, "\(place): Code")
             let reads = typeAsTheMacDoes("total_amount = total_amount + to", into: field)
             field.pause(1)
             #expect(reads == 0 && field.host.fieldReads == 0, "\(place): \(reads) keys asked, \(field.host.fieldReads) reads")
@@ -385,9 +385,8 @@ extension SuggestionsSessionTests {
     @Test func aSnippetIsIndentedAsTheLineIsWhenItGoesIn() async throws {
         try await inEnglish {
             let world = SuggestionsWorld()
-            world.codingMode = true
-            world.packs = [try SuggestionsCodingPacksTests.shipped("python")]
-            let field = world.field()
+            world.addCode("python", packs: [try SuggestionsCodingPacksTests.shipped("python")])
+            let field = world.codeField()
             field.host.document = "def main():\n    "
             #expect(typeAsTheMacDoes("tr", into: field) == 0)
             #expect(field.settle { field.rows.first?.comment.contains("try/except") == true }, "\(field.rows.map(\.comment))")
@@ -401,12 +400,15 @@ extension SuggestionsSessionTests {
             #expect(!pressAsTheMacDoes(SuggestionKeys.tab, in: field), "a keyword: nothing read")
         }
     }
+
+    static let pack = CodingLanguagePack(language: "example", title: "Example", version: "1.0.0", keywords: ["compute_total", "const"],
+                                         snippets: [])
 }
 
 extension SuggestionsSessionTests {
-    /// fn held with Shift is no long press of Shift (the Mac tells fn as `.function`): no chooser; a tap of Shift with fn
-    /// held still switches the input language, as it always did (the composer isn't told of fn).
-    @Test func fnHeldOpensNoChooserAndATapStillSwitches() async {
+    /// fn held with Shift is no long press of Shift (the Mac tells fn as `.function`): Translate as You Type stays as it
+    /// is; a tap of Shift with fn held still switches the input language, as it always did (the composer isn't told of fn).
+    @Test func fnHeldTogglesNothingAndATapStillSwitches() async {
         await inEnglish {
             let world = SuggestionsWorld()
             let field = world.field()
@@ -422,14 +424,14 @@ extension SuggestionsSessionTests {
             field.noteTimers()
             world.clock.advance(1.2)
             field.fireTimers()
-            #expect(field.rows.isEmpty, "fn and Shift held: no chooser (\(field.rows.map(\.text)))")
+            #expect(!world.translateAsYouType, "fn and Shift held: nothing turned on")
             field.host.modifiers(ModifierChange(key: .modifier(.shift, .left), modifiers: [.function], timestamp: world.clock.timestamp))
         }
     }
 
     /// When the long press's time comes, Shift is asked of the system (`SuggestionsServices.shiftHeld`): its release went
-    /// unseen (another app had it, an event lost), no chooser.
-    @Test func aReleaseMissedOpensNoChooser() async {
+    /// unseen (another app had it, an event lost), nothing turned on.
+    @Test func aReleaseMissedTogglesNothing() async {
         await inEnglish {
             let world = SuggestionsWorld()
             let held = Locked(initialState: true)
@@ -439,17 +441,17 @@ extension SuggestionsSessionTests {
             held.withLock { $0 = false }  // let go, unseen
             world.clock.advance(1.2)
             field.fireTimers()
-            #expect(field.rows.isEmpty, "Shift no longer down: no chooser (\(field.rows.map(\.text)))")
+            #expect(!world.translateAsYouType, "Shift no longer down: nothing turned on")
             held.withLock { $0 = true }
             field.holdShift()
-            #expect(field.rows.map(\.text) == ["Translate as You Type", "Coding mode"], "held: the chooser (\(field.rows.map(\.text)))")
+            #expect(world.translateAsYouType, "held: on")
         }
     }
 
     /// Shift went down in a field that lost the focus before Shift came up (Shift+Tab): its release reached the next
-    /// field. Back in the first, the first long press opens the chooser: the change seen last there (Shift down) is no
-    /// longer one a copy repeats.
-    @Test func aLongPressBackInAFieldLeftWithShiftDownOpensTheChooser() async {
+    /// field. Back in the first, the first long press turns Translate as You Type on: the change seen last there (Shift
+    /// down) is no longer one a copy repeats.
+    @Test func aLongPressBackInAFieldLeftWithShiftDownCounts() async {
         await inEnglish {
             let world = SuggestionsWorld()
             let (first, next) = (world.field(), world.field())
@@ -462,12 +464,12 @@ extension SuggestionsSessionTests {
             next.host.send(.blur)
             first.host.focus()
             first.holdShift()
-            #expect(first.rows.map(\.text) == ["Translate as You Type", "Coding mode"], "the first press: the chooser (\(first.rows.map(\.text)))")
+            #expect(world.translateAsYouType, "the first press: on")
         }
     }
 
     /// Another app becomes active while Shift is held in a field (`InputSession.otherAppActivated`, the shell's): the press
-    /// ends there, no chooser when its time comes; Shift as it is now, so the next press counts.
+    /// ends there, nothing turned on when its time comes; Shift as it is now, so the next press counts.
     @Test func anotherAppActiveEndsTheLongPress() async {
         await inEnglish {
             let world = SuggestionsWorld()
@@ -479,15 +481,14 @@ extension SuggestionsSessionTests {
             _ = field.host.session.otherAppActivated()
             world.clock.advance(0.6)
             field.fireTimers()
-            #expect(field.rows.isEmpty, "another app active: no chooser (\(field.rows.map(\.text)))")
+            #expect(!world.translateAsYouType, "another app active: nothing turned on")
             field.holdShift()
-            #expect(field.rows.map(\.text) == ["Translate as You Type", "Coding mode"], "the next press: the chooser (\(field.rows.map(\.text)))")
+            #expect(world.translateAsYouType, "the next press: on")
         }
     }
 
     /// A field takes the focus with Shift down already (`SuggestionsServices.shiftDown`: pressed in the field before,
-    /// Shift+Tab): Shift's down coming late (a copy, the page busy) starts no long press. Let go and held again: the
-    /// chooser.
+    /// Shift+Tab): Shift's down coming late (a copy, the page busy) starts no long press. Let go and held again: on.
     @Test func shiftDownAsAFieldTakesTheFocusStartsNoLongPress() async {
         await inEnglish {
             let world = SuggestionsWorld()
@@ -500,42 +501,17 @@ extension SuggestionsSessionTests {
             field.noteTimers()
             world.clock.advance(1.2)
             field.fireTimers()
-            #expect(field.rows.isEmpty, "Shift down before the focus came: no chooser (\(field.rows.map(\.text)))")
+            #expect(!world.translateAsYouType, "Shift down before the focus came: nothing turned on")
             field.host.modifiers(ModifierChange(key: .modifier(.shift, .left), modifiers: [], timestamp: world.clock.timestamp))
             down.withLock { $0 = false }
             field.holdShift()
-            #expect(field.rows.map(\.text) == ["Translate as You Type", "Coding mode"], "pressed again: the chooser (\(field.rows.map(\.text)))")
+            #expect(world.translateAsYouType, "pressed again: on")
         }
     }
 }
 
 extension SuggestionsSessionTests {
-    /// Translate as You Type coming on otherwise than from the chooser (an app set to translate always, as a field of it
-    /// takes the focus) turns coding mode off: the two are exclusive (spec 2) however one comes on.
-    @Test func translateAsYouTypeComingOnTurnsCodingModeOff() async {
-        await inEnglish {
-            let world = SuggestionsWorld()
-            world.codingMode = true
-            world.packs = [SuggestionsSessionTests.pack]
-            let field = world.field()
-            field.type("co")
-            #expect(field.settle { !field.rows.isEmpty }, "coding mode's rows")
-            world.translateAsYouType = true
-            field.host.send(.configChanged)
-            let outputs = field.host.session.translateAsYouTypeCameOn()
-            #expect(!world.codingMode, "coding mode off")
-            #expect(outputs.contains { if case .panel(nil) = $0 { true } else { false } }, "its rows gone: \(outputs)")
-            world.codingMode = false
-            #expect(field.host.session.translateAsYouTypeCameOn().isEmpty, "coding mode off already: nothing")
-        }
-    }
-
-    static let pack = CodingLanguagePack(language: "example", title: "Example", version: "1.0.0", keywords: ["compute_total", "const"],
-                                         snippets: [])
-}
-
-extension SuggestionsSessionTests {
-    /// With no source enabled and coding mode off no rows may show: a key asks nothing of the pointer (as autocomplete
+    /// With no source enabled and the input not Code no rows may show: a key asks nothing of the pointer (as autocomplete
     /// off does nothing for a key), and the token is followed all the same. A source enabled meanwhile has rows for it;
     /// where a click may have moved the caret since it started, none until the next word.
     @Test func whereNoRowsMayShowAKeyAsksNothingOfThePointer() async throws {

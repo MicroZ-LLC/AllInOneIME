@@ -4,10 +4,10 @@ import Foundation
 import FoundationNetworking
 #endif
 
-// Coding languages (spec 2): packages of their own kind, never with the input languages' packs (Settings → Coding
-// languages). Each pack is one JSON file (`CodingLanguagePack`) from the language library (the same as language
-// packs': https://languages.allinoneime.com/), listed in its signed `coding-packs.json` (the language packs' key), checked
-// against its sha256 and size there and for what it holds before it is kept.
+// Coding languages (spec 2, decision 22): packages of their own kind, the Code input's (Settings → Input, under Code:
+// never among the input languages' packs). Each pack is one JSON file (`CodingLanguagePack`) from the language library
+// (the same as language packs': https://languages.allinoneime.com/), listed in its signed `coding-packs.json` (the
+// language packs' key), checked against its sha256 and size there and for what it holds before it is kept.
 
 /// The language library's `coding-packs.json`: every coding pack version on offer.
 public struct CodingPackIndex: Decodable, Equatable, Sendable {
@@ -76,8 +76,21 @@ extension CodingLanguagePack {
         return nil
     }
 
-    static func isLanguage(_ id: String) -> Bool {
+    /// Whether `id` can be a pack's language (`Config.codingLanguage`): 1–32 small letters, digits, +, # or -.
+    public static func isLanguage(_ id: String) -> Bool {
         (1...32).contains(id.count) && id.allSatisfy { $0.isASCII && ($0.isLowercase || $0.isNumber || "+#-".contains($0)) }
+    }
+
+    /// The coding languages the Code input offers, in the order its menu lists them: the language library's packs.
+    public static let offered: [(language: String, title: String)] = [
+        ("python", "Python"), ("java", "Java"), ("go", "Go"), ("typescript", "TypeScript"), ("javascript", "JavaScript"),
+        ("c", "C"), ("cpp", "C++"),
+    ]
+
+    /// The name of the coding language `language` ("Python"): as offered, else an installed pack's own title (a language
+    /// a later library added), else the id.
+    public static func title(of language: String, installed: [CodingLanguagePack] = []) -> String {
+        offered.first { $0.language == language }?.title ?? installed.first { $0.language == language }?.title ?? language
     }
 }
 
@@ -214,6 +227,17 @@ public struct CodingPackLibrary: Sendable {
                                           allowsLocalHTTP: allowsLocalHTTP, progress: progress)
         guard hash == entry.sha256.lowercased() else { throw LanguagePackError.hashMismatch }
         return try store.keep(Data(contentsOf: work), language: entry.language, version: entry.version)
+    }
+
+    /// `language`'s pack, the newest version the library offers this app (`offered`), downloaded and kept in place of the
+    /// one before: what picking a coding language whose pack isn't installed does (the Code input's menu, decision 22),
+    /// as adding an input language downloads its pack. The library has none for it: `notOffered`.
+    @discardableResult
+    public func install(language: String, progress: @escaping @Sendable (Double) -> Void = { _ in }) async throws -> CodingLanguagePack {
+        guard let entry = offered(in: try await fetchIndex()).first(where: { $0.language == language }) else {
+            throw LanguagePackError.notOffered(CodingLanguagePack.title(of: language))
+        }
+        return try await install(entry, progress: progress)
     }
 
     func isAllowed(_ url: URL) -> Bool {

@@ -66,14 +66,15 @@ extension SettingsSchema {
         }
         let prefix = "apps." + app + "."
         let everywhere = Self.inputName(config.defaultInput)
+        // The inputs: the languages, then Code where it's among them (decision 22).
         var starts = choice(prefix + "inputLanguage", tr("开始的输入语言", "Starts in"),
-                            value: profile.inputLanguage.map { .string($0.rawValue) } ?? .null,
+                            value: profile.startingInput.map { .string($0.rawValue) } ?? .null,
                             choices: [(Choice(nil, tr("跟全局一样（\(everywhere)）", "Same as everywhere (\(everywhere))")), nil)]
-                                + config.inputLanguages.map { (Choice($0.rawValue, Self.inputName($0)), nil) })
-        if let own = profile.inputLanguage, !config.inputLanguages.contains(own) {
-            starts.choices?.append(Choice(value: .string(own.rawValue), label: Self.inputName(own), disabled: true))
+                                + config.inputs.map { (Choice($0.rawValue, Self.inputName($0, config)), nil) })
+        if let own = profile.startingInput, !config.inputs.contains(own) {
+            starts.choices?.append(Choice(value: .string(own.rawValue), label: Self.inputName(own, config), disabled: true))
         }
-        add(starts, to: &fields, set: change { $0.inputLanguage = $1.string.flatMap(Language.init(rawValue:)) })
+        add(starts, to: &fields, set: change { $0.startingInput = $1.string.flatMap(Input.init(rawValue:)) })
         let global = RewriteStyle.resolve(config.rewriteStyles)
         let globalNames = global.isEmpty ? tr("无", "None") : global.map(UIText.name).joined(separator: tr("、", ", "))
         add(toggle(prefix + "ownStyles", tr("自己的改写风格", "Rewrite styles of its own"),
@@ -100,7 +101,7 @@ extension SettingsSchema {
         add(toggle(prefix + "translateAlways", tr("总是边打边译", "Always Translate as You Type"), nil, profile.translateAlways == true,
                    platforms: [.mac]),
             to: &fields, set: change { $0.translateAlways = Self.bool($1) ? true : nil })
-        // Suggestions (plugins' completions, coding mode's rows): off here, or as everywhere.
+        // Suggestions (plugins' completions, Code's rows): off here, or as everywhere.
         let suggestions = config.suggestions != false ? tr("跟全局一样（开）", "Same as everywhere (on)") : tr("跟全局一样（关）", "Same as everywhere (off)")
         add(choice(prefix + "suggestions", tr("建议", "Suggestions"), value: profile.suggestions == false ? .bool(false) : .null,
                    choices: [(Choice(value: .null, label: suggestions), nil), (Choice(value: .bool(false), label: tr("关", "Off")), nil)]),
@@ -111,8 +112,8 @@ extension SettingsSchema {
     /// What an app's settings change, in a line: "Starts in English · No AI".
     func summary(_ profile: AppProfile) -> String {
         var parts: [String] = []
-        if let language = profile.inputLanguage {
-            let name = Self.inputName(language)
+        if let input = profile.startingInput {
+            let name = Self.inputName(input, config)
             parts.append(tr("用\(name)开始", "Starts in \(name)"))
         }
         if let styles = profile.rewriteStyles {
@@ -130,6 +131,11 @@ extension SettingsSchema {
 
     /// An input language as the settings name it, in the document's language: "中文（拼音）", "English".
     static func inputName(_ input: Language) -> String { SessionText.inputName(input, language: UIText.language) }
+
+    /// An input as the settings name it: a language's name, or Code with `config`'s coding language ("Code (Python)").
+    static func inputName(_ input: Input, _ config: Config) -> String {
+        SessionText.inputName(input, language: UIText.language, coding: config.codingLanguage.map { CodingLanguagePack.title(of: $0) })
+    }
 
     /// An app as a person reads it: Windows' program name ("notepad.exe") or packaged app, a Mac app's bundle id.
     static func appName(_ app: String) -> String {

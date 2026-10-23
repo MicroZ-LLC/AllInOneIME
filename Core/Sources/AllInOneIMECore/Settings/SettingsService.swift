@@ -22,7 +22,7 @@ public final class SettingsService: @unchecked Sendable {
     /// What the plugin library offers, once browsed (`browse`); and the coding language library.
     private var libraryEntries: [PluginIndex.Entry]?
     private var codingEntries: [CodingPackIndex.Entry]?
-    /// Where coding packs come from and are kept (Settings → Coding Languages).
+    /// Where coding packs come from and are kept (Settings → Input, under Code).
     public let codingLibrary: CodingPackLibrary
     /// The actions that take a while running now, by field and item (an install's plugin): shown `running`, with
     /// `cancel` among the actions.
@@ -321,7 +321,7 @@ public final class SettingsService: @unchecked Sendable {
     }
 
     private func longAction(_ action: SettingsAction) async -> Result<SettingsActionOutcome, SettingsProblem> {
-        if action.field == "codingLanguages.library" { return await codingPacks(action) }
+        if action.field == SettingsSchema.codingLibraryField { return await codingPacks(action) }
         switch action.name {
         case SettingsAction.test: return await test(action)
         case SettingsAction.browse: return await browse(action)

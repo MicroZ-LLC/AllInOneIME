@@ -178,3 +178,39 @@ extension Language {
     /// Whether a sentence in this language is polished (not translated) for `output`.
     public func matches(_ output: OutputLanguage) -> Bool { output.input == self }
 }
+
+/// What a text field types in: one of the inputs a tap of Shift goes through (`Config.inputs`), an input language or
+/// Code (decision 22), the coding input: Latin letters as English, the rows of one coding language's pack
+/// (`Config.codingLanguage`) and the field's own words. Code is never a language: nothing is translated into or out of it,
+/// no text is told to be in it (`Language.of`), it is no output language.
+public enum Input: Hashable, Sendable {
+    case language(Language)
+    case code
+
+    /// As the settings write it: a language's code ("zh"), or "code".
+    public var rawValue: String {
+        switch self {
+        case let .language(language): return language.rawValue
+        case .code: return Self.codeValue
+        }
+    }
+
+    public init?(rawValue: String) {
+        if rawValue == Self.codeValue {
+            self = .code
+        } else if let language = Language(rawValue: rawValue) {
+            self = .language(language)
+        } else {
+            return nil
+        }
+    }
+
+    /// Code as the settings write it (an app's starting input).
+    public static let codeValue = "code"
+
+    /// The input language it is; nil for Code.
+    public var language: Language? {
+        if case let .language(language) = self { return language }
+        return nil
+    }
+}

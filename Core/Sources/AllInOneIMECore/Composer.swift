@@ -144,7 +144,8 @@ public final class Composer {
         case hidePanel
         /// Briefly show a status message near the caret.
         case notice(String)
-        /// The input language changed (Shift): the controller types with its keyboard layout.
+        /// The input language changed (Shift): the controller types with its keyboard layout. Into Code or out of it too
+        /// (`input`): its language is English, whose letters it types.
         case inputLanguageChanged(Language)
         /// The right Option key went down on its own: call `voiceHoldElapsed` after `delay` seconds.
         case armVoice(delay: Double)
@@ -262,6 +263,8 @@ public final class Composer {
         public var frenchMode = "法"
         public var koreanMode = "韩"
         public var hindiMode = "印"
+        /// The notice of a switch to Code (Shift), with its coding language as the session names it ("Code (Python)").
+        public var codeMode = "代码"
         /// A script extension's required arguments left empty: their placeholders follow.
         public var scriptNeeds = "还要写："
         /// A script's dropdown value that isn't one of its choices: their titles follow.
@@ -353,6 +356,7 @@ public final class Composer {
                 frenchMode: t.tr("法", "French"),
                 koreanMode: t.tr("韩", "Korean"),
                 hindiMode: t.tr("印", "Hindi"),
+                codeMode: t.tr("代码", "Code"),
                 scriptNeeds: t.tr("还要写：", "Needs: "),
                 scriptChoices: t.tr("只能是这几个之一：", "Pick one of: "),
                 confirmScript: t.tr("运行「{title}」？{key} 确认", "Run {title}? {key} again"),
@@ -636,8 +640,16 @@ public final class Composer {
     public private(set) var engineState = EngineSnapshot.empty
     public internal(set) var result = ConversionResult.empty
     public private(set) var voice = Voice.off
-    /// The input languages on (`Config.inputLanguages`): with one, a tap of Shift doesn't switch.
+    /// The input languages on (`Config.inputLanguages`): with one, and no Code, a tap of Shift doesn't switch.
     public var inputLanguages: [Language] = [.chinese, .english]
+    /// Code is among the inputs, after the languages (`Config.codingLanguage`, its pack installed: decision 22). Gone, the
+    /// field is no longer in it.
+    public var hasCode = false {
+        didSet { if !hasCode { coding = false } }
+    }
+    /// Code is the input now: Latin letters as English (`inputLanguage` is English), with no English words learned, no
+    /// autocomplete and no Translate as You Type; the session offers the Code pack's rows.
+    public private(set) var coding = false
     /// Holding the right Option key records speech.
     public var voiceEnabled: Bool
     /// The key that runs the @ command at the start of the draft.
@@ -718,8 +730,17 @@ public final class Composer {
     /// The language typed while the engine is in its ASCII mode: English, French or Korean (Chinese is pinyin).
     public private(set) var asciiLanguage: Language = .english
 
-    /// The input language in effect.
+    /// The input language in effect (English's letters in Code).
     public var inputLanguage: Language { engineState.isAsciiMode ? asciiLanguage : nativeLanguage }
+
+    /// The input in effect: Code, or the input language.
+    public var input: Input { coding ? .code : .language(inputLanguage) }
+
+    /// The inputs a tap of Shift goes through, in order: the input languages, then Code (not while Translate as You Type
+    /// is on here: it can't run in Code).
+    public var inputs: [Input] {
+        inputLanguages.map(Input.language) + (hasCode && translateMode == nil ? [.code] : [])
+    }
 
     /// What to type in once `language`'s pack is gone: the first other input language (the default, normally).
     private func fallbackLanguage(for language: Language) -> Language {
@@ -1511,9 +1532,9 @@ public final class Composer {
     }
 
     private func shiftTap() -> [Effect] {
-        // With one input language Shift stays put, except to leave the letters a command switched to
-        // (Chinese inside `@python print("…")`).
-        let switches = inputLanguages.count > 1 || restoreChineseAfterOpen || nestedLatinFrom != nil
+        // With one input (and in it) Shift stays put, except to leave the letters a command switched to (Chinese inside
+        // `@python print("…")`).
+        let switches = inputs.count > 1 || !inputs.contains(input) || restoreChineseAfterOpen || nestedLatinFrom != nil
         return voice == .off && switches ? switchInputLanguage() : []
     }
 
@@ -1640,8 +1661,27 @@ public final class Composer {
         enter(language)
     }
 
+    /// Switches to `input`: a language (`setInputMode`), or Code where it is among the inputs (`hasCode`). Ignored while
+    /// something is being composed.
+    public func setInput(_ input: Input) {
+        guard engine != nil, !isComposing, hangul.isEmpty, input != .code || hasCode else { return }
+        enter(input)
+    }
+
+    /// Puts level one in `input`: Code types English's letters.
+    private func enter(_ input: Input) {
+        switch input {
+        case let .language(language):
+            enter(language)
+        case .code:
+            enter(.english)
+            coding = hasCode
+        }
+    }
+
     /// Puts level one in `language`: Hindi's engine or librime's, in or out of its ASCII mode.
     private func enter(_ language: Language) {
+        coding = false
         hindiActive = language == .hindi && hindiEngine != nil
         guard let engine else { return }
         let ascii = language != .chinese && language != .hindi
@@ -2395,8 +2435,8 @@ public final class Composer {
         engineState = engine.snapshot()
     }
 
-    /// A tap of Shift: the next input language, in the order they were added (`inputLanguages`). Out of the
-    /// letters a command switched to (`@open` typed in Chinese), back to Chinese.
+    /// A tap of Shift: the next input, in the order they were added (`inputs`: the input languages, then Code). Out of
+    /// the letters a command switched to (`@open` typed in Chinese), back to Chinese.
     private func switchInputLanguage() -> [Effect] {
         // In level two only while a refine instruction can be typed (Chinese or English for it).
         guard engine != nil, !isLevelTwo || typesRefine else { return [] }
@@ -2406,14 +2446,15 @@ public final class Composer {
             nestedLatinFrom = nil
             return typeWaitingAccent() + [.updateMarkedText, .notice(messages.mode(current))]
         }
-        let next: Language
-        if restoreChineseAfterOpen || nestedLatinFrom != nil || inputLanguages.count < 2 {
-            next = current == nativeLanguage ? asciiLanguage : nativeLanguage
+        let inputs = inputs
+        let next: Input
+        if restoreChineseAfterOpen || nestedLatinFrom != nil || inputs.count < 2 && inputs.contains(input) {
+            next = .language(current == nativeLanguage ? asciiLanguage : nativeLanguage)
         } else {
-            let index = inputLanguages.firstIndex(of: current).map { $0 + 1 } ?? 0
-            next = inputLanguages[index % inputLanguages.count]
+            let index = inputs.firstIndex(of: input).map { $0 + 1 } ?? 0
+            next = inputs[index % inputs.count]
         }
-        guard next != current else { return [] }
+        guard next != input else { return [] }
         var effects = typeWaitingAccent() + finishHangul()
         if current == .chinese {
             // Pinyin being typed goes in as librime's Shift does it (`toggleLatin`).
@@ -2425,7 +2466,8 @@ public final class Composer {
             restoreChineseAfterOpen = false  // left by hand
         }
         enter(next)
-        return effects + [.updateMarkedText, .inputLanguageChanged(next), .notice(messages.mode(next))]
+        return effects + [.updateMarkedText, .inputLanguageChanged(inputLanguage),
+                          .notice(next == .code ? messages.codeMode : messages.mode(inputLanguage))]
     }
 
     private func toggleLatin() -> [Effect] {

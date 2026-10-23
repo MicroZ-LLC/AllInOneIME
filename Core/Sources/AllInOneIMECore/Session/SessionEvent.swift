@@ -126,19 +126,19 @@ public enum TimerID: Hashable, Sendable {
     case voiceHold(Int)
     /// Autocomplete's pause is over (`Autocomplete.Route.pause`): its suggestion may be asked for.
     case autocomplete(Int)
-    /// Suggestions' (`InputSession+Suggestions.swift`): Shift held long enough for the chooser, a pause before a query
-    /// is asked again, a list's refresh (or its back-off or pause) due.
+    /// Suggestions' (`InputSession+Suggestions.swift`): Shift held long enough to turn Translate as You Type on or off, a
+    /// pause before a query is asked again, a list's refresh (or its back-off or pause) due.
     case suggestions(SuggestionsTimer)
 }
 
 /// A timer of suggestions' (`TimerID.suggestions`), counted: an older one of a kind does nothing.
 public enum SuggestionsTimer: Hashable, Sendable {
-    /// The long press of Shift half way (its hint), then long enough for the chooser.
-    case chooserHint(Int)
-    case chooser(Int)
+    /// The long press of Shift half way (its hint), then long enough to turn Translate as You Type on or off.
+    case holdHint(Int)
+    case hold(Int)
     case query(Int)
     case refresh(Int)
-    /// A pause in typing in coding mode: the field's words read again (`SessionOutput.readField`).
+    /// A pause in typing in Code: the field's words read again (`SessionOutput.readField`).
     case words(Int)
 }
 

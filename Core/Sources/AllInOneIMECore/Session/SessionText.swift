@@ -223,6 +223,14 @@ public enum SessionText {
         return input == .chinese ? t.tr("中文（拼音）", "Chinese (pinyin)") : t.name(input)
     }
 
+    /// The name of `input` in the interface language `language`: a language's (`inputName(_:language:)`), or Code's with
+    /// its coding language (`coding`, the pack's title: "Code (Python)"; nil: "Code").
+    public static func inputName(_ input: Input, language: String, coding: String?) -> String {
+        guard input == .code else { return input.language.map { inputName($0, language: language) } ?? "" }
+        let t = InterfaceWords(language: language)
+        return coding.map { t.tr("代码（\($0)）", "Code (\($0))") } ?? t.tr("代码", "Code")
+    }
+
     /// Turns a preset on or off, keeping the user's order: one turned on goes last.
     public static func toggled(_ name: String, in current: [String]) -> [String] {
         let enabled = RewriteStyle.resolve(current).map(\.name)

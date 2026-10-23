@@ -3,7 +3,7 @@ import Testing
 @testable import AllInOneIMECore
 import AllInOneIMETestSupport
 
-/// Return on coding mode's rows (the packs' keywords and snippets, the field's own words): it picks the highlighted row
+/// Return on Code's rows (its pack's keywords and snippets, the field's own words): it picks the highlighted row
 /// at once, as an IDE does, in ordinary apps and code editors (the first row there); in chat apps (Return sends) and
 /// terminals (Return runs the command) it stays the app's. Plugins' rows keep spec 1.4's rule: Return once ↓ or ↑ moved,
 /// in ordinary apps only. The footer says what Return does, and the highlight is drawn chosen only where Return takes
@@ -12,11 +12,10 @@ import AllInOneIMETestSupport
 struct SuggestionsReturnTests {
     func inEnglish(_ body: () throws -> Void) async rethrows { try await withInterfaceLanguage("en", body) }
 
-    /// A world in coding mode with the shipped Python pack installed.
+    /// A world with the Code input in Python, the shipped pack installed.
     static func coding() throws -> SuggestionsWorld {
         let world = SuggestionsWorld()
-        world.packs = [try SuggestionsCodingPacksTests.shipped("python")]
-        world.codingMode = true
+        world.addCode("python", packs: [try SuggestionsCodingPacksTests.shipped("python")])
         return world
     }
 
@@ -38,14 +37,14 @@ struct SuggestionsReturnTests {
     @Test func returnPicksACodingRowAtOnceInOrdinaryApps() async throws {
         try await inEnglish {
             let world = try Self.coding()
-            let field = world.field(app: Self.notes)
+            let field = world.codeField(app: Self.notes)
             field.type("ret")
             #expect(field.settle { field.rows.first?.text == "return" }, "\(field.rows.map(\.text))")
             #expect(field.press(SuggestionKeys.enter), "Return picks the keyword")
             #expect(field.document == "return", "\(field.document.debugDescription)")
             #expect(field.rows.isEmpty, "\(field.rows.map(\.text))")
 
-            let snippet = world.field(app: Self.notes)
+            let snippet = world.codeField(app: Self.notes)
             snippet.type("pr")
             #expect(snippet.settle { snippet.rows.first?.text == "print" }, "\(snippet.rows.map(\.text))")
             let before = snippet.host.outputs.count
@@ -53,9 +52,11 @@ struct SuggestionsReturnTests {
             #expect(snippet.document == "print()", "\(snippet.document.debugDescription)")
             #expect(Self.moves(snippet, since: before) == [1], "the caret at its $0: \(Self.moves(snippet, since: before))")
 
+            // A pack with nothing of its own: the field's words alone.
             let words = SuggestionsWorld()
-            words.codingMode = true
-            let word = words.field(app: Self.notes)
+            words.addCode("example", packs: [CodingLanguagePack(language: "example", title: "Example", version: "1.0.0", keywords: [],
+                                                                snippets: [])])
+            let word = words.codeField(app: Self.notes)
             word.host.document = "compute_total = 1\n"
             word.type("co")
             #expect(word.settle { word.rows.first?.text == "compute_total" }, "\(word.rows.map(\.text))")
@@ -69,13 +70,13 @@ struct SuggestionsReturnTests {
     @Test func returnPicksTheFirstCodingRowInCodeEditors() async throws {
         try await inEnglish {
             let world = try Self.coding()
-            let field = world.field(app: SuggestionsApps.vsCode)
+            let field = world.codeField(app: SuggestionsApps.vsCode)
             field.type("ret")
             #expect(field.settle { field.rows.first?.text == "return" }, "\(field.rows.map(\.text))")
             #expect(field.press(SuggestionKeys.enter), "Return picks the first row")
             #expect(field.document == "return", "\(field.document.debugDescription)")
 
-            let typed = world.field(app: SuggestionsApps.vsCode)
+            let typed = world.codeField(app: SuggestionsApps.vsCode)
             typed.type("def")
             #expect(typed.settle { typed.rows.first?.text == "def" }, "\(typed.rows.map(\.text))")
             #expect(!typed.press(SuggestionKeys.enter), "nothing to add: the editor's Return")
@@ -88,7 +89,7 @@ struct SuggestionsReturnTests {
     func returnStaysTheAppsInChatAppsAndTerminals(_ app: String, _ terminal: Bool) async throws {
         try await inEnglish {
             let world = try Self.coding()
-            let field = world.field(app: app, terminal: terminal)
+            let field = world.codeField(app: app, terminal: terminal)
             field.type("ret")
             #expect(field.settle { field.rows.first?.text == "return" }, "\(app): \(field.rows.map(\.text))")
             #expect(!field.press(SuggestionKeys.enter), "\(app): Return is the app's")
@@ -101,9 +102,8 @@ struct SuggestionsReturnTests {
         try await inEnglish {
             let world = SuggestionsWorld()
             try world.github()
-            world.codingMode = true
-            world.packs = [try SuggestionsCodingPacksTests.shipped("python")]
-            let field = world.field(app: Self.notes)
+            world.addCode("python", packs: [try SuggestionsCodingPacksTests.shipped("python")])
+            let field = world.codeField(app: Self.notes)
             field.type("#7")
             #expect(field.waitForIssues(["#7001", "#7002", "#7090", "#7100", "#789"]), "\(field.issuesShown)")
             #expect(!field.press(SuggestionKeys.enter), "Return is the app's")
@@ -119,7 +119,7 @@ struct SuggestionsReturnTests {
         try await inEnglish {
             let enter = Self.enter
             let world = try Self.coding()
-            let coding = world.field(app: Self.notes)
+            let coding = world.codeField(app: Self.notes)
             coding.type("ret")
             #expect(coding.settle { !coding.rows.isEmpty })
             #expect(coding.host.panel?.footer == "Tab or \(enter) inserts · ↑↓ to pick · Esc hides", "\(coding.footer)")
@@ -133,18 +133,18 @@ struct SuggestionsReturnTests {
             #expect(plugin.press(SuggestionKeys.down))
             #expect(plugin.host.panel?.footer == "Tab or \(enter) inserts · ↑↓ to pick · Esc hides", "moved: \(plugin.footer)")
 
-            let chat = world.field(app: SuggestionsApps.slack)
+            let chat = world.codeField(app: SuggestionsApps.slack)
             chat.type("ret")
             #expect(chat.settle { !chat.rows.isEmpty })
             #expect(chat.host.panel?.footer == "Tab inserts the first row · \(enter) goes to the app", "\(chat.footer)")
 
-            let editor = world.field(app: SuggestionsApps.vsCode)
+            let editor = world.codeField(app: SuggestionsApps.vsCode)
             editor.type("ret")
             #expect(editor.settle { !editor.rows.isEmpty })
             #expect(editor.host.panel?.footer == "Tab completes what they share · \(enter) inserts the first row", "\(editor.footer)")
             #expect(editor.host.panel?.highlighted == 0, "the row Return puts in, highlighted")
 
-            let terminal = world.field(app: Self.terminal, terminal: true)
+            let terminal = world.codeField(app: Self.terminal, terminal: true)
             terminal.type("ret")
             #expect(terminal.settle { !terminal.rows.isEmpty })
             #expect(terminal.host.panel?.footer == "Tab completes what they share · \(enter) goes to the app", "\(terminal.footer)")
@@ -185,13 +185,13 @@ struct SuggestionsReturnTests {
 
             let world = try Self.coding()
             for app in [Self.notes, SuggestionsApps.vsCode] {
-                let coding = world.field(app: app)
+                let coding = world.codeField(app: app)
                 coding.type("ret")
                 #expect(coding.settle { !coding.rows.isEmpty })
                 #expect(coding.host.panel?.highlighted == 0 && coding.host.panel?.highlightChosen == true,
                         "\(app): a coding row Return takes, chosen")
             }
-            let codingChat = world.field(app: SuggestionsApps.slack)
+            let codingChat = world.codeField(app: SuggestionsApps.slack)
             codingChat.type("ret")
             #expect(codingChat.settle { !codingChat.rows.isEmpty })
             #expect(codingChat.host.panel?.highlighted == 0 && codingChat.host.panel?.highlightChosen == false,

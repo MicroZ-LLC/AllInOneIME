@@ -88,7 +88,7 @@ extension AllInOneIMEInputController {
         if TranslateModeShared.state.isOn { leaveTranslateMode() } else { enterTranslateMode() }
     }
 
-    /// The session's chooser (a long press of Shift) turned it on or off (`SuggestionsServices.setTranslateAsYouType`).
+    /// A long press of Shift turned it on or off, the session's (`SuggestionsServices.setTranslateAsYouType`).
     @MainActor
     func setTranslateMode(_ on: Bool) {
         guard on != TranslateModeShared.state.isOn else { return }
@@ -124,8 +124,8 @@ extension AllInOneIMEInputController {
     }
 
     /// A text field became active (`activateServer`, after the app's settings): another app leaves the mode, with no
-    /// notice, unless it translates always (`AppProfile.translateAlways`), where it comes on (coding mode goes off). The
-    /// composer of this field follows, and the chip shows here (or no longer).
+    /// notice, unless it translates always (`AppProfile.translateAlways`), where it comes on (a field in Code has none of
+    /// it: `Composer.coding`). The composer of this field follows, and the chip shows here (or no longer).
     @MainActor
     func translateModeActivated(app: String?) {
         TranslateModeShared.listOpen = false
@@ -137,8 +137,6 @@ extension AllInOneIMEInputController {
         switch transition {
         case let .entered(session):
             log.notice("Translate as You Type on (the app translates always)")
-            // Exclusive with coding mode, however either comes on.
-            apply(self.session.translateAsYouTypeCameOn(), client: nil)
             showOnNotice(session, allowed: allowed)
         case .left:
             log.notice("Translate as You Type off (another app)")
@@ -197,6 +195,21 @@ extension AllInOneIMEInputController {
 
     /// Nothing to translate into but the languages typed (`Config.hasLanguageToTranslateInto`): where one is added, the
     /// page named as the settings' sidebar names it.
+    /// Half way through a long press of Shift, near the caret (`SuggestionsServices.holdHint`, as in 0.6.6): 「继续按住 →
+    /// 边打边译」, 「继续按住 → 关闭边打边译」 while it's on, or that there's nothing to translate into.
+    @MainActor
+    func translateModeHoldHint() -> String {
+        if TranslateModeShared.state.isOn {
+            return tr("继续按住 → 关闭边打边译", "Keep holding → Translate as You Type off")
+        }
+        let config = services.loadSettings()
+        guard config.hasLanguageToTranslateInto,
+              TranslateMode.target(last: TranslateModeShared.lastTarget, outputs: config.outputLanguages) != nil else {
+            return noTargetText
+        }
+        return tr("继续按住 → 边打边译", "Keep holding → Translate as You Type")
+    }
+
     private var noTargetText: String {
         let page = SettingsPage.writing.title
         return tr("没有要翻译成的语言：在设置 →「\(page)」里加一种", "No language to translate into: add one in Settings → \(page)")

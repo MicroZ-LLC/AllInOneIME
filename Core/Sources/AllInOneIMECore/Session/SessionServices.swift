@@ -156,7 +156,7 @@ public struct SessionServices {
 
     // MARK: Suggestions
 
-    /// Plugin completions and coding mode (`SuggestionsServices`, Suggestions/SuggestionsContract.swift).
+    /// Plugin completions, Code's rows and the long press of Shift (`SuggestionsServices`, Suggestions/SuggestionsContract.swift).
     public var suggestions: SuggestionsServices
 
     public init(converter: Converter = Converter(), loadSettings: @escaping () -> Config = { .default }) {

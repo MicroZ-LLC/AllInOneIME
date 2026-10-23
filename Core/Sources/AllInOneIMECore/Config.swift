@@ -50,6 +50,16 @@ public struct Config: Codable, Equatable, Sendable {
         outputLanguages.contains { output in inputLanguages.contains { !$0.matches(output) } }
     }
 
+    /// The Code input (decision 22): the coding language whose pack its rows come from ("python",
+    /// `CodingLanguagePack.offered`); nil: no Code input. It comes after the input languages, a tap of Shift away from the
+    /// last, and is never one of them (`inputs`). Synced with them.
+    public var codingLanguage: String? {
+        didSet { if let codingLanguage, !CodingLanguagePack.isLanguage(codingLanguage) { self.codingLanguage = nil } }
+    }
+
+    /// The inputs a tap of Shift goes through, in order: the input languages, then Code.
+    public var inputs: [Input] { inputLanguages.map(Input.language) + (codingLanguage == nil ? [] : [.code]) }
+
     /// At least one input language, at most this many.
     public static let maxInputLanguages = 5
     /// Mode a new text field starts in: pinyin (Chinese) or English letters. Always the first of `inputLanguages`.
@@ -221,7 +231,7 @@ public struct Config: Codable, Equatable, Sendable {
     /// Where `@note` saves (`NoteSettings`): Notes by default, a folder of Markdown files, or Notion. This Mac's own (a
     /// path on it), never synced.
     public var notes: NoteSettings
-    /// Suggestions (plugin completions, coding mode's rows): the input menu's switch; nil: on (it shows once a completion
+    /// Suggestions (plugin completions, Code's rows): General's switch (and the input menu's); nil: on (it shows once a completion
     /// source is enabled). This Mac's own, never synced.
     public var suggestions: Bool?
     /// The completion sources enabled in Settings → Plugins, each with what was enabled (the plugin's hosts, whether it
@@ -345,7 +355,7 @@ public struct Config: Codable, Equatable, Sendable {
     /// Every key a config file may hold (`allKeys`: what the Assistant's checks and changes know as the config's own).
     enum CodingKeys: String, CodingKey, CaseIterable {
         case awsProfile, region, modelId, maxTokens, temperature, timeoutSeconds, rewriteStyles
-        case outputLanguage, outputLanguages, inputLanguages, defaultInput, improveTranslates, voiceInput, jargonFile, actionKey, commandTrigger, uiLanguage, customCommands, claudeInBackground, agent, agentCommand, agentPageContext
+        case outputLanguage, outputLanguages, inputLanguages, defaultInput, codingLanguage, improveTranslates, voiceInput, jargonFile, actionKey, commandTrigger, uiLanguage, customCommands, claudeInBackground, agent, agentCommand, agentPageContext
         case extensionFolders, findRaycastScripts, hiddenExtensionFolders, disabledExtensions, extensionPreferences
         case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutMistakes, typeOutSpeed, fuzzyPinyin, keyboardLayouts, candidateLayout
         case englishWords, addedEnglishWords, learnsEnglishWords
@@ -387,6 +397,9 @@ public struct Config: Codable, Equatable, Sendable {
         // A file from before input languages started in Chinese; a new user starts in English (`Config.default`).
         defaultInput = (try? c.decodeIfPresent(Language.self, forKey: .defaultInput)).flatMap { $0 }
             ?? (c.contains(.inputLanguages) ? inputLanguages.first : .chinese) ?? d.defaultInput
+        // One that isn't a coding language's id (of the wrong type, say) is no Code input, not an error.
+        codingLanguage = (try? c.decodeIfPresent(String.self, forKey: .codingLanguage)).flatMap { $0 }
+            .flatMap { CodingLanguagePack.isLanguage($0) ? $0 : nil }
         improveTranslates = try c.decodeIfPresent(Bool.self, forKey: .improveTranslates) ?? d.improveTranslates
         voiceInput = try c.decodeIfPresent(Bool.self, forKey: .voiceInput) ?? d.voiceInput
         jargonFile = try c.decodeIfPresent(String.self, forKey: .jargonFile)
@@ -568,6 +581,7 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(inputLanguages, forKey: .inputLanguages)
         try c.encode(improveTranslates, forKey: .improveTranslates)
         try c.encode(defaultInput, forKey: .defaultInput)
+        try c.encodeIfPresent(codingLanguage, forKey: .codingLanguage)
         try c.encode(voiceInput, forKey: .voiceInput)
         try c.encode(jargonFile, forKey: .jargonFile)  // null: the default file
         try c.encode(actionKey, forKey: .actionKey)

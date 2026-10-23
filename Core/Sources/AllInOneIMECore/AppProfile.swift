@@ -3,9 +3,15 @@ import Foundation
 /// Settings for one app, by its bundle id (`Config.appProfiles`, e.g. "com.tinyspeck.slackmacgap"): each is optional,
 /// and where it's unset the app follows the setting for every app.
 public struct AppProfile: Codable, Equatable, Sendable {
-    /// The input language a text field of the app starts in (else `Config.defaultInput`; one that isn't among the
-    /// input languages, or whose pack isn't there, is passed over too).
-    public var inputLanguage: Language?
+    /// The input a text field of the app starts in: an input language, or Code (else `Config.defaultInput`; one that
+    /// isn't among the inputs, or whose pack isn't there, is passed over too). Written as `inputLanguage`, Code as "code".
+    public var startingInput: Input?
+    /// The input language a text field of the app starts in, where that's one (`startingInput`); set, the app starts in
+    /// it (nil: as everywhere).
+    public var inputLanguage: Language? {
+        get { startingInput?.language }
+        set { startingInput = newValue.map(Input.language) }
+    }
     /// The rewrite styles @improve offers in the app (else `Config.rewriteStyles`), names from `RewriteStyle.catalog`;
     /// empty: the main versions only.
     public var rewriteStyles: [String]?
@@ -21,13 +27,13 @@ public struct AppProfile: Codable, Equatable, Sendable {
     /// learned there (Settings → Apps: 「续写」); nil: as everywhere. This Mac's own, as the switch is: never synced
     /// (`ICloudSync.thisMacsOwnAppFields`).
     public var autocomplete: Bool?
-    /// Suggestions (plugin completions, coding mode's rows) in the app (Settings → Apps: 「建议」): off (false), or as
+    /// Suggestions (plugin completions, Code's rows) in the app (Settings → Apps: 「建议」): off (false), or as
     /// everywhere (nil, or true). This Mac's own, as the switch is: never synced (`ICloudSync.thisMacsOwnAppFields`).
     public var suggestions: Bool?
 
     public init(inputLanguage: Language? = nil, rewriteStyles: [String]? = nil, typeOut: Bool? = nil, noAI: Bool? = nil,
                 translateAlways: Bool? = nil, autocomplete: Bool? = nil, suggestions: Bool? = nil) {
-        self.inputLanguage = inputLanguage
+        self.startingInput = inputLanguage.map(Input.language)
         self.rewriteStyles = rewriteStyles
         self.typeOut = typeOut
         self.noAI = noAI
@@ -38,7 +44,7 @@ public struct AppProfile: Codable, Equatable, Sendable {
 
     /// Sets nothing: the app follows every setting.
     public var isEmpty: Bool {
-        inputLanguage == nil && rewriteStyles == nil && typeOut == nil && noAI != true && translateAlways != true && autocomplete == nil
+        startingInput == nil && rewriteStyles == nil && typeOut == nil && noAI != true && translateAlways != true && autocomplete == nil
             && suggestions == nil
     }
 
@@ -46,11 +52,11 @@ public struct AppProfile: Codable, Equatable, Sendable {
         case inputLanguage, rewriteStyles, typeOut, noAI, translateAlways, autocomplete, suggestions
     }
 
-    /// Each key on its own: one of the wrong type, or a language code this version doesn't know, is left unset;
-    /// other keys are ignored.
+    /// Each key on its own: one of the wrong type, or an input this version doesn't know, is left unset; other keys are
+    /// ignored.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        inputLanguage = (try? c.decodeIfPresent(String.self, forKey: .inputLanguage)).flatMap { $0 }.flatMap(Language.init(rawValue:))
+        startingInput = (try? c.decodeIfPresent(String.self, forKey: .inputLanguage)).flatMap { $0 }.flatMap(Input.init(rawValue:))
         rewriteStyles = (try? c.decodeIfPresent([String].self, forKey: .rewriteStyles)).flatMap { $0 }
         typeOut = (try? c.decodeIfPresent(Bool.self, forKey: .typeOut)).flatMap { $0 }
         noAI = (try? c.decodeIfPresent(Bool.self, forKey: .noAI)).flatMap { $0 }
@@ -61,7 +67,7 @@ public struct AppProfile: Codable, Equatable, Sendable {
 
     public func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
-        try c.encodeIfPresent(inputLanguage, forKey: .inputLanguage)
+        try c.encodeIfPresent(startingInput?.rawValue, forKey: .inputLanguage)
         try c.encodeIfPresent(rewriteStyles, forKey: .rewriteStyles)
         try c.encodeIfPresent(typeOut, forKey: .typeOut)
         try c.encodeIfPresent(noAI, forKey: .noAI)
@@ -165,6 +171,13 @@ extension Config {
     public func startingInput(in app: String?, among usable: [Language]) -> Language {
         if let own = profile(for: app)?.inputLanguage, usable.contains(own) { return own }
         return usable.contains(defaultInput) ? defaultInput : usable.first ?? defaultInput
+    }
+
+    /// The input a new text field of `app` starts in: Code where the app's own is Code and Code can be typed now
+    /// (`code`: it is among the inputs, its pack installed), else a language as `startingInput(in:among:)` has it.
+    public func startingInput(in app: String?, among usable: [Language], code: Bool) -> Input {
+        if code, profile(for: app)?.startingInput == .code { return .code }
+        return .language(startingInput(in: app, among: usable))
     }
 
     /// Whether AI commands may run in `app` (its profile doesn't say "no AI").

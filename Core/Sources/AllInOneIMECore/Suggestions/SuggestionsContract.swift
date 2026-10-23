@@ -1,7 +1,7 @@
 import Foundation
 
 // Suggestions v1 (.spec/spec-suggestions-v1.md, 2026-10-22, with its section 6, the decisions on the tests' questions):
-// plugin completions, coding mode, one Tab. What the acceptance tests
+// plugin completions, coding rows (the Code input's since decision 22), one Tab. What the acceptance tests
 // (Tests/AllInOneIMECoreTests/Acceptance/Suggestions*AcceptanceTests.swift) are written against, written before the
 // implementation by the tests' author: protocols and plain data. The implementation fills in what had a stub
 // (`PluginManifest.completions`, `preferences` and `refusedCompletions` in Plugin.swift, read by CompletionDeclaration.swift;
@@ -382,9 +382,10 @@ public struct CompletionSourceStatus: Equatable, Sendable {
 
 // MARK: - Coding languages (spec 2)
 
-/// A coding language pack (JSON), downloaded and verified like a language pack: its keywords and snippets are
-/// suggestions while coding mode is on. A snippet's `body` is inserted as text, its line breaks kept: `${n:text}` as its
-/// text, `$n` as nothing, the caret at `$0` (where the field reports ranges; else at the end).
+/// A coding language pack (JSON), downloaded and verified like a language pack: its keywords and snippets are the Code
+/// input's rows while its language is Code's (`Config.codingLanguage`). A snippet's `body` is inserted as text, its line
+/// breaks kept: `${n:text}` as its text, `$n` as nothing, the caret at its first tab stop (where the field reports ranges;
+/// else at the end: `CodingRows.expand`).
 public struct CodingLanguagePack: Codable, Equatable, Sendable {
     public struct Snippet: Codable, Equatable, Sendable {
         public var trigger: String
@@ -437,15 +438,11 @@ public struct SuggestionsServices {
     /// A plugin's preferences as the user set them (texts from the settings, passwords from the secret store), by name; a
     /// preference not set gets its `default` from the manifest (the core fills it in). Never while a key is handled.
     public var preferences: @Sendable (InstalledPlugin) -> [String: String]
-    /// The coding language packs installed (all of them apply: a field can't tell its language in v1).
+    /// The coding language packs installed: the Code input's rows are its coding language's pack's
+    /// (`Config.codingLanguage`; without it installed, there's no Code).
     public var codingPacks: () -> [CodingLanguagePack]
-    /// Coding mode, which the shell keeps across fields and apps until it is turned off (as Translate as You Type).
-    /// The session turns it on and off from the chooser a long press of Shift opens, which it shows (the shell only draws
-    /// it; spec 6.2).
-    public var codingMode: () -> Bool
-    public var setCodingMode: (Bool) -> Void
-    /// Translate as You Type, the shell's (`TranslateMode`): whether it is on, and turning it on or off (from the same
-    /// chooser; the two modes are exclusive).
+    /// Translate as You Type, the shell's (`TranslateMode`): whether it is on, and turning it on or off (with its notice),
+    /// as a long press of Shift does (decision 22: not in Code).
     public var translateAsYouType: () -> Bool
     public var setTranslateAsYouType: (Bool) -> Void
     /// The rows picked before (kept on this device only), in the order they were picked, the latest last (a row picked
@@ -465,14 +462,15 @@ public struct SuggestionsServices {
     public var pointer: () -> CGPoint
     public var stickyKeys: () -> Bool
     /// Whether Shift is down now as the system has it (and no mouse button), asked when the long press's time comes: a
-    /// release that went unseen opens no chooser. The default: yes.
+    /// release that went unseen turns nothing on or off. The default: yes.
     public var shiftHeld: () -> Bool
     /// Whether Shift is down now as the system has it, asked as a field takes the focus: Shift's changes while another
     /// field had it went there, and the long press goes on from Shift as it is now (`TranslateMode.ShiftHold.resync`).
     /// The default: no.
     public var shiftDown: () -> Bool
-    /// What the long press of Shift says half way to the chooser ("Keep holding → …", the shell's wording; nil: nothing).
-    public var chooserHint: () -> String?
+    /// What the long press of Shift says half way ("Keep holding → Translate as You Type", or "… off" while it's on, the
+    /// shell's wording; nil: nothing). Not asked in Code.
+    public var holdHint: () -> String?
 
     public init() {
         store = SuggestionsStore()
@@ -482,8 +480,6 @@ public struct SuggestionsServices {
         cacheFolder = nil
         preferences = { _ in [:] }
         codingPacks = { [] }
-        codingMode = { false }
-        setCodingMode = { _ in }
         translateAsYouType = { false }
         setTranslateAsYouType = { _ in }
         loadPicks = { [] }
@@ -494,7 +490,7 @@ public struct SuggestionsServices {
         stickyKeys = { false }
         shiftHeld = { true }
         shiftDown = { false }
-        chooserHint = { nil }
+        holdHint = { nil }
     }
 }
 

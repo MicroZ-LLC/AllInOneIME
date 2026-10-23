@@ -35,12 +35,13 @@ public enum ICloudSync {
     // MARK: - The keys
 
     /// The config keys "Settings" syncs (each as the config file writes it), besides the apps' (`appPrefix`). The output
-    /// and input languages carry the one in use and the default input (the first of each list); `redaction` is its
-    /// switches, the words being `hiddenWordsKey`.
+    /// and input languages carry the one in use and the default input (the first of each list); the Code input
+    /// (`codingLanguage`) syncs as they do (its pack, as theirs, is each Mac's download); `redaction` is its switches, the
+    /// words being `hiddenWordsKey`.
     public static let settingsKeys: [String] = [
         "provider", "awsProfile", "region", "modelId", "anthropic", "gemini", "openai",
         "maxTokens", "temperature", "timeoutSeconds",
-        "outputLanguages", "inputLanguages", "rewriteStyles", "improveTranslates", "voiceInput", "actionKey", "commandTrigger", "uiLanguage",
+        "outputLanguages", "inputLanguages", "codingLanguage", "rewriteStyles", "improveTranslates", "voiceInput", "actionKey", "commandTrigger", "uiLanguage",
         "claudeInBackground", "rememberQuestions", "questionRounds", "questionContinueIn", "menuBarIcon",
         "typeOut", "typeOutRate", "typeOutVaries", "typeOutMistakes", "fuzzyPinyin", "keyboardLayouts", "candidateLayout",
         "checkForUpdates", "useSelection", "redaction", "learnsEnglishWords",
@@ -921,7 +922,7 @@ public enum ICloudSync {
     public static func problem(_ key: String, _ value: AIConfig.JSONValue?, environment env: Environment) -> Problem? {
         guard let value else {
             // Only what the config may leave out can be deleted.
-            return key.hasPrefix(appPrefix) || ["questionRounds", "questionContinueIn"].contains(key) ? nil : .cannotDelete
+            return key.hasPrefix(appPrefix) || ["questionRounds", "questionContinueIn", "codingLanguage"].contains(key) ? nil : .cannotDelete
         }
         func number(_ range: ClosedRange<Double>) -> Problem? {
             guard case let .number(n) = value else { return .wrongType }
@@ -933,7 +934,7 @@ public enum ICloudSync {
                   decodes(AppProfile.self, value) != nil else { return .wrongType }
             if let language = fields["inputLanguage"], language != .null {
                 guard case let .string(code) = language else { return .wrongType }
-                if Language(rawValue: code) == nil { return .unknownValue }
+                if Input(rawValue: code) == nil { return .unknownValue }
             }
             if let styles = fields["rewriteStyles"], styles != .null, styles.strings == nil { return .wrongType }
             for flag in ["typeOut", "noAI", "translateAlways", "autocomplete"] {
@@ -987,6 +988,9 @@ public enum ICloudSync {
             guard let codes = strings() else { return .wrongType }
             let known = codes.compactMap(Language.init(rawValue:))
             return known.isEmpty || Set(codes).count > Config.maxInputLanguages ? .outOfRange : nil
+        case "codingLanguage":
+            guard case let .string(language) = value else { return .wrongType }
+            return CodingLanguagePack.isLanguage(language) ? nil : .unknownValue
         case "rewriteStyles", "fuzzyPinyin":
             return strings() == nil ? .wrongType : nil
         case "questionContinueIn":

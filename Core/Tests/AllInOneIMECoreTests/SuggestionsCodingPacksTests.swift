@@ -3,9 +3,10 @@ import Testing
 @testable import AllInOneIMECore
 
 /// The coding language packs this repository ships (Core/CodingPacks/), read as the app reads a downloaded one, and what
-/// their snippets put in through a session (spec 6.19): a snippet's second and later lines get the caret's line's
-/// indentation, what several installed packs' snippets put in alike is one row, a pack's row names its language, and a
-/// snippet picked comes first among its trigger's. The rig: Acceptance/SuggestionsAcceptanceTests.swift.
+/// their snippets put in through a session in Code (spec 6.19, decision 22): a snippet's second and later lines get the
+/// caret's line's indentation, only Code's language's pack gives rows (the others installed don't), what two snippets put
+/// in alike is one row, a row says what it is (not its language), and a snippet picked comes first among its trigger's.
+/// The rig: Acceptance/SuggestionsAcceptanceTests.swift, SuggestionsCode.swift.
 @Suite(.serialized, SuggestionsOneAtATime())
 struct SuggestionsCodingPacksTests {
     func inEnglish(_ body: () throws -> Void) async rethrows { try await withInterfaceLanguage("en", body) }
@@ -17,11 +18,10 @@ struct SuggestionsCodingPacksTests {
         try JSONDecoder().decode(CodingLanguagePack.self, from: Data(contentsOf: folder.appendingPathComponent(language + ".json")))
     }
 
-    /// A world in coding mode with `packs` installed.
-    static func coding(_ packs: [CodingLanguagePack]) -> SuggestionsWorld {
+    /// A world with `packs` installed and the Code input in `language` (else the first pack's).
+    static func coding(_ packs: [CodingLanguagePack], language: String? = nil) -> SuggestionsWorld {
         let world = SuggestionsWorld()
-        world.packs = packs
-        world.codingMode = true
+        world.addCode(language ?? packs.first?.language ?? "python", packs: packs)
         return world
     }
 
@@ -47,7 +47,7 @@ struct SuggestionsCodingPacksTests {
             let pack = try store.keep(Data(contentsOf: file), language: language)
             #expect(Set(pack.keywords).count == pack.keywords.count, "\(language): a keyword twice")
             for snippet in pack.snippets {
-                let rows = CodingRows.rows(snippet.trigger, packs: [pack], words: [], appClass: .ordinary, in: t)
+                let rows = CodingRows.rows(snippet.trigger, pack: pack, words: [], appClass: .ordinary, in: t)
                 let (text, back) = CodingRows.expand(snippet.body)
                 let plain = CodingRows.expand(snippet.body, toFirstStop: false).text
                 #expect(rows.contains { $0.insertion == text && $0.caretBack == back && ($0.plainInsertion ?? $0.insertion) == plain },
@@ -71,7 +71,7 @@ struct SuggestionsCodingPacksTests {
     @Test func aSnippetsLaterLinesGetTheCaretLinesIndentation() async throws {
         try await inEnglish {
             let world = Self.coding([try Self.shipped("python")])
-            let field = world.field()
+            let field = world.codeField()
             field.host.document = "def main():\n    "
             field.type("tr")
             #expect(field.settle { field.rows.first?.comment.contains("try/except") == true }, "\(Self.texts(field))")
@@ -86,7 +86,7 @@ struct SuggestionsCodingPacksTests {
 
             // Tabs as the line has them, after code on it too.
             let go = Self.coding([try Self.shipped("go")])
-            let tabs = go.field()
+            let tabs = go.codeField()
             tabs.host.document = "func main() {\n\tx := 1; "
             tabs.type("if")
             #expect(tabs.settle { tabs.rows.contains { $0.comment.contains("if err != nil") } }, "\(Self.texts(tabs))")
@@ -102,7 +102,7 @@ struct SuggestionsCodingPacksTests {
     @Test func theCaretGoesToTheFirstTabStopWithoutItsText() async throws {
         try await inEnglish {
             let world = Self.coding([try Self.shipped("python")])
-            let field = world.field(app: "com.apple.Notes")
+            let field = world.codeField(app: "com.apple.Notes")
             field.type("def")
             #expect(field.settle { field.rows.first?.comment.contains("function") == true }, "\(Self.texts(field))")
             var before = field.host.outputs.count
@@ -110,7 +110,7 @@ struct SuggestionsCodingPacksTests {
             #expect(field.document == "def ():\n    ", "\(field.document.debugDescription)")
             #expect(Self.moves(field, since: before) == ["():\n    ".utf16.count], "right after \"def \": \(Self.moves(field, since: before))")
 
-            let indented = world.field()
+            let indented = world.codeField()
             indented.host.document = "class A:\n    "
             indented.type("def")
             #expect(indented.settle { indented.rows.contains { $0.comment.contains("method") } }, "\(Self.texts(indented))")
@@ -121,7 +121,7 @@ struct SuggestionsCodingPacksTests {
             #expect(Self.moves(indented, since: before) == ["(self):\n        ".utf16.count], "\(Self.moves(indented, since: before))")
 
             // Another world: the method picked above comes first in this one.
-            let plain = Self.coding([try Self.shipped("python")]).field()
+            let plain = Self.coding([try Self.shipped("python")]).codeField()
             plain.type("def")
             #expect(plain.settle { plain.rows.first?.comment.contains("function") == true }, "\(Self.texts(plain))")
             var context = plain.host.context
@@ -148,7 +148,7 @@ struct SuggestionsCodingPacksTests {
     @Test func noIndentationAddsNone() async throws {
         try await inEnglish {
             let world = Self.coding([try Self.shipped("python")])
-            let field = world.field()
+            let field = world.codeField()
             field.host.document = "import os\n"
             field.type("tr")
             #expect(field.settle { field.rows.first?.comment.contains("try/except") == true }, "\(Self.texts(field))")
@@ -157,43 +157,46 @@ struct SuggestionsCodingPacksTests {
         }
     }
 
-    /// A pack's snippet row says its language, then its title ("Python · function"), or that it's a snippet where the
-    /// title is only its trigger; a keyword's, its language.
-    @Test func aPacksRowNamesItsLanguage() async throws {
+    /// A snippet's row says its title ("function"), or that it's a snippet where the title is only its trigger; a
+    /// keyword's that it's a keyword. Never the language: Code has one (decision 22).
+    @Test func aCodeRowSaysWhatItIs() async throws {
         try await inEnglish {
             let world = Self.coding([try Self.shipped("python")])
-            let field = world.field()
+            let field = world.codeField()
             field.type("de")
             #expect(field.settle { !field.rows.isEmpty }, "\(Self.texts(field))")
-            #expect(Self.texts(field) == ["def Python · function", "def Python · method", "def Python", "del Python"], "\(Self.texts(field))")
-            let printing = world.field()
+            #expect(Self.texts(field) == ["def function", "def method", "def keyword", "del keyword"], "\(Self.texts(field))")
+            let printing = world.codeField()
             printing.type("pr")
-            #expect(printing.settle { Self.texts(printing).first == "print Python · snippet" }, "\(Self.texts(printing))")
+            #expect(printing.settle { Self.texts(printing).first == "print snippet" }, "\(Self.texts(printing))")
         }
     }
 
-    /// What several installed packs' snippets put in alike is one row, its comment naming each pack's language: C's, C++'s
-    /// and Java's `if`; two bodies written differently that come out the same (their first stops, `${1:…}` and `${2:…}`,
-    /// empty, the caret there).
-    @Test func identicalExpansionsFromSeveralPacksShowOnce() async throws {
+    /// Only Code's language's pack gives rows, whatever else is installed: C's `if` in C (C++'s and Java's, which put in
+    /// the same, aren't there to name), Java's in Java; two snippets of one pack written differently that come out the
+    /// same are one row (their first stops, `${1:…}` and `${2:…}`, empty, the caret there).
+    @Test func onlyCodesLanguageGivesRows() async throws {
         try await inEnglish {
-            let world = Self.coding([try Self.shipped("c"), try Self.shipped("cpp"), try Self.shipped("java")])
-            let field = world.field()
-            field.type("if")
-            #expect(field.settle { !field.rows.isEmpty }, "\(Self.texts(field))")
-            #expect(field.rows.filter { $0.text == "if" }.map(\.comment) == ["C/C++/Java · snippet", "C/C++/Java · if/else"],
-                    "\(Self.texts(field))")
+            let packs = [try Self.shipped("c"), try Self.shipped("cpp"), try Self.shipped("java")]
+            let c = Self.coding(packs, language: "c").codeField()
+            c.type("if")
+            #expect(c.settle { !c.rows.isEmpty }, "\(Self.texts(c))")
+            #expect(c.rows.filter { $0.text == "if" }.map(\.comment) == ["snippet", "if/else"], "\(Self.texts(c))")
+            #expect(c.host.panel?.detail == "C", "the source, C's pack: \(c.footer)")
+            let java = Self.coding(packs, language: "java").codeField()
+            java.type("sw")
+            #expect(java.settle { !java.rows.isEmpty }, "\(Self.texts(java))")
+            #expect(java.host.panel?.detail == "Java" && java.rows.first?.text == "switch", "\(Self.texts(java))")
 
             let written = Self.coding([
                 CodingLanguagePack(language: "example", title: "Example", version: "1.0.0", keywords: [],
-                                   snippets: [.init(trigger: "show", body: "show(${1:value})$0", title: "show")]),
-                CodingLanguagePack(language: "other", title: "Other", version: "1.0.0", keywords: [],
-                                   snippets: [.init(trigger: "show", body: "show(${2:value})${0}", title: "show")]),
+                                   snippets: [.init(trigger: "show", body: "show(${1:value})$0", title: "show"),
+                                              .init(trigger: "show", body: "show(${2:value})${0}", title: "show")]),
             ])
-            let both = written.field()
+            let both = written.codeField()
             both.type("sh")
             #expect(both.settle { !both.rows.isEmpty }, "\(Self.texts(both))")
-            #expect(Self.texts(both) == ["show Example/Other · snippet"], "\(Self.texts(both))")
+            #expect(Self.texts(both) == ["show snippet"], "\(Self.texts(both))")
             #expect(both.press(SuggestionKeys.tab))
             #expect(both.document == "show()", "\(both.document)")
         }
@@ -203,10 +206,10 @@ struct SuggestionsCodingPacksTests {
     @Test func inACodeEditorATriggersSnippetsAreOneRow() async throws {
         try await inEnglish {
             let world = Self.coding([try Self.shipped("python")])
-            let field = world.field(app: SuggestionsApps.vsCode)
+            let field = world.codeField(app: SuggestionsApps.vsCode)
             field.type("fo")
             #expect(field.settle { !field.rows.isEmpty }, "\(Self.texts(field))")
-            #expect(field.rows.filter { $0.text == "for" && $0.comment.contains(" · ") }.count == 1, "\(Self.texts(field))")
+            #expect(field.rows.filter { $0.text == "for" && $0.comment != "keyword" }.count == 1, "\(Self.texts(field))")
         }
     }
 
@@ -214,14 +217,14 @@ struct SuggestionsCodingPacksTests {
     @Test func aSnippetPickedComesFirstAmongItsTriggers() async throws {
         try await inEnglish {
             let world = Self.coding([try Self.shipped("python")])
-            let field = world.field()
+            let field = world.codeField()
             field.type("if")
             #expect(field.settle { field.rows.count == 3 }, "\(Self.texts(field))")
             let index = try #require(field.rows.firstIndex { $0.comment.contains("main guard") }, "\(Self.texts(field))")
             #expect(index > 0)
             #expect(field.pick(at: index))
             #expect(field.document == "if __name__ == \"__main__\":\n    ", "its first stop, main(), left out: \(field.document.debugDescription)")
-            let again = world.field()
+            let again = world.codeField()
             again.type("if")
             #expect(again.settle { again.rows.count == 3 }, "\(Self.texts(again))")
             #expect(again.rows.first?.comment.contains("main guard") == true, "\(Self.texts(again))")
