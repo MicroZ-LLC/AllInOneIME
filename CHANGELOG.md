@@ -15,7 +15,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ### Changed
 
-- Holding Shift for a second opens a chooser (Translate as You Type, Coding mode) instead of turning Translate as You Type on or off at once: pick 1 (or ⏎) for it. The hint at half a second is gone. A tap of Shift still switches the input language; Shift with a letter, another key or a click opens nothing, in Slack and other Electron apps too.
+- Holding Shift for a second opens a chooser (Translate as You Type, Coding mode) instead of turning Translate as You Type on or off at once: the hint at half a second still says "Keep holding → Translate as You Type" (or "… off"), and the chooser opens with that mode highlighted, so ⏎ (or 1) does it. A tap of Shift still switches the input language; Shift with a letter, another key or a click opens nothing, in Slack and other Electron apps too.
 
 ### Fixed
 

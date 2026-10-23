@@ -671,9 +671,10 @@ Only the first 150 terms are read. With "Jargon" checked, the list is sent to Be
 
 ## Translate as You Type
 
-A prototype, to try. Hold Shift on its own for 1 second: a small chooser opens at the caret, **Translate as You Type** and
-**Coding mode** (↑↓ or 1–2, ⏎, Esc). Pick Translate as You Type (1) to turn it on, and again to turn it off; a quick tap of
-Shift still switches the input language. "Translate as You Type on: Chinese → English · hold Shift again to turn off"
+A prototype, to try. Hold Shift on its own for 1 second: at 0.5 s a hint near the caret says "Keep holding → Translate as
+You Type" ("… off" while it's on), and at 1 s a small chooser opens at the caret, **Translate as You Type** and **Coding
+mode** (↑↓ or 1–2, ⏎, Esc), the mode that is on highlighted. ⏎ or 1 turns Translate as You Type on, and again off; a
+quick tap of Shift still switches the input language. "Translate as You Type on: Chinese → English · hold Shift again to turn off"
 (naming the language it translates into) confirms it for about 1.5 s ("Translate as You Type off" when it goes off).
 Shift with a letter (a capital), with another key or with a click never opens the chooser. It can't be on with coding
 mode: choosing one turns the other off. While it's on, the menu bar icon carries a small dot. There is no command for it.
