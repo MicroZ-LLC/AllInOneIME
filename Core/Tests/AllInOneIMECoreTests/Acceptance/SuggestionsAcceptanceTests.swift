@@ -33,7 +33,8 @@ import AllInOneIMETestSupport
 // (case, the prefix's too) Token, Rows; 8 (without prefix: digits, exact) Token, Manifest; 9 (an entry refused, the
 // plugin loaded) Manifest, Sources; 10, 11 (the terminal and code editor class, the app classes) Rows, Coding; 12 (Esc
 // for the token) Rows; 13 (what is offered) Rows, Coding; 14 (the command trigger) Switches; 15 (English words) Switches;
-// 16 (no field text) Coding; 17 (picked order, pauses and back-off, the cache on disk) Rows, Sources, Switches.
+// 16 (no field text) Coding; 17 (picked order, pauses and back-off, the cache on disk) Rows, Sources, Switches; 19, 21,
+// 23 (a snippet's later lines indented, its caret at its first tab stop in reading order) Coding.
 //
 // This file: what they share.
 
