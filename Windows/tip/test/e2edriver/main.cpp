@@ -596,6 +596,9 @@ bool TypeScenario(const Scenario& s, DWORD pid) {
         Check(ready, "librime is ready in the engine");
         // A new user's typing starts in English; a tap of Shift switches to 中文 (the run's settings: English, Chinese).
         if (!TapShift(pid)) return false;
+        // The switch's "中" notice lasts 1.5 s (CandidateWindow.noticeDuration) and outlives the candidates it is beside,
+        // alone in the window: gone first, so that the window the commit must hide below is the candidates' only.
+        Pump(1700);
         if (!TypeText(L"nihao", pid)) return false;
         Pump(300);
         CheckPanel(s.enginePid, pid, s.Shot(L"pinyin-candidates.png"), "nihao");
