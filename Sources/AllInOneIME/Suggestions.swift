@@ -74,9 +74,9 @@ enum SuggestionsShared {
         guard !lapsed.isEmpty else { return }
         DispatchQueue.main.async {
             do {
-                var config = try Config.load()
-                guard config.markLapsed(lapsed) else { return }
-                try config.write()
+                var marked = false
+                try Config.change { marked = $0.markLapsed(lapsed) }
+                guard marked else { return }
                 log.notice("suggestions: \(lapsed.count, privacy: .public) approval(s) marked lapsed")
                 NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
                 NotificationCenter.default.post(name: .allInOneIMESuggestionsChanged, object: nil)
@@ -320,9 +320,7 @@ extension AllInOneIMEInputController {
     @objc func toggleSuggestions(_ sender: Any?) {
         MainActor.assumeIsolated {
             do {
-                var config = try Config.load()
-                config.suggestions = config.suggestions == false ? nil : false
-                try config.write()
+                let config = try Config.change { $0.suggestions = $0.suggestions == false ? nil : false }
                 NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
                 log.notice("suggestions: \(config.suggestions == false ? "off" : "on", privacy: .public)")
                 SuggestionsShared.settingsChanged()

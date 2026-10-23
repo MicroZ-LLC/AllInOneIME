@@ -190,9 +190,7 @@ enum AutocompleteSwitch {
     @discardableResult
     static func set(_ on: Bool, notify field: AllInOneIMEInputController?) -> Bool {
         do {
-            var config = try Config.load()
-            config.autocomplete = on
-            try config.write()
+            let config = try Config.change { $0.autocomplete = on }
             // Counted here, before a session sees the file (`AutocompleteStore.saw`), which then counts nothing more.
             store.switched(on: on)
             NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)

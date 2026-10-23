@@ -338,8 +338,8 @@ extension AllInOneIMEInputController {
         return item
     }
 
-    /// Changes the profile of the menu item's app in the config file; one left setting nothing is removed. The field
-    /// takes it at once (its starting language too).
+    /// Changes the profile of the menu item's app in the config file, only that (`Config.change`); one left setting
+    /// nothing is removed. The field takes it at once (its starting language too).
     @MainActor
     private func changeAppProfile(_ sender: Any?, _ what: String, _ change: (inout AppProfile, Config, String) -> Void) {
         guard let info = Self.menuItem(from: sender)?.representedObject as? [String: String], let app = info["app"] else {
@@ -347,10 +347,10 @@ extension AllInOneIMEInputController {
             return
         }
         do {
-            var config = try Config.load()
-            let before = config  // what the change reads (typing out everywhere)
-            config.changeProfile(for: app, dropsEmpty: true) { change(&$0, before, info["value"] ?? "") }
-            try config.write()
+            let config = try Config.change { config in
+                let before = config  // what the change reads (typing out everywhere)
+                config.changeProfile(for: app, dropsEmpty: true) { change(&$0, before, info["value"] ?? "") }
+            }
             NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
             log.notice("app profile changed: \(what, privacy: .public) (\(config.appProfiles.count) apps with their own settings)")
             applySettings()

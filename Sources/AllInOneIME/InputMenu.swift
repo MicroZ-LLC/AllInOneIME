@@ -141,9 +141,7 @@ extension AllInOneIMEInputController {
                 return
             }
             do {
-                var config = try Config.load()
-                config.rewriteStyles = SessionText.toggled(name, in: config.rewriteStyles)
-                try config.write()
+                let config = try Config.change { $0.rewriteStyles = SessionText.toggled(name, in: $0.rewriteStyles) }
                 NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
                 log.notice("rewrite styles now \(config.rewriteStyles.joined(separator: ","), privacy: .public)")
             } catch {
@@ -162,10 +160,10 @@ extension AllInOneIMEInputController {
                 return
             }
             do {
-                var config = try Config.load()
-                config.outputLanguage = OutputLanguage(raw)
-                config.normalizeLanguages()
-                try config.write()
+                try Config.change { config in
+                    config.outputLanguage = OutputLanguage(raw)
+                    config.normalizeLanguages()
+                }
                 NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
                 log.notice("output language now \(raw, privacy: .public)")
             } catch {
@@ -215,9 +213,7 @@ extension AllInOneIMEInputController {
     @objc func toggleImproveTranslates(_ sender: Any?) {
         MainActor.assumeIsolated {
             do {
-                var config = try Config.load()
-                config.improveTranslates.toggle()
-                try config.write()
+                let config = try Config.change { $0.improveTranslates.toggle() }
                 NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
                 log.notice("@improve also translates: \(config.improveTranslates, privacy: .public)")
             } catch {
@@ -234,10 +230,10 @@ extension AllInOneIMEInputController {
                 return
             }
             do {
-                var config = try Config.load()
-                config.defaultInput = language
-                config.normalizeLanguages()
-                try config.write()
+                let config = try Config.change { config in
+                    config.defaultInput = language
+                    config.normalizeLanguages()
+                }
                 NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
                 log.notice("default input now \(config.defaultInput.rawValue, privacy: .public)")
                 applySettings()
@@ -295,9 +291,7 @@ extension AllInOneIMEInputController {
             }
             packs.pick(language) { language in
                 do {
-                    var config = try Config.load()
-                    config.codingLanguage = language
-                    try config.write()
+                    try Config.change { $0.codingLanguage = language }
                     NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
                     log.notice("Code's language now \(language, privacy: .public)")
                     AllInOneIMEInputController.activeController?.applySettings()

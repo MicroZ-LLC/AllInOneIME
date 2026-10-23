@@ -716,6 +716,22 @@ public struct Config: Codable, Equatable, Sendable {
             at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try encoder.encode(self).write(to: url, options: .atomic)
     }
+
+    /// The config file at `url` changed by `change`, written as Settings saves (`SettingsStore.save`, `AIConfig.writing`):
+    /// only the keys `change` changed, in place, every other key of the file as it was, its text too: a key this version
+    /// doesn't know, an app's field it doesn't know, the custom commands it refused or keeps for a later version.
+    /// Writing the whole config (`write`) would drop those, and add the keys this version always writes. What a change
+    /// outside Settings uses (the input menu's). Nothing is written when nothing changed; a file that can't be read
+    /// throws and is left as it is; with none yet, the config (a new user's, `load`) is written whole. The config as
+    /// changed.
+    @discardableResult
+    public static func change(at url: URL = defaultURL, _ change: (inout Config) throws -> Void) throws -> Config {
+        let old = try load(from: url)
+        var new = old
+        try change(&new)
+        try AIConfig.writing(new, from: old, keys: AIConfig.changedKeys(old, new), at: url)
+        return new
+    }
 }
 
 /// The candidate panel's layout for a word being typed (`Config.candidateLayout`).
