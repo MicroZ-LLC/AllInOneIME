@@ -5,7 +5,9 @@ import Foundation
 import WinSDK
 #endif
 
-/// Process-wide librime instance (level one). Main thread only.
+/// Process-wide librime instance (level one). Main thread only, but for waiting (`waitUntilReady`, `isReady`): a
+/// thread that waits for a redeploy may run while the main queue starts one librime refused at first
+/// (`startRequestedRedeploy`).
 public final class RimeService {
     public enum DeploymentStatus: Sendable {
         case idle, deploying, succeeded, failed
@@ -26,10 +28,13 @@ public final class RimeService {
         api.pointee.get_version().map { String(cString: $0) } ?? "?"
     }
 
-    /// False while librime is deploying (compiling schemas), or syncing the learned words (`syncUserData`); sessions
-    /// cannot be created then.
+    /// False while librime is deploying (compiling schemas), or syncing the learned words (`syncUserData`), or a
+    /// redeploy asked for hasn't started yet; sessions cannot be created then. The redeploy is asked about first: once
+    /// it is no longer waiting, librime's maintenance for it is under way (or over), so librime is never found idle in
+    /// between.
     public var isReady: Bool {
-        isStarted && api.pointee.is_maintenance_mode() == 0 && !isSyncing && !redeployWanted
+        guard isStarted, !redeployPending, !isSyncing else { return false }
+        return api.pointee.is_maintenance_mode() == 0
     }
 
     /// librime's deploy notification, including compilation failure. Notifications can arrive on
@@ -55,10 +60,19 @@ public final class RimeService {
 
     private let syncLock = NSLock()
     private var syncing = false
-    /// A redeploy asked for while the learned words were syncing.
+    /// A redeploy asked for (`redeploy`), not started yet: librime was deploying, or the learned words syncing. Then
+    /// `starting` from the moment one is taken to start until librime's maintenance for it runs. Under `redeployLock`,
+    /// with `invalidateSchemaWanted` and `redeployPoll`: the main queue's poll and a waiting thread both start it.
     private var redeployWanted = false
+    private var starting = false
     private var invalidateSchemaWanted = false
     private var redeployPoll: DispatchWorkItem?
+    private let redeployLock = NSLock()
+    /// A redeploy is asked for or being started: not ready.
+    private var redeployPending: Bool {
+        redeployLock.lock(); defer { redeployLock.unlock() }
+        return redeployWanted || starting
+    }
     /// The learned words' sync is running (on a thread of its own).
     public var isSyncing: Bool { syncLock.lock(); defer { syncLock.unlock() }; return syncing }
     private func setSyncing(_ on: Bool) { syncLock.lock(); syncing = on; syncLock.unlock() }
@@ -215,32 +229,48 @@ public final class RimeService {
     /// Session ids are reused by librime, so the generation marks every older session as dead.
     public func redeploy(invalidateGeneratedSchema: Bool = false) {
         guard isStarted else { return }
+        redeployLock.lock()
         redeployWanted = true
         invalidateSchemaWanted = invalidateSchemaWanted || invalidateGeneratedSchema
+        redeployLock.unlock()
         startRequestedRedeploy()
     }
 
+    /// Starts the redeploy asked for, unless it can't start yet (then the main queue asks again in 0.1 s) or another
+    /// thread is starting it. It stays pending (`isReady` false) until librime's maintenance for it is under way: a
+    /// thread waiting for it (`waitUntilReady`) never finds the older deployment's end and takes it for this one's.
     private func startRequestedRedeploy() {
-        guard redeployWanted, !isSyncing else { return }
+        redeployLock.lock()
+        guard redeployWanted, !starting, !isSyncing else { return redeployLock.unlock() }
         // start_maintenance refuses a second request while deploying. Keep it until the current
         // deployment is over, so a newly imported file cannot be mistaken for an older success.
         guard api.pointee.is_maintenance_mode() == 0 else {
             if redeployPoll == nil {
                 let poll = DispatchWorkItem { [weak self] in
-                    self?.redeployPoll = nil
-                    self?.startRequestedRedeploy()
+                    guard let self else { return }
+                    self.redeployLock.lock()
+                    self.redeployPoll = nil
+                    self.redeployLock.unlock()
+                    self.startRequestedRedeploy()
                 }
                 redeployPoll = poll
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: poll)
             }
-            return
+            return redeployLock.unlock()
         }
-        redeployWanted = false
+        (redeployWanted, starting) = (false, true)
         redeployPoll?.cancel()
         redeployPoll = nil
+        let invalidateSchema = invalidateSchemaWanted
+        invalidateSchemaWanted = false
+        redeployLock.unlock()
+        defer {
+            redeployLock.lock()
+            starting = false
+            redeployLock.unlock()
+        }
         if let sharedDataDir, let userDataDir { Self.supplyLunarDatabase(sharedDataDir: sharedDataDir, userDataDir: userDataDir) }
-        if invalidateSchemaWanted {
-            invalidateSchemaWanted = false
+        if invalidateSchema {
             do { try invalidateGeneratedSchema() }
             catch {
                 setDeploymentStatus(.failed, error: "build/rime_ice.schema.yaml: " + error.localizedDescription)
@@ -295,11 +325,9 @@ public final class RimeService {
         DispatchQueue.global(qos: .utility).async {
             let ok = api.pointee.run_task("installation_update") != 0 && api.pointee.run_task("user_dict_sync") != 0
             self.setSyncing(false)
+            // A redeploy asked for meanwhile (`redeployWanted`) starts now.
             DispatchQueue.main.async {
-                if self.redeployWanted {
-                    self.redeployWanted = false
-                    self.redeploy()
-                }
+                self.startRequestedRedeploy()
                 done?(ok)
             }
         }
@@ -342,7 +370,7 @@ public final class RimeService {
         let deadline = Date().addingTimeInterval(timeout)
         while !isReady && Date() < deadline {
             // This developer helper may block the main thread: service a queued redeploy here too.
-            if redeployWanted { startRequestedRedeploy() }
+            startRequestedRedeploy()
             Thread.sleep(forTimeInterval: 0.05)
         }
         return isReady
