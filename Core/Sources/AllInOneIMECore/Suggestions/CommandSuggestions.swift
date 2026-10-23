@@ -98,3 +98,34 @@ extension CustomCommand {
         }
     }
 }
+
+/// Runs custom commands' programs for their suggestions (decision 24) as `run` commands run (`CommandRunner`): `argv`
+/// without a shell (unless it starts one), a program without "/" looked up on the PATH of `environment` (nil: the
+/// platform's: on the Mac the user's login shell's, as `run` has it), in the home folder, nothing on standard input; the
+/// list with no input (`suggestionArguments(query: nil)`) within `timeoutSeconds`, a query with its text as one argument
+/// within 3 s. What it printed, cleaned as a `run` command's is (control characters out, line breaks and tabs kept), 4 MB
+/// at most with room to spare (more stops it); a program that fails, runs too long or isn't found throws why (the last
+/// line it wrote to standard error, "Program not found: jira-list"). Cancelling the task stops it.
+public struct CommandCompletionRunner: CommandCompletionRuntime {
+    public var environment: [String: String]?
+
+    public init(environment: [String: String]? = nil) { self.environment = environment }
+
+    /// The most a program may print: a list's 4 MiB, with room for its JSON (as a plugin's script).
+    static let maxOutput = PluginCompletionRuntime.maxOutput
+
+    public func list(_ command: CustomCommand) async throws -> Data {
+        try await run(command.suggestionArguments(query: nil), timeout: command.timeout)
+    }
+
+    public func query(_ text: String, _ command: CustomCommand) async throws -> Data {
+        try await run(command.suggestionArguments(query: text), timeout: command.queryTimeout)
+    }
+
+    private func run(_ argv: [String], timeout: Double) async throws -> Data {
+        guard !argv.isEmpty else { throw CommandRunner.RunError.notFound("") }
+        let output = try await CommandRunner.output(argv, stdin: nil, timeout: timeout, maxOutput: Self.maxOutput,
+                                                    environment: environment)
+        return Data(output.utf8)
+    }
+}

@@ -103,12 +103,15 @@ public enum CommandRunner {
         var maxOutput = CommandRunner.maxOutputBytes
     }
 
-    /// Runs `argv` with `stdin` for its output (`maxOutput` bytes at most, `timeout` seconds), as a `run` command runs:
-    /// what it printed (control characters taken out), once it exited; an error when it failed, printed too much or
-    /// ran too long. Cancelling the task stops it (`PluginCompletionRuntime`).
-    static func output(_ argv: [String], stdin: String, timeout: Double, maxOutput: Int) async throws -> String {
+    /// Runs `argv` with `stdin` (nil: none, the program reads its end at once) for its output (`maxOutput` bytes at most,
+    /// `timeout` seconds), as a `run` command runs: in the home folder, with `environment` (nil: the platform's, on the
+    /// Mac the user's shell's PATH); what it printed (control characters taken out), once it exited; an error when it
+    /// failed, printed too much or ran too long. Cancelling the task stops it (`PluginCompletionRuntime`,
+    /// `CommandCompletionRunner`).
+    static func output(_ argv: [String], stdin: String?, timeout: Double, maxOutput: Int,
+                       environment: [String: String]? = nil) async throws -> String {
         let launch = Launch(argv: argv, stdin: stdin, timeout: timeout, maxOutput: maxOutput)
-        for try await update in run(launch, environment: nil) where update.isFinal { return update.rawText }
+        for try await update in run(launch, environment: environment) where update.isFinal { return update.rawText }
         try Task.checkCancellation()
         return ""
     }

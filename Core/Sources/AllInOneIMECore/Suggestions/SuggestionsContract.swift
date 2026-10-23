@@ -475,7 +475,8 @@ public struct SuggestionsServices {
     public var store: SuggestionsStore
     /// Runs plugins' `load` and `query`.
     public var runtime: any CompletionRuntime
-    /// Runs custom commands' programs for their lists and queries.
+    /// Runs custom commands' programs for their lists and queries: as `run` commands run (`CommandCompletionRunner`)
+    /// unless the shell gives another.
     public var commandRuntime: any CommandCompletionRuntime
     /// The switches (read again as the settings change).
     public var settings: () -> SuggestionsSettings
@@ -528,7 +529,7 @@ public struct SuggestionsServices {
     public init() {
         store = SuggestionsStore()
         runtime = NoCompletionRuntime()
-        commandRuntime = NoCommandCompletionRuntime()
+        commandRuntime = CommandCompletionRunner()
         settings = { SuggestionsSettings() }
         now = { Date() }
         cacheFolder = nil
@@ -559,11 +560,4 @@ public struct NoCompletionRuntime: CompletionRuntime {
     public init() {}
     public func load(_ call: CompletionCall) async throws -> Data { throw SessionServicesError.unsupported }
     public func query(_ text: String, _ call: CompletionCall) async throws -> Data { throw SessionServicesError.unsupported }
-}
-
-/// Custom commands' runtime where the shell gave none: every call fails.
-public struct NoCommandCompletionRuntime: CommandCompletionRuntime {
-    public init() {}
-    public func list(_ command: CustomCommand) async throws -> Data { throw SessionServicesError.unsupported }
-    public func query(_ text: String, _ command: CustomCommand) async throws -> Data { throw SessionServicesError.unsupported }
 }
