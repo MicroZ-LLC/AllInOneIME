@@ -175,7 +175,8 @@ extension AllInOneIMEInputController {
 
     /// `menu` (`makeMenu`'s) with autocomplete's switch after "@improve Also Translates": one switch for every app (an
     /// app's own choice is in "This App"), what was counted of it on the item's tooltip; with a cloud provider picked,
-    /// whether it may send text there.
+    /// whether it may send text there; with AllInOneIME Cloud picked, that it never goes there, and why
+    /// (`Autocomplete.offersCloud`).
     @MainActor
     func addingAutocomplete(to menu: NSMenu) -> NSMenu {
         let config = LiveConfig.currentIfValid
@@ -188,7 +189,16 @@ extension AllInOneIMEInputController {
         autocomplete.toolTip = AutocompleteSwitch.store.metrics.summary(language: UIText.language)
             ?? tr("停一下，光标后出现灰字，按 Tab 接受", "Pause, and the rest of the sentence shows in gray after the caret; Tab takes it")
         items.append(autocomplete)
-        if current.autocomplete, current.provider != .apple {
+        if current.autocomplete, current.provider == .hosted {
+            let onDevice = NSMenuItem(title: UIText.triggered(tr("续写只用本机：AllInOneIME 云留给 @ 命令",
+                                                                 "Autocomplete on this Mac only: AllInOneIME Cloud is kept for @ commands")),
+                                      action: nil, keyEquivalent: "")
+            onDevice.isEnabled = false
+            onDevice.indentationLevel = 1
+            onDevice.toolTip = UIText.triggered(tr("AllInOneIME 云每天的免费次数，停顿几分钟就会用完，当天的 @ 命令就用不了了",
+                                                   "A few minutes of pauses would use up AllInOneIME Cloud's free requests for the day, and your @ commands would fail"))
+            items.append(onDevice)
+        } else if current.autocomplete, Autocomplete.offersCloud(current.provider) {
             let name = current.provider.displayName
             let cloud = NSMenuItem(title: tr("续写用 \(name)", "Autocomplete with \(name)"), action: #selector(toggleAutocompleteCloud(_:)),
                                    keyEquivalent: "")

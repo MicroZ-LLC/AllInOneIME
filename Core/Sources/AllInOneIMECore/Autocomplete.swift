@@ -31,9 +31,9 @@ public enum Autocomplete {
 
     // MARK: The model
 
-    /// The model a pause asks: Apple's on-device model, unless the user picked a cloud provider and agreed, once, to send
-    /// it what is before the caret (`Config.autocompleteCloud`). Where the on-device model can't run nothing is shown:
-    /// it never turns to a cloud provider by itself.
+    /// The model a pause asks: Apple's on-device model, unless the user picked a cloud provider of their own
+    /// (`offersCloud`) and agreed, once, to send it what is before the caret (`Config.autocompleteCloud`). Where the
+    /// on-device model can't run nothing is shown: it never turns to a cloud provider by itself.
     public enum Route: Equatable, Sendable {
         case onDevice
         case cloud(Provider)
@@ -45,12 +45,20 @@ public enum Autocomplete {
     }
 
     public static func route(_ config: Config) -> Route {
-        config.provider != .apple && config.autocompleteCloud == true ? .cloud(config.provider) : .onDevice
+        offersCloud(config.provider) && config.autocompleteCloud == true ? .cloud(config.provider) : .onDevice
     }
 
     /// Whether turning it on asks first: a cloud provider picked, and the user hasn't said yet whether it may go there.
     public static func asksForCloud(_ config: Config) -> Bool {
-        config.provider != .apple && config.autocompleteCloud == nil
+        offersCloud(config.provider) && config.autocompleteCloud == nil
+    }
+
+    /// Whether autocomplete may ask `provider`, once the user agreed: a cloud provider of the user's own (an API key, an
+    /// AWS profile). Never AllInOneIME Cloud: its free requests a day are for the @ commands, and a few minutes of pauses
+    /// would use them up (the day's commands would then all fail); with it picked, autocomplete uses the on-device model,
+    /// and says why (`AIConfig.Text.autocompleteHostedOnDevice`, the Mac's input menu).
+    public static func offersCloud(_ provider: Provider) -> Bool {
+        provider != .apple && provider != .hosted
     }
 
     // MARK: Where it runs
@@ -717,12 +725,14 @@ extension Converter {
 
 extension AIConfig {
     /// Autocomplete turned on or off in a sentence (`Key.autocomplete`). On with a cloud provider picked, the row says
-    /// that it uses the model on this Mac until the user agrees, in the input method, to send text to the provider.
+    /// that it uses the model on this Mac until the user agrees, in the input method, to send text to the provider; with
+    /// AllInOneIME Cloud picked, that it only ever uses that model, and why (`Autocomplete.offersCloud`).
     static func checkAutocomplete(_ value: JSONValue, in config: Config, text: Text) -> Row? {
         let (label, path) = (text.autocompleteLabel, Key.autocomplete.path)
         guard case let .bool(on) = value else { return Row(key: path, label: label, status: .refused(text.notValid)) }
         guard on != config.autocomplete else { return nil }
-        let onDevice = on && Autocomplete.asksForCloud(config) ? text.autocompleteOnDevice : ""
+        let onDevice = !on ? "" : Autocomplete.asksForCloud(config) ? text.autocompleteOnDevice
+            : config.provider == .hosted ? text.autocompleteHostedOnDevice : ""
         return Row(key: path, label: label, old: text.onOff(config.autocomplete), new: text.onOff(on) + onDevice, status: .change,
                    edit: .autocomplete(on))
     }
@@ -734,6 +744,11 @@ extension AIConfig.Text {
     var autocompleteOnDevice: String {
         tr("（先用本机模型；要用所选的 AI 服务，在输入法菜单里打开「续写」时同意）",
            " (it uses the model on this Mac; to use your AI provider, agree when you turn on Autocomplete in the input menu)")
+    }
+    /// After "Autocomplete: off → on" with AllInOneIME Cloud picked (`Autocomplete.offersCloud`).
+    var autocompleteHostedOnDevice: String {
+        UIText.triggered(tr("（只用本机模型：AllInOneIME 云每天的免费次数留给 @ 命令）",
+                            " (it uses only the model on this Mac: AllInOneIME Cloud's free requests a day are kept for @ commands)"))
     }
 }
 

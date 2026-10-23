@@ -2727,6 +2727,53 @@
         }
       }
     },
+    "A few minutes of pauses would use up AllInOneIME Cloud's free requests for the day, and your @ commands would fail" : {
+      "comment" : "AllInOneIME 云每天的免费次数，停顿几分钟就会用完，当天的 @ 命令就用不了了 — Sources/AllInOneIME/InputMenu.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein paar Minuten Pausen würden die täglichen Gratis-Anfragen von AllInOneIME Cloud aufbrauchen, und deine @-Befehle würden fehlschlagen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unos minutos de pausas agotarían las solicitudes gratuitas del día de AllInOneIME Cloud, y tus comandos @ fallarían"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quelques minutes de pauses épuiseraient les requêtes gratuites du jour d’AllInOneIME Cloud, et vos commandes @ échoueraient"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数分間の一時停止でAllInOneIME Cloudのその日の無料リクエストを使い切り、@コマンドが使えなくなります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "몇 분만 멈춰도 AllInOneIME Cloud의 하루 무료 요청을 다 써서 @ 명령이 실패하게 됩니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alguns minutos de pausas esgotariam as solicitações gratuitas do dia do AllInOneIME Cloud, e seus comandos @ falhariam"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AllInOneIME Cloud 每天的免費次數，停頓幾分鐘就會用完，當天的 @ 指令就無法使用了"
+          }
+        }
+      }
+    },
     "A Mac with “API keys and passwords” off, or one still on 0.6.4, keeps its own copy, and puts it back if it turns key sync on later." : {
       "comment" : "关了「API 密钥和密码」的 Mac，或还在用 0.6.4 的 Mac，会留着自己的那份；那台 Mac 以后打开密钥同步时，会把它放回来。 — Sources/AllInOneIME/KeyRow.swift",
       "localizations" : {
@@ -5126,6 +5173,100 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "續寫已開啟（%@）：停一下，灰字出現後按 Tab 接受"
+          }
+        }
+      }
+    },
+    "Autocomplete on (Apple Intelligence on this Mac; AllInOneIME Cloud's free requests a day are kept for @ commands): pause, and Tab takes the gray text" : {
+      "comment" : "续写 已开启（本机 Apple Intelligence；AllInOneIME 云每天的免费次数留给 @ 命令）：停一下，灰字出现后按 Tab 接受 — Sources/AllInOneIME/AutocompleteOverlay.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autovervollständigen an (Apple Intelligence auf diesem Mac; die täglichen Gratis-Anfragen von AllInOneIME Cloud bleiben den @-Befehlen vorbehalten): kurz innehalten, Tab übernimmt den grauen Text"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autocompletar activado (Apple Intelligence en este Mac; las solicitudes gratuitas diarias de AllInOneIME Cloud se reservan para los comandos @): haz una pausa y Tab acepta el texto gris"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Complétion automatique activée (Apple Intelligence sur ce Mac ; les requêtes gratuites quotidiennes d’AllInOneIME Cloud sont réservées aux commandes @) : marquez une pause, Tab accepte le texte gris"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オートコンプリート：オン（このMacのApple Intelligence。AllInOneIME Cloudの1日の無料リクエストは@コマンド用に残します）：少し手を止めると灰色の文字が出ます。Tab で採用"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자동 완성 켜짐 (이 Mac의 Apple Intelligence, AllInOneIME Cloud의 하루 무료 요청은 @ 명령용으로 남겨 둠): 잠시 멈추면 회색 글자가 나오고 Tab으로 수락"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autocompletar ativado (Apple Intelligence neste Mac; as solicitações gratuitas diárias do AllInOneIME Cloud ficam para os comandos @): faça uma pausa e Tab aceita o texto cinza"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "續寫已開啟（本機 Apple Intelligence；AllInOneIME Cloud 每天的免費次數留給 @ 指令）：停一下，灰字出現後按 Tab 接受"
+          }
+        }
+      }
+    },
+    "Autocomplete on this Mac only: AllInOneIME Cloud is kept for @ commands" : {
+      "comment" : "续写只用本机：AllInOneIME 云留给 @ 命令 — Sources/AllInOneIME/InputMenu.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autovervollständigen nur auf diesem Mac: AllInOneIME Cloud bleibt den @-Befehlen vorbehalten"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autocompletar solo en este Mac: AllInOneIME Cloud se reserva para los comandos @"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Complétion automatique sur ce Mac uniquement : AllInOneIME Cloud est réservé aux commandes @"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オートコンプリートはこのMacだけ：AllInOneIME Cloudは@コマンド用に残します"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자동 완성은 이 Mac에서만: AllInOneIME Cloud는 @ 명령용으로 남겨 둡니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autocompletar só neste Mac: o AllInOneIME Cloud fica para os comandos @"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "續寫只用本機：AllInOneIME Cloud 留給 @ 指令"
           }
         }
       }

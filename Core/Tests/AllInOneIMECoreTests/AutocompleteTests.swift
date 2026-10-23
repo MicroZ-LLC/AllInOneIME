@@ -177,6 +177,31 @@ struct AutocompleteTests {
         #expect(Autocomplete.Route.onDevice.pause == 0.15 && Autocomplete.Route.cloud(.anthropic).pause == 0.35)
     }
 
+    /// AllInOneIME Cloud is never autocomplete's model, agreed to or not: its free requests a day are the @ commands', and
+    /// a few minutes of pauses would use them up. The on-device model is asked instead, and the Assistant says why.
+    @Test func allInOneIMECloudIsNeverAsked() async throws {
+        var config = Config.default
+        config.provider = .hosted
+        #expect(Autocomplete.route(config) == .onDevice && !Autocomplete.asksForCloud(config))
+        config.autocompleteCloud = true  // a config file written by hand
+        #expect(Autocomplete.route(config) == .onDevice && !Autocomplete.asksForCloud(config))
+        let model = ContinuingModel { _ in " tomorrow at noon." }
+        let fixed = config
+        let keyAsked = Locked(initialState: false)
+        let converter = Converter(loadConfig: { fixed }, loadKey: { _, _ in keyAsked.withLock { $0 = true }; return "token" },
+                                  appleModel: model)
+        let answer = try await converter.autocomplete(Autocomplete.Context(before: "See you"), app: nil)
+        #expect(answer.route == .onDevice && answer.text == " tomorrow at noon." && model.requests.count == 1)
+        #expect(!keyAsked.withLock { $0 })
+        let env = AIConfig.Environment(packInstalled: { _ in true }, apps: AIConfig.AppCatalog(apps: []), awsProfiles: { [] },
+                                       knownModels: { _ in [] }, offeredProviders: [.hosted, .bedrock], hasKey: { _ in true },
+                                       chinese: false)
+        config.autocompleteCloud = nil
+        let on = try AIConfig.parse(#"{"changes": [{"key": "autocomplete", "value": true}]}"#)
+        #expect(AIConfig.check(on, config: config, environment: env).rows.map { $0.text(chinese: false) }
+            == ["Autocomplete: off → on (it uses only the model on this Mac: AllInOneIME Cloud's free requests a day are kept for @ commands)"])
+    }
+
     @Test func theSwitchAndTheConsentAreKeptOnlyOnceSet() throws {
         let plain = String(decoding: try JSONEncoder().encode(Config.default), as: UTF8.self)
         #expect(!plain.contains("autocomplete"))

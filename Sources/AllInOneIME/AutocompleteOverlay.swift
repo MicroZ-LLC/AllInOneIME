@@ -189,7 +189,8 @@ enum AutocompleteSwitch {
         Autocomplete.route(config) != .onDevice || AppleModel.system.availability == .available
     }
 
-    /// 「续写 已开启：停一下，灰字出现后按 Tab」, with the model; or why nothing will show.
+    /// 「续写 已开启：停一下，灰字出现后按 Tab」, with the model (and why it isn't AllInOneIME Cloud, with that picked); or
+    /// why nothing will show.
     static func onNotice(_ config: Config) -> String {
         let model: String
         switch Autocomplete.route(config) {
@@ -201,6 +202,11 @@ enum AutocompleteSwitch {
                     + UIText.describe(AppleModelError.unavailable(availability))
             }
             model = tr("本机 Apple Intelligence", "Apple Intelligence on this Mac")
+            // Never AllInOneIME Cloud (`Autocomplete.offersCloud`): why, with it picked.
+            if config.provider == .hosted {
+                return UIText.triggered(tr("续写 已开启（本机 Apple Intelligence；AllInOneIME 云每天的免费次数留给 @ 命令）：停一下，灰字出现后按 Tab 接受",
+                                           "Autocomplete on (Apple Intelligence on this Mac; AllInOneIME Cloud's free requests a day are kept for @ commands): pause, and Tab takes the gray text"))
+            }
         }
         return tr("续写 已开启（\(model)）：停一下，灰字出现后按 Tab 接受", "Autocomplete on (\(model)): pause, and Tab takes the gray text")
     }

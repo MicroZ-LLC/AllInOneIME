@@ -518,6 +518,53 @@
         }
       }
     },
+    " (it uses only the model on this Mac: AllInOneIME Cloud's free requests a day are kept for @ commands)" : {
+      "comment" : "（只用本机模型：AllInOneIME 云每天的免费次数留给 @ 命令） — Sources/AllInOneIMECore/Autocomplete.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (nutzt nur das Modell auf diesem Mac: Die täglichen Gratis-Anfragen von AllInOneIME Cloud bleiben den @-Befehlen vorbehalten)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (usa solo el modelo de este Mac: las solicitudes gratuitas diarias de AllInOneIME Cloud se reservan para los comandos @)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (utilise uniquement le modèle de ce Mac : les requêtes gratuites quotidiennes d’AllInOneIME Cloud sont réservées aux commandes @)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "（このMacのモデルだけを使います：AllInOneIME Cloudの1日の無料リクエストは@コマンド用に残します）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (이 Mac의 모델만 사용합니다: AllInOneIME Cloud의 하루 무료 요청은 @ 명령용으로 남겨 둡니다)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (usa só o modelo deste Mac: as solicitações gratuitas diárias do AllInOneIME Cloud ficam para os comandos @)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "（只用本機模型：AllInOneIME Cloud 每天的免費次數留給 @ 指令）"
+          }
+        }
+      }
+    },
     " (it uses the model on this Mac; to use your AI provider, agree when you turn on Autocomplete in the input menu)" : {
       "comment" : "（先用本机模型；要用所选的 AI 服务，在输入法菜单里打开「续写」时同意） — Sources/AllInOneIMECore/Autocomplete.swift",
       "localizations" : {
