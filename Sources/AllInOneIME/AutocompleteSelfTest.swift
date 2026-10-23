@@ -495,7 +495,7 @@ extension SelfTest {
             harness.text = text
             let started = Date()
             harnessType(typed, controller, harness)
-            // The real model's time: the pause (150 ms), the field read, the answer, the overlay placed (30 ms).
+            // The real model's time: the pause (350 ms or more), the field read, the answer, the overlay placed (30 ms).
             _ = pump(timeout: 10) { GhostOverlay.shared.text != nil || store.metrics.failed > failed }
             let seconds = Date().timeIntervalSince(started)
             print(String(format: "  on-device: %@ after %.2f s, from the last key", GhostOverlay.shared.text.map { "“\($0)”" } ?? "nothing shown", seconds))

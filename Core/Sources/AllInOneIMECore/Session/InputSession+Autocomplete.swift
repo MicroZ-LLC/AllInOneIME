@@ -25,6 +25,8 @@ struct AutocompleteField {
     var reading: Int?
     var asked: Int?
     var request: Autocomplete.Context?
+    /// When it was asked for (the pause over): what `Autocomplete.Route.late` goes by.
+    var askedAt: TimeInterval = 0
     /// What was typed into the field, for one that tells nothing of its text (`Autocomplete.Typed`), and when last.
     var typed = Autocomplete.Typed()
     var typedAt: TimeInterval = 0
@@ -153,6 +155,8 @@ extension InputSession {
     /// typed starts the pause (`autocompleteSchedulePause`).
     func autocompleteAfterKey(_ key: KeyEvent, handled: Bool, inserted: String) {
         let now = services.uptime()
+        // A key that types, pinyin's too: the user's rhythm, what the pause goes by.
+        if key.printableText != nil, key.modifiers.isDisjoint(with: [.command, .control]) { services.autocomplete.keyTyped(at: now) }
         if services.pointerUsedWithin(now - autocomplete.typedAt) { autocomplete.typed.forget() }
         if !inserted.isEmpty {
             autocomplete.typed.add(inserted)
@@ -185,8 +189,8 @@ extension InputSession {
         autocompleteSchedulePause()
     }
 
-    /// The pause starts: its timer, as long as the model's (`Autocomplete.Route.pause`), longer in an app where
-    /// suggestions are waved away (`Autocomplete.Learning.pause`).
+    /// The pause starts: its timer, as long as the model's (`Autocomplete.Route.pause`) or longer for one who types
+    /// slowly (`Autocomplete.Rhythm`), longer in an app where suggestions are waved away (`Autocomplete.Learning.pause`).
     func autocompleteSchedulePause() {
         let base = Autocomplete.route(services.loadSettings()).pause
         autocomplete.pause += 1
@@ -219,6 +223,7 @@ extension InputSession {
         }
         autocomplete.asked = id
         autocomplete.request = request
+        autocomplete.askedAt = services.uptime()
         services.autocomplete.count { $0.asked += 1 }
         log.notice("autocomplete \(id): asked (\(request.before.count) + \(request.after.count) characters)")
         tasks.autocomplete(request, app: app, id: id, converter: services.converter)
@@ -255,7 +260,7 @@ extension InputSession {
                 return
             }
             guard autocomplete.suggestion == nil, autocompleteMayRun() else { return }
-            let waited = services.uptime() - autocomplete.pauseStarted
+            let waited = services.uptime() - autocomplete.askedAt
             guard waited <= answer.route.late else {
                 services.autocomplete.count { $0.late += 1 }
                 log.notice("autocomplete \(request): too late (\(Int(waited * 1000)) ms)")

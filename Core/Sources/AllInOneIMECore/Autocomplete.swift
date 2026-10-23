@@ -6,7 +6,7 @@ import Foundation
 /// puts it in. One switch (`Config.autocomplete`, the input menu and the menu bar panel); an app's own choice
 /// (`AppProfile.autocomplete`); in an app where none of the last 30 suggestions was taken it stops by itself (`Learning`).
 ///
-/// The core has the logic: when it may run at all (`blocker`, `isOn`), how long the pause is (`Route.pause`), what is
+/// The core has the logic: when it may run at all (`blocker`, `isOn`), how long the pause is (`Route.pause`, `Rhythm`), what is
 /// sent (`context`, `Prompt.autocompleteRequest`, hidden values as usual), what of the answer is shown (`trimmed`), what
 /// Tab does (`tab`), the suggestions kept for the text they continue (`Cache`), what is learned per app (`Learning`) and
 /// counted (`Metrics`). The session runs it (InputSession+Autocomplete.swift): the pause is a timer, the field's text is
@@ -38,9 +38,12 @@ public enum Autocomplete {
         case onDevice
         case cloud(Provider)
 
-        /// The pause before asking: the on-device model answers quickly; a cloud one is asked less often.
-        public var pause: TimeInterval { self == .onDevice ? 0.15 : 0.35 }
-        /// A suggestion that comes later than this after the pause began is dropped: late is worse than none.
+        /// The shortest pause before asking (longer for one who types slowly, `Rhythm`): longer than the time between
+        /// keys of most typing, so that a request goes when the user stops, not between two keys; a cloud model is asked
+        /// less often.
+        public var pause: TimeInterval { self == .onDevice ? 0.35 : 0.5 }
+        /// A suggestion that comes later than this after it was asked for (the pause over) is dropped: late is worse
+        /// than none.
         public var late: TimeInterval { self == .onDevice ? 2 : 3 }
     }
 
@@ -128,7 +131,7 @@ public enum Autocomplete {
 
     /// What a request is made of, from what the field says (`text`; nil: it tells nothing, so what was typed into it since
     /// it took the focus, `typed`, stands in) and its selection (`selection`, UTF-16). Nil, and nothing asked: text
-    /// selected, the caret not at the end of a line, too little written on the line yet (two characters), or a line that
+    /// selected, the caret not at the end of a line, no word on the line yet to go on from (`hasWord`), or a line that
     /// looks like a code or a card's number (digits and no letters).
     public static func context(_ text: FieldText?, selection: Range<Int>? = nil, typed: String = "") -> Context? {
         if let selection, !selection.isEmpty { return nil }
@@ -138,9 +141,26 @@ public enum Autocomplete {
         let rest = after.prefix { !$0.isNewline }
         guard rest.allSatisfy(\.isWhitespace) else { return nil }
         let line = before.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline).last.map(String.init) ?? ""
-        guard line.filter({ !$0.isWhitespace }).count >= 2 else { return nil }
+        guard line.filter({ !$0.isWhitespace }).count >= 2, hasWord(line) else { return nil }
         if looksLikeNumbers(line) { return nil }
         return Context(before: String(before.suffix(beforeLimit)), after: String(after.prefix(afterLimit)))
+    }
+
+    /// Whether `line` has a word to go on from: a whole one (a space or a mark after it: "Hi "), one of three letters or
+    /// more ("iss"), or two Chinese or Japanese characters. One or two letters alone ("is") aren't: the model can only
+    /// guess at what follows them.
+    static func hasWord(_ line: String) -> Bool {
+        if line.filter(\.isWide).count >= 2 { return true }
+        var run = 0
+        for character in line {
+            if (character.isLetter || character.isNumber) && !character.isWide {
+                run += 1
+                if run >= 3 { return true }
+            } else if run > 0 {
+                return true
+            }
+        }
+        return false
     }
 
     /// A line of digits with no letters (four or more digits): a one-time code, a card's number, a phone number.
@@ -331,6 +351,47 @@ public enum Autocomplete {
         }
 
         public mutating func forget() { text = "" }
+    }
+
+    // MARK: The user's rhythm
+
+    /// How fast the user types: the time between their last keys, and the pause that tells they stopped (`pause`), half
+    /// as long again as the usual time between their keys (the median), never shorter than the model's (`Route.pause`)
+    /// nor longer than `longest`. A pause shorter than the time between keys asks between two keys, for nothing.
+    public struct Rhythm: Equatable, Sendable {
+        /// The last keys' times between them kept, and how many it takes to go by them.
+        static let kept = 40
+        static let enough = 5
+        /// A gap between two keys this long is a stop, not the rhythm.
+        static let stop: TimeInterval = 1.5
+        public static let longest: TimeInterval = 1.2
+
+        public private(set) var intervals: [TimeInterval] = []
+        private var last: TimeInterval?
+
+        public init() {}
+
+        /// A key that typed, at `time` (seconds of uptime).
+        public mutating func key(at time: TimeInterval) {
+            if let last, time >= last, time - last < Self.stop {
+                intervals = Array((intervals + [time - last]).suffix(Self.kept))
+            }
+            last = time
+        }
+
+        /// The usual time between keys; nil before there are `enough`.
+        public var median: TimeInterval? {
+            guard intervals.count >= Self.enough else { return nil }
+            let sorted = intervals.sorted()
+            let middle = sorted.count / 2
+            return sorted.count % 2 == 1 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2
+        }
+
+        /// The pause before asking, at least `base`.
+        public func pause(_ base: TimeInterval) -> TimeInterval {
+            guard let median else { return base }
+            return max(base, min(median * 1.5, Self.longest))
+        }
     }
 
     // MARK: Suggestions kept
@@ -593,6 +654,7 @@ public final class AutocompleteStore: @unchecked Sendable {
         var metrics = Autocomplete.Metrics()
         var said: Set<String> = []
         var prewarmed: TimeInterval?
+        var rhythm = Autocomplete.Rhythm()
     }
 
     static let learningKey = "autocompleteLearning"
@@ -671,9 +733,15 @@ public final class AutocompleteStore: @unchecked Sendable {
         state.withLock { $0.learning.stopped(app) }
     }
 
-    /// The pause before asking in `app` (`Autocomplete.Learning.pause`).
+    /// The pause before asking in `app`: at least `base`, as the user types (`Autocomplete.Rhythm`), longer where
+    /// suggestions are waved away (`Autocomplete.Learning.pause`).
     public func pause(_ base: TimeInterval, in app: String?) -> TimeInterval {
-        state.withLock { $0.learning.pause(base, in: app) }
+        state.withLock { $0.learning.pause($0.rhythm.pause(base), in: app) }
+    }
+
+    /// A key that typed at `time` (seconds of uptime), in any field: the user's rhythm (`Autocomplete.Rhythm`).
+    public func keyTyped(at time: TimeInterval) {
+        state.withLock { $0.rhythm.key(at: time) }
     }
 
     /// True the first time it's asked with `key` in this process: something said once.

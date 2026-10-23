@@ -713,10 +713,11 @@ or tell Settings → Assistant "turn on autocomplete"; it stays on until you tur
   as you go, with no new request; type something else, press Esc, an arrow or any other key, or click, and it goes (Esc
   only takes it down, and means "not this one": it doesn't come back for that text; the other keys do what they always
   do). ⌘Z right after Tab takes it back, as any typing.
-- **When:** after a pause, 150 ms with the model on this Mac (350 ms with a cloud provider, longer in an app where you
-  keep waving suggestions away), only at the end of a line, never while pinyin or an @ command is being written (in
-  Chinese it waits until the words are in; if they're the start of the suggestion, its rest comes back), never with text
-  selected. Each key stops the request still running. Up to about 12 words or 25 Chinese characters, to the end of the
+- **When:** after a pause that follows how you type: half as long again as your usual time between keys, at least 350 ms
+  with the model on this Mac (500 ms with a cloud provider), longer in an app where you keep waving suggestions away; so
+  nothing is asked while you type, only when you stop. Only at the end of a line that has a word to go on from (not one
+  or two letters alone), never while pinyin or an @ command is being written (in Chinese it waits until the words are
+  in; if they're the start of the suggestion, its rest comes back), never with text selected. Each key stops the request still running. Up to about 12 words or 25 Chinese characters, to the end of the
   sentence. The last 20 suggestions are kept, each for its text (before and after the caret) in its app, so retyping or
   deleting back shows one again at once.
 - **Never:** in password fields and while secure input is on, in a text that looks like a code or a card number, in

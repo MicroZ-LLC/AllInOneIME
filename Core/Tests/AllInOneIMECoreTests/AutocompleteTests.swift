@@ -174,7 +174,7 @@ struct AutocompleteTests {
         config.provider = .apple
         config.autocompleteCloud = nil
         #expect(Autocomplete.route(config) == .onDevice && !Autocomplete.asksForCloud(config))
-        #expect(Autocomplete.Route.onDevice.pause == 0.15 && Autocomplete.Route.cloud(.anthropic).pause == 0.35)
+        #expect(Autocomplete.Route.onDevice.pause == 0.35 && Autocomplete.Route.cloud(.anthropic).pause == 0.5)
     }
 
     @Test func theSwitchAndTheConsentAreKeptOnlyOnceSet() throws {
@@ -449,7 +449,7 @@ struct AutocompleteTests {
             let r = rig()
             r.host.type("Hello wor")
             #expect(r.host.document == "Hello wor")
-            #expect(r.pauses.count == 9 && r.host.timerDelays[r.pauses.last!] == 0.15)
+            #expect(r.pauses.count == 9 && r.host.timerDelays[r.pauses.last!] == 0.35)
             r.pauseEnds(expecting: "ld, how are you?")
             #expect(r.host.ghost == "ld, how are you?" && r.host.fieldReads == 1)
             #expect(r.model.requests.first?.prompt == "<before>Hello wor</before>")
@@ -692,7 +692,7 @@ struct AutocompleteTests {
             let r = rig(store: store)
             #expect(r.store.pause(0.15, in: "com.example.editor") == 0.3)
             r.host.type("Hello wor")
-            #expect(r.host.timerDelays[r.pauses.last!] == 0.3)  // waved away often: it waits longer
+            #expect(r.host.timerDelays[r.pauses.last!] == 0.7)  // waved away often: it waits longer
             r.pauseEnds(expecting: "x")
             #expect(r.host.press(FakeHost.escape))
             #expect(store.stopped(in: "com.example.editor") && store.metrics.stoppedApps == 1)
@@ -735,7 +735,7 @@ struct AutocompleteTests {
             settings.config.autocompleteCloud = true
             let r = rig(settings)
             r.host.type("Hi")
-            #expect(r.host.timerDelays[r.pauses.last!] == 0.35)
+            #expect(r.host.timerDelays[r.pauses.last!] == 0.5)
         }
     }
 
