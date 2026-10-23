@@ -166,9 +166,12 @@ public enum Autocomplete {
     /// text after the caret (`after`).
     public static func trimmed(_ raw: String, before: String, after: String = "") -> String? {
         var text = raw.replacingOccurrences(of: "\r\n", with: "\n")
-        // What the model put around it: tags, quotes, a code fence.
-        for tag in ["<continuation>", "</continuation>", "<after>", "</after>", "<before>", "</before>", "<caret>", "```"] {
-            text = text.replacingOccurrences(of: tag, with: "")
+        // What the model put around it: tags, quotes, a code fence; a tag cut short at the end, where the answer was
+        // read only that far or the model left it so ("…提升</", "</after").
+        for tag in tags { text = text.replacingOccurrences(of: tag, with: "") }
+        if let cut = tags.flatMap({ tag in (2..<tag.count).map { tag.prefix($0) } }).filter({ text.hasSuffix($0) && $0.first == "<" })
+            .map(\.count).max() {
+            text.removeLast(cut)
         }
         // The first line with something on it: the continuation starts on the caret's line.
         guard let first = text.split(separator: "\n", omittingEmptySubsequences: false).first(where: {
@@ -202,8 +205,11 @@ public enum Autocomplete {
         return line
     }
 
-    /// Whether `raw` already holds all that would be shown (`trimmed`): a line's end, a sentence's end, or more words than
-    /// a suggestion has. The request stops reading there.
+    /// What a model puts around an answer.
+    static let tags = ["<continuation>", "</continuation>", "<after>", "</after>", "<before>", "</before>", "<caret>", "```"]
+
+    /// Whether `raw` already holds all that would be shown (`trimmed`): a line's end, a sentence's end, or more words or
+    /// Chinese characters than a suggestion has. The request stops reading there.
     public static func isEnough(_ raw: String) -> Bool {
         let body = raw.drop { $0.isWhitespace || $0.isNewline }
         if body.contains(where: \.isNewline) { return true }
@@ -315,12 +321,12 @@ public enum Autocomplete {
         return abbreviations.contains(String(word.reversed()).lowercased())
     }
 
-    /// Words (runs of anything but spaces and wide characters) in `text`, and each wide character as one.
+    /// Words (runs of anything but spaces and wide characters) in `text`, as `cut` counts them: the wide characters are
+    /// counted apart (`maxWideCharacters`), so a Chinese answer isn't read only to its 12th character.
     static func words(in text: String) -> Int {
         var count = 0, inWord = false
         for character in text {
             if character.isWide {
-                count += 1
                 inWord = false
             } else if character == " " {
                 inWord = false

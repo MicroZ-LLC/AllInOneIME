@@ -190,6 +190,15 @@ struct AutocompleteTests {
         #expect(Autocomplete.isEnough(" and then\nmore"))
         #expect(Autocomplete.isEnough(" a b c d e f g h i j k l m n"))
         #expect(Autocomplete.isEnough("然后我们去吃饭。"))
+        // Chinese characters count up to 25, not as words (real: "<after>性能优化和用户体验提升</" was read only so far).
+        #expect(!Autocomplete.isEnough("<after>性能优化和用户体验提升"))
+        #expect(Autocomplete.isEnough(String(repeating: "很", count: 26)))
+    }
+
+    @Test func aTagCutShortAtTheEndGoes() {
+        #expect(Autocomplete.trimmed("<after>性能优化和用户体验提升</", before: "主要改进包括") == "性能优化和用户体验提升")
+        #expect(Autocomplete.trimmed("<after>sure thing</after", before: "OK,") == " sure thing")
+        #expect(Autocomplete.trimmed(" and more <a", before: "Lunch") == " and more")
     }
 
     // MARK: - What is sent
