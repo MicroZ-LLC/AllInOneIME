@@ -605,17 +605,18 @@ extension SelfTest {
             (.anthropic, "https://autocomplete-selftest.invalid", false, nil)
         try? config.write()
         let destination = "anthropic autocomplete-selftest.invalid"
-        controller.activateServer(harness)  // a field afresh: "Hello wor"'s suggestion waved away before is shown again
+        controller.activateServer(harness)
         controller.toggleAutocomplete(nil)
         let panel = AutocompleteConsentPanel.shown
         check(panel?.isVisible == true && NSApp.modalWindow == nil && file()?.autocomplete == true && file()?.autocompleteCloud == nil,
               "turned on: on at once, the question up in a panel of its own, no modal loop")
         check(panel?.message.contains("autocomplete-selftest.invalid") == true && panel?.isKeyWindow == false,
               "it names where the text would go, and takes no focus (\(panel?.message ?? "none"))")
-        // Typing goes on while it's up, with the on-device model (the stand-in).
-        harness.text = "Hello wo"
-        harnessType("r", controller, harness)
-        check(ghost("ld, how are you?") && harness.text == "Hello wor" && AutocompleteConsentPanel.shown === panel,
+        // Typing goes on while it's up, with the on-device model (the stand-in): on text whose suggestion was never waved
+        // away in this app ("Hello wor"'s was, with Esc: for that text it never comes back here, in a field afresh too).
+        harness.text = "Let me kno"
+        harnessType("w", controller, harness)
+        check(ghost(" when you are free.") && harness.text == "Let me know" && AutocompleteConsentPanel.shown === panel,
               "typing goes on while the question is up: the on-device model's suggestion (\(GhostOverlay.shared.text ?? "none"))")
         harnessKey(controller, harness, "\u{1B}", code: VirtualKey.escape)
         panel?.useButton.performClick(nil)

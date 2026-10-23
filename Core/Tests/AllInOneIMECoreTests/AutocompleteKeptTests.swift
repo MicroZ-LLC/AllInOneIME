@@ -126,4 +126,28 @@ struct AutocompleteKeptTests {
             #expect(notes.host.ghost == "ld, how are you?")
         }
     }
+
+    /// Esc in a field: not shown again for that text in the app, the field afresh (the focus gone and back) or another
+    /// field of it, though the model says it again.
+    @Test(.bug(id: "AC-10", "Esc takes a suggestion down, and it comes back for the same text"))
+    func notThisOneInTheAppAfreshOrInAnotherField() async {
+        await withInterfaceLanguage("en") {
+            let store = AutocompleteStore()
+            let editor = field({ _ in "ld, how are you?" }, store: store)
+            editor.host.type("Hello wor")
+            pauseEnds(editor.host, editor.clock)
+            #expect(editor.host.ghost == "ld, how are you?")
+            #expect(editor.host.press(FakeHost.escape) && editor.host.ghost == nil)
+            editor.host.send(.blur)
+            editor.host.focus()
+            editor.host.document = "Hello wo"
+            editor.host.type("r")
+            pauseEnds(editor.host, editor.clock)
+            #expect(editor.model.requests.count == 2 && editor.host.ghost == nil, "afresh: asked, said again, not shown")
+            let other = field({ _ in "ld, how are you?" }, store: store)
+            other.host.type("Hello wor")
+            pauseEnds(other.host, other.clock)
+            #expect(other.model.requests.count == 1 && other.host.ghost == nil, "another field of the app: not shown")
+        }
+    }
 }
