@@ -121,6 +121,16 @@ public enum TimerID: Hashable, Sendable {
     case voiceHold(Int)
     /// Autocomplete's pause is over (`Autocomplete.Route.pause`): its suggestion may be asked for.
     case autocomplete(Int)
+    /// Suggestions' (`InputSession+Suggestions.swift`): Shift held long enough for the chooser, a pause before a query
+    /// is asked again, a list's refresh (or its back-off or pause) due.
+    case suggestions(SuggestionsTimer)
+}
+
+/// A timer of suggestions' (`TimerID.suggestions`), counted: an older one of a kind does nothing.
+public enum SuggestionsTimer: Hashable, Sendable {
+    case chooser(Int)
+    case query(Int)
+    case refresh(Int)
 }
 
 /// The modifier keys changed: `key` the one that did (`.modifier(kind, side)`), `modifiers` those down now with their

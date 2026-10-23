@@ -3,10 +3,10 @@ import Foundation
 // Suggestions v1 (.spec/spec-suggestions-v1.md, 2026-10-22, with its section 6, the decisions on the tests' questions):
 // plugin completions, coding mode, one Tab. What the acceptance tests
 // (Tests/AllInOneIMECoreTests/Acceptance/Suggestions*AcceptanceTests.swift) are written against, written before the
-// implementation by the tests' author: protocols and plain data, and where a declaration needs a body, a stub that does
-// nothing (no source is inactive, the default runtime refuses, `SuggestionsStore` keeps nothing; plugin.json's
-// `completions` and `preferences` are read, Plugin.swift). The implementation fills these in; it doesn't change what
-// they mean.
+// implementation by the tests' author: protocols and plain data. The implementation fills in what had a stub
+// (`PluginManifest.completions`, `preferences` and `refusedCompletions` in Plugin.swift, read by CompletionDeclaration.swift;
+// `inactiveReason`; `SuggestionsStore`, SuggestionsStore.swift) without changing what they mean; the session's side is
+// Session/InputSession+Suggestions.swift, the plugin's runtime PluginCompletionRuntime.swift.
 //
 // The one hook outside this file: `SessionServices.suggestions` (SessionServices.swift), what a session asks of the
 // shell for suggestions. Everything a test observes goes through `InputSession` as today: keys in, outputs out (rows are
@@ -134,8 +134,13 @@ public struct CompletionRefusal: Equatable, Hashable, Sendable {
 
 extension CompletionSource {
     /// Why the source is inactive with `config`, as Settings says it (nil: it isn't): the command trigger
-    /// (`Config.commandTrigger`) is its prefix, and the trigger wins (spec 6.14). Stub: never.
-    public func inactiveReason(_ config: Config) -> String? { nil }
+    /// (`Config.commandTrigger`) is its prefix, or starts it, and the trigger wins (spec 6.14).
+    public func inactiveReason(_ config: Config) -> String? {
+        guard let first = prefix?.first, String(first) == config.commandTrigger else { return nil }
+        let trigger = config.commandTrigger
+        return tr("\(trigger) 是命令触发符，打 \(trigger) 会打开命令列表，所以这个补全不会出现（在「通用」里换一个命令触发符就行）",
+                  "\(trigger) is the command trigger: typing it opens the command list, so these completions can't show (pick another trigger in General)")
+    }
 }
 
 // MARK: - Plugin completions: the script's side (spec 1.2)
@@ -406,12 +411,9 @@ public struct SuggestionsServices {
     }
 }
 
-/// What the core keeps in memory for the fields of one launch, which the shell gives every field (as
-/// `SessionServices.autocomplete`'s store): the lists and the queries' answers, the failures and pauses, what was asked
-/// last. Its contents are the core's; a new one is a new launch. Stub: it keeps nothing yet.
-public final class SuggestionsStore: @unchecked Sendable {
-    public init() {}
-}
+// `SuggestionsStore`, what the core keeps in memory for the fields of one launch, which the shell gives every field (as
+// `SessionServices.autocomplete`'s store): the lists and the queries' answers, the failures and pauses, what was asked
+// last; its contents are the core's, a new one is a new launch (SuggestionsStore.swift).
 
 /// The runtime where the shell gave none: every call fails.
 public struct NoCompletionRuntime: CompletionRuntime {

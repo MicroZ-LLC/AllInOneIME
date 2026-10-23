@@ -65,6 +65,8 @@ extension InputSession {
     /// Whether autocomplete may run in this field now: on in its app (`Autocomplete.isOn`), and nothing keeps it from
     /// running (`Autocomplete.blocker`).
     func autocompleteMayRun() -> Bool {
+        // Suggestions' rows (or the chooser) hold the caret, and coding mode has no AI continuation (spec 0, 2).
+        guard !suggestionsHoldTheCaret else { return false }
         let config = services.loadSettings()
         guard Autocomplete.isOn(in: app, config: config, stopped: services.autocomplete.stopped(in: app)) else { return false }
         let info = FieldInfo(app: app, terminal: terminal, secure: field.secure)
