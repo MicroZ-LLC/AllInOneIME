@@ -43,7 +43,7 @@ address. You can also hold right ⌥ and talk. Without `@`, your keys go to the 
 (pinyin, built on Rime and rime-ice), French, Korean (Hangul) and Hindi (Devanagari from Latin letters), and runs
 your own scripts as @ commands.
 
-The command trigger defaults to `@`. In Settings → General → Command trigger, choose another single symbol: `#`, `%`, `&`, `*`, `+`, `|` or `~`; commands then start with it (for example, `~translate`), and `@` types normally. Letters, digits, spaces and the symbols typing needs (pinyin's keys such as `'` `-` `=` `[` `]` `` ` ``, and the ones pinyin types as Chinese punctuation, such as `,` `.` `?` `\`) are refused, and Settings says why. You can also set `"commandTrigger": "~"` in the config file.
+The command trigger defaults to `@`. In Settings → General → Command trigger, pick another symbol from the menu: `#`, `%`, `&`, `*`, `+`, `|` or `~`; commands then start with it (for example, `~translate`), and `@` types normally. Letters, digits, spaces and the symbols typing needs (pinyin's keys such as `'` `-` `=` `[` `]` `` ` ``, and the ones pinyin types as Chinese punctuation, such as `,` `.` `?` `\`) can't be the trigger, so the menu doesn't offer them. You can also set `"commandTrigger": "~"` in the config file.
 
 ![@improve and a rough sentence, then ⏎: polished versions, plus rewrites](docs/en/improve.png)
 

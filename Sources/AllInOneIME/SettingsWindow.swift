@@ -845,7 +845,6 @@ struct SettingsView: View {
     /// The page shown (Assistant when none is asked for) and what's typed in the sidebar's search field.
     @State private var page: SettingsPage
     @State private var query = ""
-    @State private var commandTriggerEntry = "@"
     /// The models remembered as refusing a temperature (`TemperatureSupport.shared`), read as the AI Provider page shows:
     /// Reset (by the temperature switch) forgets them.
     @State private var refusedTemperatures: [String] = []
@@ -893,45 +892,42 @@ struct SettingsView: View {
 
     @ViewBuilder private var generalSection: some View {
         Section {
-            // Return by default; "Record…" takes the next key pressed (or a tap of ⌥).
+            // Return by default; a click on it takes the next key pressed (or a tap of ⌥).
             LabeledContent {
-                HStack(spacing: 8) {
-                    KeyRecorder(key: $model.config.actionKey)
-                    if model.config.actionKey != .enter {
-                        Button(tr("恢复 ⏎", "Use ⏎")) { model.config.actionKey = .enter }
-                    }
-                }
+                KeyRecorder(key: $model.config.actionKey)
             } label: {
-                titled(tr("执行键", "Action key"), Self.actionKeyNote(model.config.actionKey))
+                titled(tr("执行键", "Action key"), Self.actionKeyNote(model.config.actionKey, trigger: model.config.commandTrigger))
             }
             .disabled(!model.canSave)
+            // One of the symbols that type as themselves in every mode (`Config.commandTriggers`): picked, never typed,
+            // so there is nothing to refuse.
             LabeledContent {
-                HStack(spacing: 8) {
-                    TextField("@", text: $commandTriggerEntry)
-                        .frame(width: 48)
-                        .textFieldStyle(.roundedBorder)
-                        .onChange(of: commandTriggerEntry) {
-                            if Config.validCommandTrigger(commandTriggerEntry) {
-                                model.config.commandTrigger = commandTriggerEntry
-                            }
-                        }
-                    if model.config.commandTrigger != "@" || commandTriggerEntry != "@" {
-                        Button(tr("恢复 @", "Use @")) {
-                            commandTriggerEntry = "@"
-                        }
+                // Shown like the action key: the symbol as text, and a click opens the symbols to pick from, the one in
+                // use checked (a toggle each: the menu's own checkmark). Drawn by SwiftUI as a plain button: AppKit's
+                // borderless pop-up gives its title the controls' color, not the text's, and an inset on the right.
+                Menu {
+                    ForEach(Config.commandTriggers, id: \.self) { symbol in
+                        Toggle(symbol == "@" ? tr("@（默认）", "@ (default)") : symbol,
+                               isOn: Binding(get: { model.config.commandTrigger == symbol },
+                                             set: { if $0 { model.config.commandTrigger = symbol } }))
                     }
+                } label: {
+                    HStack(alignment: .firstTextBaseline, spacing: 3) {
+                        Text(model.config.commandTrigger).foregroundStyle(.primary)
+                        Image(systemName: "chevron.down").font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
+                    }
+                    .contentShape(Rectangle())
                 }
+                .menuStyle(.button)
+                .buttonStyle(.plain)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .accessibilityLabel(tr("命令触发符：", "Command trigger: ") + model.config.commandTrigger)
             } label: {
                 titled(tr("命令触发符", "Command trigger"),
-                       tr("输入一个符号，例如 @ 或 ~。打在句首打开命令列表。",
-                          "Type one symbol, such as @ or ~, to open commands at the start of a sentence."))
+                       tr("打在句首打开命令列表。", "Typed at the start of a sentence, it opens the commands."))
             }
             .disabled(!model.canSave)
-            // One that typing needs, or not a symbol: said, and the trigger stays the one in use.
-            if let problem = Config.commandTriggerProblem(commandTriggerEntry) {
-                Label(problem.errorDescription ?? "", systemImage: "exclamationmark.triangle")
-                    .foregroundStyle(.red)
-            }
             // Results typed in character by character, like a person typing.
             Toggle(isOn: $model.config.typeOut) {
                 titled(tr("逐字上屏", "Type results out"),
@@ -2040,7 +2036,6 @@ struct SettingsView: View {
         .onChange(of: model.config.voiceInput) { model.save() }
         .onChange(of: model.config.actionKey) { model.save() }
         .onChange(of: model.config.commandTrigger) {
-            commandTriggerEntry = model.config.commandTrigger
             UIText.commandTrigger = model.config.commandTrigger  // the core's text the window shows
             model.save()
         }
@@ -2066,7 +2061,6 @@ struct SettingsView: View {
         .onChange(of: model.config.customCommands) { model.refreshExtensions() }  // a name an extension had may be taken now
         .onChange(of: model.config.notes) { model.refreshNotesFolder() }
         .onAppear {
-            commandTriggerEntry = model.config.commandTrigger
             UIText.commandTrigger = model.config.commandTrigger
             model.refreshPlugins()
             model.refreshExtensions(discover: page == .commands)
@@ -2245,7 +2239,11 @@ struct SettingsView: View {
     static func roundedRate(_ rate: Double) -> Double { TypeOut.rounded(rate: rate) }
 
     /// How the chosen action key works (`UIText.actionKeyNote`).
-    static func actionKeyNote(_ key: ActionKey) -> String { UIText.actionKeyNote(key) }
+    /// With the trigger the window's config has (passed, so the note is drawn again when it changes), whatever the
+    /// process's is while it draws (set after a change, by `onChange`: ~ still when ~ was just changed to #).
+    static func actionKeyNote(_ key: ActionKey, trigger: String) -> String {
+        UIText.$scopedCommandTrigger.withValue(trigger) { UIText.actionKeyNote(key) }
+    }
 
     @ViewBuilder
     private func modelStatus(_ language: Language) -> some View {
@@ -2846,9 +2844,10 @@ enum ChipOrder {
     }
 }
 
-/// The action key and a button to record another: the next key pressed with ⌃, ⌥ or ⌘ (or Return,
-/// Space, ⌥Space, a function key), or a tap of ⌥ on its own. Esc cancels; a plain letter is refused
-/// (it couldn't be typed any more).
+/// The action key as System Settings shows a shortcut: its name as plain text; a click records another (the next key
+/// pressed with ⌃, ⌥ or ⌘, or Return, Space, ⌥Space, a function key, or a tap of ⌥ on its own), outlined while it
+/// listens. Esc or another click cancels; a plain letter is refused (it couldn't be typed any more). Return again is in
+/// its context menu.
 private struct KeyRecorder: View {
     @Binding var key: ActionKey
     @State private var recording = false
@@ -2856,11 +2855,25 @@ private struct KeyRecorder: View {
     @State private var monitor: Any?
 
     var body: some View {
-        HStack(spacing: 8) {
-            Text(recording ? (refused ? tr("要带 ⌃、⌥ 或 ⌘", "Add ⌃, ⌥ or ⌘") : tr("按下新的键…", "Press a key…")) : UIText.pickerName(key))
-                .foregroundStyle(recording ? .secondary : .primary)
-                .frame(minWidth: 90, alignment: .trailing)
-            Button(recording ? tr("取消", "Cancel") : tr("录制…", "Record…")) { recording ? stop() : start() }
+        Button { recording ? stop() : start() } label: {
+            Text(recording ? (refused ? tr("要带 ⌃、⌥ 或 ⌘", "Add ⌃, ⌥ or ⌘") : tr("按下新的键", "Type the key")) : UIText.pickerName(key))
+                .foregroundStyle(recording ? Color.accentColor : .primary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(recording ? Color.accentColor.opacity(0.12) : .clear))
+                .overlay(RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .strokeBorder(recording ? Color.accentColor : .clear, lineWidth: 1))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        // The name flush with the row's end, as the other rows' controls are; the outline reaches past it.
+        .padding(.horizontal, -6)
+        .help(tr("点一下，再按新的键", "Click, then press the new key"))
+        .accessibilityLabel(tr("执行键：", "Action key: ") + UIText.pickerName(key))
+        .accessibilityHint(tr("点一下录制新的键", "Click to record another key"))
+        .contextMenu {
+            if key != .enter { Button(tr("恢复 ⏎", "Use ⏎")) { key = .enter } }
         }
         .onDisappear(perform: stop)
     }

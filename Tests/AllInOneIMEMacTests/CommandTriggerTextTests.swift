@@ -13,9 +13,9 @@ struct CommandTriggerTextTests {
     /// panels aren't.
     static let interfaceSources = ["Sources/AllInOneIME", "Sources/AllInOneIMEInstaller", "Sources/AllInOneIMESettings"]
 
-    /// Texts that name the "@" itself, not a command: Settings' field for the trigger ("Use @" puts it back, "such as @
-    /// or ~" is its example).
-    static let aboutTheTriggerItself = ["恢复 @", "Use @", "例如 @ 或 ~", "such as @ or ~"]
+    /// Texts that name the "@" itself, not a command: Settings' menu of triggers ("@ (default)" marks the default), and the
+    /// core's field for it in the settings document ("such as @ or ~" is its example).
+    static let aboutTheTriggerItself = ["@（默认）", "@ (default)", "例如 @ 或 ~", "such as @ or ~"]
 
     /// The commands a text names with "@": each "@" but a format's ("%@", "%1$@"), an address's ("git@host") and
     /// Raycast's metadata ("@raycast.title").

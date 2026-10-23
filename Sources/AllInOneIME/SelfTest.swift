@@ -481,6 +481,14 @@ enum SelfTest {
         check(SettingsPage.agent.matches("~agent", trigger: "~") && SettingsPage.agent.matches("@agent", trigger: "~")
               && !SettingsPage.general.matches("~agent", trigger: "~") && !SettingsPage.agent.matches("~agent"),
               "the search finds ~agent's page with ~ the trigger")
+        // The action key's note with the trigger picked in the menu, the process's still the one before (~ → #).
+        let triggerBefore = UIText.commandTrigger
+        defer { UIText.commandTrigger = triggerBefore }
+        UIText.commandTrigger = "~"
+        let note = SettingsView.actionKeyNote(.enter, trigger: "#")
+        check(note == "Return runs an # command, also on pinyin not yet picked. Without #, Return is a normal Return."
+              && SettingsView.actionKeyNote(.enter, trigger: "~").contains("Without ~,"),
+              "the action key's note names the trigger the menu has: \(note)")
     }
 
     /// The candidate layout's picker (Input page) saves as soon as it changes, like the other settings: the input
