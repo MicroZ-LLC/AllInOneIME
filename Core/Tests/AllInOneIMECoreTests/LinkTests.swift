@@ -79,9 +79,11 @@ struct LinkTests {
             "weibo": "https://service.weibo.com/share/share.php?title={input}",
             "x": "https://x.com/intent/post?text={input}",
         ]
-        let (all, skipped) = PluginStore.load(from: root, appVersion: "0.5.0")
-        #expect(skipped.isEmpty)
-        #expect(all.filter { $0.manifest.type == .script }.map(\.name) == ["xe"])  // XEPluginTests
+        let (all, skipped) = PluginStore.load(from: root, appVersion: "0.6.7")
+        #expect(skipped.isEmpty, "\(skipped)")
+        // XEPluginTests; @github's completions: SuggestionsTests (it needs 0.6.7, the others 0.5.0).
+        #expect(all.filter { $0.manifest.type == .script }.map(\.name) == ["github", "xe"])
+        #expect(PluginStore.load(from: root, appVersion: "0.5.0").skipped.map(\.folder) == ["github"])
         let plugins = all.filter { $0.manifest.type == .link }
         #expect(Dictionary(uniqueKeysWithValues: plugins.map { ($0.name, $0.manifest.url ?? "") }) == expected)
         for plugin in all {
