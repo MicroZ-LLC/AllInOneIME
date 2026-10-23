@@ -92,17 +92,22 @@ struct SuggestionsTests {
 
     // MARK: - Coding
 
-    /// The caret at the first tab stop (the lowest number above 0), its text left out (at each of its places), the other
-    /// stops' text kept; with no stop but `$0`, at `$0`; at the end without one.
+    /// The caret at the first tab stop in reading order, `$0` or a numbered one; a numbered one so chosen goes in without
+    /// its text (at each of its places), the other stops' text kept; at the end without a stop (decision 23).
     @Test func aSnippetsBodyGoesInAsText() {
         #expect(CodingRows.expand("def ${1:name}(${2}):\n    $0") == ("def ():\n    ", 8))
         #expect(CodingRows.expand("print($0)") == ("print()", 1))
         #expect(CodingRows.expand("for (const ${1:x} of $2) {\n  $0\n}") == ("for (const  of ) {\n  \n}", 12))
+        // `$0` first: the caret in the body, every numbered stop's text kept.
         #expect(CodingRows.expand("try:\n    $0\nexcept ${1:Exception} as e:\n    ${2:print(e)}")
-                == ("try:\n    \nexcept  as e:\n    print(e)", 19))
+                == ("try:\n    \nexcept Exception as e:\n    print(e)", "\nexcept Exception as e:\n    print(e)".utf16.count))
+        #expect(CodingRows.expand("do {\n    $0\n} while (${1:condition});") == ("do {\n    \n} while (condition);", 21))
+        #expect(CodingRows.expand("import { $0 } from \"${1:module}\";") == ("import {  } from \"module\";", 17))
         #expect(CodingRows.expand("sort(${1:v}.begin(), ${1:v}.end());$0") == ("sort(.begin(), .end());", 18))
         #expect(CodingRows.expand("show(${2:value})${0}") == ("show()", 1))
-        #expect(CodingRows.expand("${2:a} ${1:b}$0") == ("a ", 0))
+        // Reading order, not the lowest number: `$2` here, `$1` keeps its text.
+        #expect(CodingRows.expand("${2:a} ${1:b}$0") == (" b", 2))
+        #expect(CodingRows.expand("${2:a} ${1:b} ${2:a}$0") == (" b ", 3))
         #expect(CodingRows.expand("cost: $5") == ("cost: ", 0))
         #expect(CodingRows.expand("a $ b ${x}") == ("a $ b ${x}", 0))
     }

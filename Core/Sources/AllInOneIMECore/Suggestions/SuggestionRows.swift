@@ -308,15 +308,15 @@ enum CodingRows {
     static let scanned = 20_000
 
     /// A snippet's body as it goes in (its caret as UTF-16 units from the end): `${n:text}` as its text, `${n}` and `$n`
-    /// as nothing, but its first tab stop (the lowest number above 0: `$1` or `${1:…}`) without its text, wherever it is,
-    /// the caret at its first place; with no stop but `$0`, the caret at `$0`, at the end without one (spec 2, decision 19
-    /// as amended). `toFirstStop` false, for a field the caret can't be put back into: every stop with its text, the
-    /// caret at `$0`.
+    /// as nothing, the caret at its first tab stop in reading order, whichever comes first of `$0` and the numbered ones;
+    /// a numbered stop chosen so goes in without its text, wherever it is (its mirrors too), the others keep theirs; at
+    /// the end without a stop (spec 2, decisions 21 and 23). `toFirstStop` false, for a field the caret can't be put back
+    /// into: every stop with its text, the caret at `$0`.
     static func expand(_ body: String, toFirstStop: Bool = true) -> (text: String, caretBack: Int) {
         let parts = snippetParts(body)
-        let first = toFirstStop ? parts.compactMap { part -> Int? in
-            if case let .stop(number, _) = part, number > 0 { return number } else { return nil }
-        }.min() : nil
+        let first = toFirstStop ? parts.lazy.compactMap { part -> Int? in
+            if case let .stop(number, _) = part { return number } else { return nil }
+        }.first.flatMap { $0 > 0 ? $0 : nil } : nil
         var out = ""
         var (atFirst, atZero): (Int?, Int?) = (nil, nil)
         for part in parts {

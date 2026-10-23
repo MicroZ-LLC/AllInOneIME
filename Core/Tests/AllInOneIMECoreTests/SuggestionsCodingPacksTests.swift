@@ -67,7 +67,7 @@ struct SuggestionsCodingPacksTests {
     // MARK: - Through a session
 
     /// A snippet's second and later lines get the leading whitespace of the line the caret is on; the caret still goes to
-    /// its first tab stop (try/except's exception, its text left out).
+    /// its first tab stop in reading order (try/except's `$0`, in its body, the exception's text kept).
     @Test func aSnippetsLaterLinesGetTheCaretLinesIndentation() async throws {
         try await inEnglish {
             let world = Self.coding([try Self.shipped("python")])
@@ -77,12 +77,12 @@ struct SuggestionsCodingPacksTests {
             #expect(field.settle { field.rows.first?.comment.contains("try/except") == true }, "\(Self.texts(field))")
             let before = field.host.outputs.count
             #expect(field.press(SuggestionKeys.tab))
-            let rest = " as e:\n        print(e)"
-            #expect(field.document == "def main():\n    try:\n        \n    except " + rest, "\(field.document.debugDescription)")
+            let rest = "\n    except Exception as e:\n        print(e)"
+            #expect(field.document == "def main():\n    try:\n        " + rest, "\(field.document.debugDescription)")
             let moves = field.host.outputs.dropFirst(before).compactMap { output -> Int? in
                 if case let .moveCaret(back, _) = output { return back } else { return nil }
             }
-            #expect(moves == [rest.utf16.count], "the caret at ${1:Exception}, after its line's indentation: \(moves)")
+            #expect(moves == [rest.utf16.count], "the caret at $0, after its line's indentation: \(moves)")
 
             // Tabs as the line has them, after code on it too.
             let go = Self.coding([try Self.shipped("go")])
@@ -153,7 +153,7 @@ struct SuggestionsCodingPacksTests {
             field.type("tr")
             #expect(field.settle { field.rows.first?.comment.contains("try/except") == true }, "\(Self.texts(field))")
             #expect(field.press(SuggestionKeys.tab))
-            #expect(field.document == "import os\ntry:\n    \nexcept  as e:\n    print(e)", "\(field.document.debugDescription)")
+            #expect(field.document == "import os\ntry:\n    \nexcept Exception as e:\n    print(e)", "\(field.document.debugDescription)")
         }
     }
 

@@ -16,9 +16,11 @@ downloads the ones you code in.
 - `snippets`: offered while what is typed starts the `trigger` (the whole trigger too) and the body starts with what is
   typed (so `include` for `#include`, `const` for an arrow function); the `body` goes in as text, its line breaks kept,
   its second and later lines indented as the line the caret is on, `${n:text}` as its text, `${n}` and `$n` as nothing.
-  Where the field reports where its caret is, the first tab stop (the lowest number above 0, `$1` or `${1:…}`) is left
-  empty, its text out wherever it is, and the caret goes there; with no stop but `$0`, to `$0`. Elsewhere every stop
-  keeps its text and the caret stays at the end. No tab stops beyond the caret: number the place to type first `$1`. A
+  Where the field reports where its caret is, the caret goes to the first tab stop in reading order, whichever comes
+  first of `$0` and the numbered ones (`$1`, `${1:…}`); a numbered one so chosen is left empty, its text out wherever it
+  is (its mirrors too), and the others keep theirs (`try:\n    $0\nexcept ${1:Exception}:` puts the caret in the try
+  block, `Exception` kept). Elsewhere every stop keeps its text and the caret stays at the end. No tab stops beyond the
+  caret: put the place to type first first. A
   trigger may have several snippets; one that goes in exactly as another installed pack's is one row ("C/C++ · if/else").
   A row's comment is its pack's language, then the snippet's `title` (or "snippet" where the title is only the trigger).
 - At most 2,000 keywords and 500 snippets (a body of 4,000 characters at most), 1 MiB in all.
