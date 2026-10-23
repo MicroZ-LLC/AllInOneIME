@@ -243,7 +243,14 @@ extension SuggestionsSessionTests {
     /// printable key the session lets through is typed by the app. Whether it asked for the field's text.
     @discardableResult
     func pressAsTheMacDoes(_ key: KeyEvent, in field: SuggestionsField) -> Bool {
-        var askedText = false
+        pressAsTheMac(key, in: field).askedText
+    }
+
+    /// `pressAsTheMacDoes`, in a field Accessibility tells is a password field (`passwordField`, secure input off) or
+    /// not: whether the session asked for the field's text, and whether it asked if it is a password field.
+    @discardableResult
+    func pressAsTheMac(_ key: KeyEvent, in field: SuggestionsField, passwordField: Bool = false) -> (askedText: Bool, askedPassword: Bool) {
+        var (askedText, askedPassword) = (false, false)
         var context = FieldContext(field: FieldInfo(app: field.host.app, terminal: field.host.terminal))
         let all = field.host.context
         while true {
@@ -255,6 +262,10 @@ extension SuggestionsSessionTests {
             if missing.contains(.beforeCaret) { context.beforeCaret = all.beforeCaret }
             if missing.contains(.selection) { context.selection = all.selection }
             if missing.contains(.text) { context.text = all.text }
+            if missing.contains(.passwordField) {
+                askedPassword = true
+                context.field?.secure = passwordField
+            }
             context.read.formUnion(missing)
         }
         let before = field.host.outputs.count
@@ -262,7 +273,58 @@ extension SuggestionsSessionTests {
         let took = field.host.outputs.dropFirst(before).contains { if case .commit = $0 { true } else { false } }
         if !took, key.key == .character || key.key == .space, let typed = key.printableText { field.host.document += typed }
         field.noteTimers()
-        return askedText
+        return (askedText, askedPassword)
+    }
+
+    /// Types `text` as `pressAsTheMac` does: how many keys asked whether the field is a password field.
+    @discardableResult
+    func typeAsTheMac(_ text: String, into field: SuggestionsField, passwordField: Bool) -> Int {
+        text.filter { pressAsTheMac(SuggestionKeys.key($0), in: field, passwordField: passwordField).askedPassword }.count
+    }
+
+    /// A password field Accessibility tells (`AXSecureTextField`) where secure input isn't on: no rows, nothing queried.
+    /// The Mac asks it once a field, with the first key where rows may show; another field is asked again.
+    @Test func aPasswordFieldAccessibilityTellsHasNoRowsAndSendsNothing() async throws {
+        try await inEnglish {
+            let world = SuggestionsWorld()
+            try world.github()
+            let field = world.field()
+            #expect(typeAsTheMac("#70", into: field, passwordField: true) == 1, "asked once")
+            field.idle()
+            #expect(field.issuesShown.isEmpty, "\(field.issuesShown)")
+            #expect(world.runtime.queries.isEmpty, "nothing typed is queried (\(world.runtime.queries))")
+
+            // Another field takes the focus: asked again, and rows there.
+            field.host.focus()
+            field.host.document = ""
+            #expect(typeAsTheMac("#7", into: field, passwordField: false) == 1, "asked again")
+            #expect(field.waitForIssues(SuggestionsSwitchesAcceptanceTests.allRows), "\(field.issuesShown)")
+            #expect(typeAsTheMac("0", into: field, passwordField: false) == 0, "once a field")
+        }
+    }
+
+    /// Coding mode turned on with the chooser in a password field Accessibility tells: no rows for what was typed there,
+    /// its words never read. A key while the chooser is open asks (it may turn coding mode on).
+    @Test func codingModeTurnedOnInAPasswordFieldShowsNoRows() async throws {
+        try await inEnglish {
+            for password in [true, false] {
+                let world = try SuggestionsCodingAcceptanceTests.coding()
+                world.codingMode = false
+                let field = world.field()
+                #expect(typeAsTheMac("de", into: field, passwordField: password) == 0, "no rows may show: nothing asked")
+                field.holdShift()
+                #expect(pressAsTheMac(SuggestionKeys.digit(2), in: field, passwordField: password).askedPassword)
+                #expect(world.codingMode)
+                typeAsTheMac("f", into: field, passwordField: password)
+                field.pause(1)
+                if password {
+                    #expect(field.rows.isEmpty, "\(field.rows.map(\.text))")
+                    #expect(field.host.fieldReads == 0, "its words never read: \(field.host.fieldReads)")
+                } else {
+                    #expect(field.rows.contains { $0.text.hasPrefix("def") }, "\(field.rows.map(\.text))")
+                }
+            }
+        }
     }
 
     /// Types `text` (letters, digits, marks, spaces, in English) as the Mac's shell does (`pressAsTheMacDoes`). How many

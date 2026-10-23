@@ -1176,6 +1176,26 @@ struct AutocompleteTests {
         }
     }
 
+    /// A field told to be a password field with a key (the Mac asks Accessibility once a field, where suggestions may
+    /// show): autocomplete goes by the same answer as suggestions, nothing of the field read or sent.
+    @Test func aFieldToldSecureWithAKeyIsReadForNothing() async {
+        await withInterfaceLanguage("en") {
+            for password in [true, false] {
+                let r = rig()
+                for character in "hunter2pass" {
+                    var context = r.host.context
+                    context.read.insert(.passwordField)
+                    context.field = FieldInfo(app: r.host.app, secure: password)
+                    r.host.send(.key(KeyEvent(keyCode: 0, characters: String(character)), context))
+                }
+                #expect(r.pauses.isEmpty == password, "password field \(password): \(r.pauses.count) pauses")
+                r.pauseEnds()
+                #expect((r.host.fieldReads == 0) == password, "password field \(password): \(r.host.fieldReads) reads")
+                if password { #expect(r.model.requests.isEmpty && r.host.ghost == nil) }
+            }
+        }
+    }
+
     @Test func aClickSinceItCameUpTakesItAwayAndTabGoesToTheApp() async {
         await withInterfaceLanguage("en") {
             let clicked = Locked(initialState: false)

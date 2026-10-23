@@ -113,11 +113,19 @@ extension InputSession {
     }
 
     /// Whether coding mode reads the field's text here (its words, the caret's line's indentation): it is on, the field is
-    /// no terminal's, not in secure input, and rows may show in it (the input menu's and the app's switches on, not an app
-    /// with none: a remote desktop, a virtual machine, an SSH client, a launcher). Nowhere else is the field read for it.
+    /// no terminal's, not in secure input, known to be no password field (`passwordField`), and rows may show in it (the
+    /// input menu's and the app's switches on, not an app with none: a remote desktop, a virtual machine, an SSH client, a
+    /// launcher). Nowhere else is the field read for it.
     func codingModeReadsTheField() -> Bool {
-        services.suggestions.codingMode() && !terminal && !secureInputActive()
+        services.suggestions.codingMode() && !terminal && !secureInputActive() && passwordField == false
             && SuggestionsAppClass(app: app, terminal: terminal) != .none && suggestionsOn(services.suggestions.settings())
+    }
+
+    /// Whether a key asks if the field is a password field (`FieldContext.Parts.passwordField`, the Mac's Accessibility):
+    /// not yet told in this field, and rows may show in it, or the chooser is open (its key may turn coding mode on). So
+    /// it's asked once a field, and only where suggestions may use it; rows show only once it's known to be none.
+    func suggestionsWantPasswordField() -> Bool {
+        passwordField == nil && (suggesting.chooser != nil || suggestionsMayShow())
     }
 
     /// Whether rows, the chooser or coding mode hold the caret: no ghost text then (spec 0, 2).
@@ -162,7 +170,7 @@ extension InputSession {
         suggestionsUpdate()
     }
 
-    /// Secure input in the field: nothing typed there is followed, no rows, no chooser.
+    /// Secure input in the field, or a password field: nothing typed there is followed, no rows, no chooser.
     func suggestionsSecure() {
         suggesting.chooser = nil
         suggestionsBoundary()
@@ -351,7 +359,7 @@ extension InputSession {
     /// pointer (as autocomplete off does nothing for a key), and a click since the token started is looked for once
     /// they may: where it left the caret isn't known then, no token until the next boundary.
     func suggestionsAfterKey(_ key: KeyEvent, handled: Bool, inserted: String, context: FieldContext) {
-        guard !secureInputActive() else { return suggestionsSecure() }
+        guard !secureInputActive(), passwordField != true else { return suggestionsSecure() }
         let now = services.uptime()
         let mayShow = suggestionsMayShow()
         if mayShow, !suggesting.token.isEmpty, services.pointerUsedWithin(now - suggesting.tokenAt) {
@@ -562,7 +570,8 @@ extension InputSession {
 
     /// The rows for the token (5 at most) and the class of app they are for: the plugins' sources that apply (their
     /// list's and queries' items, those picked before first), coding mode's (the packs', the field's words). None while
-    /// something is composed, in secure input, where a switch is off or the app has none (spec 1.5). Asks the queries
+    /// something is composed, in secure input, in a password field or one not known to be none yet (`passwordField`),
+    /// where a switch is off or the app has none (spec 1.5). Asks the queries
     /// due (spec 6.4) and marks the sources used. Each source's items are looked through only for what matches, until
     /// its first 5 rows (with the rows picked before, wherever they are): a list may have 20,000.
     func suggestionsRows(askAgain: Bool) -> ([SuggestionRow], SuggestionsAppClass) {
@@ -570,7 +579,8 @@ extension InputSession {
         let s = services.suggestions
         let settings = s.settings()
         guard !suggesting.token.isEmpty, !suggesting.dead, suggesting.hiddenFor != suggesting.token, suggesting.chooser == nil,
-              !composer.isComposing, !composer.wantsPanel, !secureInputActive(), appClass != .none, suggestionsOn(settings)
+              !composer.isComposing, !composer.wantsPanel, !secureInputActive(), passwordField == false, appClass != .none,
+              suggestionsOn(settings)
         else { return ([], appClass) }
         let now = s.now()
         let t = InterfaceWords(language: UIText.language)

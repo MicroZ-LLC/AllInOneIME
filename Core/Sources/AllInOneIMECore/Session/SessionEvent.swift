@@ -163,7 +163,8 @@ public struct FieldInfo: Equatable, Sendable {
     /// A terminal: it runs every line it is given, pastes on ⌘V itself, tells nothing of its text.
     public var terminal: Bool
     /// A password field (Windows' `IS_PASSWORD` scope): nothing is composed or sent. (The Mac tells secure input per key,
-    /// `FieldContext.secure`, and anywhere, `SessionServices.secureInputActive`.)
+    /// `FieldContext.secure`, and anywhere, `SessionServices.secureInputActive`; a password field where it isn't on, in
+    /// `FieldContext.field`: `FieldContext.Parts.passwordField`.)
     public var secure: Bool
 
     public init(app: String? = nil, terminal: Bool = false, secure: Bool = false) {
@@ -186,7 +187,10 @@ public struct FieldContext: Equatable, Sendable {
         public static let selection = Parts(rawValue: 1 << 3)
         public static let beforeCaret = Parts(rawValue: 1 << 4)
         public static let text = Parts(rawValue: 1 << 5)
-        public static let all: Parts = [.secure, .markedText, .selectedRange, .selection, .beforeCaret, .text]
+        /// Whether the field is a password field where secure input isn't on (the Mac: one Accessibility tells is an
+        /// `AXSecureTextField`), told in `field`'s `secure`: asked once a field, where suggestions may show.
+        public static let passwordField = Parts(rawValue: 1 << 6)
+        public static let all: Parts = [.secure, .markedText, .selectedRange, .selection, .beforeCaret, .text, .passwordField]
     }
 
     /// What is right before the caret, as the field tells it.

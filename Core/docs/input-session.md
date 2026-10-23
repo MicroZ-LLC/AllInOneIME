@@ -38,8 +38,11 @@ it on. A shell where reading is cheap (or that has to send it all across a pipe)
 where it isn't asks `fieldWants(for:given:)` and reads what it says, asking again until it says nothing more (three
 times at most): first whether secure input is on (nothing else is read in a password field), then the marked text's
 length when something is composed, where the selection is while a command is written on it, the selection and the
-character before the caret when "@" may start a command, the text around the caret when `@reply` may run. The Mac reads
-so: the selection with Accessibility, where the field doesn't tell it, only when "@" may use it.
+character before the caret when "@" may start a command, the text around the caret when `@reply` may run, and once a
+field where suggestions may show, whether it's a password field all the same (`passwordField`, told in `field`'s
+`secure`: rows show only once it's known to be none, and autocomplete goes by the same answer). The Mac reads so: the
+selection with Accessibility, where the field doesn't tell it, only when "@" may use it; a password field where secure
+input isn't on with Accessibility (`AXSecureTextField`), only when asked, and with each read autocomplete's pause makes.
 
 `FieldInfo` comes with the focus: the app (its own settings: `AppProfile`), whether it's a terminal (it runs every line
 it is given and pastes on ⌘V itself), whether it's a password field. Once the shell has said what it says of the focus

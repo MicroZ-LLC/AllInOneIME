@@ -534,7 +534,11 @@ extension AllInOneIMEInputController {
             let target = client ?? self.clientOverride ?? self.client()
             var context = FieldContext(read: [.secure], field: Self.fieldInfo(target))
             context.secure = SecureInput.blocksComposing(target) || self.services.secureInputActive()
-            if !context.secure, self.passwordFieldByAccessibility() { context.field?.secure = true }
+            if !context.secure {
+                // Told for suggestions too (`FieldContext.Parts.passwordField`): both go by the same answer.
+                context.field?.secure = self.passwordFieldByAccessibility()
+                context.read.insert(.passwordField)
+            }
             if !context.secure, context.field?.secure != true {
                 context.selectedRange = target.flatMap { Self.range($0.selectedRange()) }
                 context.text = id < 0

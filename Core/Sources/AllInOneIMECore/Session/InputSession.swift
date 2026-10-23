@@ -73,6 +73,11 @@ public final class InputSession {
     /// Suggestions in this field: the token, its rows, the chooser (InputSession+Suggestions.swift), and the long press
     /// of Shift that opens the chooser, timed on the session's clock.
     var suggesting = SuggestionsField()
+    /// The field that has the focus is a password field where secure input isn't on, as the shell told it
+    /// (`FieldContext.Parts.passwordField`: the Mac asks Accessibility once a field, and with each read autocomplete's
+    /// pause makes); nil until told. Autocomplete and suggestions both go by it; one told stays one until another field
+    /// takes the focus.
+    var passwordField: Bool?
     lazy var chooserPress = TranslateMode.ShiftHold(now: { [weak self] in self?.services.uptime() ?? 0 },
                                                    pointer: { [weak self] in self?.services.suggestions.pointer() ?? .zero },
                                                    stickyKeys: { [weak self] in self?.services.suggestions.stickyKeys() ?? false })
@@ -171,6 +176,7 @@ public final class InputSession {
                 // Nothing is read during secure input (the shell doesn't read it then either).
                 perform(composer.pasted(secureInputActive() ? .none : content, id: id))
             case let .field(context, id):
+                takePasswordField(context)
                 // Below 0: coding mode's read of the field's words; else autocomplete's.
                 if id < 0 { suggestionsFieldRead(context, pause: -id) } else { autocompleteRead(context, id: id) }
             case let .task(id, update):
@@ -231,6 +237,17 @@ public final class InputSession {
     /// field here.
     public func secureInputActive() -> Bool { field.secure || services.secureInputActive() }
 
+    /// What `context` tells of the field being a password field where secure input isn't on (`passwordField`): one
+    /// (`field`'s `secure`) stays one until another field takes the focus; asked (`.passwordField`) and not, it's none.
+    func takePasswordField(_ context: FieldContext) {
+        guard context.read.contains(.secure), !context.secure else { return }
+        if context.field?.secure == true {
+            passwordField = true
+        } else if context.read.contains(.passwordField), passwordField == nil {
+            passwordField = false
+        }
+    }
+
     // MARK: - Focus
 
     private func focus(_ info: FieldInfo) {
@@ -239,6 +256,7 @@ public final class InputSession {
         fieldText = nil
         fieldSession += 1
         field = info
+        passwordField = nil
         tasks.reopen()  // focused again after `.close`: its work starts again (the engine is made again below)
         ensureLevelOne()
         settings(app: info.app)  // the app's own starting language, rewrite styles, typing out (`AppProfile`)
@@ -544,12 +562,14 @@ public final class InputSession {
 
     /// What of the field `key` may need, given what was read of it so far (`context`): what the shell reads before it hands
     /// the key on, asking again until there is nothing more: three reads at most (whether secure input is on; what the key
-    /// may need, with the character before an "@"; the selection, unless that "@" comes right after a word). A shell where
-    /// reading is cheap reads it all.
+    /// may need, with the character before an "@", and once a field where suggestions may show, whether it's a password
+    /// field all the same; the selection, unless that "@" comes right after a word). A shell where reading is cheap reads
+    /// it all.
     public func fieldWants(for key: KeyEvent, given context: FieldContext) -> FieldContext.Parts {
         // First whether anything is composed at all: nothing else is read in a password field.
         var wants: FieldContext.Parts = [.secure]
         guard context.read.contains(.secure), !context.secure, !field.secure else { return wants }
+        if suggestionsWantPasswordField() { wants.insert(.passwordField) }
         if composer.isComposing, !composer.draftInPanel { wants.insert(.markedText) }
         if composer.draftInPanel, selectionReported != nil { wants.insert(.selectedRange) }
         // "@" may start a command where level one would start one (`Composer.handleLevelOne`: an engine, nothing composed
@@ -584,6 +604,7 @@ public final class InputSession {
 
     private func key(_ event: KeyEvent, _ context: FieldContext) -> Bool {
         if context.read.contains(.text) { fieldText = context.text }
+        takePasswordField(context)
         // Password fields and prompts turn on secure event input. Never compose (so nothing can be sent to the model) in
         // the app that turned it on; anything already typed goes in as typed.
         if context.secure || field.secure {
