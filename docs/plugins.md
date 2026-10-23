@@ -219,6 +219,25 @@ what is typed after the prefix goes. An update that changes `hosts`, `query`, th
 `queryMinChars` or `compare` needs turning on again.
 [Core/Plugins/github](../Core/Plugins/github/) is the example.
 
+### Without a plugin: a custom command
+
+A custom command of type `suggestions` is a source of the same kind, for a program of your own (a CLI that lists your
+tickets, say): `prefix`, `minChars`, `compare`, `refresh`, `query`, `queryMinChars` and `insert` mean what they mean
+above, with the same limits and defaults; a prefix is required, and the list is always on. Its `argv` runs as a `run`
+command's does, with no input for the list and, with `query`, what follows the prefix as one argument (in place of
+`{input}`, else last); `timeoutSeconds` is 20 at most, a query's 3 seconds. It may print the `{ items }` above, or lines
+`match⇥title⇥url` (a title is also `{title}`). It's the user's own: no approval and no `hosts` (it runs locally), on
+while it exists; rows, keys, picks, the cache, back-off and pause are a plugin source's. An entry that breaks the rules
+isn't a source, and Settings → Custom Commands says why.
+
+```json
+{ "name": "jira", "type": "suggestions", "summary": "Jira issues", "prefix": "PROJ-",
+  "argv": ["/Users/me/bin/jira-list"], "timeoutSeconds": 10, "refresh": "1h",
+  "insert": { "default": ["{arg} {title}", "{arg}"], "chat": ["{arg} {title} {url}", "{arg}"] } }
+```
+
+A 10-line program, and the editor's presets: [README, Suggestions from a program of your own](../README.md#suggestions-from-a-program-of-your-own-new).
+
 ## Milestones
 
 1. **@stock end to end, installed by hand** (this branch): manifest and store, the JavaScript host with

@@ -201,7 +201,7 @@ Intelligence 时，长对话放不进它很小的上下文：先缩短最早的�
 
 ### 自己加命令
 
-在设置的「自定义 @ 命令」里点「添加命令…」：起个名字，选它做什么（AI 指令、运行程序、在终端运行、打开网页、插入文字），也可以从例子开始。
+在设置的「自定义 @ 命令」里点「添加命令…」：起个名字，选它做什么（AI 指令、运行程序、在终端运行、打开网页、插入文字、边打边由程序给出建议），也可以从例子开始。
 命令排在内置命令后面，名字只能用英文字母，不能和内置命令重名；保存后下一句就能用。
 它们存在配置文件（`~/.config/allinoneime/config.json`）的 `customCommands` 里，也可以直接改：
 
@@ -212,7 +212,8 @@ Intelligence 时，长对话放不进它很小的上下文：先缩短最早的�
   { "name": "sh", "type": "terminal", "argv": ["zsh", "-c", "{input}"] },
   { "name": "reply", "type": "prompt", "prompt": "Write a short, polite reply to the user's message." },
   { "name": "google", "type": "link", "url": "https://www.google.com/search?q={input}" },
-  { "name": "sig", "type": "snippet", "summary": "邮件签名", "text": "Best,\nWei\n{cursor}" }
+  { "name": "sig", "type": "snippet", "summary": "邮件签名", "text": "Best,\nWei\n{cursor}" },
+  { "name": "issues", "type": "suggestions", "summary": "我们的 issue", "prefix": "#", "argv": ["~/bin/gh-issues"] }
 ]
 ```
 
@@ -223,6 +224,7 @@ Intelligence 时，长对话放不进它很小的上下文：先缩短最早的�
 | `terminal` | 在新的终端窗口里运行 `argv`，不上屏 |
 | `link` | 把内容填进网址 `url`，在默认浏览器里打开，不上屏 |
 | `snippet` | 直接插入 `text`，里面的占位符先填好（见下）；不用 AI，不运行程序 |
+| `suggestions` | [建议](#建议和编码模式新)的来源：在任何输入框里打它的 `prefix`，`argv` 打印的条目就列成几行，按 Tab 插入（[见下](#自己的程序给出建议新)）；`@issues` 本身只说明它是什么 |
 
 - `{input}` 换成命令后面写的内容，而且永远只占它所在的那一个参数，不经过 shell。要用 shell 就像上面的 `sh` 那样明确写 `zsh -c`。
 - `stdin`：给程序标准输入的内容，`{input}` 同样会被替换。
@@ -233,6 +235,47 @@ Intelligence 时，长对话放不进它很小的上下文：先缩短最早的�
 - 找不到 `argv` 里的程序时（比如没装 `python3`），这个命令不显示，`@python …` 照常当文字上屏；装好后切换一下输入框就会出现。
 
 `run` 和 `terminal` 会在你的 Mac 上执行代码：只放你自己写的、信得过的命令；它们同样只在按执行键时运行，安全输入时不运行。
+
+#### 自己的程序给出建议（新）
+
+`suggestions` 命令（编辑器里的「建议」）把你自己的程序变成建议的来源，和插件的补全一样，只是不用写插件：在任何输入框里打它的前缀
+（`#`、`PROJ-`），对得上的行就列在光标下面，按 Tab 插入。程序像 `run` 命令那样运行（在主目录里，用登录 shell 的 PATH，除非 `argv`
+自己启动 shell，否则不经过 shell）。不带参数运行时，它打印全部条目，一行一条：`匹配⇥标题⇥网址`（中间是 Tab，标题和网址可以不写），
+或者插件那样的 JSON（`{"items": [...]}`，见 [docs/plugins.md](docs/plugins.md#completions-suggestions)）。不像样的一行（比如匹配里有空格）
+单独跳过。下面这个用 GitHub 的 `gh`（它自己保存登录）列出一个仓库的 issue：
+
+```sh
+#!/bin/sh
+# ~/bin/gh-issues: a repository's issues, a "match<TAB>title<TAB>url" line each (Suggestions, prefix #).
+# No argument: the open ones; one (Look up as you type): those whose title or number has it.
+repo=octo-org/octo-repo
+fields='.[] | "#\(.number)\t\(.title)\t\(.url)"'
+if [ $# -eq 0 ]; then
+  gh issue list -R "$repo" --limit 1000 --json number,title,url --jq "$fields"
+else
+  gh issue list -R "$repo" --state all --search "$1" --json number,title,url --jq "$fields"
+fi
+```
+
+```json
+{ "name": "issues", "type": "suggestions", "summary": "我们的 issue", "prefix": "#",
+  "argv": ["~/bin/gh-issues"], "refresh": "15m", "query": true, "queryMinChars": 2,
+  "insert": { "default": ["{arg} {title}", "{arg}"], "chat": ["{arg} {title} {url}", "{arg} {title}", "{arg}"] } }
+```
+
+- `prefix`（必填：没有前缀不能当来源，也不能以魔法键开头）、`minChars`、`compare`、`refresh`、`query`、`queryMinChars` 和 `insert`
+  的意思和插件 `completions` 里的一样，限制和默认值也一样（[docs/plugins.md](docs/plugins.md#completions-suggestions)）；超出范围的话这个命令
+  就不当来源，设置里会说明原因。你在用时列表每隔 `refresh`（默认 `1h`）重新运行一次；`timeoutSeconds`（默认 10）最多 20 秒，查询最多 3 秒。
+- 打开 `query`（边打边查，前缀后面打满 `queryMinChars` 个字起）时，还会把你在前缀后面打的字作为一个参数再运行它：放在 `argv` 里
+  `{input}` 的位置，没写就放在最后（`#12` 给的是 `12`）。输入框里别的什么都不给它，也从不经过 shell、不放进环境变量；拿列表时，只有
+  `{input}` 的那个参数会去掉。
+- 一行的匹配是这一行显示的字，也是插入的内容（`{match}`、`{arg}`），标题是行的注释和 `{title}`，网址是 `{url}`。编辑器里的「插入」：
+  **只插入匹配的部分**（`{arg}`，默认）、**连同标题**（`{arg} {title}`）、**连同标题和链接**（聊天 App 里 `{arg} {title} {url}`）；
+  **高级** 里是 `insert` 写法的模板。
+- 行、按键、选过的排前面、列表的缓存（`~/Library/Caches/AllInOneIME/suggestions/`，只有你能读，删掉命令就删掉）、退避和暂停都和插件
+  的一样。它是你自己的：不用打开开关，存在就生效；「通用」和输入法菜单里的 **建议**、设置 →「按 App 设置」里某个 App 的建议照样管它。
+  编辑器里显示它的状态（上次更新、条数、上次的错误）和「立即刷新」，命令列表里也有。
+- 自定义命令照常通过 iCloud 同步；另一台 Mac 上没有这个程序时，那台 Mac 上这个来源就显示出错。
 
 #### 片段：常用的文字（新）
 
@@ -628,6 +671,8 @@ two-way door：可以随时撤回的决定
 
 边打边在候选框里出行：来自插件，编码模式下还有你写的编程语言；按 **Tab** 插入。出行的时候，[续写](#续写新)的灰字让位。
 
+- **你自己的程序**：`suggestions` 类型的自定义命令也是来源，前缀和条目都是你定的：一个打印 `匹配⇥标题⇥网址` 行的程序
+  （[自己的程序给出建议](#自己的程序给出建议新)）。
 - **插件的补全**：插件声明在某个前缀后面补全什么，比如 `@github` 的 `#12`，或者不带前缀、打满 12 位的 AWS 账号。它的列表留在本机
   （你在用时大约每 15 分钟更新一次，一周没用就不再更新），有的还会边打边查（前缀后面打满 2 个字起），刚建的 issue 也能出来。最多 5 行，
   你选过的排前面（按选的次数和远近）；底栏写来源，列表超过 10 分钟时写它是多久前的。英文和拼音下都能用：拼音组字时打 `#`，先把字
@@ -837,7 +882,8 @@ Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系�
   交给这台 Mac 上的 Apple Intelligence。只有你在打开它时同意了那个服务、那个地址，才发给它（从不发给 AllInOneIME 云），并且和所有请求一样隐藏敏感信息。除了内存里最近
   20 条建议，和输入法偏好设置里的统计数字（不含文字），什么都不留。
 - 建议：插件的补全要你打开后才运行它的脚本，而且只能访问它声明的主机；它看不到你打的字、所在的 App 和输入框，只有边打边查
-  （设置里会写，连同发到哪里）拿到前缀后面的字。编码模式的行来自你装的语言包和输入框里的文字，都在本机。列表、你打的字和查询从不
+  （设置里会写，连同发到哪里）拿到前缀后面的字。`suggestions` 自定义命令的程序在本机运行，只有边打边查时拿到你在前缀后面打的字。
+  编码模式的行来自你装的语言包和输入框里的文字，都在本机。列表、你打的字和查询从不
   写进日志、不发给 AI、不学习、不同步，见[建议和编码模式](#建议和编码模式新)。
 - 只有在命令里按 ⌃V 或 ⌘V 时，输入法才读一次剪贴板里的文字；密码管理器标成隐藏的内容不读。读到的文字先显示在命令里，同样要你再按执行键才发出去。新版 macOS 会问是否允许 AllInOneIME 读取剪贴板，选「允许」；不想每次都问，可以在 系统设置 → 隐私与安全性 里把 AllInOneIME 的粘贴权限设成总是允许。
 - 在密码框里 macOS 会临时切到系统键盘（U.S. 或 ABC），离开后切回来。只要你正在打字的应用开着安全输入，AllInOneIME 就不组字，按键原样输入。只要系统处于安全输入状态（密码框、终端的安全键盘输入等），就不会发任何内容给 AI。
