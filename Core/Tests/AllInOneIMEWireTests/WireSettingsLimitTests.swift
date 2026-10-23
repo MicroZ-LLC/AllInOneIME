@@ -49,4 +49,23 @@ extension WireSettingsTests {
                 == .error(re: nil, code: .tooLarge, message: "frame of \(body.count) bytes is over the limit"))
         #expect(!dll.server.isOpen(dllID))
     }
+
+    /// A client that asks for the settings and may not have them (low integrity, an AppContainer, one the transport said
+    /// nothing about: §8) keeps a DLL's limit: the same frame closes its connection (§2.2).
+    @Test func anUntrustedClientThatAsksForTheSettingsKeepsADLLsLimit() throws {
+        let words = Self.longestWords
+        let config = try json(["inputLanguages": ["zh", "en"], "englishWords": words, "addedEnglishWords": words])
+        let line = words.reversed().joined(separator: ", ")
+        let body = try WireJSON.encode(ClientFrame(id: 2, .settingsSet(field: "englishWords", value: .string(line), shown: .string(line))))
+        #expect(body.count > WireFrame.clientLimit && body.count <= WireFrame.settingsClientLimit, "\(body.count) bytes")
+        for peer in [WirePeer(integrity: .low), WirePeer(integrity: .medium, appContainer: true), WirePeer()] {
+            let (engine, id, welcome) = self.engine(config, peer: peer)
+            #expect(welcome?.capabilities == [], "\(peer)")
+            #expect(engine.server.clientLimit(on: id) == WireFrame.clientLimit, "\(peer)")
+            let refused = engine.send(body, on: id)
+            #expect(refused.count == 1 && (try? WireJSON.decode(EngineFrame.self, from: refused[0]))?.message
+                    == .error(re: nil, code: .tooLarge, message: "frame of \(body.count) bytes is over the limit"), "\(peer)")
+            #expect(!engine.server.isOpen(id), "\(peer)")
+        }
+    }
 }
