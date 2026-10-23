@@ -31,6 +31,19 @@ struct CommandTriggerTextTests {
         #expect(UIText.summary(.translate).contains("@improve"))
     }
 
+    /// What the user (or a plugin's author) gave goes in as it is: its own "@" (a custom agent's program, a version, an
+    /// address) is no command's, and the trigger doesn't take its place.
+    @Test func whatTheUserGaveKeepsItsOwnAt() {
+        tilde {
+            #expect(SessionText.shortName(.atAgent, picked: .custom, custom: ["/opt/tools/team@agent", "--run"], language: "en")
+                == "~agent's agent (team@agent)")
+            #expect(UIText.triggered("Install @\(UIText.verbatim("stock")) \(UIText.verbatim("1.0@beta"))?") == "Install ~stock 1.0@beta?")
+        }
+        // With @ itself the text is as it is, and nothing stands in for an argument's @ any more.
+        let atAgent = SessionText.shortName(.atAgent, picked: .custom, custom: ["/opt/tools/team@agent"], language: "en")
+        #expect(atAgent == "@agent's agent (team@agent)" && !atAgent.unicodeScalars.contains { $0.properties.isNoncharacterCodePoint })
+    }
+
     @Test func aPluginsOutputIsLabelledWithIt() {
         let manifest = PluginManifest(name: "acmeweather", version: "1.0.0", type: .script, script: "main.js")
         let plugin = InstalledPlugin(manifest: manifest, directory: URL(fileURLWithPath: "/nowhere/acmeweather"), isLocal: true)

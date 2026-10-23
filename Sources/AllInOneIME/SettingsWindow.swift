@@ -2478,7 +2478,10 @@ struct SettingsView: View {
                 Button(tr("刷新插件库", "Refresh Library")) { model.refreshLibrary() }.disabled(model.libraryBusy)
             }
             // On the header, which is there whenever an Install or Update button is.
-            .confirmationDialog(pluginToInstall.map { model.triggered(tr("安装 @\($0.name) \($0.version)？", "Install @\($0.name) \($0.version)?")) } ?? "",
+            .confirmationDialog(pluginToInstall.map { entry in
+                                    let (name, version) = (UIText.verbatim(entry.name), UIText.verbatim(entry.version))
+                                    return model.triggered(tr("安装 @\(name) \(version)？", "Install @\(name) \(version)?"))
+                                } ?? "",
                                 isPresented: Binding(get: { pluginToInstall != nil }, set: { if !$0 { pluginToInstall = nil } })) {
                 Button(tr("安装", "Install")) {
                     if let entry = pluginToInstall { model.install(entry) }
@@ -2542,31 +2545,34 @@ struct SettingsView: View {
 
     /// What a library plugin contacts: "what you type after @stock goes to query1.finance.yahoo.com".
     private func libraryContacts(_ entry: PluginIndex.Entry) -> String {
-        let hosts = entry.hosts.joined(separator: ", ")
+        // The plugin's own words, as they are (`UIText.verbatim`): an "@" in them is no command.
+        let hosts = UIText.verbatim(entry.hosts.joined(separator: ", ")), name = UIText.verbatim(entry.name)
         switch entry.type {
         case "prompt": return tr("AI 指令，发给你选的 AI 服务", "An AI instruction, sent to your AI provider")
         case "link":
-            let target = entry.url.flatMap { URL(string: $0)?.host } ?? hosts
-            return model.triggered(tr("@\(entry.name) 后面的内容会在浏览器里打开 \(target)", "Opens what you type after @\(entry.name) at \(target) in the browser"))
+            let target = entry.url.flatMap { URL(string: $0)?.host }.map(UIText.verbatim) ?? hosts
+            return model.triggered(tr("@\(name) 后面的内容会在浏览器里打开 \(target)", "Opens what you type after @\(name) at \(target) in the browser"))
         default:
             return hosts.isEmpty ? tr("不联网", "No network")
-                : model.triggered(tr("@\(entry.name) 后面输入的内容会发到 \(hosts)", "What you type after @\(entry.name) goes to \(hosts)"))
+                : model.triggered(tr("@\(name) 后面输入的内容会发到 \(hosts)", "What you type after @\(name) goes to \(hosts)"))
         }
     }
 
     /// "1.0.0 · sends what you type after @stock to query1.finance.yahoo.com · local".
     private func pluginDetail(_ plugin: InstalledPlugin) -> String {
         var parts = [plugin.manifest.version]
+        // The plugin's own words, as they are (`UIText.verbatim`): an "@" in them is no command.
+        let name = UIText.verbatim(plugin.name)
         switch plugin.manifest.type {
         case .script:
-            let hosts = plugin.manifest.hosts.joined(separator: ", ")
+            let hosts = UIText.verbatim(plugin.manifest.hosts.joined(separator: ", "))
             parts.append(hosts.isEmpty ? tr("不联网", "no network")
-                         : model.triggered(tr("@\(plugin.name) 后面的内容会发到 \(hosts)", "sends the text after @\(plugin.name) to \(hosts)")))
+                         : model.triggered(tr("@\(name) 后面的内容会发到 \(hosts)", "sends the text after @\(name) to \(hosts)")))
         case .prompt:
             parts.append(tr("AI 指令，发给你选的 AI 服务", "an AI instruction, sent to your AI provider"))
         case .link:
-            let host = plugin.manifest.destinationHosts.joined(separator: ", ")
-            parts.append(model.triggered(tr("@\(plugin.name) 后面的内容会在浏览器里打开 \(host)", "opens \(host) in the browser with the text after @\(plugin.name)")))
+            let host = UIText.verbatim(plugin.manifest.destinationHosts.joined(separator: ", "))
+            parts.append(model.triggered(tr("@\(name) 后面的内容会在浏览器里打开 \(host)", "opens \(host) in the browser with the text after @\(name)")))
         }
         if plugin.isLocal { parts.append(tr("本地插件（未经审核）", "local (not reviewed)")) }
         return parts.joined(separator: " · ")

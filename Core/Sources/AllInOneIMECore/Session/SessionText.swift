@@ -206,7 +206,7 @@ public enum SessionText {
         switch destination {
         case .atAgent:
             let name = picked.displayName(custom: custom)
-            return UIText.triggered(t.tr("@agent 的 agent（\(name)）", "@agent's agent (\(name))"))
+            return UIText.triggered(t.tr("@agent 的 agent（\(UIText.verbatim(name))）", "@agent's agent (\(UIText.verbatim(name)))"))
         case .claudeCode, .geminiCLI, .kiroCLI, .customAgent: return destination.agent?.displayName(custom: custom) ?? ""
         case .claudeWeb: return "Claude"
         case .chatgpt: return "ChatGPT"

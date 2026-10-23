@@ -367,15 +367,24 @@ extension UIText {
     /// process's left as it is: a settings document's (`SettingsService`). Nil: the process's.
     @TaskLocal public static var scopedCommandTrigger: String?
 
-    /// Interface text that names commands ("@improve", "@ commands") with the command trigger in place of each "@" (the
-    /// translations keep the ASCII @ for this).
+    /// Interface text that names commands ("@improve", "@ commands") with the command trigger in place of each "@" of the
+    /// text itself (the translations keep the ASCII @ for this); what the user gave in it (an agent's program, a plugin's
+    /// version or hosts) goes in through `verbatim`, its own "@" left as it is.
     public static func triggered(_ text: String) -> String { triggered(text, trigger: commandTrigger) }
 
     /// `text` naming commands with `trigger`: a window's own settings' (the Mac's Settings window draws with its config's,
     /// whatever the process's is when it draws).
     public static func triggered(_ text: String, trigger: String) -> String {
-        trigger == "@" ? text : text.replacingOccurrences(of: "@", with: trigger)
+        let named = trigger == "@" ? text : text.replacingOccurrences(of: "@", with: trigger)
+        return named.contains(verbatimAt) ? named.replacingOccurrences(of: verbatimAt, with: "@") : named
     }
+
+    /// `argument`, something the user gave (or a plugin's author), as it goes into text that names commands (`triggered`):
+    /// its "@"s are no command's, and stay. Only inside `triggered`'s text, which puts them back.
+    public static func verbatim(_ argument: String) -> String { argument.replacingOccurrences(of: "@", with: verbatimAt) }
+
+    /// What stands for an argument's "@" until `triggered` puts it back: a noncharacter, never in text.
+    static let verbatimAt = String(Character(Unicode.Scalar(0xFDD0)!))  // a literal can't hold one
 
     private static let clock24State = Locked<Bool?>(initialState: nil)
     private static let commandTriggerState = Locked(initialState: "@")
