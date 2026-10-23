@@ -154,6 +154,26 @@ struct EnglishWordsEngineTests {
         }
     }
 
+    /// librime learns nothing typed in a password or a private field either (`RimeSession.learns` off, set as the field
+    /// takes the focus), what is picked there going in as elsewhere; in Notepad it learns again.
+    @Test func librimeLearnsNothingInAPasswordOrPrivateField() throws {
+        for scopes in [[31], [61]] {
+            let kept = WireField(app: "win:msedge.exe", process: "msedge.exe", scopes: scopes, layout: "00000409")
+            let (client, folder) = try client(field: kept)
+            defer { try? FileManager.default.removeItem(at: folder) }
+            let rime = try #require(EngineHost.rimeSession(client.composer.primaryEngine))
+            #expect(!rime.learns, "\(scopes)")
+            client.type("nihao")
+            let first = try #require(shown(client).first)
+            client.space()
+            #expect(client.committed == first, "\(scopes)")
+            client.send(.focus(sid: 1, focus: 2, field: Self.notepad))
+            #expect(rime.learns, "\(scopes): Notepad")
+            client.send(.focus(sid: 1, focus: 3, field: kept))
+            #expect(!rime.learns, "\(scopes): again")
+        }
+    }
+
     /// A word learned while the Settings app changes the settings is written through the settings service
     /// (`writingSettings`, under its lock): not in the middle of the window's change, which would write back over it what
     /// it read before; right after it, and the window hears of it.

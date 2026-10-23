@@ -268,6 +268,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
     func apply(_ config: Config, to session: ComposerSession, state: SessionState) {
         let composer = session.composer
         let app = session.field.app
+        fieldChanged(in: session)
         composer.voiceEnabled = false  // no dictation on Windows yet
         composer.actionKey = config.actionKey
         composer.typesResults = false  // typed out step by step comes later (ComposerSession commits it in one go)
@@ -301,6 +302,12 @@ public final class EngineHost: WireHost, @unchecked Sendable {
             composer.setInputMode(defaultInput)
             state.appliedDefaultInput = defaultInput
         }
+    }
+
+    /// librime learns nothing typed in a password or a private field (`WireField.keepsNothing`), as the English words:
+    /// set as the field takes the focus (`apply`), and as it changes while it has it.
+    public func fieldChanged(in session: ComposerSession) {
+        Self.rimeSession(session.composer.primaryEngine)?.learns = !session.field.keepsNothing
     }
 
     public func sessionClosed(_ session: ComposerSession) {

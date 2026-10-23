@@ -47,8 +47,11 @@ In every app that loads TSF text services (the classic Win32 ones, and WinUI one
   between English and 中文 (the "中" / "英" notice shows it). Pinyin is librime with rime-ice's data, as on the Mac: the
   pinyin is the app's composition, the candidates are in the engine's window; Space or a digit picks, `-` / `=` and Page
   Up / Page Down turn the page. The data comes with the installer (`rime-data`); what librime learns is the user's, in
-  `%APPDATA%\AllInOneIME\rime`. librime deploys as the engine starts (under a second usually, several the first time in
-  a user folder): until then a field types Latin letters, and gets pinyin once it is ready.
+  `%APPDATA%\AllInOneIME\rime`, and it learns nothing typed in a password or a private field (`IS_PASSWORD`, the PINs',
+  `IS_PRIVATE`: a browser's private window): there librime never commits a composition with a word picked (it learns as
+  it commits), the engine puts the text in (`RimeSession.learns`). librime deploys as the engine starts (under a second
+  usually, several the first time in a user folder): until then a field types Latin letters, and gets pinyin once it is
+  ready.
 - **English words among pinyin's candidates (0.6.6).** As on the Mac (the core's `EnglishWordsEngine` on each field's
   librime session): the settings' words (`englishWords`, which AllInOneIME Settings edits), the jargon list's Latin
   terms and the product words rime-ice lacks come up among librime's candidates as their letters are typed, unless

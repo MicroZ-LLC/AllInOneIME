@@ -255,6 +255,12 @@ final class LockedRimeEngine: PinyinEngine {
     /// False after librime dropped the session (a redeploy).
     var isValid: Bool { locked { $0.isValid } }
 
+    /// Whether librime learns what is typed in it (`RimeSession.learns`): not in a field that keeps nothing.
+    var learns: Bool {
+        get { locked { $0.learns } }
+        set { locked { $0.learns = newValue } }
+    }
+
     func processKey(_ keycode: Int32, mask: Int32) -> Bool { locked { $0.processKey(keycode, mask: mask) } }
     func takeCommit() -> String? { locked { $0.takeCommit() } }
     func snapshot() -> EngineSnapshot { locked { $0.snapshot() } }
