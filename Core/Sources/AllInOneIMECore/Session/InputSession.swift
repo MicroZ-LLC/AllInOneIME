@@ -171,7 +171,8 @@ public final class InputSession {
                 // Nothing is read during secure input (the shell doesn't read it then either).
                 perform(composer.pasted(secureInputActive() ? .none : content, id: id))
             case let .field(context, id):
-                autocompleteRead(context, id: id)
+                // Below 0: coding mode's read of the field's words; else autocomplete's.
+                if id < 0 { suggestionsFieldRead(context, pause: -id) } else { autocompleteRead(context, id: id) }
             case let .task(id, update):
                 guard tasks.isCurrent(id) else { return }
                 received(update, from: id)

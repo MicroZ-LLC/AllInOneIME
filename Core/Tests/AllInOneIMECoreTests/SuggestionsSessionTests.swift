@@ -185,3 +185,78 @@ extension SuggestionsSessionTests {
         }
     }
 }
+
+extension SuggestionsSessionTests {
+    /// Presses `key` as the Mac's shell does: with only what the session asks of the field for it (`fieldWants`); a
+    /// printable key the session lets through is typed by the app. Whether it asked for the field's text.
+    @discardableResult
+    func pressAsTheMacDoes(_ key: KeyEvent, in field: SuggestionsField) -> Bool {
+        var askedText = false
+        var context = FieldContext(field: FieldInfo(app: field.host.app, terminal: field.host.terminal))
+        let all = field.host.context
+        while true {
+            let missing = field.host.session.fieldWants(for: key, given: context).subtracting(context.read)
+            if missing.isEmpty { break }
+            if missing.contains(.text) { askedText = true }
+            if missing.contains(.secure) { context.secure = all.secure }
+            if missing.contains(.selectedRange) { context.selectedRange = all.selectedRange }
+            if missing.contains(.beforeCaret) { context.beforeCaret = all.beforeCaret }
+            if missing.contains(.selection) { context.selection = all.selection }
+            if missing.contains(.text) { context.text = all.text }
+            context.read.formUnion(missing)
+        }
+        let before = field.host.outputs.count
+        field.host.send(.key(key, context))
+        let took = field.host.outputs.dropFirst(before).contains { if case .commit = $0 { true } else { false } }
+        if !took, key.key == .character || key.key == .space, let typed = key.printableText { field.host.document += typed }
+        field.noteTimers()
+        return askedText
+    }
+
+    /// Types `text` (letters, digits, marks, spaces, in English) as the Mac's shell does (`pressAsTheMacDoes`). How many
+    /// keys asked for the field's text.
+    @discardableResult
+    func typeAsTheMacDoes(_ text: String, into field: SuggestionsField) -> Int {
+        text.filter { pressAsTheMacDoes(SuggestionKeys.key($0), in: field) }.count
+    }
+
+    /// Coding mode reads the field's text once a pause in typing (spec 2: "read once per pause"), asked of the shell after
+    /// it (`SessionOutput.readField`), never with a key; its words are rows from then on.
+    @Test func codingModeReadsTheFieldOncePerPause() throws {
+        try inEnglish {
+            let world = SuggestionsWorld()
+            world.codingMode = true
+            let field = world.field()
+            let reads = typeAsTheMacDoes("total_amount = total_amount + to", into: field)
+            #expect(reads == 0, "a key asked for the field's text \(reads) times")
+            #expect(field.host.fieldReads == 0, "no pause yet: \(field.host.fieldReads) reads")
+            field.pause(1)
+            #expect(field.host.fieldReads == 1, "one read after the pause: \(field.host.fieldReads)")
+            #expect(field.settle { field.rows.contains { $0.text == "total_amount" } }, "the field's words: \(field.rows.map(\.text))")
+            field.pause(1)
+            #expect(field.host.fieldReads == 1, "no typing, no read: \(field.host.fieldReads)")
+        }
+    }
+
+    /// A snippet of more than one line put in with Tab gets the caret's line's indentation as the field tells it with
+    /// that Tab, typed in a hurry (no pause, no read since the line was indented); one line only, nothing is read.
+    @Test func aSnippetIsIndentedAsTheLineIsWhenItGoesIn() throws {
+        try inEnglish {
+            let world = SuggestionsWorld()
+            world.codingMode = true
+            world.packs = [try SuggestionsCodingPacksTests.shipped("python")]
+            let field = world.field()
+            field.host.document = "def main():\n    "
+            #expect(typeAsTheMacDoes("tr", into: field) == 0)
+            #expect(field.settle { field.rows.first?.comment.contains("try/except") == true }, "\(field.rows.map(\.comment))")
+            #expect(field.host.fieldReads == 0, "no pause")
+            #expect(pressAsTheMacDoes(SuggestionKeys.tab, in: field), "Tab asked for the line it goes into")
+            #expect(field.document == "def main():\n    try:\n        \n    except Exception as e:\n        print(e)",
+                    "\(field.document.debugDescription)")
+            field.host.document = "x = "
+            typeAsTheMacDoes(" pri", into: field)
+            #expect(field.settle { field.rows.first?.text == "print" }, "\(field.rows.map(\.text))")
+            #expect(!pressAsTheMacDoes(SuggestionKeys.tab, in: field), "a keyword: nothing read")
+        }
+    }
+}

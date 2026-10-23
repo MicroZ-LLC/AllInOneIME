@@ -288,10 +288,11 @@ extension AllInOneIMEInputController {
         return rect
     }
 
-    /// What the field says once autocomplete's pause is over (`SessionOutput.readField`): secure input, the selection,
-    /// the text around the caret (nothing of it during secure input). Read once this event is done, and handed back.
+    /// What the field says once a pause in typing is over (`SessionOutput.readField`): autocomplete's, or coding mode's
+    /// for the field's words (`id` below 0, more after the caret): secure input, the selection, the text around the caret
+    /// (nothing of it during secure input). Read once this event is done, and handed back.
     @MainActor
-    func readFieldForAutocomplete(id: Int, in client: IMKTextInput?) {
+    func readFieldAfterPause(id: Int, in client: IMKTextInput?) {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             let target = client ?? self.clientOverride ?? self.client()
@@ -299,8 +300,11 @@ extension AllInOneIMEInputController {
             context.secure = SecureInput.blocksComposing(target) || self.services.secureInputActive()
             if !context.secure {
                 context.selectedRange = target.flatMap { Self.range($0.selectedRange()) }
-                context.text = self.readFieldText(from: target, before: Autocomplete.beforeLimit, after: Autocomplete.afterLimit,
-                                                  purpose: "autocomplete")
+                context.text = id < 0
+                    ? self.readFieldText(from: target, before: ReplyContext.Limits.fieldBefore, after: ReplyContext.Limits.fieldAfter,
+                                         purpose: "coding mode's words")
+                    : self.readFieldText(from: target, before: Autocomplete.beforeLimit, after: Autocomplete.afterLimit,
+                                         purpose: "autocomplete")
                 context.read.formUnion([.selectedRange, .text])
             }
             self.received(.field(context, id: id))

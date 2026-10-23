@@ -38,11 +38,13 @@ struct SuggestionsField {
     /// The refresh timer, counted, and when it is due.
     var refresh = 0
     var refreshDue: Date?
-    /// The field's own words, read from what it said with the token's first key, and the leading whitespace of the
-    /// caret's line then (a snippet's later lines get it).
+    /// The field's own words and the leading whitespace of the caret's line (a snippet's later lines get it), from what
+    /// the field said last: read once typing pauses (spec 2), or told with a key; the pause counted, and the one whose
+    /// read is awaited.
     var words: [String] = []
     var indent = ""
-    var wordsRead = false
+    var wordsPause = 0
+    var wordsReading: Int?
     /// The field reported where its selection is with the last key: a snippet's caret can go back into what went in.
     var ranges = false
 }
@@ -56,6 +58,8 @@ extension InputSession {
     static let maxSuggestionRows = 5
     /// A query takes this long at most.
     static let queryTimeout: TimeInterval = 3
+    /// The pause in typing after which coding mode reads the field's words again.
+    static let wordsPause: TimeInterval = 0.3
 
     /// A completion source that may run here: its plugin's, enabled with what the plugin is now, not the command
     /// trigger's.
@@ -197,7 +201,25 @@ extension InputSession {
             suggesting.refreshDue = nil
             suggestionsMaintain()
             suggestionsUpdate()
+        case let .words(pause):
+            // Typing paused: coding mode's words read again, by the shell after the key (`SessionOutput.readField`, this
+            // pause's id below 0).
+            guard pause == suggesting.wordsPause, services.suggestions.codingMode(), !terminal, !secureInputActive() else { return }
+            suggesting.wordsReading = pause
+            emit(.readField(id: -pause))
         }
+    }
+
+    /// What the field said once typing paused (`SuggestionsTimer.words`, `pause`): coding mode's words and the caret's
+    /// line's indentation from its text, the rows made again with them.
+    func suggestionsFieldRead(_ context: FieldContext, pause: Int) {
+        guard pause == suggesting.wordsReading else { return }
+        suggesting.wordsReading = nil
+        guard context.read.contains(.secure), !context.secure, !secureInputActive(), services.suggestions.codingMode(), !terminal,
+              context.read.contains(.text), let text = context.text else { return }
+        (suggesting.words, suggesting.indent) = (CodingRows.words(text), CodingRows.indent(text.before))
+        log.notice("suggestions: the field's words read (\(suggesting.words.count))")
+        if !suggesting.token.isEmpty { suggestionsUpdate() }
     }
 
     /// A modifier changed: Shift down on its own starts the long press the chooser opens after (`TranslateMode.ShiftHold`:
@@ -230,13 +252,28 @@ extension InputSession {
 
     // MARK: - Keys
 
-    /// What the field `key` may need for suggestions: the selection where rows show (a snippet's caret), the text where
-    /// coding mode reads the field's words (once a token).
+    /// What the field `key` may need for suggestions: the selection where rows show (a snippet's caret); the text where
+    /// it puts in a snippet of more than one line (its later lines get the caret's line's indentation as it is now). The
+    /// field's words are read once typing pauses, never with a key.
     func suggestionsFieldWants(for key: KeyEvent) -> FieldContext.Parts {
         var wants: FieldContext.Parts = []
         if suggesting.shown { wants.insert(.selectedRange) }
-        if services.suggestions.codingMode(), !suggesting.wordsRead, !terminal, key.printableText != nil { wants.insert(.text) }
+        if services.suggestions.codingMode(), !terminal, let row = suggestionsRowPut(by: key), row.insertion.contains(where: \.isNewline) {
+            wants.insert(.text)
+        }
         return wants
+    }
+
+    /// The row `key` would put in where rows show (`suggestionsBeforeKey`): Tab's, or Return's once ↓/↑ moved; nil: none.
+    func suggestionsRowPut(by key: KeyEvent) -> SuggestionRow? {
+        guard suggesting.shown, suggesting.chooser == nil, !suggesting.rows.isEmpty, !composer.isComposing,
+              key.modifiers.subtracting(.capsLock).subtracting(.sides).isEmpty else { return nil }
+        switch (suggesting.appClass, key.key) {
+        case (.ordinary, .tab): return suggesting.rows[suggesting.highlighted]
+        case (.chat, .tab): return suggesting.rows[0]
+        case (.ordinary, .enter), (.ordinary, .keypadEnter): return suggesting.moved ? suggesting.rows[suggesting.highlighted] : nil
+        default: return nil
+        }
     }
 
     /// Before the composer has `event`: the chooser's keys while it is open; the rows' keys of the app's class while they
@@ -249,6 +286,12 @@ extension InputSession {
         suggesting.lastKeyAt = services.uptime()
         suggesting.ranges = context.read.contains(.selectedRange) && context.selectedRange != nil
         if let highlighted = suggesting.chooser { return chooserKey(event, highlighted) }
+        // The caret's line as the field tells it now: a snippet the key puts in is indented as it is.
+        if services.suggestions.codingMode(), !terminal, context.read.contains(.text), let text = context.text,
+           CodingRows.indent(text.before) != suggesting.indent {
+            suggesting.indent = CodingRows.indent(text.before)
+            if suggesting.shown { suggestionsUpdate() }
+        }
         guard suggesting.shown, !suggesting.rows.isEmpty, !composer.isComposing,
               event.modifiers.subtracting(.capsLock).subtracting(.sides).isEmpty else { return nil }
         switch (suggesting.appClass, event.key) {
@@ -298,11 +341,16 @@ extension InputSession {
             }
         }
         suggesting.tokenAt = now
-        if services.suggestions.codingMode(), !suggesting.wordsRead, !suggesting.token.isEmpty, !terminal {
-            suggesting.wordsRead = true
-            let text = context.read.contains(.text) ? context.text : nil
-            suggesting.words = text.map(CodingRows.words) ?? []
-            suggesting.indent = text.map { CodingRows.indent($0.before) } ?? ""
+        if services.suggestions.codingMode(), !terminal {
+            // The field told its text with the key (a shell where that's cheap): its words now.
+            if context.read.contains(.text), let text = context.text {
+                (suggesting.words, suggesting.indent) = (CodingRows.words(text), CodingRows.indent(text.before))
+            }
+            // Something typed: the words read again once typing pauses.
+            if !inserted.isEmpty || key.key == .backspace {
+                suggesting.wordsPause += 1
+                emit(.startTimer(.suggestions(.words(suggesting.wordsPause)), after: Self.wordsPause))
+            }
         }
         suggestionsUpdate()
     }
@@ -336,9 +384,6 @@ extension InputSession {
         suggesting.dead = false
         suggesting.showedRows = false
         suggesting.hiddenFor = nil
-        suggesting.words = []
-        suggesting.indent = ""
-        suggesting.wordsRead = false
     }
 
     /// Whether `word` (typed in English mode) is kept from being learned: a token rows showed for (spec 6.15).

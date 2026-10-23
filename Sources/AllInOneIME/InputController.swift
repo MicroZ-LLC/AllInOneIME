@@ -565,7 +565,7 @@ final class AllInOneIMEInputController: IMKInputController {
     /// Reads `parts` of what the field says (`FieldContext`). Password fields and prompts turn on secure event input: the
     /// session composes nothing in the app that turned it on. The selection is read with Accessibility where the field
     /// doesn't tell it (only how it was read and how long it is are logged); the character before the caret, where "@"
-    /// is typed; the text around the caret for `@reply` (`readFieldText`).
+    /// is typed; the text around the caret for `@reply`, or a snippet of more than one line put in (`readFieldText`).
     @MainActor
     private func read(_ parts: FieldContext.Parts, of target: IMKTextInput?, into context: inout FieldContext) {
         if parts.contains(.secure) { context.secure = SecureInput.blocksComposing(target) }
@@ -578,7 +578,10 @@ final class AllInOneIMEInputController: IMKInputController {
             context.selection = Composer.Selection(text: read.text, range: read.range.map { $0.location..<NSMaxRange($0) })
         }
         if parts.contains(.beforeCaret) { context.beforeCaret = Self.beforeCaret(in: target) }
-        if parts.contains(.text) { context.text = readFieldText(from: target) }
+        if parts.contains(.text) {
+            context.text = readFieldText(from: target, before: ReplyContext.Limits.fieldBefore, after: ReplyContext.Limits.fieldAfter,
+                                         purpose: "a key (@reply, a snippet's indentation)")
+        }
         context.read.formUnion(parts)
     }
 
@@ -709,7 +712,7 @@ final class AllInOneIMEInputController: IMKInputController {
             case .keyboardLayout:
                 applyKeyboardLayout(client: target)
             case let .readField(id):
-                readFieldForAutocomplete(id: id, in: target)
+                readFieldAfterPause(id: id, in: target)
             case let .ghost(text):
                 showGhost(text, in: target)
             case let .startTimer(.notice(token), seconds):
