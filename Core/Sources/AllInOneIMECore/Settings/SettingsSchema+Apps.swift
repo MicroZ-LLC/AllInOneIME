@@ -93,8 +93,8 @@ extension SettingsSchema {
                    platforms: [.mac]),
             to: &fields, set: change { $0.typeOut = $1.bool })
         add(toggle(prefix + "noAI", tr("这个 App 里不用 AI", "No AI in this app"),
-                   tr("@improve、@translate、@question、@agent 等不会发给 AI，打字和别的命令照常。",
-                      "@improve, @translate, @question, @agent and the like send nothing to the AI; typing and the other commands work."),
+                   UIText.triggered(tr("@improve、@translate、@question、@agent 等不会发给 AI，打字和别的命令照常。",
+                      "@improve, @translate, @question, @agent and the like send nothing to the AI; typing and the other commands work.")),
                    profile.noAI == true),
             to: &fields, set: change { $0.noAI = Self.bool($1) ? true : nil })
         add(toggle(prefix + "translateAlways", tr("总是边打边译", "Always Translate as You Type"), nil, profile.translateAlways == true,

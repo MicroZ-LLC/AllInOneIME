@@ -138,9 +138,10 @@ struct ExtensionSourcesSection: View {
         let bundle = model.extensionIndex.bundles.first { ExtensionSources.comparable($0.folder.path) == folder }?.name
         // Each as it is offered: under its alias where its name is taken, or said to be off or left out.
         func listed(_ name: String, offeredAs: String?, hidden: Bool, on: Bool) -> String {
-            if !on { return "@" + name + tr("（已关闭）", " (off)") }
-            if hidden { return "@" + name + tr("（名字被占用，没有加载）", " (name taken, not loaded)") }
-            return "@" + (offeredAs ?? name)
+            let trigger = model.config.commandTrigger
+            if !on { return trigger + name + tr("（已关闭）", " (off)") }
+            if hidden { return trigger + name + tr("（名字被占用，没有加载）", " (name taken, not loaded)") }
+            return trigger + (offeredAs ?? name)
         }
         let off = Set(model.config.disabledExtensions)
         let commands: [String] = model.extensionIndex.commands.filter { ExtensionSources.comparable($0.extensionDirectory.path) == folder }
@@ -556,7 +557,7 @@ struct ExtensionSourceReviewView: View {
                 ForEach(review.commands, id: \.name) { command in
                     VStack(alignment: .leading, spacing: 2) {
                         HStack {
-                            Text("@" + command.name).font(.body.monospaced())
+                            Text(UIText.commandTrigger + command.name).font(.body.monospaced())
                             Text(command.title)
                             Text(Self.output(command.output) + (command.background ? tr("，后台", ", background") : ""))
                                 .font(.caption).foregroundStyle(.secondary)
@@ -582,7 +583,7 @@ struct ExtensionSourceReviewView: View {
                 ForEach(review.snippets, id: \.name) { snippet in
                     VStack(alignment: .leading, spacing: 2) {
                         HStack {
-                            Text("@" + snippet.name).font(.body.monospaced())
+                            Text(UIText.commandTrigger + snippet.name).font(.body.monospaced())
                             Text(snippet.text).lineLimit(1)
                             Text(tr("插入文字", "Insert text")).font(.caption).foregroundStyle(.secondary)
                         }

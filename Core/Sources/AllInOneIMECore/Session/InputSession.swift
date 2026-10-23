@@ -303,6 +303,7 @@ public final class InputSession {
         composer.voiceEnabled = config.voiceInput && services.voiceSupported()
         composer.actionKey = config.actionKey
         composer.commandTrigger = config.commandTrigger
+        UIText.commandTrigger = config.commandTrigger  // the panel's and the notices' text
         composer.typesResults = config.applying(app: app).typeOut
         composer.horizontalCandidates = config.candidateLayout == .horizontal
         if let englishWords {
@@ -515,6 +516,7 @@ public final class InputSession {
             // Built again only when what it's made of changed (`CatalogCache`): not for each key.
             let config = services.loadSettings()
             composer.commandTrigger = config.commandTrigger
+            UIText.commandTrigger = config.commandTrigger
             let (commands, changed) = catalog.catalog(config.customCommands, plugins: services.plugins(false),
                                                       index: services.loadExtensions(config, false), disabled: config.disabledExtensions)
             applyAgent(config)

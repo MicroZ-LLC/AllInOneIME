@@ -2013,6 +2013,7 @@ struct SettingsView: View {
         .onChange(of: model.config.actionKey) { model.save() }
         .onChange(of: model.config.commandTrigger) {
             commandTriggerEntry = model.config.commandTrigger
+            UIText.commandTrigger = model.config.commandTrigger  // the core's text the window shows
             model.save()
         }
         .onChange(of: model.config.claudeInBackground) { model.save() }
@@ -2038,6 +2039,7 @@ struct SettingsView: View {
         .onChange(of: model.config.notes) { model.refreshNotesFolder() }
         .onAppear {
             commandTriggerEntry = model.config.commandTrigger
+            UIText.commandTrigger = model.config.commandTrigger
             model.refreshPlugins()
             model.refreshExtensions(discover: page == .commands)
             model.refreshKeys()

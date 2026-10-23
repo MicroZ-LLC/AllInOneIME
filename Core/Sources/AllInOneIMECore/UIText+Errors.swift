@@ -32,7 +32,7 @@ extension UIText {
         if let error = error as? WebSearch.SearchError { return describe(error) }
         if let error = error as? CommandPipelineError, case let .inner(name, underlying) = error,
            [Command.read, .py, .js, .webSearch].contains(where: { $0.name == name }) {
-            return "@" + name + tr("：", ": ") + underlying
+            return commandTrigger + name + tr("：", ": ") + underlying
         }
         if let error = error as? NoteError { return error.message(language: language) }
         // A shell's own (the Mac's Notes and Reminders, its voice input): as it says itself.
@@ -173,7 +173,7 @@ extension UIText {
         case let .missingKey(variable):
             return tr("网页搜索还没有 API key：在设置 → 网页搜索里添上（或在 shell 里设置 \(variable)）",
                       "No API key for web search: add one in Settings → Web Search (or set \(variable) in your shell)")
-        case .emptyQuery: return tr("在 @search 后面写上要搜的内容", "Type what to search for after @search")
+        case .emptyQuery: return triggered(tr("在 @search 后面写上要搜的内容", "Type what to search for after @search"))
         case .queryTooLong:
             return tr("要搜的内容太长：最多 \(WebSearch.maxQueryLength) 个字、\(WebSearch.maxQueryWords) 个词",
                       "The search is too long: \(WebSearch.maxQueryLength) characters and \(WebSearch.maxQueryWords) words at most")

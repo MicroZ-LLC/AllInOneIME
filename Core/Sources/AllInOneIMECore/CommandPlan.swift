@@ -165,7 +165,7 @@ public enum CommandPipelineError: Error, LocalizedError, Equatable {
 
     public var errorDescription: String? {
         switch self {
-        case let .inner(name, message): return "@\(name): \(message)"
+        case let .inner(name, message): return UIText.commandTrigger + "\(name): \(message)"
         }
     }
 }

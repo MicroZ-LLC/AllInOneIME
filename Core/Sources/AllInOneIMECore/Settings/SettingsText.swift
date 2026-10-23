@@ -5,9 +5,12 @@ import Foundation
 
 extension UIText {
     /// How the chosen action key works, and what Space does with it; the keys as `terms` names them (on Windows Enter,
-    /// a tap of Ctrl, Ctrl+Space, a recorded shortcut as it is pressed there).
+    /// a tap of Ctrl, Ctrl+Space, a recorded shortcut as it is pressed there), the commands with the trigger (`triggered`).
     public static func actionKeyNote(_ key: ActionKey, terms: PlatformTerms = Platform.current.terms) -> String {
-        if terms.keyStyle == .names { return windowsActionKeyNote(key, terms: terms) }
+        triggered(terms.keyStyle == .names ? windowsActionKeyNote(key, terms: terms) : macActionKeyNote(key))
+    }
+
+    private static func macActionKeyNote(_ key: ActionKey) -> String {
         switch key {
         case .enter:
             return tr("@ 命令写完按 ⏎ 执行，拼音没选完也能直接按。没有 @ 时 ⏎ 就是普通回车。",

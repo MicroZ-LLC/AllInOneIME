@@ -70,7 +70,7 @@ extension InterfaceWords {
         let agentName = UIText.agentName, paste = terms.paste
         switch command {
         case .improve: return tr("润色，再给几种改写（不翻译）", "Polish in the same language, plus rewrites")
-        case .translate: return tr("翻译成你加的语言；和 @improve 一起写就翻译加改写", "Translate into your languages; with @improve, both")
+        case .translate: return UIText.triggered(tr("翻译成你加的语言；和 @improve 一起写就翻译加改写", "Translate into your languages; with @improve, both"))
         case .question: return tr("提问，答案可以直接上屏", "Ask a question; insert the answer")
         case .reply: return tr("回复对方：\(paste) 粘贴消息或截图", "Reply: \(paste) their message or a screenshot")
         case .agent: return tr("交给 \(agentName) 去做", "Hand it to \(agentName)")
@@ -183,7 +183,7 @@ extension InterfaceWords {
     /// The row comment of an answer: "回答" / "answer", the agent's name.
     public func answerLabel(_ command: Command?) -> String {
         if command == .webSearch { return tr("搜索结果", "results") }
-        if command?.kind == .run { return command?.plugin.map { "@" + $0.name } ?? tr("输出", "output") }
+        if command?.kind == .run { return command?.plugin.map { UIText.commandTrigger + $0.name } ?? tr("输出", "output") }
         if command == .reply { return tr("回复", "reply") }
         return command == .agent ? UIText.agentName : tr("回答", "answer")
     }
@@ -295,7 +295,7 @@ extension UIText {
         case .brokenLink: return tr("这个替身（符号链接）指向的东西不在了", "A link to something that isn't there")
         case .bundleTaken: return tr("已经有一个同名的扩展包", "Another bundle with this name is loaded")
         case let .nameTaken(taken, owner):
-            let name = "@" + taken
+            let name = UIText.commandTrigger + taken
             switch owner {
             case .builtIn: return tr("\(name) 是内置命令的名字", "\(name) is a built-in command")
             case .plugin: return tr("\(name) 是一个插件的名字", "\(name) is a plugin's name")
@@ -355,7 +355,27 @@ extension UIText {
         set { noteDestinationState.withLock { $0 = newValue } }
     }
 
+    /// The symbol that starts a command (`Config.commandTrigger`; the session and Settings set it with the settings, a
+    /// settings document's is its config's: `scopedCommandTrigger`): what the interface's "@" is (`triggered`). @ until
+    /// then.
+    public static var commandTrigger: String {
+        get { scopedCommandTrigger ?? commandTriggerState.withLock { $0 } }
+        set { commandTriggerState.withLock { $0 = newValue } }
+    }
+
+    /// The command trigger of what one task makes (or one synchronous scope: `$scopedCommandTrigger.withValue`), the
+    /// process's left as it is: a settings document's (`SettingsService`). Nil: the process's.
+    @TaskLocal public static var scopedCommandTrigger: String?
+
+    /// Interface text that names commands ("@improve", "@ commands") with the command trigger in place of each "@" (the
+    /// translations keep the ASCII @ for this).
+    public static func triggered(_ text: String) -> String {
+        let trigger = commandTrigger
+        return trigger == "@" ? text : text.replacingOccurrences(of: "@", with: trigger)
+    }
+
     private static let clock24State = Locked<Bool?>(initialState: nil)
+    private static let commandTriggerState = Locked(initialState: "@")
     private static let agentNameState = Locked(initialState: AgentKind.claude.displayName())
     /// The name the session set (`noteDestinationName`); nil until then.
     static let noteDestinationState = Locked<String?>(initialState: nil)

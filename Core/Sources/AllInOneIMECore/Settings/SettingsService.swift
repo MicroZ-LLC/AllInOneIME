@@ -681,7 +681,8 @@ public final class SettingsService: @unchecked Sendable {
         builder.recentApps = recentApps()
         builder.addedApps = addedApps
         builder.extensions = ExtensionStore.load(ExtensionStore.folders(store.config, found: []), cache: extensionCache)
-        let sections = builder.sections()
+        // Its text names commands with the trigger its settings have, whatever the process's own is.
+        let sections = UIText.$scopedCommandTrigger.withValue(store.config.commandTrigger) { builder.sections() }
         var document = SettingsDocument(language: UIText.language, platform: platform, loadError: store.loadError,
                                         saveError: store.saveError, sections: sections, strings: UIText.settingsWindowStrings)
         // What runs now: `running`, and `cancel` to stop it.

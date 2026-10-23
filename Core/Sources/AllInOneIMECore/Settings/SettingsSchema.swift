@@ -221,11 +221,11 @@ struct SettingsSchema {
                        config.typeOutMistakes), to: &fields) { store.config.typeOutMistakes = Self.bool($0) }
         }
         add(toggle("useSelection", tr("使用选中的文字", "Use the selected text"),
-                   terms.keyStyle == .symbols
+                   UIText.triggered(terms.keyStyle == .symbols
                        ? tr("先选中一段文字，再打 @improve、@translate、@question 等命令按 ⏎：命令处理选中的文字（打字时它一直选中、不变），选好的结果替换它；Esc 什么都不改。哪个 App 里不正常就关掉。",
                             "Select some text, then type @improve, @translate, @question … and ⏎: the command works on the selection (it stays selected and as it is while you type), and the result you pick replaces it; Esc changes nothing. Turn it off if it misbehaves in an app.")
                        : tr("先选中一段文字，再打 @improve、@translate、@question 等命令按 Enter：命令处理选中的文字（打字时它一直选中、不变），选好的结果替换它；Esc 什么都不改。哪个应用里不正常就关掉。",
-                            "Select some text, then type @improve, @translate, @question … and Enter: the command works on the selection (it stays selected and as it is while you type), and the result you pick replaces it; Esc changes nothing. Turn it off if it misbehaves in an app."),
+                            "Select some text, then type @improve, @translate, @question … and Enter: the command works on the selection (it stays selected and as it is while you type), and the result you pick replaces it; Esc changes nothing. Turn it off if it misbehaves in an app.")),
                    config.useSelection), to: &fields) { store.config.useSelection = Self.bool($0) }
         add(toggle("rememberQuestions", tr("记住最近的问题", "Remember recent questions"), nil, config.rememberQuestions),
             to: &fields) { store.setRememberQuestions(Self.bool($0)) }
@@ -264,11 +264,11 @@ struct SettingsSchema {
             store.config.setOrder(Self.strings(value).compactMap(Language.init(rawValue:)))
         }
         add(choice("candidateLayout", tr("候选排列", "Candidate layout"),
-                   config.candidateLayout == .horizontal
+                   UIText.triggered(config.candidateLayout == .horizontal
                        ? tr("选词（拼音、印地语）的候选并排（默认），像系统自带的输入法：← → 选词，↑↓ 或 - = 翻页。@ 命令列表和结果还是竖排。在下一个输入框生效。",
                             "For picking words (pinyin, Hindi): side by side (the default), like the system's own input methods; ← → choose, ↑↓ or - = turn the page. The @ list and results stay vertical. From the next text field.")
                        : tr("选词（拼音、印地语）的候选一个一个往下排：↑↓ 选词，- = 翻页。@ 命令列表和结果总是竖排。在下一个输入框生效。",
-                            "For picking words (pinyin, Hindi): one under the other; ↑↓ choose, - = turn the page. The @ list and results are always vertical. From the next text field."),
+                            "For picking words (pinyin, Hindi): one under the other; ↑↓ choose, - = turn the page. The @ list and results are always vertical. From the next text field.")),
                    value: .string(config.candidateLayout.rawValue),
                    choices: [(Choice("vertical", tr("竖排", "Vertical")), nil), (Choice("horizontal", tr("横排", "Horizontal")), nil)]),
             to: &fields) { value in
@@ -356,7 +356,7 @@ struct SettingsSchema {
         add(styles, to: &fields) { value in
             store.setStyleOrder(Self.keepingUnknown(Self.strings(value), had: on, known: { RewriteStyle.named($0) != nil }))
         }
-        add(toggle("improveTranslates", tr("@improve 同时翻译", "@improve also translates"), nil, config.improveTranslates),
+        add(toggle("improveTranslates", UIText.triggered(tr("@improve 同时翻译", "@improve also translates")), nil, config.improveTranslates),
             to: &fields) { store.config.improveTranslates = Self.bool($0) }
         var jargon = text("jargonFile", tr("黑话库", "Jargon list"), tr("你团队自己的说法", "Your team's own terms"),
                           value: config.jargonFile,
@@ -494,7 +494,7 @@ struct SettingsSchema {
     mutating func agent() -> [Field] {
         var fields: [Field] = []
         let store = store
-        add(choice("agent", tr("@agent 交给", "@agent hands it to"),
+        add(choice("agent", UIText.triggered(tr("@agent 交给", "@agent hands it to")),
                    terms.terminal == .terminalApp
                        ? tr("在终端打开它，你打的字是第一句话。", "It opens in Terminal with what you typed as its first message.")
                        : tr("在终端窗口里打开它，你打的字是第一句话。", "It opens in a terminal window with what you typed as its first message."),
@@ -527,7 +527,7 @@ struct SettingsSchema {
             add(toggle("claudeInBackground", tr("在后台运行，做完通知我", "Runs in the background and notifies me"), nil,
                        config.claudeInBackground), to: &fields) { store.config.claudeInBackground = Self.bool($0) }
         }
-        add(toggle("agentPageContext", tr("@agent 和 @reply 带上 Chrome 里的网页", "@agent and @reply take the Chrome page along"), nil,
+        add(toggle("agentPageContext", UIText.triggered(tr("@agent 和 @reply 带上 Chrome 里的网页", "@agent and @reply take the Chrome page along")), nil,
                    config.agentPageContext, platforms: [.mac]), to: &fields) { store.config.agentPageContext = Self.bool($0) }
         return fields
     }
@@ -545,8 +545,8 @@ struct SettingsSchema {
                                   actions: [SettingsAction.remove])
         }
         if installed.isEmpty {
-            list.help = tr("还没有插件。插件是别人写好的 @ 命令，比如 @stock 查股价；装好后和其他命令一样用。",
-                           "No plugins yet. Plugins are ready-made @ commands, like @stock for stock quotes; once installed they work like any command.")
+            list.help = UIText.triggered(tr("还没有插件。插件是别人写好的 @ 命令，比如 @stock 查股价；装好后和其他命令一样用。",
+                           "No plugins yet. Plugins are ready-made @ commands, like @stock for stock quotes; once installed they work like any command."))
         }
         add(list, to: &fields)
         var browse = Field(id: "plugins.library", kind: .items, label: tr("插件库", "Plugin Library"))
@@ -582,11 +582,11 @@ struct SettingsSchema {
         let source = WebSearch.keySource()
         let state = KeyState(source, ending: APIKeys.keyEnding(account: WebSearch.backend.keyAccount))
         var key = secret("search.key", "API key",
-                         tr("@search 用 Brave Search 搜网页，用你自己的 API key：Brave 每月送一些免费额度（目前约 1000 次搜索），注册时要绑信用卡。"
+                         UIText.triggered(tr("@search 用 Brave Search 搜网页，用你自己的 API key：Brave 每月送一些免费额度（目前约 1000 次搜索），注册时要绑信用卡。"
                                 + "要搜的内容会发给 Brave。key 存在钥匙串里；也可以在 shell 里设置 BRAVE_API_KEY。",
                             "@search searches the web with Brave Search, using your own API key: Brave gives some free credit each month "
                                 + "(about 1,000 searches for now); signing up needs a credit card. What you search for is sent to Brave. "
-                                + "The key is kept in the keychain; you can also set BRAVE_API_KEY in your shell."),
+                                + "The key is kept in the keychain; you can also set BRAVE_API_KEY in your shell.")),
                          state: state, missing: tr("还没有 API key", "No API key yet"), removable: source == .keychain)
         if state.isSet { key.actions?.append(SettingsAction.test) }
         key.status = [key.status, outcome("search.key")].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "\n")
@@ -641,7 +641,7 @@ struct SettingsSchema {
 
     mutating func commands() -> [Field] {
         var fields: [Field] = []
-        var list = Field(id: "commands.custom", kind: .items, label: tr("自定义 @ 命令", "Custom @ Commands"))
+        var list = Field(id: "commands.custom", kind: .items, label: UIText.triggered(tr("自定义 @ 命令", "Custom @ Commands")))
         list.actions = [SettingsAction.save]
         list.schema = Self.commandSchema(terms)
         list.items = config.customCommands.map { command in
