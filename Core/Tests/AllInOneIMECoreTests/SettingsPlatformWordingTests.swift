@@ -54,6 +54,33 @@ extension SettingsServiceTests {
         }
     }
 
+    /// In Traditional Chinese Windows' text calls the terminal 終端機視窗 throughout (a terminal window, as its English and
+    /// Simplified Chinese's 终端窗口 say), its command type 在終端機視窗執行: the settings, the commands' summaries, the
+    /// panel's lines and the composer's messages, every text whose English names a terminal (not Terminal, the Mac's app,
+    /// whose 「終端機」 stays). In the String Catalog, which the core's tests have no lookup for.
+    @Test func windowsTraditionalChineseSaysATerminalWindow() throws {
+        let data = try Data(contentsOf: InterfaceTextTests.root.appendingPathComponent("Resources/Localizable.xcstrings"))
+        let catalog = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let entries = try #require(catalog["strings"] as? [String: [String: Any]])
+        func traditional(_ key: String) -> String {
+            let zh = (entries[key]?["localizations"] as? [String: Any])?["zh-Hant"] as? [String: Any]
+            return (zh?["stringUnit"] as? [String: Any])?["value"] as? String ?? ""
+        }
+        // Not the typing-out's mistakes (the Mac's too: "never in a terminal", any terminal).
+        let windowsKeys = entries.keys.filter { key in
+            (key.contains(" a terminal") || key.contains("terminal window") || key.contains("(bedrock and Enter"))
+                && !key.hasPrefix("Now and then")
+        }
+        #expect(windowsKeys.count == 10, "\(windowsKeys.sorted())")
+        for key in windowsKeys {
+            #expect(traditional(key).contains("終端機視窗") && !traditional(key).contains("「終端機」"), "\(key): \(traditional(key))")
+        }
+        #expect(traditional("Run in a terminal") == "在終端機視窗執行")
+        for key in ["Run in Terminal", "open %@ in Terminal", "Opened Claude Code in Terminal", "Running in Terminal"] {
+            #expect(traditional(key).contains("「終端機」"), "\(key): \(traditional(key))")
+        }
+    }
+
     /// `text` where `found` first is in it, with what is around it.
     static func found(_ found: String, in text: String) -> String {
         guard let range = text.range(of: found) else { return found }
