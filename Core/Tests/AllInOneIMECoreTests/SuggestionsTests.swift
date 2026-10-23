@@ -275,6 +275,7 @@ struct SuggestionsTests {
         #expect(PluginPreference.values(for: github, set: ["repos": "", "token": ""]) == ["repos": "MicroZ-LLC/AllInOneIME"])
     }
 
+    #if os(macOS)  // Package.swift leaves PlugLangCLI's file out elsewhere (it runs the app as a child process)
     /// The app's own child process (`--run-plugin <folder> --with-preferences`) reads them back: `run(input, ctx)` gets
     /// `ctx.preferences`, the defaults filled in.
     @Test(.enabled(if: PlugLangCLI.available, "build the app first: swift build at the repo root, or set ALLINONEIME_TEST_BINARY"))
@@ -301,6 +302,7 @@ struct SuggestionsTests {
         }
         #expect(text == "hi en repos=octo-org/octo-repo token=t0ken", "\(text)")
     }
+    #endif
 
     @Test(.enabled(if: Available.javaScript), arguments: TestEngine.all)
     func aScriptWithoutTheFunctionFails(_ engine: TestEngine) {
