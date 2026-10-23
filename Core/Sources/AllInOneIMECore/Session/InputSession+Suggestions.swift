@@ -376,6 +376,14 @@ extension InputSession {
         suggestionsUpdate()
     }
 
+    /// Autocomplete's Tab put `text` in, a key the rows never saw (`autocompleteBeforeKey`): followed as what a key
+    /// puts in is, so the token is the one before the caret, not what was typed before the gray text.
+    func suggestionsGhostTaken(_ text: String) {
+        let started = suggesting.token.isEmpty
+        suggestionsTyped(text)
+        suggestionsFollowed(started: started, mayShow: suggestionsMayShow(), at: services.uptime())
+    }
+
     /// The token as it is after a key (`started`: it was empty before): `tokenAt` the key's time where rows may show,
     /// else the token's start.
     private func suggestionsFollowed(started: Bool, mayShow: Bool, at now: TimeInterval) {

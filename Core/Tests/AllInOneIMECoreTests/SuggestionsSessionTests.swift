@@ -361,4 +361,31 @@ extension SuggestionsSessionTests {
             #expect(field.waitForIssues(["#7001", "#7002", "#7090"]), "the next word's: \(field.issuesShown)")
         }
     }
+
+    /// Autocomplete's gray text taken with Tab goes into the token as typed text does: what follows it is no longer the
+    /// token typed before it ("…12345678901", then "2 is the prod account." taken, then "2": no account's row).
+    @Test func aGhostTakenWithTabIsFollowedAsTypedText() throws {
+        try inEnglish {
+            let world = SuggestionsWorld()
+            try world.aws()
+            world.config.autocomplete = true
+            let model = SuggestionsGhostModel(answer: "2 is the prod account.")
+            let uptime = Locked<TimeInterval>(initialState: 1000)
+            let field = world.field { services in
+                services.converter = Converter(loadConfig: { world.config }, appleModel: model)
+                services.uptime = { uptime.withLock { $0 } }
+                services.autocomplete = AutocompleteStore()
+            }
+            field.type("Account 12345678901")
+            uptime.withLock { $0 += 0.4 }
+            field.host.fireTimers()
+            #expect(field.settle(timeout: 5) { field.host.ghost != nil }, "the gray text: \(String(describing: field.host.ghost))")
+            uptime.withLock { $0 += 1 }
+            #expect(field.press(SuggestionKeys.tab))
+            #expect(field.document == "Account 123456789012 is the prod account.", "\(field.document)")
+            field.type("2")
+            field.idle()
+            #expect(field.rows.isEmpty, "after the gray text: \(field.rows.map(\.text))")
+        }
+    }
 }

@@ -153,6 +153,7 @@ extension InputSession {
             // As the input method's own commits go in: what was typed before it in English mode is the start of a word,
             // never one (`EnglishModeWords`).
             perform([.commit(suggestion.text)])
+            suggestionsGhostTaken(suggestion.text)
             autocompleteEnded(.accepted)
             log.notice("autocomplete: suggestion taken (\(suggestion.text.count) characters)")
             autocomplete.typed.add(suggestion.text)
