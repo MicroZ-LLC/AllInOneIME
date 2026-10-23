@@ -2209,9 +2209,10 @@ struct SettingsView: View {
     static func roundedRate(_ rate: Double) -> Double { TypeOut.rounded(rate: rate) }
 
     /// How the chosen action key works (`UIText.actionKeyNote`).
-    /// With the trigger the window's config has (passed, so the note is drawn again when it changes).
+    /// With the trigger the window's config has (passed, so the note is drawn again when it changes), whatever the
+    /// process's is while it draws (set after a change, by `onChange`: ~ still when ~ was just changed to #).
     static func actionKeyNote(_ key: ActionKey, trigger: String) -> String {
-        UIText.triggered(UIText.actionKeyNote(key), trigger: trigger)
+        UIText.$scopedCommandTrigger.withValue(trigger) { UIText.actionKeyNote(key) }
     }
 
     @ViewBuilder

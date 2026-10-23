@@ -1176,6 +1176,53 @@
         }
       }
     },
+    "@ (default)" : {
+      "comment" : "@（默认） — Sources/AllInOneIME/SettingsWindow.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@ (Standard)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@ (predeterminado)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@ (par défaut)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@（デフォルト）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@ (기본값)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@ (padrão)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@（預設）"
+          }
+        }
+      }
+    },
     "@improve Also Translates" : {
       "comment" : "@improve 同时翻译 — Sources/AllInOneIME/InputMenu.swift",
       "localizations" : {
@@ -25024,6 +25071,53 @@
         }
       }
     },
+    "Typed at the start of a sentence, it opens the commands." : {
+      "comment" : "打在句首打开命令列表。 — Sources/AllInOneIME/SettingsWindow.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Am Satzanfang getippt, öffnet es die Befehle."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escrito al inicio de una frase, abre los comandos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tapé en début de phrase, il ouvre les commandes."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文頭で入力するとコマンドが開きます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "문장 시작에 입력하면 명령이 열립니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Digitado no início de uma frase, abre os comandos."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在句首輸入即可開啟命令清單。"
+          }
+        }
+      }
+    },
     "Typed in lately" : {
       "comment" : "最近打过字的 — Sources/AllInOneIME/AppProfiles.swift",
       "localizations" : {
@@ -25831,6 +25925,7 @@
     },
     "Use @" : {
       "comment" : "恢复 @ — Sources/AllInOneIME/SettingsWindow.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
