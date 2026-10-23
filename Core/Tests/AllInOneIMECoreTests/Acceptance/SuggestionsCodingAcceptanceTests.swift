@@ -7,8 +7,10 @@ import AllInOneIMETestSupport
 /// fields and apps, English first in each field, exclusive with Translate as You Type) and its sources: the coding
 /// language packs' keywords and snippets (Fixtures/Suggestions/packs/; what is offered: spec 6.13), the words of the
 /// field's own text (none where it tells none: 6.16); the keys and insertion of spec 1.4 (rows picked with Tab, or ↓ and
-/// Return, never a digit: 6.1; code editors as terminals: 6.10, 6.11), a snippet's line breaks and its `$0`. The rig:
-/// SuggestionsAcceptanceTests.swift.
+/// Return, never a digit: 6.1; code editors as terminals: 6.10, 6.11), a snippet's line breaks, its later lines indented
+/// as the caret's line (6.19), and its caret: at its first tab stop in reading order, `$0` or a numbered one left empty
+/// with its mirrors, where the field reports ranges, else every stop's text in and the caret at the end (6.21, 6.23). The
+/// rig: SuggestionsAcceptanceTests.swift.
 @Suite(.serialized, SuggestionsOneAtATime())
 struct SuggestionsCodingAcceptanceTests {
     func inEnglish(_ body: () throws -> Void) async rethrows { try await withInterfaceLanguage("en", body) }
@@ -27,6 +29,45 @@ struct SuggestionsCodingAcceptanceTests {
 
     /// The texts of the rows, each with its comment.
     static func texts(_ field: SuggestionsField) -> [String] { field.rows.map { $0.text + " " + $0.comment } }
+
+    /// Where the caret is once a row went in at the end of the field: the text before it, the field's text up to where the
+    /// session's last `moveCaret` since output `since` put it (back from the end of what went in), else all of it.
+    static func beforeCaret(_ field: SuggestionsField, since: Int) -> String {
+        let back = field.host.outputs.dropFirst(since).compactMap { output -> Int? in
+            if case let .moveCaret(back, _) = output { return back } else { return nil }
+        }.last ?? 0
+        let text = field.document as NSString
+        return text.substring(to: max(0, text.length - back))
+    }
+
+    /// What the field says with a key where it reports no ranges: no selection, nowhere for a caret.
+    static func withoutRanges(_ context: FieldContext) -> FieldContext {
+        var context = context
+        context.read.subtract([.selectedRange, .selection])
+        context.selectedRange = nil
+        context.selection = nil
+        return context
+    }
+
+    /// Types `text` in a field that reports no ranges with any key (the app types each character), then presses Tab
+    /// there: what the session put in with it, and the outputs it gave then.
+    static func tabWithoutRanges(after text: String, in field: SuggestionsField, until shown: () -> Bool) -> (String, [SessionOutput]) {
+        for character in text {
+            field.host.send(.key(SuggestionKeys.key(character), withoutRanges(field.host.context)))
+            field.host.document.append(character)
+            field.noteTimers()
+        }
+        let rows = field.settle(until: shown)
+        #expect(rows, "\(texts(field))")
+        let before = field.host.outputs.count
+        field.host.send(.key(SuggestionKeys.tab, withoutRanges(field.host.context)))
+        let outputs = Array(field.host.outputs.dropFirst(before))
+        let put = outputs.compactMap { output -> String? in
+            if case let .commit(text) = output { return text } else if case let .commitAfterKey(text) = output { return text }
+            return nil
+        }.joined()
+        return (put, outputs)
+    }
 
     // MARK: - The chooser
 
@@ -219,9 +260,9 @@ struct SuggestionsCodingAcceptanceTests {
         }
     }
 
-    /// A snippet goes in as text, its line breaks kept, its placeholders as their text; the caret at `$0`, where the
-    /// field reports ranges.
-    @Test func aSnippetGoesInWithItsLineBreaksAndTheCaretAtItsEnd() async throws {
+    /// A snippet goes in as text, its line breaks kept; where the field reports ranges the caret goes to its first tab
+    /// stop in reading order (spec 6.23): `${1:Name}` on its first line, before its `$0`, left empty.
+    @Test func aSnippetGoesInWithItsLineBreaksAndTheCaretAtItsFirstTabStop() async throws {
         try await inEnglish {
             let world = try Self.coding()
             let field = world.field()
@@ -231,11 +272,9 @@ struct SuggestionsCodingAcceptanceTests {
             let index = try #require(field.rows.firstIndex { ($0.text + $0.comment).contains("class with __init__") })
             let before = field.host.outputs.count
             #expect(field.pick(at: index))
-            #expect(field.document == "class Name:\n    def __init__(self):\n        \n", "\(field.document.debugDescription)")
-            let moves = field.host.outputs.dropFirst(before).compactMap { output -> Int? in
-                if case let .moveCaret(back, _) = output { return back } else { return nil }
-            }
-            #expect(moves == [1], "the caret before the last line break: \(moves)")
+            #expect(field.document == "class :\n    def __init__(self):\n        \n", "\(field.document.debugDescription)")
+            #expect(Self.beforeCaret(field, since: before) == "class ",
+                    "the caret where `${1:Name}` was: \(Self.beforeCaret(field, since: before).debugDescription)")
         }
     }
 
@@ -274,7 +313,8 @@ struct SuggestionsCodingAcceptanceTests {
         }
     }
 
-    /// The def snippet of the spec's example: its placeholders' text, nothing for `${2}`, the caret at the end.
+    /// The def snippet of the spec's example (6.23): "def ${1:name}(${2}):\n    $0" goes in as "def ():\n    ", the caret
+    /// after "def ": its first tab stop, `${1:name}`, left empty.
     @Test func theSpecsDefSnippet() async throws {
         try await inEnglish {
             let world = try Self.coding()
@@ -282,8 +322,98 @@ struct SuggestionsCodingAcceptanceTests {
             field.type("de")
             #expect(field.settle { field.rows.contains { ($0.text + $0.comment).contains("function") } }, "\(Self.texts(field))")
             let index = try #require(field.rows.firstIndex { ($0.text + $0.comment).contains("function") })
+            let before = field.host.outputs.count
             #expect(field.pick(at: index))
-            #expect(field.document == "def name():\n    ", "\(field.document.debugDescription)")
+            #expect(field.document == "def ():\n    ", "\(field.document.debugDescription)")
+            #expect(Self.beforeCaret(field, since: before) == "def ", "\(Self.beforeCaret(field, since: before).debugDescription)")
+        }
+    }
+
+    /// `$0` before `$1` (6.23): the caret goes to `$0`, the first in reading order, and `${1:Exception}` keeps its text.
+    @Test func whereDollarZeroComesFirstTheCaretGoesThereAndTheNumberedStopsKeepTheirText() async throws {
+        try await inEnglish {
+            let world = SuggestionsWorld()
+            world.codingMode = true
+            world.packs = [Self.blocksPack]
+            let field = world.field()
+            field.type("tr")
+            #expect(field.settle { Self.texts(field).contains { $0.contains("try/except") } }, "\(Self.texts(field))")
+            let index = try #require(field.rows.firstIndex { ($0.text + $0.comment).contains("try/except") })
+            let before = field.host.outputs.count
+            #expect(field.pick(at: index))
+            #expect(field.document == "try:\n    \nexcept Exception:", "\(field.document.debugDescription)")
+            #expect(Self.beforeCaret(field, since: before) == "try:\n    ",
+                    "the caret in the try body: \(Self.beforeCaret(field, since: before).debugDescription)")
+        }
+    }
+
+    /// The stop the caret goes to is left empty with its mirrors, wherever they are (6.23); the other stops keep their text.
+    @Test func theFirstStopsMirrorsAreLeftEmptyToo() async throws {
+        try await inEnglish {
+            let world = SuggestionsWorld()
+            world.codingMode = true
+            world.packs = [Self.sortPack]
+            let field = world.field()
+            field.type("so")
+            #expect(field.settle { Self.texts(field).contains { $0.contains("sort a range") } }, "\(Self.texts(field))")
+            let index = try #require(field.rows.firstIndex { ($0.text + $0.comment).contains("sort a range") })
+            let before = field.host.outputs.count
+            #expect(field.pick(at: index))
+            #expect(field.document == "sort(.begin(), .end(), less);", "\(field.document.debugDescription)")
+            #expect(Self.beforeCaret(field, since: before) == "sort(", "\(Self.beforeCaret(field, since: before).debugDescription)")
+        }
+    }
+
+    /// Where the field reports no ranges, every stop keeps its text, mirrors too, and the caret stays at the end of what
+    /// went in (6.21, 6.23): the def snippet is "def name():\n    ".
+    @Test func withoutRangesEveryStopKeepsItsTextAndTheCaretStaysAtTheEnd() async throws {
+        try await inEnglish {
+            let world = try Self.coding()
+            world.packs.append(Self.sortPack)
+            let field = world.field()
+            let (def, defOutputs) = Self.tabWithoutRanges(after: "def", in: field) {
+                field.rows.contains { ($0.text + $0.comment).contains("function") }
+            }
+            #expect("def" + def == "def name():\n    ", "\(def.debugDescription)")
+            #expect(!defOutputs.contains { if case let .moveCaret(back, _) = $0 { back > 0 } else { false } }, "\(defOutputs)")
+
+            let other = world.field()
+            let (sort, sortOutputs) = Self.tabWithoutRanges(after: "sort", in: other) {
+                other.rows.contains { ($0.text + $0.comment).contains("sort a range") }
+            }
+            #expect("sort" + sort == "sort(v.begin(), v.end(), less);", "\(sort.debugDescription)")
+            #expect(!sortOutputs.contains { if case let .moveCaret(back, _) = $0 { back > 0 } else { false } }, "\(sortOutputs)")
+        }
+    }
+
+    /// A snippet's second and later lines get the caret's line's leading whitespace (6.19), and the caret goes to its first
+    /// stop on a later line, indented as it is: `$0` in a try body, a numbered stop in a loop's (left empty).
+    @Test func aSnippetsLaterLinesAreIndentedAsTheCaretsLine() async throws {
+        try await inEnglish {
+            let world = SuggestionsWorld()
+            world.codingMode = true
+            world.packs = [Self.blocksPack]
+            let field = world.field()
+            field.host.document = "def main():\n    "
+            field.type("tr")
+            #expect(field.settle { Self.texts(field).contains { $0.contains("try/except") } }, "\(Self.texts(field))")
+            let index = try #require(field.rows.firstIndex { ($0.text + $0.comment).contains("try/except") })
+            let before = field.host.outputs.count
+            #expect(field.pick(at: index))
+            #expect(field.document == "def main():\n    try:\n        \n    except Exception:", "\(field.document.debugDescription)")
+            #expect(Self.beforeCaret(field, since: before) == "def main():\n    try:\n        ",
+                    "the caret in the try body, indented: \(Self.beforeCaret(field, since: before).debugDescription)")
+
+            let loop = world.field()
+            loop.host.document = "for x in xs:\n\t"
+            loop.type("wh")
+            #expect(loop.settle { Self.texts(loop).contains { $0.contains("endless loop") } }, "\(Self.texts(loop))")
+            let row = try #require(loop.rows.firstIndex { ($0.text + $0.comment).contains("endless loop") })
+            let start = loop.host.outputs.count
+            #expect(loop.pick(at: row))
+            #expect(loop.document == "for x in xs:\n\twhile True:\n\t\t\n\t", "\(loop.document.debugDescription)")
+            #expect(Self.beforeCaret(loop, since: start) == "for x in xs:\n\twhile True:\n\t\t",
+                    "the caret where `${1:pass}` was, indented: \(Self.beforeCaret(loop, since: start).debugDescription)")
         }
     }
 
@@ -301,8 +431,9 @@ struct SuggestionsCodingAcceptanceTests {
 
     // MARK: - What is offered
 
-    /// A snippet is offered while what is typed starts its trigger, the whole trigger too (Tab then puts its body in); a
-    /// keyword typed in full isn't (spec 6.13): "def" offers the def snippet, not the keyword "def".
+    /// A snippet is offered while what is typed starts its trigger, the whole trigger too (Tab then puts its body in, the
+    /// caret at its first stop: 6.23); a keyword typed in full isn't (spec 6.13): "def" offers the def snippet, not the
+    /// keyword "def".
     @Test func theWholeTriggerStillOffersTheSnippet() async throws {
         try await inEnglish {
             let world = try Self.coding()
@@ -310,8 +441,10 @@ struct SuggestionsCodingAcceptanceTests {
             field.type("def")
             #expect(field.settle { field.rows.contains { ($0.text + $0.comment).contains("function") } }, "\(Self.texts(field))")
             #expect(field.rows.count == 1, "the snippet only, not the keyword: \(Self.texts(field))")
+            let before = field.host.outputs.count
             #expect(field.press(SuggestionKeys.tab))
-            #expect(field.document == "def name():\n    ", "\(field.document.debugDescription)")
+            #expect(field.document == "def ():\n    ", "\(field.document.debugDescription)")
+            #expect(Self.beforeCaret(field, since: before) == "def ", "\(Self.beforeCaret(field, since: before).debugDescription)")
         }
     }
 
@@ -389,6 +522,18 @@ struct SuggestionsCodingAcceptanceTests {
             #expect(field.settle { field.shown(["count_items"]) == ["count_items"] }, "\(Self.texts(field))")
         }
     }
+
+    /// Blocks whose first tab stop isn't on their first line: `$0` before `${1:…}` (6.23's try/except), and a numbered
+    /// stop before `$0`.
+    static let blocksPack = CodingLanguagePack(language: "example", title: "Example", version: "1.0.0", keywords: [], snippets: [
+        .init(trigger: "try", body: "try:\n    $0\nexcept ${1:Exception}:", title: "try/except"),
+        .init(trigger: "while", body: "while True:\n\t${1:pass}\n$0", title: "endless loop"),
+    ])
+
+    /// A snippet whose first stop has a mirror (the same number again, with its text), and a second stop with text.
+    static let sortPack = CodingLanguagePack(language: "example", title: "Example", version: "1.0.0", keywords: [], snippets: [
+        .init(trigger: "sort", body: "sort(${1:v}.begin(), ${1:v}.end(), ${2:less});$0", title: "sort a range"),
+    ])
 
     static let computePack = CodingLanguagePack(language: "example", title: "Example", version: "1.0.0",
                                                 keywords: ["compute_total", "compute_average"],
