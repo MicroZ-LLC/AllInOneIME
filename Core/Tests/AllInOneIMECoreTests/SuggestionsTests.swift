@@ -206,6 +206,34 @@ struct SuggestionsTests {
         #expect(PluginHost.completionFunction(["/p", "--language", "en"]) == nil)
     }
 
+    // MARK: - The settings document
+
+    /// Windows' settings document: under the GitHub plugin its source's switch (saying what it sends where) and its
+    /// preferences; the switch enables it as it is now, the text preference is kept in the config; Coding Languages has
+    /// Suggestions' switch and no packs.
+    @Test func thePluginsCompletionsAreInTheSettingsDocument() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("suggestions-settings-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let plugins = folder.appendingPathComponent("plugins", isDirectory: true)
+        try FileManager.default.createDirectory(at: plugins, withIntermediateDirectories: true)
+        try FileManager.default.copyItem(at: Self.github, to: plugins.appendingPathComponent("github"))
+        let url = folder.appendingPathComponent("config.json")
+        try Data("{}".utf8).write(to: url)
+        let service = SettingsService(store: SettingsStore(configURL: url), platform: .windows, library: PluginLibrary(directory: plugins))
+        let source = try #require(service.document().field("plugins.completion.github.issues"))
+        #expect(source.kind == .toggle && source.value == .bool(false) && source.help?.contains("api.github.com") == true, "\(source)")
+        #expect(service.document().field("plugins.preference.github.repos")?.kind == .text)
+        #expect(service.document().field("plugins.preference.github.token")?.kind == .secret)
+        #expect((try? service.set("plugins.completion.github.issues", to: .bool(true)).get()) != nil)
+        let enabled = try Config.load(from: url).completionSources
+        #expect(enabled.map(\.source) == ["issues"] && enabled.first?.query == true, "\(enabled)")
+        #expect(service.document().field("plugins.completion.github.issues")?.value == .bool(true))
+        #expect((try? service.set("plugins.preference.github.repos", to: .string("octo-org/octo-repo")).get()) != nil)
+        #expect(try Config.load(from: url).pluginPreferences == ["github": ["repos": "octo-org/octo-repo"]])
+        #expect(service.document().field("suggestions")?.value == .bool(true))
+        #expect(service.document().field("codingLanguages.installed")?.items?.isEmpty == true)
+    }
+
     // MARK: - Coding packs from the library
 
     static func pack(_ language: String = "python", version: String = "1.0.0") -> Data {
