@@ -38,8 +38,10 @@ struct SuggestionsField {
     /// The refresh timer, counted, and when it is due.
     var refresh = 0
     var refreshDue: Date?
-    /// The field's own words, read from what it said with the token's first key.
+    /// The field's own words, read from what it said with the token's first key, and the leading whitespace of the
+    /// caret's line then (a snippet's later lines get it).
     var words: [String] = []
+    var indent = ""
     var wordsRead = false
     /// The field reported where its selection is with the last key: a snippet's caret can go back into what went in.
     var ranges = false
@@ -295,7 +297,9 @@ extension InputSession {
         suggesting.tokenAt = now
         if services.suggestions.codingMode(), !suggesting.wordsRead, !suggesting.token.isEmpty, !terminal {
             suggesting.wordsRead = true
-            suggesting.words = context.read.contains(.text) ? context.text.map(CodingRows.words) ?? [] : []
+            let text = context.read.contains(.text) ? context.text : nil
+            suggesting.words = text.map(CodingRows.words) ?? []
+            suggesting.indent = text.map { CodingRows.indent($0.before) } ?? ""
         }
         suggestionsUpdate()
     }
@@ -330,6 +334,7 @@ extension InputSession {
         suggesting.showedRows = false
         suggesting.hiddenFor = nil
         suggesting.words = []
+        suggesting.indent = ""
         suggesting.wordsRead = false
     }
 
@@ -454,7 +459,7 @@ extension InputSession {
         if s.codingMode() {
             let identifier = SuggestionsToken.identifier(endingAt: SuggestionsToken.normalized(token))
             rows += Frecency.ordered(CodingRows.rows(identifier, packs: s.codingPacks(), words: terminal ? [] : suggesting.words,
-                                                     appClass: appClass, in: t), picks: picks)
+                                                     indent: suggesting.indent, appClass: appClass, in: t), picks: picks)
         }
         return (Array(rows.prefix(Self.maxSuggestionRows)), appClass)
     }

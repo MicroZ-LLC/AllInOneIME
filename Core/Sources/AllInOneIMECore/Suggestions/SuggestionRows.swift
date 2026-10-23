@@ -219,29 +219,62 @@ enum CodingRows {
             .map(\.key)
     }
 
+    /// The leading whitespace (spaces and tabs) of the line `before` ends in: the caret's line's, which a snippet's second
+    /// and later lines get (spec 6.19).
+    static func indent(_ before: String) -> String {
+        let line = before.lastIndex(where: \.isNewline).map { before[before.index(after: $0)...] } ?? before[...]
+        return String(line.prefix { $0 == " " || $0 == "\t" })
+    }
+
+    /// `body` with `indent` after each of its line breaks.
+    static func indented(_ body: String, by indent: String) -> String {
+        guard !indent.isEmpty else { return body }
+        var out = ""
+        for character in body {
+            out.append(character)
+            if character.isNewline { out += indent }
+        }
+        return out
+    }
+
     /// The rows for `identifier` (what is typed of it): the packs' snippets whose trigger it starts (the whole trigger
     /// too) and whose body starts with it, their keywords it starts (not one typed in full), and `words`; in an app of
-    /// `appClass` (terminals and code editors: a snippet completes as its trigger).
-    static func rows(_ identifier: String, packs: [CodingLanguagePack], words: [String], appClass: SuggestionsAppClass,
-                     in t: InterfaceWords) -> [SuggestionRow] {
+    /// `appClass` (terminals and code editors: a snippet completes as its trigger). A snippet's later lines get `indent`
+    /// (the caret's line's); one that puts in what another pack's does is one row, naming both languages (spec 6.19).
+    static func rows(_ identifier: String, packs: [CodingLanguagePack], words: [String], indent: String = "",
+                     appClass: SuggestionsAppClass, in t: InterfaceWords) -> [SuggestionRow] {
         guard identifier.count >= minChars else { return [] }
-        var rows: [SuggestionRow] = []
-        var snippets = Set<String>(), keywords = Set<String>()
-        let snippetWord = t.tr("代码片段", "snippet")
+        let code = appClass == .codeEditor
+        var snippets: [(row: SuggestionRow, languages: [String], title: String?)] = []
+        var byInsertion: [String: Int] = [:]
         for pack in packs {
             for snippet in pack.snippets where snippet.trigger.hasPrefix(identifier) {
-                let (text, caretBack) = expand(snippet.body)
-                guard text.hasPrefix(identifier), snippets.insert(snippet.trigger + "\u{0}" + snippet.body).inserted else { continue }
-                let code = appClass == .codeEditor
-                // Its title where it says more than its trigger, that it's a snippet, its language.
+                let (text, caretBack) = expand(indented(snippet.body, by: indent))
+                guard text.hasPrefix(identifier) else { continue }
+                let (insertion, back) = code ? (snippet.trigger, 0) : (text, caretBack)
+                let key = insertion + "\u{0}\(back)"
+                if let index = byInsertion[key] {
+                    if !snippets[index].languages.contains(pack.title) { snippets[index].languages.append(pack.title) }
+                    continue
+                }
+                byInsertion[key] = snippets.count
+                // Its title where it says more than its trigger.
                 let title = snippet.title.flatMap { $0 == snippet.trigger ? nil : $0 }
-                rows.append(SuggestionRow(text: snippet.trigger, comment: ([title, snippetWord, pack.title].compactMap { $0 }).joined(separator: " · "),
-                                          insertion: code ? snippet.trigger : text, caretBack: code ? 0 : caretBack,
-                                          completion: snippet.trigger, typed: identifier,
-                                          pick: SuggestionPick(plugin: "", source: pack.language, match: "snippet:" + snippet.trigger),
-                                          source: pack.title))
+                // Picked as itself, not as every snippet of its trigger ("if", "if/else", "main guard").
+                let pick = SuggestionPick(plugin: "", source: pack.language, match: "snippet:\(snippet.trigger):\(snippet.title ?? snippet.body)")
+                snippets.append((SuggestionRow(text: snippet.trigger, comment: "", insertion: insertion, caretBack: back,
+                                               completion: snippet.trigger, typed: identifier, pick: pick, source: pack.title),
+                                 [pack.title], title))
             }
         }
+        // Its languages, then its title, or that it's a snippet ("Python · function", "C/C++ · snippet").
+        let snippetWord = t.tr("代码片段", "snippet")
+        var rows = snippets.map { snippet in
+            var row = snippet.row
+            row.comment = snippet.languages.joined(separator: "/") + " · " + (snippet.title ?? snippetWord)
+            return row
+        }
+        var keywords = Set<String>()
         for pack in packs {
             for keyword in pack.keywords where keyword.hasPrefix(identifier) && keyword != identifier {
                 guard keywords.insert(keyword).inserted else { continue }
