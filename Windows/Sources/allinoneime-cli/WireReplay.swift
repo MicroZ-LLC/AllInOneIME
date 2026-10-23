@@ -24,6 +24,8 @@ enum WireReplay {
           --repeat N         replay the files N times (more key round trips to measure)
           --timeout MS       the longest to wait for a frame (default 5000)
           --no-server-check  skip the DLL's server check (§2.1)
+          --pipe NAME        a pipe of the engine's own (its --pipe, which --launch's engine is given too), not the
+                             user's: a test engine beside the one the user runs
         """
 
     static func main(_ arguments: [String]) -> Int32 {
@@ -51,6 +53,8 @@ extension WireReplay {
         var repeatCount = 1
         var timeout: DWORD = 5000
         var serverCheck = true
+        /// `--pipe`: a pipe of the engine's own (`PipeNames.full`), not the user's.
+        var pipe: String?
     }
 
     final class Runner {
@@ -64,7 +68,7 @@ extension WireReplay {
         init(options: Options, sid: String) {
             self.options = options
             self.sid = sid
-            pipe = PipeNames.pipe(sid: sid)
+            pipe = options.pipe.map(PipeNames.full) ?? PipeNames.pipe(sid: sid)
         }
 
         static func run(_ arguments: [String]) -> Int32 {
@@ -98,6 +102,9 @@ extension WireReplay {
                 case "--repeat": guard let n = number(arg), n > 0 else { return nil }; options.repeatCount = n
                 case "--timeout": guard let n = number(arg) else { return nil }; options.timeout = DWORD(n)
                 case "--no-server-check": options.serverCheck = false
+                case "--pipe":
+                    guard let name = args.popFirst(), !name.isEmpty else { say("--pipe needs a name"); return nil }
+                    options.pipe = name
                 case "--help", "-h":
                     print(WireReplay.usage)
                     exit(0)
@@ -171,7 +178,7 @@ extension WireReplay {
         func start(_ path: String, quiet: Bool = true) throws -> Process {
             let process = Process()
             process.executableURL = URL(fileURLWithPath: path)
-            process.arguments = ["--test"] + (quiet ? ["--quiet"] : [])
+            process.arguments = ["--test"] + (quiet ? ["--quiet"] : []) + (options.pipe.map { ["--pipe", $0] } ?? [])
             try process.run()
             return process
         }

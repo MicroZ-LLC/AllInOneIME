@@ -23,6 +23,15 @@
       "value": "enter"
      },
      {
+      "help": "Type one symbol, such as @ or ~, to open commands at the start of a sentence.",
+      "id": "commandTrigger",
+      "kind": "text",
+      "label": "Command trigger",
+      "optional": true,
+      "placeholder": "@",
+      "value": "@"
+     },
+     {
       "help": "A command's result is typed in character by character, like a person typing; pinyin picks still go in at once. Esc stops it; any other key types the rest at once.",
       "id": "typeOut",
       "kind": "toggle",
@@ -825,7 +834,7 @@
       "id": "configFile",
       "kind": "info",
       "label": "Config file",
-      "value": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-xt_mwsho/config.json"
+      "value": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-joqyn240\\config.json"
      }
     ],
     "footer": "Changes apply right away, with no restart.",

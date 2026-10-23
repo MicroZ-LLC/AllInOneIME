@@ -3333,7 +3333,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@ 在終端機中打開 · 數字 選取 · %2$@ 拷貝回覆 · Esc 返回"
+            "value" : "%1$@ 在終端機視窗中打開 · 數字 選取 · %2$@ 拷貝回覆 · Esc 返回"
           }
         }
       }
@@ -23627,7 +23627,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在終端機中打開 %@"
+            "value" : "在終端機視窗中打開 %@"
           }
         }
       }
@@ -24238,7 +24238,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已在終端機中打開 {agent}"
+            "value" : "已在終端機視窗中打開 {agent}"
           }
         }
       }
@@ -24332,7 +24332,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已在終端機中打開 Claude Code"
+            "value" : "已在終端機視窗中打開 Claude Code"
           }
         }
       }
@@ -26407,7 +26407,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "打拼音時把同樣的字母照原樣送出兩次（例如打 bedrock 按 Enter，再來一次），這個詞以後就會出現在候選裡。密碼欄位、終端機、遠端桌面和虛擬機、關了 AI 的應用程式裡不學，像金鑰、號碼的也不學。"
+            "value" : "打拼音時把同樣的字母照原樣送出兩次（例如打 bedrock 按 Enter，再來一次），這個詞以後就會出現在候選裡。密碼欄位、終端機視窗、遠端桌面和虛擬機、關了 AI 的應用程式裡不學，像金鑰、號碼的也不學。"
           }
         }
       }
@@ -28616,7 +28616,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在終端機中執行"
+            "value" : "在終端機視窗執行"
           }
         }
       }
@@ -28663,7 +28663,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在終端機視窗中執行"
+            "value" : "在終端機視窗執行"
           }
         }
       }
@@ -28710,7 +28710,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在終端機中執行："
+            "value" : "在終端機視窗執行："
           }
         }
       }
@@ -29227,7 +29227,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "正在終端機中執行"
+            "value" : "正在終端機視窗執行"
           }
         }
       }

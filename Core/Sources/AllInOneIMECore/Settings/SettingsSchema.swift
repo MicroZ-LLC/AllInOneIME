@@ -49,6 +49,17 @@ struct SettingsSchema {
     /// What the document's platform calls its keys and places (Enter, a terminal window, this PC on Windows).
     var terms: PlatformTerms { platform == .mac ? .mac : .windows }
 
+    /// A path of this computer's as the document's platform writes it: on Windows with backslashes ("C:\Users\…",
+    /// `CorePaths.windowsWritten`), on the Mac as it is.
+    func shown(path: String) -> String { platform == .windows ? CorePaths.windowsWritten(path) : path }
+
+    /// Where the jargon list is read from unless another file is named (`JargonLibrary.defaultURL`), as the document's
+    /// platform writes it, whatever the system it is made on: %APPDATA%\AllInOneIME on Windows, ~/.config/allinoneime on
+    /// the Mac. On Windows the placeholder typed as it is names that file (`Config.jargonURL`).
+    var defaultJargonFile: String {
+        platform == .windows ? #"%APPDATA%\AllInOneIME\jargon.txt"# : "~/.config/allinoneime/jargon.txt"
+    }
+
     mutating func sections() -> [SettingsDocument.Section] {
         [
             SettingsDocument.Section(id: "general", title: tr("通用", "General"), fields: general()),
@@ -359,10 +370,7 @@ struct SettingsSchema {
         add(toggle("improveTranslates", UIText.triggered(tr("@improve 同时翻译", "@improve also translates")), nil, config.improveTranslates),
             to: &fields) { store.config.improveTranslates = Self.bool($0) }
         var jargon = text("jargonFile", tr("黑话库", "Jargon list"), tr("你团队自己的说法", "Your team's own terms"),
-                          value: config.jargonFile,
-                          // On Windows where the engine keeps it, as Windows writes a path, whatever the host the document is made on.
-                          placeholder: platform == .windows ? #"%APPDATA%\AllInOneIME\"# + JargonLibrary.defaultURL.lastPathComponent
-                              : ExtensionStore.abbreviated(JargonLibrary.defaultURL.path))
+                          value: config.jargonFile, placeholder: defaultJargonFile)
         jargon.picker = .file
         add(jargon, to: &fields) { value in
             let path = value.string?.trimmingCharacters(in: .whitespaces) ?? ""
@@ -715,7 +723,8 @@ struct SettingsSchema {
 
     mutating func advanced() -> [Field] {
         var fields: [Field] = []
-        add(Field(id: "configFile", kind: .info, label: tr("配置文件", "Config file"), value: .string(store.configURL.path)), to: &fields)
+        add(Field(id: "configFile", kind: .info, label: tr("配置文件", "Config file"), value: .string(shown(path: store.configURL.path))),
+            to: &fields)
         return fields
     }
 }

@@ -240,11 +240,17 @@ public struct Config: Codable, Equatable, Sendable {
     public static let englishWordsKey = CodingKeys.englishWords.rawValue
     public static let addedEnglishWordsKey = CodingKeys.addedEnglishWords.rawValue
 
-    /// `jargonFile` with "~" expanded, or `JargonLibrary.defaultURL`.
+    /// `jargonFile` with "~" expanded (on Windows its `%NAME%`s too, as Windows' settings window shows the default file:
+    /// "%APPDATA%\AllInOneIME\jargon.txt"), or `JargonLibrary.defaultURL`.
     public var jargonURL: URL {
-        guard let path = jargonFile?.trimmingCharacters(in: .whitespaces), !path.isEmpty else {
+        guard let typed = jargonFile?.trimmingCharacters(in: .whitespaces), !typed.isEmpty else {
             return JargonLibrary.defaultURL
         }
+        #if os(Windows)
+        let path = CorePaths.windowsExpanded(typed, environment: ProcessInfo.processInfo.environment)
+        #else
+        let path = typed
+        #endif
         return URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
     }
 

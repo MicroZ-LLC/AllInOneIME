@@ -385,18 +385,123 @@ public final class RimeSession: PinyinEngine {
     /// False after librime dropped the session (e.g. during a re-deploy).
     public var isValid: Bool { isCurrentGeneration && api.pointee.find_session(id) != 0 }
 
+    /// Whether what is typed is learned into librime's user dictionary, as librime has it (true). Off (a field an input
+    /// method is to keep nothing of: a private window's), nothing of it reaches the dictionary. librime learns a
+    /// composition as it commits it, so it never commits one with a word picked or converted: a pick that ends the
+    /// composition leaves it confirmed (its `_auto_commit` off, as its fluid editor has it), and its text is taken from
+    /// there and the composition cleared; so are `commitComposition`'s, Space's on a composition all confirmed and
+    /// Return's on one with a part picked (what librime would commit). What it commits without learning comes as before:
+    /// the letters as typed with nothing picked (Return), punctuation on its own.
+    public var learns = true {
+        didSet {
+            guard learns != oldValue, isCurrentGeneration else { return }
+            api.pointee.set_option(id, "_auto_commit", learns ? 1 : 0)
+        }
+    }
+
+    /// Text put in while `learns` is off, not taken yet (`takeCommit`).
+    private var unlearned = ""
+    /// Shift is down, and nothing else was pressed since: its release is a tap.
+    private var shiftTap = false
+
     public func processKey(_ keycode: Int32, mask: Int32) -> Bool {
         guard isCurrentGeneration else { return false }
-        return api.pointee.process_key(id, keycode, mask) != 0
+        guard !learns else { return api.pointee.process_key(id, keycode, mask) != 0 }
+        let shift = keycode == RimeKey.shiftL || keycode == RimeKey.shiftR
+        if mask & RimeKey.releaseMask != 0 {
+            // A tap of Shift (rime-ice: `Shift_L: commit_code`): librime commits the part picked and the letters after
+            // it, and learns the part. Put in here; librime then only switches to Latin.
+            if shift, shiftTap, let before = composition(), before.picked {
+                put(before.converted + before.lettersAfterThePick(input: rawInput))
+            }
+            shiftTap = false
+            return api.pointee.process_key(id, keycode, mask) != 0
+        }
+        shiftTap = shift
+        // Set again if librime set it back (a schema loaded again sets its editor's).
+        if api.pointee.get_option(id, "_auto_commit") != 0 { api.pointee.set_option(id, "_auto_commit", 0) }
+        let editing = Self.editingKeys.contains(keycode) || mask & RimeKey.controlMask != 0
+        if let before = composition() {
+            if keycode == RimeKey.returnKey, mask & RimeKey.controlMask == 0, before.picked {
+                // Return: librime commits the part picked and the letters after it, and learns the part.
+                put(before.converted + before.lettersAfterThePick(input: rawInput))
+                return true
+            }
+            if before.isConfirmed, !editing {
+                // All confirmed (after Esc on a part picked): what librime commits on Space, or before what comes next.
+                put(before.preview)
+                if keycode == RimeKey.space && mask == 0 { return true }
+            }
+        }
+        let handled = api.pointee.process_key(id, keycode, mask) != 0
+        if !editing, let after = composition(), after.isConfirmed { put(after.preview) }
+        return handled
+    }
+
+    /// Keys that edit the composition, and never commit it.
+    static let editingKeys: Set<Int32> = [RimeKey.backSpace, RimeKey.delete, RimeKey.escape, RimeKey.left, RimeKey.right,
+                                          RimeKey.up, RimeKey.down, RimeKey.home, RimeKey.end, RimeKey.pageUp,
+                                          RimeKey.pageDown, RimeKey.tab, RimeKey.shiftL, RimeKey.shiftR]
+
+    /// `text` put in without librime's commit (`learns` off), the composition cleared.
+    private func put(_ text: String) {
+        unlearned += text
+        api.pointee.clear_composition(id)
+    }
+
+    /// The composition as `learns` off needs it: nil when there is none.
+    struct Composition {
+        var preedit: [UInt8]
+        /// The highlighted part of `preedit`, in its UTF-8 bytes (librime's): what comes before it is converted.
+        var selection: Range<Int>
+        var hasMenu: Bool
+        /// What librime would commit now (the candidates picked and highlighted, the letters left).
+        var preview: String
+
+        /// Something is picked already: the text before the highlighted part.
+        var picked: Bool { selection.lowerBound > 0 }
+        /// Everything is confirmed: picked to the end, with nothing to pick (`_auto_commit` off leaves it so).
+        var isConfirmed: Bool { !preedit.isEmpty && !hasMenu && selection.isEmpty && selection.lowerBound >= preedit.count }
+        var converted: String { String(decoding: preedit[..<min(selection.lowerBound, preedit.count)], as: UTF8.self) }
+
+        /// The letters typed after what is picked (`input`'s end), as many as the preedit shows after it, without
+        /// librime's delimiters (" '"): what its Return commits after the part picked.
+        func lettersAfterThePick(input: String) -> String {
+            let delimiters: Set<Character> = [" ", "'"]
+            let shown = String(decoding: preedit[min(selection.lowerBound, preedit.count)...], as: UTF8.self)
+            var count = shown.filter { !delimiters.contains($0) }.count
+            var letters: [Character] = []
+            for character in input.reversed() where count > 0 {
+                letters.insert(character, at: 0)
+                if !delimiters.contains(character) { count -= 1 }
+            }
+            return count == 0 ? String(letters).filter { !delimiters.contains($0) } : shown.filter { !delimiters.contains($0) }
+        }
+    }
+
+    func composition() -> Composition? {
+        var context = RimeContext()
+        context.data_size = Int32(MemoryLayout<RimeContext>.size - MemoryLayout<Int32>.size)
+        guard api.pointee.get_context(id, &context) != 0 else { return nil }
+        defer { _ = api.pointee.free_context(&context) }
+        guard let preedit = context.composition.preedit else { return nil }
+        let bytes = Array(String(cString: preedit).utf8)
+        let start = max(0, min(Int(context.composition.sel_start), bytes.count))
+        let end = max(start, min(Int(context.composition.sel_end), bytes.count))
+        let preview = context.commit_text_preview.map { String(cString: $0) } ?? String(decoding: bytes, as: UTF8.self)
+        return Composition(preedit: bytes, selection: start..<end, hasMenu: context.menu.num_candidates > 0, preview: preview)
     }
 
     public func takeCommit() -> String? {
         guard isCurrentGeneration else { return nil }
+        let unlearned = self.unlearned
+        self.unlearned = ""
         var commit = RimeCommit()
         commit.data_size = Int32(MemoryLayout<RimeCommit>.size - MemoryLayout<Int32>.size)
-        guard api.pointee.get_commit(id, &commit) != 0 else { return nil }
+        guard api.pointee.get_commit(id, &commit) != 0 else { return unlearned.isEmpty ? nil : unlearned }
         defer { _ = api.pointee.free_commit(&commit) }
-        return commit.text.map { String(cString: $0) }
+        let text = commit.text.map { String(cString: $0) }
+        return unlearned.isEmpty ? text : unlearned + (text ?? "")
     }
 
     public func snapshot() -> EngineSnapshot {
@@ -447,11 +552,20 @@ public final class RimeSession: PinyinEngine {
 
     public func selectCandidate(onPage index: Int) -> Bool {
         guard isCurrentGeneration else { return false }
-        return api.pointee.select_candidate_on_current_page(id, index) != 0
+        let selected = api.pointee.select_candidate_on_current_page(id, index) != 0
+        if !learns, let after = composition(), after.isConfirmed { put(after.preview) }
+        return selected
     }
 
     public func commitComposition() -> String? {
-        guard isCurrentGeneration, api.pointee.commit_composition(id) != 0 else { return nil }
+        guard isCurrentGeneration else { return nil }
+        if !learns {
+            // What librime would commit, without its commit.
+            guard let composition = composition() else { return takeCommit() }
+            put(composition.preview)
+            return takeCommit()
+        }
+        guard api.pointee.commit_composition(id) != 0 else { return nil }
         return takeCommit()
     }
 

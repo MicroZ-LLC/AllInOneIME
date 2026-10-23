@@ -576,19 +576,7 @@ public enum ExtensionStore {
     /// with either slash), with "~" and forward slashes as the Mac's are: "%USERPROFILE%\Scripts" → "~/Scripts". The
     /// placeholder (`windowsShown`) typed as it is is the default folder.
     public static func typedOnWindows(_ path: String, home: String, environment: [String: String]) -> String {
-        var expanded = "", rest = Substring(path)
-        while let start = rest.firstIndex(of: "%"), let end = rest[rest.index(after: start)...].firstIndex(of: "%") {
-            let name = String(rest[rest.index(after: start)..<end])
-            expanded += rest[..<start]
-            if let value = environment.first(where: { !name.isEmpty && $0.key.caseInsensitiveCompare(name) == .orderedSame })?.value {
-                expanded += value
-                rest = rest[rest.index(after: end)...]
-            } else {
-                expanded += "%"
-                rest = rest[rest.index(after: start)...]
-            }
-        }
-        expanded += rest
+        let expanded = CorePaths.windowsExpanded(path, environment: environment)
         func slashed(_ text: String) -> String {
             var out = text.replacingOccurrences(of: "\\", with: "/")
             while out.count > 1, out.hasSuffix("/") { out.removeLast() }

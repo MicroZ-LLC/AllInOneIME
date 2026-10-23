@@ -629,7 +629,10 @@ given and sends back what the user did. It opens no sessions.
   default). Messages (`@imessage`) has no setting. A field's `platforms`, when present, says where it applies. Its
   text is the platform's too: Windows' names its keys (Enter, Ctrl+Space) and places (a terminal window, this PC,
   `cmd /c` for a shell, the Credential Manager), and writes a folder in the home folder from `%USERPROFILE%`
-  (`extensions.folders`' placeholder and titles; one typed so is taken, its `%NAME%`s written out).
+  (`extensions.folders`' placeholder and titles; one typed so is taken, its `%NAME%`s written out). Its paths are
+  Windows', whatever the system it is made on: the jargon list's default file `%APPDATA%\AllInOneIME\jargon.txt`
+  (`jargonFile`'s placeholder; a `jargonFile` with `%NAME%`s is read with them written out), the config file and the
+  error that names it with backslashes (`configFile`, `loadError`).
 - **Field ids** (stable; a later version may add fields, and a client draws any it is given):
 
 | Section | Fields |
@@ -762,7 +765,9 @@ given and sends back what the user did. It opens no sessions.
 - **Wire:** the messages in `WireMessages.swift`; `WireServer.settings` (a `SettingsService`; nil: none), its settings
   queue (§12.7), `checkSettings` (the file checked on that queue), and `useTestSettings` (`#! settings`, test mode).
 - **Windows engine:** one `SettingsService` over its config file (`--config`, else `%APPDATA%\AllInOneIME\config.json`),
-  checked for changes about once a second (`checkSettings`, from the watchdog's loop, which never waits for it). Its
+  checked for changes about once a second (`checkSettings`, from the watchdog's loop, which never waits for it). The
+  English words it learns are written into that file under the service's lock (`SettingsService.writingFile`), never
+  between a change's reading of the file and its writing, and read again at once (the windows are told). Its
   interface text in the nine languages of the core's String Catalog (`Localizable.xcstrings` beside it,
   `UIText.useCatalog`), in the language the settings pick (`UIText.choice`, applied after each change wherever it was
   made), else Windows' own.

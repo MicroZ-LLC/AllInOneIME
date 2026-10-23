@@ -13,6 +13,24 @@ let packageRoot = URL(fileURLWithPath: #filePath).deletingLastPathComponent().de
 /// candidate window hides when another process does), one after the other: suites run side by side.
 @Suite(.serialized) enum OnTheDesktop {}
 
+/// `body` with this thread per-monitor aware, as the candidate window's thread and the engine are: what it asks of a
+/// window or the screen (a window's rectangle, the work area) in physical pixels, a window it makes sized in them. A
+/// test's thread isn't DPI aware: on a monitor scaled to 150% what it asks is in logical pixels, two thirds of these.
+func perMonitorAware<T>(_ body: () throws -> T) rethrows -> T {
+    let previous = SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)
+    defer { SetThreadDpiAwarenessContext(previous) }
+    return try body()
+}
+
+/// The primary monitor's work area, in physical pixels (`perMonitorAware`).
+var workArea: RECT {
+    perMonitorAware {
+        var work = RECT()
+        SystemParametersInfoW(UINT(SPI_GETWORKAREA), 0, &work, 0)
+        return work
+    }
+}
+
 /// A folder of its own for a test, removed by the caller (`defer`).
 func temporaryFolder(_ name: String) throws -> URL {
     let folder = FileManager.default.temporaryDirectory

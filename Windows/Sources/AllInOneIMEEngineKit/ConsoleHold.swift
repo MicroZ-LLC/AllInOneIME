@@ -246,8 +246,6 @@ public enum ConsoleHold {
         WriteConsoleW(output, &units, DWORD(units.count), &written, nil)
     }
 
-    /// The prompt's file a console holds, deleted once, by whichever comes first: the program's end, or the console's
-    /// control handler (a C function, which has no context of its own) as its window closes.
     /// The session ending (logoff, shutdown), told to a hidden top-level window on a thread of its own
     /// (`WM_ENDSESSION`): a console's control handler gets CTRL_LOGOFF_EVENT and CTRL_SHUTDOWN_EVENT only in a process
     /// that loads neither user32 nor gdi32, which this one does. (A message-only window gets no broadcast.) `ended` runs
@@ -289,6 +287,8 @@ public enum ConsoleHold {
         }
     }
 
+    /// The prompt's file a console holds, deleted once, by whichever comes first: the program's end, or the console's
+    /// control handler (a C function, which has no context of its own) as its window closes.
     final class HeldPrompt: @unchecked Sendable {
         static let shared = HeldPrompt()
         private let lock = NSLock()

@@ -20,8 +20,7 @@ extension OnTheDesktop {
 
         /// A caret near the top left of the primary monitor's work area.
         static var caret: CaretRect {
-            var work = RECT()
-            SystemParametersInfoW(UINT(SPI_GETWORKAREA), 0, &work, 0)
+            let work = workArea
             return CaretRect(x: Int(work.left) + 200, y: Int(work.top) + 150, width: 2, height: 22)
         }
 
@@ -74,7 +73,8 @@ extension OnTheDesktop {
             let point = LPARAM(Int32(row.y + row.height / 2) << 16 | Int32(row.x + row.width / 2))
             // WM_MOUSEACTIVATE first, as a real click sends it: never activated.
             #expect(SendMessageW(hwnd, UINT(WM_MOUSEACTIVATE), 0, 0) == LRESULT(MA_NOACTIVATE))
-            SendMessageW(hwnd, UINT(WM_LBUTTONUP), 0, point)
+            // Sent per-monitor aware: from a thread that isn't, Windows takes the point for logical pixels and scales it.
+            _ = perMonitorAware { SendMessageW(hwnd, UINT(WM_LBUTTONUP), 0, point) }
             #expect(clicks.all == [1])
             // Another session's hide leaves it up; its owner's takes it down.
             window.hide(owner: PanelOwner(pid: nil, choose: { _ in }))
@@ -108,8 +108,7 @@ extension OnTheDesktop {
 
         @Test func nearTheBottomItGoesAboveTheCaret() throws {
             let window = try window()
-            var work = RECT()
-            SystemParametersInfoW(UINT(SPI_GETWORKAREA), 0, &work, 0)
+            let work = workArea  // in the panel's pixels: on a scaled monitor its bottom is further down
             let caret = CaretRect(x: Int(work.left) + 300, y: Int(work.bottom) - 30, width: 2, height: 22)
             let owner = PanelOwner(pid: nil, choose: { _ in })
             window.show(Self.model, owner: owner, caret: caret)
@@ -261,14 +260,18 @@ extension OnTheDesktop {
         /// Where a caret report may put the panel (`Foreground.caretBounds`): inside the window it names, if that is the
         /// client's process's; never another process's window, nor a window that isn't there.
         @Test func aCaretsBoundsAreTheClientsOwnWindow() throws {
-            let window = try #require("STATIC".withCString(encodedAs: UTF16.self) {
-                CreateWindowExW(0, $0, nil, DWORD(WS_POPUP), 120, 130, 300, 200, nil, nil, GetModuleHandleW(nil), nil)
+            // Made and measured in physical pixels, as `caretBounds` gives them (on a scaled monitor a window this thread
+            // made unaware would be 300 × 200 logical pixels, and larger in physical ones).
+            let window = try #require(perMonitorAware {
+                "STATIC".withCString(encodedAs: UTF16.self) {
+                    CreateWindowExW(0, $0, nil, DWORD(WS_POPUP), 120, 130, 300, 200, nil, nil, GetModuleHandleW(nil), nil)
+                }
             })
             defer { DestroyWindow(window) }
             let hwnd = UInt64(UInt(bitPattern: window))
             let pid = GetCurrentProcessId()
             var rect = RECT()
-            GetWindowRect(window, &rect)
+            perMonitorAware { _ = GetWindowRect(window, &rect) }
             let bounds = try #require(Foreground.caretBounds(hwnd: hwnd, pid: pid, trusted: true))
             #expect(bounds == CaretRect(x: Int(rect.left), y: Int(rect.top), width: Int(rect.right - rect.left),
                                         height: Int(rect.bottom - rect.top)))

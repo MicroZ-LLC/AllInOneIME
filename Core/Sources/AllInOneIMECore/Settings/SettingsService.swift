@@ -179,6 +179,18 @@ public final class SettingsService: @unchecked Sendable {
         changing { store.reloadIfChanged() }
     }
 
+    /// `write`, another writer's change of the config file in this process (the Windows engine's English words, learned
+    /// on a queue of their own), under the lock every change here is made under: never between a save's reading of the
+    /// file and its writing (`AIConfig.patchingFile`), nor between a list's reading and its edit (`SettingsStore.refresh`),
+    /// so that neither puts back what the file had before the other's change. The file is read again after it: the
+    /// windows hear of it at once (`changed`).
+    public func writingFile<T>(_ write: () throws -> T) throws -> T {
+        try changing { () -> Result<T, Error> in
+            defer { store.reloadIfChanged() }
+            return Result(catching: write)
+        }.get()
+    }
+
     /// Changes one setting (`Field.id`) to `value`, checked against what the field takes, and saves it.
     ///
     /// Made on the settings as a window showed them, it may say which: `revision` (the document's), and the change is
@@ -318,7 +330,7 @@ public final class SettingsService: @unchecked Sendable {
         // the service's are, and, but for a password, nothing changed while the file can't be read.
         if let done = changing({ () -> Result<SettingsActionOutcome, SettingsProblem>? in
             guard let handler = build().handlers[action.field] else { return nil }
-            if let error = store.loadError, ![SettingsAction.setKey, SettingsAction.removeKey].contains(action.name) {
+            if let error = loadError, ![SettingsAction.setKey, SettingsAction.removeKey].contains(action.name) {
                 return .failure(Self.broken(error, action.field))
             }
             var outcome = SettingsActionOutcome()
@@ -512,7 +524,7 @@ public final class SettingsService: @unchecked Sendable {
     /// A custom command saved (`value`: its definition; `item`: the name it had, none for a new one) or deleted
     /// (`item`), by name, with the editor's rules.
     private func command(_ action: SettingsAction) -> Result<SettingsActionOutcome, SettingsProblem> {
-        guard store.canSave else { return .failure(Self.broken(store.loadError ?? "", action.field)) }
+        guard store.canSave else { return .failure(Self.broken(loadError ?? "", action.field)) }
         if action.name == SettingsAction.delete {
             guard let name = action.item, store.config.customCommands.contains(where: { $0.name.lowercased() == name.lowercased() }) else {
                 return .failure(SettingsProblem(.badValue, field: action.field, message: Self.badValue))
@@ -683,7 +695,7 @@ public final class SettingsService: @unchecked Sendable {
         builder.extensions = ExtensionStore.load(ExtensionStore.folders(store.config, found: []), cache: extensionCache)
         // Its text names commands with the trigger its settings have, whatever the process's own is.
         let sections = UIText.$scopedCommandTrigger.withValue(store.config.commandTrigger) { builder.sections() }
-        var document = SettingsDocument(language: UIText.language, platform: platform, loadError: store.loadError,
+        var document = SettingsDocument(language: UIText.language, platform: platform, loadError: loadError,
                                         saveError: store.saveError, sections: sections, strings: UIText.settingsWindowStrings)
         // What runs now: `running`, and `cancel` to stop it.
         for s in document.sections.indices {
@@ -706,6 +718,14 @@ public final class SettingsService: @unchecked Sendable {
             }
         }
         return (document, builder.setters, builder.handlers)
+    }
+
+    /// Why the file can't be read (`SettingsStore.loadError`), the path it names as the platform writes it (on Windows
+    /// with backslashes: `SettingsSchema.shown(path:)`).
+    private var loadError: String? {
+        guard platform == .windows else { return store.loadError }
+        let path = store.configURL.path
+        return store.loadError?.replacingOccurrences(of: path, with: CorePaths.windowsWritten(path))
     }
 
     /// A field shown, not changed (the file can't be read), and so are an item's own fields.

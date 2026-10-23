@@ -438,6 +438,8 @@ struct EnglishWordsTests {
         for app in ["win:mstsc.exe", "win:MSRDC.EXE", "win:msrdcw.exe", "win:vmconnect.exe", "win:vmware.exe", "win:VirtualBoxVM.exe",
                     "win:vmware-view.exe", "win:vmware-remotemks.exe", "win:wfica32.exe", "win:CDViewer.exe", "win:AnyDesk.exe",
                     "win:TeamViewer.exe", "win:rustdesk.exe", "win:parsecd.exe", "win:vncviewer.exe", "win:termius.exe",
+                    // Windows' names of NoMachine's player, Horizon's client since 8.14, Remote Desktop Manager before.
+                    "win:nxplayer.exe", "win:horizon-client.exe", "win:RemoteDesktopManager64.exe", "win:RemoteDesktopManager.exe",
                     "win:Microsoft.RemoteDesktop_8wekyb3d8bbwe!App",
                     "win:MicrosoftCorporationII.Windows365_8wekyb3d8bbwe!Windows365"] {
             #expect(EnglishWords.isRemote(app), "\(app)")
