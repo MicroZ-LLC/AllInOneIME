@@ -1975,6 +1975,53 @@
         }
       }
     },
+    "%@ more copies in the dictionaries folder aren't listed: their list was lost, and they don't say which dictionary they are. They're kept as they are, and not used; to use one, import its source file again, then delete these copies from the folder." : {
+      "comment" : "词库文件夹里还有 %@ 个副本没列出：它们的清单丢了，也看不出是哪个词库。没有删掉，也不会用；需要的话请重新导入原文件，再从文件夹里删掉这些副本。 — Sources/AllInOneIME/PersonalDictionariesSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ weitere Kopien im Wörterbuchordner sind nicht aufgeführt: Ihre Liste ging verloren, und sie sagen nicht, welches Wörterbuch sie sind. Sie bleiben unverändert erhalten und werden nicht verwendet; um eines zu nutzen, importiere seine Quelldatei erneut und lösche dann diese Kopien aus dem Ordner."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hay %@ copias más en la carpeta de diccionarios que no aparecen: se perdió su lista y no indican de qué diccionario son. Se conservan tal cual y no se usan; para usar uno, vuelve a importar su archivo original y luego elimina estas copias de la carpeta."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ autres copies du dossier des dictionnaires ne sont pas listées : leur liste a été perdue, et elles n’indiquent pas de quel dictionnaire il s’agit. Elles sont conservées telles quelles et ne sont pas utilisées ; pour en utiliser un, importez à nouveau son fichier source, puis supprimez ces copies du dossier."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "辞書フォルダに一覧にないコピーがあと%@個あります。一覧が失われ、どの辞書かもわかりません。そのまま残し、使いません。使うには元のファイルをもう一度読み込み、フォルダからこれらのコピーを削除してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "사전 폴더에 목록에 없는 사본이 %@개 더 있습니다. 목록이 사라졌고 어느 사전인지도 알 수 없습니다. 그대로 두며 사용하지 않습니다. 사용하려면 원본 파일을 다시 가져온 뒤 폴더에서 이 사본들을 삭제하세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Há mais %@ cópias na pasta de dicionários que não estão listadas: a lista delas se perdeu, e elas não dizem de qual dicionário são. Elas ficam como estão e não são usadas; para usar uma, importe de novo o arquivo original e depois apague essas cópias da pasta."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "詞庫資料夾裡還有 %@ 個副本沒有列出：它們的清單遺失了，也看不出是哪個詞庫。沒有刪除，也不會使用；需要的話請重新匯入原檔案，再從資料夾中刪除這些副本。"
+          }
+        }
+      }
+    },
     "%@ more look good" : {
       "comment" : "另外 %@ 项正常 — Sources/AllInOneIME/AssistantPage.swift",
       "localizations" : {

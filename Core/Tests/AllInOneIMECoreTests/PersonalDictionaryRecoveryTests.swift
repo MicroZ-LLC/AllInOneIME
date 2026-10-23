@@ -113,21 +113,23 @@ struct PersonalDictionaryRecoveryTests {
         return left
     }
 
-    /// The first import stopped anywhere: nothing is listed, and importing, fuzzy pinyin and removing all work; what it
-    /// left goes.
+    /// The first import stopped anywhere: before its table was written, nothing is listed; after (the table is whole, and
+    /// says what it is), it is listed, as the manifest would have had it, and finished as Rime starts. Importing, fuzzy
+    /// pinyin and removing all work then.
     @Test(arguments: points)
-    func aFirstImportThatStoppedIsUndone(_ at: String) throws {
+    func aFirstImportThatStoppedIsFinishedOrUndone(_ at: String) throws {
         defer { try? FileManager.default.removeItem(at: root) }
         let alpha = try source("team_alpha", "霁鸢星槎\tji yuan xing cha")
         let left = try stopped(at: at) { try $0.importDictionary(from: alpha, fuzzyPinyin: []) }
         let store = store(in: left)
-        #expect(try store.list().isEmpty)
-        // Rime's start applies fuzzy pinyin: the leftovers go, and nothing refers to them.
+        let listed = at == "table" ? 0 : 1
+        #expect(try store.list().map(\.name) == (listed == 1 ? ["team_alpha"] : []))
+        // Rime's start applies fuzzy pinyin: the list as it is, and nothing refers to what it doesn't list.
         _ = try store.applyFuzzyPinyin(["n-l"])
-        try expectConsistent(left, listed: 0)
-        #expect(!FileManager.default.fileExists(atPath: left.appendingPathComponent("allinoneime_personal.dict.yaml").path))
+        try expectConsistent(left, listed: listed)
+        #expect(FileManager.default.fileExists(atPath: left.appendingPathComponent("allinoneime_personal.dict.yaml").path) == (listed == 1))
         let patch = try String(contentsOf: left.appendingPathComponent(FuzzyPinyin.fileName), encoding: .utf8)
-        #expect(!patch.contains("allinoneime_personal") && patch.contains("derive/^n/l/"))
+        #expect(patch.contains("allinoneime_personal") == (listed == 1) && patch.contains("derive/^n/l/"))
         let imported = try store.importDictionary(from: alpha, fuzzyPinyin: ["n-l"])
         #expect(try store.list() == [imported])
         try expectConsistent(left, listed: 1)
@@ -193,6 +195,36 @@ struct PersonalDictionaryRecoveryTests {
         #expect(built().isDisjoint(with: personal))
         #expect(built().isSuperset(of: others))
         for name in others { #expect(try Data(contentsOf: build.appendingPathComponent(name)) == Data(name.utf8)) }
+    }
+
+    /// The manifest lost while the copies are there (a backup restored without it, say): listed again from the copies
+    /// themselves, and nothing is deleted. A copy that can't say what it is (one an early 0.6.7 build wrote) is kept as it
+    /// is, never listed nor deleted, and said so (`keptCopies`), through every change after.
+    @Test func aLostManifestIsMadeAgainFromTheCopies() throws {
+        defer { try? FileManager.default.removeItem(at: root) }
+        let first = try store().importDictionary(from: try source("team_alpha", "霁鸢星槎\tji yuan xing cha"), fuzzyPinyin: [])
+        let second = try store().importDictionary(from: try source("team_beta", "鹭汀云笺\tlu ting yun jian"), fuzzyPinyin: [])
+        let manifest = folder.appendingPathComponent("manifest.json")
+        try FileManager.default.removeItem(at: manifest)
+        #expect(try store().list() == [first, second])
+        _ = try store().applyFuzzyPinyin([])  // Rime's start
+        #expect(try store().list() == [first, second] && FileManager.default.fileExists(atPath: manifest.path))
+        try expectConsistent(user, listed: 2)
+        // A copy of ours that doesn't say what it is: kept, through the next changes, and said so.
+        let early = "dict_" + String(repeating: "0", count: 36) + ".dict.yaml"
+        try ("# Written by AllInOneIME: personal dictionary. Edits here are replaced.\n---\nname: allinoneime_personal/"
+             + early.dropLast(".dict.yaml".count) + "\nversion: \"1\"\nsort: by_weight\n...\n霁鸢\tji yuan\t1\n")
+            .write(to: folder.appendingPathComponent(early), atomically: true, encoding: .utf8)
+        try FileManager.default.removeItem(at: manifest)
+        #expect(try store().list() == [first, second] && store().keptCopies() == [early])
+        _ = try store().applyFuzzyPinyin([])
+        let third = try store().importDictionary(from: try source("team_gamma", "霁鸢雾港\tji yuan wu gang"), fuzzyPinyin: [])
+        try store().removeDictionary(named: first.name, fuzzyPinyin: [])
+        #expect(try store().list() == [second, third] && store().keptCopies() == [early])
+        #expect(FileManager.default.fileExists(atPath: folder.appendingPathComponent(early).path))
+        // Gone by the user's hand: no longer said.
+        try FileManager.default.removeItem(at: folder.appendingPathComponent(early))
+        #expect(try store().keptCopies().isEmpty)
     }
 
     /// A table the manifest lists, gone (deleted by hand): left out, and the wrapper no longer imports it.

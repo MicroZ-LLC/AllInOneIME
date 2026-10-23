@@ -9,6 +9,9 @@ import UniformTypeIdentifiers
 @MainActor
 final class PersonalDictionariesModel: ObservableObject {
     @Published private(set) var dictionaries: [PersonalDictionary] = []
+    /// Copies in the folder kept unlisted: their list was lost and they can't say what they are
+    /// (`PersonalDictionaryStore.keptCopies`), by file name.
+    @Published private(set) var kept: [String] = []
     @Published private(set) var isWorking = false
     @Published private(set) var status: String?
     @Published private(set) var error: String?
@@ -30,9 +33,9 @@ final class PersonalDictionariesModel: ObservableObject {
         let store = dictionaryStore()
         let revision = self.revision
         do {
-            let saved = try await Task.detached(priority: .utility) { try store.list() }.value
+            let (saved, kept) = try await Task.detached(priority: .utility) { (try store.list(), try store.keptCopies()) }.value
             guard revision == self.revision, !isWorking else { return }
-            dictionaries = saved
+            (dictionaries, self.kept) = (saved, kept)
             error = nil
         } catch {
             if revision == self.revision, !isWorking { self.error = error.localizedDescription }
@@ -82,6 +85,7 @@ final class PersonalDictionariesModel: ObservableObject {
         defer { isWorking = false }
         do {
             dictionaries = try await Task.detached(priority: .utility, operation: operation).value
+            kept = (try? await Task.detached(priority: .utility) { try store.keptCopies() }.value) ?? kept
         } catch {
             self.error = error.localizedDescription
             status = nil
@@ -159,6 +163,18 @@ struct PersonalDictionariesSection: View {
                         Text(dictionary.name)
                         Text(tr("\(dictionary.fileName) · \(dictionary.entryCount) 条", "\(dictionary.fileName) · \(dictionary.entryCount) entries"))
                             .font(.callout).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            // Copies whose list was lost and that can't say what they are: kept as they are, never deleted.
+            if !dictionaries.kept.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(tr("词库文件夹里还有 \(dictionaries.kept.count) 个副本没列出：它们的清单丢了，也看不出是哪个词库。没有删掉，也不会用；需要的话请重新导入原文件，再从文件夹里删掉这些副本。",
+                            "\(dictionaries.kept.count) more copies in the dictionaries folder aren't listed: their list was lost, and they don't say which dictionary they are. They're kept as they are, and not used; to use one, import its source file again, then delete these copies from the folder."))
+                        .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    Text(dictionaries.kept.joined(separator: "\n")).font(.caption.monospaced()).foregroundStyle(.secondary).textSelection(.enabled)
+                    Button(tr("打开 Rime 用户目录", "Open Rime User Folder")) {
+                        NSWorkspace.shared.open(RimeDirectories.user.appendingPathComponent("allinoneime_personal"))
                     }
                 }
             }

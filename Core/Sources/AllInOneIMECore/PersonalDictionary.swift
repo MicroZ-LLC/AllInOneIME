@@ -56,6 +56,12 @@ public struct PersonalDictionaryStore: Sendable {
         try Self.locked { try readState().state.dictionaries.map(\.dictionary) }
     }
 
+    /// The copies in the folder kept though they aren't listed: their list (the manifest) was lost, and they can't say what
+    /// they are (`readState`). Never deleted, never used; Settings says so, by their file names.
+    public func keptCopies() throws -> [String] {
+        try Self.locked { try readState().state.kept.map { $0 + ".dict.yaml" } }
+    }
+
     @discardableResult
     public func importDictionary(from source: URL, fuzzyPinyin: [String]) throws -> PersonalDictionary {
         // Read and validate the entire source before touching the installed setup, outside the write lock.
@@ -76,7 +82,9 @@ public struct PersonalDictionaryStore: Sendable {
             guard !FileManager.default.fileExists(atPath: table.path) else {
                 throw PersonalDictionaryError.managedFile(table.lastPathComponent)
             }
-            var changes: [Change] = [Change(url: table, data: Data(parsed.table(named: reference(record)).utf8))]
+            let says = Self.tableSays + String(decoding: try encodeLine(Said(name: record.name, fileName: record.fileName,
+                                                                              entryCount: record.entryCount)), as: UTF8.self)
+            var changes: [Change] = [Change(url: table, data: Data(parsed.table(named: reference(record), says: says).utf8))]
             changes += try configurationChanges(for: after, fuzzyPinyin: fuzzyPinyin, checkAlgebra: true)
             changes.append(Change(url: manifest, data: try encode(after)))
             try write(changes)
@@ -145,6 +153,9 @@ public struct PersonalDictionaryStore: Sendable {
     private static let folderName = "allinoneime_personal"
     private static let dictionaryName = "allinoneime_personal"
     private static let tableMarker = "# Written by AllInOneIME: personal dictionary. Edits here are replaced."
+    /// A table's second line: what it is (`Stored` without its token, which is its file's name), so that the list can be
+    /// made again from the tables when the manifest is lost (`readState`).
+    private static let tableSays = "# AllInOneIME personal dictionary: "
     private static let wrapperMarker = "# Written by AllInOneIME: personal dictionaries. Edits here are replaced."
     /// The patch's first line is fuzzy pinyin's (`FuzzyPinyin.marker`) with the dictionaries too, so that an earlier
     /// version (0.6.6) still takes the file as its own, and its fuzzy pinyin switch works (it writes the file without
@@ -156,12 +167,17 @@ public struct PersonalDictionaryStore: Sendable {
     private var manifest: URL { folder.appendingPathComponent("manifest.json") }
     private var wrapper: URL { userDirectory.appendingPathComponent(Self.dictionaryName + ".dict.yaml") }
     private var patch: URL { userDirectory.appendingPathComponent(FuzzyPinyin.fileName) }
-    private func tableURL(_ item: Stored) -> URL { folder.appendingPathComponent(item.token + ".dict.yaml") }
+    private func tableURL(_ item: Stored) -> URL { tableURL(token: item.token) }
+    private func tableURL(token: String) -> URL { folder.appendingPathComponent(token + ".dict.yaml") }
     private func reference(_ item: Stored) -> String { Self.folderName + "/" + item.token }
 
     private struct State: Codable {
         var format = "AllInOneIME personal dictionaries v1"
         var dictionaries: [Stored] = []
+        /// The tokens of tables kept unlisted (`keptCopies`): never removed by a change. Nil in a manifest without any.
+        var keptTokens: [String]?
+
+        var kept: [String] { keptTokens ?? [] }
     }
 
     private struct Stored: Codable {
@@ -172,25 +188,39 @@ public struct PersonalDictionaryStore: Sendable {
         var dictionary: PersonalDictionary { PersonalDictionary(name: name, fileName: fileName, entryCount: entryCount) }
     }
 
+    /// What a table says it is, on its second line (`tableSays`).
+    private struct Said: Codable {
+        let name: String
+        let fileName: String
+        let entryCount: Int
+    }
+
     /// The dictionaries the manifest lists, each table checked as this app's. What a write the app never finished
-    /// leaves is recovered from (`write` writes the tables first and the manifest last): the folder without a manifest
-    /// is a first import's, nothing listed yet; a table the manifest lists that isn't there can't be loaded, and is left
-    /// out. `recovered` says so: the next change writes the manifest again (`applyFuzzyPinyin` too, which Rime's start
-    /// makes); each change removes the tables it doesn't list (`removeUnlistedTables`). A manifest that isn't this app's, or a table
-    /// edited by hand, throws: those files are left for the user to look at.
+    /// leaves is recovered from (`write` writes the tables first and the manifest last): a table the manifest lists that
+    /// isn't there can't be loaded, and is left out. The folder without a manifest (a first import stopped after its
+    /// table, a manifest lost: a backup restored without it) is listed again from its tables, each saying what it is on
+    /// its second line (`tableSays`; of one name, the newest), in the order they were written; one of this app's that
+    /// can't say (an early 0.6.7 build's) is kept as it is (`State.kept`): never listed, never removed. `recovered` says
+    /// so: the next change writes the manifest again (`applyFuzzyPinyin` too, which Rime's start makes); each change
+    /// removes the tables it neither lists nor keeps (`removeUnlistedTables`). A manifest that isn't this app's, or a
+    /// table edited by hand, throws: those files are left for the user to look at.
     private func readState() throws -> (state: State, recovered: Bool) {
         do { try checkRegular(folder, directory: true) }
         catch let error as CocoaError where error.code == .fileReadNoSuchFile || error.code == .fileNoSuchFile { return (State(), false) }
-        guard let bytes = try contentsIfPresent(manifest) else { return (State(), true) }
+        guard let bytes = try contentsIfPresent(manifest) else { return (tablesSay(), true) }
         guard let state = try? JSONDecoder().decode(State.self, from: bytes),
               state.format == State().format,
               Set(state.dictionaries.map(\.name)).count == state.dictionaries.count,
-              Set(state.dictionaries.map(\.token)).count == state.dictionaries.count,
-              state.dictionaries.allSatisfy({ !$0.name.isEmpty && $0.entryCount > 0 && Self.isToken($0.token) }) else {
+              Set(state.dictionaries.map(\.token) + state.kept).count == state.dictionaries.count + state.kept.count,
+              state.dictionaries.allSatisfy({ !$0.name.isEmpty && $0.entryCount > 0 && Self.isToken($0.token) }),
+              state.kept.allSatisfy(Self.isToken) else {
             throw PersonalDictionaryError.managedFile(Self.folderName + "/manifest.json")
         }
         var found = state
         found.dictionaries = []
+        // A copy kept that the user has since removed: no longer kept.
+        let kept = state.kept.filter { (try? FileManager.default.attributesOfItem(atPath: tableURL(token: $0).path)) != nil }
+        found.keptTokens = kept.isEmpty ? nil : kept
         for item in state.dictionaries {
             let table = tableURL(item)
             // Not there at all (not even a dangling link): left out.
@@ -204,12 +234,56 @@ public struct PersonalDictionaryStore: Sendable {
             }
             found.dictionaries.append(item)
         }
-        return (found, found.dictionaries.count != state.dictionaries.count)
+        return (found, found.dictionaries.count != state.dictionaries.count || kept != state.kept)
+    }
+
+    /// The list as the folder's tables say it, for a folder without a manifest (`readState`): this app's tables (a token's
+    /// name, the marker first), each by what its second line says, of one name the newest, oldest first; this app's that
+    /// say nothing readable, kept.
+    private func tablesSay() -> State {
+        var found: [(stored: Stored, written: Date)] = [], kept: [String] = []
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
+        for name in names.sorted() where name.hasSuffix(".dict.yaml") {
+            let token = String(name.dropLast(".dict.yaml".count))
+            let table = folder.appendingPathComponent(name)
+            guard Self.isToken(token), (try? checkRegular(table)) != nil, let handle = try? FileHandle(forReadingFrom: table) else { continue }
+            let head = (try? handle.read(upToCount: 4096)) ?? Data()
+            try? handle.close()
+            let lines = String(decoding: head, as: UTF8.self).split(separator: "\n", maxSplits: 2, omittingEmptySubsequences: false)
+            guard lines.first.map(String.init) == Self.tableMarker else { continue }  // not this app's: left alone
+            guard lines.count > 2, lines[1].hasPrefix(Self.tableSays),
+                  let said = try? JSONDecoder().decode(Said.self, from: Data(lines[1].dropFirst(Self.tableSays.count).utf8)),
+                  Self.isName(said.name), !said.fileName.isEmpty, said.entryCount > 0 else {
+                kept.append(token)
+                continue
+            }
+            let written = (try? FileManager.default.attributesOfItem(atPath: table.path)[.modificationDate] as? Date) ?? .distantPast
+            found.append((Stored(name: said.name, fileName: said.fileName, entryCount: said.entryCount, token: token), written))
+        }
+        var newest: [String: (stored: Stored, written: Date)] = [:]
+        for item in found where newest[item.stored.name].map({ $0.written < item.written }) ?? true { newest[item.stored.name] = item }
+        var state = State()
+        state.dictionaries = newest.values.sorted { ($0.written, $0.stored.token) < ($1.written, $1.stored.token) }.map(\.stored)
+        state.keptTokens = kept.isEmpty ? nil : kept
+        return state
+    }
+
+    /// A dictionary's name as an import takes it: Latin letters, digits, "-", "_" and ".", at most 128 bytes, not "." or "..".
+    private static func isName(_ name: String) -> Bool {
+        !name.isEmpty && name.utf8.count <= 128 && name != "." && name != ".."
+            && name.utf8.allSatisfy { (65...90).contains($0) || (97...122).contains($0) || (48...57).contains($0) || [45, 46, 95].contains($0) }
     }
 
     private static func isToken(_ value: String) -> Bool {
         value.hasPrefix("dict_") && value.utf8.count == 41
             && value.utf8.allSatisfy { (65...90).contains($0) || (97...122).contains($0) || (48...57).contains($0) || $0 == 95 }
+    }
+
+    /// `said` as one line of JSON (a file's name with a line break in it too).
+    private func encodeLine(_ said: Said) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        return try encoder.encode(said)
     }
 
     private func encode(_ state: State) throws -> Data {
@@ -394,11 +468,11 @@ public struct PersonalDictionaryStore: Sendable {
     }
 
     /// The tables in the folder `state` doesn't list: one replaced or removed, and a new one whose import never
-    /// finished. Only this app's (a token's name, the marker first); a failed cleanup only leaves an unreferenced
-    /// table, which can't change the active vocabulary or erase user data.
+    /// finished. Only this app's (a token's name, the marker first), and never one kept (`State.kept`); a failed cleanup
+    /// only leaves an unreferenced table, which can't change the active vocabulary or erase user data.
     private func removeUnlistedTables(_ state: State) {
         let fm = FileManager.default
-        let listed = Set(state.dictionaries.map { $0.token + ".dict.yaml" })
+        let listed = Set((state.dictionaries.map(\.token) + state.kept).map { $0 + ".dict.yaml" })
         let marker = Data((Self.tableMarker + "\n").utf8)
         for name in (try? fm.contentsOfDirectory(atPath: folder.path)) ?? [] where !listed.contains(name) {
             guard name.hasSuffix(".dict.yaml"), Self.isToken(String(name.dropLast(".dict.yaml".count))) else { continue }
@@ -540,8 +614,9 @@ public struct PersonalDictionaryStore: Sendable {
             return Parsed(name: name, sort: sort, entries: entries)
         }
 
-        func table(named name: String) -> String {
-            PersonalDictionaryStore.tableMarker + "\n---\nname: \(name)\nversion: \"\(UUID().uuidString)\"\nsort: \(sort)\n...\n"
+        /// The table as it is written, `says` its second line (`tableSays`).
+        func table(named name: String, says: String) -> String {
+            PersonalDictionaryStore.tableMarker + "\n" + says + "\n---\nname: \(name)\nversion: \"\(UUID().uuidString)\"\nsort: \(sort)\n...\n"
                 + entries.map { $0.text + "\t" + $0.code + "\t" + $0.weight + "\n" }.joined()
         }
 
