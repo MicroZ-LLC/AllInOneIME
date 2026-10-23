@@ -1,59 +1,30 @@
 import AllInOneIMECore
 import SwiftUI
 
-/// Settings → Coding Languages (spec suggestions v1, 2 and 3): Suggestions' switch (the input menu's) and the rows picked;
-/// coding mode, how it is turned on and whether it is on now; the coding packs installed, each removable; and those the
-/// language library offers, fetched only when asked (no network before). Apart from the input languages' packs
-/// (Settings → Input): coding languages are never shown with human languages.
+/// Settings → Coding Languages (spec suggestions v1, 2 and 3): coding mode, how it is turned on and whether it is on now
+/// (with Suggestions off, that it shows nothing: their switch is in General); the coding packs installed, each removable;
+/// and those the language library offers, fetched only when asked (no network before). Apart from the input languages'
+/// packs (Settings → Input): coding languages are never shown with human languages.
 struct CodingLanguagesPage: View {
     @ObservedObject var model: SettingsModel
     @ObservedObject private var packs = CodingPackManager.shared
     /// Coding mode as it is now (the chooser a long press of Shift opens turns it on and off), read again as it changes.
     @State private var codingMode = SuggestionsShared.codingMode
-    /// How many rows picked are kept (rows picked before come first).
-    @State private var picked = 0
     /// The pack about to be deleted (asked first).
     @State private var packToDelete: CodingLanguagePack?
 
     var body: some View {
-        suggestionsSection
+        codingModeSection
             .onAppear {
                 packs.reload()
                 codingMode = SuggestionsShared.codingMode
-                picked = SuggestionsShared.picks.all.count
             }
             .onReceive(NotificationCenter.default.publisher(for: .allInOneIMESuggestionsChanged)) { _ in
                 codingMode = SuggestionsShared.codingMode
                 packs.reload()
             }
-        codingModeSection
         installedSection
         librarySection
-    }
-
-    /// Suggestions on or off everywhere (an app's own choice is in Apps), and forgetting the rows picked.
-    @ViewBuilder private var suggestionsSection: some View {
-        Section {
-            Toggle(isOn: Binding(get: { model.config.suggestions != false }, set: { model.setSuggestions($0) })) {
-                titled(tr("建议", "Suggestions"),
-                       tr("插件的补全（比如打 #12 列出 GitHub issue）和编码模式的关键字、代码片段：光标下面列出几行，按 Tab 插入。和输入法菜单里的「建议」是同一个开关；每个插件的补全在「插件」里打开，某个 App 里不要可以在「按 App 设置」里关掉。",
-                          "Plugins' completions (#12 lists GitHub issues, say) and coding mode's keywords and snippets: a few rows under the caret, Tab inserts. The same switch as Suggestions in the input menu; each plugin's completions are turned on in Plugins, and an app can turn them off in Apps."))
-            }
-            HStack {
-                Text(tr("选过的行下次排在前面，只存在这台 Mac 上。", "Rows you pick come first next time; they're kept on this Mac only."))
-                    .font(.caption).foregroundStyle(.secondary)
-                Spacer()
-                Button(tr("忘掉选过的行（\(picked)）", "Forget Picked Rows (\(picked))")) {
-                    guard model.store.persists else { return }
-                    SuggestionsShared.picks.clear()
-                    picked = 0
-                }
-                .disabled(picked == 0)
-            }
-        } header: {
-            SectionTitle(tr("建议", "Suggestions"), icon: SettingsPage.codingLanguages.icon)
-        }
-        .disabled(!model.canSave)
     }
 
     /// What coding mode does, how it is turned on and off, and whether it is on now.
@@ -68,7 +39,7 @@ struct CodingLanguagesPage: View {
                   systemImage: codingMode ? "checkmark.circle.fill" : "circle")
                 .foregroundStyle(codingMode ? .primary : .secondary)
             if model.config.suggestions == false {
-                Label(tr("建议关着，编码模式也不会列出什么：在上面打开。", "Suggestions are off, so coding mode shows no rows: turn them on above."),
+                Label(tr("建议关着，编码模式也不会列出什么：在「通用」里打开。", "Suggestions are off, so coding mode shows no rows: turn them on in General."),
                       systemImage: "exclamationmark.triangle")
                     .font(.caption).foregroundStyle(.orange)
             }
@@ -195,14 +166,6 @@ struct CodingLanguagesPage: View {
             } else {
                 Button(tr("下载", "Download")) { packs.download(entry) }
             }
-        }
-    }
-
-    /// A row's title with a short explanation under it, as the other pages show them.
-    private func titled(_ title: String, _ note: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-            Text(note).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
     }
 }

@@ -1,10 +1,24 @@
 import Foundation
 
-/// Suggestions in the settings document (spec 3): a plugin's completion sources (a switch each, saying what it does and
-/// sends where, why it is inactive or needs enabling again; the entries refused, with their reasons) and its
-/// preferences (texts, passwords in the secret store); Coding languages, a section of its own: Suggestions' switch, coding
-/// mode, the packs installed and the library's.
+/// Suggestions in the settings document (spec 3): their switch, in General (plugins' completions and coding mode's rows
+/// alike); a plugin's completion sources (a switch each, saying what it does and sends where, why it is inactive, needs
+/// enabling again or shows nothing; the entries refused, with their reasons) and its preferences (texts, passwords in the
+/// secret store); Coding languages, a section of its own: coding mode, the packs installed and the library's.
 extension SettingsSchema {
+    // MARK: Suggestions' switch
+
+    /// Suggestions on or off everywhere (`Config.suggestions`: on unless turned off), General's: what it covers and where
+    /// each part is turned on; on the Mac, the input menu's Suggestions too.
+    func suggestionsSwitch() -> Field {
+        toggle("suggestions", tr("建议", "Suggestions"),
+               platform == .mac
+                   ? tr("插件的补全（比如打 #12 列出 GitHub issue；每个插件的补全在「插件」里打开）和编码模式的关键字、代码片段（在「编程语言」里）：光标下面列出几行，按 Tab 插入。和输入法菜单里的「建议」是同一个开关；某个 App 里不要可以在「按 App 设置」里关掉。",
+                        "Plugins' completions (#12 lists GitHub issues, say; turn each plugin's on in Plugins) and coding mode's keywords and snippets (see Coding Languages): a few rows under the caret, Tab inserts. The same switch as Suggestions in the input menu; an app can turn them off in Apps.")
+                   : tr("插件的补全（比如打 #12 列出 GitHub issue；每个插件的补全在「插件」里打开）和编码模式的关键字、代码片段（在「编程语言」里）：光标下面列出几行，按 Tab 插入。某个应用里不要可以在「按 App 设置」里关掉。",
+                        "Plugins' completions (#12 lists GitHub issues, say; turn each plugin's on in Plugins) and coding mode's keywords and snippets (see Coding Languages): a few rows under the caret, Tab inserts. An app can turn them off in Apps."),
+               config.suggestions != false)
+    }
+
     /// The fields of `plugin`'s item in the plugins' list: its completion sources and its preferences.
     mutating func pluginFields(_ plugin: InstalledPlugin) -> [Field] {
         var fields: [Field] = []
@@ -19,6 +33,8 @@ extension SettingsSchema {
             } else if approval != nil, !holds {
                 field.status = tr("插件更新后改了联网的主机、前缀、实时查询或脚本：要再打开一次",
                                   "The plugin changed its hosts, its prefix, its live query or its script since you turned this on: turn it on again")
+            } else if holds, config.suggestions == false {
+                field.status = tr("建议关着，这些补全不会出现：在「通用」里打开。", "Suggestions are off, so these completions don't show: turn them on in General.")
             } else if holds, let status = suggestionStatuses.first(where: { $0.plugin == plugin.name && $0.source == source.name }) {
                 field.status = status.summary()
             }
@@ -66,18 +82,17 @@ extension SettingsSchema {
 
     // MARK: Coding languages
 
-    /// Suggestions' switch, coding mode (what holding Shift does), the coding packs installed (each removable) and, once
-    /// browsed, the library's (each installable). Never with the input languages.
+    /// Coding mode (what holding Shift does; with Suggestions off, that it shows nothing and where they are turned on), the
+    /// coding packs installed (each removable) and, once browsed, the library's (each installable). Never with the input
+    /// languages.
     mutating func codingLanguages() -> [Field] {
         var fields: [Field] = []
-        let store = store
-        add(toggle("suggestions", tr("建议", "Suggestions"),
-                   tr("插件的补全（比如 # 后面的 GitHub issue）和编码模式的行，在候选框里显示，按 Tab 插入。每个插件的补全要先在「插件」里打开。",
-                      "Plugins' completions (GitHub issues after #, say) and coding mode's rows, in the candidate panel; Tab inserts. Turn each plugin's on first, in Plugins."),
-                   config.suggestions != false), to: &fields) { store.config.suggestions = Self.bool($0) ? nil : false }
         var mode = Field(id: "codingLanguages.mode", kind: .info, label: tr("编码模式", "Coding mode"))
         mode.help = tr("按住 Shift 一秒，选「编码模式」（或 2）打开，再选一次关闭；在所有 App 里一直开着，直到关掉。开着时每个输入框从英文开始，打两个字母起显示关键字、代码片段和输入框里已有的词，Tab 插入。和边打边译不能同时开。",
                        "Hold Shift for a second and pick Coding mode (or 2) to turn it on, again to turn it off; it stays on in every app until then. While it's on each text field starts in English, and from two letters on the rows offer keywords, snippets and the words already in the field: Tab inserts. It can't be on with Translate as You Type.")
+        if config.suggestions == false {
+            mode.status = tr("建议关着，编码模式也不会列出什么：在「通用」里打开。", "Suggestions are off, so coding mode shows no rows: turn them on in General.")
+        }
         add(mode, to: &fields)
         let packs = codingPacks.installed()
         var installed = Field(id: "codingLanguages.installed", kind: .items, label: tr("已安装的编程语言", "Installed coding languages"))

@@ -11401,7 +11401,7 @@
       }
     },
     "Forget Picked Rows (%@)" : {
-      "comment" : "忘掉选过的行（%@） — Sources/AllInOneIME/CodingLanguagesPage.swift",
+      "comment" : "忘掉选过的行（%@） — Sources/AllInOneIME/SuggestionsSettings.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -19090,6 +19090,7 @@
     },
     "Plugins' completions (#12 lists GitHub issues, say) and coding mode's keywords and snippets: a few rows under the caret, Tab inserts. The same switch as Suggestions in the input menu; each plugin's completions are turned on in Plugins, and an app can turn them off in Apps." : {
       "comment" : "插件的补全（比如打 #12 列出 GitHub issue）和编码模式的关键字、代码片段：光标下面列出几行，按 Tab 插入。和输入法菜单里的「建议」是同一个开关；每个插件的补全在「插件」里打开，某个 App 里不要可以在「按 App 设置」里关掉。 — Sources/AllInOneIME/CodingLanguagesPage.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -21921,7 +21922,7 @@
       }
     },
     "Rows you pick come first next time; they're kept on this Mac only." : {
-      "comment" : "选过的行下次排在前面，只存在这台 Mac 上。 — Sources/AllInOneIME/CodingLanguagesPage.swift",
+      "comment" : "选过的行下次排在前面，只存在这台 Mac 上。 — Sources/AllInOneIME/SuggestionsSettings.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -23943,6 +23944,7 @@
     },
     "Suggestions are off, so coding mode shows no rows: turn them on above." : {
       "comment" : "建议关着，编码模式也不会列出什么：在上面打开。 — Sources/AllInOneIME/CodingLanguagesPage.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {

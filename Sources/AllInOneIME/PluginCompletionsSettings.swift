@@ -129,7 +129,7 @@ struct PluginCompletionsView: View {
     }
 
     /// A source: its title and prefix, Refresh Now while its list is on, its switch; under them what it does, then why it
-    /// can't show, that it changed since it was turned on, or how it is doing.
+    /// can't show, that it changed since it was turned on, or (on) that Suggestions are off and how it is doing.
     @ViewBuilder private func sourceRow(_ source: CompletionSource) -> some View {
         let approval = model.config.approval(of: source, in: plugin)
         // Turned on before an update that changed its hosts, prefix, queries or script: off until turned on again.
@@ -160,6 +160,12 @@ struct PluginCompletionsView: View {
                           systemImage: "exclamationmark.triangle")
                         .foregroundStyle(.orange)
                 } else if on {
+                    // On, but every suggestion is off (General, or the input menu): nothing of it shows.
+                    if model.config.suggestions == false {
+                        Label(tr("建议关着，这些补全不会出现：在「通用」里打开。", "Suggestions are off, so these completions don't show: turn them on in General."),
+                              systemImage: "exclamationmark.triangle")
+                            .foregroundStyle(.orange)
+                    }
                     if let summary = statuses[source.name]?.summary() {
                         Text(summary).foregroundStyle(.secondary)
                     } else if source.list {
