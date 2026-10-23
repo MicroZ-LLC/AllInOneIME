@@ -443,7 +443,7 @@ Settings → Apps gives an app settings of its own, each optional; what an app d
 | Type results out, or not | on in a chat app, off in Mail | `typeOut` |
 | No AI in this app | `@improve`, `@translate`, `@question`, `@agent` and your prompt commands send nothing there and say so; typing and the other commands work | `noAI` |
 | Always Translate as You Type | WeChat always in Translate as You Type (see [Translate as You Type](#translate-as-you-type)) | `translateAlways` |
-| Autocomplete: always, never, or as everywhere | always in Mail (even with the switch off, and it never stops there for want of use), never in a code editor (see [Autocomplete](#autocomplete-new)) | `autocomplete` |
+| Autocomplete: always, never, or as everywhere | always in Mail (even with the switch off, and it never stops there for want of use), never in a chat app; code editors are off unless set to always; this Mac's own, never synced (see [Autocomplete](#autocomplete-new)) | `autocomplete` |
 
 "Add App…" lists the apps you typed in lately, or picks one in /Applications. The input menu's "This App: <name>" has
 quick switches for the app you're typing in (No AI, Type Results Out, Autocomplete, the language it starts in). In the config they're
@@ -566,8 +566,9 @@ the input method starts, every 30 minutes (after a pause in typing) and on Sync 
   keychain. A build without the provisioning profile (a development build) keeps keys in the login keychain and can't
   sync them: the row says so.
 - Never synced: the AllInOneIME Cloud sign-in, AWS credentials (in `~/.aws`), extension sources (they run code: each Mac decides),
-  extension folders and plugins (paths on each Mac), the apps without typos and the recent apps, window state, and the
-  sync switches themselves (each Mac's own).
+  extension folders and plugins (paths on each Mac), the apps without typos and the recent apps, window state, Autocomplete
+  (its switch, the answer about a cloud provider, and each app's choice: each Mac's own), and the sync switches
+  themselves (each Mac's own).
 - Turning it off stops syncing and leaves everything as it is, on this Mac and in iCloud; **Remove from iCloud…** (asked
   first) moves the folder to the Trash and turns sync off on this Mac.
 - Settings → Assistant ("sync through iCloud") turns it on or off; hidden words and recent questions are only chosen in
@@ -711,28 +712,38 @@ or tell Settings → Assistant "turn on autocomplete"; it stays on until you tur
 - **Keys:** Tab takes the suggestion, only while it's showing; ⇧Tab, ⌥Tab and a Tab pressed within 120 ms of it
   appearing go to the app as usual (indenting, the next field, Jupyter's completion). Type along with it and it shrinks
   as you go, with no new request; type something else, press Esc, an arrow or any other key, or click, and it goes (Esc
-  only takes it down; the other keys do what they always do). ⌘Z right after Tab takes it back, as any typing.
+  only takes it down; the other keys do what they always do). ⌘Z right after Tab (the next key, within a few seconds)
+  takes it back, and the suggestion counts as not taken.
 - **When:** after a pause, 150 ms with the model on this Mac (350 ms with a cloud provider, longer in an app where you
   keep waving suggestions away), only at the end of a line, never while pinyin or an @ command is being written (in
   Chinese it waits until the words are in; if they're the start of the suggestion, its rest comes back), never with text
   selected. Each key stops the request still running. Up to about 12 words or 25 Chinese characters, to the end of the
-  sentence. The last 20 suggestions are kept, so retyping or deleting back shows one again at once.
-- **Never:** in password fields and while secure input is on, in a text that looks like a code or a card number, in
-  terminals, password managers, remote desktops and virtual machines, in apps with No AI, and while Translate as You Type
-  is on.
+  sentence. The last 20 suggestions are kept, so retyping or deleting back shows one again at once; one you waved away
+  with Esc doesn't come back in that field for the same text, nor as you type along it.
+- **Never:** in password fields (those Accessibility tells too, where secure input isn't on) and while secure input is on,
+  in a text that looks like a code or a card number, in terminals, password managers, remote desktops and virtual
+  machines, in apps with No AI, and while Translate as You Type is on.
 - **The model:** Apple Intelligence on this Mac (macOS 26 and later, loaded ahead when a text field takes the focus).
-  Where it isn't available nothing shows (it says so once); it never turns to a cloud provider by itself. With a cloud
-  provider picked in Settings (Bedrock, Claude API, Gemini, OpenAI-compatible, AllInOneIME Cloud), turning Autocomplete
-  on asks first, once: "Each pause sends up to 1,500 characters before the caret (and up to 200 after it) to …". Answer
-  "Use …" or "On This Mac Only"; the input menu's "Autocomplete with …" changes it later (`autocompleteCloud`, never
-  synced). Requests are cheap but frequent: a heavy day can be 1,000–2,000 of them.
+  Where it isn't available nothing shows and the field isn't read (it says so once); it never turns to a cloud provider by
+  itself. With a cloud provider of your own picked in Settings (Bedrock, Claude API, Gemini, OpenAI-compatible), turning
+  Autocomplete on asks, in a small panel that leaves your text field and your typing alone (it's on at once, with the
+  model on this Mac, until you answer): "Each pause sends up to 1,500 characters before the caret (and up to 200 after
+  it) to … (its address)". Answer "Use …" or "On This Mac Only"; the input menu's "Autocomplete with …" changes it later.
+  The answer is for that provider at that address (for Bedrock, that AWS profile and region): pick another one, in
+  Settings, through Settings → Assistant or on another Mac with iCloud sync, and it uses the model on this Mac until you
+  agree again (it says so once). Never AllInOneIME Cloud: its free requests a day are kept for the @ commands, and a few
+  minutes of pauses would use them up (the input menu says so under Autocomplete). `autocompleteCloud`, never synced.
+  Requests are cheap but frequent: a heavy day can be 1,000–2,000 of them.
 - **Each app:** in an app where none of the last 30 suggestions was taken it stops by itself and says so once; Settings →
-  Apps (or the input menu's This App) sets it to always or never there. Turning Autocomplete off and on again starts
+  Apps (or the input menu's This App) sets it to always or never there. Code editors (Xcode, VS Code, Cursor, JetBrains…,
+  where Tab indents and takes their own completion) are off unless set to always. An app's choice is this Mac's own, as
+  the switch is: it doesn't sync. Turning Autocomplete off and on again (here, or through Settings → Assistant) starts
   every app over.
 - **What it counts**, only on this Mac: suggestions shown and taken, how much of what was shown went in, how long they took
   to come up (90% within … ms), Tabs undone right away, apps where it stopped, times it was turned off within a day, the
   tokens a cloud provider read. The input menu's Autocomplete item and the menu bar panel show the first lines.
-- Where a text field doesn't tell where its caret is, the suggestion is a line of the candidate panel instead ("Tab").
+- The gray text stops at the field's edge where Accessibility tells the field's frame. Where a text field doesn't tell
+  where its caret is, the suggestion is a line of the candidate panel instead ("Tab").
   Where it can't read its text (WeChat), what you typed into it since it took the focus stands in; a click forgets it.
 
 ## Voice input
@@ -937,9 +948,9 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 | `rememberQuestions` | Keep your last 5 `@question`s and their answers on this Mac, listed under `@question` (see Recent questions) | `true` |
 | `questionRounds` | Rounds of an `@question` conversation in the panel before it suggests continuing elsewhere, 2–10 | `5` |
 | `questionContinueIn` | Where an `@question` conversation can continue, in order, the first the default: `agent` (whatever `@agent` hands to, in place of that agent's own entry), `claudeCode`, `geminiCLI`, `kiroCLI`, `customAgent` (the agents, each only if installed), `claudeWeb`, `chatgpt`, `gemini`, `copy` | `agent`, the other agents installed, Claude, ChatGPT, copy |
-| `appProfiles` | Settings of one app, by bundle ID, each optional: `inputLanguage`, `rewriteStyles`, `typeOut`, `noAI`, `translateAlways`, `autocomplete` (see Per-app settings) | `{}` |
+| `appProfiles` | Settings of one app, by bundle ID, each optional: `inputLanguage`, `rewriteStyles`, `typeOut`, `noAI`, `translateAlways`, `autocomplete` (this Mac's own: not synced) (see Per-app settings) | `{}` |
 | `autocomplete` | Autocomplete: the rest of the sentence in gray after the caret, Tab puts it in (see Autocomplete) | `false` |
-| `autocompleteCloud` | Autocomplete may send the text before the caret to the cloud provider picked (`true`), or uses the model on this Mac only (`false`); asked when it's turned on; never synced | not set |
+| `autocompleteCloud` | Your answer whether Autocomplete may send the text before the caret to a cloud provider, and the provider and address it was about: `{"allowed": true, "destination": "anthropic api.anthropic.com"}` (`false`: the model on this Mac only; another provider, address, AWS profile or region is asked about again); asked when it's turned on; never synced | not set |
 | `notes` | Where `@note` saves (Settings → Plugins → Notes): `{"destination": "folder", "folder": "~/Vault/Inbox"}`, or `"notion"` with the page or database Test found; never synced through iCloud Drive (the token is in the keychain, and goes through iCloud Keychain only with "API keys and passwords" on) | `destination: "notes"` |
 | `redaction` | Hide sensitive information from the AI (see Privacy): `{"enabled": true, "phones": false, "customWords": ["Phoenix"]}`; each detector (`emails`, `phones`, `cards`, `keys`, `ips`) is on unless set to `false` | `enabled: false` |
 
@@ -952,8 +963,8 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 - Hide sensitive information (Settings → AI Provider → Privacy, off by default): before any request goes out (`@improve`, `@translate`, `@question`, your prompt commands and prompt plugins, with every provider including AllInOneIME Cloud), email addresses, phone numbers, payment card numbers (Luhn-checked), API keys and tokens (`sk-`, `sk-ant-`, `AKIA…`, `ghp_`, `xox…` and long random strings), IP addresses and your own words (a codename, a name) are replaced on the Mac with placeholders such as `[EMAIL_1]`, `[PHONE_1]`, `[ITEM_1]`; the same value gets the same placeholder. The model's results get the real values back before they're shown or inserted, and the panel says "2 items hidden from the AI". A result whose placeholder the model changed beyond recognition is shown as written, marked "⚠ placeholder changed". Jargon list entries holding a hidden value aren't sent. Each kind can be turned off. Full-width forms (`zhang＠example.com`, `１３８…`) are found too, and a value or phrase may be split by a line break. It recognizes formatted values like emails, numbers and keys; it can't recognize names or addresses (add those as your own words), nor look-alike letters from other alphabets. Applies to requests to your AI service; `@agent` (with the Chrome page it takes along), plugins that fetch from a website (`@stock`) or open one (`@x`) and script extensions send text as typed. In the config: `redaction` (`enabled`, `emails`, `phones`, `cards`, `keys`, `ips`, `customWords`).
 - Autocomplete (off by default) reads the text around the caret after each pause (up to 1,500 characters before it and
   200 after it, never during secure input, in a password field or in the apps it never runs in) and gives it to Apple
-  Intelligence on this Mac. To a cloud provider only after you agreed, when you turned it on; then with sensitive
-  information hidden as for any request. Nothing of it is kept but its last 20 suggestions in memory and its counts (no
+  Intelligence on this Mac. To a cloud provider only after you agreed to that provider at that address, when you turned it
+  on (never to AllInOneIME Cloud); then with sensitive information hidden as for any request. Nothing of it is kept but its last 20 suggestions in memory and its counts (no
   text) in the input method's own preferences.
 - Voice is recorded only while you hold right ⌥ and is recognized on the Mac; the recognized text is sent only in the commands above, when you press the action key.
 - The input method reads the clipboard text, once, only when you press ⌃V or ⌘V in a command; content that password managers mark as concealed isn't read. The text is shown in the command first and, again, is sent only when you press the action key. Recent macOS versions ask whether AllInOneIME may read the clipboard: allow it. To stop being asked every time, set AllInOneIME's paste permission to always allow in System Settings → Privacy & Security.
