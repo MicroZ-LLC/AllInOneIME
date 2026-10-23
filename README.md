@@ -783,10 +783,11 @@ one in. They take the place of [autocomplete](#autocomplete-new)'s gray text whi
   two letters on the rows offer keywords and snippets of the coding languages you installed and the words already in the
   field (`de` → `def`, `define_task`). ⏎ inserts the highlighted row at once, as in an IDE (no ↓ first; in code editors
   the first row; in chat apps and terminals ⏎ stays the app's). A snippet goes in with its line breaks, its later lines
-  indented as the line you're on, the caret where it belongs. A row names its language (`Python · function`); a snippet
-  two of your languages share is one row. No AI writes code: autocomplete is off in coding mode. Install languages in
-  Settings → **Coding Languages** (Python, Java, Go, TypeScript, JavaScript, C, C++), downloaded from the language
-  library and checked against its signed list, kept apart from the input languages.
+  indented as the line you're on, the caret at its first placeholder, left empty for you to type (`def ():`, the caret
+  after `def `). A row names its language (`Python · function`); a snippet two of your languages share is one row. No AI
+  writes code: autocomplete is off in coding mode. Install languages in Settings → **Coding Languages** (Python, Java,
+  Go, TypeScript, JavaScript, C, C++), downloaded from the language library and checked against its signed list, kept
+  apart from the input languages.
 - **Privacy:** a plugin's script never sees what you type, the app or the field, only, for a lookup you turned on, what
   follows its prefix (sent to the hosts it lists). The lists, what you type and the lookups are never logged, sent to the
   AI, learned as English words or synced; the lists are cached in `~/Library/Caches/AllInOneIME/suggestions/` (readable

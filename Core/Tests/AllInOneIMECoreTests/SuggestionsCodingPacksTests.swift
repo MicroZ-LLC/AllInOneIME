@@ -32,7 +32,8 @@ struct SuggestionsCodingPacksTests {
 
     /// Every pack in Core/CodingPacks is kept as a downloaded one is (`CodingPackStore.keep`: a pack, of the language its
     /// file is named for, within the limits), names no keyword twice, and offers each of its snippets for its trigger
-    /// (spec 6.13: the body starts with it).
+    /// (spec 6.13: the body starts with it), with its caret at its first tab stop (none is in the trigger), every stop's
+    /// text where the field reports no ranges.
     @Test func theShippedPacksAreGood() throws {
         let files = try FileManager.default.contentsOfDirectory(at: Self.folder, includingPropertiesForKeys: nil)
             .filter { $0.pathExtension == "json" }
@@ -47,8 +48,10 @@ struct SuggestionsCodingPacksTests {
             #expect(Set(pack.keywords).count == pack.keywords.count, "\(language): a keyword twice")
             for snippet in pack.snippets {
                 let rows = CodingRows.rows(snippet.trigger, packs: [pack], words: [], appClass: .ordinary, in: t)
-                #expect(rows.contains { $0.insertion == CodingRows.expand(snippet.body).text },
-                        "\(language): \(snippet.trigger) (\(snippet.title ?? "")) is never offered")
+                let (text, back) = CodingRows.expand(snippet.body)
+                let plain = CodingRows.expand(snippet.body, toFirstStop: false).text
+                #expect(rows.contains { $0.insertion == text && $0.caretBack == back && ($0.plainInsertion ?? $0.insertion) == plain },
+                        "\(language): \(snippet.trigger) (\(snippet.title ?? "")) is never offered, or not with its caret at its first stop")
             }
         }
         #expect(store.installed().map(\.title) == ["C", "C++", "Go", "Java", "JavaScript", "Python", "TypeScript"])
@@ -64,7 +67,7 @@ struct SuggestionsCodingPacksTests {
     // MARK: - Through a session
 
     /// A snippet's second and later lines get the leading whitespace of the line the caret is on; the caret still goes to
-    /// its `$0`.
+    /// its first tab stop (try/except's exception, its text left out).
     @Test func aSnippetsLaterLinesGetTheCaretLinesIndentation() async throws {
         try await inEnglish {
             let world = Self.coding([try Self.shipped("python")])
@@ -74,12 +77,12 @@ struct SuggestionsCodingPacksTests {
             #expect(field.settle { field.rows.first?.comment.contains("try/except") == true }, "\(Self.texts(field))")
             let before = field.host.outputs.count
             #expect(field.press(SuggestionKeys.tab))
-            let rest = "\n    except Exception as e:\n        print(e)"
-            #expect(field.document == "def main():\n    try:\n        " + rest, "\(field.document.debugDescription)")
+            let rest = " as e:\n        print(e)"
+            #expect(field.document == "def main():\n    try:\n        \n    except " + rest, "\(field.document.debugDescription)")
             let moves = field.host.outputs.dropFirst(before).compactMap { output -> Int? in
                 if case let .moveCaret(back, _) = output { return back } else { return nil }
             }
-            #expect(moves == [rest.utf16.count], "the caret at $0, after its line's indentation: \(moves)")
+            #expect(moves == [rest.utf16.count], "the caret at ${1:Exception}, after its line's indentation: \(moves)")
 
             // Tabs as the line has them, after code on it too.
             let go = Self.coding([try Self.shipped("go")])
@@ -89,7 +92,55 @@ struct SuggestionsCodingPacksTests {
             #expect(tabs.settle { tabs.rows.contains { $0.comment.contains("if err != nil") } }, "\(Self.texts(tabs))")
             let index = try #require(tabs.rows.firstIndex { $0.comment.contains("if err != nil") })
             #expect(tabs.pick(at: index))
-            #expect(tabs.document == "func main() {\n\tx := 1; if err != nil {\n\t\treturn err\n\t}", "\(tabs.document.debugDescription)")
+            #expect(tabs.document == "func main() {\n\tx := 1; if err != nil {\n\t\treturn \n\t}", "\(tabs.document.debugDescription)")
+        }
+    }
+
+    /// A snippet's caret goes to its first tab stop, `${1:name}`, with that stop's text left out (the others keep theirs),
+    /// with Return as with Tab; its later lines still get the caret's line's indentation. Where the field reports no
+    /// ranges the caret can't go back into it: every stop's text goes in, the caret at the end, as before.
+    @Test func theCaretGoesToTheFirstTabStopWithoutItsText() async throws {
+        try await inEnglish {
+            let world = Self.coding([try Self.shipped("python")])
+            let field = world.field(app: "com.apple.Notes")
+            field.type("def")
+            #expect(field.settle { field.rows.first?.comment.contains("function") == true }, "\(Self.texts(field))")
+            var before = field.host.outputs.count
+            #expect(field.press(SuggestionKeys.enter))
+            #expect(field.document == "def ():\n    ", "\(field.document.debugDescription)")
+            #expect(Self.moves(field, since: before) == ["():\n    ".utf16.count], "right after \"def \": \(Self.moves(field, since: before))")
+
+            let indented = world.field()
+            indented.host.document = "class A:\n    "
+            indented.type("def")
+            #expect(indented.settle { indented.rows.contains { $0.comment.contains("method") } }, "\(Self.texts(indented))")
+            let index = try #require(indented.rows.firstIndex { $0.comment.contains("method") })
+            before = indented.host.outputs.count
+            #expect(indented.pick(at: index))
+            #expect(indented.document == "class A:\n    def (self):\n        ", "\(indented.document.debugDescription)")
+            #expect(Self.moves(indented, since: before) == ["(self):\n        ".utf16.count], "\(Self.moves(indented, since: before))")
+
+            // Another world: the method picked above comes first in this one.
+            let plain = Self.coding([try Self.shipped("python")]).field()
+            plain.type("def")
+            #expect(plain.settle { plain.rows.first?.comment.contains("function") == true }, "\(Self.texts(plain))")
+            var context = plain.host.context
+            context.read.subtract([.selectedRange, .selection])
+            context.selectedRange = nil
+            context.selection = nil
+            before = plain.host.outputs.count
+            plain.host.send(.key(SuggestionKeys.tab, context))
+            let outputs = Array(plain.host.outputs.dropFirst(before))
+            #expect(outputs.contains { if case .commit(" name():\n    ") = $0 { true } else if case .commitAfterKey(" name():\n    ") = $0 { true } else { false } },
+                    "no ranges: its text, the caret at the end (\(outputs))")
+            #expect(Self.moves(plain, since: before).allSatisfy { $0 == 0 }, "\(outputs)")
+        }
+    }
+
+    /// The caret moves back the session asked for since output `start`.
+    static func moves(_ field: SuggestionsField, since start: Int) -> [Int] {
+        field.host.outputs.dropFirst(start).compactMap { output -> Int? in
+            if case let .moveCaret(back, _) = output { return back } else { return nil }
         }
     }
 
@@ -102,7 +153,7 @@ struct SuggestionsCodingPacksTests {
             field.type("tr")
             #expect(field.settle { field.rows.first?.comment.contains("try/except") == true }, "\(Self.texts(field))")
             #expect(field.press(SuggestionKeys.tab))
-            #expect(field.document == "import os\ntry:\n    \nexcept Exception as e:\n    print(e)", "\(field.document.debugDescription)")
+            #expect(field.document == "import os\ntry:\n    \nexcept  as e:\n    print(e)", "\(field.document.debugDescription)")
         }
     }
 
@@ -122,7 +173,8 @@ struct SuggestionsCodingPacksTests {
     }
 
     /// What several installed packs' snippets put in alike is one row, its comment naming each pack's language: C's, C++'s
-    /// and Java's `if`; two bodies written differently that come out the same.
+    /// and Java's `if`; two bodies written differently that come out the same (their first stops, `${1:…}` and `${2:…}`,
+    /// empty, the caret there).
     @Test func identicalExpansionsFromSeveralPacksShowOnce() async throws {
         try await inEnglish {
             let world = Self.coding([try Self.shipped("c"), try Self.shipped("cpp"), try Self.shipped("java")])
@@ -143,7 +195,7 @@ struct SuggestionsCodingPacksTests {
             #expect(both.settle { !both.rows.isEmpty }, "\(Self.texts(both))")
             #expect(Self.texts(both) == ["show Example/Other · snippet"], "\(Self.texts(both))")
             #expect(both.press(SuggestionKeys.tab))
-            #expect(both.document == "show(value)", "\(both.document)")
+            #expect(both.document == "show()", "\(both.document)")
         }
     }
 
@@ -168,7 +220,7 @@ struct SuggestionsCodingPacksTests {
             let index = try #require(field.rows.firstIndex { $0.comment.contains("main guard") }, "\(Self.texts(field))")
             #expect(index > 0)
             #expect(field.pick(at: index))
-            #expect(field.document == "if __name__ == \"__main__\":\n    main()", "\(field.document.debugDescription)")
+            #expect(field.document == "if __name__ == \"__main__\":\n    ", "its first stop, main(), left out: \(field.document.debugDescription)")
             let again = world.field()
             again.type("if")
             #expect(again.settle { again.rows.count == 3 }, "\(Self.texts(again))")
