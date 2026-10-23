@@ -17,6 +17,9 @@ enum TranslateModeShared {
     /// Whether Shift is still down, with no mouse button, when the long press's time comes (`SuggestionsServices.shiftHeld`:
     /// a release that went unseen opens no chooser; the self-test supplies its own).
     static var shiftHeld: () -> Bool = { NSEvent.modifierFlags.contains(.shift) && NSEvent.pressedMouseButtons == 0 }
+    /// Whether Shift is down now, as a text field takes the focus (`SuggestionsServices.shiftDown`: its release, or its
+    /// press, may have gone to the field before).
+    static var shiftDown: () -> Bool = { NSEvent.modifierFlags.contains(.shift) }
     static var stickyKeys: () -> Bool = { universalAccess?.bool(forKey: "stickyKey") ?? false }
     private static let universalAccess = UserDefaults(suiteName: "com.apple.universalaccess")
     /// The mode said it lets text in as typed while secure input is on (once each time it comes on).
@@ -147,10 +150,11 @@ extension AllInOneIMEInputController {
 
     /// Another app became active (`TranslateModeShared.watchApps`), a text field in it or not: it leaves, with no
     /// notice, unless that app translates always (`State.appActivated`). The field still being typed in, if any,
-    /// follows (its draft goes in as typed) and the chip goes.
+    /// follows (its draft goes in as typed) and the chip goes. A long press of Shift there ends, its hint gone.
     @MainActor
     static func otherAppActivated(_ app: String?) {
         let field = activeController
+        if let field { field.apply(field.session.otherAppActivated(), client: nil) }
         let config = field?.services.loadSettings() ?? LiveConfig.current
         guard case .left = TranslateModeShared.state.appActivated(app, config: config) else { return }
         log.notice("Translate as You Type off (another app)")

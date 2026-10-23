@@ -329,15 +329,20 @@ extension SelfTest {
         _ = longPress()
 
         // Another app active with no text field in it (Finder, `watchApps`): off at once, the draft in as typed, the chip
-        // and the menu bar badge gone, no notice.
+        // and the menu bar badge gone, no notice; a press of Shift held then ends, its hint gone, and opens no chooser.
         controller.toggleTranslateMode()
         endNotice()
         draft("nihao")
+        shift(true)
+        _ = pump(timeout: 0.6) { false }  // the hint's time
         AllInOneIMEInputController.otherAppActivated("com.apple.finder")
         check(!TranslateModeShared.state.isOn && controller.composer.translateMode == nil && client.inserted.last == "你好"
               && client.marked.isEmpty && ["hidden", "none"].contains(chip()) && !MenuBarIcon.shared.translating
               && controller.notice == nil,
               "Finder active: off, the draft in as typed (\(client.inserted.last ?? "-")), no chip (\(chip())), no badge, no notice (\(controller.notice ?? "none"))")
+        let later = pump(timeout: 0.7) { chooserIsOpen(controller) }  // past the chooser's time, Shift still held
+        shift(false)
+        check(!later && !TranslateModeShared.state.isOn, "…the press of Shift held then opens no chooser later")
         let (own, other) = (ProcessInfo.processInfo.processIdentifier, pid_t(1))
         check(TranslateModeShared.isOtherApp(pid: other, id: "com.apple.finder", frontmost: other)
               && !TranslateModeShared.isOtherApp(pid: own, id: Bundle.main.bundleIdentifier, frontmost: own)

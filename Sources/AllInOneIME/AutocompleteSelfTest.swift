@@ -519,17 +519,23 @@ extension SelfTest {
         controller.activateServer(harness)
 
         // A narrow field (its frame as Accessibility tells it): the suggestion is cut at its edge, not drawn over what is
-        // beside it.
+        // beside it. In an app of its own: "Hello wor"'s suggestion, waved away with Esc above, never comes back in the
+        // harness's app for that text.
         let window = harness.window.frame
         let narrow = NSRect(x: window.minX, y: window.minY, width: 160, height: window.height)
         controller.fieldFrame = { narrow }
+        harness.bundleID = "com.aipinyin.selftest.narrow"
+        controller.activateServer(harness)
         harness.text = "Hello wo"
         harnessType("r", controller, harness)
-        check(ghost("ld, how are you?") && GhostOverlay.shared.frame.maxX <= narrow.maxX + 0.5
+        let narrowShown = ghost("ld, how are you?")
+        check(narrowShown && GhostOverlay.shared.frame.maxX <= narrow.maxX + 0.5
               && GhostOverlay.shared.frame.minX > AllInOneIMEInputController.caretRect(harness)?.minX ?? .infinity,
-              "a narrow field: cut at its edge (field to \(narrow.maxX), text \(GhostOverlay.shared.frame))")
+              "a narrow field: cut at its edge (field to \(narrow.maxX), text \(narrowShown ? "\(GhostOverlay.shared.frame)" : "not shown"))")
         harnessKey(controller, harness, "\u{1B}", code: VirtualKey.escape)
         controller.fieldFrame = { nil }
+        harness.bundleID = "com.aipinyin.selftest.harness"
+        controller.activateServer(harness)
 
         testAutocompleteConsentPanel(controller, harness, ghost: { ghost($0) })
 
@@ -605,17 +611,18 @@ extension SelfTest {
             (.anthropic, "https://autocomplete-selftest.invalid", false, nil)
         try? config.write()
         let destination = "anthropic autocomplete-selftest.invalid"
-        controller.activateServer(harness)  // a field afresh: "Hello wor"'s suggestion waved away before is shown again
+        controller.activateServer(harness)
         controller.toggleAutocomplete(nil)
         let panel = AutocompleteConsentPanel.shown
         check(panel?.isVisible == true && NSApp.modalWindow == nil && file()?.autocomplete == true && file()?.autocompleteCloud == nil,
               "turned on: on at once, the question up in a panel of its own, no modal loop")
         check(panel?.message.contains("autocomplete-selftest.invalid") == true && panel?.isKeyWindow == false,
               "it names where the text would go, and takes no focus (\(panel?.message ?? "none"))")
-        // Typing goes on while it's up, with the on-device model (the stand-in).
-        harness.text = "Hello wo"
-        harnessType("r", controller, harness)
-        check(ghost("ld, how are you?") && harness.text == "Hello wor" && AutocompleteConsentPanel.shown === panel,
+        // Typing goes on while it's up, with the on-device model (the stand-in): on text whose suggestion was never waved
+        // away in this app ("Hello wor"'s was, with Esc: for that text it never comes back here, in a field afresh too).
+        harness.text = "Let me kno"
+        harnessType("w", controller, harness)
+        check(ghost(" when you are free.") && harness.text == "Let me know" && AutocompleteConsentPanel.shown === panel,
               "typing goes on while the question is up: the on-device model's suggestion (\(GhostOverlay.shared.text ?? "none"))")
         harnessKey(controller, harness, "\u{1B}", code: VirtualKey.escape)
         panel?.useButton.performClick(nil)

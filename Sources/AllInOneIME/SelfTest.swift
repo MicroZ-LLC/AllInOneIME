@@ -1154,7 +1154,8 @@ enum SelfTest {
         settle()
         at()
         let commands = controller.panelModel().rows.map(\.text)
-        check(client.marked == "@" && commands == ["@improve", "@translate", "@question", "@agent", "@open"],
+        // The commands by name alone: the trigger was just typed.
+        check(client.marked == "@" && commands == ["improve", "translate", "question", "agent", "open"],
               "@ opens the command palette (\(commands))")
         readmeSnapshot("10-palette", controller, client, in: snapshotDirectory)
         type("q", controller, client)
@@ -1429,7 +1430,7 @@ enum SelfTest {
         at()
         type("n", controller, client)
         let offered = controller.panelModel().rows.first
-        check(offered?.text == "@note" && offered?.comment == "存一条笔记到备忘录",
+        check(offered?.text == "note" && offered?.comment == "存一条笔记到备忘录",
               "@n offers @note first (\(offered?.text ?? "-") \(offered?.comment ?? ""))")
         tab()
         type("nihao", controller, client)
@@ -1478,10 +1479,10 @@ enum SelfTest {
         type("r", controller, client)
         let both = controller.panelModel().rows.map(\.text)
         // @read is off for now (`Command.off`): @reply, then @reminder.
-        check(both.prefix(2) == ["@reply", "@reminder"] && !both.contains("@read"), "@r offers @reply and @reminder first, not @read (\(both))")
+        check(both.prefix(2) == ["reply", "reminder"] && !both.contains("read"), "@r offers @reply and @reminder first, not @read (\(both))")
         type("em", controller, client)
         let rows = controller.panelModel().rows
-        check(rows.map(\.text) == ["@reminder"] && rows.first?.comment == "加到提醒事项，时间直接写在里面",
+        check(rows.map(\.text) == ["reminder"] && rows.first?.comment == "加到提醒事项，时间直接写在里面",
               "@rem offers @reminder (\(rows.first?.comment ?? "-"))")
         tab()
         controller.readClipboard = { .text("明天下午3点给张三打电话") }

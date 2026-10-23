@@ -445,6 +445,68 @@ extension SuggestionsSessionTests {
             #expect(field.rows.map(\.text) == ["Translate as You Type", "Coding mode"], "held: the chooser (\(field.rows.map(\.text)))")
         }
     }
+
+    /// Shift went down in a field that lost the focus before Shift came up (Shift+Tab): its release reached the next
+    /// field. Back in the first, the first long press opens the chooser: the change seen last there (Shift down) is no
+    /// longer one a copy repeats.
+    @Test func aLongPressBackInAFieldLeftWithShiftDownOpensTheChooser() async {
+        await inEnglish {
+            let world = SuggestionsWorld()
+            let (first, next) = (world.field(), world.field())
+            first.host.focus()
+            first.host.modifiers(ModifierChange(key: .modifier(.shift, .left), modifiers: [.shift, .leftShift], timestamp: world.clock.timestamp))
+            first.press(SuggestionKeys.shiftTab)
+            first.host.send(.blur)
+            next.host.focus()
+            next.host.modifiers(ModifierChange(key: .modifier(.shift, .left), modifiers: [], timestamp: world.clock.timestamp))
+            next.host.send(.blur)
+            first.host.focus()
+            first.holdShift()
+            #expect(first.rows.map(\.text) == ["Translate as You Type", "Coding mode"], "the first press: the chooser (\(first.rows.map(\.text)))")
+        }
+    }
+
+    /// Another app becomes active while Shift is held in a field (`InputSession.otherAppActivated`, the shell's): the press
+    /// ends there, no chooser when its time comes; Shift as it is now, so the next press counts.
+    @Test func anotherAppActiveEndsTheLongPress() async {
+        await inEnglish {
+            let world = SuggestionsWorld()
+            let field = world.field()
+            field.host.modifiers(ModifierChange(key: .modifier(.shift, .left), modifiers: [.shift, .leftShift], timestamp: world.clock.timestamp))
+            field.noteTimers()
+            world.clock.advance(0.6)
+            field.fireTimers()
+            _ = field.host.session.otherAppActivated()
+            world.clock.advance(0.6)
+            field.fireTimers()
+            #expect(field.rows.isEmpty, "another app active: no chooser (\(field.rows.map(\.text)))")
+            field.holdShift()
+            #expect(field.rows.map(\.text) == ["Translate as You Type", "Coding mode"], "the next press: the chooser (\(field.rows.map(\.text)))")
+        }
+    }
+
+    /// A field takes the focus with Shift down already (`SuggestionsServices.shiftDown`: pressed in the field before,
+    /// Shift+Tab): Shift's down coming late (a copy, the page busy) starts no long press. Let go and held again: the
+    /// chooser.
+    @Test func shiftDownAsAFieldTakesTheFocusStartsNoLongPress() async {
+        await inEnglish {
+            let world = SuggestionsWorld()
+            let down = Locked(initialState: false)
+            let field = world.field { $0.suggestions.shiftDown = { down.withLock { $0 } } }
+            field.host.send(.blur)
+            down.withLock { $0 = true }
+            field.host.focus()
+            field.host.modifiers(ModifierChange(key: .modifier(.shift, .left), modifiers: [.shift, .leftShift], timestamp: world.clock.timestamp))
+            field.noteTimers()
+            world.clock.advance(1.2)
+            field.fireTimers()
+            #expect(field.rows.isEmpty, "Shift down before the focus came: no chooser (\(field.rows.map(\.text)))")
+            field.host.modifiers(ModifierChange(key: .modifier(.shift, .left), modifiers: [], timestamp: world.clock.timestamp))
+            down.withLock { $0 = false }
+            field.holdShift()
+            #expect(field.rows.map(\.text) == ["Translate as You Type", "Coding mode"], "pressed again: the chooser (\(field.rows.map(\.text)))")
+        }
+    }
 }
 
 extension SuggestionsSessionTests {
