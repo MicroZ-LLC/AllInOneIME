@@ -34,16 +34,20 @@ struct PluginCompletionRuntimeTests {
         CompletionCall(plugin: plugin, source: issues,
                        context: CompletionContext(source: "issues", preferences: ["repos": "octo-org/octo-repo", "token": "t0ken"],
                                                   language: .english),
-                       timeout: timeout, hosts: ["api.github.com"])
+                       timeout: timeout, hosts: ["api.github.com"], scriptSHA256: Self.sha)
     }
 
+    static let sha = String(repeating: "5a", count: 32)
+
     /// What it runs: `--run-plugin <folder> --completion query`, nothing else on the command line; the `ctx` (passwords
-    /// too), the query's text and the hosts approved on standard input; what it prints comes back as it is.
+    /// too), the query's text, the hosts and the script's SHA-256 approved on standard input; what it prints comes back as
+    /// it is.
     @Test func itRunsTheChildWithEverythingOnStandardInput() async throws {
         let standIn = try StandIn("cat")
         let output = try await standIn.runtime.query("12", Self.call(timeout: 10))
         let input = try JSONDecoder().decode(PluginHost.CompletionInput.self, from: output)
-        #expect(input == PluginHost.CompletionInput(Self.call(timeout: 10).context, text: "12", hosts: ["api.github.com"]))
+        #expect(input == PluginHost.CompletionInput(Self.call(timeout: 10).context, text: "12", hosts: ["api.github.com"],
+                                                    scriptSHA256: Self.sha))
         let arguments = try String(contentsOf: standIn.arguments, encoding: .utf8).split(separator: "\n").map(String.init)
         #expect(arguments == ["--run-plugin", "/tmp/plugins/github", "--completion", "query"], "\(arguments)")
         #expect(!arguments.contains { $0.contains("t0ken") })

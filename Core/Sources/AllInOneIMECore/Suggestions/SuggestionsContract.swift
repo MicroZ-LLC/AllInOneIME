@@ -202,21 +202,25 @@ public struct CompletionContext: Equatable, Sendable {
 /// A call into a plugin's completion script: which plugin and source, its `ctx`, and how long it may take (`load`: the
 /// plugin's `timeoutSeconds`, 20 s at most, `PluginManifest.timeout`; `query`: 3 s at most). The runtime stops it then
 /// and throws. `hosts`: those the user approved with the source (`CompletionSourceApproval.hosts`): the script may
-/// fetch from those only (that its plugin.json still lists when it runs); none, from none.
+/// fetch from those only (that its plugin.json still lists when it runs); none, from none. `scriptSHA256`: the script's
+/// the user approved (`CompletionSourceApproval.scriptSHA256`): only that script runs (one changed since, or none
+/// given: the call fails).
 public struct CompletionCall: Equatable, Sendable {
     public var plugin: InstalledPlugin
     public var source: CompletionSource
     public var context: CompletionContext
     public var timeout: TimeInterval
     public var hosts: [String]
+    public var scriptSHA256: String?
 
     public init(plugin: InstalledPlugin, source: CompletionSource, context: CompletionContext, timeout: TimeInterval,
-                hosts: [String] = []) {
+                hosts: [String] = [], scriptSHA256: String? = nil) {
         self.plugin = plugin
         self.source = source
         self.context = context
         self.timeout = timeout
         self.hosts = hosts
+        self.scriptSHA256 = scriptSHA256
     }
 }
 

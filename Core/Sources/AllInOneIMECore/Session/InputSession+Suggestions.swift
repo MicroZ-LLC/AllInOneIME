@@ -71,6 +71,8 @@ extension InputSession {
         var key: CompletionSourceKey
         /// The hosts the user approved with it: its script fetches from those only (`CompletionCall.hosts`).
         var hosts: [String]
+        /// The SHA-256 of the script the user approved: only that one runs (`CompletionCall.scriptSHA256`).
+        var scriptSHA256: String
     }
 
     // MARK: - The sources
@@ -90,7 +92,7 @@ extension InputSession {
                 guard let approval = approvals.first(where: { $0.holds(for: source, hosts: plugin.manifest.hosts, scriptSHA256: sha) })
                 else { continue }
                 active.append(ActiveSource(plugin: plugin, source: source, key: CompletionSourceKey(plugin: plugin.name, source: source.name),
-                                           hosts: approval.hosts))
+                                           hosts: approval.hosts, scriptSHA256: approval.scriptSHA256))
             }
         }
         return active
@@ -744,11 +746,11 @@ extension InputSession {
     }
 
     /// The call into `active`'s script: its `ctx` (its preferences filled in off the session's thread, `completionPreferences`),
-    /// the hosts approved.
+    /// the hosts and the script approved.
     func completionCall(_ active: ActiveSource, timeout: TimeInterval) -> CompletionCall {
         CompletionCall(plugin: active.plugin, source: active.source,
                        context: CompletionContext(source: active.source.name, preferences: [:], language: UIText.pluginLanguage),
-                       timeout: timeout, hosts: active.hosts)
+                       timeout: timeout, hosts: active.hosts, scriptSHA256: active.scriptSHA256)
     }
 
     /// What reads `plugin`'s preferences for its script (off the session's thread: passwords come from the secret store):

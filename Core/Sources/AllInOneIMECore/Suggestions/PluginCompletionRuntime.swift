@@ -48,8 +48,9 @@ extension PluginScript {
 
 extension PluginHost {
     /// `--run-plugin <folder> --completion load|query`: `function` of the plugin's completion script, its `ctx`, a
-    /// query's text and the hosts the user approved as JSON on standard input (`CompletionInput`, so that no password is
-    /// on a command line); what it returned as JSON on standard output, an error message on standard error (exit 1).
+    /// query's text, the hosts and the script the user approved as JSON on standard input (`CompletionInput`, so that no
+    /// password is on a command line); what it returned as JSON on standard output, an error message on standard error
+    /// (exit 1).
     public static func runCompletion(directory path: String, function: PluginScript.CompletionFunction,
                                      appVersion: String = AppVersion.string) -> Int32 {
         switch completion(directory: path, function: function, input: FileHandle.standardInput.readDataToEndOfFile(),
@@ -63,6 +64,9 @@ extension PluginHost {
         }
     }
 
+    /// Why a completion call didn't run the script: it isn't the one the user approved.
+    static func scriptChanged(_ plugin: String) -> String { "Plugin \(plugin): its script changed since it was approved" }
+
     /// Why a completion call failed, as the child process prints it.
     public struct CompletionFailure: Error, Equatable, ExpressibleByStringLiteral {
         public var message: String
@@ -72,7 +76,8 @@ extension PluginHost {
 
     /// `runCompletion` with `input` (standard input's): the plugin.json in `path` read again, `fetch` allowed to the hosts
     /// it lists that the user approved (`CompletionInput.hosts`, in any case: an update may have added one since), by
-    /// way of `fetcher` (the network's, `URLSessionFetcher`).
+    /// way of `fetcher` (the network's, `URLSessionFetcher`); the script run only if it is the one approved
+    /// (`CompletionInput.scriptSHA256`: an update may have come between the session's check and this read).
     public static func completion(directory path: String, function: PluginScript.CompletionFunction, input: Data,
                                   appVersion: String = AppVersion.string,
                                   fetcher: ([String]) -> PluginFetcher = { URLSessionFetcher(hosts: $0) }) -> Result<String, CompletionFailure> {
@@ -89,6 +94,9 @@ extension PluginHost {
         }
         guard let input = try? JSONDecoder().decode(CompletionInput.self, from: input),
               let language = Language(rawValue: input.language) else { return .failure("No completion context on standard input") }
+        guard let sha = input.scriptSHA256, PluginLibrary.sha256(source) == sha.lowercased() else {
+            return .failure(.init(scriptChanged(manifest.name)))
+        }
         let approved = Set(input.hosts.map { $0.lowercased() })
         let hosts = manifest.hosts.filter { approved.contains($0.lowercased()) }
         let context = CompletionContext(source: input.source, preferences: input.preferences, language: language)
@@ -100,21 +108,24 @@ extension PluginHost {
         }
     }
 
-    /// What `--completion` reads on standard input: the script's `ctx`, a query's text, and the hosts the user approved
-    /// (`CompletionCall.hosts`).
+    /// What `--completion` reads on standard input: the script's `ctx`, a query's text, the hosts the user approved
+    /// (`CompletionCall.hosts`) and the SHA-256 of the script they approved (`CompletionCall.scriptSHA256`; none: nothing
+    /// runs).
     public struct CompletionInput: Codable, Equatable, Sendable {
         public var source: String
         public var preferences: [String: String]
         public var language: String
         public var text: String?
         public var hosts: [String]
+        public var scriptSHA256: String?
 
-        public init(_ context: CompletionContext, text: String?, hosts: [String] = []) {
+        public init(_ context: CompletionContext, text: String?, hosts: [String] = [], scriptSHA256: String? = nil) {
             source = context.source
             preferences = context.preferences
             language = context.language.rawValue
             self.text = text
             self.hosts = hosts
+            self.scriptSHA256 = scriptSHA256
         }
     }
 
@@ -127,9 +138,10 @@ extension PluginHost {
 
 /// Runs plugins' completion scripts (spec 1.2) as script plugins run: in a child process of the input method
 /// (`<executable> --run-plugin <folder> --completion load|query`, `PluginHost.runCompletion`), `fetch` to the plugin's
-/// hosts the user approved only (`CompletionCall.hosts`), stopped after the call's timeout (or when the task is cancelled); what it printed, as it is (the core
-/// checks it). `inProcess`: the script runs here, on a thread of its own, with the `fetcher` given (the self-test's
-/// stand-in for the network); stopped at its timeout where the engine can.
+/// hosts the user approved only (`CompletionCall.hosts`), the script they approved only (`CompletionCall.scriptSHA256`),
+/// stopped after the call's timeout (or when the task is cancelled); what it printed, as it is (the core checks it).
+/// `inProcess`: the script runs here, on a thread of its own, with the `fetcher` given (the self-test's stand-in for the
+/// network); stopped at its timeout where the engine can.
 public struct PluginCompletionRuntime: CompletionRuntime {
     public enum Mode: Sendable {
         case childProcess(executable: String)
@@ -159,15 +171,20 @@ public struct PluginCompletionRuntime: CompletionRuntime {
     private func run(_ function: PluginScript.CompletionFunction, text: String?, _ call: CompletionCall) async throws -> Data {
         switch mode {
         case let .childProcess(executable):
-            let input = try JSONEncoder().encode(PluginHost.CompletionInput(call.context, text: text, hosts: call.hosts))
+            let input = try JSONEncoder().encode(PluginHost.CompletionInput(call.context, text: text, hosts: call.hosts,
+                                                                            scriptSHA256: call.scriptSHA256))
             let argv = [executable, "--run-plugin", call.plugin.directory.path, "--completion", function.rawValue]
             let output = try await CommandRunner.output(argv, stdin: String(decoding: input, as: UTF8.self), timeout: call.timeout,
                                                         maxOutput: Self.maxOutput)
             return Data(output.utf8)
         case let .inProcess(fetcher):
-            guard let script = call.plugin.scriptURL, let source = try? String(contentsOf: script, encoding: .utf8) else {
+            guard let script = call.plugin.scriptURL, let data = try? Data(contentsOf: script) else {
                 throw PluginScriptError.failed("The plugin has no script")
             }
+            guard let sha = call.scriptSHA256, PluginLibrary.sha256(data) == sha.lowercased() else {
+                throw PluginScriptError.failed(PluginHost.scriptChanged(call.plugin.name))
+            }
+            let source = String(decoding: data, as: UTF8.self)
             let fetch = fetcher(call.plugin)
             return try await withCheckedThrowingContinuation { continuation in
                 Thread.detachNewThread {

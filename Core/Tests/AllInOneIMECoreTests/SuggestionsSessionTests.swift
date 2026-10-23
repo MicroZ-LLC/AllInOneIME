@@ -56,8 +56,9 @@ struct SuggestionsSessionTests {
 
 extension SuggestionsSessionTests {
     /// Each call into a plugin's script carries the hosts the user approved with the source: its child process fetches
-    /// from those only (that plugin.json still lists, `PluginHost.completion`).
-    @Test func theCallsCarryTheApprovedHosts() async throws {
+    /// from those only (that plugin.json still lists, `PluginHost.completion`); and the SHA-256 of the script approved,
+    /// which the child checks before it runs the script (a plugin updated meanwhile: none run).
+    @Test func theCallsCarryTheApprovedHostsAndScript() async throws {
         try await inEnglish {
             let world = SuggestionsWorld()
             try world.github()
@@ -66,6 +67,8 @@ extension SuggestionsSessionTests {
             #expect(field.settle { !world.runtime.loads.isEmpty && !world.runtime.queryCalls.isEmpty }, "\(world.runtime.calls.count) calls")
             let calls = world.runtime.loads + world.runtime.queryCalls
             #expect(calls.allSatisfy { $0.hosts == ["api.github.com"] }, "\(calls.map(\.hosts))")
+            let approved = world.switches.enabled.first?.scriptSHA256
+            #expect(approved != nil && calls.allSatisfy { $0.scriptSHA256 == approved }, "\(calls.map(\.scriptSHA256))")
         }
     }
 }

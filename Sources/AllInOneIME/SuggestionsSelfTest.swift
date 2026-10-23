@@ -161,7 +161,7 @@ extension SelfTest {
             .write(to: local.appendingPathComponent("main.js"))
         if let plugin = PluginStore.load(from: folder).plugins.first(where: { $0.name == "accounts" }), let ids = plugin.manifest.completions.first {
             let call = CompletionCall(plugin: plugin, source: ids, context: CompletionContext(source: "ids", preferences: [:], language: .english),
-                                      timeout: 10)
+                                      timeout: 10, scriptSHA256: plugin.scriptURL.flatMap(PluginStore.sha256(of:)))
             let output = runAsync(15) { try? await PluginCompletionRuntime().load(call) } ?? nil
             let list = output.flatMap { try? CompletionOutput.read($0).get() }
             check(list?.items.first?.match == "123456789012" && list?.items.first?.title == "en ids",

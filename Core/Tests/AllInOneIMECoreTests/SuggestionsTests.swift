@@ -409,9 +409,10 @@ struct SuggestionsTests {
         try Data(#"function load(ctx) { fetch("https://api.github.com/x"); return { items: [] }; }"#.utf8)
             .write(to: folder.appendingPathComponent("main.js"))
         let context = CompletionContext(source: "issues", preferences: [:], language: .english)
+        let sha = try #require(PluginStore.sha256(of: folder.appendingPathComponent("main.js")))
         for (approved, allowed) in [(["api.github.com", "api.example.org"], ["api.github.com", "API.EXAMPLE.ORG"]), ([], [])] {
             let given = Locked<[String]?>(initialState: nil)
-            let input = try JSONEncoder().encode(PluginHost.CompletionInput(context, text: nil, hosts: approved))
+            let input = try JSONEncoder().encode(PluginHost.CompletionInput(context, text: nil, hosts: approved, scriptSHA256: sha))
             let result = PluginHost.completion(directory: folder.path, function: .load, input: input) { hosts in
                 given.withLock { $0 = hosts }
                 return StubFetcher(["https://api.github.com/x": (200, "{}")])
@@ -421,6 +422,39 @@ struct SuggestionsTests {
         }
         #expect(PluginHost.completion(directory: folder.path, function: .load, input: Data("{}".utf8)) { _ in StubFetcher() }
                 == .failure("No completion context on standard input"))
+    }
+
+    /// The child process runs the script only if it is the one approved (its SHA-256 on standard input): a plugin
+    /// updated between the session's check and the child's read of it fails, nothing of it run.
+    @Test(.enabled(if: Available.javaScript)) func theChildProcessRunsOnlyTheScriptApproved() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("suggestions-sha-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try Data(#"""
+            { "name": "tracker", "version": "1.1.0", "type": "script", "script": "main.js", "hosts": ["api.github.com"],
+              "completions": [ { "name": "issues", "title": "Issues", "prefix": "#", "list": true } ] }
+            """#.utf8).write(to: folder.appendingPathComponent("plugin.json"))
+        let script = folder.appendingPathComponent("main.js")
+        try Data(#"function load(ctx) { fetch("https://api.github.com/x"); return { items: [] }; }"#.utf8).write(to: script)
+        let approved = try #require(PluginStore.sha256(of: script))
+        let context = CompletionContext(source: "issues", preferences: [:], language: .english)
+        func load(_ sha: String?) throws -> (Result<String, PluginHost.CompletionFailure>, ran: Bool) {
+            let ran = Locked(initialState: false)
+            let input = try JSONEncoder().encode(PluginHost.CompletionInput(context, text: nil, hosts: ["api.github.com"], scriptSHA256: sha))
+            let result = PluginHost.completion(directory: folder.path, function: .load, input: input) { _ in
+                ran.withLock { $0 = true }
+                return StubFetcher(["https://api.github.com/x": (200, "{}")])
+            }
+            return (result, ran.withLock { $0 })
+        }
+        let same = try load(approved)
+        #expect(same.0 == .success(#"{"items":[]}"#) && same.ran, "\(same)")
+        #expect(try load(approved.uppercased()).0 == .success(#"{"items":[]}"#), "hex in either case")
+        try Data(#"function load(ctx) { fetch("https://api.github.com/y"); return { items: [] }; }"#.utf8).write(to: script)
+        let changed = try load(approved)
+        #expect(changed.0 == .failure("Plugin tracker: its script changed since it was approved") && !changed.ran, "\(changed)")
+        let none = try load(nil)
+        #expect(none.0 == .failure("Plugin tracker: its script changed since it was approved") && !none.ran, "\(none)")
     }
 
     // MARK: - The list cached on disk
