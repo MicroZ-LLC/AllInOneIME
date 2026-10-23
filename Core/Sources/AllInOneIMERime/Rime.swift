@@ -69,7 +69,7 @@ public final class RimeService {
         guard !isStarted else { return }
         let fm = FileManager.default
         try fm.createDirectory(at: userDataDir, withIntermediateDirectories: true)
-        try Self.prepareLunarDatabase(sharedDataDir: sharedDataDir, userDataDir: userDataDir)
+        Self.supplyLunarDatabase(sharedDataDir: sharedDataDir, userDataDir: userDataDir)
         if let logDir { try fm.createDirectory(at: logDir, withIntermediateDirectories: true) }
         // Our schema-list patch goes into the user directory so it applies (and can be edited there).
         let patch = "default.custom.yaml"
@@ -110,15 +110,79 @@ public final class RimeService {
         isStarted = true
     }
 
+    static let log = CoreLog(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "rime")
+
     /// rime-ice's lunar translator opens `lua/lunar.db` relative to the user folder, unlike its scripts,
-    /// which librime also finds in the shared folder. Supply the data there without replacing the user's own.
+    /// which librime also finds in the shared folder: a copy goes there (`prepareLunarDatabase`), before librime starts
+    /// and before each deployment (a language pack or app update changes the shared one). Never what stops pinyin: a
+    /// copy that fails (a full disk, `lua` not a folder) is logged, and only the lunar dates are missing.
+    static func supplyLunarDatabase(sharedDataDir: URL, userDataDir: URL) {
+        do {
+            try prepareLunarDatabase(sharedDataDir: sharedDataDir, userDataDir: userDataDir)
+        } catch {
+            log.error("lunar date database not copied into the Rime user folder: \(error.localizedDescription)")
+        }
+    }
+
+    /// The shared `lua/lunar.db` copied into the user folder, unless the copy there is current; copied again once the
+    /// shared one changed, as long as the copy is still the one made here (`LunarCopy`, beside it). One the user put
+    /// there instead (or a link) is left as it is. Throws when the copy can't be made.
     static func prepareLunarDatabase(sharedDataDir: URL, userDataDir: URL) throws {
         let fm = FileManager.default
-        let source = sharedDataDir.appendingPathComponent("lua/lunar.db")
+        let source = sharedDataDir.appendingPathComponent("lua/lunar.db").resolvingSymlinksInPath()
         let destination = userDataDir.appendingPathComponent("lua/lunar.db")
-        guard fm.fileExists(atPath: source.path), !fm.fileExists(atPath: destination.path) else { return }
+        let record = userDataDir.appendingPathComponent("lua/" + LunarCopy.fileName)
+        // Other schemas have none.
+        guard let shared = LunarCopy.Stamp(source, type: .typeRegular) else { return }
+        let copied = (try? Data(contentsOf: record)).flatMap { try? JSONDecoder().decode(LunarCopy.self, from: $0) }
+        // Anything there, a dangling link too.
+        if (try? fm.attributesOfItem(atPath: destination.path)) != nil {
+            let present = LunarCopy.Stamp(destination, type: .typeRegular)
+            if let copied, present == copied.copy {
+                guard copied.source != shared else { return }  // made here, from the shared one as it is
+            } else if copied == nil, present != nil, try Data(contentsOf: destination) == Data(contentsOf: source) {
+                // The shared one's bytes, copied before there was a record (0.6.7's first builds): made here.
+                try write(LunarCopy(source: shared, copy: present!), to: record)
+                return
+            } else {
+                return  // the user's own
+            }
+        }
         try fm.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try fm.copyItem(at: source, to: destination)
+        try Data(contentsOf: source).write(to: destination, options: .atomic)
+        guard let copy = LunarCopy.Stamp(destination, type: .typeRegular) else {
+            throw CocoaError(.fileWriteUnknown, userInfo: [NSFilePathErrorKey: destination.path])
+        }
+        try write(LunarCopy(source: shared, copy: copy), to: record)
+    }
+
+    private static func write(_ copy: LunarCopy, to url: URL) throws {
+        try JSONEncoder().encode(copy).write(to: url, options: .atomic)
+    }
+
+    /// What the user folder's `lua/lunar.db` was copied from, and the copy as it was made: a later shared one is copied
+    /// over it only while it is still that copy.
+    struct LunarCopy: Codable, Equatable {
+        static let fileName = "lunar.db.allinoneime.json"
+
+        /// A file's size and modification time.
+        struct Stamp: Codable, Equatable {
+            var size: UInt64
+            var modified: Double
+
+            /// Nil when `url` isn't a file of `type` (a link isn't followed).
+            init?(_ url: URL, type: FileAttributeType) {
+                guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+                      attributes[.type] as? FileAttributeType == type,
+                      let size = (attributes[.size] as? NSNumber)?.uint64Value,
+                      let modified = attributes[.modificationDate] as? Date else { return nil }
+                self.size = size
+                self.modified = modified.timeIntervalSince1970
+            }
+        }
+
+        var source: Stamp
+        var copy: Stamp
     }
 
     /// rime-ice's English dictionary in the shared data (`EnglishDictionary`), for the English words put among the
@@ -174,6 +238,7 @@ public final class RimeService {
         redeployWanted = false
         redeployPoll?.cancel()
         redeployPoll = nil
+        if let sharedDataDir, let userDataDir { Self.supplyLunarDatabase(sharedDataDir: sharedDataDir, userDataDir: userDataDir) }
         if invalidateSchemaWanted {
             invalidateSchemaWanted = false
             do { try invalidateGeneratedSchema() }
