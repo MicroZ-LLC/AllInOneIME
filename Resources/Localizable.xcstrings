@@ -3058,7 +3058,7 @@
       }
     },
     "A few minutes of pauses would use up AllInOneIME Cloud's free requests for the day, and your @ commands would fail" : {
-      "comment" : "AllInOneIME 云每天的免费次数，停顿几分钟就会用完，当天的 @ 命令就用不了了 — Sources/AllInOneIME/InputMenu.swift",
+      "comment" : "AllInOneIME 云每天的免费次数，停顿几分钟就会用完，当天的 @ 命令就用不了了 — Sources/AllInOneIME/AutocompleteOverlay.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {

@@ -218,6 +218,20 @@ enum AutocompleteSwitch {
         Autocomplete.Words(language: UIText.language).destination(config)
     }
 
+    /// `destination` as a menu's line, under the choice it is about (the main switch, an app's in This App): not
+    /// choosable, indented; with AllInOneIME Cloud picked, its tooltip says why it isn't asked. Nil where `destination` is.
+    static func destinationItem(_ config: Config) -> NSMenuItem? {
+        guard let destination = destination(config) else { return nil }
+        let line = NSMenuItem(title: destination, action: nil, keyEquivalent: "")
+        line.isEnabled = false
+        line.indentationLevel = 1
+        if config.provider == .hosted {
+            line.toolTip = UIText.triggered(tr("AllInOneIME 云每天的免费次数，停顿几分钟就会用完，当天的 @ 命令就用不了了",
+                                               "A few minutes of pauses would use up AllInOneIME Cloud's free requests for the day, and your @ commands would fail"))
+        }
+        return line
+    }
+
     /// Whether the model it would ask can answer: a cloud provider (whether it does is seen at the first pause), or the
     /// on-device model available.
     static func modelReady(_ config: Config) -> Bool {

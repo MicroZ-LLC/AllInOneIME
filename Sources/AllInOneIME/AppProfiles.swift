@@ -232,6 +232,10 @@ struct AppProfilesSection: View {
                     Text(tr("停一下，光标后出现灰字，按 Tab 接受。「总是」在这里不管全局开关，也不会因为没用上而停下。代码编辑器（Xcode、VS Code、Cursor、JetBrains 等）里默认关，设成「总是」才开。",
                             "Pause, and the rest of the sentence shows in gray after the caret; Tab takes it. Always: here whatever the switch, and it doesn't stop for want of use. Off in code editors (Xcode, VS Code, Cursor, JetBrains…) unless set to Always."))
                         .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    // Where the text goes, as under the main switch: Always sends it from this app whatever the switch.
+                    if let destination = AutocompleteSwitch.destination(model.config) {
+                        Text(destination).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    }
                 }
             }
             // Suggestions as everywhere (the input menu's switch), or none in the app.
@@ -287,8 +291,9 @@ struct AppProfilesSection: View {
 // MARK: - The input menu
 
 extension AllInOneIMEInputController {
-    /// "This App: Slack": no AI, typing out and the input language a field starts in, for the app being typed in
-    /// (`AppProfile`), and its page in the settings. Nil without an app.
+    /// "This App: Slack": no AI, typing out, autocomplete (with where its text goes, as under the main switch) and the
+    /// input language a field starts in, for the app being typed in (`AppProfile`), and its page in the settings. Nil
+    /// without an app.
     @MainActor
     func appMenuItem(config: Config?, app: String?) -> NSMenuItem? {
         guard let app, AppProfile.isBundleID(app) else { return nil }
@@ -313,6 +318,8 @@ extension AllInOneIMEInputController {
         add(AppProfileText.autocompleteEverywhere(current, app: app), #selector(setAppAutocomplete(_:)), on: profile.autocomplete == nil)
         add(tr("总是续写", "Always", key: "autocomplete.always"), #selector(setAppAutocomplete(_:)), value: "on", on: profile.autocomplete == true)
         add(tr("不续写", "Never", key: "autocomplete.never"), #selector(setAppAutocomplete(_:)), value: "off", on: profile.autocomplete == false)
+        // Where the text goes, as under the main switch: Always sends it from this app whatever the switch.
+        if let line = AutocompleteSwitch.destinationItem(current) { menu.addItem(line) }
         menu.addItem(.separator())
         let note = NSMenuItem(title: tr("开始的输入语言：", "Starts In:"), action: nil, keyEquivalent: "")
         note.isEnabled = false
