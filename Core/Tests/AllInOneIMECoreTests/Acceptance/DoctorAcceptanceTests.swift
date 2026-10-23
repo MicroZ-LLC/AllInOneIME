@@ -445,7 +445,7 @@ struct DoctorAcceptanceTests {
             "E20261015 10:00:04.000 1234 engine.cc:82] error " + String(repeating: "x", count: 300),
         ]
         let summary = Doctor.summarizeLogLines(lines, home: home, limit: 10)
-        #expect(summary.count == 5)  // the error lines only
+        #expect(summary.count == 4)  // the error lines only, the same event once (the two engine errors: one, twice)
         for line in summary {
             #expect(!line.contains(home), "\(line)")
             #expect(!line.contains("wo xiang qu") && !line.contains("hunter2"), "\(line)")
