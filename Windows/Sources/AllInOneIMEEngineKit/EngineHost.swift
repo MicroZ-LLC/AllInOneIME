@@ -262,15 +262,16 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         }
     }
 
-    /// The settings on the Composer, as the Mac's `applySettings`: the action key, the candidates' layout, the
-    /// languages, the commands (custom ones, plugins, script extensions), the interface language; the default input
-    /// mode for a new session (and again when it changed in the settings).
+    /// The settings on the Composer, as the Mac's `applySettings`: the action key, the command trigger, the candidates'
+    /// layout, the languages, the commands (custom ones, plugins, script extensions), the interface language; the default
+    /// input mode for a new session (and again when it changed in the settings).
     func apply(_ config: Config, to session: ComposerSession, state: SessionState) {
         let composer = session.composer
         let app = session.field.app
         fieldChanged(in: session)
         composer.voiceEnabled = false  // no dictation on Windows yet
         composer.actionKey = config.actionKey
+        composer.commandTrigger = config.commandTrigger
         composer.typesResults = false  // typed out step by step comes later (ComposerSession commits it in one go)
         composer.horizontalCandidates = config.candidateLayout == .horizontal
         composer.outputLanguages = config.outputLanguages
@@ -284,6 +285,9 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         let language = settings.interfaceLanguage(config)
         var messages = Composer.Messages.make(language: language, terms: Self.terms)
         messages.actionKeyName = InterfaceWords(language: language).name(config.actionKey, terms: Self.terms)
+        // Its notices that name a command (`@tasks`, `@py`) with the trigger the settings have, as the Mac's.
+        messages.startedInBackground = messages.startedInBackground.replacingOccurrences(of: "@", with: config.commandTrigger)
+        messages.codeNotRun = messages.codeNotRun.replacingOccurrences(of: "@", with: config.commandTrigger)
         composer.messages = messages
         // Chinese only with librime; Korean and Hindi need their packs, which Windows doesn't download yet; Latin
         // languages always.
@@ -598,7 +602,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         let executable = self.executable
         let language: Language = InterfaceLanguage.isChinese(settings.interfaceLanguage(config)) ? .chinese : .english
         let terminal = ComposerSession.isTerminal(session.field.process)
-        let improveTranslates = config.improveTranslates
+        let (improveTranslates, trigger) = (config.improveTranslates, config.commandTrigger)
         func logged(_ command: Command) -> String { command.custom == nil || command.plugin != nil ? command.name : "custom" }
         log("session \(session.sid): request \(id) (\(input.count) characters\(command.map { ", @\(logged($0))" } ?? "")"
             + (plan.map { ", \($0.inner.count) inside" } ?? "") + ")")
@@ -613,7 +617,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
             }
             if let command, command.kind == .run, let custom = command.custom { return CommandRunner.run(custom, input: input) }
             if command == nil || command?.kind == .convert {
-                let (mode, text) = WritingMode.parse(command, input, improveTranslates: improveTranslates)
+                let (mode, text) = WritingMode.parse(command, input, improveTranslates: improveTranslates, trigger: trigger)
                 return converter.convert(text, mode: mode, app: app)
             }
             return command.map { converter.generate($0, input: input, app: app, fresh: fresh) } ?? converter.convert(input, app: app)
@@ -643,7 +647,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         switch refinement.request {
         case let .writing(command, input):
             let (mode, text) = WritingMode.parse(command?.kind == .convert ? command : nil, input,
-                                                 improveTranslates: config.improveTranslates)
+                                                 improveTranslates: config.improveTranslates, trigger: config.commandTrigger)
             stream = converter.convert(text, mode: mode, app: app, turns: refinement.turns)
         case let .command(command, input):
             stream = converter.generate(command, input: input, app: app, fresh: refinement.fresh, turns: refinement.turns)
