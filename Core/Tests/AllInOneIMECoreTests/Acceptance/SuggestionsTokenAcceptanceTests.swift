@@ -9,14 +9,14 @@ import AllInOneIMETestSupport
 /// SuggestionsAcceptanceTests.swift.
 @Suite(.serialized, SuggestionsOneAtATime())
 struct SuggestionsTokenAcceptanceTests {
-    func inEnglish(_ body: () throws -> Void) rethrows { try withInterfaceLanguage("en", body) }
+    func inEnglish(_ body: () throws -> Void) async rethrows { try await withInterfaceLanguage("en", body) }
 
     // MARK: - The token
 
     /// English mode: the keys go to the app, and the session follows them: "#7" shows the issues starting with it (5 at
     /// most, in the list's order), each digit after it narrows them, a token nothing matches shows none.
-    @Test func aPrefixAndDigitsTypedInEnglishModeShowTheSourcesRows() throws {
-        try inEnglish {
+    @Test func aPrefixAndDigitsTypedInEnglishModeShowTheSourcesRows() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github()
             let field = world.field()
@@ -36,8 +36,8 @@ struct SuggestionsTokenAcceptanceTests {
 
     /// Pinyin mode: "#" typed while pinyin is composed ends the composition as usual (the first candidate goes in) and
     /// starts a token; the digits after it extend it. Its rows take the panel: nothing is composed any more.
-    @Test func aPrefixTypedWhilePinyinIsComposedStartsAToken() throws {
-        try inEnglish {
+    @Test func aPrefixTypedWhilePinyinIsComposedStartsAToken() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld(input: .chinese)
             try world.github()
             let field = world.field()
@@ -55,8 +55,8 @@ struct SuggestionsTokenAcceptanceTests {
     }
 
     /// "#" typed with nothing composed in pinyin mode starts a token too.
-    @Test func aPrefixTypedInPinyinModeWithNothingComposedStartsAToken() throws {
-        try inEnglish {
+    @Test func aPrefixTypedInPinyinModeWithNothingComposedStartsAToken() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld(input: .chinese)
             try world.github()
             let field = world.field()
@@ -67,8 +67,8 @@ struct SuggestionsTokenAcceptanceTests {
 
     /// The full-width "＃" (pinyin mode's, or a full-width layout's) counts as "#": the rows are the same, and what was
     /// typed stays as typed when a row goes in.
-    @Test func aFullWidthHashCountsAsTheHash() throws {
-        try inEnglish {
+    @Test func aFullWidthHashCountsAsTheHash() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld(input: .chinese)
             try world.github()
             let pinyin = world.field(engine: PunctuatingEngine(fullWidth: true))
@@ -91,8 +91,8 @@ struct SuggestionsTokenAcceptanceTests {
 
     /// Text the input method didn't see (there before the field had the focus) is no token: a digit typed after "#7"
     /// already in the field shows nothing.
-    @Test func textTheInputMethodDidntSeeIsNoToken() throws {
-        try inEnglish {
+    @Test func textTheInputMethodDidntSeeIsNoToken() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github()
             let warm = world.field()
@@ -118,8 +118,8 @@ struct SuggestionsTokenAcceptanceTests {
     /// Each boundary ends the token: the rows go, and a digit typed after it is a token of its own (none of the issues'
     /// rows). Space, other punctuation, Return, a click, another field, a paste, a caret moved by the arrows, Home or End.
     @Test(arguments: Boundary.allCases)
-    func aBoundaryEndsTheToken(_ boundary: Boundary) throws {
-        try inEnglish {
+    func aBoundaryEndsTheToken(_ boundary: Boundary) async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github()
             let field = world.field()
@@ -151,8 +151,8 @@ struct SuggestionsTokenAcceptanceTests {
     }
 
     /// After a boundary, a new token starts: "#7 #8" shows the issues of "#8".
-    @Test func aNewTokenStartsAfterABoundary() throws {
-        try inEnglish {
+    @Test func aNewTokenStartsAfterABoundary() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github()
             let field = world.field()
@@ -167,8 +167,8 @@ struct SuggestionsTokenAcceptanceTests {
 
     /// "@" first is the command list's, never a token's start: the list opens as without suggestions, and what is typed
     /// after it shows no source's rows.
-    @Test func atFirstIsTheCommandListsNeverAToken() throws {
-        try inEnglish {
+    @Test func atFirstIsTheCommandListsNeverAToken() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github()
             let field = world.field()
@@ -187,8 +187,8 @@ struct SuggestionsTokenAcceptanceTests {
     // MARK: - Which source applies
 
     /// A source applies once the token starts with its prefix and has `minChars` characters after it.
-    @Test func minCharsCountsTheCharactersAfterThePrefix() throws {
-        try inEnglish {
+    @Test func minCharsCountsTheCharactersAfterThePrefix() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github(manifest: SuggestionsPlugins.githubManifest(minChars: 2))
             let field = world.field()
@@ -204,8 +204,8 @@ struct SuggestionsTokenAcceptanceTests {
     }
 
     /// A token that doesn't start with the prefix isn't the source's, whatever follows.
-    @Test func aTokenThatDoesntStartWithThePrefixIsntTheSources() throws {
-        try inEnglish {
+    @Test func aTokenThatDoesntStartWithThePrefixIsntTheSources() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github()
             let field = world.field()
@@ -222,8 +222,8 @@ struct SuggestionsTokenAcceptanceTests {
 
     /// A source without a prefix compares the whole token (`exact`): no row for a partial AWS account id, its row once
     /// all 12 digits are typed.
-    @Test func aSourceWithoutPrefixShowsOnlyAWholeMatch() throws {
-        try inEnglish {
+    @Test func aSourceWithoutPrefixShowsOnlyAWholeMatch() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.aws()
             let field = world.field()
@@ -241,8 +241,8 @@ struct SuggestionsTokenAcceptanceTests {
     }
 
     /// The part after the prefix is compared without case: "#docs" shows "#Docs-42".
-    @Test func thePartAfterThePrefixIsComparedWithoutCase() throws {
-        try inEnglish {
+    @Test func thePartAfterThePrefixIsComparedWithoutCase() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github(items: [CompletionItem(match: "#Docs-42", title: "Docs"), CompletionItem(match: "#dev-7", title: "Dev")])
             let field = world.field()
@@ -255,8 +255,8 @@ struct SuggestionsTokenAcceptanceTests {
                           CompletionItem(match: "PROJ-77", title: "Docs")]
 
     /// The prefix too is compared without case (spec 6.7): "proj-12" shows PROJ-1201 and PROJ-1234, "Proj-7" PROJ-77.
-    @Test func thePrefixIsComparedWithoutCaseToo() throws {
-        try inEnglish {
+    @Test func thePrefixIsComparedWithoutCaseToo() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             let plugin = try #require(try SuggestionsPlugins.install(SuggestionsPlugins.trackerManifest, in: world.folder))
             world.plugins = [plugin]
@@ -275,8 +275,8 @@ struct SuggestionsTokenAcceptanceTests {
 
     /// Without a prefix a source is only for tokens of digits (spec 6.8): an item whose `match` has letters never shows,
     /// typed in full or not; the account ids do.
-    @Test func aSourceWithoutPrefixIsOnlyForTokensOfDigits() throws {
-        try inEnglish {
+    @Test func aSourceWithoutPrefixIsOnlyForTokensOfDigits() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.aws()
             world.runtime.list("accounts", items: SuggestionsItems.accounts + [CompletionItem(match: "dev456789012", title: "lettered"),

@@ -7,7 +7,7 @@ import AllInOneIMETestSupport
 /// Acceptance/SuggestionsAcceptanceTests.swift.
 @Suite(.serialized, SuggestionsOneAtATime())
 struct SuggestionsSessionTests {
-    func inEnglish(_ body: () throws -> Void) rethrows { try withInterfaceLanguage("en", body) }
+    func inEnglish(_ body: () throws -> Void) async rethrows { try await withInterfaceLanguage("en", body) }
 
     enum Change: String, CaseIterable, Sendable {
         case prefix, queryMinChars, compare
@@ -17,8 +17,8 @@ struct SuggestionsSessionTests {
     /// update that changes its prefix, how much is typed before its query is first asked, or how it compares needs
     /// enabling again; until then nothing is sent, and Settings says why.
     @Test(arguments: Change.allCases)
-    func anApprovalCoversThePrefixAndWhenTheQueryIsAsked(_ change: Change) throws {
-        try inEnglish {
+    func anApprovalCoversThePrefixAndWhenTheQueryIsAsked(_ change: Change) async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             let plugin = try world.github(enable: false)
             let issues = try #require(plugin.manifest.completions.first)
@@ -57,8 +57,8 @@ struct SuggestionsSessionTests {
 extension SuggestionsSessionTests {
     /// Each call into a plugin's script carries the hosts the user approved with the source: its child process fetches
     /// from those only (that plugin.json still lists, `PluginHost.completion`).
-    @Test func theCallsCarryTheApprovedHosts() throws {
-        try inEnglish {
+    @Test func theCallsCarryTheApprovedHosts() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github()
             let field = world.field()
@@ -79,8 +79,8 @@ extension SuggestionsSessionTests {
     /// dropped (the shell takes it out of the settings) and the source's cached list deleted, in memory and on disk:
     /// the same plugin installed again asks again.
     @Test(arguments: Gone.allCases)
-    func anApprovalThatNoLongerHoldsIsDroppedWithItsCache(_ gone: Gone) throws {
-        try inEnglish {
+    func anApprovalThatNoLongerHoldsIsDroppedWithItsCache(_ gone: Gone) async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             let cache = world.folder.appendingPathComponent("cache", isDirectory: true)
             world.cacheFolder = cache
@@ -128,8 +128,8 @@ extension SuggestionsSessionTests {
 extension SuggestionsSessionTests {
     /// The list cached on disk (up to 4 MB of JSON) is read and decoded off the session's thread (the main thread on the
     /// Mac): a key never waits for the disk, the cached list shows once read, and no load starts before it is.
-    @Test func theCachedListIsReadOffTheSessionsThread() throws {
-        try inEnglish {
+    @Test func theCachedListIsReadOffTheSessionsThread() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             let cache = world.folder.appendingPathComponent("cache", isDirectory: true)
             world.cacheFolder = cache
@@ -164,8 +164,8 @@ extension SuggestionsSessionTests {
     /// Tab in a terminal or code editor completes what every item matching the token shares, not only the 5 rows shown:
     /// "#1" with #100–#104 and #1999 adds nothing (the shown five share "#10", #1999 doesn't), and the Tab is the
     /// terminal's; "#10" with #1000–#1004 and #10099 adds the "0" they all share.
-    @Test func tabInATerminalCompletesWhatEveryMatchingItemShares() throws {
-        try inEnglish {
+    @Test func tabInATerminalCompletesWhatEveryMatchingItemShares() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github(items: [100, 101, 102, 103, 104, 1999].map { SuggestionsItems.issue($0, "Issue \($0)") })
             let field = world.field(app: "com.apple.Terminal", terminal: true)
@@ -222,8 +222,8 @@ extension SuggestionsSessionTests {
 
     /// Coding mode reads the field's text once a pause in typing (spec 2: "read once per pause"), asked of the shell after
     /// it (`SessionOutput.readField`), never with a key; its words are rows from then on.
-    @Test func codingModeReadsTheFieldOncePerPause() throws {
-        try inEnglish {
+    @Test func codingModeReadsTheFieldOncePerPause() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             world.codingMode = true
             let field = world.field()
@@ -240,8 +240,8 @@ extension SuggestionsSessionTests {
 
     /// A snippet of more than one line put in with Tab gets the caret's line's indentation as the field tells it with
     /// that Tab, typed in a hurry (no pause, no read since the line was indented); one line only, nothing is read.
-    @Test func aSnippetIsIndentedAsTheLineIsWhenItGoesIn() throws {
-        try inEnglish {
+    @Test func aSnippetIsIndentedAsTheLineIsWhenItGoesIn() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             world.codingMode = true
             world.packs = [try SuggestionsCodingPacksTests.shipped("python")]
@@ -264,8 +264,8 @@ extension SuggestionsSessionTests {
 extension SuggestionsSessionTests {
     /// fn held with Shift is no long press of Shift (the Mac tells fn as `.function`): no chooser; a tap of Shift with fn
     /// held still switches the input language, as it always did (the composer isn't told of fn).
-    @Test func fnHeldOpensNoChooserAndATapStillSwitches() {
-        inEnglish {
+    @Test func fnHeldOpensNoChooserAndATapStillSwitches() async {
+        await inEnglish {
             let world = SuggestionsWorld()
             let field = world.field()
             let language = field.host.composer.inputLanguage
@@ -287,8 +287,8 @@ extension SuggestionsSessionTests {
 
     /// When the long press's time comes, Shift is asked of the system (`SuggestionsServices.shiftHeld`): its release went
     /// unseen (another app had it, an event lost), no chooser.
-    @Test func aReleaseMissedOpensNoChooser() {
-        inEnglish {
+    @Test func aReleaseMissedOpensNoChooser() async {
+        await inEnglish {
             let world = SuggestionsWorld()
             let held = Locked(initialState: true)
             let field = world.field { $0.suggestions.shiftHeld = { held.withLock { $0 } } }
@@ -308,8 +308,8 @@ extension SuggestionsSessionTests {
 extension SuggestionsSessionTests {
     /// Translate as You Type coming on otherwise than from the chooser (an app set to translate always, as a field of it
     /// takes the focus) turns coding mode off: the two are exclusive (spec 2) however one comes on.
-    @Test func translateAsYouTypeComingOnTurnsCodingModeOff() {
-        inEnglish {
+    @Test func translateAsYouTypeComingOnTurnsCodingModeOff() async {
+        await inEnglish {
             let world = SuggestionsWorld()
             world.codingMode = true
             world.packs = [SuggestionsSessionTests.pack]
@@ -334,8 +334,8 @@ extension SuggestionsSessionTests {
     /// With no source enabled and coding mode off no rows may show: a key asks nothing of the pointer (as autocomplete
     /// off does nothing for a key), and the token is followed all the same. A source enabled meanwhile has rows for it;
     /// where a click may have moved the caret since it started, none until the next word.
-    @Test func whereNoRowsMayShowAKeyAsksNothingOfThePointer() throws {
-        try inEnglish {
+    @Test func whereNoRowsMayShowAKeyAsksNothingOfThePointer() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             let (asked, clicked) = (Locked(initialState: 0), Locked(initialState: false))
             let field = world.field { $0.pointerUsedWithin = { _ in asked.withLock { $0 += 1 }; return clicked.withLock { $0 } } }
@@ -364,8 +364,8 @@ extension SuggestionsSessionTests {
 
     /// Autocomplete's gray text taken with Tab goes into the token as typed text does: what follows it is no longer the
     /// token typed before it ("…12345678901", then "2 is the prod account." taken, then "2": no account's row).
-    @Test func aGhostTakenWithTabIsFollowedAsTypedText() throws {
-        try inEnglish {
+    @Test func aGhostTakenWithTabIsFollowedAsTypedText() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.aws()
             world.config.autocomplete = true

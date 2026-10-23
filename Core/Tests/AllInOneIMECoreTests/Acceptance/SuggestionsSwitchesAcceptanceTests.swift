@@ -9,7 +9,7 @@ import AllInOneIMETestSupport
 /// SuggestionsAcceptanceTests.swift.
 @Suite(.serialized, SuggestionsOneAtATime())
 struct SuggestionsSwitchesAcceptanceTests {
-    func inEnglish(_ body: () throws -> Void) rethrows { try withInterfaceLanguage("en", body) }
+    func inEnglish(_ body: () throws -> Void) async rethrows { try await withInterfaceLanguage("en", body) }
 
     static let allRows = ["#7001", "#7002", "#7090", "#7100", "#789"]
 
@@ -26,8 +26,8 @@ struct SuggestionsSwitchesAcceptanceTests {
 
     /// In secure input and password fields: no rows, no query (what is typed there goes nowhere), every key the app's.
     @Test(arguments: Secure.allCases)
-    func neverInSecureInputOrPasswordFields(_ secure: Secure) throws {
-        try inEnglish {
+    func neverInSecureInputOrPasswordFields(_ secure: Secure) async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github()
             world.secureInputAnywhere = secure == .anywhere
@@ -49,8 +49,8 @@ struct SuggestionsSwitchesAcceptanceTests {
     // MARK: - The switches
 
     /// The input menu's "Suggestions" off: no rows anywhere. On by default once a source is enabled.
-    @Test func theMasterSwitchOffMeansNoRows() throws {
-        try inEnglish {
+    @Test func theMasterSwitchOffMeansNoRows() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github()
             world.switches.master = false
@@ -67,8 +67,8 @@ struct SuggestionsSwitchesAcceptanceTests {
     }
 
     /// An app's "Suggestions" off (Settings → Apps): no rows there; other apps as before.
-    @Test func anAppsSwitchOffMeansNoRowsThere() throws {
-        try inEnglish {
+    @Test func anAppsSwitchOffMeansNoRowsThere() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github()
             world.switches.apps[SuggestionsApps.editor] = false
@@ -84,8 +84,8 @@ struct SuggestionsSwitchesAcceptanceTests {
     }
 
     /// An app with no AI still has completions: no AI is involved.
-    @Test func noAIInAnAppDoesntTurnCompletionsOff() throws {
-        try inEnglish {
+    @Test func noAIInAnAppDoesntTurnCompletionsOff() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github()
             world.config.appProfiles = [SuggestionsApps.editor: AppProfile(noAI: true)]
@@ -96,8 +96,8 @@ struct SuggestionsSwitchesAcceptanceTests {
     }
 
     /// A source is off until it is enabled: its plugin's script isn't run at all, no rows; enabled, its rows.
-    @Test func aSourceIsOffUntilEnabled() throws {
-        try inEnglish {
+    @Test func aSourceIsOffUntilEnabled() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             let plugin = try world.github(enable: false)
             let field = world.field()
@@ -113,8 +113,8 @@ struct SuggestionsSwitchesAcceptanceTests {
     }
 
     /// A source disabled again: no rows, no more calls.
-    @Test func aSourceDisabledAgainShowsNothing() throws {
-        try inEnglish {
+    @Test func aSourceDisabledAgainShowsNothing() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github()
             let field = world.field()
@@ -137,8 +137,8 @@ struct SuggestionsSwitchesAcceptanceTests {
     /// A plugin update that changes its hosts, the source's query or the script needs enabling again: until then, no rows
     /// and nothing run. One that changes only its version keeps it on.
     @Test(arguments: Update.allCases)
-    func aPluginChangedSinceItWasEnabledNeedsEnablingAgain(_ update: Update) throws {
-        try inEnglish {
+    func aPluginChangedSinceItWasEnabledNeedsEnablingAgain(_ update: Update) async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github()
             let warm = world.field()
@@ -180,8 +180,8 @@ struct SuggestionsSwitchesAcceptanceTests {
     // MARK: - Privacy
 
     /// Nothing typed, listed or queried, nor a password preference, is ever in a log line (counts only).
-    @Test func nothingTypedOrListedIsLogged() throws {
-        try inEnglish {
+    @Test func nothingTypedOrListedIsLogged() async throws {
+        try await inEnglish {
             let heard = Locked<[String]>(initialState: [])
             let stop = CoreLog.listen { message in heard.withLock { $0.append(message) } }
             defer { stop() }
@@ -214,8 +214,8 @@ struct SuggestionsSwitchesAcceptanceTests {
     /// Never learned as English words (spec 6.15): what a row inserts, typed in pinyin mode or English mode; a token that
     /// made rows appear (in coding mode, a word of the field's own, typed twice). Other words learn as before: one typed
     /// twice in English mode, which made no rows.
-    @Test func neitherRowsNorTokensThatShowedRowsAreLearnedAsEnglishWords() throws {
-        try inEnglish {
+    @Test func neitherRowsNorTokensThatShowedRowsAreLearnedAsEnglishWords() async throws {
+        try await inEnglish {
             for input in [Language.chinese, .english] {
                 let world = SuggestionsWorld(input: input)
                 world.englishDictionary = EnglishDictionary(["hello", "world"])
@@ -256,8 +256,8 @@ struct SuggestionsSwitchesAcceptanceTests {
 
     /// The command trigger set to a source's prefix wins (spec 6.14): "#" opens the command list, the "#" source shows no
     /// rows and isn't run; Settings says why it is inactive. Other sources as before.
-    @Test func aSourceWhosePrefixIsTheCommandTriggerIsInactive() throws {
-        try inEnglish {
+    @Test func aSourceWhosePrefixIsTheCommandTriggerIsInactive() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             let github = try world.github()
             try world.aws()

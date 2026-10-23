@@ -4,17 +4,22 @@ import Testing
 import AllInOneIMETestSupport
 
 /// Runs `body` in the interface language `choice` ("zh", "en"), then puts the one before back. The language is the
-/// process's (`UIText.choice`): the tests that set it take turns, whichever suite they are in.
-func withInterfaceLanguage<T>(_ choice: String, _ body: () throws -> T) rethrows -> T {
-    interfaceLanguageLock.lock()
-    defer { interfaceLanguageLock.unlock() }
+/// process's (`UIText.choice`): the tests that set it take turns, whichever suite they are in, waiting for theirs
+/// suspended (`TestTurn`): in its turn a test may wait for its session's work (`FakeHost.settle`), which needs a thread.
+func withInterfaceLanguage<T>(_ choice: String, _ body: () throws -> T) async rethrows -> T {
+    try await interfaceLanguageTurn.run { try inInterfaceLanguage(choice, body) }
+}
+
+/// In `withInterfaceLanguage`'s body (its turn): `body` in the interface language `choice`, then the one before back.
+func inInterfaceLanguage<T>(_ choice: String, _ body: () throws -> T) rethrows -> T {
+    if !interfaceLanguageTurn.isHeld { Issue.record("the interface language set outside its turn (withInterfaceLanguage)") }
     let before = UIText.choice
     UIText.choice = choice
     defer { UIText.choice = before }
     return try body()
 }
 
-private let interfaceLanguageLock = NSRecursiveLock()
+private let interfaceLanguageTurn = TestTurn()
 
 /// What a text field's session says around the composer (`SessionText`), in Simplified Chinese and English: in the
 /// language each call is given.
@@ -79,15 +84,16 @@ struct SessionTextTests {
     }
 
     /// The text is in the language given, whatever the process's is.
-    @Test func theLanguageGivenWhateverTheProcesssIs() {
+    @Test func theLanguageGivenWhateverTheProcesssIs() async {
         let c = composer(key: .optionTap)
         c.setInputMode(.english)
         improveDraft(c)
         type("hello", c)
-        let (english, chinese) = withInterfaceLanguage("zh") {
+        let (english, chinese) = await withInterfaceLanguage("zh") {
             (SessionText.draftHint(c, config: .default, language: "en"), SessionText.inputName(.chinese, language: "en"))
         }
-        #expect(english == withInterfaceLanguage("en") { SessionText.draftHint(c, config: .default, language: "en") })
+        let englishInEnglish = await withInterfaceLanguage("en") { SessionText.draftHint(c, config: .default, language: "en") }
+        #expect(english == englishInEnglish)
         #expect(english.hasPrefix("Tap ⌥ → ") && chinese == "Chinese (pinyin)")
     }
 

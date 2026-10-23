@@ -8,7 +8,7 @@ import AllInOneIMETestSupport
 /// and the rows picked before, never by making a row of every item first. The rig: Acceptance/SuggestionsAcceptanceTests.swift.
 @Suite(.serialized, SuggestionsOneAtATime())
 struct SuggestionsPerformanceTests {
-    func inEnglish(_ body: () throws -> Void) rethrows { try withInterfaceLanguage("en", body) }
+    func inEnglish(_ body: () throws -> Void) async rethrows { try await withInterfaceLanguage("en", body) }
 
     /// The most a key may take, as the median of the keys timed: a few milliseconds in a release build; a debug build is
     /// many times slower, and a loaded machine too.
@@ -39,8 +39,8 @@ struct SuggestionsPerformanceTests {
 
     /// Keys over a list of 20,000: many rows matching ("#1"), a few ("#1999"), one, none ("#199999"), and back; some rows
     /// picked before, one of them far down the list, which still comes first.
-    @Test func keysStayQuickWithTheLargestList() throws {
-        try inEnglish {
+    @Test func keysStayQuickWithTheLargestList() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github(items: Self.items, manifest: SuggestionsPlugins.githubManifest(query: false))
             world.picks = [SuggestionPick(plugin: "github", source: "issues", match: "#19998"),
@@ -66,8 +66,8 @@ struct SuggestionsPerformanceTests {
 
     /// The rows over a list of 20,000 are those a list of all of them gives: the first 5 matching, in its order, after the
     /// picked ones.
-    @Test func theRowsAreTheFirstFiveMatching() throws {
-        try inEnglish {
+    @Test func theRowsAreTheFirstFiveMatching() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github(items: Self.items, manifest: SuggestionsPlugins.githubManifest(query: false))
             world.picks = [SuggestionPick(plugin: "github", source: "issues", match: "#1977")]

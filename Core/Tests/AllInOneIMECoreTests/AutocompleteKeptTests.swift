@@ -80,8 +80,8 @@ struct AutocompleteKeptTests {
     /// Esc on a suggestion typed along: deleted back and typed again, or typed on, it isn't shown again, though the
     /// model says it again; another one is. The model's answers are for the text it is asked about.
     @Test(.bug(id: "AC-10", "Esc takes a suggestion down, and it comes back for the same text"))
-    func escMeansNotThisOne() {
-        withInterfaceLanguage("en") {
+    func escMeansNotThisOne() async {
+        await withInterfaceLanguage("en") {
             let (host, model, clock) = field { prompt in
                 let before = prompt.components(separatedBy: "</before>")[0].replacingOccurrences(of: "<before>", with: "")
                 let sentence = "See you tomorrow at noon."
@@ -113,8 +113,8 @@ struct AutocompleteKeptTests {
 
     /// Esc in one app: the same suggestion for the same text is still shown in another.
     @Test(.bug(id: "AC-10", "Esc takes a suggestion down, and it comes back for the same text"))
-    func notThisOneInThisApp() {
-        withInterfaceLanguage("en") {
+    func notThisOneInThisApp() async {
+        await withInterfaceLanguage("en") {
             let store = AutocompleteStore()
             let editor = field({ _ in "ld, how are you?" }, store: store)
             editor.host.type("Hello wor")

@@ -194,10 +194,10 @@ struct SettingsStoreTests {
     }
 
     /// The interface language not saved: back to the one the file has, in the process too.
-    @Test func anInterfaceLanguageNotSaved() throws {
+    @Test func anInterfaceLanguageNotSaved() async throws {
         let url = try file(#"{"uiLanguage": "en"}"#)
         let store = SettingsStore(configURL: url)
-        try withInterfaceLanguage("en") { () throws in
+        try await withInterfaceLanguage("en") { () throws in
             let failed = try whileReadOnly(url.deletingLastPathComponent()) { store.setUILanguage("fr") }
             guard failed else { return }
             #expect(store.saveError != nil && store.config.uiLanguage == "en" && UIText.choice == "en")
@@ -303,11 +303,11 @@ struct SettingsStoreTests {
     }
 
     /// The interface language, switched at once and saved (as "zh" and "en" for those two, as older versions read them).
-    @Test func interfaceLanguage() throws {
+    @Test func interfaceLanguage() async throws {
         let url = try file("{}")
         let store = SettingsStore(configURL: url)
         // The process's language: in turn with the other tests that set it.
-        try withInterfaceLanguage("en") { () throws in
+        try await withInterfaceLanguage("en") { () throws in
             store.setUILanguage("fr")
             #expect(UIText.choice == "fr")
             #expect(try Config.load(from: url).uiLanguage == "fr")

@@ -324,8 +324,8 @@ struct AutocompleteTests {
 
     /// Agreed to one provider, then another picked while autocomplete is on: the on-device model meanwhile (nothing goes to
     /// the new one), said once.
-    @Test func anotherProviderThanTheOneAgreedToIsSaidOnce() {
-        withInterfaceLanguage("en") {
+    @Test func anotherProviderThanTheOneAgreedToIsSaidOnce() async {
+        await withInterfaceLanguage("en") {
             let settings = Settings()
             Autocomplete.answer(true, in: &settings.config)  // Bedrock
             settings.config.provider = .gemini
@@ -669,7 +669,7 @@ struct AutocompleteTests {
 
     /// Code editors: Tab indents there and takes the editor's own completion, so it's off there unless the app is set to
     /// autocomplete always.
-    @Test func offInCodeEditorsUnlessTheAppIsSetToAlways() {
+    @Test func offInCodeEditorsUnlessTheAppIsSetToAlways() async {
         var config = Config.default
         config.autocomplete = true
         for app in ["com.apple.dt.Xcode", "com.microsoft.VSCode", "com.microsoft.VSCodeInsiders", "com.todesktop.230313mzl4w4u92",
@@ -682,7 +682,7 @@ struct AutocompleteTests {
         }
         config.appProfiles = ["com.microsoft.vscode": AppProfile(autocomplete: true)]
         #expect(Autocomplete.isOn(in: "com.microsoft.VSCode", config: config, stopped: false))
-        withInterfaceLanguage("en") {
+        await withInterfaceLanguage("en") {
             let xcode = rig(app: "com.apple.dt.Xcode")
             xcode.host.type("Hello wor")
             #expect(xcode.pauses.isEmpty)
@@ -790,8 +790,8 @@ struct AutocompleteTests {
 
     /// With the switch off (and no app set to always), a key does nothing for autocomplete: no pointer asked, nothing typed
     /// kept, no pause.
-    @Test func offItDoesNothingForAKey() {
-        withInterfaceLanguage("en") {
+    @Test func offItDoesNothingForAKey() async {
+        await withInterfaceLanguage("en") {
             let asked = Locked(initialState: 0)
             let settings = Settings()
             settings.config.autocomplete = false
@@ -855,8 +855,8 @@ struct AutocompleteTests {
         return Rig(host: host, model: model, clock: clock, store: store)
     }
 
-    @Test func aPauseAfterTypingShowsTheRestAndTabPutsItIn() {
-        withInterfaceLanguage("en") {
+    @Test func aPauseAfterTypingShowsTheRestAndTabPutsItIn() async {
+        await withInterfaceLanguage("en") {
             let r = rig()
             r.host.type("Hello wor")
             #expect(r.host.document == "Hello wor")
@@ -878,8 +878,8 @@ struct AutocompleteTests {
 
     /// What Tab puts in goes in as the input method's own commits do: the letters typed before it in English mode ("zorbl"
     /// of "zorble") are the start of a word, not one, and never learned as one (`EnglishModeWords`).
-    @Test func whatTabPutsInEndsNoWordTypedInEnglishMode() {
-        withInterfaceLanguage("en") {
+    @Test func whatTabPutsInEndsNoWordTypedInEnglishMode() async {
+        await withInterfaceLanguage("en") {
             let learned = Locked(initialState: [String]())
             let r = rig(model: ContinuingModel { _ in "e went well. Then" }) {
                 $0.englishDictionary = { EnglishDictionary(["hello", "world", "it"]) }
@@ -901,8 +901,8 @@ struct AutocompleteTests {
     /// Tab, then ⌘Z as the next key within a few seconds (`Autocomplete.undoWindow`): taken back, so not taken at all
     /// (a habitual Tab after a pause in Jupyter, say): counted as waved away and undone, and learned so for the app, where
     /// it may stop. Later, or after another key, ⌘Z is the user's own.
-    @Test func aTabTakenBackWithCommandZIsNotTaken() {
-        withInterfaceLanguage("en") {
+    @Test func aTabTakenBackWithCommandZIsNotTaken() async {
+        await withInterfaceLanguage("en") {
             let undo = KeyEvent(keyCode: 0x06, characters: "z", charactersIgnoringModifiers: "z", modifiers: .command)
             let store = AutocompleteStore()
             store.learn { learning in for _ in 0..<29 { _ = learning.record(false, in: "com.example.editor") } }
@@ -934,8 +934,8 @@ struct AutocompleteTests {
         }
     }
 
-    @Test func aTabRightAsItAppearsOrWithAModifierIsTheApps() {
-        withInterfaceLanguage("en") {
+    @Test func aTabRightAsItAppearsOrWithAModifierIsTheApps() async {
+        await withInterfaceLanguage("en") {
             let r = rig()
             r.host.type("Hello wor")
             r.pauseEnds(expecting: "x")
@@ -961,8 +961,8 @@ struct AutocompleteTests {
         }
     }
 
-    @Test func escTakesItDownAndAnyOtherKeyGoesOnToTheApp() {
-        withInterfaceLanguage("en") {
+    @Test func escTakesItDownAndAnyOtherKeyGoesOnToTheApp() async {
+        await withInterfaceLanguage("en") {
             let r = rig(model: Self.helloWorld())
             r.host.type("Hello wor")
             r.pauseEnds(expecting: "x")
@@ -990,8 +990,8 @@ struct AutocompleteTests {
         }
     }
 
-    @Test func typingAlongTakesItOnAndToItsEnd() {
-        withInterfaceLanguage("en") {
+    @Test func typingAlongTakesItOnAndToItsEnd() async {
+        await withInterfaceLanguage("en") {
             let r = rig()
             r.host.type("Hello wor")
             r.pauseEnds(expecting: "x")
@@ -1010,8 +1010,8 @@ struct AutocompleteTests {
         }
     }
 
-    @Test func everyKeyStopsTheRequest() {
-        withInterfaceLanguage("en") {
+    @Test func everyKeyStopsTheRequest() async {
+        await withInterfaceLanguage("en") {
             let model = ContinuingModel { _ in "" }
             model.hold = true
             let r = rig(model: model)
@@ -1027,8 +1027,8 @@ struct AutocompleteTests {
         }
     }
 
-    @Test func anAnswerThatComesTooLateIsDropped() {
-        withInterfaceLanguage("en") {
+    @Test func anAnswerThatComesTooLateIsDropped() async {
+        await withInterfaceLanguage("en") {
             let model = ContinuingModel { _ in "" }
             model.hold = true
             let r = rig(model: model)
@@ -1044,8 +1044,8 @@ struct AutocompleteTests {
         }
     }
 
-    @Test func chineseComesBackAfterWhatIsComposedIsItsStart() {
-        withInterfaceLanguage("en") {
+    @Test func chineseComesBackAfterWhatIsComposedIsItsStart() async {
+        await withInterfaceLanguage("en") {
             let settings = Settings()
             settings.config.setOrder([Language.chinese, .english])
             let r = rig(settings, model: ContinuingModel { _ in "，今天怎么样？" })
@@ -1067,8 +1067,8 @@ struct AutocompleteTests {
         }
     }
 
-    @Test func neverWhereItMustNot() {
-        withInterfaceLanguage("en") {
+    @Test func neverWhereItMustNot() async {
+        await withInterfaceLanguage("en") {
             // A terminal, a password manager, a remote desktop, an app with no AI, a password field.
             for app in ["com.apple.Terminal", "com.1password.1password", "com.microsoft.rdc.macos", "com.example.quiet"] {
                 let settings = Settings()
@@ -1106,8 +1106,8 @@ struct AutocompleteTests {
         }
     }
 
-    @Test func notWhileTranslateAsYouTypeIsOn() {
-        withInterfaceLanguage("en") {
+    @Test func notWhileTranslateAsYouTypeIsOn() async {
+        await withInterfaceLanguage("en") {
             let settings = Settings()
             settings.config.setOrder([Language.chinese, .english])
             let r = rig(settings)
@@ -1121,8 +1121,8 @@ struct AutocompleteTests {
         }
     }
 
-    @Test func notBeforeTheEndOfALineNorWithTextSelected() {
-        withInterfaceLanguage("en") {
+    @Test func notBeforeTheEndOfALineNorWithTextSelected() async {
+        await withInterfaceLanguage("en") {
             let r = rig()
             r.host.type("Hello wor")
             r.host.document = "Hello wor and more"
@@ -1138,8 +1138,8 @@ struct AutocompleteTests {
         }
     }
 
-    @Test func aFieldThatTellsNothingContinuesWhatWasTypedIntoIt() {
-        withInterfaceLanguage("en") {
+    @Test func aFieldThatTellsNothingContinuesWhatWasTypedIntoIt() async {
+        await withInterfaceLanguage("en") {
             let r = rig()
             r.host.tellsNoText = true
             r.host.type("Hello wor")
@@ -1156,8 +1156,8 @@ struct AutocompleteTests {
 
     /// A field the shell tells is a password field when it's read (the Mac's Accessibility), secure input off: nothing of it
     /// is sent, nor what was typed into it where it tells nothing of its text, and it's off in that field from then on.
-    @Test func aFieldMarkedSecureWhenReadSendsNothingNotEvenWhatWasTyped() {
-        withInterfaceLanguage("en") {
+    @Test func aFieldMarkedSecureWhenReadSendsNothingNotEvenWhatWasTyped() async {
+        await withInterfaceLanguage("en") {
             let r = rig()
             r.host.tellsNoText = true
             r.host.passwordField = true
@@ -1176,8 +1176,8 @@ struct AutocompleteTests {
         }
     }
 
-    @Test func aClickSinceItCameUpTakesItAwayAndTabGoesToTheApp() {
-        withInterfaceLanguage("en") {
+    @Test func aClickSinceItCameUpTakesItAwayAndTabGoesToTheApp() async {
+        await withInterfaceLanguage("en") {
             let clicked = Locked(initialState: false)
             let r = rig { $0.pointerUsedWithin = { _ in clicked.withLock { $0 } } }
             r.host.type("Hello wor")
@@ -1189,8 +1189,8 @@ struct AutocompleteTests {
         }
     }
 
-    @Test func itStopsInAnAppWhereItIsntUsedAndSaysSoOnce() {
-        withInterfaceLanguage("en") {
+    @Test func itStopsInAnAppWhereItIsntUsedAndSaysSoOnce() async {
+        await withInterfaceLanguage("en") {
             let store = AutocompleteStore()
             store.learn { learning in for _ in 0..<29 { _ = learning.record(false, in: "com.example.editor") } }
             let r = rig(store: store)
@@ -1220,8 +1220,8 @@ struct AutocompleteTests {
     /// Turned on elsewhere than the input method's own switch (Settings → Assistant, a hand edit of the config file): seen
     /// as the next field takes the focus or the settings change, it is counted and every app starts over, as with the
     /// switch; the switch itself isn't counted twice.
-    @Test func turnedOnByTheAssistantEveryAppStartsOver() {
-        withInterfaceLanguage("en") {
+    @Test func turnedOnByTheAssistantEveryAppStartsOver() async {
+        await withInterfaceLanguage("en") {
             let store = AutocompleteStore()
             store.learn { learning in for _ in 0..<30 { _ = learning.record(false, in: "com.example.editor") } }
             let settings = Settings()
@@ -1255,8 +1255,8 @@ struct AutocompleteTests {
 
     /// The on-device model can't run (and no cloud provider was agreed to): nothing would answer, so the field isn't even
     /// read at the pause; said once.
-    @Test func theOnDeviceModelUnavailableShowsNothingAndSaysSoOnce() {
-        withInterfaceLanguage("en") {
+    @Test func theOnDeviceModelUnavailableShowsNothingAndSaysSoOnce() async {
+        await withInterfaceLanguage("en") {
             let r = rig(model: ContinuingModel(.appleIntelligenceNotEnabled))
             r.host.type("Hello wor")
             r.pauseEnds()
@@ -1270,8 +1270,8 @@ struct AutocompleteTests {
         }
     }
 
-    @Test func aCloudProviderAgreedToWaitsLonger() {
-        withInterfaceLanguage("en") {
+    @Test func aCloudProviderAgreedToWaitsLonger() async {
+        await withInterfaceLanguage("en") {
             let settings = Settings()
             settings.config.provider = .anthropic
             Autocomplete.answer(true, in: &settings.config)
@@ -1281,8 +1281,8 @@ struct AutocompleteTests {
         }
     }
 
-    @Test func theModelIsLoadedWhenAFieldTakesTheFocusAtMostOnceAMinute() {
-        withInterfaceLanguage("en") {
+    @Test func theModelIsLoadedWhenAFieldTakesTheFocusAtMostOnceAMinute() async {
+        await withInterfaceLanguage("en") {
             let store = AutocompleteStore()
             #expect(store.prewarmDue(at: 10) && !store.prewarmDue(at: 30) && store.prewarmDue(at: 71))
         }

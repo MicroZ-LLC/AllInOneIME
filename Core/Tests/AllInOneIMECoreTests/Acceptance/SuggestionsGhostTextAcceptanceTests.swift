@@ -32,7 +32,7 @@ final class SuggestionsGhostModel: AppleModelBackend, @unchecked Sendable {
 /// SuggestionsAcceptanceTests.swift.
 @Suite(.serialized, SuggestionsOneAtATime())
 struct SuggestionsGhostTextAcceptanceTests {
-    func inEnglish(_ body: () throws -> Void) rethrows { try withInterfaceLanguage("en", body) }
+    func inEnglish(_ body: () throws -> Void) async rethrows { try await withInterfaceLanguage("en", body) }
 
     final class Uptime: @unchecked Sendable {
         private let value = Locked<TimeInterval>(initialState: 1000)
@@ -58,8 +58,8 @@ struct SuggestionsGhostTextAcceptanceTests {
     }
 
     /// Ghost text up, then a token a source applies to: the rows take its place, and Tab inserts the row.
-    @Test func rowsTakeTheGhostTextsPlace() throws {
-        try inEnglish {
+    @Test func rowsTakeTheGhostTextsPlace() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.aws()
             let (model, uptime) = (SuggestionsGhostModel(answer: "2 is the prod account."), Uptime())
@@ -77,8 +77,8 @@ struct SuggestionsGhostTextAcceptanceTests {
     }
 
     /// While rows show, no ghost text comes up after a pause.
-    @Test func noGhostTextWhileRowsShow() throws {
-        try inEnglish {
+    @Test func noGhostTextWhileRowsShow() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github()
             let (model, uptime) = (SuggestionsGhostModel(answer: "001 is the crash."), Uptime())
@@ -94,8 +94,8 @@ struct SuggestionsGhostTextAcceptanceTests {
     }
 
     /// Coding mode on: no AI continuation (no request, no ghost text).
-    @Test func noAIContinuationInCodingMode() {
-        inEnglish {
+    @Test func noAIContinuationInCodingMode() async {
+        await inEnglish {
             let world = SuggestionsWorld()
             world.codingMode = true
             let (model, uptime) = (SuggestionsGhostModel(answer: "ld, how are you?"), Uptime())

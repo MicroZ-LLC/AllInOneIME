@@ -10,7 +10,7 @@ import AllInOneIMETestSupport
 /// SuggestionsAcceptanceTests.swift.
 @Suite(.serialized, SuggestionsOneAtATime())
 struct SuggestionsRowsAcceptanceTests {
-    func inEnglish(_ body: () throws -> Void) rethrows { try withInterfaceLanguage("en", body) }
+    func inEnglish(_ body: () throws -> Void) async rethrows { try await withInterfaceLanguage("en", body) }
 
     static let allRows = ["#7001", "#7002", "#7090", "#7100", "#789"]
 
@@ -28,8 +28,8 @@ struct SuggestionsRowsAcceptanceTests {
     // MARK: - Rows
 
     /// Five rows at most, in the list's order (its rank, not sorted).
-    @Test func atMostFiveRowsInTheListsOrder() throws {
-        try inEnglish {
+    @Test func atMostFiveRowsInTheListsOrder() async throws {
+        try await inEnglish {
             let items = [7090, 7001, 7080, 7002, 7070, 7060, 7008, 7009].map { SuggestionsItems.issue($0, "Issue \($0)") }
             let field = try typedHash7(items: items)
             field.type("0")
@@ -41,8 +41,8 @@ struct SuggestionsRowsAcceptanceTests {
 
     /// Rows picked before (by source and match) come first, the one picked last first (spec 6.17); a row picked is kept,
     /// and is the last picked then.
-    @Test func rowsPickedBeforeComeFirstTheLastPickedFirst() throws {
-        try inEnglish {
+    @Test func rowsPickedBeforeComeFirstTheLastPickedFirst() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github()
             world.picks = [SuggestionPick(plugin: "github", source: "issues", match: "#7100"),
@@ -65,8 +65,8 @@ struct SuggestionsRowsAcceptanceTests {
     // MARK: - Ordinary apps
 
     /// Tab inserts the highlighted row, the first; with no rows, Tab is the app's.
-    @Test func tabInsertsTheFirstRow() throws {
-        try inEnglish {
+    @Test func tabInsertsTheFirstRow() async throws {
+        try await inEnglish {
             let field = try typedHash7()
             #expect(field.waitForIssues(Self.allRows))
             field.type("0")
@@ -79,8 +79,8 @@ struct SuggestionsRowsAcceptanceTests {
     }
 
     /// With nothing to show (no source applies, or none of its items), Tab is the app's.
-    @Test func tabIsTheAppsWithoutRows() throws {
-        try inEnglish {
+    @Test func tabIsTheAppsWithoutRows() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github()
             let field = world.field()
@@ -98,8 +98,8 @@ struct SuggestionsRowsAcceptanceTests {
     /// Digits never pick a row (spec 6.1), in English mode or pinyin mode: they go in and extend the token ("#7" and 1 is
     /// "#71", whose row is #7100).
     @Test(arguments: [Language.english, .chinese])
-    func digitsExtendTheTokenAndNeverPickARow(_ input: Language) throws {
-        try inEnglish {
+    func digitsExtendTheTokenAndNeverPickARow(_ input: Language) async throws {
+        try await inEnglish {
             let world = SuggestionsWorld(input: input)
             try world.github()
             let field = world.field()
@@ -119,8 +119,8 @@ struct SuggestionsRowsAcceptanceTests {
     }
 
     /// ↓ and ↑ move the highlight; Return then inserts the highlighted row.
-    @Test func arrowsMoveTheHighlightAndReturnInsertsIt() throws {
-        try inEnglish {
+    @Test func arrowsMoveTheHighlightAndReturnInsertsIt() async throws {
+        try await inEnglish {
             let field = try typedHash7()
             #expect(field.waitForIssues(Self.allRows))
             #expect(field.press(SuggestionKeys.down))
@@ -134,8 +134,8 @@ struct SuggestionsRowsAcceptanceTests {
     }
 
     /// Return before the highlight moved is the app's: nothing is inserted (the token ends there).
-    @Test func returnIsTheAppsUntilTheHighlightMoved() throws {
-        try inEnglish {
+    @Test func returnIsTheAppsUntilTheHighlightMoved() async throws {
+        try await inEnglish {
             let field = try typedHash7()
             #expect(field.waitForIssues(Self.allRows))
             #expect(!field.press(SuggestionKeys.enter))
@@ -145,8 +145,8 @@ struct SuggestionsRowsAcceptanceTests {
     }
 
     /// Esc hides the rows; nothing is inserted, Tab is the app's then.
-    @Test func escHidesTheRows() throws {
-        try inEnglish {
+    @Test func escHidesTheRows() async throws {
+        try await inEnglish {
             let field = try typedHash7()
             #expect(field.waitForIssues(Self.allRows))
             #expect(field.press(SuggestionKeys.escape))
@@ -159,8 +159,8 @@ struct SuggestionsRowsAcceptanceTests {
 
     /// Esc hides the rows for the token (spec 6.12): a query's answer for it coming later doesn't show them again; they
     /// come back when the token changes.
-    @Test func escHidesTheRowsUntilTheTokenChanges() throws {
-        try inEnglish {
+    @Test func escHidesTheRowsUntilTheTokenChanges() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github()
             world.runtime.query("70", items: [SuggestionsItems.issue(7066, "Filed a minute ago")])
@@ -181,8 +181,8 @@ struct SuggestionsRowsAcceptanceTests {
     }
 
     /// A click on a row inserts it.
-    @Test func aClickOnARowInsertsIt() throws {
-        try inEnglish {
+    @Test func aClickOnARowInsertsIt() async throws {
+        try await inEnglish {
             let field = try typedHash7()
             #expect(field.waitForIssues(Self.allRows))
             field.host.send(.pick(2))
@@ -197,8 +197,8 @@ struct SuggestionsRowsAcceptanceTests {
 
     /// Chat apps (Slack, WeChat, a Chromium app): Tab inserts the first row, with the `chat` template (its address).
     @Test(arguments: chatApps)
-    func tabInsertsTheFirstRowWithTheChatTemplateInChatApps(_ app: String) throws {
-        try inEnglish {
+    func tabInsertsTheFirstRowWithTheChatTemplateInChatApps(_ app: String) async throws {
+        try await inEnglish {
             let field = try typedHash7(app: app)
             #expect(field.waitForIssues(Self.allRows), "\(app)")
             #expect(field.press(SuggestionKeys.tab))
@@ -208,8 +208,8 @@ struct SuggestionsRowsAcceptanceTests {
 
     /// In chat apps the digits, the arrows, Return and Esc stay the app's: Return never sends a row.
     @Test(arguments: chatApps)
-    func digitsArrowsReturnAndEscAreTheAppsInChatApps(_ app: String) throws {
-        try inEnglish {
+    func digitsArrowsReturnAndEscAreTheAppsInChatApps(_ app: String) async throws {
+        try await inEnglish {
             let digit = try typedHash7(app: app)
             #expect(digit.waitForIssues(Self.allRows))
             #expect(!digit.press(SuggestionKeys.digit(2)), "\(app): 2")
@@ -225,8 +225,8 @@ struct SuggestionsRowsAcceptanceTests {
     }
 
     /// A template list is tried in turn: the first whose variables the item has (an item without `url`: `{arg}`).
-    @Test func templatesAreTriedInTurn() throws {
-        try inEnglish {
+    @Test func templatesAreTriedInTurn() async throws {
+        try await inEnglish {
             let items = [CompletionItem(match: "#7001", title: "No address")] + SuggestionsItems.issues.dropFirst()
             let field = try typedHash7(app: SuggestionsApps.slack, items: Array(items))
             #expect(field.waitForIssues(Self.allRows))
@@ -236,8 +236,8 @@ struct SuggestionsRowsAcceptanceTests {
     }
 
     /// `null` for a class of apps: no rows from the source there, its rows elsewhere.
-    @Test func aNullTemplateMeansNoRowsInThatClass() throws {
-        try inEnglish {
+    @Test func aNullTemplateMeansNoRowsInThatClass() async throws {
+        try await inEnglish {
             let manifest = SuggestionsPlugins.githubManifest(insert: #"{ "default": "{arg}", "chat": null }"#)
             let chat = try typedHash7(app: SuggestionsApps.slack, manifest: manifest)
             chat.idle()
@@ -252,8 +252,8 @@ struct SuggestionsRowsAcceptanceTests {
 
     /// Terminals: Tab completes the rows' common prefix only; when that adds nothing to what was typed, Tab is the
     /// terminal's (spec 6.10); a single row's `match` (never a template's text).
-    @Test func tabCompletesTheCommonPrefixInTerminals() throws {
-        try inEnglish {
+    @Test func tabCompletesTheCommonPrefixInTerminals() async throws {
+        try await inEnglish {
             let items = [SuggestionsItems.issue(7781, "One"), SuggestionsItems.issue(7782, "Two"), SuggestionsItems.issue(8001, "Other")]
             let field = try typedHash7(app: "com.apple.Terminal", terminal: true, items: items)
             #expect(field.settle { field.shown(items.map(\.match)) == ["#7781", "#7782"] }, "\(field.rows.map(\.text))")
@@ -274,8 +274,8 @@ struct SuggestionsRowsAcceptanceTests {
     }
 
     /// In terminals the digits, the arrows, Return and Esc stay the app's.
-    @Test func digitsArrowsReturnAndEscAreTheAppsInTerminals() throws {
-        try inEnglish {
+    @Test func digitsArrowsReturnAndEscAreTheAppsInTerminals() async throws {
+        try await inEnglish {
             for key in [SuggestionKeys.digit(1), SuggestionKeys.down, SuggestionKeys.up, SuggestionKeys.enter, SuggestionKeys.escape] {
                 let field = try typedHash7(app: "com.apple.Terminal", terminal: true)
                 #expect(field.waitForIssues(Self.allRows))
@@ -286,8 +286,8 @@ struct SuggestionsRowsAcceptanceTests {
     }
 
     /// `insert.terminal` null: no rows in terminals and code editors (spec 6.10); elsewhere the source's rows.
-    @Test func aNullTerminalTemplateMeansNoRowsInTerminalsAndCodeEditors() throws {
-        try inEnglish {
+    @Test func aNullTerminalTemplateMeansNoRowsInTerminalsAndCodeEditors() async throws {
+        try await inEnglish {
             let manifest = SuggestionsPlugins.githubManifest(insert: #"{ "default": "{arg}", "terminal": null }"#)
             for (app, terminal) in [("com.apple.Terminal", true), (SuggestionsApps.vsCode, false)] {
                 let field = try typedHash7(app: app, terminal: terminal, manifest: manifest)
@@ -301,8 +301,8 @@ struct SuggestionsRowsAcceptanceTests {
     }
 
     /// In terminals and code editors whatever `insert.terminal` says (but null), `{match}` goes in (spec 6.10).
-    @Test func aTerminalTemplateInsertsTheMatchOnly() throws {
-        try inEnglish {
+    @Test func aTerminalTemplateInsertsTheMatchOnly() async throws {
+        try await inEnglish {
             let items = [SuggestionsItems.issue(7781, "One")]
             let manifest = SuggestionsPlugins.githubManifest(insert: #"{ "default": "{arg}", "terminal": "{arg} {url}" }"#)
             for (app, terminal) in [("com.apple.Terminal", true), (SuggestionsApps.vsCode, false)] {
@@ -338,8 +338,8 @@ struct SuggestionsRowsAcceptanceTests {
     /// inserts the first row with the chat template; terminal or code editor, Tab is the app's (the rows' common prefix
     /// adds nothing to "#7"); no rows, none.
     @Test(arguments: classedApps)
-    func eachAppHasItsClass(_ classed: ClassedApp) throws {
-        try inEnglish {
+    func eachAppHasItsClass(_ classed: ClassedApp) async throws {
+        try await inEnglish {
             let field = try typedHash7(app: classed.app, terminal: classed.terminal)
             switch classed.kind {
             case .noRows:
@@ -369,8 +369,8 @@ struct SuggestionsRowsAcceptanceTests {
 
     /// Remote desktops, virtual machines and SSH clients: no rows, Tab theirs.
     @Test(arguments: [SuggestionsApps.remoteDesktop, SuggestionsApps.virtualMachine, SuggestionsApps.sshClient])
-    func noRowsInRemoteDesktopsVirtualMachinesAndSSHClients(_ app: String) throws {
-        try inEnglish {
+    func noRowsInRemoteDesktopsVirtualMachinesAndSSHClients(_ app: String) async throws {
+        try await inEnglish {
             let field = try typedHash7(app: app)
             field.idle()
             #expect(field.issuesShown.isEmpty, "\(app): \(field.issuesShown)")
@@ -386,8 +386,8 @@ struct SuggestionsRowsAcceptanceTests {
 
     /// A row is offered only when what it inserts starts with what was typed, in any case (spec 6.13): an `arg` that puts
     /// something before the issue's number isn't offered for "#70" (it is in a terminal, where `{match}` goes in).
-    @Test func aRowWhoseInsertionDoesntStartWithWhatWasTypedIsntOffered() throws {
-        try inEnglish {
+    @Test func aRowWhoseInsertionDoesntStartWithWhatWasTypedIsntOffered() async throws {
+        try await inEnglish {
             let items = [CompletionItem(match: "#7001", title: "Crash", arg: "#7001: Crash at the edge"),
                          CompletionItem(match: "#7002", title: "Settings", arg: "Fixes #7002"),
                          SuggestionsItems.issue(7090, "Docs")]
@@ -406,8 +406,8 @@ struct SuggestionsRowsAcceptanceTests {
     // MARK: - What goes in
 
     /// Only what wasn't typed is added: "#12" and the row "#1234" put in "34".
-    @Test func onlyWhatWasntTypedGoesIn() throws {
-        try inEnglish {
+    @Test func onlyWhatWasntTypedGoesIn() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github(items: [SuggestionsItems.issue(1234, "The spec's example")],
                              manifest: SuggestionsPlugins.githubManifest(minChars: 2))
@@ -432,8 +432,8 @@ struct SuggestionsRowsAcceptanceTests {
     }
 
     /// The typed part stays as typed, its case too: "#docs" and the row "#Docs-42" make "#docs-42".
-    @Test func theTypedPartKeepsItsCase() throws {
-        try inEnglish {
+    @Test func theTypedPartKeepsItsCase() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github(items: [CompletionItem(match: "#Docs-42", title: "Docs")])
             let field = world.field()
@@ -445,8 +445,8 @@ struct SuggestionsRowsAcceptanceTests {
     }
 
     /// The prefix typed in another case stays so (spec 6.7): "proj-12" and the row PROJ-1201 make "proj-1201".
-    @Test func thePrefixTypedInAnotherCaseStaysSo() throws {
-        try inEnglish {
+    @Test func thePrefixTypedInAnotherCaseStaysSo() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             let plugin = try #require(try SuggestionsPlugins.install(SuggestionsPlugins.trackerManifest, in: world.folder))
             world.plugins = [plugin]
@@ -461,8 +461,8 @@ struct SuggestionsRowsAcceptanceTests {
     }
 
     /// `arg` (when the item has one) is what `{arg}` inserts.
-    @Test func argIsWhatTheDefaultTemplateInserts() throws {
-        try inEnglish {
+    @Test func argIsWhatTheDefaultTemplateInserts() async throws {
+        try await inEnglish {
             let items = [CompletionItem(match: "#7001", title: "Crash", arg: "#7001: Crash at the edge")]
             let field = try typedHash7(items: items)
             #expect(field.settle { field.shown(["#7001"]) == ["#7001"] })
@@ -472,8 +472,8 @@ struct SuggestionsRowsAcceptanceTests {
     }
 
     /// A row's own variables fill the template: an AWS account typed in full gets its name after it.
-    @Test func variablesFillTheTemplate() throws {
-        try inEnglish {
+    @Test func variablesFillTheTemplate() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.aws()
             let field = world.field()

@@ -144,7 +144,7 @@ struct SessionTasksTests {
     @Test func recipientsWithoutTheAddressBookSaySo() async {
         let inbox = Inbox()
         let tasks = SessionTasks(deliver: inbox.deliver)
-        withInterfaceLanguage("en") {
+        await withInterfaceLanguage("en") {
             tasks.findRecipients("+15550199", recent: { [] }, contacts: { nil })
         }
         #expect(await Timing.eventually { !inbox.all.isEmpty })
@@ -159,13 +159,13 @@ struct SessionTasksTests {
         let bundle = ExtensionBundle(folder: folder, name: "greeter", title: "Greeter",
                                      preferences: [.init(name: "token", title: "Token", required: true)])
         let context = ScriptContext(language: "en", inputLanguage: "en", app: nil, query: "")
-        let make = withInterfaceLanguage("en") {
+        let make = await withInterfaceLanguage("en") {
             SessionTasks.environmentMaker(script, bundle: bundle, config: .default, context: context, preferences: { _, _ in [:] })
         }
         let missing = await make()
         let set = await SessionTasks.environmentMaker(script, bundle: bundle, config: .default, context: context,
                                                       preferences: { _, _ in ["token": "t"] })()
-        withInterfaceLanguage("en") {
+        await withInterfaceLanguage("en") {
             guard case let .failure(error) = missing else { Issue.record("it would run"); return }
             #expect(error.message == "Set “Token” for Greeter in the settings first")
         }

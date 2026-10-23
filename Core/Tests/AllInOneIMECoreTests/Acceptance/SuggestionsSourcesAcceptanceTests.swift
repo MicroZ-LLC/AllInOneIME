@@ -11,7 +11,7 @@ import AllInOneIMETestSupport
 /// characters, bad items dropped one by one, duplicates; spec 6.5, 6.6). The rig: SuggestionsAcceptanceTests.swift.
 @Suite(.serialized, SuggestionsOneAtATime())
 struct SuggestionsSourcesAcceptanceTests {
-    func inEnglish(_ body: () throws -> Void) rethrows { try withInterfaceLanguage("en", body) }
+    func inEnglish(_ body: () throws -> Void) async rethrows { try await withInterfaceLanguage("en", body) }
 
     static let fixtureMatches = ["#6001", "#6002", "#6003", "#6004", "#6005", "#6007", "#6090", "#6800", "#9001", "#6066", "#6070"]
     static let allRows = ["#7001", "#7002", "#7090", "#7100", "#789"]
@@ -20,8 +20,8 @@ struct SuggestionsSourcesAcceptanceTests {
 
     /// The query is called once the part after the prefix has `queryMinChars` characters, with that part only; its
     /// items come after the list's, one row per match (the list's first).
-    @Test func theListAndTheQueryMerge() throws {
-        try inEnglish {
+    @Test func theListAndTheQueryMerge() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github()
             world.runtime.query("70", items: [SuggestionsItems.issue(7066, "Filed a minute ago"),
@@ -41,8 +41,8 @@ struct SuggestionsSourcesAcceptanceTests {
 
     /// A newer token's query takes the place of one still running: the older call is cancelled, what it would have
     /// answered never shows.
-    @Test func aNewerTokenCancelsTheQueryInFlight() throws {
-        try inEnglish {
+    @Test func aNewerTokenCancelsTheQueryInFlight() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github()
             world.runtime.query("70", items: [SuggestionsItems.issue(7066, "Late")])
@@ -64,8 +64,8 @@ struct SuggestionsSourcesAcceptanceTests {
 
     /// A query's answer is kept for its text: more characters typed filter it at once, and the same text typed again
     /// later asks nothing.
-    @Test func queryAnswersAreCachedPerPrefixAndFilteredAsYouType() throws {
-        try inEnglish {
+    @Test func queryAnswersAreCachedPerPrefixAndFilteredAsYouType() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github()
             let found = [SuggestionsItems.issue(7060, "Sixty"), SuggestionsItems.issue(7007, "Seven"),
@@ -86,8 +86,8 @@ struct SuggestionsSourcesAcceptanceTests {
     }
 
     /// A source without `query` is never queried, however much is typed.
-    @Test func aSourceWithoutQueryIsNeverQueried() throws {
-        try inEnglish {
+    @Test func aSourceWithoutQueryIsNeverQueried() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github(manifest: SuggestionsPlugins.githubManifest(query: false))
             let field = world.field()
@@ -104,8 +104,8 @@ struct SuggestionsSourcesAcceptanceTests {
     /// After the first query, another is asked only when what is kept of the answers (for the longest text asked) leaves
     /// fewer than 5 rows (spec 6.4): "#700" still has 8 of the answers for "70", nothing is asked; "#7001" has one, "7001"
     /// is asked.
-    @Test func aQueryIsAskedAgainOnlyWhenTheKeptAnswersLeaveFewerThanFiveRows() throws {
-        try inEnglish {
+    @Test func aQueryIsAskedAgainOnlyWhenTheKeptAnswersLeaveFewerThanFiveRows() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github(items: [])
             let found = Self.found(Array(7001...7008))
@@ -128,8 +128,8 @@ struct SuggestionsSourcesAcceptanceTests {
 
     /// A query asked again waits for a pause of 150 ms in typing (spec 6.4): nothing is asked while the keys come, then
     /// once, for the text they made.
-    @Test func aQueryAskedAgainWaitsForAPauseInTyping() throws {
-        try inEnglish {
+    @Test func aQueryAskedAgainWaitsForAPauseInTyping() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github(items: [])
             let found = Self.found([7001, 7002, 7090, 7091, 7092])
@@ -152,8 +152,8 @@ struct SuggestionsSourcesAcceptanceTests {
     }
 
     /// One query at a time for a source (spec 6.4): one asked while another is out waits for it, or takes its place.
-    @Test func oneQueryAtATimeForASource() throws {
-        try inEnglish {
+    @Test func oneQueryAtATimeForASource() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github(items: [])
             let found = Self.found([7001, 7002, 7090, 7091, 7092])
@@ -178,8 +178,8 @@ struct SuggestionsSourcesAcceptanceTests {
     // MARK: - The list in memory, refreshed
 
     /// The list is kept in memory for every field: another field (another app) shows its rows without loading it again.
-    @Test func theListIsKeptForEveryField() throws {
-        try inEnglish {
+    @Test func theListIsKeptForEveryField() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github()
             let one = world.field()
@@ -194,8 +194,8 @@ struct SuggestionsSourcesAcceptanceTests {
     }
 
     /// Past its `refresh` (15 minutes), the list is loaded again; meanwhile the old one shows.
-    @Test func theListIsLoadedAgainOnceItsRefreshIsDue() throws {
-        try inEnglish {
+    @Test func theListIsLoadedAgainOnceItsRefreshIsDue() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github()
             let field = world.field()
@@ -222,8 +222,8 @@ struct SuggestionsSourcesAcceptanceTests {
     }
 
     /// The footer says the list's age once it is older than 10 minutes ("2 h ago"), counted from its `fetchedAt`.
-    @Test func theFooterSaysTheListsAgeOnceOlderThanTenMinutes() throws {
-        try inEnglish {
+    @Test func theFooterSaysTheListsAgeOnceOlderThanTenMinutes() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github(fetchedAt: world.clock.now.addingTimeInterval(-2 * 3600 - 60))
             world.runtime.holdLoads = false
@@ -242,8 +242,8 @@ struct SuggestionsSourcesAcceptanceTests {
     }
 
     /// A list without `fetchedAt` is as old as its load: shown while it loads again, the footer says so.
-    @Test func aListWithoutFetchedAtIsAsOldAsItsLoad() throws {
-        try inEnglish {
+    @Test func aListWithoutFetchedAtIsAsOldAsItsLoad() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github()
             let field = world.field()
@@ -260,8 +260,8 @@ struct SuggestionsSourcesAcceptanceTests {
 
     /// A source unused for 7 days stops refreshing; when it's used again, its old list shows (the footer says how old)
     /// while it loads again.
-    @Test func aSourceUnusedForSevenDaysStopsRefreshing() throws {
-        try inEnglish {
+    @Test func aSourceUnusedForSevenDaysStopsRefreshing() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github()
             let field = world.field()
@@ -299,8 +299,8 @@ struct SuggestionsSourcesAcceptanceTests {
     /// A load that fails (an error, a timeout, a bad output) keeps the old list, and Settings hears why. Failures back off
     /// (spec 6.17): after each, no load for 1 min, 5 min, 30 min, 2 h, one after; the fifth in a row pauses the source: no
     /// more loads (a day later still none), the old list still shown, Settings says it's paused and why.
-    @Test func failuresBackOffAndTheFifthInARowPausesTheSource() throws {
-        try inEnglish {
+    @Test func failuresBackOffAndTheFifthInARowPausesTheSource() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github()
             let field = world.field()
@@ -352,8 +352,8 @@ struct SuggestionsSourcesAcceptanceTests {
     /// A paused source loads again (spec 6.17) on "Refresh now", an update of its plugin, or 24 hours later; a good load
     /// then unpauses it, its new list shows.
     @Test(arguments: Resume.allCases)
-    func aPausedSourceResumes(_ resume: Resume) throws {
-        try inEnglish {
+    func aPausedSourceResumes(_ resume: Resume) async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github()
             let field = world.field()
@@ -388,8 +388,8 @@ struct SuggestionsSourcesAcceptanceTests {
 
     /// "Refresh now" loads a source again before its refresh is due, once: a request no newer than the last load asks
     /// nothing more.
-    @Test func refreshNowLoadsTheListAgainOnce() throws {
-        try inEnglish {
+    @Test func refreshNowLoadsTheListAgainOnce() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github()
             let field = world.field()
@@ -420,8 +420,8 @@ struct SuggestionsSourcesAcceptanceTests {
 
     /// The list is cached on disk, readable by the user only (0600); the next launch shows it while it loads again; the
     /// source disabled, its file is deleted (spec 1.5, 6.17).
-    @Test func theListIsCachedOnDiskForTheUserOnlyAndDeletedWhenDisabled() throws {
-        try inEnglish {
+    @Test func theListIsCachedOnDiskForTheUserOnlyAndDeletedWhenDisabled() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             let cache = world.folder.appendingPathComponent("cache", isDirectory: true)
             world.cacheFolder = cache
@@ -455,8 +455,8 @@ struct SuggestionsSourcesAcceptanceTests {
     }
 
     /// One failure is told to Settings, and the next good load clears it.
-    @Test func aFailureIsToldAndTheNextGoodLoadClearsIt() throws {
-        try inEnglish {
+    @Test func aFailureIsToldAndTheNextGoodLoadClearsIt() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github()
             world.runtime.list("issues", .failure("GitHub said 503"))
@@ -479,8 +479,8 @@ struct SuggestionsSourcesAcceptanceTests {
 
     /// `load` may take the plugin's `timeoutSeconds` (20 s at most: over it, spec 6.9 refuses the plugin's completions,
     /// SuggestionsManifestAcceptanceTests), `query` 3 s at most.
-    @Test func theLoadAndTheQueryHaveTheirTimeouts() throws {
-        try inEnglish {
+    @Test func theLoadAndTheQueryHaveTheirTimeouts() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             let manifest = SuggestionsPlugins.githubManifest().replacingOccurrences(of: #""script": "main.js","#,
                                                                                    with: #""script": "main.js", "timeoutSeconds": 15,"#)
@@ -503,8 +503,8 @@ struct SuggestionsSourcesAcceptanceTests {
 
     /// `ctx` is the source's name, the plugin's preferences (the password too, a preference not set its default) and
     /// the interface language; nothing else.
-    @Test func theScriptIsToldItsSourceItsPreferencesAndTheLanguage() throws {
-        try inEnglish {
+    @Test func theScriptIsToldItsSourceItsPreferencesAndTheLanguage() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github()
             world.preferenceValues.withLock { $0["github"] = ["token": "ghp_exampletoken0000"] }
@@ -532,8 +532,8 @@ struct SuggestionsSourcesAcceptanceTests {
 
     /// A good list (Fixtures/Suggestions/outputs/good-list.json): its items in its order, its age from `fetchedAt`; a
     /// good query's answer merged after it (good-query.json).
-    @Test func aGoodListAndQueryFromThePluginShowAsRows() throws {
-        try inEnglish {
+    @Test func aGoodListAndQueryFromThePluginShowAsRows() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github(items: [])
             world.runtime.list("issues", .output(try SuggestionsFixtures.output("good-list")))
@@ -552,8 +552,8 @@ struct SuggestionsSourcesAcceptanceTests {
 
     /// More than 20,000 items, or more than 4 MiB: refused, the old list kept, Settings told why.
     @Test(arguments: ["items", "bytes"])
-    func anOversizedListIsRefusedAndTheOldOneKept(_ what: String) throws {
-        try inEnglish {
+    func anOversizedListIsRefusedAndTheOldOneKept(_ what: String) async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github()
             let field = world.field()
@@ -586,8 +586,8 @@ struct SuggestionsSourcesAcceptanceTests {
 
     /// An output that isn't a JSON object with an `items` array (spec 6.5) is a failure: the old list kept, Settings told.
     @Test(arguments: NotAnObjectWithItems.allCases)
-    func anOutputThatIsntAnObjectWithAnItemsArrayIsAFailure(_ output: NotAnObjectWithItems) throws {
-        try inEnglish {
+    func anOutputThatIsntAnObjectWithAnItemsArrayIsAFailure(_ output: NotAnObjectWithItems) async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github()
             let field = world.field()
@@ -613,8 +613,8 @@ struct SuggestionsSourcesAcceptanceTests {
     }
 
     /// Control, bidi and zero-width characters (control-characters.json) are never shown, nor inserted.
-    @Test func controlBidiAndZeroWidthCharactersAreNeverShownOrInserted() throws {
-        try inEnglish {
+    @Test func controlBidiAndZeroWidthCharactersAreNeverShownOrInserted() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github(items: [])
             world.runtime.list("issues", .output(try SuggestionsFixtures.output("control-characters")))
@@ -646,8 +646,8 @@ struct SuggestionsSourcesAcceptanceTests {
 
     /// Bad items (bad-matches.json: a `match` that breaks the rules, an item that isn't an object) are dropped one by one
     /// (spec 6.5): they never show, the good ones around them do, and the list is a good one (no error, its good items).
-    @Test func badItemsAreDroppedOneByOne() throws {
-        try inEnglish {
+    @Test func badItemsAreDroppedOneByOne() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github(items: [])
             world.runtime.list("issues", .output(try SuggestionsFixtures.output("bad-matches")))
@@ -668,8 +668,8 @@ struct SuggestionsSourcesAcceptanceTests {
     /// Control, bidi and zero-width characters are taken out first, then the `match` is checked (spec 6.6,
     /// stripped-matches.json): "#60\u{200B}02" is #6002, shown and inserted so; one with nothing left, or a space left, is
     /// dropped.
-    @Test func hiddenCharactersAreTakenOutBeforeTheMatchIsChecked() throws {
-        try inEnglish {
+    @Test func hiddenCharactersAreTakenOutBeforeTheMatchIsChecked() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github(items: [])
             world.runtime.list("issues", .output(try SuggestionsFixtures.output("stripped-matches")))
@@ -683,8 +683,8 @@ struct SuggestionsSourcesAcceptanceTests {
     }
 
     /// The same `match` twice in a list (duplicates.json): one row, the first item's.
-    @Test func aMatchListedTwiceShowsOnce() throws {
-        try inEnglish {
+    @Test func aMatchListedTwiceShowsOnce() async throws {
+        try await inEnglish {
             let world = SuggestionsWorld()
             try world.github(items: [])
             world.runtime.list("issues", .output(try SuggestionsFixtures.output("duplicates")))

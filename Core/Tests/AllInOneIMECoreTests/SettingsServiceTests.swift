@@ -363,8 +363,8 @@ struct SettingsServiceTests {
 
     /// The interface language changed: applied at once (the next document is in it, the process's language switched as
     /// the Mac's window does) and saved. A document is in the language its settings say, whatever the process's is.
-    @Test func theInterfaceLanguageAtOnce() throws {
-        try withInterfaceLanguage("en") { () throws in
+    @Test func theInterfaceLanguageAtOnce() async throws {
+        try await withInterfaceLanguage("en") { () throws in
             let (service, url) = try service(#"{"uiLanguage": "en"}"#)
             var document = service.document()
             #expect(document.language == "en" && document.sections.first?.title == "General")

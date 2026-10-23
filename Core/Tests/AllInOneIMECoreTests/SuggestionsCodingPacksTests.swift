@@ -8,7 +8,7 @@ import Testing
 /// snippet picked comes first among its trigger's. The rig: Acceptance/SuggestionsAcceptanceTests.swift.
 @Suite(.serialized, SuggestionsOneAtATime())
 struct SuggestionsCodingPacksTests {
-    func inEnglish(_ body: () throws -> Void) rethrows { try withInterfaceLanguage("en", body) }
+    func inEnglish(_ body: () throws -> Void) async rethrows { try await withInterfaceLanguage("en", body) }
 
     static let folder = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         .deletingLastPathComponent().appendingPathComponent("CodingPacks", isDirectory: true)
@@ -65,8 +65,8 @@ struct SuggestionsCodingPacksTests {
 
     /// A snippet's second and later lines get the leading whitespace of the line the caret is on; the caret still goes to
     /// its `$0`.
-    @Test func aSnippetsLaterLinesGetTheCaretLinesIndentation() throws {
-        try inEnglish {
+    @Test func aSnippetsLaterLinesGetTheCaretLinesIndentation() async throws {
+        try await inEnglish {
             let world = Self.coding([try Self.shipped("python")])
             let field = world.field()
             field.host.document = "def main():\n    "
@@ -94,8 +94,8 @@ struct SuggestionsCodingPacksTests {
     }
 
     /// A line without indentation adds none: the body goes in as it is.
-    @Test func noIndentationAddsNone() throws {
-        try inEnglish {
+    @Test func noIndentationAddsNone() async throws {
+        try await inEnglish {
             let world = Self.coding([try Self.shipped("python")])
             let field = world.field()
             field.host.document = "import os\n"
@@ -108,8 +108,8 @@ struct SuggestionsCodingPacksTests {
 
     /// A pack's snippet row says its language, then its title ("Python · function"), or that it's a snippet where the
     /// title is only its trigger; a keyword's, its language.
-    @Test func aPacksRowNamesItsLanguage() throws {
-        try inEnglish {
+    @Test func aPacksRowNamesItsLanguage() async throws {
+        try await inEnglish {
             let world = Self.coding([try Self.shipped("python")])
             let field = world.field()
             field.type("de")
@@ -123,8 +123,8 @@ struct SuggestionsCodingPacksTests {
 
     /// What several installed packs' snippets put in alike is one row, its comment naming each pack's language: C's, C++'s
     /// and Java's `if`; two bodies written differently that come out the same.
-    @Test func identicalExpansionsFromSeveralPacksShowOnce() throws {
-        try inEnglish {
+    @Test func identicalExpansionsFromSeveralPacksShowOnce() async throws {
+        try await inEnglish {
             let world = Self.coding([try Self.shipped("c"), try Self.shipped("cpp"), try Self.shipped("java")])
             let field = world.field()
             field.type("if")
@@ -148,8 +148,8 @@ struct SuggestionsCodingPacksTests {
     }
 
     /// In a code editor a snippet completes as its trigger: a trigger's several snippets there are one row.
-    @Test func inACodeEditorATriggersSnippetsAreOneRow() throws {
-        try inEnglish {
+    @Test func inACodeEditorATriggersSnippetsAreOneRow() async throws {
+        try await inEnglish {
             let world = Self.coding([try Self.shipped("python")])
             let field = world.field(app: SuggestionsApps.vsCode)
             field.type("fo")
@@ -159,8 +159,8 @@ struct SuggestionsCodingPacksTests {
     }
 
     /// A snippet picked comes first next time, before the others of its trigger (each is picked as itself).
-    @Test func aSnippetPickedComesFirstAmongItsTriggers() throws {
-        try inEnglish {
+    @Test func aSnippetPickedComesFirstAmongItsTriggers() async throws {
+        try await inEnglish {
             let world = Self.coding([try Self.shipped("python")])
             let field = world.field()
             field.type("if")

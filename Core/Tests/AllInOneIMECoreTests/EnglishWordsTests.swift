@@ -675,8 +675,8 @@ struct EnglishWordsSessionTests {
 
     func candidates(_ host: FakeHost) -> [String] { host.composer.engineState.candidates.map(\.text) }
 
-    @Test func lettersPutInAsTypedTwiceAreLearnedAndOfferedAtOnce() {
-        withInterfaceLanguage("en") {
+    @Test func lettersPutInAsTypedTwiceAreLearnedAndOfferedAtOnce() async {
+        await withInterfaceLanguage("en") {
             let learned = Learned()
             let host = host(learned: learned)
             // The first time only remembered (a password typed once is never kept), in memory: not offered, not kept.
@@ -701,8 +701,8 @@ struct EnglishWordsSessionTests {
         }
     }
 
-    @Test func theFirstTimeIsRememberedForEveryFieldUntilTheAppQuits() {
-        withInterfaceLanguage("en") {
+    @Test func theFirstTimeIsRememberedForEveryFieldUntilTheAppQuits() async {
+        await withInterfaceLanguage("en") {
             let learned = Learned()
             var services = SessionServices(loadSettings: { Self.settings })
             services.levelOne = { .engine(FakeEngine()) }
@@ -734,8 +734,8 @@ struct EnglishWordsSessionTests {
         #expect(!once.again("zorblax") && !once.again("word0"), "the oldest forgotten beyond the limit")
     }
 
-    @Test func neverDuringSecureInputInAnAppWithNoAIOrWithLearningOff() {
-        withInterfaceLanguage("en") {
+    @Test func neverDuringSecureInputInAnAppWithNoAIOrWithLearningOff() async {
+        await withInterfaceLanguage("en") {
             let learned = Learned()
             var secure = false
             let anywhere = host(learned: learned, secure: { secure })
@@ -767,8 +767,8 @@ struct EnglishWordsSessionTests {
         }
     }
 
-    @Test func neverInATerminalARemoteDesktopOrAVirtualMachine() {
-        withInterfaceLanguage("en") {
+    @Test func neverInATerminalARemoteDesktopOrAVirtualMachine() async {
+        await withInterfaceLanguage("en") {
             let learned = Learned()
             // A terminal's password prompts (sudo, ssh, git) don't turn secure input on in every terminal.
             let terminal = host(learned: learned, app: "com.googlecode.iterm2", terminal: true)
@@ -788,8 +788,8 @@ struct EnglishWordsSessionTests {
         }
     }
 
-    @Test func notWhatTheUsersFuzzyPinyinReads() {
-        withInterfaceLanguage("en") {
+    @Test func notWhatTheUsersFuzzyPinyinReads() async {
+        await withInterfaceLanguage("en") {
             let learned = Learned()
             var config = Self.settings
             config.fuzzyPinyin = ["f-h"]
@@ -800,8 +800,8 @@ struct EnglishWordsSessionTests {
         }
     }
 
-    @Test func secretsInLettersAloneAreNeverLearned() {
-        withInterfaceLanguage("en") {
+    @Test func secretsInLettersAloneAreNeverLearned() async {
+        await withInterfaceLanguage("en") {
             // Letters only, a vowel, no six consonants in a row nor a letter three times, not pinyin: only what hiding
             // sensitive information hides (`Redaction`'s keys, the user's hidden words) tells them from a word.
             let secrets = ["XoBuKiVaZeNu", "hTqeWobAsuKelPimRaVo", "kTzQaWmPeLvR", "Phoenix", "phoenixapi"]
@@ -820,8 +820,8 @@ struct EnglishWordsSessionTests {
         }
     }
 
-    @Test func theUsersWordsAndTheJargonListsAreOffered() {
-        withInterfaceLanguage("en") {
+    @Test func theUsersWordsAndTheJargonListsAreOffered() async {
+        await withInterfaceLanguage("en") {
             var config = Self.settings
             config.englishWords = ["Frobnicate"]
             let host = host(config, jargon: [JargonEntry(term: "circle back", meaning: "回头再说")])
@@ -838,8 +838,8 @@ struct EnglishWordsSessionTests {
         }
     }
 
-    @Test func noneWithoutRimeIcesDictionary() {
-        withInterfaceLanguage("en") {
+    @Test func noneWithoutRimeIcesDictionary() async {
+        await withInterfaceLanguage("en") {
             let learned = Learned()
             var config = Self.settings
             config.englishWords = ["Frobnicate"]

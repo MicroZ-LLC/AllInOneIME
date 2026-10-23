@@ -11,7 +11,7 @@ import AllInOneIMETestSupport
 /// SuggestionsAcceptanceTests.swift.
 @Suite(.serialized, SuggestionsOneAtATime())
 struct SuggestionsCodingAcceptanceTests {
-    func inEnglish(_ body: () throws -> Void) rethrows { try withInterfaceLanguage("en", body) }
+    func inEnglish(_ body: () throws -> Void) async rethrows { try await withInterfaceLanguage("en", body) }
 
     static func pack(_ name: String) throws -> CodingLanguagePack {
         try JSONDecoder().decode(CodingLanguagePack.self, from: SuggestionsFixtures.data(name, in: "packs"))
@@ -39,8 +39,8 @@ struct SuggestionsCodingAcceptanceTests {
 
     /// Holding Shift for a second opens the chooser at the caret: Translate as You Type, Coding mode. Esc closes it,
     /// nothing changed.
-    @Test func holdingShiftOpensTheChooser() {
-        inEnglish {
+    @Test func holdingShiftOpensTheChooser() async {
+        await inEnglish {
             let world = SuggestionsWorld()
             let field = world.field()
             field.holdShift()
@@ -51,8 +51,8 @@ struct SuggestionsCodingAcceptanceTests {
     }
 
     /// A tap of Shift opens no chooser (it switches the input language, as before).
-    @Test func aTapOfShiftOpensNoChooser() {
-        inEnglish {
+    @Test func aTapOfShiftOpensNoChooser() async {
+        await inEnglish {
             let world = SuggestionsWorld()
             let field = world.field()
             field.tapShift()
@@ -65,8 +65,8 @@ struct SuggestionsCodingAcceptanceTests {
     }
 
     /// 2 (or ↓ and Return) picks Coding mode: on. The chooser goes.
-    @Test func choosingCodingModeTurnsItOn() {
-        inEnglish {
+    @Test func choosingCodingModeTurnsItOn() async {
+        await inEnglish {
             let world = SuggestionsWorld()
             let field = world.field()
             field.holdShift()
@@ -85,8 +85,8 @@ struct SuggestionsCodingAcceptanceTests {
     }
 
     /// Choosing the mode that is on turns it off.
-    @Test func choosingTheModeThatIsOnTurnsItOff() {
-        inEnglish {
+    @Test func choosingTheModeThatIsOnTurnsItOff() async {
+        await inEnglish {
             let world = SuggestionsWorld()
             world.codingMode = true
             let field = world.field()
@@ -104,8 +104,8 @@ struct SuggestionsCodingAcceptanceTests {
 
     /// A long press of Shift isn't a tap: in pinyin mode it opens the chooser, and closing it leaves the input language
     /// as it was.
-    @Test func aLongPressOfShiftDoesntSwitchTheInputLanguage() {
-        inEnglish {
+    @Test func aLongPressOfShiftDoesntSwitchTheInputLanguage() async {
+        await inEnglish {
             let world = SuggestionsWorld(input: .chinese)
             let field = world.field()
             #expect(field.host.composer.inputLanguage == .chinese)
@@ -119,8 +119,8 @@ struct SuggestionsCodingAcceptanceTests {
     }
 
     /// Shift held to type capitals opens no chooser, however long.
-    @Test func shiftHeldWhileTypingOpensNoChooser() {
-        inEnglish {
+    @Test func shiftHeldWhileTypingOpensNoChooser() async {
+        await inEnglish {
             let world = SuggestionsWorld()
             let field = world.field()
             field.host.modifiers(ModifierChange(key: .modifier(.shift, .left), modifiers: [.shift, .leftShift], timestamp: world.clock.timestamp))
@@ -138,8 +138,8 @@ struct SuggestionsCodingAcceptanceTests {
     }
 
     /// Translate as You Type and coding mode are exclusive: choosing one turns the other off.
-    @Test func translateAsYouTypeAndCodingModeAreExclusive() {
-        inEnglish {
+    @Test func translateAsYouTypeAndCodingModeAreExclusive() async {
+        await inEnglish {
             let world = SuggestionsWorld()
             world.translateAsYouType = true
             let field = world.field()
@@ -156,8 +156,8 @@ struct SuggestionsCodingAcceptanceTests {
 
     /// Coding mode stays on across fields and apps; each field starts in English (where pinyin comes first otherwise);
     /// a tap of Shift still switches, and pinyin works as usual then.
-    @Test func codingModeStartsEachFieldInEnglish() throws {
-        try inEnglish {
+    @Test func codingModeStartsEachFieldInEnglish() async throws {
+        try await inEnglish {
             let world = try Self.coding(input: .chinese)
             for app in [SuggestionsApps.editor, "com.apple.TextEdit", SuggestionsApps.chrome] {
                 let field = world.field(app: app)
@@ -178,8 +178,8 @@ struct SuggestionsCodingAcceptanceTests {
     // MARK: - Packs
 
     /// The packs' keywords are rows from 2 characters on; what is typed exactly is not offered.
-    @Test func keywordsAreRowsFromTwoCharactersOn() throws {
-        try inEnglish {
+    @Test func keywordsAreRowsFromTwoCharactersOn() async throws {
+        try await inEnglish {
             let world = try Self.coding()
             let field = world.field()
             field.type("r")
@@ -203,8 +203,8 @@ struct SuggestionsCodingAcceptanceTests {
     }
 
     /// Off: the packs give no rows.
-    @Test func noCodingRowsWhileCodingModeIsOff() throws {
-        try inEnglish {
+    @Test func noCodingRowsWhileCodingModeIsOff() async throws {
+        try await inEnglish {
             let world = try Self.coding()
             world.codingMode = false
             let field = world.field()
@@ -221,8 +221,8 @@ struct SuggestionsCodingAcceptanceTests {
 
     /// A snippet goes in as text, its line breaks kept, its placeholders as their text; the caret at `$0`, where the
     /// field reports ranges.
-    @Test func aSnippetGoesInWithItsLineBreaksAndTheCaretAtItsEnd() throws {
-        try inEnglish {
+    @Test func aSnippetGoesInWithItsLineBreaksAndTheCaretAtItsEnd() async throws {
+        try await inEnglish {
             let world = try Self.coding()
             let field = world.field()
             field.type("cl")
@@ -240,8 +240,8 @@ struct SuggestionsCodingAcceptanceTests {
     }
 
     /// `print($0)`: "pr" and Tab make "print()", the caret between the parentheses.
-    @Test func theCaretGoesToTheSnippetsDollarZero() throws {
-        try inEnglish {
+    @Test func theCaretGoesToTheSnippetsDollarZero() async throws {
+        try await inEnglish {
             let world = try Self.coding()
             let field = world.field()
             field.type("pr")
@@ -255,8 +255,8 @@ struct SuggestionsCodingAcceptanceTests {
     }
 
     /// Where the field reports no ranges, the snippet's caret stays at the end of what went in.
-    @Test func withoutRangesTheCaretStaysAtTheEnd() throws {
-        try inEnglish {
+    @Test func withoutRangesTheCaretStaysAtTheEnd() async throws {
+        try await inEnglish {
             let world = try Self.coding()
             let field = world.field()
             field.type("pr")
@@ -275,8 +275,8 @@ struct SuggestionsCodingAcceptanceTests {
     }
 
     /// The def snippet of the spec's example: its placeholders' text, nothing for `${2}`, the caret at the end.
-    @Test func theSpecsDefSnippet() throws {
-        try inEnglish {
+    @Test func theSpecsDefSnippet() async throws {
+        try await inEnglish {
             let world = try Self.coding()
             let field = world.field()
             field.type("de")
@@ -288,8 +288,8 @@ struct SuggestionsCodingAcceptanceTests {
     }
 
     /// A digit never picks a row (spec 6.1): "pr" and 1 is "pr1", typed.
-    @Test func aDigitIsTypedNotAPick() throws {
-        try inEnglish {
+    @Test func aDigitIsTypedNotAPick() async throws {
+        try await inEnglish {
             let world = try Self.coding()
             let field = world.field()
             field.type("pr")
@@ -303,8 +303,8 @@ struct SuggestionsCodingAcceptanceTests {
 
     /// A snippet is offered while what is typed starts its trigger, the whole trigger too (Tab then puts its body in); a
     /// keyword typed in full isn't (spec 6.13): "def" offers the def snippet, not the keyword "def".
-    @Test func theWholeTriggerStillOffersTheSnippet() throws {
-        try inEnglish {
+    @Test func theWholeTriggerStillOffersTheSnippet() async throws {
+        try await inEnglish {
             let world = try Self.coding()
             let field = world.field()
             field.type("def")
@@ -316,8 +316,8 @@ struct SuggestionsCodingAcceptanceTests {
     }
 
     /// A snippet whose body doesn't start with what was typed isn't offered (spec 6.13); one whose body does is.
-    @Test func aSnippetWhoseBodyDoesntStartWithWhatWasTypedIsntOffered() {
-        inEnglish {
+    @Test func aSnippetWhoseBodyDoesntStartWithWhatWasTypedIsntOffered() async {
+        await inEnglish {
             let world = SuggestionsWorld()
             world.codingMode = true
             world.packs = [CodingLanguagePack(language: "example", title: "Example", version: "1.0.0", keywords: [], snippets: [
@@ -350,8 +350,8 @@ struct SuggestionsCodingAcceptanceTests {
 
     /// Identifiers of 4 characters or more in the field's text, before the caret and after it, most frequent first; one
     /// shorter, or what is typed exactly, isn't offered.
-    @Test func theFieldsOwnWordsAreRows() {
-        inEnglish {
+    @Test func theFieldsOwnWordsAreRows() async {
+        await inEnglish {
             let world = SuggestionsWorld()
             world.codingMode = true
             let field = world.field()
@@ -369,8 +369,8 @@ struct SuggestionsCodingAcceptanceTests {
     }
 
     /// Among words as frequent, the nearest to the caret first.
-    @Test func amongWordsAsFrequentTheNearestFirst() {
-        inEnglish {
+    @Test func amongWordsAsFrequentTheNearestFirst() async {
+        await inEnglish {
             let world = SuggestionsWorld()
             world.codingMode = true
             let field = world.field()
@@ -380,8 +380,8 @@ struct SuggestionsCodingAcceptanceTests {
     }
 
     /// The token is identifier characters: after "." a new one starts ("self.co" offers what "co" starts).
-    @Test func aDotStartsANewToken() {
-        inEnglish {
+    @Test func aDotStartsANewToken() async {
+        await inEnglish {
             let world = SuggestionsWorld()
             world.codingMode = true
             let field = world.field()
@@ -397,8 +397,8 @@ struct SuggestionsCodingAcceptanceTests {
     /// Terminals and code editors (VS Code, spec 6.11) are one class: Tab completes the rows' common prefix only (a
     /// snippet isn't expanded); once that adds nothing, Tab is the app's (spec 6.10).
     @Test(arguments: [("com.apple.Terminal", true), (SuggestionsApps.vsCode, false)])
-    func inTerminalsAndCodeEditorsTabCompletesTheCommonPrefixOnly(_ app: String, _ terminal: Bool) {
-        inEnglish {
+    func inTerminalsAndCodeEditorsTabCompletesTheCommonPrefixOnly(_ app: String, _ terminal: Bool) async {
+        await inEnglish {
             let world = SuggestionsWorld()
             world.codingMode = true
             world.packs = [Self.computePack]
@@ -417,8 +417,8 @@ struct SuggestionsCodingAcceptanceTests {
 
     /// Where the field tells nothing of its text (a terminal), only the packs' keywords and snippets are rows (spec 6.16):
     /// a word in the field it doesn't tell of isn't one.
-    @Test func whereTheFieldTellsNoTextOnlyPacksApply() {
-        inEnglish {
+    @Test func whereTheFieldTellsNoTextOnlyPacksApply() async {
+        await inEnglish {
             let world = SuggestionsWorld()
             world.codingMode = true
             world.packs = [Self.computePack]

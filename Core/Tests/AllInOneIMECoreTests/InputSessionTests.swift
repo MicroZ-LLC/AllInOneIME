@@ -60,12 +60,12 @@ struct InputSessionTests {
         host.press(FakeHost.tab)
     }
 
-    func inEnglish(_ body: () throws -> Void) rethrows { try withInterfaceLanguage("en", body) }
+    func inEnglish(_ body: () throws -> Void) async rethrows { try await withInterfaceLanguage("en", body) }
 
     // MARK: - Keys
 
-    @Test func idleKeysGoToTheApp() {
-        inEnglish {
+    @Test func idleKeysGoToTheApp() async {
+        await inEnglish {
             let host = host()
             #expect(!host.press(KeyEvent(keyCode: 0x12, characters: "1")), "a digit")
             #expect(!host.press(KeyEvent(keyCode: 0x08, characters: "c", modifiers: .command)), "⌘C")
@@ -74,8 +74,8 @@ struct InputSessionTests {
         }
     }
 
-    @Test func pinyinIsMarkedThenPicked() {
-        inEnglish {
+    @Test func pinyinIsMarkedThenPicked() async {
+        await inEnglish {
             let host = host()
             host.type("nihao")
             #expect(host.marked == "nihao" && host.composer.isComposing)
@@ -88,8 +88,8 @@ struct InputSessionTests {
         }
     }
 
-    @Test func atOpensTheCommandList() {
-        inEnglish {
+    @Test func atOpensTheCommandList() async {
+        await inEnglish {
             let host = host()
             host.press(FakeHost.at)
             #expect(host.marked == "@" && host.panel?.rows.first.map { !$0.text.hasPrefix("@") && !$0.text.isEmpty } == true)
@@ -99,8 +99,8 @@ struct InputSessionTests {
         }
     }
 
-    @Test func atRightAfterAWordIsText() {
-        inEnglish {
+    @Test func atRightAfterAWordIsText() async {
+        await inEnglish {
             let host = host()
             host.composer.setInputMode(.english)
             for character in "bob@" {
@@ -116,8 +116,8 @@ struct InputSessionTests {
 
     // MARK: - Secure input and the field
 
-    @Test func secureInputLetsKeysThrough() {
-        inEnglish {
+    @Test func secureInputLetsKeysThrough() async {
+        await inEnglish {
             let host = host()
             host.secure = true
             #expect(!host.press(KeyEvent(keyCode: 0, characters: "a")) && host.marked.isEmpty && !host.composer.isComposing)
@@ -132,18 +132,18 @@ struct InputSessionTests {
 
     /// The secure input notice is in the session's interface language (its messages, from its settings), as its other
     /// notices are: not in the process's, which may be another one's meanwhile.
-    @Test func secureInputNoticeIsInTheSessionsLanguage() {
-        inEnglish {
+    @Test func secureInputNoticeIsInTheSessionsLanguage() async {
+        await inEnglish {
             let host = host()
             host.secure = true
-            withInterfaceLanguage("zh") { _ = host.press(KeyEvent(keyCode: 0, characters: "a")) }
+            inInterfaceLanguage("zh") { _ = host.press(KeyEvent(keyCode: 0, characters: "a")) }
             #expect(host.session.notice == "Secure input: the input method is paused, keys go straight in",
                     "English settings: English (\(host.session.notice ?? "-"))")
             let chinese = Settings()
             chinese.config.uiLanguage = "zh"
             let other = self.host(chinese)
             other.secure = true
-            withInterfaceLanguage("en") { _ = other.press(KeyEvent(keyCode: 0, characters: "a")) }
+            inInterfaceLanguage("en") { _ = other.press(KeyEvent(keyCode: 0, characters: "a")) }
             #expect(other.session.notice == "安全输入中：输入法暂停，按键直接输入", "Chinese settings: Chinese (\(other.session.notice ?? "-"))")
         }
     }
@@ -151,8 +151,8 @@ struct InputSessionTests {
     /// A notice is up until its own timer fires or a newer notice takes its place, as the Mac's controller had it before
     /// the session (0.6.5.1): composing again once secure input is off (the notice on the panel's footer, over what is
     /// there) and committing leave the secure input notice up; an older notice's timer leaves the newer one.
-    @Test func secureInputNoticeGoesWithItsTimer() {
-        inEnglish {
+    @Test func secureInputNoticeGoesWithItsTimer() async {
+        await inEnglish {
             let host = host()
             let notice = Composer.Messages.english.secureInputPaused
             host.secure = true
@@ -176,8 +176,8 @@ struct InputSessionTests {
         }
     }
 
-    @Test func theAppTakingTheMarkedTextStartsOver() {
-        inEnglish {
+    @Test func theAppTakingTheMarkedTextStartsOver() async {
+        await inEnglish {
             let host = host()
             host.type("ni")
             host.appTakesMarkedText = true
@@ -188,8 +188,8 @@ struct InputSessionTests {
         }
     }
 
-    @Test func fieldWantsWhatAKeyMayNeed() {
-        inEnglish {
+    @Test func fieldWantsWhatAKeyMayNeed() async {
+        await inEnglish {
             let host = host()
             let a = KeyEvent(keyCode: 0, characters: "a")
             #expect(host.session.fieldWants(for: a, given: FieldContext()) == [.secure], "first whether anything is composed")
@@ -201,8 +201,8 @@ struct InputSessionTests {
         }
     }
 
-    @Test func atReadsTheFieldOnlyWhereItMayStartACommand() {
-        inEnglish {
+    @Test func atReadsTheFieldOnlyWhereItMayStartACommand() async {
+        await inEnglish {
             func at(_ host: FakeHost) -> FieldContext.Parts {
                 host.session.fieldWants(for: FakeHost.at, given: FieldContext(read: .secure))
             }
@@ -222,8 +222,8 @@ struct InputSessionTests {
         }
     }
 
-    @Test func nothingIsReadInAPasswordField() {
-        inEnglish {
+    @Test func nothingIsReadInAPasswordField() async {
+        await inEnglish {
             let host = host()
             // "@" would have the selection read; secure input on for the key's app: nothing but that.
             #expect(host.session.fieldWants(for: FakeHost.at, given: FieldContext(read: .secure, secure: true)) == [.secure])
@@ -240,8 +240,8 @@ struct InputSessionTests {
 
     // MARK: - Level two
 
-    @Test func aRequestsResultGoesIn() {
-        inEnglish {
+    @Test func aRequestsResultGoesIn() async {
+        await inEnglish {
             let host = host { $0.runProgram = Self.printing("42") }
             pick("js", in: host)
             host.composer.setInputMode(.english)
@@ -254,8 +254,8 @@ struct InputSessionTests {
         }
     }
 
-    @Test func resultsAreTypedOutWhereTheSettingsSay() {
-        inEnglish {
+    @Test func resultsAreTypedOutWhereTheSettingsSay() async {
+        await inEnglish {
             let settings = Settings()
             settings.config.typeOut = true
             let host = host(settings) { $0.runProgram = Self.printing("42") }
@@ -269,8 +269,8 @@ struct InputSessionTests {
         }
     }
 
-    @Test func secureInputRefusesRequests() {
-        inEnglish {
+    @Test func secureInputRefusesRequests() async {
+        await inEnglish {
             let ran = Locked(initialState: 0)
             let host = host {
                 $0.secureInputActive = { true }
@@ -289,8 +289,8 @@ struct InputSessionTests {
         }
     }
 
-    @Test func anAppWithoutAIRefusesIt() {
-        inEnglish {
+    @Test func anAppWithoutAIRefusesIt() async {
+        await inEnglish {
             let settings = Settings()
             settings.config.appProfiles = ["com.example.chat": AppProfile(noAI: true)]
             let host = FakeHost(services: SessionServices(loadSettings: { settings.config }))
@@ -304,8 +304,8 @@ struct InputSessionTests {
         }
     }
 
-    @Test func aNewerRequestDropsTheOldOnesAnswer() {
-        inEnglish {
+    @Test func aNewerRequestDropsTheOldOnesAnswer() async {
+        await inEnglish {
             let host = host { $0.runProgram = Self.printing("42", after: .milliseconds(100)) }
             pick("js", in: host)
             host.composer.setInputMode(.english)
@@ -317,8 +317,8 @@ struct InputSessionTests {
         }
     }
 
-    @Test func anAnswerOfWorkStoppedSinceIsDroppedEvenForTheSameText() {
-        inEnglish {
+    @Test func anAnswerOfWorkStoppedSinceIsDroppedEvenForTheSameText() async {
+        await inEnglish {
             // The first search answers at once; the later ones once the test lets them.
             let (later, go) = (Locked(initialState: false), Locked(initialState: false))
             let host = host {
@@ -345,8 +345,8 @@ struct InputSessionTests {
         }
     }
 
-    @Test func nothingCountsOnceTheSessionIsClosed() {
-        inEnglish {
+    @Test func nothingCountsOnceTheSessionIsClosed() async {
+        await inEnglish {
             // A request on its way.
             let host = host { $0.runProgram = Self.printing("42", after: .milliseconds(100)) }
             pick("js", in: host)
@@ -365,8 +365,8 @@ struct InputSessionTests {
         }
     }
 
-    @Test func aFieldFocusedAgainAfterItsSessionClosedWorksAsBefore() {
-        inEnglish {
+    @Test func aFieldFocusedAgainAfterItsSessionClosedWorksAsBefore() async {
+        await inEnglish {
             let host = host { $0.runProgram = Self.printing("42") }
             host.send(.close)
             host.focus()
@@ -381,8 +381,8 @@ struct InputSessionTests {
 
     // MARK: - The selection
 
-    @Test func aCommandOnTheSelectionReplacesIt() {
-        inEnglish {
+    @Test func aCommandOnTheSelectionReplacesIt() async {
+        await inEnglish {
             let host = host { $0.runProgram = Self.printing("42") }
             host.document = "Total: 6*7 apples"
             host.selection = 7..<10
@@ -395,8 +395,8 @@ struct InputSessionTests {
         }
     }
 
-    @Test func aSelectionMovedGivesTheCommandUp() {
-        inEnglish {
+    @Test func aSelectionMovedGivesTheCommandUp() async {
+        await inEnglish {
             let host = host()
             host.document = "hello world"
             host.selection = 6..<11
@@ -410,8 +410,8 @@ struct InputSessionTests {
 
     // MARK: - Notices, the clipboard
 
-    @Test func aNoticeExpiresOnItsTimer() {
-        inEnglish {
+    @Test func aNoticeExpiresOnItsTimer() async {
+        await inEnglish {
             let host = host()
             host.secure = true
             host.press(KeyEvent(keyCode: 0, characters: "a"))
@@ -421,8 +421,8 @@ struct InputSessionTests {
         }
     }
 
-    @Test func theClipboardIsReadOnceTheKeyIsAnswered() {
-        inEnglish {
+    @Test func theClipboardIsReadOnceTheKeyIsAnswered() async {
+        await inEnglish {
             let host = host()
             pick("i", in: host)
             host.clipboard = .text("hello there")
@@ -432,8 +432,8 @@ struct InputSessionTests {
         }
     }
 
-    @Test func theClipboardIsntTakenDuringSecureInput() {
-        inEnglish {
+    @Test func theClipboardIsntTakenDuringSecureInput() async {
+        await inEnglish {
             /// ⌃V in an `@improve` draft, the clipboard answered after `meanwhile`: the draft then.
             func paste(_ adjust: (inout SessionServices) -> Void = { _ in }, meanwhile: (FakeHost) -> Void) -> String {
                 let host = host(Settings(), adjust)
@@ -472,8 +472,8 @@ struct InputSessionTests {
         func check() async throws -> String { "ok" }
     }
 
-    @Test func aNoteIsSavedAndSaysWhere() {
-        inEnglish {
+    @Test func aNoteIsSavedAndSaysWhere() async {
+        await inEnglish {
             let saved = Locked<[String]>(initialState: [])
             let host = host { $0.noteDestination = { _ in StandInNotes(saved: saved) } }
             host.composer.setInputMode(.english)  // letters, not pinyin
@@ -486,8 +486,8 @@ struct InputSessionTests {
         }
     }
 
-    @Test func aNoteNotSavedComesBack() {
-        inEnglish {
+    @Test func aNoteNotSavedComesBack() async {
+        await inEnglish {
             let saved = Locked<[String]>(initialState: [])
             let host = host {
                 $0.noteDestination = { _ in StandInNotes(saved: saved, failure: NoteError.notionRefused(code: "unauthorized")) }
@@ -504,8 +504,8 @@ struct InputSessionTests {
     }
 
     /// Left, and maybe focused again: the field the save came from is gone either way.
-    @Test(arguments: [false, true]) func aSaveOutcomeAfterTheFieldWasLeftGoesElsewhere(focusedAgain: Bool) {
-        inEnglish {
+    @Test(arguments: [false, true]) func aSaveOutcomeAfterTheFieldWasLeftGoesElsewhere(focusedAgain: Bool) async {
+        await inEnglish {
             let saved = Locked<[String]>(initialState: [])
             let host = host {
                 $0.noteDestination = { _ in StandInNotes(saved: saved, failure: NoteError.notionTrouble(status: 500)) }
@@ -522,8 +522,8 @@ struct InputSessionTests {
         }
     }
 
-    @Test func aReminderIsReadThenAdded() {
-        inEnglish {
+    @Test func aReminderIsReadThenAdded() async {
+        await inEnglish {
             let added = Locked<[ReminderDraft]>(initialState: [])
             let draft = ReminderDraft(title: "Call Ann")
             let host = host {
@@ -544,8 +544,8 @@ struct InputSessionTests {
 
     // MARK: - @open, @agent
 
-    @Test func openFindsAndOpens() {
-        inEnglish {
+    @Test func openFindsAndOpens() async {
+        await inEnglish {
             let recorded = Locked<[String]>(initialState: [])
             let host = host {
                 $0.searchFiles = { query, _ in [SearchResult(name: "notes.txt", path: "/tmp/\(query).txt")] }
@@ -561,8 +561,8 @@ struct InputSessionTests {
         }
     }
 
-    @Test func agentTakesTheWebPageAlong() {
-        inEnglish {
+    @Test func agentTakesTheWebPageAlong() async {
+        await inEnglish {
             let started = Locked<[String]>(initialState: [])
             let host = host {
                 $0.page = { _ in
@@ -583,8 +583,8 @@ struct InputSessionTests {
         }
     }
 
-    @Test func commandsWhoseProgramIsMissingAreNotOffered() {
-        inEnglish {
+    @Test func commandsWhoseProgramIsMissingAreNotOffered() async {
+        await inEnglish {
             let host = host { $0.programInstalled = { $0 != InlineCode.python } }
             #expect(host.settle { !host.composer.commands.contains(.py) })
             #expect(host.composer.commands.contains(.js))
@@ -595,8 +595,8 @@ struct InputSessionTests {
 
     /// The session's messages name the keys the composer acts on (`Composer.modifierRoles`), as its panel does, whatever
     /// roles the platform's terms came with: the right Ctrl to talk, a tap of Ctrl to run, on a composer with Windows'.
-    @Test func theMessagesNameTheKeysTheComposerActsOn() {
-        inEnglish {
+    @Test func theMessagesNameTheKeysTheComposerActsOn() async {
+        await inEnglish {
             var platform = Platform.current
             platform.terms = .windows
             platform.terms.roles = .mac
@@ -612,8 +612,8 @@ struct InputSessionTests {
         }
     }
 
-    @Test func inATerminalAnArrowEndsTheListTheAtAfterIt() {
-        inEnglish {
+    @Test func inATerminalAnArrowEndsTheListTheAtAfterIt() async {
+        await inEnglish {
             let host = host()
             host.terminal = true
             host.focus()
@@ -626,8 +626,8 @@ struct InputSessionTests {
         }
     }
 
-    @Test func holdingTheVoiceKeyStartsDictation() {
-        inEnglish {
+    @Test func holdingTheVoiceKeyStartsDictation() async {
+        await inEnglish {
             let host = host {
                 $0.voiceSupported = { true }
                 $0.isVoiceKeyHeld = { true }
@@ -650,8 +650,8 @@ struct InputSessionTests {
 
     // MARK: - Script extensions
 
-    @Test func aScriptExtensionRunsWhereTheShellRunsIt() {
-        inEnglish {
+    @Test func aScriptExtensionRunsWhereTheShellRunsIt() async {
+        await inEnglish {
             let folder = URL(fileURLWithPath: "/tmp/stand-in-scripts", isDirectory: true)
             let script = ScriptCommand(file: folder.appendingPathComponent("hello.sh"), name: "hello", title: "Hello", output: .show)
             let index = ExtensionIndex(commands: [script])
@@ -675,8 +675,8 @@ struct InputSessionTests {
         }
     }
 
-    @Test func aScriptWhoseEnvironmentCantBeMadeIsLetGo() {
-        inEnglish {
+    @Test func aScriptWhoseEnvironmentCantBeMadeIsLetGo() async {
+        await inEnglish {
             let folder = URL(fileURLWithPath: "/tmp/stand-in-scripts", isDirectory: true)
             let script = ScriptCommand(source: .bundle("greeter"), file: folder.appendingPathComponent("greet.sh"), name: "greet",
                                        title: "Greet", output: .show)
@@ -703,8 +703,8 @@ struct InputSessionTests {
 
     // MARK: - More of the self-test's
 
-    @Test func aSnippetsCaretGoesWhereItsCursorIs() {
-        inEnglish {
+    @Test func aSnippetsCaretGoesWhereItsCursorIs() async {
+        await inEnglish {
             let settings = Settings()
             settings.config.customCommands = [CustomCommand(name: "sig", type: .snippet, text: "Best,{cursor}\nAnn")]
             let host = host(settings)
@@ -719,8 +719,8 @@ struct InputSessionTests {
 
     /// Nothing to translate into: no request and nothing opens by itself; the notice says where, and ⏎ on it puts
     /// the sentence in as typed and opens the settings there (`NoTranslationTargetTests` has the composer's side).
-    @Test func nothingToTranslateIntoOpensTheSettingsOnReturn() {
-        inEnglish {
+    @Test func nothingToTranslateIntoOpensTheSettingsOnReturn() async {
+        await inEnglish {
             let settings = Settings()
             settings.config.setOrder([OutputLanguage.english])
             let host = host(settings)
@@ -740,8 +740,8 @@ struct InputSessionTests {
         }
     }
 
-    @Test func aRenameIsToldOnceAtTheFocus() {
-        inEnglish {
+    @Test func aRenameIsToldOnceAtTheFocus() async {
+        await inEnglish {
             let told = Locked(initialState: false)
             let host = host {
                 $0.takeRenameNotice = { messages in
@@ -765,8 +765,8 @@ struct InputSessionTests {
         }
     }
 
-    @Test func thePageIsAskedForWhileAgentIsWrittenAndGivenBack() {
-        inEnglish {
+    @Test func thePageIsAskedForWhileAgentIsWrittenAndGivenBack() async {
+        await inEnglish {
             let calls = Locked<[String]>(initialState: [])
             let host = host {
                 $0.page = { _ in
@@ -784,8 +784,8 @@ struct InputSessionTests {
         }
     }
 
-    @Test func backgroundCommandsDontRunDuringSecureInput() {
-        inEnglish {
+    @Test func backgroundCommandsDontRunDuringSecureInput() async {
+        await inEnglish {
             let folder = URL(fileURLWithPath: "/tmp/stand-in-scripts", isDirectory: true)
             let script = ScriptCommand(file: folder.appendingPathComponent("sync.sh"), name: "sync", title: "Sync", input: .none,
                                        arguments: [], background: true)
@@ -812,8 +812,8 @@ struct InputSessionTests {
         }
     }
 
-    @Test func aMessageGoesToTheRecipientPicked() {
-        inEnglish {
+    @Test func aMessageGoesToTheRecipientPicked() async {
+        await inEnglish {
             final class Sender: MessageSender, @unchecked Sendable {
                 let sent = Locked<[(String, Recipient)]>(initialState: [])
                 func send(_ text: String, to recipient: Recipient) async throws { sent.withLock { $0.append((text, recipient)) } }
@@ -840,8 +840,8 @@ struct InputSessionTests {
 
     // MARK: - The model (a stand-in)
 
-    @Test func aRequestToTheModelThenAFollowUp() {
-        inEnglish {
+    @Test func aRequestToTheModelThenAFollowUp() async {
+        await inEnglish {
             let settings = Settings()
             settings.config.provider = .apple
             let stub = StubAppleModel(answer: ["Canberra is the capital."])
@@ -864,8 +864,8 @@ struct InputSessionTests {
 
     /// A click on a row picks what the panel says it does (`PanelModel.Row.choice`): a candidate by its number; in a
     /// conversation, whose rows are its questions and answers, an answer by its round, and nothing for a question.
-    @Test func aClickPicksTheRowsChoice() {
-        inEnglish {
+    @Test func aClickPicksTheRowsChoice() async {
+        await inEnglish {
             let typing = host()
             typing.type("nihao")
             #expect(typing.panel?.rows.map(\.choice).prefix(2) == [0, 1])
@@ -891,8 +891,8 @@ struct InputSessionTests {
         }
     }
 
-    @Test func improveWithTheModel() {
-        inEnglish {
+    @Test func improveWithTheModel() async {
+        await inEnglish {
             let settings = Settings()
             settings.config.provider = .apple
             settings.config.setOrder([OutputLanguage.english])
