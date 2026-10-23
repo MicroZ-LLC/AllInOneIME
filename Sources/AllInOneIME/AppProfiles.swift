@@ -82,8 +82,10 @@ enum AppProfileText {
     /// The notice of an AI command refused in an app with no AI (`InputSession.aiRefusal`).
     static var refusal: String { InputSession.aiRefusal }
 
-    /// 「跟全局一样（开）」, and where it stopped for want of use there, that it did.
+    /// 「跟全局一样（开）」, and where it stopped for want of use there, that it did; in a code editor, that it's off there
+    /// unless set to always (`Autocomplete.isCodeEditor`).
     static func autocompleteEverywhere(_ config: Config, app: String) -> String {
+        if Autocomplete.isCodeEditor(app) { return tr("默认（代码编辑器里关）", "Default (off in code editors)") }
         if config.autocomplete, AutocompleteSwitch.store.stopped(in: app) {
             return tr("跟全局一样（在这里没用上，已停）", "Same as everywhere (stopped here: not used)")
         }
@@ -215,8 +217,8 @@ struct AppProfilesSection: View {
             } label: {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(tr("续写", "Autocomplete"))
-                    Text(tr("停一下，光标后出现灰字，按 Tab 接受。「总是」在这里不管全局开关，也不会因为没用上而停下。",
-                            "Pause, and the rest of the sentence shows in gray after the caret; Tab takes it. Always: here whatever the switch, and it doesn't stop for want of use."))
+                    Text(tr("停一下，光标后出现灰字，按 Tab 接受。「总是」在这里不管全局开关，也不会因为没用上而停下。代码编辑器（Xcode、VS Code、Cursor、JetBrains 等）里默认关，设成「总是」才开。",
+                            "Pause, and the rest of the sentence shows in gray after the caret; Tab takes it. Always: here whatever the switch, and it doesn't stop for want of use. Off in code editors (Xcode, VS Code, Cursor, JetBrains…) unless set to Always."))
                         .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
             }

@@ -4,7 +4,8 @@ import Foundation
 
 /// Autocomplete (「续写」): after a pause in typing, the rest of the sentence in gray after the caret, from a model; Tab
 /// puts it in. One switch (`Config.autocomplete`, the input menu and the menu bar panel); an app's own choice
-/// (`AppProfile.autocomplete`); in an app where none of the last 30 suggestions was taken it stops by itself (`Learning`).
+/// (`AppProfile.autocomplete`; code editors are off until set so, `isCodeEditor`); in an app where none of the last 30
+/// suggestions was taken it stops by itself (`Learning`).
 ///
 /// The core has the logic: when it may run at all (`blocker`, `isOn`), how long the pause is (`Route.pause`), what is
 /// sent (`context`, `Prompt.autocompleteRequest`, hidden values as usual), what of the answer is shown (`trimmed`), what
@@ -108,10 +109,35 @@ public enum Autocomplete {
     // MARK: Where it runs
 
     /// Whether it runs in `app` by the settings: the app's own choice (Settings → Apps), else the switch, unless it has
-    /// stopped there for want of use (`stopped`, `Learning`).
+    /// stopped there for want of use (`stopped`, `Learning`) or the app is a code editor (`isCodeEditor`).
     public static func isOn(in app: String?, config: Config, stopped: Bool) -> Bool {
         if let own = config.profile(for: app)?.autocomplete { return own }
-        return config.autocomplete && !stopped
+        return config.autocomplete && !stopped && !isCodeEditor(app)
+    }
+
+    /// Code editors, by the beginning of their bundle ids (in small letters): Tab indents there and takes the editor's own
+    /// completion, which a gray suggestion would take instead, and what is written there is code. Off there unless the
+    /// app is set to autocomplete always (`AppProfile.autocomplete`). Xcode, Visual Studio Code (and its Insiders build),
+    /// VSCodium, Cursor, Windsurf, Zed, JetBrains' IDEs (IntelliJ IDEA, PyCharm, WebStorm, GoLand, CLion, Rider, PhpStorm,
+    /// RubyMine, DataGrip, Fleet), Android Studio, Sublime Text, Nova, BBEdit, TextMate, MacVim, Emacs. Jupyter in a
+    /// browser goes by the browser's id, and can't be told.
+    static let codeEditors = [
+        "com.apple.dt.xcode", "com.microsoft.vscode", "com.vscodium", "com.todesktop.230313mzl4w4u92", "com.exafunction.windsurf",
+        "dev.zed.zed", "com.jetbrains.", "com.google.android.studio", "com.sublimetext.", "com.panic.nova", "com.barebones.bbedit",
+        "com.macromates.textmate", "org.vim.macvim", "org.gnu.emacs",
+    ]
+    /// The same on Windows, by their program's file name (an app id "win:code.exe"), with Visual Studio and Notepad++.
+    static let codeEditorPrograms: Set<String> = [
+        "code.exe", "code - insiders.exe", "vscodium.exe", "cursor.exe", "windsurf.exe", "zed.exe", "devenv.exe", "idea64.exe",
+        "pycharm64.exe", "webstorm64.exe", "goland64.exe", "clion64.exe", "rider64.exe", "phpstorm64.exe", "rubymine64.exe",
+        "datagrip64.exe", "studio64.exe", "sublime_text.exe", "notepad++.exe",
+    ]
+
+    /// Whether `app` (a bundle id, or a Windows app id; in any case) is a code editor (`codeEditors`).
+    public static func isCodeEditor(_ app: String?) -> Bool {
+        guard let app = app?.lowercased() else { return false }
+        if app.hasPrefix("win:") { return codeEditorPrograms.contains(String(app.dropFirst(4))) }
+        return codeEditors.contains { app.hasPrefix($0) }
     }
 
     /// Why it never runs in a field, whatever the settings.

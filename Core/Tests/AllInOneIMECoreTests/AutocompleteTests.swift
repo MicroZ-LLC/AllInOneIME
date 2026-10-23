@@ -420,6 +420,34 @@ struct AutocompleteTests {
         #expect(Autocomplete.isOn(in: "com.a", config: config, stopped: false))
     }
 
+    /// Code editors: Tab indents there and takes the editor's own completion, so it's off there unless the app is set to
+    /// autocomplete always.
+    @Test func offInCodeEditorsUnlessTheAppIsSetToAlways() {
+        var config = Config.default
+        config.autocomplete = true
+        for app in ["com.apple.dt.Xcode", "com.microsoft.VSCode", "com.microsoft.VSCodeInsiders", "com.todesktop.230313mzl4w4u92",
+                    "com.jetbrains.intellij", "com.jetbrains.pycharm", "com.google.android.studio", "dev.zed.Zed",
+                    "com.sublimetext.4", "win:Code.exe", "win:devenv.exe", "win:pycharm64.exe"] {
+            #expect(Autocomplete.isCodeEditor(app) && !Autocomplete.isOn(in: app, config: config, stopped: false), "\(app)")
+        }
+        for app in ["com.apple.TextEdit", "com.tinyspeck.slackmacgap", "com.google.Chrome", "com.microsoft.Word", "win:notepad.exe", nil] {
+            #expect(!Autocomplete.isCodeEditor(app) && Autocomplete.isOn(in: app, config: config, stopped: false), "\(app ?? "none")")
+        }
+        config.appProfiles = ["com.microsoft.vscode": AppProfile(autocomplete: true)]
+        #expect(Autocomplete.isOn(in: "com.microsoft.VSCode", config: config, stopped: false))
+        withInterfaceLanguage("en") {
+            let xcode = rig(app: "com.apple.dt.Xcode")
+            xcode.host.type("Hello wor")
+            #expect(xcode.pauses.isEmpty)
+            let settings = Settings()
+            settings.config.appProfiles = ["com.apple.dt.Xcode": AppProfile(autocomplete: true)]
+            let always = rig(settings, app: "com.apple.dt.Xcode")
+            always.host.type("Hello wor")
+            always.pauseEnds(expecting: "x")
+            #expect(always.host.ghost == "ld, how are you?")
+        }
+    }
+
     // MARK: - Kept, learned, counted
 
     @Test func aSuggestionKeptIsShownAgainAndAsItIsTypedAlong() {

@@ -374,6 +374,8 @@ extension SelfTest {
                 restore: { harness.bundleID = "com.aipinyin.selftest.harness" })
         nothing("in a remote desktop", prepare: { harness.bundleID = "com.microsoft.rdc.macos" },
                 restore: { harness.bundleID = "com.aipinyin.selftest.harness" })
+        nothing("in a code editor not set to always", prepare: { harness.bundleID = "com.microsoft.VSCode" },
+                restore: { harness.bundleID = "com.aipinyin.selftest.harness" })
         nothing("in an app with no AI", prepare: { settings.appProfiles = [harness.bundleID: AppProfile(noAI: true)] },
                 restore: { settings.appProfiles = [:] })
         nothing("in an app set to never", prepare: { settings.appProfiles = [harness.bundleID: AppProfile(autocomplete: false)] },

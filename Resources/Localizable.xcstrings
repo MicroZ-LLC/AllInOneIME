@@ -8197,6 +8197,53 @@
         }
       }
     },
+    "Default (off in code editors)" : {
+      "comment" : "默认（代码编辑器里关） — Sources/AllInOneIME/AppProfiles.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Standard (in Code-Editoren aus)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Predeterminado (desactivado en editores de código)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Par défaut (désactivée dans les éditeurs de code)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "デフォルト（コードエディタではオフ）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기본값 (코드 편집기에서는 끔)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Padrão (desativado em editores de código)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "預設（程式碼編輯器中關閉）"
+          }
+        }
+      }
+    },
     "Delete" : {
       "comment" : "删除 — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
@@ -16832,6 +16879,7 @@
     },
     "Pause, and the rest of the sentence shows in gray after the caret; Tab takes it. Always: here whatever the switch, and it doesn't stop for want of use." : {
       "comment" : "停一下，光标后出现灰字，按 Tab 接受。「总是」在这里不管全局开关，也不会因为没用上而停下。 — Sources/AllInOneIME/AppProfiles.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -16873,6 +16921,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "停一下，游標後出現灰字，按 Tab 接受。「一律」在這裡不管全域開關，也不會因為沒用上而停下。"
+          }
+        }
+      }
+    },
+    "Pause, and the rest of the sentence shows in gray after the caret; Tab takes it. Always: here whatever the switch, and it doesn't stop for want of use. Off in code editors (Xcode, VS Code, Cursor, JetBrains…) unless set to Always." : {
+      "comment" : "停一下，光标后出现灰字，按 Tab 接受。「总是」在这里不管全局开关，也不会因为没用上而停下。代码编辑器（Xcode、VS Code、Cursor、JetBrains 等）里默认关，设成「总是」才开。 — Sources/AllInOneIME/AppProfiles.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kurz innehalten: Der Rest des Satzes erscheint grau hinter der Einfügemarke, Tab übernimmt ihn. Immer: hier unabhängig vom Schalter, und es hört nicht auf, wenn es nicht genutzt wird. In Code-Editoren (Xcode, VS Code, Cursor, JetBrains …) aus, außer auf „Immer“ gestellt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Haz una pausa y el resto de la frase aparece en gris tras el cursor; Tab lo acepta. Siempre: aquí sin importar el interruptor, y no se detiene aunque no se use. Desactivado en editores de código (Xcode, VS Code, Cursor, JetBrains…) salvo que lo pongas en Siempre."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Marquez une pause : la suite de la phrase s’affiche en gris après le curseur, Tab l’accepte. Toujours : ici quel que soit le réglage général, et elle ne s’arrête pas faute d’usage. Désactivée dans les éditeurs de code (Xcode, VS Code, Cursor, JetBrains…) sauf si réglée sur Toujours."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "少し手を止めると、文の続きがカーソルの後ろに灰色で出ます。Tab で採用。「常に」にすると、全体のスイッチに関係なくこのAppで使い、使われなくても止まりません。コードエディタ（Xcode、VS Code、Cursor、JetBrainsなど）では「常に」にしない限りオフです。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "잠시 멈추면 문장의 나머지가 커서 뒤에 회색으로 나오고, Tab으로 수락합니다. 항상: 전체 스위치와 상관없이 이 앱에서 쓰며, 쓰지 않아도 멈추지 않습니다. 코드 편집기(Xcode, VS Code, Cursor, JetBrains 등)에서는 항상으로 설정하지 않으면 꺼져 있습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Faça uma pausa e o resto da frase aparece em cinza após o cursor; Tab aceita. Sempre: aqui independentemente da chave geral, e não para por falta de uso. Desativado em editores de código (Xcode, VS Code, Cursor, JetBrains…) a menos que esteja em Sempre."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "停一下，游標後出現灰字，按 Tab 接受。「一律」在這裡不管全域開關，也不會因為沒用上而停下。程式碼編輯器（Xcode、VS Code、Cursor、JetBrains 等）裡預設關閉，設成「一律續寫」才開。"
           }
         }
       }
