@@ -37,6 +37,8 @@
 
 一款在每個文字欄位都能使用 AI 指令的 macOS 輸入法。在句子開頭輸入 `@`，寫完後按 ⏎：`@improve` 潤飾你寫的內容並提供幾種改寫，`@translate` 把它翻譯成你選的語言，`@question` 提出問題，`@agent` 把它交給 Claude Code、Gemini CLI、Kiro CLI 等程式設計 agent，`@open` 尋找檔案和 App，或開啟網址。你也可以按住右側 ⌥ 說話。不以 `@` 開頭時，按鍵照常送到 App。它也能輸入中文（拼音，以 Rime 和 rime-ice 為基礎）、法文、韓文（諺文）和印地文（以拉丁字母輸入天城文），並能把你自己的腳本當作 @ 指令執行。
 
+指令觸發符預設是 `@`。在 Settings → General → Command trigger（命令觸發符）可以改成另一個符號：`#`、`%`、`&`、`*`、`+`、`|` 或 `~`；之後指令就用它開頭（例如 `~translate`），`@` 則照常輸入。字母、數字、空格和打字要用的符號（拼音的按鍵，如 `'` `-` `=` `[` `]` `` ` ``，以及拼音打成中文標點的，如 `,` `.` `?` `\`）不能用，設定裡會說明原因。設定檔裡寫 `"commandTrigger": "~"`。
+
 ![@improve 加上一句粗略的話，再按 ⏎：潤飾後的版本，以及改寫](../en/improve.png)
 
 更多細節（每個指令和設定、安裝疑難排解、隱私）請見 [Wiki](https://github.com/MicroZ-LLC/AllInOneIME/wiki)。由 MicroZ LLC 的 [Weijian Zhang](https://weijianz.com) 製作。
@@ -341,9 +343,24 @@ Settings → General → **Sync through iCloud**（透過 iCloud 同步，預設
 - **Language packs**（語言包）：App 內建英文（以及法文，法文只需要 macOS 的鍵盤配置）。中文、韓文和印地文是加入時才下載的語言包：加入中文（拼音）時會下載它的詞庫（約 34 MB，解壓縮後 125 MB）並顯示進度列，下載完成後拼音立即可用，不需要重新啟動；韓文的語言包（它的按鍵表，以及字母如何組成音節）和印地文的語言包（它的字母和常用字）只有幾 KB。語言包只包含資料（詞庫、表格和綱要，絕無程式碼），列在經過簽署的索引中，使用前會核對 SHA-256，和外掛程式一樣。每種語言的卡片會顯示它的語言包（版本、大小、來源），並附有「Delete…」（刪除…）；移除語言時會詢問是否一併刪除它的語言包。從 0.6.1 或更早版本更新時，中文不需要下載：安裝程式會保留舊版本附帶的詞庫。
 - **候選排列**：選字時，拼音和印地文的候選字詞預設橫向並排（Horizontal），就像系統內建的輸入法：← → 選取，↑↓（或 - =）翻頁。想要上下排列（↑↓ 選取），請在 Input 頁面、輸入語言下方選擇 Vertical。@ 指令清單和結果一律直向排列。
 - **Fuzzy pinyin**（模糊拼音，搭配中文輸入）：你分不清的音，兩種打法都可以，例如 z ↔ zh、n ↔ l、in ↔ ing。在「Input」（輸入）頁面的輸入語言列中選擇中文（拼音），開啟「Fuzzy pinyin」並選擇要配對的音；詞庫會在一兩秒內重新部署。它會在 Rime 使用者資料夾中寫入 `rime_ice.custom.yaml`，而且絕不會覆寫你自己放在那裡的檔案。
+- **Personal Dictionaries**（個人詞庫，搭配中文輸入）：Settings → Input → Chinese (pinyin) → Personal Dictionaries → **Import or Update…**（匯入或更新），可以把 UTF-8 的 Rime 詞庫（`.dict.yaml`）加在 rime-ice 之外（需要先裝好中文語言包）。列表顯示每個詞庫的 Rime `name`、原檔名和詞條數；再次匯入相同 `name` 會更新已存的副本（只修改原檔不會更新）。每次匯入、更新或移除都會重新編譯拼音詞庫（rime-ice 的全部詞條加上你的），可能要一分鐘左右，這段期間暫時打不了中文，頁面會顯示進度或錯誤。副本只留在這台 Mac 上，不透過 iCloud 同步，也不會發給 AI；不過從詞庫裡選過的詞和別的詞一樣會學進 Rime 的使用者詞典，開了學到的詞的同步時會同步到你的其他 Mac，移除詞庫後也還在。如果有你自己的 `rime_ice.custom.yaml`，會在改動任何檔案之前拒絕匯入。
 - **Translate (@translate)**（翻譯）：加入要翻譯成的語言（西班牙文、法文、德文、日文、韓文、中文、印地文、孟加拉文、坦米爾文及其他主要印度語言…），並拖曳排序。以拉丁字母輸入的印地文（「aap kaise ho」）會以天城文傳回。`@translate` 依這個順序，每種語言寫一行（只有一種時提供三個版本）；句子本身的語言會略過。新安裝時，會翻譯成 Mac 偏好語言中第一個不是英文的語言；如果只有英文，`@translate` 會提示還沒有要翻譯成的語言，在提示上按 ⏎ 會開啟這個頁面，「Add…」（加入…）加上外框標示（句子照輸入的原樣插入）。這時邊打邊譯也不會開啟，並提示要到哪裡加入語言。
 - **Keyboard layouts**（鍵盤配置）：法文以它卡片上選擇的配置輸入（設定檔中的 `keyboardLayouts`）。其他語言在輸入法之下，macOS 會沿用你最後使用的拉丁字母配置（AZERTY、QWERTZ、西班牙文、美式國際…），所以你可以照常打字，`@` 也在你的配置原本的位置，靜音鍵在指令的文字中同樣能組字（⌥E 再按 E → é，^ 再按 e → ê）。沒有拉丁字母的配置（俄文、印地文 InScript）無法在輸入法之下使用：請用 ⌃Space 切換過去，或把文字貼上（⌃V）或聽寫進指令中。
 - `@improve` 只潤飾和改寫，不翻譯；`@translate @improve` 一起使用時，一次請求就能翻譯並改寫。在設定中開啟「@improve also translates」，`@improve` 就會一律這樣做。
+
+個人詞庫的格式像這樣（每個詞條的欄位用 **Tab** 分隔）：
+
+```yaml
+---
+name: my_vocabulary
+version: "1"
+columns: [text, code, weight]
+...
+星河项目	xing he xiang mu	100
+蓝杉团队	lan shan tuan dui	200
+```
+
+拼音用小寫拉丁字母，音節之間用空格，`ü` 寫作 `v`；權重（weight）可以省略（非負數）。沒有 `columns` 時順序是 `text`、`code`、`weight`。`name` 只能包含拉丁字母、數字、`-`、`_` 和 `.`；檔案最多 32 MiB。依賴 `import_tables` 或沒有拼音編碼的檔案會被拒絕，什麼都不改。
 
 ## 改寫風格
 
@@ -515,6 +532,7 @@ Settings → AI Provider → Privacy →「Hide sensitive information before sen
 | `improveTranslates` | `@improve` 同時翻譯（等同 `@translate @improve`） | `false` |
 | `voiceInput` | 按住右側 ⌥ 說話 | `true` |
 | `actionKey` | 執行鍵：`"enter"`（⏎）、`"optionTap"`（Tap ⌥）、`"optionSpace"`（⌥Space）、`"space"`（Space） | `"enter"` |
+| `commandTrigger` | 開頭用來打開指令的符號：`"#"`、`"%"`、`"&"`、`"*"`、`"+"`、`"@"`、`"\|"`、`"~"` 之一；其他值都按 `"@"` | `"@"` |
 | `uiLanguage` | 介面語言（設定視窗、候選視窗提示、選單）：`"zh"`（簡體中文）、`"en"`，或 App 附帶的其他語言代碼：`"zh-Hant"`、`"ja"`、`"ko"`、`"de"`、`"fr"`、`"es"`、`"pt-BR"` | `null`（跟隨系統） |
 | `rewriteStyles` | 改寫風格：`polish`、`concise`、`formal`、`casual`、`tactful`、`jargon`，例如 `["polish", "concise", "jargon"]` | Polish、Concise、Formal |
 | `jargonFile` | 你自己的 Jargon 術語表檔案 | `null`（即 `~/.config/allinoneime/jargon.txt`） |

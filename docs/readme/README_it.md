@@ -37,6 +37,8 @@ Niente copia in una finestra di chat, niente cambi di app. Il tuo fornitore di I
 
 Un metodo di inserimento per macOS con comandi IA in ogni campo di testo. Inizia una frase con `@` e premi ⏎ quando hai finito: `@improve` rifinisce ciò che hai scritto e propone alcune riformulazioni, `@translate` lo traduce nelle lingue che scegli, `@question` fa una domanda, `@agent` lo passa a un agente di programmazione (Claude Code, Gemini CLI, Kiro CLI …), e `@open` trova file e app o apre un indirizzo web. Puoi anche tenere premuto il tasto ⌥ destro e parlare. Senza `@`, i tasti vanno all'app come al solito. Scrive anche in cinese (pinyin, basato su Rime e rime-ice), francese, coreano (hangul) e hindi (devanagari a partire da lettere latine), ed esegue i tuoi script come comandi @.
 
+Il simbolo dei comandi è `@` per impostazione predefinita. In Settings → General → Command trigger puoi sceglierne un altro: `#`, `%`, `&`, `*`, `+`, `|` o `~`; i comandi cominciano allora con quello (per esempio `~translate`) e `@` si digita normalmente. Lettere, cifre, spazi e i simboli che servono per scrivere (tasti del pinyin come `'` `-` `=` `[` `]` `` ` `` e quelli che il pinyin scrive come punteggiatura cinese, come `,` `.` `?` `\`) vengono rifiutati, e le impostazioni spiegano perché. Nel file di configurazione: `"commandTrigger": "~"`.
+
 ![@improve e una frase grezza, poi ⏎: versioni rifinite, più riformulazioni](../en/improve.png)
 
 Per maggiori dettagli (ogni comando e impostazione, risoluzione dei problemi di installazione, privacy), consulta la [Wiki](https://github.com/MicroZ-LLC/AllInOneIME/wiki). Realizzato da [Weijian Zhang](https://weijianz.com) presso MicroZ LLC.
@@ -341,9 +343,24 @@ Nelle impostazioni:
 - **Pacchetti lingua**: l'app include l'inglese (e il francese, che richiede solo il layout di macOS). Cinese, coreano e hindi sono pacchetti che scarichi quando li aggiungi: aggiungere il cinese (pinyin) scarica i suoi dizionari (circa 34 MB, 125 MB decompressi) con una barra di avanzamento, e il pinyin funziona appena finito, senza riavvio; il pacchetto del coreano (la sua tabella dei tasti e il modo in cui i jamo formano le sillabe) e quello dell'hindi (le sue lettere e parole comuni) pesano pochi kilobyte. Un pacchetto contiene solo dati (dizionari, tabelle e schemi, mai codice), è elencato in un indice firmato e viene verificato con il suo SHA-256 prima dell'uso, come i plugin. La scheda di ogni lingua mostra il suo pacchetto (versione, dimensione, provenienza) con Delete… (elimina), e rimuovendo la lingua viene proposto di eliminarne il pacchetto. L'aggiornamento dalla 0.6.1 o precedenti mantiene il cinese senza download: il programma di installazione conserva i dizionari forniti con la vecchia versione.
 - **Disposizione dei candidati**: per scegliere le parole, i candidati pinyin e hindi sono affiancati per impostazione predefinita (Horizontal), come nei metodi di inserimento del sistema: ← → scelgono e ↑↓ (o - =) cambiano pagina. Scegli Vertical nella pagina Input, sotto le lingue di inserimento, per averli uno sotto l'altro (↑↓ scelgono). L'elenco dei comandi @ e i risultati sono sempre verticali.
 - **Pinyin approssimativo** (con l'inserimento in cinese): suoni che non distingui, digitati in un modo o nell'altro, ad es. z ↔ zh, n ↔ l, in ↔ ing. Nella pagina Input, scegli Chinese (pinyin) nella barra delle lingue di inserimento, attiva "Fuzzy pinyin" e scegli le coppie; i dizionari vengono ridistribuiti in un secondo o due. Viene scritto `rime_ice.custom.yaml` nella cartella utente di Rime, e mai sopra un tuo file presente lì.
+- **Personal Dictionaries** (dizionari personali, con l'input cinese): Settings → Input → Chinese (pinyin) → Personal Dictionaries → **Import or Update…** aggiunge un vocabolario Rime in UTF-8 (`.dict.yaml`) accanto a rime-ice (prima va installato il pacchetto della lingua cinese). L'elenco mostra il `name` Rime, il nome del file e il numero di voci di ciascuno; importare di nuovo lo stesso `name` sostituisce la copia salvata (modificare solo il file originale non la aggiorna). Ogni importazione, aggiornamento o rimozione ricompila il dizionario del pinyin (tutte le parole di rime-ice più le tue), il che può richiedere un minuto circa; nel frattempo l'input cinese è sospeso, e la pagina mostra l'avanzamento o un errore. Le copie restano su questo Mac, fuori dalla sincronizzazione iCloud e dalle richieste all'IA; ma una parola che scegli da esse viene imparata come le altre, nel dizionario utente di Rime, che si sincronizza con le parole imparate se è attivo e resta anche dopo aver rimosso il dizionario. Se hai un tuo `rime_ice.custom.yaml`, l'importazione viene rifiutata prima di modificare qualsiasi file.
 - **Traduzione (@translate)**: aggiungi le lingue in cui tradurre (spagnolo, francese, tedesco, giapponese, coreano, cinese, hindi, bengalese, tamil e le altre principali lingue indiane…) e trascinale nell'ordine voluto. L'hindi digitato in lettere latine ("aap kaise ho") torna in devanagari. `@translate` scrive una riga in ciascuna, in quest'ordine (tre versioni se ce n'è una sola); la lingua della frase stessa viene saltata. Una nuova installazione traduce nella prima lingua tra le lingue preferite del tuo Mac che non sia l'inglese; con il solo inglese, `@translate` avvisa che non c'è ancora una lingua in cui tradurre, e ⏎ su quell'avviso apre questa pagina con "Add…" (aggiungi…) riquadrato (la frase viene inserita così come l'hai scritta). Traduci mentre scrivi allora non si attiva, e dice dove aggiungerne una.
 - **Layout di tastiera**: il francese si digita con il layout scelto nella sua scheda (`keyboardLayouts` nella configurazione). Per le altre lingue, sotto il metodo di inserimento macOS mantiene il tuo ultimo layout latino (AZERTY, QWERTZ, spagnolo, U.S. International…), quindi scrivi come al solito, `@` compresa ovunque la preveda il tuo layout, e i tasti morti compongono anche nel testo di un comando (⌥E poi E → é, ^ poi e → ê). I layout senza lettere latine (russo, hindi InScript) non si possono usare sotto un metodo di inserimento: passa a essi con ⌃Spazio, oppure incolla (⌃V) o detta il testo in un comando.
 - `@improve` rifinisce e riformula senza tradurre; `@translate @improve` insieme traducono e riformulano in un'unica richiesta. Attiva "@improve also translates" nelle impostazioni perché `@improve` faccia sempre così.
+
+Un dizionario personale ha questo aspetto (i campi di ogni voce sono separati da **tabulazioni**):
+
+```yaml
+---
+name: my_vocabulary
+version: "1"
+columns: [text, code, weight]
+...
+星河项目	xing he xiang mu	100
+蓝杉团队	lan shan tuan dui	200
+```
+
+Scrivi il pinyin in lettere latine minuscole, con spazi tra le sillabe e `v` per `ü`; il peso è facoltativo (un numero non negativo). Senza `columns` l'ordine è `text`, `code`, `weight`. `name` può contenere lettere latine, cifre, `-`, `_` e `.`; un file può essere al massimo di 32 MiB. I file che dipendono da `import_tables` o senza codici pinyin vengono rifiutati senza cambiare nulla.
 
 ## Stili di riformulazione
 
@@ -515,6 +532,7 @@ Tutte le impostazioni sono memorizzate in `~/.config/allinoneime/config.json`; d
 | `improveTranslates` | `@improve` traduce anche (come `@translate @improve`) | `false` |
 | `voiceInput` | Tenere premuto ⌥ destro per parlare | `true` |
 | `actionKey` | Tasto azione: `"enter"` (⏎), `"optionTap"` (Tap ⌥), `"optionSpace"` (⌥Spazio), `"space"` (Spazio) | `"enter"` |
+| `commandTrigger` | Il simbolo con cui iniziano i comandi: uno tra `"#"`, `"%"`, `"&"`, `"*"`, `"+"`, `"@"`, `"\|"`, `"~"`; qualsiasi altro valore vale `"@"` | `"@"` |
 | `uiLanguage` | Lingua dell'interfaccia (finestra delle impostazioni, suggerimenti del pannello dei candidati, menu): `"zh"` (cinese semplificato), `"en"`, o il codice di un'altra lingua inclusa nell'app: `"zh-Hant"`, `"ja"`, `"ko"`, `"de"`, `"fr"`, `"es"`, `"pt-BR"` | `null` (segue il sistema) |
 | `rewriteStyles` | Stili di riformulazione: `polish`, `concise`, `formal`, `casual`, `tactful`, `jargon`, ad es. `["polish", "concise", "jargon"]` | Polish, Concise, Formal |
 | `jargonFile` | Il tuo file con l'elenco del gergo | `null` (cioè `~/.config/allinoneime/jargon.txt`) |

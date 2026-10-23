@@ -37,6 +37,8 @@ Sohbet penceresine kopyalamak yok, uygulama değiştirmek yok. Kendi yapay zekâ
 
 Her metin alanında yapay zekâ komutları sunan bir macOS giriş yöntemi. Bir cümleye `@` ile başlayın ve bitince ⏎ tuşuna basın: `@improve` yazdığınızı düzeltip cilalar ve birkaç yeniden yazım önerir, `@translate` seçtiğiniz dillere çevirir, `@question` bir soru sorar, `@agent` işi bir kodlama ajanına (Claude Code, Gemini CLI, Kiro CLI …) devreder, `@open` ise dosya ve uygulama bulur ya da bir web adresi açar. Sağ ⌥ tuşunu basılı tutup konuşabilirsiniz de. `@` olmadan tuşlarınız her zamanki gibi uygulamaya gider. Ayrıca Çince (pinyin, Rime ve rime-ice üzerine kurulu), Fransızca, Korece (Hangul) ve Hintçe (Latin harflerinden Devanagari) yazar ve kendi betiklerinizi @ komutları olarak çalıştırır.
 
+Komut tetikleyicisi varsayılan olarak `@`'dir. Settings → General → Command trigger altında başka bir simge seçebilirsiniz: `#`, `%`, `&`, `*`, `+`, `|` veya `~`; komutlar o zaman bu simgeyle başlar (örneğin `~translate`) ve `@` normal şekilde yazılır. Harfler, rakamlar, boşluklar ve yazarken gereken simgeler (`'` `-` `=` `[` `]` `` ` `` gibi pinyin tuşları ve pinyinin Çince noktalama olarak yazdığı `,` `.` `?` `\` gibi simgeler) kabul edilmez; ayarlar nedenini söyler. Yapılandırma dosyasında: `"commandTrigger": "~"`.
+
 ![@improve ve özensiz bir cümle, ardından ⏎: cilalanmış sürümler ve yeniden yazımlar](../en/improve.png)
 
 Daha fazla ayrıntı için (tüm komutlar ve ayarlar, kurulum sorunlarını giderme, gizlilik) [Wiki](https://github.com/MicroZ-LLC/AllInOneIME/wiki)'ye bakın. [Weijian Zhang](https://weijianz.com) tarafından MicroZ LLC'de geliştirildi.
@@ -341,9 +343,24 @@ Ayarlarda:
 - **Language packs** (dil paketleri): uygulama İngilizceyle (ve yalnızca macOS'un düzenine ihtiyaç duyan Fransızcayla) gelir. Çince, Korece ve Hintçe, eklediğinizde indirdiğiniz paketlerdir: Çince (pinyin) eklemek sözlüklerini bir ilerleme çubuğuyla indirir (yaklaşık 34 MB, açılmış hâlde 125 MB) ve pinyin, indirme biter bitmez yeniden başlatmaya gerek kalmadan çalışır; Korece paketi (tuş tablosu ve jamo'ların nasıl hece oluşturduğu) ve Hintçe paketi (harfleri ve yaygın sözcükleri) birkaç kilobayttır. Bir paket yalnızca veridir (sözlükler, tablolar ve şemalar, asla kod değil), imzalı bir dizinde listelenir ve kullanılmadan önce eklentiler gibi SHA-256'ya göre denetlenir. Her dilin kartı paketini (sürüm, boyut, nereden geldiği) "Delete…" ile birlikte gösterir ve dili kaldırmak paketini de silmeyi önerir. 0.6.1 veya daha eski bir sürümden güncellemek Çinceyi indirme olmadan korur: yükleyici eski sürümle gelen sözlükleri tutar.
 - **Aday düzeni**: sözcük seçerken pinyin ve Hintçe adayları varsayılan olarak yan yanadır (Horizontal), sistemin kendi giriş yöntemlerindeki gibi: ← → seçer, ↑↓ (veya - =) sayfa çevirir. Alt alta dizilmeleri için (↑↓ seçer) Input sayfasında, giriş dillerinin altında Vertical'ı seçin. @ komut listesi ve sonuçlar her zaman dikeydir.
 - **Fuzzy pinyin** (bulanık pinyin, Çince girişle): ayırt etmediğiniz sesler her iki şekilde de yazılabilir, ör. z ↔ zh, n ↔ l, in ↔ ing. "Input" sayfasında, giriş dilleri çubuğunda "Chinese (pinyin)" seçin, "Fuzzy pinyin"i açın ve çiftleri seçin; sözlükler bir iki saniye içinde yeniden dağıtılır. Rime kullanıcı klasörüne `rime_ice.custom.yaml` yazar ve oradaki kendi dosyanızın üzerine asla yazmaz.
+- **Personal Dictionaries** (kişisel sözlükler, Çince girişte): Settings → Input → Chinese (pinyin) → Personal Dictionaries → **Import or Update…**, rime-ice'ın yanına UTF-8 bir Rime sözcük dosyası (`.dict.yaml`) ekler (önce Çince dil paketinin kurulu olması gerekir). Liste her birinin Rime `name` değerini, dosya adını ve girdi sayısını gösterir; aynı `name` yeniden içe aktarılınca kayıtlı kopyanın yerini alır (yalnızca kaynak dosyayı düzenlemek onu güncellemez). Her içe aktarma, güncelleme ya da kaldırma pinyin sözlüğünü yeniden derler (rime-ice'ın tüm sözcükleri ve sizinkiler); bu bir dakika kadar sürebilir, bu sırada Çince giriş durur ve sayfa ilerlemeyi ya da bir hatayı gösterir. Kopyalar bu Mac'te kalır, iCloud eşzamanlamasının ve yapay zekâ isteklerinin dışında; ama bunlardan seçtiğiniz bir sözcük diğerleri gibi Rime'ın kullanıcı sözlüğüne öğrenilir; bu sözlük, açıksa öğrenilen sözcüklerle birlikte eşzamanlanır ve sözlük kaldırıldıktan sonra da kalır. Kendi `rime_ice.custom.yaml` dosyanız varsa, hiçbir dosya değişmeden içe aktarma reddedilir.
 - **Translate (@translate)**: çevrilecek dilleri ekleyin (İspanyolca, Fransızca, Almanca, Japonca, Korece, Çince, Hintçe, Bengalce, Tamilce ve diğer başlıca Hint dilleri…) ve sürükleyerek sıralayın. Latin harfleriyle yazılmış Hintçe ("aap kaise ho") Devanagari olarak döner. `@translate` her dilde, bu sırayla birer satır yazar (tek dil varsa üç sürüm); cümlenin kendi dili atlanır. Yeni bir kurulum, Mac'inizin tercih edilen dilleri arasında İngilizce olmayan ilk dile çevirir; yalnızca İngilizce varsa `@translate` henüz çevrilecek bir dil olmadığını bildirir; bu bildirimde ⏎ bu sayfayı "Add…" (Ekle…) düğmesi çerçeveli olarak açar (cümle yazdığınız gibi eklenir). Yazarken çeviri de o zaman açılmaz ve nereye dil ekleyeceğinizi söyler.
 - **Keyboard layouts** (klavye düzenleri): Fransızca, kartında seçilen düzenle yazar (yapılandırmada `keyboardLayouts`). Diğer diller için macOS giriş yönteminin altında son Latin düzeninizi (AZERTY, QWERTZ, İspanyolca, US International…) korur; böylece her zamanki gibi yazarsınız, düzeninizde nerede bulunuyorsa `@` da dahil, ve ölü tuşlar bir komutun metninde de birleşir (⌥E ardından E → é, ^ ardından e → ê). Latin harfi olmayan düzenler (Rusça, Hintçe InScript) bir giriş yöntemi altında kullanılamaz: onlara ⌃Space ile geçin ya da metni bir komuta yapıştırın (⌃V) veya dikte edin.
 - `@improve` çevirmeden cilalar ve yeniden yazar; `@translate @improve` birlikte tek istekte çevirir ve yeniden yazar. `@improve`'un bunu her zaman yapması için ayarlarda "@improve also translates" seçeneğini açın.
+
+Kişisel bir sözlük şöyle görünür (her girdinin alanları **sekmeyle** ayrılır):
+
+```yaml
+---
+name: my_vocabulary
+version: "1"
+columns: [text, code, weight]
+...
+星河项目	xing he xiang mu	100
+蓝杉团队	lan shan tuan dui	200
+```
+
+Pinyini küçük Latin harfleriyle, heceler arasında boşlukla ve `ü` yerine `v` ile yazın; ağırlık isteğe bağlıdır (negatif olmayan bir sayı). `columns` yoksa sıra `text`, `code`, `weight` şeklindedir. `name` Latin harfleri, rakamlar, `-`, `_` ve `.` içerebilir; bir dosya en fazla 32 MiB olabilir. `import_tables`'a dayanan ya da pinyin kodu olmayan dosyalar hiçbir şey değiştirilmeden reddedilir.
 
 ## Yeniden yazma stilleri
 
@@ -515,6 +532,7 @@ Tüm ayarlar `~/.config/allinoneime/config.json` içinde saklanır; bir değişi
 | `improveTranslates` | `@improve` çeviri de yapar (`@translate @improve` gibi) | `false` |
 | `voiceInput` | Konuşmak için sağ ⌥'yi basılı tutma | `true` |
 | `actionKey` | Eylem tuşu: `"enter"` (⏎), `"optionTap"` (Tap ⌥), `"optionSpace"` (⌥Space), `"space"` (Space) | `"enter"` |
+| `commandTrigger` | Komutları başlatan simge: `"#"`, `"%"`, `"&"`, `"*"`, `"+"`, `"@"`, `"\|"`, `"~"` değerlerinden biri; başka her değer `"@"` sayılır | `"@"` |
 | `uiLanguage` | Arayüz dili (ayarlar penceresi, aday paneli ipuçları, menü): `"zh"` (Basitleştirilmiş Çince), `"en"` ya da uygulamanın sunduğu başka bir dilin kodu: `"zh-Hant"`, `"ja"`, `"ko"`, `"de"`, `"fr"`, `"es"`, `"pt-BR"` | `null` (sistemi izle) |
 | `rewriteStyles` | Yeniden yazma stilleri: `polish`, `concise`, `formal`, `casual`, `tactful`, `jargon`, ör. `["polish", "concise", "jargon"]` | Polish, Concise, Formal |
 | `jargonFile` | Kendi jargon listesi dosyanız | `null` (yani `~/.config/allinoneime/jargon.txt`) |

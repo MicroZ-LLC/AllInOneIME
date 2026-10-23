@@ -37,6 +37,8 @@ Tanpa menyalin ke jendela chat, tanpa berpindah aplikasi. Penyedia AI Anda sendi
 
 Metode input macOS dengan perintah AI di setiap kolom teks. Awali kalimat dengan `@` dan tekan ⏎ setelah selesai: `@improve` memoles tulisan Anda dan menawarkan beberapa versi tulis ulang, `@translate` menerjemahkannya ke bahasa-bahasa yang Anda pilih, `@question` mengajukan pertanyaan, `@agent` menyerahkannya ke coding agent (Claude Code, Gemini CLI, Kiro CLI …), dan `@open` menemukan file dan aplikasi atau membuka alamat web. Anda juga bisa menahan ⌥ kanan dan berbicara. Tanpa `@`, tombol yang Anda tekan diteruskan ke aplikasi seperti biasa. Metode input ini juga bisa mengetik bahasa Mandarin (pinyin, dibangun di atas Rime dan rime-ice), Prancis, Korea (Hangul), dan Hindi (Devanagari dari huruf Latin), serta menjalankan skrip Anda sendiri sebagai perintah @.
 
+Pemicu perintah secara bawaan adalah `@`. Di Settings → General → Command trigger Anda bisa memilih simbol lain: `#`, `%`, `&`, `*`, `+`, `|` atau `~`; perintah lalu diawali dengan simbol itu (misalnya `~translate`), dan `@` diketik seperti biasa. Huruf, angka, spasi, dan simbol yang dibutuhkan saat mengetik (tombol pinyin seperti `'` `-` `=` `[` `]` `` ` ``, serta simbol yang diketik pinyin sebagai tanda baca Tionghoa, seperti `,` `.` `?` `\`) ditolak, dan Settings menjelaskan alasannya. Di file konfigurasi: `"commandTrigger": "~"`.
+
 ![@improve dan kalimat yang masih kasar, lalu ⏎: versi yang sudah dipoles, ditambah versi tulis ulang](../en/improve.png)
 
 Untuk detail lebih lanjut (setiap perintah dan pengaturan, pemecahan masalah instalasi, privasi), lihat [Wiki](https://github.com/MicroZ-LLC/AllInOneIME/wiki). Dibuat oleh [Weijian Zhang](https://weijianz.com) di MicroZ LLC.
@@ -341,9 +343,24 @@ Di pengaturan:
 - **Language packs** (paket bahasa): aplikasi sudah dilengkapi bahasa Inggris (dan Prancis, yang hanya membutuhkan tata letak macOS). Mandarin, Korea, dan Hindi adalah paket yang Anda unduh saat menambahkannya: menambahkan Mandarin (pinyin) mengunduh kamusnya (sekitar 34 MB, 125 MB setelah diekstrak) dengan bilah progres, dan pinyin langsung berfungsi setelah selesai, tanpa memulai ulang; paket Korea (tabel tombol dan cara jamo membentuk suku kata) dan paket Hindi (huruf dan kata-kata umum) hanya beberapa kilobyte. Paket hanya berisi data (kamus, tabel, dan skema, tidak pernah kode), tercantum di indeks yang ditandatangani dan diperiksa terhadap SHA-256-nya sebelum dipakai, seperti plugin. Kartu setiap bahasa menampilkan paketnya (versi, ukuran, asalnya) dengan "Delete…", dan menghapus bahasa akan menawarkan untuk menghapus paketnya. Memperbarui dari 0.6.1 atau sebelumnya mempertahankan Mandarin tanpa unduhan: penginstal mempertahankan kamus yang disertakan versi lama.
 - **Tata letak kandidat**: untuk memilih kata, kandidat pinyin dan Hindi secara bawaan berjajar ke samping (Horizontal), seperti metode input bawaan sistem: ← → memilih dan ↑↓ (atau - =) berganti halaman. Pilih Vertical di halaman Input, di bawah bahasa input, agar tersusun ke bawah (↑↓ memilih). Daftar perintah @ dan hasilnya selalu vertikal.
 - **Fuzzy pinyin** (pinyin samar, dengan input Mandarin): bunyi yang tidak Anda bedakan bisa diketik dengan cara mana pun, misalnya z ↔ zh, n ↔ l, in ↔ ing. Di halaman "Input", pilih "Chinese (pinyin)" di bilah bahasa input, aktifkan "Fuzzy pinyin", dan pilih pasangannya; kamus di-deploy ulang dalam satu atau dua detik. Fitur ini menulis `rime_ice.custom.yaml` di folder pengguna Rime, dan tidak pernah menimpa file milik Anda sendiri di sana.
+- **Personal Dictionaries** (kamus pribadi, saat input Tionghoa): Settings → Input → Chinese (pinyin) → Personal Dictionaries → **Import or Update…** menambahkan file kosakata Rime UTF-8 (`.dict.yaml`) di samping rime-ice (paket bahasa Tionghoa harus sudah terpasang). Daftarnya menampilkan `name` Rime, nama file, dan jumlah entri masing-masing; mengimpor `name` yang sama lagi mengganti salinan yang tersimpan (mengubah file sumbernya saja tidak). Setiap impor, pembaruan, atau penghapusan mengompilasi ulang kamus pinyin (semua kata rime-ice ditambah milik Anda), yang bisa memakan waktu sekitar satu menit; selama itu input Tionghoa terhenti, dan halamannya menampilkan kemajuan atau galat. Salinannya tetap di Mac ini, di luar sinkronisasi iCloud dan permintaan ke AI; tetapi kata yang Anda pilih darinya dipelajari seperti kata lain, ke kamus pengguna Rime, yang disinkronkan bersama kata yang dipelajari jika itu aktif dan tetap ada setelah kamusnya dihapus. Jika Anda punya `rime_ice.custom.yaml` sendiri, impor ditolak sebelum ada file yang berubah.
 - **Translate (@translate)**: tambahkan bahasa-bahasa tujuan terjemahan (Spanyol, Prancis, Jerman, Jepang, Korea, Mandarin, Hindi, Bengali, Tamil, dan bahasa-bahasa utama India lainnya…) dan seret untuk mengurutkannya. Bahasa Hindi yang diketik dengan huruf Latin ("aap kaise ho") kembali dalam Devanagari. `@translate` menulis satu baris untuk setiap bahasa, dalam urutan ini (tiga versi jika hanya ada satu bahasa); bahasa kalimat itu sendiri dilewati. Instalasi baru menerjemahkan ke bahasa pertama dalam daftar bahasa pilihan Mac Anda yang bukan bahasa Inggris; jika hanya ada bahasa Inggris, `@translate` memberi tahu bahwa belum ada bahasa tujuan terjemahan, dan ⏎ pada pemberitahuan itu membuka halaman ini dengan "Add…" diberi bingkai (kalimatnya dimasukkan persis seperti yang diketik). Menerjemahkan sambil mengetik pun tidak aktif saat itu, dan memberi tahu di mana menambahkan bahasa.
 - **Keyboard layouts** (tata letak keyboard): bahasa Prancis diketik dengan tata letak yang dipilih di kartunya (`keyboardLayouts` di konfigurasi). Untuk bahasa lainnya, di bawah metode input, macOS mempertahankan tata letak Latin terakhir Anda (AZERTY, QWERTZ, Spanish, US International…), jadi Anda mengetik seperti biasa, termasuk `@` di mana pun letaknya di tata letak Anda, dan tombol mati juga menyusun huruf di teks perintah (⌥E lalu E → é, ^ lalu e → ê). Tata letak tanpa huruf Latin (Rusia, Hindi InScript) tidak bisa dipakai di bawah metode input: beralihlah ke tata letak itu dengan ⌃Space, atau tempel (⌃V) atau diktekan teks ke dalam perintah.
 - `@improve` memoles dan menulis ulang tanpa menerjemahkan; `@translate @improve` bersama-sama menerjemahkan dan menulis ulang dalam satu permintaan. Aktifkan "@improve also translates" di pengaturan agar `@improve` selalu melakukannya.
+
+Kamus pribadi terlihat seperti ini (kolom setiap entri dipisahkan dengan **tab**):
+
+```yaml
+---
+name: my_vocabulary
+version: "1"
+columns: [text, code, weight]
+...
+星河项目	xing he xiang mu	100
+蓝杉团队	lan shan tuan dui	200
+```
+
+Tulis pinyin dengan huruf Latin kecil, spasi di antara suku kata, dan `v` untuk `ü`; bobot bersifat opsional (bilangan tidak negatif). Tanpa `columns`, urutannya `text`, `code`, `weight`. `name` boleh berisi huruf Latin, angka, `-`, `_`, dan `.`; ukuran file paling besar 32 MiB. File yang bergantung pada `import_tables` atau tanpa kode pinyin ditolak tanpa mengubah apa pun.
 
 ## Gaya tulis ulang
 
@@ -515,6 +532,7 @@ Semua pengaturan disimpan di `~/.config/allinoneime/config.json`; setelah ada pe
 | `improveTranslates` | `@improve` juga menerjemahkan (seperti `@translate @improve`) | `false` |
 | `voiceInput` | Tahan ⌥ kanan untuk berbicara | `true` |
 | `actionKey` | Tombol aksi: `"enter"` (⏎), `"optionTap"` (Tap ⌥), `"optionSpace"` (⌥Space), `"space"` (Space) | `"enter"` |
+| `commandTrigger` | Simbol yang mengawali perintah: salah satu dari `"#"`, `"%"`, `"&"`, `"*"`, `"+"`, `"@"`, `"\|"`, `"~"`; nilai lain dianggap `"@"` | `"@"` |
 | `uiLanguage` | Bahasa antarmuka (jendela pengaturan, petunjuk panel kandidat, menu): `"zh"` (Mandarin Sederhana), `"en"`, atau kode bahasa lain yang disertakan aplikasi: `"zh-Hant"`, `"ja"`, `"ko"`, `"de"`, `"fr"`, `"es"`, `"pt-BR"` | `null` (mengikuti sistem) |
 | `rewriteStyles` | Gaya tulis ulang: `polish`, `concise`, `formal`, `casual`, `tactful`, `jargon`, misalnya `["polish", "concise", "jargon"]` | Polish, Concise, Formal |
 | `jargonFile` | File daftar jargon Anda sendiri | `null` (yaitu `~/.config/allinoneime/jargon.txt`) |

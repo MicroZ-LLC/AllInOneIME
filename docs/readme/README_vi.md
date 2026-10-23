@@ -37,6 +37,8 @@ Không phải sao chép vào cửa sổ chat, không phải chuyển ứng dụn
 
 Một bộ gõ cho macOS mang các lệnh AI vào mọi ô văn bản. Bắt đầu câu bằng `@` và nhấn ⏎ khi viết xong: `@improve` trau chuốt những gì bạn viết và đưa ra vài cách viết lại, `@translate` dịch nó sang các ngôn ngữ bạn chọn, `@question` đặt một câu hỏi, `@agent` giao nó cho một coding agent (Claude Code, Gemini CLI, Kiro CLI …), và `@open` tìm tệp và ứng dụng hoặc mở một địa chỉ web. Bạn cũng có thể giữ phím ⌥ bên phải và nói. Khi không có `@`, các phím bạn gõ vẫn đi vào ứng dụng như thường lệ. Nó còn gõ được tiếng Trung (pinyin, xây dựng trên Rime và rime-ice), tiếng Pháp, tiếng Hàn (Hangul) và tiếng Hindi (chữ Devanagari từ chữ cái Latin), và chạy các script của riêng bạn như những lệnh @.
 
+Ký hiệu mở lệnh mặc định là `@`. Trong Settings → General → Command trigger, bạn có thể chọn ký hiệu khác: `#`, `%`, `&`, `*`, `+`, `|` hoặc `~`; khi đó lệnh bắt đầu bằng ký hiệu đó (ví dụ `~translate`), còn `@` được gõ như bình thường. Chữ cái, chữ số, dấu cách và các ký hiệu cần cho việc gõ (các phím của bính âm như `'` `-` `=` `[` `]` `` ` ``, và những ký hiệu bính âm gõ thành dấu câu tiếng Trung như `,` `.` `?` `\`) không được chấp nhận, và phần cài đặt sẽ cho biết lý do. Trong tệp cấu hình: `"commandTrigger": "~"`.
+
 ![@improve và một câu viết vội, rồi ⏎: các phiên bản đã trau chuốt, cùng các bản viết lại](../en/improve.png)
 
 Để biết thêm chi tiết (mọi lệnh và cài đặt, khắc phục sự cố khi cài đặt, quyền riêng tư), xem [Wiki](https://github.com/MicroZ-LLC/AllInOneIME/wiki). Được tạo bởi [Weijian Zhang](https://weijianz.com) tại MicroZ LLC.
@@ -341,9 +343,24 @@ Trong phần cài đặt:
 - **Language packs** (gói ngôn ngữ): ứng dụng đi kèm tiếng Anh (và tiếng Pháp, vốn chỉ cần bố cục bàn phím của macOS). Tiếng Trung, tiếng Hàn và tiếng Hindi là các gói bạn tải về khi thêm chúng: thêm tiếng Trung (pinyin) sẽ tải các từ điển của nó (khoảng 34 MB, 125 MB sau khi giải nén) kèm thanh tiến độ, và pinyin hoạt động ngay khi tải xong, không cần khởi động lại; gói tiếng Hàn (bảng phím và cách các jamo ghép thành âm tiết) và gói tiếng Hindi (các chữ cái và từ thông dụng) chỉ vài kilobyte. Một gói chỉ chứa dữ liệu (từ điển, bảng và schema, không bao giờ có mã), được liệt kê trong một chỉ mục có chữ ký và được kiểm tra SHA-256 trước khi dùng, giống như plugin. Thẻ của mỗi ngôn ngữ hiển thị gói của nó (phiên bản, dung lượng, nguồn gốc) kèm nút "Delete…", và khi gỡ ngôn ngữ, ứng dụng đề nghị xóa gói của nó. Cập nhật từ 0.6.1 trở về trước vẫn giữ tiếng Trung mà không cần tải về: trình cài đặt giữ lại các từ điển đi kèm phiên bản cũ.
 - **Bố cục ứng viên**: khi chọn từ, ứng viên pinyin và tiếng Hindi mặc định nằm ngang cạnh nhau (Horizontal), giống các bộ gõ có sẵn của hệ thống: ← → để chọn và ↑↓ (hoặc - =) để lật trang. Chọn Vertical ở trang Input, dưới các ngôn ngữ nhập, để xếp dọc từng dòng (↑↓ để chọn). Danh sách lệnh @ và kết quả luôn xếp dọc.
 - **Fuzzy pinyin** (pinyin mờ, khi nhập tiếng Trung): những âm bạn không phân biệt thì gõ kiểu nào cũng được, ví dụ z ↔ zh, n ↔ l, in ↔ ing. Ở trang "Input", chọn "Chinese (pinyin)" trên thanh ngôn ngữ nhập, bật "Fuzzy pinyin" và chọn các cặp; các từ điển được triển khai lại trong một hai giây. Tính năng này ghi `rime_ice.custom.yaml` vào thư mục người dùng của Rime, và không bao giờ ghi đè lên tệp của riêng bạn ở đó.
+- **Personal Dictionaries** (từ điển cá nhân, khi nhập tiếng Trung): Settings → Input → Chinese (pinyin) → Personal Dictionaries → **Import or Update…** thêm một tệp từ vựng Rime UTF-8 (`.dict.yaml`) bên cạnh rime-ice (cần cài gói ngôn ngữ tiếng Trung trước). Danh sách hiển thị `name` của Rime, tên tệp và số mục của từng tệp; nhập lại cùng `name` sẽ thay bản sao đã lưu (chỉ sửa tệp gốc thì không). Mỗi lần nhập, cập nhật hoặc xóa đều biên dịch lại từ điển bính âm (toàn bộ từ của rime-ice cộng với của bạn), có thể mất khoảng một phút; trong lúc đó không gõ được tiếng Trung, và trang hiển thị tiến độ hoặc lỗi. Các bản sao nằm trên máy Mac này, ngoài đồng bộ iCloud và các yêu cầu gửi đến AI; nhưng từ bạn chọn từ chúng được học như mọi từ khác, vào từ điển người dùng của Rime, vốn được đồng bộ cùng các từ đã học khi bật và vẫn còn sau khi xóa từ điển. Nếu bạn có `rime_ice.custom.yaml` của riêng mình, việc nhập sẽ bị từ chối trước khi bất kỳ tệp nào thay đổi.
 - **Translate (@translate)**: thêm các ngôn ngữ cần dịch sang (tiếng Tây Ban Nha, tiếng Pháp, tiếng Đức, tiếng Nhật, tiếng Hàn, tiếng Trung, tiếng Hindi, tiếng Bengal, tiếng Tamil và các ngôn ngữ chính khác của Ấn Độ…) và kéo để sắp xếp thứ tự. Tiếng Hindi gõ bằng chữ Latin ("aap kaise ho") được trả về bằng chữ Devanagari. `@translate` viết một dòng cho mỗi ngôn ngữ, theo thứ tự này (ba phiên bản nếu chỉ có một ngôn ngữ); ngôn ngữ của chính câu đó được bỏ qua. Bản cài mới dịch sang ngôn ngữ đầu tiên trong danh sách ngôn ngữ ưu tiên của máy Mac mà không phải tiếng Anh; nếu chỉ có tiếng Anh, `@translate` báo rằng chưa có ngôn ngữ nào để dịch sang, và nhấn ⏎ trên thông báo đó sẽ mở trang này với "Add…" (thêm…) được đóng khung (câu được chèn đúng như bạn đã gõ). Khi đó Dịch trong khi gõ cũng không bật, và cho biết nơi thêm một ngôn ngữ.
 - **Keyboard layouts** (bố cục bàn phím): tiếng Pháp gõ bằng bố cục được chọn trên thẻ của nó (`keyboardLayouts` trong tệp cấu hình). Với các ngôn ngữ khác, khi dùng bộ gõ, macOS giữ bố cục Latin cuối cùng của bạn (AZERTY, QWERTZ, Spanish, US International…), nên bạn gõ như thường lệ, kể cả `@` ở bất cứ vị trí nào bố cục của bạn đặt nó, và phím chết cũng ghép dấu trong văn bản của lệnh (⌥E rồi E → é, ^ rồi e → ê). Các bố cục không có chữ Latin (tiếng Nga, Hindi InScript) không dùng được dưới một bộ gõ: hãy chuyển sang chúng bằng ⌃Space, hoặc dán (⌃V) hay đọc chính tả văn bản vào một lệnh.
 - `@improve` trau chuốt và viết lại mà không dịch; `@translate @improve` dùng cùng nhau sẽ dịch và viết lại trong một yêu cầu. Bật "@improve also translates" trong phần cài đặt để `@improve` luôn làm như vậy.
+
+Một từ điển cá nhân trông như sau (các trường của mỗi mục được ngăn cách bằng **tab**):
+
+```yaml
+---
+name: my_vocabulary
+version: "1"
+columns: [text, code, weight]
+...
+星河项目	xing he xiang mu	100
+蓝杉团队	lan shan tuan dui	200
+```
+
+Viết bính âm bằng chữ Latin thường, có dấu cách giữa các âm tiết và `v` thay cho `ü`; trọng số là tùy chọn (một số không âm). Không có `columns` thì thứ tự là `text`, `code`, `weight`. `name` có thể chứa chữ Latin, chữ số, `-`, `_` và `.`; mỗi tệp tối đa 32 MiB. Tệp phụ thuộc vào `import_tables` hoặc thiếu mã bính âm sẽ bị từ chối mà không thay đổi gì.
 
 ## Kiểu viết lại
 
@@ -515,6 +532,7 @@ Mọi cài đặt được lưu trong `~/.config/allinoneime/config.json`; sau k
 | `improveTranslates` | `@improve` kiêm dịch (như `@translate @improve`) | `false` |
 | `voiceInput` | Giữ ⌥ bên phải để nói | `true` |
 | `actionKey` | Phím thực thi: `"enter"` (⏎), `"optionTap"` (Tap ⌥), `"optionSpace"` (⌥Space), `"space"` (Space) | `"enter"` |
+| `commandTrigger` | Ký hiệu mở đầu lệnh: một trong `"#"`, `"%"`, `"&"`, `"*"`, `"+"`, `"@"`, `"\|"`, `"~"`; giá trị khác được coi là `"@"` | `"@"` |
 | `uiLanguage` | Ngôn ngữ giao diện (cửa sổ cài đặt, gợi ý trong bảng ứng viên, menu): `"zh"` (tiếng Trung giản thể), `"en"`, hoặc mã của một ngôn ngữ khác mà ứng dụng có: `"zh-Hant"`, `"ja"`, `"ko"`, `"de"`, `"fr"`, `"es"`, `"pt-BR"` | `null` (theo hệ thống) |
 | `rewriteStyles` | Kiểu viết lại: `polish`, `concise`, `formal`, `casual`, `tactful`, `jargon`, ví dụ `["polish", "concise", "jargon"]` | Polish, Concise, Formal |
 | `jargonFile` | Tệp danh sách jargon của riêng bạn | `null` (tức là `~/.config/allinoneime/jargon.txt`) |
