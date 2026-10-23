@@ -21,6 +21,11 @@ public struct FoundationProcessLauncher: ProcessLauncher {
         if let environment = spec.environment { process.environment = environment }
         if let directory = spec.directory { process.currentDirectoryURL = directory }
         if let io = Self.handle(spec.standardInput) { process.standardInput = io }
+        #if canImport(Darwin)
+        // What is written to its standard input once it ended without reading it fails (EPIPE), and ends nothing else:
+        // no SIGPIPE for this process (one that doesn't ignore it, as the input method does: a test run, Settings).
+        if case let .pipe(pipe) = spec.standardInput { _ = fcntl(pipe.fileHandleForWriting.fileDescriptor, F_SETNOSIGPIPE, 1) }
+        #endif
         if let io = Self.handle(spec.standardOutput) { process.standardOutput = io }
         if let io = Self.handle(spec.standardError) { process.standardError = io }
         let child = FoundationProcess(process)
