@@ -33,6 +33,11 @@ struct SettingsSchema {
     var addedApps = AddedApps()
     /// The script extensions in the folders the config names.
     var extensions = ExtensionIndex.empty
+    /// How the completion sources are doing (the shell's, where it runs them), the coding packs installed, and what the
+    /// coding language library offers, once browsed.
+    var suggestionStatuses: [CompletionSourceStatus] = []
+    var codingPacks = CodingPackStore()
+    var codingEntries: [CodingPackIndex.Entry]?
 
     init(store: SettingsStore, platform: SettingsPlatform, keySource: @escaping (Provider) -> APIKeys.Source,
          tests: [String: SettingsStore.TestStatus], libraryEntries: [PluginIndex.Entry]?, library: PluginLibrary) {
@@ -71,6 +76,7 @@ struct SettingsSchema {
             SettingsDocument.Section(id: "agent", title: tr("Agent", "Agent"), fields: agent()),
             SettingsDocument.Section(id: "apps", title: tr("按 App 设置", "Apps"), fields: apps()),
             SettingsDocument.Section(id: "plugins", title: tr("插件", "Plugins"), fields: plugins()),
+            SettingsDocument.Section(id: "codingLanguages", title: tr("编程语言", "Coding Languages"), fields: codingLanguages()),
             SettingsDocument.Section(id: "extensions", title: tr("脚本扩展", "Script Extensions"),
                                      footer: tr("每个脚本是一个 @ 命令，名字取自文件名（convert-timestamp.sh → @converttimestamp）。参数写在命令后面，多个用逗号隔开：@flights beijing, new york。脚本可以上屏结果、显示进度、给出列表来选，或在后台运行，完成后通知你。写法见 docs/extensions.md。",
                                                 "Each script is an @ command named after its file (convert-timestamp.sh → @converttimestamp). Write its arguments after it, with commas between: @flights beijing, new york. A script can insert its result, show progress, offer a list to pick from, or run in the background and notify you. See docs/extensions.md for how to write one.")
@@ -546,12 +552,16 @@ struct SettingsSchema {
         var fields: [Field] = []
         let installed = PluginStore.load(from: library.directory).plugins
         var list = Field(id: "plugins.installed", kind: .items, label: tr("插件", "Plugins"))
-        list.items = installed.map { plugin in
-            SettingsDocument.Item(id: plugin.name, title: config.commandTrigger + plugin.name,
-                                  detail: [plugin.manifest.version, plugin.manifest.summary?.text(chinese: UIText.chinese)]
-                                      .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "),
-                                  actions: [SettingsAction.remove])
+        var items: [SettingsDocument.Item] = []
+        for plugin in installed {
+            // Its completion sources and preferences (Suggestions), when it has any.
+            let own = pluginFields(plugin)
+            items.append(SettingsDocument.Item(id: plugin.name, title: config.commandTrigger + plugin.name,
+                                               detail: [plugin.manifest.version, plugin.manifest.summary?.text(chinese: UIText.chinese)]
+                                                   .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "),
+                                               actions: [SettingsAction.remove], fields: own.isEmpty ? nil : own))
         }
+        list.items = items
         if installed.isEmpty {
             list.help = UIText.triggered(tr("还没有插件。插件是别人写好的 @ 命令，比如 @stock 查股价；装好后和其他命令一样用。",
                            "No plugins yet. Plugins are ready-made @ commands, like @stock for stock quotes; once installed they work like any command."))
