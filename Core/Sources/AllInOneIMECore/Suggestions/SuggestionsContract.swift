@@ -4,8 +4,8 @@ import Foundation
 // plugin completions, coding mode, one Tab. What the acceptance tests
 // (Tests/AllInOneIMECoreTests/Acceptance/Suggestions*AcceptanceTests.swift) are written against, written before the
 // implementation by the tests' author: protocols and plain data, and where a declaration needs a body, a stub that does
-// nothing (`PluginManifest.completions`, `preferences` and `refusedCompletions` are empty, no source is inactive, the
-// default runtime refuses, `SuggestionsStore` keeps nothing). The implementation fills these in; it doesn't change what
+// nothing (no source is inactive, the default runtime refuses, `SuggestionsStore` keeps nothing; plugin.json's
+// `completions` and `preferences` are read, Plugin.swift). The implementation fills these in; it doesn't change what
 // they mean.
 //
 // The one hook outside this file: `SessionServices.suggestions` (SessionServices.swift), what a session asks of the
@@ -117,21 +117,8 @@ public struct PluginPreference: Equatable, Hashable, Sendable {
     }
 }
 
-extension PluginManifest {
-    /// The completion sources the manifest declares (spec 1.1; optional, `api` 1 stays valid), those it may have: an
-    /// entry that breaks the spec's rules is refused on its own (`refusedCompletions`), and the rest of the plugin (its
-    /// command) still loads (spec 6.9). Stub: none yet.
-    public var completions: [CompletionSource] { [] }
-
-    /// The completion entries refused, in the manifest's order, each with why (Settings → Plugins shows it): a name or
-    /// title that breaks the rules or is there twice, another `compare`, a source without prefix that isn't `exact`, an
-    /// out-of-range `refresh`, `queryMinChars` or plugin `timeoutSeconds` (over 20 s), a template that isn't one, a
-    /// `prompt` or `link` plugin declaring any (spec 6.8, 6.9). Stub: none.
-    public var refusedCompletions: [CompletionRefusal] { [] }
-
-    /// The plugin's preferences (spec 1.1). Stub: none yet.
-    public var preferences: [PluginPreference] { [] }
-}
+// `PluginManifest.completions`, `refusedCompletions` and `preferences` are stored (Plugin.swift), read from plugin.json by
+// `CompletionDeclaration` (CompletionDeclaration.swift).
 
 /// A completion entry of a plugin.json refused, and why, as Settings → Plugins says it (spec 6.9).
 public struct CompletionRefusal: Equatable, Hashable, Sendable {

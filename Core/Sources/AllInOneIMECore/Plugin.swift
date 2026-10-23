@@ -54,6 +54,20 @@ public struct PluginManifest: Codable, Equatable, Hashable, Sendable {
     public var color: String?
     /// `link`: the address opened, with `{input}` in its query (`LinkTemplate`).
     public var url: String?
+    /// The completion sources the manifest declares (spec 1.1; optional, `api` 1 stays valid), those it may have: an
+    /// entry that breaks the spec's rules is refused on its own (`refusedCompletions`), and the rest of the plugin (its
+    /// command) still loads (spec 6.9). Read by `CompletionDeclaration`.
+    public var completions: [CompletionSource] = []
+    /// The completion entries refused, in the manifest's order, each with why (Settings → Plugins shows it): a name or
+    /// title that breaks the rules or is there twice, another `compare`, a source without prefix that isn't `exact`, an
+    /// out-of-range `refresh`, `queryMinChars` or plugin `timeoutSeconds` (over 20 s), a template that isn't one, a
+    /// `prompt` or `link` plugin declaring any (spec 6.8, 6.9).
+    public var refusedCompletions: [CompletionRefusal] = []
+    /// The plugin's preferences (spec 1.1): shown in Settings under the plugin, given to its script as `ctx.preferences`.
+    public var preferences: [PluginPreference] = []
+    /// Why `preferences` can't be read (a type that is neither `text` nor `password`, an entry without a name): unlike a
+    /// completion entry, the plugin's own problem (`problem(appVersion:)`).
+    var preferencesProblem: String?
 
     public init(name: String, version: String, api: Int = 1, minAppVersion: String? = nil, type: PluginType,
                 summary: LocalizedText? = nil, script: String? = nil, prompt: String? = nil, hosts: [String] = [],
@@ -97,6 +111,41 @@ public struct PluginManifest: Codable, Equatable, Hashable, Sendable {
         icon = try c.decodeIfPresent(String.self, forKey: .icon)
         color = try c.decodeIfPresent(String.self, forKey: .color)
         url = try c.decodeIfPresent(String.self, forKey: .url)
+        (completions, refusedCompletions) = CompletionDeclaration.read(try c.decodeIfPresent(AIConfig.JSONValue.self, forKey: .completions),
+                                                                       type: type, timeoutSeconds: timeoutSeconds)
+        switch PluginPreference.read(try c.decodeIfPresent(AIConfig.JSONValue.self, forKey: .preferences)) {
+        case let .success(read): preferences = read
+        case let .failure(problem): preferencesProblem = problem.reason
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case name, version, api, minAppVersion, type, summary, script, prompt, hosts, timeoutSeconds, ascii, author, homepage
+        case icon, color, url, completions, preferences
+    }
+
+    /// As plugin.json has it: the completion sources taken (with their defaults written out) and the preferences; the
+    /// entries refused aren't written.
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(name, forKey: .name)
+        try c.encode(version, forKey: .version)
+        try c.encode(api, forKey: .api)
+        try c.encodeIfPresent(minAppVersion, forKey: .minAppVersion)
+        try c.encode(type, forKey: .type)
+        try c.encodeIfPresent(summary, forKey: .summary)
+        try c.encodeIfPresent(script, forKey: .script)
+        try c.encodeIfPresent(prompt, forKey: .prompt)
+        try c.encode(hosts, forKey: .hosts)
+        try c.encodeIfPresent(timeoutSeconds, forKey: .timeoutSeconds)
+        try c.encodeIfPresent(ascii, forKey: .ascii)
+        try c.encodeIfPresent(author, forKey: .author)
+        try c.encodeIfPresent(homepage, forKey: .homepage)
+        try c.encodeIfPresent(icon, forKey: .icon)
+        try c.encodeIfPresent(color, forKey: .color)
+        try c.encodeIfPresent(url, forKey: .url)
+        if !completions.isEmpty { try c.encode(completions.map(CompletionDeclaration.json), forKey: .completions) }
+        if !preferences.isEmpty { try c.encode(preferences.map(\.json), forKey: .preferences) }
     }
 
     public var timeout: Double { min(max(timeoutSeconds ?? 10, 1), Self.maxTimeout) }
@@ -108,6 +157,7 @@ public struct PluginManifest: Codable, Equatable, Hashable, Sendable {
             return "the name must be lowercase letters"
         }
         if api > Self.supportedAPI { return "needs a newer AllInOneIME (plugin API \(api))" }
+        if let preferencesProblem { return preferencesProblem }
         if let min = minAppVersion, SemVer.compare(appVersion, min) < 0 { return "needs AllInOneIME \(min) or later" }
         switch type {
         case .script:
