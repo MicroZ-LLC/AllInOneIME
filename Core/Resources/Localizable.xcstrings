@@ -48,6 +48,53 @@
         }
       }
     },
+    " · 90%% within %@ ms" : {
+      "comment" : " · 九成在 %@ ms 内 — Sources/AllInOneIMECore/Autocomplete.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · 90 %% innerhalb von %@ ms"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · el 90 %% en menos de %@ ms"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · 90 %% en moins de %@ ms"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · 90%% が %@ ms 以内"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · 90%%가 %@ms 이내"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · 90%% em até %@ ms"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · 九成在 %@ ms 內"
+          }
+        }
+      }
+    },
     " · ends in %@" : {
       "comment" : " · 结尾 %@ — Sources/AllInOneIMECore/Settings/KeyState.swift",
       "localizations" : {
@@ -467,6 +514,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "（會被忽略）"
+          }
+        }
+      }
+    },
+    " (it uses the model on this Mac; to use your AI provider, agree when you turn on Autocomplete in the input menu)" : {
+      "comment" : "（先用本机模型；要用所选的 AI 服务，在输入法菜单里打开「续写」时同意） — Sources/AllInOneIMECore/Autocomplete.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (nutzt das Modell auf diesem Mac; für deinen KI-Anbieter beim Einschalten von „Autovervollständigen“ im Eingabemenü zustimmen)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (usa el modelo de este Mac; para usar tu proveedor de IA, acepta al activar Autocompletar en el menú de entrada)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (utilise le modèle de ce Mac ; pour utiliser votre fournisseur d’IA, acceptez en activant Complétion automatique dans le menu de saisie)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "（このMacのモデルを使います。選んだAIサービスを使うには、入力メニューでオートコンプリートをオンにするときに同意してください）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (이 Mac의 모델을 사용합니다. 선택한 AI 서비스를 쓰려면 입력 메뉴에서 자동 완성을 켤 때 동의하세요)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (usa o modelo deste Mac; para usar seu provedor de IA, aceite ao ativar Autocompletar no menu de entrada)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "（先用本機模型；要用所選的 AI 服務，請在輸入法選單中開啟「續寫」時同意）"
           }
         }
       }
@@ -8573,6 +8667,147 @@
         }
       }
     },
+    "Autocomplete" : {
+      "comment" : "续写 — Sources/AllInOneIMECore/Autocomplete.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autovervollständigen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autocompletar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Complétion automatique"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オートコンプリート"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자동 완성"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autocompletar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "續寫"
+          }
+        }
+      }
+    },
+    "Autocomplete needs Apple Intelligence on this Mac: %@" : {
+      "comment" : "续写需要本机的 Apple Intelligence：%@ — Sources/AllInOneIMECore/Session/InputSession+Autocomplete.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autovervollständigen braucht Apple Intelligence auf diesem Mac: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autocompletar necesita Apple Intelligence en este Mac: %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La complétion automatique a besoin d’Apple Intelligence sur ce Mac : %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オートコンプリートにはこのMacのApple Intelligenceが必要です：%@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자동 완성에는 이 Mac의 Apple Intelligence가 필요합니다: %@"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autocompletar precisa do Apple Intelligence neste Mac: %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "續寫需要本機的 Apple Intelligence：%@"
+          }
+        }
+      }
+    },
+    "Autocomplete wasn't used in %@, so it stopped there (Settings → Apps can keep it on)" : {
+      "comment" : "续写在「%@」里没用上，已在这个 App 里停下（设置 → 按 App 设置 可以让它一直续写） — Sources/AllInOneIMECore/Session/InputSession+Autocomplete.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autovervollständigen wurde in %@ nicht genutzt und ist dort jetzt aus (Einstellungen → Apps kann es eingeschaltet lassen)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autocompletar no se usó en %@, así que se detuvo ahí (Ajustes → Apps puede mantenerlo activado)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La complétion automatique n’a pas servi dans %@ : elle s’y est arrêtée (Réglages → Apps peut la garder activée)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ではオートコンプリートが使われなかったため、このAppでは止めました（設定 → App別設定でオンのままにできます）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@에서 자동 완성을 쓰지 않아 이 앱에서는 멈췄습니다 (설정 → 앱별 설정에서 계속 켜 둘 수 있음)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autocompletar não foi usado em %@, então parou lá (Ajustes → Apps pode mantê-lo ativado)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "續寫在「%@」中沒用上，已在這個 App 中停下（設定 → 各 App 設定 可讓它一直續寫）"
+          }
+        }
+      }
+    },
     "AWS credentials: the last refresh failed" : {
       "comment" : "AWS 凭证上次刷新失败 — Sources/AllInOneIMECore/Doctor.swift",
       "localizations" : {
@@ -11208,13 +11443,48 @@
     "Command trigger" : {
       "comment" : "命令触发符 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
-        "de" : { "stringUnit" : { "state" : "translated", "value" : "Befehlsauslöser" } },
-        "es" : { "stringUnit" : { "state" : "translated", "value" : "Activador de comandos" } },
-        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Déclencheur de commande" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "コマンド起動記号" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "명령 호출 기호" } },
-        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Acionador de comandos" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "命令觸發符" } }
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Befehlsauslöser"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activador de comandos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Déclencheur de commande"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コマンド起動記号"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "명령 호출 기호"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Acionador de comandos"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "命令觸發符"
+          }
+        }
       }
     },
     "Config file" : {
@@ -31546,6 +31816,53 @@
         }
       }
     },
+    "Shown %@ times · %@%% taken" : {
+      "comment" : "已显示 %@ 次 · 接受 %@%% — Sources/AllInOneIMECore/Autocomplete.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@-mal gezeigt · %2$@ %% übernommen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrado %1$@ veces · %2$@ %% aceptado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Affichée %1$@ fois · %2$@ %% acceptée"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@回表示 · %2$@%% 採用"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@회 표시 · %2$@%% 수락"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrado %1$@ vezes · %2$@%% aceito"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已顯示 %1$@ 次 · 接受 %2$@%%"
+          }
+        }
+      }
+    },
     "Shown in the command list (optional)" : {
       "comment" : "命令列表里显示，可以不填 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
@@ -33552,6 +33869,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已透過 iCloud 同步（%@）"
+          }
+        }
+      }
+    },
+    "Tab accept · Esc dismiss" : {
+      "comment" : "Tab 接受 · Esc 不要 — Sources/AllInOneIMECore/Autocomplete.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab übernehmen · Esc verwerfen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab aceptar · Esc descartar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab accepter · Esc ignorer"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab 採用 · Esc 閉じる"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab 수락 · Esc 닫기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab aceitar · Esc descartar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab 接受 · Esc 不要"
           }
         }
       }
@@ -38077,13 +38441,48 @@
     "Type one symbol, such as @ or ~, to open commands at the start of a sentence." : {
       "comment" : "输入一个符号，例如 @ 或 ~。打在句首打开命令列表。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
-        "de" : { "stringUnit" : { "state" : "translated", "value" : "Gib am Satzanfang ein Symbol wie @ oder ~ ein, um Befehle zu öffnen." } },
-        "es" : { "stringUnit" : { "state" : "translated", "value" : "Escribe un símbolo, como @ o ~, al inicio de una frase para abrir los comandos." } },
-        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Saisissez un symbole, comme @ ou ~, en début de phrase pour ouvrir les commandes." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "文頭で @ や ~ などの記号を1つ入力するとコマンドが開きます。" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "문장 시작에 @ 또는 ~ 같은 기호 하나를 입력하면 명령이 열립니다." } },
-        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Digite um símbolo, como @ ou ~, no início de uma frase para abrir os comandos." } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "在句首輸入一個符號，例如 @ 或 ~，即可開啟命令清單。" } }
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gib am Satzanfang ein Symbol wie @ oder ~ ein, um Befehle zu öffnen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escribe un símbolo, como @ o ~, al inicio de una frase para abrir los comandos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saisissez un symbole, comme @ ou ~, en début de phrase pour ouvrir les commandes."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文頭で @ や ~ などの記号を1つ入力するとコマンドが開きます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "문장 시작에 @ 또는 ~ 같은 기호 하나를 입력하면 명령이 열립니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Digite um símbolo, como @ ou ~, no início de uma frase para abrir os comandos."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在句首輸入一個符號，例如 @ 或 ~，即可開啟命令清單。"
+          }
+        }
       }
     },
     "Type results out" : {

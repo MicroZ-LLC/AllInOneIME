@@ -399,7 +399,7 @@ extension AIConfig {
             func rank(_ key: Key) -> Int {
                 switch key {
                 case let .setting(setting): return order.firstIndex(of: setting) ?? 0
-                case .app, .iCloudSync: return order.count
+                case .app, .iCloudSync, .autocomplete: return order.count
                 case .forbidden: return order.count + 1
                 }
             }
@@ -450,6 +450,8 @@ extension AIConfig {
             (secretKey, label) = (false, text.label(setting))
         case .iCloudSync:
             (secretKey, label) = (false, text.iCloudSyncLabel)
+        case .autocomplete:
+            (secretKey, label) = (false, text.autocompleteLabel)
         case let .app(name, field):
             (secretKey, label) = (looksLikeKey(name), text.appLabel(looksLikeKey(name) ? text.someApp : name, field))
         case let .forbidden(path, secret):
@@ -472,6 +474,8 @@ extension AIConfig {
                        status: .refused(secret ? text.secretRefused : path.hasPrefix("iCloudSync.") ? text.syncOnlyInSettings : text.notHere))
         case .iCloudSync:
             return checkICloudSync(change.value, in: config, env: env, text: text)
+        case .autocomplete:
+            return checkAutocomplete(change.value, in: config, text: text)
         case let .setting(setting):
             return checkSetting(setting, change.value, in: config, env: env, text: text)
         case let .app(name, field):

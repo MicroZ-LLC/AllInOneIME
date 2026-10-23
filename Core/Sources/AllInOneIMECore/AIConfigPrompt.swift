@@ -183,6 +183,8 @@ public enum AIConfigPrompt {
                            json(config.typeOutRate))),
             (.typing, line("typeOutVaries", "true or false: typing out speeds up and slows down like a person", nil, json(config.typeOutVaries))),
             (.typing, line("typeOutMistakes", "true or false: typing out makes occasional typos and fixes them", nil, json(config.typeOutMistakes))),
+            (.typing, line(AIConfig.Key.autocomplete.path, "true or false: Autocomplete (续写): after a pause in typing, the rest of the sentence in gray after the caret, Tab inserts it",
+                           nil, json(config.autocomplete))),
             (.selection, line("useSelection", "true or false: commands work on the selected text", nil, json(config.useSelection))),
             (.questions, line("rememberQuestions", "true or false: @question keeps recent questions on this Mac", nil, json(config.rememberQuestions))),
             (.privacy, line("redaction.enabled", "true or false: hide sensitive information from the AI before sending", nil, json(config.redaction.enabled))),
@@ -283,6 +285,7 @@ public enum AIConfigPrompt {
         let styles = GuidedSchema.array(.strings(name: "Style", RewriteStyle.catalog.map(\.name)), min: 0, max: RewriteStyle.catalog.count)
         let flags = AIConfig.Setting.allCases.filter { $0.isFlag && scope.has($0) }.map(\.path)
             + (scope.has(.iCloudSync) ? [AIConfig.Key.iCloudSync.path] : [])
+            + (scope.has(.typing) ? [AIConfig.Key.autocomplete.path] : [])
         var choices: [GuidedSchema] = []
         func add(_ part: Part, _ choice: @autoclosure () -> GuidedSchema) {
             if scope.has(part) { choices.append(choice()) }

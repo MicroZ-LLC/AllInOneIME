@@ -14,6 +14,8 @@ public struct TaskID: Hashable, Sendable {
         case recipients
         /// The script extension of the request in level two, run by the shell (`SessionServices.startScript`).
         case script
+        /// Autocomplete's request (`Autocomplete`): every key stops it.
+        case autocomplete
     }
 
     public let slot: Slot?
@@ -59,6 +61,8 @@ public enum TaskUpdate: Sendable {
     case noteFolderNamed(String, settings: NoteSettings)
     /// A command's status line ended (`SessionServices.refreshStatuses`): the list shows it.
     case statusEnded
+    /// Autocomplete's request `request` answered (`Converter.autocomplete`), or failed.
+    case suggested(Result<Autocomplete.Answer, any Error>, request: Int)
 }
 
 /// How a save to notes or Reminders went (`TaskUpdate.saved`): told where the user is when it comes back, even if the
@@ -333,6 +337,20 @@ public final class SessionTasks {
     public func translate(_ input: String, session: TranslateMode.Session, id: Int, in place: Place, converter: Converter) {
         let stream = converter.translateMode(input, target: session.target, app: place.app)
         consume(place.terminal ? Self.oneLine(stream) : stream, id: id)
+    }
+
+    /// Autocomplete's request `id` for `context` (`Converter.autocomplete`), in the autocomplete slot (a newer one, or any
+    /// key, stops it): what it answers as `TaskUpdate.suggested`.
+    public func autocomplete(_ context: Autocomplete.Context, app: String?, id: Int, converter: Converter) {
+        start(.autocomplete) { post in
+            do {
+                let answer = try await converter.autocomplete(context, app: app)
+                post(.suggested(.success(answer), request: id))
+            } catch {
+                guard !Task.isCancelled, !(error is CancellationError) else { return }
+                post(.suggested(.failure(error), request: id))
+            }
+        }
     }
 
     /// Hands `stream`'s updates for request `id` on, and its error if it fails.

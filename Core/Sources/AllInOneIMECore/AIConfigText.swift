@@ -282,6 +282,7 @@ extension AIConfig {
             case let .model(provider, _): return Setting.model(of: provider).map(label) ?? label(.provider)
             case .baseURL: return label(.openaiBaseURL)
             case .iCloudSync: return iCloudSyncLabel
+            case .autocomplete: return autocompleteLabel
             }
         }
         public var nothingToUndo: String { tr("10 分钟内没有可以撤销的设置修改", "Nothing to undo from the last 10 minutes") }

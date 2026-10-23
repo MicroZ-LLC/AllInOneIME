@@ -60,13 +60,14 @@ public enum ICloudSync {
 
     /// Never synced, whatever the switches: each Mac decides for itself. The keys and tokens aren't in the config at all
     /// (they're in the keychain); extension sources and their clones run code; extension folders and plugins are paths on
-    /// this Mac, and so is where `@note` saves (`notes`: a folder's path); the sync setting itself is per Mac; `typeOutSpeed` is only read (from older files); `outputLanguage` and
+    /// this Mac, and so is where `@note` saves (`notes`: a folder's path); the sync setting itself is per Mac, and so is the
+    /// yes to autocomplete sending text to a cloud provider (`autocompleteCloud`); `typeOutSpeed` is only read (from older files); `outputLanguage` and
     /// `defaultInput` come with their lists. Apps without typos and the recent apps aren't config keys either: named so
     /// that no later version adds them.
     public static let neverSynced: Set<String> = [
         "extensionSources", "extensionFolders", "hiddenExtensionFolders", "findRaycastScripts", "disabledExtensions",
         "extensionPreferences", "jargonFile", "iCloudSync", "typeOutSpeed", "outputLanguage", "defaultInput",
-        "typeOutNoTyposApps", "recentApps", "notes",
+        "typeOutNoTyposApps", "recentApps", "notes", "autocompleteCloud",
     ]
 
     /// The category `key` (a key of `settings.json`) is synced under; nil for a key this version doesn't sync (one a newer
@@ -896,7 +897,7 @@ public enum ICloudSync {
                 if Language(rawValue: code) == nil { return .unknownValue }
             }
             if let styles = fields["rewriteStyles"], styles != .null, styles.strings == nil { return .wrongType }
-            for flag in ["typeOut", "noAI", "translateAlways"] {
+            for flag in ["typeOut", "noAI", "translateAlways", "autocomplete"] {
                 guard let field = fields[flag], field != .null else { continue }
                 guard case .bool = field else { return .wrongType }
             }

@@ -706,6 +706,8 @@ final class AllInOneIMEInputController: IMKInputController {
                 }
             case .keyboardLayout:
                 applyKeyboardLayout(client: target)
+            case .readField, .ghost:
+                break  // autocomplete isn't drawn on the Mac yet: nothing read, nothing shown
             case let .startTimer(.notice(token), seconds):
                 // In the run loop's default mode, as a notice always expired: not while a menu is tracked.
                 let box = WeakBox(self)

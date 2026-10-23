@@ -137,12 +137,18 @@ public enum HTTPProviders {
                 let delta = object["delta"] as? [String: Any]
                 guard delta?["type"] as? String == "text_delta", let text = delta?["text"] as? String else { return [] }
                 return [.textDelta(text)]
+            case "message_start":
+                // The tokens read (autocomplete counts a cloud provider's, `Autocomplete.Metrics`).
+                let usage = (object["message"] as? [String: Any])?["usage"] as? [String: Any]
+                return (usage?["input_tokens"] as? Int).map { [.metadata(latencyMs: nil, inputTokens: $0, outputTokens: nil)] } ?? []
             case "message_delta":
-                guard let reason = (object["delta"] as? [String: Any])?["stop_reason"] as? String else { return [] }
+                let written = ((object["usage"] as? [String: Any])?["output_tokens"] as? Int)
+                    .map { BedrockStreamEvent.metadata(latencyMs: nil, inputTokens: nil, outputTokens: $0) }
+                guard let reason = (object["delta"] as? [String: Any])?["stop_reason"] as? String else { return written.map { [$0] } ?? [] }
                 if reason == "refusal" { throw ProviderError.refused(provider) }
-                return [.messageStop(reason: reason)]
+                return (written.map { [$0] } ?? []) + [.messageStop(reason: reason)]
             default:
-                return []  // message_start, content_block_start/stop (thinking blocks too), ping, message_stop
+                return []  // content_block_start/stop (thinking blocks too), ping, message_stop
             }
         case .gemini:
             if (object["promptFeedback"] as? [String: Any])?["blockReason"] != nil { throw ProviderError.refused(provider) }
@@ -152,13 +158,21 @@ public enum HTTPProviders {
                 guard part["thought"] as? Bool != true, let text = part["text"] as? String else { return nil }
                 return .textDelta(text)
             }
+            if let usage = object["usageMetadata"] as? [String: Any] {
+                events.append(.metadata(latencyMs: nil, inputTokens: usage["promptTokenCount"] as? Int,
+                                        outputTokens: usage["candidatesTokenCount"] as? Int))
+            }
             if let reason = candidate["finishReason"] as? String {
                 if ["SAFETY", "PROHIBITED_CONTENT", "BLOCKLIST", "SPII"].contains(reason) { throw ProviderError.refused(provider) }
                 events.append(.messageStop(reason: reason == "MAX_TOKENS" ? "max_tokens" : reason.lowercased()))
             }
             return events
         case .openai:
-            guard let choice = (object["choices"] as? [[String: Any]])?.first else { return [] }
+            // A service that tells its usage (in a chunk of its own, with no choice).
+            let usage = (object["usage"] as? [String: Any]).map {
+                BedrockStreamEvent.metadata(latencyMs: nil, inputTokens: $0["prompt_tokens"] as? Int, outputTokens: $0["completion_tokens"] as? Int)
+            }
+            guard let choice = (object["choices"] as? [[String: Any]])?.first else { return usage.map { [$0] } ?? [] }
             var events: [BedrockStreamEvent] = []
             // Only the answer: reasoning models may stream `reasoning_content` alongside it.
             if let text = (choice["delta"] as? [String: Any])?["content"] as? String, !text.isEmpty {

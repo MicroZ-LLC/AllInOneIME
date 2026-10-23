@@ -24,6 +24,11 @@ public final class FakeHost: @unchecked Sendable {
     public var appTakesMarkedText = false
     /// What ⌘V or ⌃V finds on the clipboard.
     public var clipboard = ClipboardContent.none
+    /// A key the session lets through types its text into the document, as the app does (off: the document has only what
+    /// the session put in).
+    public var appTypesKeys = false
+    /// The field tells nothing of its text when it is read (`SessionOutput.readField`): WeChat's.
+    public var tellsNoText = false
 
     // MARK: What the session did
 
@@ -39,8 +44,12 @@ public final class FakeHost: @unchecked Sendable {
     public private(set) var typedOut: [String] = []
     public private(set) var noticesElsewhere: [String] = []
     public private(set) var platformActions: [PlatformAction] = []
-    /// The timers started and not fired yet.
+    /// The timers started and not fired yet, and how long each was to wait.
     public private(set) var timers: [TimerID] = []
+    public private(set) var timerDelays: [TimerID: TimeInterval] = [:]
+    /// Autocomplete's suggestion up after the caret (`SessionOutput.ghost`), and the reads of the field it asked for.
+    public private(set) var ghost: String?
+    public private(set) var fieldReads = 0
 
     private let inbox = Locked<[SessionEvent]>(initialState: [])
     private let arrived = DispatchSemaphore(value: 0)
@@ -88,6 +97,7 @@ public final class FakeHost: @unchecked Sendable {
         let response = session.handle(.key(key, context))
         appTakesMarkedText = false
         apply(response.outputs)
+        if appTypesKeys, !response.handled, let text = key.printableText { insert(text, replacing: selection) }
         let after = afterKey
         afterKey = []
         after.forEach { $0() }
@@ -147,6 +157,13 @@ public final class FakeHost: @unchecked Sendable {
         for timer in fired { send(.timer(timer)) }
     }
 
+    /// Fires the timers started so far that `matches`, in order; the others wait.
+    public func fireTimers(where matches: (TimerID) -> Bool) {
+        let fired = timers.filter(matches)
+        timers.removeAll(where: matches)
+        for timer in fired { send(.timer(timer)) }
+    }
+
     // MARK: Outputs
 
     private func apply(_ outputs: [SessionOutput]) {
@@ -187,8 +204,17 @@ public final class FakeHost: @unchecked Sendable {
                 afterKey.append { [weak self] in self?.send(.clipboard(content, id: id)) }
             case .keyboardLayout:
                 break
-            case let .startTimer(id, _):
+            case let .startTimer(id, seconds):
                 timers.append(id)
+                timerDelays[id] = seconds
+            case let .readField(id):
+                // At once, as the Mac reads it (the field as it is now; nothing of its text where it tells none).
+                fieldReads += 1
+                var read = context
+                if tellsNoText { read.text = nil }
+                send(.field(read, id: id))
+            case let .ghost(text):
+                ghost = text
             case let .platform(action):
                 platformActions.append(action)
             }

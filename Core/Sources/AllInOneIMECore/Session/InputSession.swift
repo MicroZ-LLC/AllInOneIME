@@ -52,7 +52,7 @@ public final class InputSession {
     private static let progressLimit = Locked<TimeInterval>(initialState: 20)
 
     static let log = CoreLog(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "ime")
-    private var log: CoreLog { Self.log }
+    var log: CoreLog { Self.log }
 
     /// Level one's engine as `services.levelOne` gave it.
     private var engine: PinyinEngine?
@@ -65,7 +65,9 @@ public final class InputSession {
     /// A dead key typed before the next key.
     private var deadKeys = DeadKeyComposer()
     /// The last character the user typed straight into the field (`characterBeforeCaret`).
-    private var lastTyped = LastTyped()
+    var lastTyped = LastTyped()
+    /// Autocomplete in this field (InputSession+Autocomplete.swift).
+    var autocomplete = AutocompleteField()
     /// Shown once each time composing is paused for secure input.
     private var secureNoticeShown = false
     /// The key being handled, and what the field said with it; the field's text as last read (`@reply` after dictation).
@@ -123,6 +125,10 @@ public final class InputSession {
     public func handle(_ event: SessionEvent) -> SessionResponse {
         var handled = true
         let outputs = collect {
+            defer {
+                // Keys see to autocomplete's suggestion themselves (`autocompleteAfterKey`).
+                if case .key = event {} else { autocompleteSettle() }
+            }
             switch event {
             case let .key(key, context):
                 handled = self.key(key, context)
@@ -132,11 +138,13 @@ public final class InputSession {
             case let .focus(info):
                 focus(info)
             case .blur:
+                autocompleteLeft(.ignored)
                 perform(composer.commitAll())
                 releasePage()  // `@agent` asked for a page it didn't send
                 fieldSession += 1
                 fieldText = nil
             case .commit:
+                autocompleteLeft(.ignored)  // a click in the field: the caret may be elsewhere
                 perform(composer.commitAll())
             case let .pick(row):
                 // What a click on the row picks (`PanelModel.Row.choice`): its number's, a conversation's answer by its
@@ -149,6 +157,8 @@ public final class InputSession {
             case let .clipboard(content, id):
                 // Nothing is read during secure input (the shell doesn't read it then either).
                 perform(composer.pasted(secureInputActive() ? .none : content, id: id))
+            case let .field(context, id):
+                autocompleteRead(context, id: id)
             case let .task(id, update):
                 guard tasks.isCurrent(id) else { return }
                 received(update, from: id)
@@ -163,6 +173,7 @@ public final class InputSession {
             case .configChanged:
                 settings(app: nil)
             case .close:
+                autocompleteLeft(.unseen)
                 tasks.close()  // what runs for the field stops (a save, a message, an agent goes on)
                 noticeToken += 1  // its timer does nothing now
                 composer.engine = nil
@@ -176,7 +187,12 @@ public final class InputSession {
 
     /// The composer's answer to something the shell did to it (Translate as You Type turned on, the menu's commit): what
     /// the shell is to do.
-    public func apply(_ effects: [Composer.Effect]) -> [SessionOutput] { collect { perform(effects) } }
+    public func apply(_ effects: [Composer.Effect]) -> [SessionOutput] {
+        collect {
+            perform(effects)
+            autocompleteSettle()  // Translate as You Type turned on, say: no suggestion with it
+        }
+    }
 
     /// Runs `body`, gathering what it has the shell do: returned by the outermost call.
     private func collect(_ body: () -> Void) -> [SessionOutput] {
@@ -188,11 +204,11 @@ public final class InputSession {
         return outputs
     }
 
-    private func emit(_ output: SessionOutput) { outputs.append(output) }
+    func emit(_ output: SessionOutput) { outputs.append(output) }
 
     /// The app of the key being handled, else the field's.
-    private var app: String? { keyContext?.field?.app ?? field.app }
-    private var terminal: Bool { keyContext?.field?.terminal ?? field.terminal }
+    var app: String? { keyContext?.field?.app ?? field.app }
+    var terminal: Bool { keyContext?.field?.terminal ?? field.terminal }
 
     /// Whether secure input is on (nothing is sent to a model or run then): anywhere (`SessionServices`), or a password
     /// field here.
@@ -212,6 +228,7 @@ public final class InputSession {
         composer.pastesIntoDraft = !info.terminal
         // …and don't act on a key after text inserted during it (`Composer.appTakesKeysAfterInsert`).
         composer.appTakesKeysAfterInsert = composer.pastesIntoDraft
+        autocompleteFocused()
     }
 
     /// A custom command renamed because a built-in has its name now (`Config.freeBuiltinNames`): said once, in the
@@ -486,6 +503,7 @@ public final class InputSession {
         // Password fields and prompts turn on secure event input. Never compose (so nothing can be sent to the model) in
         // the app that turned it on; anything already typed goes in as typed.
         if context.secure || field.secure {
+            autocompleteLeft(.unseen)
             if composer.isComposing {
                 let ended = composer.commitAsTyped()
                 perform(ended)
@@ -509,6 +527,8 @@ public final class InputSession {
             lastTyped.forget()
             return true
         }
+        // Autocomplete's suggestion: Tab puts it in, Esc takes it down; any key ends its pause and stops its request.
+        if let taken = autocompleteBeforeKey(event) { return taken }
         ensureLevelOne()
         // Commands added to the config apply from the next sentence on (the file is re-read only when it changed).
         if !composer.isComposing {
@@ -548,6 +568,14 @@ public final class InputSession {
         perform(response.effects)
         let inserted = response.effects.compactMap { if case let .commit(text) = $0 { text } else { nil } }.last
         lastTyped.answered(key, passedOn: !response.handled, inserted: inserted, at: ProcessInfo.processInfo.systemUptime)
+        // What went into the field with this key: what the input method put in, and the key's own text if the app types it.
+        let put = response.effects.compactMap { effect -> String? in
+            switch effect {
+            case let .commit(text), let .commitAfterKey(text): return text
+            default: return nil
+            }
+        }.joined() + (response.handled ? "" : key.printableText ?? "")
+        autocompleteAfterKey(key, handled: response.handled, inserted: put)
         return response.handled
     }
 
@@ -847,6 +875,8 @@ public final class InputSession {
         case let .voiceHold(token):
             guard token == voiceArmToken else { return }
             perform(composer.voiceHoldElapsed(stillHeld: services.isVoiceKeyHeld()))
+        case let .autocomplete(token):
+            autocompletePaused(token)
         }
     }
 
@@ -1007,6 +1037,8 @@ public final class InputSession {
         case .statusEnded:
             guard composer.paletteQuery != nil else { return }
             perform([.showPanel])
+        case let .suggested(result, request):
+            autocompleteAnswered(result, request: request)
         }
     }
 
@@ -1284,7 +1316,7 @@ public final class InputSession {
         collect { say(text, long: long, lasting: lasting) }
     }
 
-    private func say(_ text: String, long: Bool = false, lasting: TimeInterval? = nil) {
+    func say(_ text: String, long: Bool = false, lasting: TimeInterval? = nil) {
         notice = text
         noticeToken += 1
         emit(.startTimer(.notice(noticeToken), after: lasting ?? SessionText.noticeDuration(text, long: long)))
