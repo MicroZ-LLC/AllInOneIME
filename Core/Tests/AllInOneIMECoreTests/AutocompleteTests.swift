@@ -117,6 +117,19 @@ struct AutocompleteTests {
         #expect(Autocomplete.trimmed("周五见。", before: "Swift 课程，") == "周五见。")
     }
 
+    @Test func anAnswerInAnotherScriptThanTheCaretsLineIsNotShown() {
+        // The owner's note (Notes, on-device): under a Chinese paragraph, the English line got Chinese, taken with Tab.
+        let paragraph = "我原本计划明天去hiking，天气不太适合户外活动。改天再考虑户外活动。明天去图书馆看看书吧。图书馆有新书推荐。"
+        let english = paragraph + "\n\nI have an appointment today, "
+        #expect(Autocomplete.trimmed("图书馆有新书推荐。", before: english) == nil)
+        #expect(Autocomplete.trimmed("明天去图书馆看看书吧。", before: english) == nil)
+        #expect(Autocomplete.trimmed("so I will call you later.", before: english) == "so I will call you later.")
+        // A Chinese line with an English word in it is Chinese; a line with under two words goes by the lines above it.
+        #expect(Autocomplete.trimmed("天气不太适合户外活动。", before: "我原本计划明天去hiking，") == "天气不太适合户外活动。")
+        #expect(Autocomplete.trimmed("明天见。", before: paragraph + "\nOK，") == "明天见。")
+        #expect(Autocomplete.trimmed("明天见。", before: "Thanks for the update.\nOK，") == nil)
+    }
+
     @Test func aNewWordGetsTheSpaceTheModelLeftOut() {
         #expect(Autocomplete.trimmed("<after>be late</after>", before: "I might") == " be late")
         #expect(Autocomplete.trimmed("<after>worry about it.</after>", before: "Don't you") == " worry about it.")
@@ -262,6 +275,34 @@ struct AutocompleteTests {
         // As the on-device model takes it: the examples earlier turns, the text the prompt.
         let apple = AppleModel.request(from: english, maxTokens: Autocomplete.maxTokens, contextSize: 4096)
         #expect(apple.examples.count == 4 && apple.prompt == "<before>Sounds good, see you tomo</before>")
+    }
+
+    @Test func theExamplesAreInTheCaretsLinesScript() {
+        func request(_ before: String) -> ConverseRequest {
+            Prompt.autocompleteRequest(Autocomplete.Context(before: before), app: "com.apple.Notes", onDevice: true)
+        }
+        func answers(_ before: String) -> [String] {
+            request(before).messages.filter { $0.role == "assistant" }.map { $0.content[0].text }
+        }
+        let english = Prompt.autocompleteEnglishExamples.map { String($0.answer.drop { $0 == " " }) }
+        let chinese = Prompt.autocompleteChineseExamples.map(\.answer)
+        // The owner's note: an English line under a Chinese paragraph gets the English examples, with no space at the
+        // start; the Chinese line with an English word in it, the Chinese ones and the model's own spaces.
+        let paragraph = "我原本计划明天去hiking，天气不太适合户外活动。改天再考虑户外活动。明天去图书馆看看书吧。图书馆有新书推荐。"
+        #expect(answers(paragraph + "\n\nI have an appointment today, ") == english)
+        #expect(request(paragraph + "\n\nI have an appointment today, ").system[0].text.contains("Never start with a space"))
+        #expect(answers("我原本计划明天去hiking，") == chinese)
+        #expect(!request("我原本计划明天去hiking，").system[0].text.contains("Never start with a space"))
+        #expect(answers("我们明天 review the new design，") == chinese)
+        #expect(!request("我们明天 review the new design，").system[0].text.contains("Never start with a space"))
+        // English under Japanese, Chinese under English, Japanese or Korean under Chinese: the line's.
+        #expect(answers("明日の会議は十時からです。\nSee you at the") == english)
+        #expect(answers("Thanks for the update.\n明天下午三点开会") == chinese)
+        #expect(answers("今天天气很好。\n明日の会議は").isEmpty && answers("图书馆有新书推荐。\n오늘 회의는").isEmpty)
+        // A line with under two words to tell by goes by the lines above it.
+        #expect(answers(paragraph + "\nOK") == chinese)
+        #expect(answers("会议纪要：\n1. 确认了项目预算\n2. ") == chinese)
+        #expect(answers("Thanks for the update.\n2. ") == english)
     }
 
     @Test func englishIsToldByItsWords() {

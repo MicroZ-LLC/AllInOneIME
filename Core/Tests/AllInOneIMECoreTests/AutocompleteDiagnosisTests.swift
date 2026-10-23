@@ -15,15 +15,16 @@ final class DiagnosisModel: AppleModelBackend, @unchecked Sendable {
     let contextSize = 8192
     let supportedLanguages: Set<String> = ["en", "zh", "ja", "fr", "de", "es"]
     private let lock = NSLock()
-    private var _prompts: [String] = []
+    private var _requests: [AppleModelRequest] = []
     let answer: @Sendable (String) -> String
 
     init(_ answer: @escaping @Sendable (String) -> String) { self.answer = answer }
 
-    var prompts: [String] { lock.withLock { _prompts } }
+    var requests: [AppleModelRequest] { lock.withLock { _requests } }
+    var prompts: [String] { requests.map(\.prompt) }
 
     func respond(to request: AppleModelRequest) -> AsyncThrowingStream<AppleModelSnapshot, Error> {
-        lock.withLock { _prompts.append(request.prompt) }
+        lock.withLock { _requests.append(request) }
         let text = answer(request.prompt)
         return AsyncThrowingStream { continuation in
             continuation.yield(AppleModelSnapshot(text: text))
@@ -344,5 +345,51 @@ struct AutocompleteDiagnosisTests {
         config.openai = ProviderSettings(model: "gpt-small", baseURL: "https://api.openai.com/v1")
         #expect(Autocomplete.route(config) == .onDevice, "AC-9: now \(Autocomplete.route(config)), never asked about OpenAI")
         #expect(Autocomplete.asksForCloud(config), "AC-9: turning it on again wouldn't ask")
+    }
+
+    // MARK: - The owner's note in Notes (0.6.7, c1f3b998)
+
+    /// The owner's note, with the on-device model: "我原本计划明天去hiking，" typed, then four suggestions taken with Tab, one
+    /// after the other; a blank line, "I have an appointment today, " typed, then three more taken: "图书馆有新书推荐。",
+    /// "明天去图书馆看看书吧。", "图书馆有新书推荐。" (AC-12, AC-13).
+    static let notesTyped = "我原本计划明天去hiking，"
+    static let notesTaken = ["天气不太适合户外活动。", "改天再考虑户外活动。", "明天去图书馆看看书吧。", "图书馆有新书推荐。"]
+    static let notesParagraph = notesTyped + notesTaken.joined()
+    static let notesEnglishLine = notesParagraph + "\n\nI have an appointment today, "
+
+    // MARK: - AC-12: the language of the line the caret is on
+
+    static let caretLines: [TrimCase] = [
+        TrimCase("图书馆有新书推荐。", after: notesEnglishLine, shows: nil, "AC-12, the owner's: Chinese on the English line"),
+        TrimCase("明天去图书馆看看书吧。", after: notesEnglishLine, shows: nil, "AC-12: Chinese on the English line"),
+        TrimCase("so I will call you later.", after: notesEnglishLine, shows: "so I will call you later.", "control: English on it"),
+        TrimCase(notesTaken[0], after: notesTyped, shows: notesTaken[0], "control, the owner's: a Chinese line with an English word"),
+        TrimCase("明天见。", after: notesParagraph + "\nOK", shows: "明天见。", "control: a line with too little to tell by"),
+    ]
+
+    /// Whether the text is Chinese (the examples, the space at the start, Chinese allowed in the answer) went by its last
+    /// 200 characters: an English line under a Chinese paragraph got the Chinese examples, and its Chinese answer was
+    /// shown.
+    @Test(.bug(id: "AC-12", "an English line under a Chinese paragraph is answered in Chinese"), arguments: caretLines)
+    func anAnswerIsInTheLanguageOfTheCaretsLine(_ c: TrimCase) {
+        #expect(Autocomplete.trimmed(c.raw, before: c.before) == c.shown, "\(c.note)")
+    }
+
+    /// The owner's English line in Notes, the model answering as it did there: the request has the English examples, and
+    /// the Chinese answer isn't shown.
+    @Test(.bug(id: "AC-12", "an English line under a Chinese paragraph gets the Chinese examples"))
+    func theOwnersEnglishLineUnderAChineseParagraphGetsTheEnglishExamples() async {
+        await withInterfaceLanguage("en") {
+            let model = DiagnosisModel { _ in "图书馆有新书推荐。" }
+            let f = field(app: "com.apple.Notes", model: model)
+            f.host.type("today, ")
+            f.place(Self.notesEnglishLine, caret: Self.notesEnglishLine.utf16.count)
+            f.pauseEnds()
+            #expect(model.prompts == ["<before>\(Self.notesEnglishLine)</before>"])
+            let examples = model.requests.first?.examples.map(\.response) ?? []
+            #expect(examples == Prompt.autocompleteEnglishExamples.map { String($0.answer.drop { $0 == " " }) },
+                    "AC-12: the examples were \(examples)")
+            #expect(f.host.ghost == nil, "AC-12: shown \(f.host.ghost.map { "“\($0)”" } ?? "nothing") on the English line")
+        }
     }
 }

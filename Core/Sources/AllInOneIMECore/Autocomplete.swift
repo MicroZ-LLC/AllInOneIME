@@ -178,7 +178,7 @@ public enum Autocomplete {
         // Only at the end of a line: nothing but spaces between the caret and the line's end.
         let rest = after.prefix { !$0.isNewline }
         guard rest.allSatisfy(\.isWhitespace) else { return nil }
-        let line = before.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline).last.map(String.init) ?? ""
+        let line = caretLine(before)
         guard line.filter({ !$0.isWhitespace }).count >= 2, hasWord(line) else { return nil }
         if looksLikeNumbers(line) { return nil }
         return Context(before: String(before.suffix(beforeLimit)), after: following(after))
@@ -216,6 +216,20 @@ public enum Autocomplete {
         line.filter(\.isNumber).count >= 4 && !line.contains(where: \.isLetter)
     }
 
+    /// The line the caret is on: what of `before` follows its last line break.
+    static func caretLine(_ before: String) -> String {
+        String(before[(before.lastIndex(where: \.isNewline).map(before.index(after:)) ?? before.startIndex)...])
+    }
+
+    /// What tells the language a suggestion after `before` is in (the examples' script, the space at its start, whether
+    /// it may be in Chinese, Japanese or Korean): the caret's own line, so that an English line under a Chinese paragraph
+    /// is English and a Chinese line with an English word in it Chinese; the last 200 characters only where the line
+    /// has under two words to tell by (Latin words, or Chinese, Japanese or Korean characters: "OK", "2. ").
+    static func languageText(_ before: String) -> String {
+        let line = caretLine(before)
+        return tokens(line).filter { $0.contains(where: \.isLetter) }.count >= 2 ? line : String(before.suffix(200))
+    }
+
     // MARK: What is shown
 
     /// What of the model's answer `raw` is shown after `before`: its first line, without quotes around it or the end of
@@ -238,8 +252,9 @@ public enum Autocomplete {
         var line = String(first).replacingOccurrences(of: "\t", with: " ")
         line = line.filter { !$0.isNewline && $0.unicodeScalars.allSatisfy(KeyEvent.isPrintable) }
         line = stripQuotes(line)
-        // Chinese, Japanese or Korean after text with none of it ("Hi" + "你好。"): not the user's language.
-        if line.contains(where: { $0.isWide && $0.isLetter }), !before.suffix(200).contains(where: \.isWide) { return nil }
+        // Chinese, Japanese or Korean after a line with none of it ("Hi" + "你好。", an English line under a Chinese
+        // paragraph): not the user's language.
+        if line.contains(where: \.isWideLetter), !languageText(before).contains(where: \.isWideLetter) { return nil }
         // Only the end of what was typed said again ("iss" after "iss"): nothing to add.
         if saysTheEndAgain(line, before: before) { return nil }
         // The end of what was typed said again ("…see you" → "see you tomorrow"), the unfinished word written whole
@@ -859,6 +874,9 @@ extension Character {
             return false
         }
     }
+
+    /// A letter of Chinese, Japanese or Korean (not one of their marks: "，" "。"), what tells text is in one of them.
+    var isWideLetter: Bool { isWide && isLetter }
 }
 
 // MARK: - What is kept between fields
@@ -1031,7 +1049,7 @@ public final class AutocompleteStore: @unchecked Sendable {
 
 extension Prompt {
     /// Bump when the wording of autocomplete's request changes.
-    public static let autocompleteVersion = 2
+    public static let autocompleteVersion = 3
 
     /// Autocomplete's instructions, for where it is typed (`AppClass`). Unspaced (`spaced` false), the answer is asked
     /// to start with no space (`autocompleteRequest`).
@@ -1082,27 +1100,28 @@ extension Prompt {
         (.init(before: "感谢大家的支持，"), "我们下周会公布最终结果。"),
     ]
 
-    /// The examples for text that ends with `before`, in its script (the model answers in the examples' language): the
-    /// English ones after Latin letters (without the space at the start, `spaced` false), the Chinese ones after
-    /// Chinese, none after Japanese, Korean or another script.
+    /// The examples for text that ends with `before`, in the script of the caret's line (`Autocomplete.languageText`; the
+    /// model answers in the examples' language): the English ones after Latin letters (without the space at the start,
+    /// `spaced` false), the Chinese ones after Chinese, none after Japanese, Korean or another script.
     static func autocompleteExamples(for before: String, spaced: Bool = true) -> [AutocompleteExample] {
-        let end = String(before.suffix(200))
-        if end.unicodeScalars.contains(where: { (0x3040...0x30FF).contains($0.value) || (0xAC00...0xD7AF).contains($0.value) }) {
+        let text = Autocomplete.languageText(before)
+        if text.unicodeScalars.contains(where: { (0x3040...0x30FF).contains($0.value) || (0xAC00...0xD7AF).contains($0.value) }) {
             return []
         }
-        if end.contains(where: \.isWide) { return autocompleteChineseExamples }
-        guard AppleModel.mostlyLatin(end) else { return [] }
+        if text.contains(where: \.isWideLetter) { return autocompleteChineseExamples }
+        guard AppleModel.mostlyLatin(text) else { return [] }
         return spaced ? autocompleteEnglishExamples : autocompleteEnglishExamples.map { ($0.context, String($0.answer.drop { $0 == " " })) }
     }
 
     /// Autocomplete's request: the instructions, then the text before the caret (and after it) as the message; for the
-    /// on-device model (`onDevice`), few-shot examples before it (`autocompleteExamples`). On English (`Autocomplete
-    /// .looksEnglish`) the on-device model is asked for no space at the start: it can't tell a word being finished from
-    /// a new one ("rep" + " report", "comm" + " mand"), and a space is put in by the English words where a new one starts
-    /// (`Autocomplete.needsSpace`). Other languages keep the model's own spaces.
+    /// on-device model (`onDevice`), few-shot examples before it (`autocompleteExamples`). On an English line
+    /// (`Autocomplete.languageText`, `Autocomplete.looksEnglish`) the on-device model is asked for no space at the start:
+    /// it can't tell a word being finished from a new one ("rep" + " report", "comm" + " mand"), and a space is put in by
+    /// the English words where a new one starts (`Autocomplete.needsSpace`). Other languages keep the model's own spaces.
     public static func autocompleteRequest(_ context: Autocomplete.Context, app: String?, onDevice: Bool = false) -> ConverseRequest {
-        let end = String(context.before.suffix(200))
-        let spaced = !onDevice || !(AppleModel.mostlyLatin(end) && Autocomplete.looksEnglish(end))
+        let text = Autocomplete.languageText(context.before)
+        let english = AppleModel.mostlyLatin(text) && !text.contains(where: \.isWideLetter) && Autocomplete.looksEnglish(text)
+        let spaced = !onDevice || !english
         let examples = onDevice ? autocompleteExamples(for: context.before, spaced: spaced).flatMap { example in
             [ConverseRequest.Message(role: "user", text: autocompleteMessage(example.context)),
              ConverseRequest.Message(role: "assistant", text: example.answer)]
