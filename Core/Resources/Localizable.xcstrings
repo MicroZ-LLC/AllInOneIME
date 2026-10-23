@@ -26835,8 +26835,103 @@
         }
       }
     },
+    "Plugins' completions (#12 lists GitHub issues, say; turn each plugin's on in Plugins) and coding mode's keywords and snippets (see Coding Languages): a few rows under the caret, Tab inserts. An app can turn them off in Apps." : {
+      "comment" : "插件的补全（比如打 #12 列出 GitHub issue；每个插件的补全在「插件」里打开）和编码模式的关键字、代码片段（在「编程语言」里）：光标下面列出几行，按 Tab 插入。某个应用里不要可以在「按 App 设置」里关掉。 — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vervollständigungen von Plug-ins (etwa listet #12 GitHub-Issues; die jedes Plug-ins schaltest du unter „Plug-ins“ ein) und Schlüsselwörter und Snippets des Programmiermodus (siehe „Programmiersprachen“): ein paar Zeilen unter der Einfügemarke, Tab fügt ein. Eine App kann sie unter „Apps“ ausschalten."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sugerencias de plugins (#12 muestra issues de GitHub, por ejemplo; las de cada plugin se activan en Plugins) y palabras clave y fragmentos del modo de programación (ver Lenguajes de programación): unas filas bajo el cursor, Tab inserta. Una app puede desactivarlas en Apps."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Complétions des plug-ins (#12 liste des issues GitHub, par exemple ; celles de chaque plug-in s’activent dans Plug-ins) et mots-clés et extraits du mode programmation (voir Langages de programmation) : quelques lignes sous le curseur, Tab insère. Une app peut les désactiver dans Apps."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プラグインの補完（例：#12 で GitHub issue を一覧。各プラグインの補完は「プラグイン」でオン）とコーディングモードのキーワード・スニペット（「プログラミング言語」を参照）：カーソルの下に数行、Tab で挿入。App ごとに「App別設定」でオフにできます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "플러그인 자동 완성(예: #12로 GitHub 이슈 목록, 플러그인마다 플러그인에서 켜기)과 코딩 모드의 키워드·스니펫(프로그래밍 언어 참고): 커서 아래 몇 줄, Tab으로 삽입. 앱별 설정에서 앱마다 끌 수 있습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sugestões de plug-ins (#12 lista issues do GitHub, por exemplo; as de cada plug-in são ativadas em Plug-ins) e palavras-chave e trechos do modo de programação (veja Linguagens de programação): algumas linhas sob o cursor, Tab insere. Um app pode desativá-las em Apps."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "外掛的補全（比如打 #12 列出 GitHub issue；每個外掛的補全在「外掛」裡打開）和編碼模式的關鍵字、程式碼片段（在「程式語言」裡）：游標下面列出幾行，按 Tab 插入。某個應用程式裡不要可以在「各 App 設定」裡關掉。"
+          }
+        }
+      }
+    },
+    "Plugins' completions (#12 lists GitHub issues, say; turn each plugin's on in Plugins) and coding mode's keywords and snippets (see Coding Languages): a few rows under the caret, Tab inserts. The same switch as Suggestions in the input menu; an app can turn them off in Apps." : {
+      "comment" : "插件的补全（比如打 #12 列出 GitHub issue；每个插件的补全在「插件」里打开）和编码模式的关键字、代码片段（在「编程语言」里）：光标下面列出几行，按 Tab 插入。和输入法菜单里的「建议」是同一个开关；某个 App 里不要可以在「按 App 设置」里关掉。 — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vervollständigungen von Plug-ins (etwa listet #12 GitHub-Issues; die jedes Plug-ins schaltest du unter „Plug-ins“ ein) und Schlüsselwörter und Snippets des Programmiermodus (siehe „Programmiersprachen“): ein paar Zeilen unter der Einfügemarke, Tab fügt ein. Derselbe Schalter wie „Vorschläge“ im Eingabemenü; eine App kann sie unter „Apps“ ausschalten."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sugerencias de plugins (#12 muestra issues de GitHub, por ejemplo; las de cada plugin se activan en Plugins) y palabras clave y fragmentos del modo de programación (ver Lenguajes de programación): unas filas bajo el cursor, Tab inserta. El mismo interruptor que Sugerencias en el menú de entrada; una app puede desactivarlas en Apps."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Complétions des plug-ins (#12 liste des issues GitHub, par exemple ; celles de chaque plug-in s’activent dans Plug-ins) et mots-clés et extraits du mode programmation (voir Langages de programmation) : quelques lignes sous le curseur, Tab insère. Le même interrupteur que Suggestions dans le menu de saisie ; une app peut les désactiver dans Apps."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プラグインの補完（例：#12 で GitHub issue を一覧。各プラグインの補完は「プラグイン」でオン）とコーディングモードのキーワード・スニペット（「プログラミング言語」を参照）：カーソルの下に数行、Tab で挿入。入力メニューの「候補」と同じスイッチです。App ごとに「App別設定」でオフにできます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "플러그인 자동 완성(예: #12로 GitHub 이슈 목록, 플러그인마다 플러그인에서 켜기)과 코딩 모드의 키워드·스니펫(프로그래밍 언어 참고): 커서 아래 몇 줄, Tab으로 삽입. 입력 메뉴의 제안과 같은 스위치이며, 앱별 설정에서 앱마다 끌 수 있습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sugestões de plug-ins (#12 lista issues do GitHub, por exemplo; as de cada plug-in são ativadas em Plug-ins) e palavras-chave e trechos do modo de programação (veja Linguagens de programação): algumas linhas sob o cursor, Tab insere. O mesmo interruptor que Sugestões no menu de entrada; um app pode desativá-las em Apps."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "外掛的補全（比如打 #12 列出 GitHub issue；每個外掛的補全在「外掛」裡打開）和編碼模式的關鍵字、程式碼片段（在「程式語言」裡）：游標下面列出幾行，按 Tab 插入。和輸入法選單裡的「建議」是同一個開關；某個 App 裡不要可以在「各 App 設定」裡關掉。"
+          }
+        }
+      }
+    },
     "Plugins' completions (GitHub issues after #, say) and coding mode's rows, in the candidate panel; Tab inserts. Turn each plugin's on first, in Plugins." : {
       "comment" : "插件的补全（比如 # 后面的 GitHub issue）和编码模式的行，在候选框里显示，按 Tab 插入。每个插件的补全要先在「插件」里打开。 — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -35799,6 +35894,100 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "建議"
+          }
+        }
+      }
+    },
+    "Suggestions are off, so coding mode shows no rows: turn them on in General." : {
+      "comment" : "建议关着，编码模式也不会列出什么：在「通用」里打开。 — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vorschläge sind aus, daher zeigt der Programmiermodus keine Zeilen: Schalte sie unter „Allgemein“ ein."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las sugerencias están desactivadas, así que el modo de programación no muestra filas: actívalas en General."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les suggestions sont désactivées, le mode programmation n’affiche donc aucune ligne : activez-les dans Général."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "候補がオフなので、コーディングモードでも何も表示されません。「一般」でオンにしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "제안이 꺼져 있어 코딩 모드에서도 아무것도 표시되지 않습니다. 일반에서 켜세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "As sugestões estão desativadas, então o modo de programação não mostra linhas: ative-as em Geral."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建議關著，編碼模式也不會列出什麼：在「一般」裡打開。"
+          }
+        }
+      }
+    },
+    "Suggestions are off, so these completions don't show: turn them on in General." : {
+      "comment" : "建议关着，这些补全不会出现：在「通用」里打开。 — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vorschläge sind aus, daher erscheinen diese Vervollständigungen nicht: Schalte sie unter „Allgemein“ ein."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El interruptor Sugerencias está desactivado, así que estas no aparecen: actívalo en General."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les suggestions sont désactivées, ces complétions ne s’affichent donc pas : activez-les dans Général."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "候補がオフなので、この補完は表示されません。「一般」でオンにしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "제안이 꺼져 있어 이 자동 완성은 표시되지 않습니다. 일반에서 켜세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O interruptor Sugestões está desativado, então estas não aparecem: ative-o em Geral."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建議關著，這些補全不會出現：在「一般」裡打開。"
           }
         }
       }

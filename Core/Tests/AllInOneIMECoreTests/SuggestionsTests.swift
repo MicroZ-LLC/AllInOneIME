@@ -561,8 +561,8 @@ struct SuggestionsTests {
     // MARK: - The settings document
 
     /// Windows' settings document: under the GitHub plugin its source's switch (saying what it sends where) and its
-    /// preferences; the switch enables it as it is now, the text preference is kept in the config; Coding Languages has
-    /// Suggestions' switch and no packs.
+    /// preferences; the switch enables it as it is now, the text preference is kept in the config; Suggestions' switch is
+    /// on, and Coding Languages has no packs.
     @Test func thePluginsCompletionsAreInTheSettingsDocument() throws {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("suggestions-settings-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: folder) }
@@ -584,6 +584,45 @@ struct SuggestionsTests {
         #expect(try Config.load(from: url).pluginPreferences == ["github": ["repos": "octo-org/octo-repo"]])
         #expect(service.document().field("suggestions")?.value == .bool(true))
         #expect(service.document().field("codingLanguages.installed")?.items?.isEmpty == true)
+    }
+
+    /// Suggestions' switch is General's, not Coding Languages', on both platforms, saying what it covers (the input menu
+    /// only on the Mac, which has one), and turned off it is written as false. Off, coding mode and a plugin's source
+    /// that is on say nothing of theirs shows, and where Suggestions are turned on.
+    @Test func suggestionsSwitchIsInGeneral() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("suggestions-general-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let plugins = folder.appendingPathComponent("plugins", isDirectory: true)
+        try FileManager.default.createDirectory(at: plugins, withIntermediateDirectories: true)
+        try FileManager.default.copyItem(at: Self.github, to: plugins.appendingPathComponent("github"))
+        let url = folder.appendingPathComponent("config.json")
+        try await withInterfaceLanguage("en") {
+            for platform in [SettingsPlatform.mac, .windows] {
+                try Data("{}".utf8).write(to: url)
+                let service = SettingsService(store: SettingsStore(configURL: url), platform: platform, library: PluginLibrary(directory: plugins),
+                                              secrets: .inMemory())
+                func section(_ id: String) -> [String] {
+                    service.document().sections.first { $0.id == id }?.fields.map(\.id) ?? []
+                }
+                #expect(section("general").contains("suggestions") && !section("codingLanguages").contains("suggestions"),
+                        "\(platform): \(section("general"))")
+                let help = try #require(service.document().field("suggestions")?.help)
+                #expect(help.contains("Plugins") && help.contains("Coding Languages") && help.contains("input menu") == (platform == .mac),
+                        "\(platform): \(help)")
+                #expect(service.document().field("codingLanguages.mode")?.status == nil)
+                #expect((try? service.set("plugins.completion.github.issues", to: .bool(true)).get()) != nil)
+                #expect(service.document().field("plugins.completion.github.issues")?.status?.contains("Suggestions are off") != true)
+                #expect((try? service.set("suggestions", to: .bool(false)).get()) != nil)
+                #expect(try Config.load(from: url).suggestions == false)
+                #expect(service.document().field("suggestions")?.value == .bool(false))
+                #expect(service.document().field("codingLanguages.mode")?.status
+                        == "Suggestions are off, so coding mode shows no rows: turn them on in General.")
+                #expect(service.document().field("plugins.completion.github.issues")?.status
+                        == "Suggestions are off, so these completions don't show: turn them on in General.")
+                #expect((try? service.set("suggestions", to: .bool(true)).get()) != nil)
+                #expect(try Config.load(from: url).suggestions == nil)
+            }
+        }
     }
 
     /// Removing a plugin (Settings → Plugins, the Mac's or the settings document's) forgets what was enabled of it, and

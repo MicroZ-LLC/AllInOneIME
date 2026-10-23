@@ -170,7 +170,7 @@ struct SuggestionPicks {
         }
     }
 
-    /// Forgets them all (Settings → Coding Languages).
+    /// Forgets them all (Settings → General → Suggestions).
     mutating func clear() {
         loaded = []
         if let url { try? FileManager.default.removeItem(at: url) }
