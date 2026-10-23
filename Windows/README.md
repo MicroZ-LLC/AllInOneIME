@@ -176,7 +176,7 @@ mode the goldens bring their own (`#! settings`); `settings.jsonl` replays over 
   between runs, `@open`'s search (a plain walk of a few folders, not an index), UI-less mode (`ITfUIElement`) for
   full-screen games; personal pinyin dictionaries (0.6.7, the Mac's Settings → Input → Chinese: the core's
   `PersonalDictionaryStore` would write librime's files here as it is, but the settings document has no field for
-  them and the Settings app no file to pick yet). The command trigger (0.6.7) works as on the Mac.
+  them and the Settings app no file to pick yet). The magic key (0.6.7, `commandTrigger`) works as on the Mac.
 
 ## Installing (M4)
 
