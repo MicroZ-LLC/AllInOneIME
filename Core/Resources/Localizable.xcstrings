@@ -9581,7 +9581,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "La complétion automatique n’a reçu aucune réponse de %@ : %@"
+            "value" : "La complétion automatique n’a reçu aucune réponse de %@ : %@"
           }
         },
         "ja" : {
@@ -42744,7 +42744,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Utilise Apple Intelligence ; configurez votre propre fournisseur d’IA pour des suggestions plus rapides"
+            "value" : "Utilise Apple Intelligence ; configurez votre propre fournisseur d’IA pour des suggestions plus rapides"
           }
         },
         "ja" : {
