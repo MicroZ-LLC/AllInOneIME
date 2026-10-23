@@ -392,4 +392,26 @@ struct AutocompleteDiagnosisTests {
             #expect(f.host.ghost == nil, "AC-12: shown \(f.host.ghost.map { "“\($0)”" } ?? "nothing") on the English line")
         }
     }
+
+    // MARK: - AC-13: an earlier sentence written again
+
+    static let mail = "Hi Sarah,\n\nThanks for sending the slides. I will review them and get back to you by Friday.\n\n"
+    static let copies: [TrimCase] = [
+        TrimCase(notesTaken[2], after: notesEnglishLine + notesTaken[3], shows: nil, "AC-13, the owner's: the second on the English line"),
+        TrimCase(notesTaken[3], after: notesEnglishLine + notesTaken[3] + notesTaken[2], shows: nil, "AC-13, the owner's: the third"),
+        TrimCase(notesTaken[2], after: notesParagraph, shows: nil, "AC-13: a sentence of the paragraph again"),
+        TrimCase(" I will review them and get back to you by Friday.", after: mail + "As I said,", shows: nil, "AC-13: in English"),
+        TrimCase(notesTaken[1], after: notesTyped + notesTaken[0], shows: notesTaken[1], "control, the owner's: 户外活动 again"),
+        TrimCase(notesTaken[2], after: notesTyped + notesTaken[0] + notesTaken[1], shows: notesTaken[2], "control, the owner's: 明天去 again"),
+        TrimCase(notesTaken[3], after: notesTyped + notesTaken[0...2].joined(), shows: notesTaken[3], "control, the owner's: 图书馆 again"),
+        TrimCase(" get back to you on that.", after: mail + "If anything changes, I will", shows: " get back to you on that.",
+                 "control: a phrase of it in a sentence of its own"),
+    ]
+
+    /// `trimmed` drops the end of the text said again and the text after the caret, never an earlier sentence of the
+    /// text: on the owner's English line, "图书馆有新书推荐。" was shown and taken three times, "明天去图书馆看看书吧。" twice.
+    @Test(.bug(id: "AC-13", "a sentence already in the text before the caret is shown again"), arguments: copies)
+    func anEarlierSentenceWrittenAgainIsNotShown(_ c: TrimCase) {
+        #expect(Autocomplete.trimmed(c.raw, before: c.before) == c.shown, "\(c.note)")
+    }
 }

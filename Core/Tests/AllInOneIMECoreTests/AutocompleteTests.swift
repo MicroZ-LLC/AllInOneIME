@@ -183,6 +183,33 @@ struct AutocompleteTests {
         #expect(Autocomplete.trimmed("there is more.", before: "Over there") == " there is more.")
     }
 
+    @Test func anEarlierSentenceWrittenAgainIsNotShown() {
+        // The owner's note: each sentence taken in turn was new, though with words of the text before it ("户外活动",
+        // "明天去", "图书馆"); the same ones again weren't.
+        var before = "我原本计划明天去hiking，"
+        for sentence in ["天气不太适合户外活动。", "改天再考虑户外活动。", "明天去图书馆看看书吧。", "图书馆有新书推荐。"] {
+            #expect(Autocomplete.trimmed(sentence, before: before) == sentence)
+            before += sentence
+        }
+        #expect(Autocomplete.trimmed("明天去图书馆看看书吧。", before: before) == nil)
+        #expect(Autocomplete.trimmed("天气不太适合户外活动", before: before + "\n\n今天") == nil)
+        // On the owner's English line once a Chinese one was taken there: the second and the third.
+        let line = before + "\n\nI have an appointment today, 图书馆有新书推荐。"
+        #expect(Autocomplete.trimmed("明天去图书馆看看书吧。", before: line) == nil)
+        #expect(Autocomplete.trimmed("图书馆有新书推荐。", before: line + "明天去图书馆看看书吧。") == nil)
+        // In English, four words of it or more; a word being finished too.
+        let mail = "Hi Sarah,\n\nThanks for sending the slides. I will review them and get back to you by Friday.\n\n"
+        #expect(Autocomplete.trimmed(" I will review them and get back to you by Friday.", before: mail + "As I said,") == nil)
+        #expect(Autocomplete.trimmed("Thanks for sending the slides.", before: mail + "Best,\nTom\n\nP.S. ") == nil)
+        #expect(Autocomplete.trimmed("iew them and get back to you by Friday.", before: mail + "I will rev") == nil)
+        // A phrase of it in a sentence of its own, fewer words of it: shown.
+        #expect(Autocomplete.trimmed(" get back to you on that.", before: mail + "If anything changes, I will") == " get back to you on that.")
+        #expect(Autocomplete.trimmed(" let me know if you need anything else.", before: "Let me know if you have any questions.\n\nAlso, please")
+            == " let me know if you need anything else.")
+        #expect(Autocomplete.trimmed("感谢您的支持和帮助。", before: "感谢您的支持。我们会尽快处理。\n再次") == "感谢您的支持和帮助。")
+        #expect(Autocomplete.trimmed("确认了项目时间表", before: "会议纪要：\n1. 确认了项目预算\n2. ") == "确认了项目时间表")
+    }
+
     @Test func aCloudProvidersTokensAreTold() throws {
         let start = try HTTPProviders.events(fromData: #"{"type":"message_start","message":{"id":"m","usage":{"input_tokens":120}}}"#,
                                              provider: .anthropic)

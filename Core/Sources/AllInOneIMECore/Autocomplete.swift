@@ -235,7 +235,7 @@ public enum Autocomplete {
     /// What of the model's answer `raw` is shown after `before`: its first line, without quotes around it or the end of
     /// `before` said again, up to the end of the first sentence, a dozen words or 25 Chinese characters at most (cut
     /// between words), spaces where they belong. Nil: nothing worth showing, as when it says what is already there, the
-    /// text after the caret (`after`).
+    /// text after the caret (`after`) or an earlier sentence of the text before it.
     public static func trimmed(_ raw: String, before: String, after: String = "") -> String? {
         var text = raw.replacingOccurrences(of: "\r\n", with: "\n")
         // What the model put around it: tags, quotes, a code fence; a tag cut short at the end, where the answer was
@@ -274,6 +274,8 @@ public enum Autocomplete {
         }
         line = cut(line)
         while line.last == " " { line.removeLast() }
+        // An earlier sentence of the text written again ("图书馆有新书推荐。" after a text that has it): it's there already.
+        if copiesWhatWentBefore(line, before: before) { return nil }
         guard line.contains(where: { $0.isLetter || $0.isNumber }) else { return nil }
         return line
     }
@@ -450,6 +452,37 @@ public enum Autocomplete {
         if there.starts(with: said) || said.starts(with: there) { return true }
         return said.count >= 2 && there.count > said.count
             && (1...(there.count - said.count)).contains { there[$0..<($0 + said.count)].elementsEqual(said) }
+    }
+
+    /// Whether `line` mostly says again what is already in `before`, earlier than its end (a sentence written again:
+    /// "图书馆有新书推荐。" after a text that has it, the owner's in Notes): three quarters of it at least (by `weight`)
+    /// is runs of words (`tokens`) that `before` has too, each long enough to be a copy rather than a phrase the text
+    /// uses again (`copiedRun`). Not "改天再考虑户外活动。" after "…户外活动。", nor " get back to you on that." after
+    /// "…get back to you by Friday.".
+    static func copiesWhatWentBefore(_ line: String, before: String) -> Bool {
+        let said = tokens(line), text = tokens(before)
+        var places: [String: [Int]] = [:]
+        for (index, token) in text.enumerated() { places[token, default: []].append(index) }
+        var copied = Array(repeating: false, count: said.count)
+        for start in said.indices {
+            // The longest run from here that `before` has.
+            let length = (places[said[start]] ?? []).map { place in zip(said[start...], text[place...]).prefix { $0 == $1 }.count }
+                .max() ?? 0
+            let run = start..<(start + length)
+            if weight(said[run]) >= copiedRun { run.forEach { copied[$0] = true } }
+        }
+        let total = weight(said)
+        return total > 0 && weight(said.indices.filter { copied[$0] }.map { said[$0] }) * 4 >= total * 3
+    }
+
+    /// How long a run of words the text has already is at least to be a copy (`copiesWhatWentBefore`), by `weight`: 6
+    /// Chinese, Japanese or Korean characters ("图书馆有新书", not "户外活动"), 4 words ("I will review them", not "get
+    /// back to").
+    static let copiedRun = 12
+
+    /// How much of a text `tokens` are: two for each Chinese, Japanese or Korean character, three for each word.
+    static func weight<Tokens: Collection<String>>(_ tokens: Tokens) -> Int {
+        tokens.reduce(0) { $0 + ($1.first?.isWide == true ? 2 : 3) }
     }
 
     /// The words of `text` in small letters, each Chinese, Japanese or Korean character one, without spaces and marks.
