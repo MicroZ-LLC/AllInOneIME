@@ -9,7 +9,8 @@
 // AllInOneIME-plugins repository as they are on its main branch; a push there is live within minutes.
 // The index is signed and the app checks every file against it, so this host is trusted with nothing.
 // languages.allinoneime.com: the language pack library (LanguagePackLibrary.defaultBaseURL), the same way
-// from the AllInOneIME-languages repository: packs.json and its signature (the archives are its release assets).
+// from the AllInOneIME-languages repository: packs.json and its signature (the archives are its release assets), and
+// coding-packs.json and its signature, the Code input's coding language packs (CodingPackLibrary; a JSON file each).
 
 const PLUGINS = "https://raw.githubusercontent.com/MicroZ-LLC/AllInOneIME-plugins/main";
 const PLUGINS_REPO = "https://github.com/MicroZ-LLC/AllInOneIME-plugins";

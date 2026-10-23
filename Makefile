@@ -360,7 +360,7 @@ pack: $(RIME_BUILT)
 # Every pack: Chinese, Korean, Hindi.
 packs: pack $(KO_PACK) $(HI_PACK)
 
-# The coding language packs (Core/CodingPacks/, Settings → Coding Languages), each one JSON file: build/coding-packs/
+# The coding language packs (Core/CodingPacks/, the Code input's: Settings → Input), each one JSON file: build/coding-packs/
 # <language>-<version>.json, a release asset of the language library like the input languages' packs, and its entry for
 # the signed coding-packs.json (.json.entry; `swift Scripts/build-packs-index.swift --coding OUT_DIR
 # build/coding-packs/*.entry`). The minimum app version is this one.

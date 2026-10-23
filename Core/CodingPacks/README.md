@@ -1,9 +1,10 @@
 # Coding languages
 
-Coding language packs (Suggestions v1, spec 2): what coding mode suggests besides the words already in the text field,
-one JSON file per language. They are **not installed with the app**: the language library publishes them, like the
-input languages' packs but listed apart (`coding-packs.json`, signed with the same key), and Settings → Coding languages
-downloads the ones you code in.
+Coding language packs (Suggestions v1, spec 2; decision 22): what the Code input suggests besides the words already in
+the text field, from the pack of Code's language (one at a time), one JSON file per language. They are **not installed
+with the app**: the language library publishes them, like the input languages' packs but listed apart
+(`coding-packs.json`, signed with the same key). Picking a language for Code (Settings → Input, or the input menu)
+downloads its pack; the Input page lists the packs installed and the library.
 
 ```json
 { "language": "python", "title": "Python", "version": "1.0.0",
@@ -20,9 +21,9 @@ downloads the ones you code in.
   first of `$0` and the numbered ones (`$1`, `${1:…}`); a numbered one so chosen is left empty, its text out wherever it
   is (its mirrors too), and the others keep theirs (`try:\n    $0\nexcept ${1:Exception}:` puts the caret in the try
   block, `Exception` kept). Elsewhere every stop keeps its text and the caret stays at the end. No tab stops beyond the
-  caret: put the place to type first first. A
-  trigger may have several snippets; one that goes in exactly as another installed pack's is one row ("C/C++ · if/else").
-  A row's comment is its pack's language, then the snippet's `title` (or "snippet" where the title is only the trigger).
+  caret: put the place to type first first. A trigger may have several snippets; two that go in exactly alike are one
+  row. A row's comment is the snippet's `title` (or "snippet" where the title is only the trigger), a keyword's
+  "keyword": never the language, which is Code's.
 - At most 2,000 keywords and 500 snippets (a body of 4,000 characters at most), 1 MiB in all.
 
 `make coding-packs` writes each pack and its index entry (`build/coding-packs/<language>-<version>.json` and `.json.entry`);

@@ -392,7 +392,7 @@ with the date of the rate (rates by ExchangeRate-API). `@calculator` is a calcul
 Plugins can also complete what you type (new): `@github`'s issues come up as rows as soon as you type `#12`, and Tab
 inserts `#1234`. Each plugin's completions are off until you turn them on under it in Settings → Plugins, which says
 what they do and, for one that looks things up as you type, where what you type after `#` goes. See
-[Suggestions and coding mode](#suggestions-and-coding-mode-new).
+[Suggestions and Code](#suggestions-and-code-new).
 
 Commands that fetch something (plugins and programs) also work inside a sentence: `@reply tell her @stock AAPL is up today`.
 The inner ones run first, their output takes their place, and the outer command works on the result. The argument is
@@ -443,7 +443,7 @@ Settings → Apps gives an app settings of its own, each optional; what an app d
 
 | Setting | For example | In the config |
 | --- | --- | --- |
-| The input language its text fields start in | Slack in English, WeChat in pinyin | `inputLanguage` |
+| The input its text fields start in: a language, or [Code](#suggestions-and-code-new) | Slack in English, WeChat in pinyin, VS Code in Code | `inputLanguage` (`"code"`: Code) |
 | The rewrite styles `@improve` offers there | Mail formal and tactful, Slack casual | `rewriteStyles` |
 | Type results out, or not | on in a chat app, off in Mail | `typeOut` |
 | No AI in this app | `@improve`, `@translate`, `@question`, `@agent` and your prompt commands send nothing there and say so; typing and the other commands work | `noAI` |
@@ -613,6 +613,7 @@ In the settings:
   - **Hindi**: type the words as they sound in Latin letters and get Devanagari (namaste → नमस्ते). Common words are spelled as Hindi writes them; otherwise Space inserts the first spelling, a digit another, ⏎ the letters as typed, and "." the danda (।).
   - A command's name, `@open`'s text and code (`@py`, `@js`) are typed in letters whatever the language; it comes back after the command.
   - `@improve` keeps a Korean, Hindi or French sentence in its own language, and `@translate` translates it into your languages (French is told apart from English when it's one of your input languages).
+- **Code** (new): an input for writing code, after the languages and apart from them: added with + under its own heading, with its coding language (Python, Java, Go, TypeScript, JavaScript, C or C++). Tap Shift through the languages, then Code (Chinese → English → Code). You type letters, and the rows offer that language's keywords and snippets; see [Suggestions and Code](#suggestions-and-code-new).
 - **Language packs**: the app comes with English (and French, which needs only macOS's layout). Chinese, Korean and Hindi are packs you download when you add them: adding Chinese (pinyin) downloads its dictionaries (about 34 MB, 125 MB unpacked) with a progress bar, and pinyin works as soon as it's done, without a restart; Korean's pack (its key table and how jamo make syllables) and Hindi's (its letters and common words) are a few kilobytes. A pack is data only (dictionaries, tables and schemas, never code), listed in a signed index and checked against its SHA-256 before it's used, like plugins. Each language's card shows its pack (version, size, where it came from) with Delete…, and removing the language offers to delete its pack. Updating from 0.6.1 or earlier keeps Chinese without a download: the installer keeps the dictionaries the old version came with.
 - **Candidate layout**: for picking words, pinyin and Hindi candidates are side by side by default (Horizontal), like the system's own input methods: ← → choose and ↑↓ (or - =) turn the page. Choose Vertical on the Input page, under the input languages, for one under the other (↑↓ choose). The @ command list and the results are always vertical.
 - Candidates, notices and the Translate as You Type chip appear without window animations. Committing a word hides its candidates immediately; the window is reused during continuous typing and closes after 400 ms of idle time.
@@ -672,13 +673,15 @@ Only the first 150 terms are read. With "Jargon" checked, the list is sent to Be
 
 ## Translate as You Type
 
-A prototype, to try. Hold Shift on its own for 1 second: at 0.5 s a hint near the caret says "Keep holding → Translate as
-You Type" ("… off" while it's on), and at 1 s a small chooser opens at the caret, **Translate as You Type** and **Coding
-mode** (↑↓ or 1–2, ⏎, Esc), the mode that is on highlighted. ⏎ or 1 turns Translate as You Type on, and again off; a
-quick tap of Shift still switches the input language. "Translate as You Type on: Chinese → English · hold Shift again to turn off"
-(naming the language it translates into) confirms it for about 1.5 s ("Translate as You Type off" when it goes off).
-Shift with a letter (a capital), with another key or with a click never opens the chooser. It can't be on with coding
-mode: choosing one turns the other off. While it's on, the menu bar icon carries a small dot. There is no command for it.
+A prototype, to try. Hold Shift on its own for 1 second to turn Translate as You Type on (or off); a quick tap of Shift
+still switches the input language. At 0.5 s a hint near the caret says "Keep holding → Translate as You Type", and at 1 s
+"Translate as You Type on: Chinese → English · hold Shift again to turn off" (naming the language it translates into)
+confirms it for about 1.5 s (turning it off:
+"Keep holding → Translate as You Type off", then "Translate as You Type off"); let go before then and nothing changes.
+Shift with a letter (a capital), with another key or with a click never turns it on. It doesn't run in
+[Code](#suggestions-and-code-new): there a long press of Shift says "Translate as You Type isn't available in Code",
+and while it's on a tap of Shift goes through the languages only. While it's on, the menu bar icon carries a small dot.
+There is no command for it.
 
 While it's on, what you type collects into a draft, with the languages on the chip by it ("ZH → EN"; 「中 → 英」 in the
 Chinese interface). It translates into the language you picked last on its chip (below), in every app and after a
@@ -757,10 +760,10 @@ or tell Settings → Assistant "turn on autocomplete"; it stays on until you tur
   caret is, or tells two places more than a line apart, the suggestion is a line of the candidate panel instead ("Tab").
   Where it can't read its text (WeChat), what you typed into it since it took the focus stands in; a click forgets it.
 
-## Suggestions and coding mode (new)
+## Suggestions and Code (new)
 
-Rows in the candidate panel as you type, from plugins and, in coding mode, from the languages you code in; **Tab** puts
-one in. They take the place of [autocomplete](#autocomplete-new)'s gray text while they show.
+Rows in the candidate panel as you type, from plugins and, in Code, from the language you code in; **Tab** puts one in.
+They take the place of [autocomplete](#autocomplete-new)'s gray text while they show.
 
 - **Plugins' completions:** a plugin declares what it completes after a prefix, `#12` for `@github`'s issues, or a whole
   12-digit AWS account id with no prefix. Its list is kept on this Mac (loaded again every 15 minutes or so while you
@@ -774,21 +777,25 @@ one in. They take the place of [autocomplete](#autocomplete-new)'s gray text whi
   is taken, with the plugin's chat form (`#1234 https://github.com/…`): ⏎ always sends. In terminals and code editors
   (Xcode, VS Code, JetBrains…) Tab completes only what the rows share. Digits never pick a row: they go on typing (`#7`
   then `1` is `#71`). No rows in launchers, remote desktops, virtual machines and SSH clients.
-- **Turning them on:** **Suggestions** in Settings → General, on unless you turn it off, covers plugins' and coding
-  mode's rows. Each plugin's completions in Settings → Plugins (a switch each: last refresh, items, last error, Refresh
+- **Turning them on:** **Suggestions** in Settings → General, on unless you turn it off, covers plugins' and Code's
+  rows. Each plugin's completions in Settings → Plugins (a switch each: last refresh, items, last error, Refresh
   now; its preferences, passwords in the keychain). A plugin update that changes the hosts it reaches, its
   lookup or its script turns them off until you turn them on again. **Suggestions** in the input menu turns them all off
   or on; Settings → Apps per app. With `#` as the magic key, a source after `#` can't work (Settings says so).
-- **Coding mode:** hold Shift for a second and pick **Coding mode** (2); again to turn it off. It stays on in every app
-  until then (the menu bar icon shows `{}`), each text field starts in English (a tap of Shift still switches), and from
-  two letters on the rows offer keywords and snippets of the coding languages you installed and the words already in the
-  field (`de` → `def`, `define_task`). ⏎ inserts the highlighted row at once, as in an IDE (no ↓ first; in code editors
-  the first row; in chat apps and terminals ⏎ stays the app's). A snippet goes in with its line breaks, its later lines
-  indented as the line you're on, the caret at the first place to type: its first placeholder, left empty for you to type
-  (`def ():`, the caret after `def `), or its body where that comes first (`try:`). A row names its language (`Python · function`); a snippet two of your languages share is one row. No AI
-  writes code: autocomplete is off in coding mode. Install languages in Settings → **Coding Languages** (Python, Java,
-  Go, TypeScript, JavaScript, C, C++), downloaded from the language library and checked against its signed list, kept
-  apart from the input languages.
+- **Code:** an input, after your input languages and apart from them. Add it in Settings → **Input** with + (under
+  its own heading, Code) and pick its coding language: Python, Java, Go, TypeScript, JavaScript, C or C++. A language
+  whose pack isn't installed downloads it first, from the language library, checked against its signed list, as an input
+  language's pack does (its progress and any failure on the page); the packs installed, each removable, and the library
+  are on the Input page too. A tap of Shift goes through your inputs: the languages, then Code (Chinese → English → Code). The input
+  menu lists Code with its language ("Code (Python)") and changes it; an app can start in Code (Settings → Apps); the menu
+  bar icon shows `{}` while it's the input. In Code you type letters as in English, but nothing you type is learned as
+  an English word and there's no autocomplete; from two letters on the rows offer that one language's keywords and
+  snippets and the words already in the field (`de` → `def`, `define_task`), each saying what it is (`function`,
+  `keyword`). ⏎ inserts the highlighted row at once, as in an IDE (no ↓ first; in code editors the first row; in chat
+  apps and terminals ⏎ stays the app's). A snippet goes in with its line breaks, its later lines indented as the line
+  you're on, the caret at the first place to type: its first placeholder, left empty for you to type (`def ():`, the
+  caret after `def `), or its body where that comes first (`try:`). No AI writes code. Translate as You Type doesn't run
+  in Code.
 - **Privacy:** a plugin's script never sees what you type, the app or the field, only, for a lookup you turned on, what
   follows its prefix (sent to the hosts it lists). The lists, what you type and the lookups are never logged, sent to the
   AI, learned as English words or synced; the lists are cached in `~/Library/Caches/AllInOneIME/suggestions/` (readable
@@ -973,6 +980,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 | Key | What it does | Default |
 |---|---|---|
 | `inputLanguages` | Input languages, one to five, the first is the default: `"en"` English, `"zh"` Chinese (pinyin), `"fr"` French, `"ko"` Korean, `"hi"` Hindi, e.g. `["en", "zh"]`, `["fr", "en", "ko"]`. Chinese, Korean and Hindi work once their pack is installed | `["en"]` (a new install) |
+| `codingLanguage` | The Code input and its coding language (`"python"`, `"java"`, `"go"`, `"typescript"`, `"javascript"`, `"c"`, `"cpp"`), after the input languages; it works once its pack is installed. Absent: no Code | absent |
 | `keyboardLayouts` | The keyboard layout an input language types with, by its code (only French so far): `{"fr": "com.apple.keylayout.French-PC"}` | French: `com.apple.keylayout.French` (AZERTY) |
 | `outputLanguages` | What `@translate` translates into, in order: `["es", "fr", "de"]`, … | `["en"]` |
 | `improveTranslates` | `@improve` also translates (as `@translate @improve`) | `false` |
@@ -997,7 +1005,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 | `rememberQuestions` | Keep your last 5 `@question`s and their answers on this Mac, listed under `@question` (see Recent questions) | `true` |
 | `questionRounds` | Rounds of an `@question` conversation in the panel before it suggests continuing elsewhere, 2–10 | `5` |
 | `questionContinueIn` | Where an `@question` conversation can continue, in order, the first the default: `agent` (whatever `@agent` hands to, in place of that agent's own entry), `claudeCode`, `geminiCLI`, `kiroCLI`, `customAgent` (the agents, each only if installed), `claudeWeb`, `chatgpt`, `gemini`, `copy` | `agent`, the other agents installed, Claude, ChatGPT, copy |
-| `appProfiles` | Settings of one app, by bundle ID, each optional: `inputLanguage`, `rewriteStyles`, `typeOut`, `noAI`, `translateAlways`, `autocomplete` (this Mac's own: not synced) (see Per-app settings) | `{}` |
+| `appProfiles` | Settings of one app, by bundle ID, each optional: `inputLanguage` (a language's code, or `"code"` for Code), `rewriteStyles`, `typeOut`, `noAI`, `translateAlways`, `autocomplete` (this Mac's own: not synced) (see Per-app settings) | `{}` |
 | `autocomplete` | Autocomplete: the rest of the sentence in gray after the caret, Tab puts it in (see Autocomplete) | `false` |
 | `autocompleteCloud` | Your answer whether Autocomplete may send the text before the caret to a cloud provider, and the provider and address it was about: `{"allowed": true, "destination": "anthropic api.anthropic.com"}` (`false`: the model on this Mac only; another provider, address, AWS profile or region is asked about again); asked when it's turned on; never synced | not set |
 | `notes` | Where `@note` saves (Settings → Plugins → Notes): `{"destination": "folder", "folder": "~/Vault/Inbox"}`, or `"notion"` with the page or database Test found; never synced through iCloud Drive (the token is in the keychain, and goes through iCloud Keychain only with "API keys and passwords" on) | `destination: "notes"` |
@@ -1017,9 +1025,9 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
   text) in the input method's own preferences.
 - Suggestions: a plugin's completions run its script only once you turned them on, and it reaches only the hosts it
   lists; it never sees what you type, the app or the field, but for a lookup (which Settings names, with where it goes)
-  what follows its prefix. Coding mode's rows come from the packs you installed and the field's text, on this Mac. The
+  what follows its prefix. Code's rows come from its language's pack and the field's text, on this Mac. The
   lists, the tokens and the lookups are never logged, sent to the AI, learned or synced; see
-  [Suggestions and coding mode](#suggestions-and-coding-mode-new).
+  [Suggestions and Code](#suggestions-and-code-new).
 - Voice is recorded only while you hold right ⌥ and is recognized on the Mac; the recognized text is sent only in the commands above, when you press the action key.
 - The input method reads the clipboard text, once, only when you press ⌃V or ⌘V in a command; content that password managers mark as concealed isn't read. The text is shown in the command first and, again, is sent only when you press the action key. Recent macOS versions ask whether AllInOneIME may read the clipboard: allow it. To stop being asked every time, set AllInOneIME's paste permission to always allow in System Settings → Privacy & Security.
 - In password fields macOS switches to its own keyboard (U.S. or ABC) and back when you leave them. Whenever the app you type in holds secure input, AllInOneIME doesn't compose text and can't record: keys go in as typed. And while the system is in secure input (password fields, Terminal's Secure Keyboard Entry, etc.), nothing is sent to the AI.
