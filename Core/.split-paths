@@ -14,7 +14,8 @@
 # are kept as they were, and Core/ becomes the root. Paths the macOS shell uses again after the move are left out (the
 # file there now is the shell's), so their history from before the move isn't in the core's:
 # Resources/Localizable.xcstrings (the whole catalog until the app's text got its own), Sources/allinoneime-cli/main.swift
-# (now Sources/AllInOneIMECLI/CLI.swift) and LICENSE, Package.resolved (copies).
+# (now Sources/AllInOneIMECLI/CLI.swift), .gitattributes (the root's again since 0.6.6: LF for the goldens on Windows;
+# the core's is Core/.gitattributes) and LICENSE, Package.resolved (copies).
 
 # Today's core, as the root.
 Core/
@@ -37,7 +38,6 @@ Scripts/strings.swift
 LanguagePacks/
 Plugins/
 Examples/
-.gitattributes
 
 # And before the rename to AllInOneIME (0.2.0).
 Sources/AIPinyinCore/
