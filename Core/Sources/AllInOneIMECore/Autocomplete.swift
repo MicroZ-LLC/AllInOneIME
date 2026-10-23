@@ -388,12 +388,19 @@ public enum Autocomplete {
         return first.isWide || !(previous.isLetter || previous.isNumber)
     }
 
-    /// `line` without the start of the word `before` ends with, where the model wrote that word whole ("iss" + "issue" →
-    /// "ue"): only an unfinished one ("that" + "that's right" stays).
+    /// `line` without what it says again of the unfinished word `before` ends with: all of it, where the model wrote the
+    /// word whole ("iss" + "issue" → "ue"), or its last letters, where the rest finishes the word from before them
+    /// ("tomo" + "morrow" → "rrow", "comm" + "mand" → "and"). Only an unfinished word ("that" + "that's right" stays).
     static func droppingUnfinishedWord(_ line: String, before: String) -> String {
-        let typed = lastWord(before)
-        guard !typed.isEmpty, !isWord(typed.lowercased()), line.lowercased().hasPrefix(typed.lowercased()) else { return line }
-        return String(line.dropFirst(typed.count))
+        let typed = lastWord(before).lowercased(), said = line.lowercased()
+        guard !typed.isEmpty, !isWord(typed) else { return line }
+        if said.hasPrefix(typed) { return String(line.dropFirst(typed.count)) }
+        let next = String(said.prefix { $0.isASCII && $0.isLetter })
+        guard !next.isEmpty, !isWord(typed + next) else { return line }
+        let overlap = (1..<typed.count).reversed().first { count in
+            next.count > count && next.hasPrefix(typed.suffix(count)) && isWord(String(typed.dropLast(count)) + next)
+        }
+        return overlap.map { String(line.dropFirst($0)) } ?? line
     }
 
     /// Whether `line` would glue a word of its own onto the unfinished word `before` ends with instead of finishing it:

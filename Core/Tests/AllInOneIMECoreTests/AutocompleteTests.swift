@@ -133,6 +133,10 @@ struct AutocompleteTests {
         #expect(Autocomplete.trimmed("<after>Zorblax 2.</after>", before: "Zorblax 1 is out. Next: zor") == "blax 2.")
         // After a word on its own, a new word: its space.
         #expect(Autocomplete.trimmed("<after>later today</after>", before: "Let's talk") == " later today")
+        // The unfinished word's last letters said again (real, on-device): what finishes it from before them.
+        #expect(Autocomplete.trimmed("morrow at ten.", before: "Sounds good, see you tomo") == "rrow at ten.")
+        #expect(Autocomplete.trimmed("mand: make install", before: "Run this comm") == "and: make install")
+        #expect(Autocomplete.trimmed("so good.", before: "This is") == " so good.")
     }
 
     @Test func theTextAfterTheCaretSaidAgainIsNotShown() {
