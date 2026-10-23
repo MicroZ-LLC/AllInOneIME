@@ -17,23 +17,27 @@ public struct AppProfile: Codable, Equatable, Sendable {
     /// Translate as You Type (`TranslateMode`) whenever the app is typed in: switching to it turns the mode on, and
     /// doesn't leave it (Settings → Apps: 「总是边打边译」).
     public var translateAlways: Bool?
+    /// Autocomplete (`Autocomplete`) in the app always (true) or never (false), whatever the switch and what was
+    /// learned there (Settings → Apps: 「续写」); nil: as everywhere.
+    public var autocomplete: Bool?
 
     public init(inputLanguage: Language? = nil, rewriteStyles: [String]? = nil, typeOut: Bool? = nil, noAI: Bool? = nil,
-                translateAlways: Bool? = nil) {
+                translateAlways: Bool? = nil, autocomplete: Bool? = nil) {
         self.inputLanguage = inputLanguage
         self.rewriteStyles = rewriteStyles
         self.typeOut = typeOut
         self.noAI = noAI
         self.translateAlways = translateAlways
+        self.autocomplete = autocomplete
     }
 
     /// Sets nothing: the app follows every setting.
     public var isEmpty: Bool {
-        inputLanguage == nil && rewriteStyles == nil && typeOut == nil && noAI != true && translateAlways != true
+        inputLanguage == nil && rewriteStyles == nil && typeOut == nil && noAI != true && translateAlways != true && autocomplete == nil
     }
 
     private enum CodingKeys: String, CodingKey {
-        case inputLanguage, rewriteStyles, typeOut, noAI, translateAlways
+        case inputLanguage, rewriteStyles, typeOut, noAI, translateAlways, autocomplete
     }
 
     /// Each key on its own: one of the wrong type, or a language code this version doesn't know, is left unset;
@@ -45,6 +49,7 @@ public struct AppProfile: Codable, Equatable, Sendable {
         typeOut = (try? c.decodeIfPresent(Bool.self, forKey: .typeOut)).flatMap { $0 }
         noAI = (try? c.decodeIfPresent(Bool.self, forKey: .noAI)).flatMap { $0 }
         translateAlways = (try? c.decodeIfPresent(Bool.self, forKey: .translateAlways)).flatMap { $0 }
+        autocomplete = (try? c.decodeIfPresent(Bool.self, forKey: .autocomplete)).flatMap { $0 }
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -54,6 +59,7 @@ public struct AppProfile: Codable, Equatable, Sendable {
         try c.encodeIfPresent(typeOut, forKey: .typeOut)
         try c.encodeIfPresent(noAI, forKey: .noAI)
         try c.encodeIfPresent(translateAlways, forKey: .translateAlways)
+        try c.encodeIfPresent(autocomplete, forKey: .autocomplete)
     }
 
     /// `Config.appProfiles` from a config file: an entry that isn't an object, or whose key is no bundle id (empty, or

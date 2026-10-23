@@ -173,6 +173,56 @@ extension AllInOneIMEInputController {
     }
 
 
+    /// `menu` (`makeMenu`'s) with autocomplete's switch after "@improve Also Translates": one switch for every app (an
+    /// app's own choice is in "This App"), what was counted of it on the item's tooltip; with a cloud provider picked,
+    /// whether it may send text there.
+    @MainActor
+    func addingAutocomplete(to menu: NSMenu) -> NSMenu {
+        let config = LiveConfig.currentIfValid
+        let current = config ?? .default
+        var items: [NSMenuItem] = []
+        let autocomplete = NSMenuItem(title: tr("续写", "Autocomplete"), action: #selector(toggleAutocomplete(_:)), keyEquivalent: "")
+        autocomplete.target = self
+        autocomplete.state = current.autocomplete ? .on : .off
+        autocomplete.isEnabled = config != nil  // don't overwrite a config file that failed to parse
+        autocomplete.toolTip = AutocompleteSwitch.store.metrics.summary(language: UIText.language)
+            ?? tr("停一下，光标后出现灰字，按 Tab 接受", "Pause, and the rest of the sentence shows in gray after the caret; Tab takes it")
+        items.append(autocomplete)
+        if current.autocomplete, current.provider != .apple {
+            let name = current.provider.displayName
+            let cloud = NSMenuItem(title: tr("续写用 \(name)", "Autocomplete with \(name)"), action: #selector(toggleAutocompleteCloud(_:)),
+                                   keyEquivalent: "")
+            cloud.target = self
+            cloud.state = current.autocompleteCloud == true ? .on : .off
+            cloud.isEnabled = config != nil
+            cloud.indentationLevel = 1
+            items.append(cloud)
+        }
+        let after = menu.items.firstIndex { $0.action == #selector(toggleImproveTranslates(_:)) }.map { $0 + 1 } ?? menu.items.count
+        for (offset, item) in items.enumerated() { menu.insertItem(item, at: after + offset) }
+        return menu
+    }
+
+    /// Autocomplete on or off for every app (`AutocompleteSwitch`): on with a cloud provider not asked about yet, it asks
+    /// first, in a dialog that takes the focus (the text being typed goes in first).
+    @objc func toggleAutocomplete(_ sender: Any?) {
+        MainActor.assumeIsolated {
+            let on = !AutocompleteSwitch.isOn
+            if on, Autocomplete.asksForCloud(LiveConfig.current) { perform(composer.commitAll(), client: nil) }
+            AutocompleteSwitch.set(on, notify: self)
+        }
+    }
+
+    /// Autocomplete with the cloud provider picked, or with the on-device model only.
+    @objc func toggleAutocompleteCloud(_ sender: Any?) {
+        MainActor.assumeIsolated {
+            let yes = LiveConfig.current.autocompleteCloud != true
+            if yes { perform(composer.commitAll(), client: nil) }
+            AutocompleteSwitch.setCloud(yes)
+            applySettings()
+        }
+    }
+
     @objc func toggleImproveTranslates(_ sender: Any?) {
         MainActor.assumeIsolated {
             do {

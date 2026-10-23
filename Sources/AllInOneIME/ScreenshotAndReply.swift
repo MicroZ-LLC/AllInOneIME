@@ -58,6 +58,12 @@ extension AllInOneIMEInputController {
     /// terminal (its text isn't being edited).
     @MainActor
     func readFieldText(from target: IMKTextInput?) -> FieldText? {
+        readFieldText(from: target, before: ReplyContext.Limits.fieldBefore, after: ReplyContext.Limits.fieldAfter, purpose: "@reply")
+    }
+
+    /// The text around the caret, up to `before` characters before it and `after` after it, for `purpose` (the log's).
+    @MainActor
+    func readFieldText(from target: IMKTextInput?, before beforeLimit: Int, after afterLimit: Int, purpose: String) -> FieldText? {
         guard !services.secureInputActive(), let target, !Self.isTerminal(target) else { return nil }
         let length = target.length()
         guard length > 0, length != NSNotFound else { return nil }
@@ -71,15 +77,15 @@ extension AllInOneIMEInputController {
             return nil
         }
         // UTF-16 units, twice the characters kept: an emoji or a rare character takes two.
-        let span = ReplyContext.Limits.fieldBefore * 2
+        let (span, afterSpan) = (beforeLimit * 2, afterLimit * 2)
         let start = min(around.location, length)
         let end = min(NSMaxRange(around), length)
         let beforeRange = NSRange(location: max(0, start - span), length: start - max(0, start - span))
-        let afterRange = NSRange(location: end, length: min(span, length - end))
+        let afterRange = NSRange(location: end, length: min(afterSpan, length - end))
         let before = beforeRange.length > 0 ? target.attributedSubstring(from: beforeRange)?.string ?? "" : ""
         let after = afterRange.length > 0 ? target.attributedSubstring(from: afterRange)?.string ?? "" : ""
         guard !before.isEmpty || !after.isEmpty else { return nil }
-        log.notice("field text read for @reply (\(before.count) + \(after.count) characters)")
+        log.notice("field text read for \(purpose, privacy: .public) (\(before.count) + \(after.count) characters)")
         return FieldText(before: before, after: after)
     }
 }

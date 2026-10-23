@@ -23,6 +23,8 @@ final class PanelStandIns {
     /// The transcripts' last replies (session id → reply): one changed is a transcript changed.
     var replies: [String: String] = [:]
     var monitorWatching = false
+    /// Autocomplete's switch, as the panel turns it (nothing is written).
+    var autocomplete = false
     let defaults = MemoryKeyValueStore()
 
     /// `transcriptReads`: the transcripts read (not those the panel already read as they are).
@@ -35,7 +37,7 @@ final class PanelStandIns {
     private(set) var openedReminders = 0, openedSettings = 0
 
     var sources: DashboardSources {
-        DashboardSources(
+        var sources = DashboardSources(
             notesRunning: { self.notesRunning },
             listNotes: { _ in
                 self.noteLists += 1
@@ -83,6 +85,13 @@ final class PanelStandIns {
             openAgent: { self.openedAgents.append($0) },
             defaults: defaults,
             now: { self.now })
+        sources.autocompleteOn = { self.autocomplete }
+        sources.setAutocomplete = { on in
+            self.autocomplete = on
+            return on
+        }
+        sources.autocompleteSummary = { nil }
+        return sources
     }
 
     /// Neutral sample data (README images are public), as of a fixed time so the images stay the same:

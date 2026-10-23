@@ -75,11 +75,20 @@ enum AppProfileText {
         if let typeOut = profile.typeOut { parts.append(typeOut ? tr("逐字上屏", "Typed out") : tr("不逐字上屏", "Not typed out")) }
         if profile.noAI == true { parts.append(tr("不用 AI", "No AI")) }
         if profile.translateAlways == true { parts.append(tr("总是边打边译", "Always Translate as You Type")) }
+        if let autocomplete = profile.autocomplete { parts.append(autocomplete ? tr("总是续写", "Always autocomplete") : tr("不续写", "No autocomplete")) }
         return parts.isEmpty ? tr("和全局设置一样", "Same as everywhere", key: "appProfile.sameAsEverywhere") : parts.joined(separator: " · ")
     }
 
     /// The notice of an AI command refused in an app with no AI (`InputSession.aiRefusal`).
     static var refusal: String { InputSession.aiRefusal }
+
+    /// 「跟全局一样（开）」, and where it stopped for want of use there, that it did.
+    static func autocompleteEverywhere(_ config: Config, app: String) -> String {
+        if config.autocomplete, AutocompleteSwitch.store.stopped(in: app) {
+            return tr("跟全局一样（在这里没用上，已停）", "Same as everywhere (stopped here: not used)")
+        }
+        return config.autocomplete ? tr("跟全局一样（开）", "Same as everywhere (on)") : tr("跟全局一样（关）", "Same as everywhere (off)")
+    }
 }
 
 extension SettingsModel {
@@ -197,6 +206,20 @@ struct AppProfilesSection: View {
                         .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
             }
+            Picker(selection: Binding(
+                get: { profile.autocomplete },
+                set: { value in model.changeProfile(app) { $0.autocomplete = value } })) {
+                Text(AppProfileText.autocompleteEverywhere(model.config, app: app)).tag(Bool?.none)
+                Text(tr("总是续写", "Always", key: "autocomplete.always")).tag(Bool?.some(true))
+                Text(tr("不续写", "Never", key: "autocomplete.never")).tag(Bool?.some(false))
+            } label: {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(tr("续写", "Autocomplete"))
+                    Text(tr("停一下，光标后出现灰字，按 Tab 接受。「总是」在这里不管全局开关，也不会因为没用上而停下。",
+                            "Pause, and the rest of the sentence shows in gray after the caret; Tab takes it. Always: here whatever the switch, and it doesn't stop for want of use."))
+                        .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+            }
             Toggle(isOn: Binding(get: { profile.translateAlways == true },
                                  set: { on in model.changeProfile(app) { $0.translateAlways = on ? true : nil } })) {
                 VStack(alignment: .leading, spacing: 2) {
@@ -255,6 +278,13 @@ extension AllInOneIMEInputController {
         add(tr("不用 AI", "No AI"), #selector(toggleAppNoAI(_:)), on: profile.noAI == true)
         add(tr("逐字上屏", "Type Results Out"), #selector(toggleAppTypeOut(_:)), on: current.applying(app: app).typeOut)
         menu.addItem(.separator())
+        let continues = NSMenuItem(title: tr("续写：", "Autocomplete:"), action: nil, keyEquivalent: "")
+        continues.isEnabled = false
+        menu.addItem(continues)
+        add(AppProfileText.autocompleteEverywhere(current, app: app), #selector(setAppAutocomplete(_:)), on: profile.autocomplete == nil)
+        add(tr("总是续写", "Always", key: "autocomplete.always"), #selector(setAppAutocomplete(_:)), value: "on", on: profile.autocomplete == true)
+        add(tr("不续写", "Never", key: "autocomplete.never"), #selector(setAppAutocomplete(_:)), value: "off", on: profile.autocomplete == false)
+        menu.addItem(.separator())
         let note = NSMenuItem(title: tr("开始的输入语言：", "Starts In:"), action: nil, keyEquivalent: "")
         note.isEnabled = false
         menu.addItem(note)
@@ -305,6 +335,15 @@ extension AllInOneIMEInputController {
             changeAppProfile(sender, "type out") { profile, config, _ in
                 let now = !(profile.typeOut ?? config.typeOut)
                 profile.typeOut = now == config.typeOut ? nil : now
+            }
+        }
+    }
+
+    /// Autocomplete in the app always, never, or as everywhere.
+    @objc func setAppAutocomplete(_ sender: Any?) {
+        MainActor.assumeIsolated {
+            changeAppProfile(sender, "autocomplete") { profile, _, value in
+                profile.autocomplete = value == "on" ? true : value == "off" ? false : nil
             }
         }
     }

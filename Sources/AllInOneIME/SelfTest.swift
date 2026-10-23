@@ -2538,7 +2538,7 @@ enum SelfTest {
             Mirror(reflecting: Composer.Messages.english).children.compactMap { $0.value as? String }),
         uniquingKeysWith: { first, _ in first })
 
-    static func run(snapshotDirectory: URL, typingLagOnly: Bool = false) -> Int32 {
+    static func run(snapshotDirectory: URL, typingLagOnly: Bool = false, autocompleteOnly: Bool = false) -> Int32 {
         waitForOtherSelfTests()
         _ = NSApplication.shared
         // The recent @questions in a file of the self-test's own: the user's are neither listed nor changed.
@@ -2562,6 +2562,11 @@ enum SelfTest {
         // moved between the login keychain and iCloud Keychain when a section turns sync on).
         APIKeys.keychain = .inMemory()
         ICloudSyncController.shared.keys = nil
+        // Autocomplete learns and counts in memory, never in the input method's defaults; it never asks in a dialog; its
+        // suggestion is drawn invisible, and the user's clicks don't take it down.
+        AutocompleteSwitch.store = AutocompleteStore()
+        AutocompleteSwitch.askCloud = { _, _ in false }
+        (GhostOverlay.invisible, GhostOverlay.watchesPointer) = (true, false)
         _ = secureInputGoes()  // held elsewhere just now (a password field): a while for it to go
 
         let className = Bundle.main.object(forInfoDictionaryKey: "InputMethodServerControllerClass") as? String ?? ""
@@ -2631,6 +2636,19 @@ enum SelfTest {
         giveUp = { for _ in 0..<4 where controller.composer.isComposing { _ = escape(controller, client) } }
         testTypingLag(controller, client)
         if typingLagOnly {
+            check((try? Data(contentsOf: Config.userURL)) == userConfig, "the user's config was left unchanged")
+            return summary()
+        }
+        if autocompleteOnly {
+            // The self-test's settings, as the sections below have them, and nothing else (no AI requests).
+            controller.services.loadSettings = { SelfTest.settings }
+            controller.services.secureInputActive = { false }
+            CandidatePanel.shared.alphaValue = 0
+            CandidatePanel.shared.ignoresMouseEvents = true
+            controller.ensureEngine()
+            controller.applySettings()
+            testAutocomplete(controller, client, snapshotDirectory: snapshotDirectory)
+            controller.deactivateServer(client)
             check((try? Data(contentsOf: Config.userURL)) == userConfig, "the user's config was left unchanged")
             return summary()
         }
@@ -3108,6 +3126,7 @@ enum SelfTest {
         testSnippets(controller, client)
         testAppProfiles(controller, client, snapshotDirectory: snapshotDirectory)
         testTranslateMode(controller, client, snapshotDirectory: snapshotDirectory)
+        testAutocomplete(controller, client, snapshotDirectory: snapshotDirectory)
         testShiftHoldInElectron(controller, client)
         testRecentQuestions(controller, client, snapshotDirectory: snapshotDirectory)
         testQuestionChat(controller, client, snapshotDirectory: snapshotDirectory)

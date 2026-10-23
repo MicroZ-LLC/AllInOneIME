@@ -128,6 +128,14 @@ public struct SessionServices {
     public var issueDiagnostics: (Config, _ plugins: Int, _ extensions: Int) -> IssueReport.Diagnostics
     /// Translate as You Type's chip in this field, when the shell shows one (`TranslateMode.Chip`).
     public var translateChip: () -> TranslateMode.Chip?
+    /// Autocomplete's suggestions kept, what it learned per app and what it counted (`AutocompleteStore`): the shell
+    /// gives one for every field; the default is these services' own, in memory.
+    public var autocomplete: AutocompleteStore
+    /// The time now, in seconds from any fixed point (the system's uptime): what autocomplete's Tab and its metrics go by.
+    /// A test sets its own.
+    public var uptime: () -> TimeInterval
+    /// An app's name as the user knows it, from its id (the Mac: its bundle id; nil: none known), for what is said of it.
+    public var appName: (String) -> String?
     /// `@search`'s key.
     public var loadSearchKey: @Sendable () -> String?
     /// The notice of the custom commands renamed for the built-in ones, once (`Config.freeBuiltinNames`).
@@ -172,6 +180,9 @@ public struct SessionServices {
                                     languagePacks: [], plugins: plugins, extensions: extensions)
         }
         translateChip = { nil }
+        autocomplete = AutocompleteStore()
+        uptime = { ProcessInfo.processInfo.systemUptime }
+        appName = { _ in nil }
         noteSaved = { _ in }
         loadCommandUsage = { CommandUsage() }
         saveCommandUsage = { _ in }

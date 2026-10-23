@@ -81,10 +81,14 @@ public enum AIConfig {
         case forbidden(String, secret: Bool)
         /// Sync through iCloud on or off (`iCloudSync.enabled`); what syncs is only set in Settings.
         case iCloudSync
+        /// Autocomplete (「续写」) on or off (`Config.autocomplete`); whether it may send text to a cloud provider is only
+        /// asked as it's turned on in the input method (`Config.autocompleteCloud`), never here.
+        case autocomplete
 
         public var path: String {
             switch self {
             case .iCloudSync: return "iCloudSync.enabled"
+            case .autocomplete: return "autocomplete"
             case let .setting(setting): return setting.path
             case let .app(app, field): return "appProfiles.\(app).\(field.rawValue)"
             case let .forbidden(path, _): return path
@@ -98,6 +102,7 @@ public enum AIConfig {
             if looksSecret(path) { return .forbidden(path, secret: true) }
             if let setting = Setting(rawValue: path) { return .setting(setting) }
             if path == Key.iCloudSync.path { return .iCloudSync }
+            if path == Key.autocomplete.path { return .autocomplete }
             if path.hasPrefix("appProfiles.") {
                 let rest = path.dropFirst("appProfiles.".count)
                 guard let dot = rest.lastIndex(of: "."), dot > rest.startIndex else { return .forbidden(path, secret: false) }
@@ -296,6 +301,8 @@ public enum AIConfig {
         case baseURL(String?)
         /// Sync through iCloud on or off.
         case iCloudSync(Bool)
+        /// Autocomplete on or off.
+        case autocomplete(Bool)
     }
 
     /// What applying a preview does besides the settings: a finding's fixes.
@@ -368,6 +375,7 @@ public enum AIConfig {
         case let .model(provider, model): setModel(model, of: provider, in: &config)
         case let .baseURL(url): config.openai.baseURL = url
         case let .iCloudSync(on): config.iCloudSync.enabled = on
+        case let .autocomplete(on): config.autocomplete = on
         }
     }
 
@@ -396,6 +404,7 @@ public enum AIConfig {
         case let .model(provider, _): return .model(provider, storedModel(of: provider, in: config))
         case .baseURL: return .baseURL(config.openai.baseURL)
         case .iCloudSync: return .iCloudSync(config.iCloudSync.enabled)
+        case .autocomplete: return .autocomplete(config.autocomplete)
         }
     }
 

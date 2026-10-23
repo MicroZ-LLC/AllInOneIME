@@ -92,6 +92,7 @@ public struct AIConfigFit: Sendable {
                 switch change.key {
                 case let .setting(setting): parts.insert(.of(setting))
                 case .iCloudSync: parts.insert(.iCloudSync)
+                case .autocomplete: parts.insert(.typing)
                 case let .app(app, _):
                     parts.insert(.apps)
                     let lower = app.lowercased()
@@ -132,7 +133,9 @@ public struct AIConfigFit: Sendable {
         .typing: ["type out", "typing", "typed in", "character by character", "speed", "fast", "slow", "typo", "mistake", "like a person",
                   "human", "逐字", "打字", "上屏", "速度", "快", "慢", "错字", "錯字", "打错", "打錯", "真人", "タイピング", "タイプ", "速さ",
                   "타이핑", "속도", "오타", "tipp", "geschwindigkeit", "schnell", "langsam", "frappe", "vitesse", "rapide", "lent",
-                  "escrit", "velocidad", "rápid", "lent", "digita", "velocidade"],
+                  "escrit", "velocidad", "rápid", "lent", "digita", "velocidade",
+                  "autocompl", "auto-compl", "suggestion", "续写", "續寫", "补全", "補全", "灰字", "オートコンプリート", "補完", "자동 완성", "자동완성",
+                  "이어 쓰기", "vervollständig", "saisie semi", "sugerencia", "sugestão"],
         .selection: ["selection", "selected", "select", "选中", "選中", "选择", "選擇", "選取", "選択", "선택", "auswahl", "markiert",
                      "sélection", "selección", "seleção", "selecion"],
         .questions: ["question", "history", "remember", "问题", "問題", "记住", "記住", "历史", "歷史", "質問", "履歴", "覚え", "질문", "기록",

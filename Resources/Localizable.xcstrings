@@ -4378,6 +4378,53 @@
         }
       }
     },
+    "Always autocomplete" : {
+      "comment" : "总是续写 — Sources/AllInOneIME/AppProfiles.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Immer autovervollständigen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autocompletar siempre"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Complétion automatique toujours"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "常にオートコンプリート"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "항상 자동 완성"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sempre autocompletar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一律續寫"
+          }
+        }
+      }
+    },
     "An @question conversation can go on in each agent installed here too (General → “Continue a conversation in”)." : {
       "comment" : "@question 的对话也能接着在这里装了的每个 agent 里聊（通用 →「对话接着在哪里聊」）。 — Sources/AllInOneIME/AgentSettings.swift",
       "localizations" : {
@@ -4660,6 +4707,53 @@
         }
       }
     },
+    "Apple Intelligence on this Mac" : {
+      "comment" : "本机 Apple Intelligence — Sources/AllInOneIME/AutocompleteOverlay.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Intelligence auf diesem Mac"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Intelligence en este Mac"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Intelligence sur ce Mac"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このMacのApple Intelligence"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Mac의 Apple Intelligence"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Intelligence neste Mac"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本機 Apple Intelligence"
+          }
+        }
+      }
+    },
     "Applied in a second or two: the dictionaries are deployed again." : {
       "comment" : "改完词库会重新部署，一两秒生效。 — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
@@ -4938,6 +5032,347 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "助理"
+          }
+        }
+      }
+    },
+    "Autocomplete off" : {
+      "comment" : "续写 已关闭 — Sources/AllInOneIME/AutocompleteOverlay.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autovervollständigen aus"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autocompletar desactivado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Complétion automatique désactivée"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オートコンプリート：オフ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자동 완성 꺼짐"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autocompletar desativado"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "續寫已關閉"
+          }
+        }
+      }
+    },
+    "Autocomplete on (%@): pause, and Tab takes the gray text" : {
+      "comment" : "续写 已开启（%@）：停一下，灰字出现后按 Tab 接受 — Sources/AllInOneIME/AutocompleteOverlay.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autovervollständigen an (%@): kurz innehalten, Tab übernimmt den grauen Text"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autocompletar activado (%@): haz una pausa y Tab acepta el texto gris"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Complétion automatique activée (%@) : marquez une pause, Tab accepte le texte gris"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オートコンプリート：オン（%@）：少し手を止めると灰色の文字が出ます。Tab で採用"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자동 완성 켜짐 (%@): 잠시 멈추면 회색 글자가 나오고 Tab으로 수락"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autocompletar ativado (%@): faça uma pausa e Tab aceita o texto cinza"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "續寫已開啟（%@）：停一下，灰字出現後按 Tab 接受"
+          }
+        }
+      }
+    },
+    "Autocomplete on, but Apple Intelligence on this Mac isn't available, so nothing shows: " : {
+      "comment" : "续写 已开启，但本机的 Apple Intelligence 不可用，不会出灰字： — Sources/AllInOneIME/AutocompleteOverlay.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autovervollständigen an, aber Apple Intelligence ist auf diesem Mac nicht verfügbar, daher erscheint nichts: "
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autocompletar activado, pero Apple Intelligence no está disponible en este Mac, así que no aparecerá nada: "
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Complétion automatique activée, mais Apple Intelligence n’est pas disponible sur ce Mac : rien ne s’affichera. "
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オートコンプリートはオンですが、このMacのApple Intelligenceが使えないため何も表示されません："
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자동 완성이 켜졌지만 이 Mac의 Apple Intelligence를 쓸 수 없어 아무것도 표시되지 않습니다: "
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autocompletar ativado, mas o Apple Intelligence não está disponível neste Mac, então nada aparece: "
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "續寫已開啟，但本機的 Apple Intelligence 無法使用，不會出現灰字："
+          }
+        }
+      }
+    },
+    "Autocomplete with %@" : {
+      "comment" : "续写用 %@ — Sources/AllInOneIME/InputMenu.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autovervollständigen mit %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autocompletar con %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Complétion automatique avec %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@でオートコンプリート"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@로 자동 완성"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autocompletar com %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "續寫使用 %@"
+          }
+        }
+      }
+    },
+    "Autocomplete:" : {
+      "comment" : "续写： — Sources/AllInOneIME/AppProfiles.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autovervollständigen:"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autocompletar:"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Complétion automatique :"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オートコンプリート："
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자동 완성:"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autocompletar:"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "續寫："
+          }
+        }
+      }
+    },
+    "autocomplete.always" : {
+      "comment" : "总是续写 — Sources/AllInOneIME/AppProfiles.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Immer"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Always"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Siempre"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toujours"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "常に"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "항상"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sempre"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一律續寫"
+          }
+        }
+      }
+    },
+    "autocomplete.never" : {
+      "comment" : "不续写 — Sources/AllInOneIME/AppProfiles.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nie"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Never"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nunca"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jamais"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使わない"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "사용 안 함"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nunca"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不續寫"
           }
         }
       }
@@ -8843,6 +9278,53 @@
         }
       }
     },
+    "Each pause sends up to 1,500 characters before the caret (and up to 200 after it) to %@, with sensitive information hidden as usual. " : {
+      "comment" : "每次停顿会把光标前最多 1,500 字（和光标后最多 200 字）发给 %@，照常隐藏敏感信息。 — Sources/AllInOneIME/AutocompleteOverlay.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bei jeder Pause gehen bis zu 1.500 Zeichen vor der Einfügemarke (und bis zu 200 danach) an %@, vertrauliche Angaben wie gewohnt verborgen. "
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cada pausa envía a %@ hasta 1500 caracteres antes del cursor (y hasta 200 después), con la información sensible oculta como siempre. "
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chaque pause envoie à %@ jusqu’à 1 500 caractères avant le curseur (et jusqu’à 200 après), les informations sensibles masquées comme d’habitude. "
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手を止めるたびに、カーソルの前の最大1,500文字（と後ろの最大200文字）を%@に送ります。機密情報はいつもどおり隠します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "멈출 때마다 커서 앞의 최대 1,500자(와 뒤의 최대 200자)를 %@에 보냅니다. 민감한 정보는 평소처럼 숨깁니다. "
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cada pausa envia até 1.500 caracteres antes do cursor (e até 200 depois) para %@, com as informações sensíveis ocultas como sempre. "
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每次停頓會把游標前最多 1,500 字（和游標後最多 200 字）傳給 %@，照常隱藏敏感資訊。"
+          }
+        }
+      }
+    },
     "Edit" : {
       "comment" : "编辑 — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
@@ -12622,6 +13104,53 @@
         }
       }
     },
+    "No autocomplete" : {
+      "comment" : "不续写 — Sources/AllInOneIME/AppProfiles.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kein Autovervollständigen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sin autocompletar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pas de complétion automatique"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オートコンプリートなし"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자동 완성 안 함"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sem autocompletar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不續寫"
+          }
+        }
+      }
+    },
     "No command yet" : {
       "comment" : "还没有命令 — Sources/AllInOneIME/AgentSettings.swift",
       "localizations" : {
@@ -14597,6 +15126,53 @@
         }
       }
     },
+    "On This Mac Only" : {
+      "comment" : "只用本机 — Sources/AllInOneIME/AutocompleteOverlay.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nur auf diesem Mac"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Solo en este Mac"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sur ce Mac uniquement"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このMacのみ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Mac에서만"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Somente neste Mac"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只用本機"
+          }
+        }
+      }
+    },
     "One more step: add the input source" : {
       "comment" : "还差一步：添加输入法 — Sources/AllInOneIMEInstaller/main.swift",
       "localizations" : {
@@ -15678,6 +16254,100 @@
         }
       }
     },
+    "Otherwise it uses only Apple Intelligence on this Mac, which isn't available now: no suggestions." : {
+      "comment" : "不用的话只用这台 Mac 上的 Apple Intelligence，但它现在不可用，不会出灰字。 — Sources/AllInOneIME/AutocompleteOverlay.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sonst nutzt es nur Apple Intelligence auf diesem Mac, das gerade nicht verfügbar ist: keine Vorschläge."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si no, solo usa Apple Intelligence en este Mac, que ahora no está disponible: no habrá sugerencias."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sinon, elle n’utilise qu’Apple Intelligence sur ce Mac, indisponible pour le moment : aucune suggestion."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使わない場合はこのMacのApple Intelligenceだけを使いますが、今は使えないため何も表示されません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "그렇지 않으면 이 Mac의 Apple Intelligence만 쓰는데, 지금은 사용할 수 없어 제안이 나오지 않습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Caso contrário, usa só o Apple Intelligence neste Mac, que não está disponível agora: sem sugestões."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不用的話只用這台 Mac 上的 Apple Intelligence，但它目前無法使用，不會出現灰字。"
+          }
+        }
+      }
+    },
+    "Otherwise it uses only Apple Intelligence on this Mac." : {
+      "comment" : "不用的话，只用这台 Mac 上的 Apple Intelligence。 — Sources/AllInOneIME/AutocompleteOverlay.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sonst nutzt es nur Apple Intelligence auf diesem Mac."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si no, solo usa Apple Intelligence en este Mac."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sinon, elle n’utilise qu’Apple Intelligence sur ce Mac."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使わない場合は、このMacのApple Intelligenceだけを使います。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "그렇지 않으면 이 Mac의 Apple Intelligence만 사용합니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Caso contrário, usa só o Apple Intelligence neste Mac."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不用的話，只用這台 Mac 上的 Apple Intelligence。"
+          }
+        }
+      }
+    },
     "panel.clauseSeparator" : {
       "comment" : "， — Sources/AllInOneIME/FloatingPanel.swift",
       "localizations" : {
@@ -15968,6 +16638,100 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "貼上 API 金鑰"
+          }
+        }
+      }
+    },
+    "Pause, and the rest of the sentence shows in gray after the caret; Tab takes it" : {
+      "comment" : "停一下，光标后出现灰字，按 Tab 接受 — Sources/AllInOneIME/FloatingPanel.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kurz innehalten: Der Rest des Satzes erscheint grau hinter der Einfügemarke, Tab übernimmt ihn"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Haz una pausa y el resto de la frase aparece en gris tras el cursor; Tab lo acepta"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Marquez une pause : la suite de la phrase s’affiche en gris après le curseur, Tab l’accepte"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "少し手を止めると、文の続きがカーソルの後ろに灰色で出ます。Tab で採用"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "잠시 멈추면 문장의 나머지가 커서 뒤에 회색으로 나오고, Tab으로 수락합니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Faça uma pausa e o resto da frase aparece em cinza após o cursor; Tab aceita"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "停一下，游標後出現灰字，按 Tab 接受"
+          }
+        }
+      }
+    },
+    "Pause, and the rest of the sentence shows in gray after the caret; Tab takes it. Always: here whatever the switch, and it doesn't stop for want of use." : {
+      "comment" : "停一下，光标后出现灰字，按 Tab 接受。「总是」在这里不管全局开关，也不会因为没用上而停下。 — Sources/AllInOneIME/AppProfiles.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kurz innehalten: Der Rest des Satzes erscheint grau hinter der Einfügemarke, Tab übernimmt ihn. Immer: hier unabhängig vom Schalter, und es hört nicht auf, wenn es nicht genutzt wird."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Haz una pausa y el resto de la frase aparece en gris tras el cursor; Tab lo acepta. Siempre: aquí sin importar el interruptor, y no se detiene aunque no se use."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Marquez une pause : la suite de la phrase s’affiche en gris après le curseur, Tab l’accepte. Toujours : ici quel que soit le réglage général, et elle ne s’arrête pas faute d’usage."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "少し手を止めると、文の続きがカーソルの後ろに灰色で出ます。Tab で採用。「常に」にすると、全体のスイッチに関係なくこのAppで使い、使われなくても止まりません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "잠시 멈추면 문장의 나머지가 커서 뒤에 회색으로 나오고, Tab으로 수락합니다. 항상: 전체 스위치와 상관없이 이 앱에서 쓰며, 쓰지 않아도 멈추지 않습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Faça uma pausa e o resto da frase aparece em cinza após o cursor; Tab aceita. Sempre: aqui independentemente da chave geral, e não para por falta de uso."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "停一下，游標後出現灰字，按 Tab 接受。「一律」在這裡不管全域開關，也不會因為沒用上而停下。"
           }
         }
       }
@@ -19362,6 +20126,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "與全域設定相同（%@）"
+          }
+        }
+      }
+    },
+    "Same as everywhere (stopped here: not used)" : {
+      "comment" : "跟全局一样（在这里没用上，已停） — Sources/AllInOneIME/AppProfiles.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wie in allen Apps (hier aus: nicht genutzt)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajuste general (detenido aquí: no se usó)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comme partout ailleurs (arrêtée ici : inutilisée)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全体の設定と同じ（このAppでは使われず停止中）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "전체 설정과 동일 (여기서는 쓰지 않아 멈춤)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Como em todos os apps (parado aqui: não usado)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "與全域設定相同（在這裡沒用上，已停）"
           }
         }
       }
@@ -25061,6 +25872,100 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "恢復 @"
+          }
+        }
+      }
+    },
+    "Use %@" : {
+      "comment" : "用 %@ — Sources/AllInOneIME/AutocompleteOverlay.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ verwenden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usar %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utiliser %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@を使う"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 사용"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usar %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 %@"
+          }
+        }
+      }
+    },
+    "Use %@ for Autocomplete?" : {
+      "comment" : "续写用 %@ 吗？ — Sources/AllInOneIME/AutocompleteOverlay.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ für Autovervollständigen verwenden?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Usar %@ para Autocompletar?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utiliser %@ pour la complétion automatique ?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オートコンプリートに%@を使いますか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자동 완성에 %@을(를) 사용할까요?"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usar %@ para Autocompletar?"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "續寫要使用 %@ 嗎？"
           }
         }
       }
