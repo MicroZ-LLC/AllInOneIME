@@ -152,8 +152,9 @@ public enum Autocomplete {
 
     /// What of the model's answer `raw` is shown after `before`: its first line, without quotes around it or the end of
     /// `before` said again, up to the end of the first sentence, a dozen words or 25 Chinese characters at most (cut
-    /// between words), spaces where they belong. Nil: nothing worth showing.
-    public static func trimmed(_ raw: String, before: String) -> String? {
+    /// between words), spaces where they belong. Nil: nothing worth showing, as when it says what is already there, the
+    /// text after the caret (`after`).
+    public static func trimmed(_ raw: String, before: String, after: String = "") -> String? {
         var text = raw.replacingOccurrences(of: "\r\n", with: "\n")
         // What the model put around it: tags, quotes, a code fence.
         for tag in ["<continuation>", "</continuation>", "<after>", "</after>", "<before>", "</before>", "<caret>", "```"] {
@@ -172,8 +173,10 @@ public enum Autocomplete {
         // ("iss" → "issue"): only the rest.
         line = droppingEcho(line, before: before)
         line = droppingUnfinishedWord(line, before: before)
+        // The text after the caret said again ("Frobnicate" with "\nFrobnicate" after it): it's there already.
+        if copiesWhatFollows(line, after: after) { return nil }
         // An unfinished word gets its rest, never a word of its own glued on ("tomo" + "later").
-        if gluesAWordOn(line, before: before) { return nil }
+        if gluesAWordOn(line, before: before, after: after) { return nil }
         // A space between words where the model left it out, none where it's wrong (after a space, a line's start, CJK).
         let last = before.last
         if last == nil || last!.isWhitespace || last!.isWide {
@@ -344,6 +347,34 @@ public enum Autocomplete {
             length -= 1
         }
         return line
+    }
+
+    /// Whether `line` says the text after the caret (`after`, its first line with something on it) again: its start, all
+    /// of that line and more, or two words or more of it ("Frobnicate" with "\nFrobnicate" after the caret, "带伞" with
+    /// "\n记得带伞"). By words (`tokens`), in any case, whatever the marks between them.
+    static func copiesWhatFollows(_ line: String, after: String) -> Bool {
+        guard let next = after.split(whereSeparator: \.isNewline).first(where: { !$0.allSatisfy(\.isWhitespace) }) else { return false }
+        let said = tokens(line), there = tokens(String(next))
+        guard !said.isEmpty, !there.isEmpty else { return false }
+        if there.starts(with: said) || said.starts(with: there) { return true }
+        return said.count >= 2 && there.count > said.count
+            && (1...(there.count - said.count)).contains { there[$0..<($0 + said.count)].elementsEqual(said) }
+    }
+
+    /// The words of `text` in small letters, each Chinese, Japanese or Korean character one, without spaces and marks.
+    static func tokens(_ text: String) -> [String] {
+        var tokens: [String] = [], word = ""
+        for character in text.lowercased() {
+            if character.isWide || !(character.isLetter || character.isNumber) {
+                if !word.isEmpty { tokens.append(word) }
+                word = ""
+                if character.isWide, character.isLetter || character.isNumber { tokens.append(String(character)) }
+            } else {
+                word.append(character)
+            }
+        }
+        if !word.isEmpty { tokens.append(word) }
+        return tokens
     }
 
     /// Whether all of `line` is the end of `before` again, from the start of a word there ("iss" after "iss", "the rep"
@@ -816,7 +847,7 @@ extension Converter {
             if Autocomplete.isEnough(text) { break }
         }
         try Task.checkCancellation()
-        let restored = Autocomplete.trimmed(text, before: sent.before).map { redaction?.restore($0) ?? $0 }
+        let restored = Autocomplete.trimmed(text, before: sent.before, after: sent.after).map { redaction?.restore($0) ?? $0 }
         // A placeholder the model made up, or one that didn't come back whole: nothing rather than a placeholder.
         let shown = restored.flatMap { AppleModel.placeholder.firstMatch(in: $0, range: NSRange(location: 0, length: ($0 as NSString).length)) == nil ? $0 : nil }
         return Autocomplete.Answer(text: shown, before: context.before, route: route,

@@ -135,6 +135,18 @@ struct AutocompleteTests {
         #expect(Autocomplete.trimmed("<after>later today</after>", before: "Let's talk") == " later today")
     }
 
+    @Test func theTextAfterTheCaretSaidAgainIsNotShown() {
+        // Its start, all of its first line with something on it and more, two words of it or more.
+        #expect(Autocomplete.trimmed("Best regards,", before: "Thanks again.", after: "\n\nBest regards,\nTom") == nil)
+        #expect(Autocomplete.trimmed(" see you then.", before: "Great,", after: "\nSee you then! Bye") == nil)
+        #expect(Autocomplete.trimmed("<after>带伞</after>", before: "周末我想去", after: "\n记得带伞") == nil)
+        #expect(Autocomplete.trimmed("the report tomorrow morning.", before: "I will send you the report", after: "\ntomorrow morning") == nil)
+        // Not one word of it the same elsewhere, nor a next line without words.
+        #expect(Autocomplete.trimmed(" the park.", before: "Let's go to", after: "\nThe end") == " the park.")
+        #expect(Autocomplete.trimmed(" the next one.", before: "Let's go to", after: "\nAfter that, the next one") == nil)
+        #expect(Autocomplete.trimmed(" tomorrow.", before: "See you", after: "  \n---\nTomorrow") == " tomorrow.")
+    }
+
     @Test func theEndOfTheTextSaidAgainIsNotShown() {
         // All of the answer is the end of the text, from a word's start, in any case: nothing.
         #expect(Autocomplete.trimmed("Hello.", before: "Just say hello") == nil)
@@ -250,6 +262,16 @@ struct AutocompleteTests {
             _ = try await off.autocomplete(Autocomplete.Context(before: "See you"), app: nil)
         }
         #expect(!keyAsked.withLock { $0 })
+    }
+
+    @Test func theConverterShowsNothingThatIsAfterTheCaretAlready() async throws {
+        let model = ContinuingModel { _ in " tomorrow at noon." }
+        var config = Config.default
+        config.provider = .apple
+        let fixed = config
+        let converter = Converter(loadConfig: { fixed }, appleModel: model)
+        let answer = try await converter.autocomplete(Autocomplete.Context(before: "See you", after: "\nTomorrow at noon, then"), app: nil)
+        #expect(answer.text == nil && model.requests.count == 1)
     }
 
     @Test func theConverterHidesValuesAndPutsThemBack() async throws {
