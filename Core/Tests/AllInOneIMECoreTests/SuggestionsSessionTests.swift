@@ -549,6 +549,7 @@ extension SuggestionsSessionTests {
             let world = SuggestionsWorld()
             try world.aws()
             world.config.autocomplete = true
+            world.config.provider = .apple  // autocomplete asks the on-device model: the stand-in
             let model = SuggestionsGhostModel(answer: "2 is the prod account.")
             let uptime = Locked<TimeInterval>(initialState: 1000)
             let field = world.field { services in

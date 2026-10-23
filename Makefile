@@ -334,6 +334,9 @@ update-manifest:
 # check, Core/.split-paths' paths free in the root; then the core's tests (Core/, a package of its own) with the input
 # method's debug build as the child process the end-to-end ones run, then this package's tests (rime-ice's data is there
 # after `make deps`: a Rime test without it fails, not skips). Both packages' tests run even when the core's fail.
+# The tests never read this Mac's AWS files: a test whose settings pick Bedrock (the default provider, which autocomplete
+# now asks) without stubbing the credentials would otherwise send a real, billed request.
+TEST_AWS := AWS_CONFIG_FILE=/nonexistent/aws-config AWS_SHARED_CREDENTIALS_FILE=/nonexistent/aws-credentials
 test: deps strings-check check-ios
 	$(CORE)/Scripts/check-core-portable-test.sh
 	$(CORE)/Scripts/check-core-portable.sh
@@ -343,8 +346,8 @@ test: deps strings-check check-ios
 	Scripts/check-split-paths.sh
 	swift build --product $(APP_NAME)
 	@status=0; \
-	ALLINONEIME_TEST_BINARY="$$(swift build --show-bin-path)/$(APP_NAME)" swift test --package-path $(CORE) || status=$$?; \
-	ALLINONEIME_REQUIRE_RIME_DATA=1 swift test || exit; \
+	$(TEST_AWS) ALLINONEIME_TEST_BINARY="$$(swift build --show-bin-path)/$(APP_NAME)" swift test --package-path $(CORE) || status=$$?; \
+	$(TEST_AWS) ALLINONEIME_REQUIRE_RIME_DATA=1 swift test || exit; \
 	exit $$status
 
 # The core compiled for iOS, where there is no Process, Carbon or home folder: what keeps it from leaning on the Mac

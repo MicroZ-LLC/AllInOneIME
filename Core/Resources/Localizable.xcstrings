@@ -520,6 +520,7 @@
     },
     " (it uses only the model on this Mac: AllInOneIME Cloud's free requests a day are kept for @ commands)" : {
       "comment" : "（只用本机模型：AllInOneIME 云每天的免费次数留给 @ 命令） — Sources/AllInOneIMECore/Autocomplete.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -567,6 +568,7 @@
     },
     " (it uses the model on this Mac; to use %@, choose “Autocomplete with %@” in the input menu)" : {
       "comment" : "（先用本机模型；要用 %@，在输入法菜单里选「续写用 %@」） — Sources/AllInOneIMECore/Autocomplete.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -989,6 +991,53 @@
         }
       }
     },
+    ", not available" : {
+      "comment" : "，不可用 — Sources/AllInOneIMECore/Autocomplete.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", nicht verfügbar"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", no disponible"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", non disponible"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "、利用不可"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", 사용할 수 없음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", indisponível"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "，無法使用"
+          }
+        }
+      }
+    },
     ", with what you typed" : {
       "comment" : "，打的字一起带过去 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
       "localizations" : {
@@ -1314,6 +1363,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "："
+          }
+        }
+      }
+    },
+    ". " : {
+      "comment" : "。 — Sources/AllInOneIMECore/Autocomplete.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ". "
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ". "
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ". "
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ". "
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ". "
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "。"
           }
         }
       }
@@ -9039,6 +9135,53 @@
         }
       }
     },
+    "Apple Intelligence on this Mac" : {
+      "comment" : "本机 Apple Intelligence — Sources/AllInOneIMECore/Autocomplete.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Intelligence auf diesem Mac"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Intelligence en este Mac"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Intelligence sur ce Mac"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このMacのApple Intelligence"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Mac의 Apple Intelligence"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Intelligence neste Mac"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本機 Apple Intelligence"
+          }
+        }
+      }
+    },
     "appProfile.sameAsEverywhere" : {
       "comment" : "和全局设置一样 — Sources/AllInOneIMECore/Settings/SettingsSchema+Apps.swift",
       "localizations" : {
@@ -9511,6 +9654,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "續寫"
+          }
+        }
+      }
+    },
+    "Autocomplete got no answer from %@: %@" : {
+      "comment" : "续写没拿到 %@ 的回应：%@ — Sources/AllInOneIMECore/Session/InputSession+Autocomplete.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autovervollständigen hat keine Antwort von %@ bekommen: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autocompletar no recibió respuesta de %@: %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La complétion automatique n’a reçu aucune réponse de %@ : %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オートコンプリート：%@から応答がありませんでした：%@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자동 완성: %@에서 응답을 받지 못했습니다: %@"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O autocompletar não recebeu resposta de %@: %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "續寫沒拿到 %@ 的回應：%@"
           }
         }
       }
@@ -15114,6 +15304,100 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "例如 "
+          }
+        }
+      }
+    },
+    "Each pause sends up to 1,500 characters before the caret (and 200 after) to %@" : {
+      "comment" : "每次停顿会把光标前最多 1,500 字（和光标后 200 字）发给 %@ — Sources/AllInOneIMECore/Autocomplete.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bei jeder Pause gehen bis zu 1.500 Zeichen vor der Einfügemarke (und 200 danach) an %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cada pausa envía a %@ hasta 1500 caracteres antes del cursor (y 200 después)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chaque pause envoie à %@ jusqu’à 1 500 caractères avant le curseur (et 200 après)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手を止めるたびに、カーソルの前の最大1,500文字（と後ろの200文字）を%@に送ります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "멈출 때마다 커서 앞의 최대 1,500자(와 뒤의 200자)를 %@에 보냅니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cada pausa envia até 1.500 caracteres antes do cursor (e 200 depois) para %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每次停頓會把游標前最多 1,500 字（和游標後 200 字）傳給 %@"
+          }
+        }
+      }
+    },
+    "Each pause sends up to 1,500 characters before the caret (and 200 after) to %@, hidden words removed" : {
+      "comment" : "每次停顿会把光标前最多 1,500 字（和光标后 200 字）发给 %@，先去掉隐藏词 — Sources/AllInOneIMECore/Autocomplete.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bei jeder Pause gehen bis zu 1.500 Zeichen vor der Einfügemarke (und 200 danach) an %@, ohne die verborgenen Wörter"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cada pausa envía a %@ hasta 1500 caracteres antes del cursor (y 200 después), sin las palabras ocultas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chaque pause envoie à %@ jusqu’à 1 500 caractères avant le curseur (et 200 après), sans les mots masqués"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手を止めるたびに、カーソルの前の最大1,500文字（と後ろの200文字）を%@に送ります。隠す単語は先に取り除きます"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "멈출 때마다 커서 앞의 최대 1,500자(와 뒤의 200자)를 %@에 보냅니다. 숨긴 단어는 먼저 뺍니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cada pausa envia até 1.500 caracteres antes do cursor (e 200 depois) para %@, sem as palavras ocultas"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每次停頓會把游標前最多 1,500 字（和游標後 200 字）傳給 %@，先去掉隱藏的詞"
           }
         }
       }
@@ -43017,6 +43301,53 @@
         }
       }
     },
+    "Uses Apple Intelligence; set your own AI provider for faster suggestions" : {
+      "comment" : "用的是 Apple Intelligence；设置自己的 AI 服务，灰字来得更快 — Sources/AllInOneIMECore/Autocomplete.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nutzt Apple Intelligence; mit einem eigenen KI-Anbieter kommen die Vorschläge schneller"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa Apple Intelligence; configura tu propio proveedor de IA para obtener sugerencias más rápidas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utilise Apple Intelligence ; configurez votre propre fournisseur d’IA pour des suggestions plus rapides"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Intelligenceを使います。自分のAIプロバイダを設定すると、候補が速く出ます"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Intelligence를 사용합니다. 직접 AI 서비스를 설정하면 제안이 더 빨리 나옵니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa o Apple Intelligence; configure seu próprio provedor de IA para sugestões mais rápidas"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用的是 Apple Intelligence；設定自己的 AI 服務，灰字來得更快"
+          }
+        }
+      }
+    },
     "Vertical" : {
       "comment" : "竖排 — Sources/AllInOneIMECore/AIConfigText.swift",
       "localizations" : {
@@ -44194,6 +44525,7 @@
     },
     "Your AI provider changed: Autocomplete uses the model on this Mac until you agree to send text to %@ (“Autocomplete with %@” in the input menu)" : {
       "comment" : "AI 服务改了，续写先用本机模型；要把文字发给 %@，在输入法菜单里勾「续写用 %@」 — Sources/AllInOneIMECore/Session/InputSession+Autocomplete.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {

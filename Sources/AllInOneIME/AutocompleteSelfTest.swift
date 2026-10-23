@@ -233,60 +233,40 @@ extension SelfTest {
     }
 
     /// Autocomplete (`Autocomplete`, the core's; the overlay, the switch and the field read, the Mac's): the switch in
-    /// the input menu and the menu bar panel (with the question about a cloud provider answered by the test), then a
-    /// harness window of its own with a stand-in model: the suggestion after the caret, Tab, typing along, Esc, ⇧Tab, a
-    /// Tab right as it appears, pinyin, where it never runs, the candidate panel's line where there's no caret rect, an
-    /// app's own choice, an app where it stops for want of use, a cloud provider through a local endpoint; last, Apple's
-    /// on-device model where it's available. Writes `autocomplete.png` and `autocomplete-zh.png` (the READMEs' images).
+    /// the input menu and the menu bar panel (nothing asks first: they say where the text goes), then a harness window of
+    /// its own with a stand-in model: the suggestion after the caret, Tab, typing along, Esc, ⇧Tab, a Tab right as it
+    /// appears, pinyin, where it never runs, the candidate panel's line where there's no caret rect, an app's own choice,
+    /// an app where it stops for want of use, turning it on with a cloud provider picked and the provider asked through a
+    /// local endpoint; last, Apple's on-device model where it's available. Writes `autocomplete.png` and
+    /// `autocomplete-zh.png` (the READMEs' images).
     static func testAutocomplete(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
-        section("autocomplete: the switch (input menu, menu bar panel, the cloud question)")
+        section("autocomplete: the switch (input menu, menu bar panel)")
         let configFile = try? Data(contentsOf: Config.defaultURL)
         let store = AutocompleteSwitch.store
-        var asked: [Provider] = []
-        var answer: Bool? = false
-        let askBefore = AutocompleteSwitch.askCloud
-        AutocompleteSwitch.askCloud = { config, _, answered in
-            asked.append(config.provider)
-            answered(answer)
-        }
-        defer {
-            AutocompleteSwitch.askCloud = askBefore
-            if let configFile { try? configFile.write(to: Config.defaultURL) }
-        }
-        func menuItem(_ action: Selector) -> NSMenuItem? { controller.menu()?.items.first { $0.action == action } }
+        defer { if let configFile { try? configFile.write(to: Config.defaultURL) } }
         let toggle = #selector(AllInOneIMEInputController.toggleAutocomplete(_:))
-        let cloud = #selector(AllInOneIMEInputController.toggleAutocompleteCloud(_:))
-        check(menuItem(toggle)?.title == tr("续写", "Autocomplete") && menuItem(toggle)?.state == .off && menuItem(cloud) == nil,
-              "the input menu has 续写, off, and nothing about a cloud provider yet (\(menuItem(toggle)?.title ?? "none"))")
-        // The self-test's config is Bedrock's: turning it on asks, and it's on at once with the on-device model; the question
-        // closed, nothing is answered; "on this Mac only" keeps it on the device.
-        answer = nil
+        func menuItem(_ action: Selector) -> NSMenuItem? { controller.menu()?.items.first { $0.action == action } }
+        func line() -> NSMenuItem? {
+            let items = controller.menu()?.items ?? []
+            guard let index = items.firstIndex(where: { $0.action == toggle }), items.indices.contains(index + 1) else { return nil }
+            return items[index + 1].tag == AllInOneIMEInputController.autocompleteDestinationTag ? items[index + 1] : nil
+        }
+        // The self-test's config is Bedrock's: the switch names it and its model, and what each pause would send there,
+        // before it's turned on.
+        let bedrock = "Amazon Bedrock · " + ((try? Config.load())?.modelId ?? "")
+        check(menuItem(toggle)?.title == tr("续写（\(bedrock)）", "Autocomplete (\(bedrock))") && menuItem(toggle)?.state == .off,
+              "the input menu has 续写, off, with the provider and its model (\(menuItem(toggle)?.title ?? "none"))")
+        check(line()?.title.hasPrefix(tr("每次停顿会把光标前最多 1,500 字", "Each pause sends up to 1,500 characters before the caret")) == true
+              && line()?.title.contains(bedrock) == true && line()?.isEnabled == false,
+              "under it, what each pause sends there (\(line()?.title ?? "none"))")
+        // Turned on: on at once, and nothing asks.
+        let visible = Set(NSApp.windows.filter(\.isVisible).map(ObjectIdentifier.init))
         controller.toggleAutocomplete(nil)
-        let unanswered = try? Config.load()
-        check(asked == [.bedrock] && unanswered?.autocomplete == true && unanswered?.autocompleteCloud == nil,
-              "turned on with Bedrock picked: on at once with the on-device model, and asked; closed, no answer")
+        let asked = NSApp.windows.filter { $0.isVisible && $0.styleMask.contains(.titled) && !visible.contains(ObjectIdentifier($0)) }
+        check((try? Config.load())?.autocomplete == true && NSApp.modalWindow == nil && asked.isEmpty && menuItem(toggle)?.state == .on,
+              "turned on with Bedrock picked: on at once, no question (\(asked.map(\.title)))")
         controller.toggleAutocomplete(nil)
-        answer = false
-        controller.toggleAutocomplete(nil)
-        let saved = try? Config.load()
-        check(saved?.autocomplete == true && saved.flatMap(Autocomplete.cloudAnswer) == false && asked.count == 2,
-              "answered “On This Mac Only”: on, with the on-device model (\(String(describing: saved?.autocompleteCloud)))")
-        check(menuItem(toggle)?.state == .on && menuItem(cloud)?.title == tr("续写用 Amazon Bedrock", "Autocomplete with Amazon Bedrock")
-              && menuItem(cloud)?.state == .off,
-              "the menu: 续写 checked, 续写用 Amazon Bedrock unchecked (\(menuItem(cloud)?.title ?? "none"))")
-        let onDevice = tr("本机 Apple Intelligence", "Apple Intelligence on this Mac")
-            + (AppleModel.system.availability == .available ? "" : tr("，不可用", ", not available"))
-        check(menuItem(toggle)?.title == tr("续写（\(onDevice)）", "Autocomplete (\(onDevice))"),
-              "续写 says the model it uses: the one on this Mac (\(menuItem(toggle)?.title ?? "none"))")
-        answer = true
-        controller.toggleAutocompleteCloud(nil)
-        check((try? Config.load()).flatMap(Autocomplete.cloudAnswer) == true && menuItem(cloud)?.state == .on, "agreed: it may use Bedrock")
-        check(menuItem(toggle)?.title == tr("续写（Amazon Bedrock）", "Autocomplete (Amazon Bedrock)"),
-              "续写 says the model it uses: Bedrock now (\(menuItem(toggle)?.title ?? "none"))")
-        controller.toggleAutocompleteCloud(nil)
-        check((try? Config.load()).flatMap(Autocomplete.cloudAnswer) == false && asked.count == 3, "taken back without asking")
-        controller.toggleAutocomplete(nil)
-        check((try? Config.load())?.autocomplete == false && store.metrics.turnedOn == 2 && store.metrics.turnedOffWithinADay == 2,
+        check((try? Config.load())?.autocomplete == false && store.metrics.turnedOn == 1 && store.metrics.turnedOffWithinADay == 1,
               "off again; counted as turned off within a day (\(store.metrics.turnedOn), \(store.metrics.turnedOffWithinADay))")
         // The menu bar panel's switch, with stand-ins (it writes nothing here).
         let stand = PanelStandIns()
@@ -321,7 +301,8 @@ extension SelfTest {
         }
         settings.autocomplete = true
         settings.typeOut = false
-        // The model's settings as they are now (Bedrock picked, not agreed to: the on-device model, the stand-in).
+        // Apple Intelligence picked: the on-device model, the stand-in.
+        settings.provider = .apple
         let modelSettings = settings
         controller.services.converter = Converter(loadConfig: { modelSettings }, appleModel: model)
         controller.services.uptime = { now }
@@ -537,36 +518,22 @@ extension SelfTest {
         harness.bundleID = "com.aipinyin.selftest.harness"
         controller.activateServer(harness)
 
-        testAutocompleteConsentPanel(controller, harness, ghost: { ghost($0) })
+        testAutocompleteCloudSwitch(controller, harness, ghost: { ghost($0) })
 
-        // A cloud provider agreed to, through a local endpoint: the text before the caret, at most 1,500 characters, the
-        // values hidden; without the yes, nothing goes there (the on-device model unavailable: nothing at all). The
-        // session's settings and the endpoint's converter name the same address, as one config file does.
+        // The cloud provider picked, through a local endpoint: the text before the caret, at most 1,500 characters, the
+        // values hidden, the tokens counted. The session's settings and the endpoint's converter name the same address, as
+        // one config file does.
         settings.provider = .anthropic
         settings.anthropic.baseURL = "https://autocomplete-selftest.invalid"
+        settings.anthropic.model = "claude-selftest"
         settings.redaction = RedactionSettings(enabled: true)
         controller.services.converter = AutocompleteSelfTestEndpoint.converter(settings)
+        controller.activateServer(harness)
+        let tokens = store.metrics.cloudInputTokens
         let long = String(repeating: "We went over the plan again today. ", count: 50)  // 1,750 characters
         harness.text = long + "Write to ann@example.com and let me kno"
         harnessType("w", controller, harness)
-        settled()
-        check(AutocompleteSelfTestEndpoint.sent.isEmpty && GhostOverlay.shared.text == nil,
-              "a cloud provider not agreed to gets nothing (and the on-device model unavailable shows nothing)")
-        // Agreed to the Claude API at its own address: this one is another host, and gets nothing either.
-        settings.autocompleteCloud = Autocomplete.Consent(allowed: true, destination: "anthropic api.anthropic.com")
-        controller.services.converter = AutocompleteSelfTestEndpoint.converter(settings)
-        controller.activateServer(harness)
-        harness.text = long + "Write to ann@example.com and let me kno"
-        harnessType("w", controller, harness)
-        settled()
-        check(AutocompleteSelfTestEndpoint.sent.isEmpty && GhostOverlay.shared.text == nil,
-              "agreed to the Claude API at api.anthropic.com: another host gets nothing (\(String(describing: settings.autocompleteCloud)))")
-        Autocomplete.answer(true, in: &settings)
-        controller.services.converter = AutocompleteSelfTestEndpoint.converter(settings)
-        controller.activateServer(harness)
-        harness.text = long + "Write to ann@example.com and let me kno"
-        harnessType("w", controller, harness)
-        check(ghost(" when you are free.", within: 5), "agreed: the provider's suggestion (\(GhostOverlay.shared.text ?? "none"))")
+        check(ghost(" when you are free.", within: 5), "the provider's suggestion (\(GhostOverlay.shared.text ?? "none"))")
         let body = AutocompleteSelfTestEndpoint.sent.last ?? ""
         let before = AutocompleteSelfTestEndpoint.message(of: body).components(separatedBy: "<before>").dropFirst().first?
             .components(separatedBy: "</before>").first ?? ""
@@ -574,10 +541,9 @@ extension SelfTest {
         check(before.count == 1500 - "ann@example.com".count + "[EMAIL_1]".count && !body.contains("ann@example.com") && body.contains("[EMAIL_1]"),
               "what went there: the last 1,500 characters before the caret, the email hidden (\(before.count) characters)")
         // The answer is read only as far as the suggestion goes: the tokens read are told at its start, those written at its end.
-        check(store.metrics.cloudInputTokens == 120, "the tokens it read counted (\(store.metrics.cloudInputTokens))")
+        check(store.metrics.cloudInputTokens == tokens + 120, "the tokens it read counted (\(store.metrics.cloudInputTokens - tokens))")
         harnessKey(controller, harness, "\u{1B}", code: VirtualKey.escape)
-        (settings.provider, settings.autocompleteCloud, settings.redaction) = (settingsBefore.provider, nil, settingsBefore.redaction)
-        settings.anthropic.baseURL = settingsBefore.anthropic.baseURL
+        (settings.provider, settings.anthropic, settings.redaction) = (settingsBefore.provider, settingsBefore.anthropic, settingsBefore.redaction)
 
         let metrics = store.metrics
         check(metrics.shown >= 8 && metrics.accepted >= 3 && metrics.p90 != nil
@@ -587,67 +553,46 @@ extension SelfTest {
         testAutocompleteOnDevice(controller, harness, now: { now }, advance: { now += $0 })
     }
 
-    /// The question whether autocomplete may send text to the cloud provider picked, as the user sees it: the real panel
-    /// (`AutocompleteConsentPanel`, invisible here), never a modal loop. Turned on with the Claude API at an address of its
-    /// own: on at once, the question up, typing going on in the harness window meanwhile (the on-device stand-in's
-    /// suggestion); its buttons answer for that address; the input menu's "Autocomplete with …" takes the yes back at once
-    /// and asks again to give it; an answer given after the provider changed isn't taken for the new one. `ghost(text)`:
-    /// whether that suggestion is up, waiting a moment for it.
-    static func testAutocompleteConsentPanel(_ controller: AllInOneIMEInputController, _ harness: HarnessTextClient,
-                                             ghost: (String?) -> Bool) {
-        section("autocomplete: the cloud question, a panel that blocks nothing", needs: .composing)
-        let askBefore = AutocompleteSwitch.askCloud
-        AutocompleteSwitch.askCloud = { AutocompleteConsentPanel.ask($0, onDevice: $1, answered: $2) }
-        defer {
-            AutocompleteConsentPanel.shown?.answer(nil)
-            AutocompleteSwitch.askCloud = askBefore
-        }
+    /// Turning it on with a cloud provider picked, as the user does: nothing asks (no panel, no modal loop), the input
+    /// menu says the provider, its model and what each pause sends there, and the next pause asks that provider (here the
+    /// Claude API at a local endpoint, `AutocompleteSelfTestEndpoint`: never a paid call), not the on-device model.
+    /// `ghost(text)`: whether that suggestion is up, waiting a moment for it.
+    static func testAutocompleteCloudSwitch(_ controller: AllInOneIMEInputController, _ harness: HarnessTextClient,
+                                            ghost: (String?) -> Bool) {
+        section("autocomplete: turned on with a cloud provider, no question, the provider asked", needs: .composing)
         func file() -> Config? { try? Config.load() }
         guard var config = file() else {
             check(false, "the config file reads")
             return
         }
-        (config.provider, config.anthropic.baseURL, config.autocomplete, config.autocompleteCloud) =
-            (.anthropic, "https://autocomplete-selftest.invalid", false, nil)
+        (config.provider, config.anthropic.baseURL, config.anthropic.model, config.autocomplete) =
+            (.anthropic, "https://autocomplete-selftest.invalid", "claude-selftest", false)
         try? config.write()
-        let destination = "anthropic autocomplete-selftest.invalid"
+        let (settingsBefore, converterBefore) = (settings, controller.services.converter)
+        defer { (settings, controller.services.converter) = (settingsBefore, converterBefore) }
         controller.activateServer(harness)
+        let visible = Set(NSApp.windows.filter(\.isVisible).map(ObjectIdentifier.init))
         controller.toggleAutocomplete(nil)
-        let panel = AutocompleteConsentPanel.shown
-        check(panel?.isVisible == true && NSApp.modalWindow == nil && file()?.autocomplete == true && file()?.autocompleteCloud == nil,
-              "turned on: on at once, the question up in a panel of its own, no modal loop")
-        check(panel?.message.contains("autocomplete-selftest.invalid") == true && panel?.isKeyWindow == false,
-              "it names where the text would go, and takes no focus (\(panel?.message ?? "none"))")
-        // Typing goes on while it's up, with the on-device model (the stand-in): on text whose suggestion was never waved
-        // away in this app ("Hello wor"'s was, with Esc: for that text it never comes back here, in a field afresh too).
+        let asked = NSApp.windows.filter { $0.isVisible && $0.styleMask.contains(.titled) && !visible.contains(ObjectIdentifier($0)) }
+        check(file()?.autocomplete == true && NSApp.modalWindow == nil && asked.isEmpty,
+              "turned on with the Claude API picked: on at once, no question (\(asked.map(\.title)))")
+        let toggle = #selector(AllInOneIMEInputController.toggleAutocomplete(_:))
+        let items = controller.menu()?.items ?? []
+        let index = items.firstIndex { $0.action == toggle }
+        let line = index.flatMap { items.indices.contains($0 + 1) ? items[$0 + 1] : nil }
+        check(index.map { items[$0].title } == tr("续写（Claude API · claude-selftest）", "Autocomplete (Claude API · claude-selftest)")
+              && line?.tag == AllInOneIMEInputController.autocompleteDestinationTag && line?.title.contains("Claude API · claude-selftest") == true,
+              "the input menu: the provider and its model, and what each pause sends there (\(line?.title ?? "none"))")
+        // The next pause asks it, as the session's settings have it.
+        (settings.provider, settings.anthropic.baseURL, settings.anthropic.model) = (.anthropic, "https://autocomplete-selftest.invalid", "claude-selftest")
+        controller.services.converter = AutocompleteSelfTestEndpoint.converter(settings)
+        controller.activateServer(harness)
+        let sent = AutocompleteSelfTestEndpoint.sent.count
         harness.text = "Let me kno"
         harnessType("w", controller, harness)
-        check(ghost(" when you are free.") && harness.text == "Let me know" && AutocompleteConsentPanel.shown === panel,
-              "typing goes on while the question is up: the on-device model's suggestion (\(GhostOverlay.shared.text ?? "none"))")
+        check(ghost(" when you are free.") && AutocompleteSelfTestEndpoint.sent.count == sent + 1,
+              "the next pause asks the Claude API (the local endpoint): its suggestion (\(GhostOverlay.shared.text ?? "none"))")
         harnessKey(controller, harness, "\u{1B}", code: VirtualKey.escape)
-        panel?.useButton.performClick(nil)
-        check(AutocompleteConsentPanel.shown == nil && panel?.isVisible == false
-              && file()?.autocompleteCloud == Autocomplete.Consent(allowed: true, destination: destination),
-              "“Use Claude API”: the yes, for that address (\(String(describing: file()?.autocompleteCloud)))")
-        // The input menu's "Autocomplete with …": taken back at once; given again, asked first.
-        controller.toggleAutocompleteCloud(nil)
-        check(file().flatMap(Autocomplete.cloudAnswer) == false && AutocompleteConsentPanel.shown == nil, "taken back without asking")
-        controller.toggleAutocompleteCloud(nil)
-        check(AutocompleteConsentPanel.shown != nil, "given again: asked first")
-        AutocompleteConsentPanel.shown?.cancelButton.performClick(nil)
-        check(AutocompleteConsentPanel.shown == nil && file().flatMap(Autocomplete.cloudAnswer) == false, "Cancel: nothing changes")
-        controller.toggleAutocompleteCloud(nil)
-        AutocompleteConsentPanel.shown?.close()
-        check(AutocompleteConsentPanel.shown == nil && file().flatMap(Autocomplete.cloudAnswer) == false, "closed: nothing changes")
-        // Another provider picked while the question is up: the answer isn't taken for it.
-        controller.toggleAutocompleteCloud(nil)
-        if var changed = file() {
-            changed.provider = .gemini
-            try? changed.write()
-        }
-        AutocompleteConsentPanel.shown?.useButton.performClick(nil)
-        check(file()?.autocompleteCloud == Autocomplete.Consent(allowed: false, destination: destination) && file()?.provider == .gemini,
-              "the provider changed while it was up: the yes isn't taken for the new one")
         controller.toggleAutocomplete(nil)
     }
 

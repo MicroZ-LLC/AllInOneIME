@@ -173,29 +173,20 @@ final class GhostView: NSView {
 // MARK: - The switch
 
 /// Autocomplete's switch (`Config.autocomplete`), for the input menu, the menu bar panel and the self-test: written to the
-/// config file and counted (`Autocomplete.Metrics.switched`). Turned on with a cloud provider picked that the user wasn't
-/// asked about (or another one than they were: `Autocomplete.asksForCloud`), it is on at once with the on-device model,
-/// and asks whether it may send text there (`Config.autocompleteCloud`) in a panel that blocks nothing
-/// (`AutocompleteConsentPanel`): typing goes on, in every app, while it's up.
+/// config file and counted (`Autocomplete.Metrics.switched`). Nothing asks first: it asks the AI provider picked in
+/// Settings, or the on-device model (`Autocomplete.route`), and the switch says which and where the text goes
+/// (`modelName`, `destination`).
 @MainActor
 enum AutocompleteSwitch {
     /// What autocomplete learns and counts, for every field: this input method's own defaults (the self-test has its own,
     /// in memory).
     static var store = AutocompleteStore(defaults: UserDefaultsStore())
-    /// Asks whether autocomplete may send the text before the caret to `config`'s cloud provider, and hands the answer to
-    /// `answered` once it's given: true yes, false only the on-device model, nil none (the question closed). Returns at
-    /// once: the question is a panel of its own (`AutocompleteConsentPanel`), never a modal loop (the self-test answers
-    /// itself).
-    static var askCloud: (_ config: Config, _ onDevice: Bool, _ answered: @escaping @MainActor (Bool?) -> Void) -> Void = {
-        AutocompleteConsentPanel.ask($0, onDevice: $1, answered: $2)
-    }
 
     /// Whether it's on for every app now.
     static var isOn: Bool { LiveConfig.current.autocomplete }
 
-    /// Turns it on or off for every app; on, with a cloud provider the user wasn't asked about, asks too (`ask`), the
-    /// on-device model meanwhile. Says so in `field` (the one being typed in). False: nothing changed (the config file
-    /// can't be written).
+    /// Turns it on or off for every app, and says so in `field` (the one being typed in). False: nothing changed (the
+    /// config file can't be written).
     @discardableResult
     static func set(_ on: Bool, notify field: AllInOneIMEInputController?) -> Bool {
         do {
@@ -208,7 +199,6 @@ enum AutocompleteSwitch {
             log.notice("autocomplete \(on ? "on" : "off", privacy: .public) (\(String(describing: Autocomplete.route(config)), privacy: .public))")
             field?.applySettings()
             field?.showNotice(on ? onNotice(config) : tr("续写 已关闭", "Autocomplete off"), client: nil, long: on && !modelReady(config))
-            if on, Autocomplete.asksForCloud(config) { ask(config) }
             return true
         } catch {
             log.error("could not turn autocomplete \(on ? "on" : "off", privacy: .public): \(String(describing: error), privacy: .public)")
@@ -216,191 +206,39 @@ enum AutocompleteSwitch {
         }
     }
 
-    /// The yes to the cloud provider given or taken back (the input menu's "Autocomplete with …"), for where its requests
-    /// go now (`Autocomplete.destination`): given, once the question is answered (`ask`); taken back, at once.
-    static func setCloud(_ yes: Bool) {
-        do {
-            let config = try Config.load()
-            guard !yes else { return ask(config) }
-            try write(false, for: config)
-        } catch {
-            log.error("could not change autocomplete's model: \(String(describing: error), privacy: .public)")
-        }
-    }
-
-    /// Asks whether autocomplete may send text where `config`'s requests go (`askCloud`), and writes the answer, if one is
-    /// given, for there: unless the settings have another destination by then (asked again, then).
-    static func ask(_ config: Config) {
-        askCloud(config, AppleModel.system.availability == .available) { yes in
-            guard let yes else { return log.notice("autocomplete's cloud question closed without an answer") }
-            do {
-                try write(yes, for: config)
-            } catch {
-                log.error("could not change autocomplete's model: \(String(describing: error), privacy: .public)")
-            }
-        }
-    }
-
-    /// `yes` written as the answer about `asked`'s destination, if the config file's is still that one.
-    private static func write(_ yes: Bool, for asked: Config) throws {
-        var config = try Config.load()
-        guard let destination = Autocomplete.destination(config), destination == Autocomplete.destination(asked) else {
-            return log.notice("autocomplete's cloud answer dropped: the provider changed meanwhile")
-        }
-        Autocomplete.answer(yes, in: &config)
-        try config.write()
-        NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
-        log.notice("autocomplete with the cloud provider: \(yes ? "yes" : "no", privacy: .public)")
-        AllInOneIMEInputController.activeController?.applySettings()
-    }
-
-    /// The model it uses with `config` (`Autocomplete.route`), for the input menu and the menu bar panel: Apple
-    /// Intelligence on this Mac (and that it isn't available, where it isn't), or the cloud provider agreed to.
+    /// The model it uses with `config` (`Autocomplete.Words.model`), for the input menu and the menu bar panel: the
+    /// provider and its model, or Apple Intelligence on this Mac (and that it isn't available, where it isn't).
     static func modelName(_ config: Config) -> String {
-        switch Autocomplete.route(config) {
-        case let .cloud(provider):
-            return provider.displayName
-        case .onDevice:
-            let name = tr("本机 Apple Intelligence", "Apple Intelligence on this Mac")
-            return AppleModel.system.availability == .available ? name : name + tr("，不可用", ", not available")
-        }
+        Autocomplete.Words(language: UIText.language).model(config, onDeviceAvailable: AppleModel.system.availability == .available)
     }
 
-    /// Whether the model it would ask can answer: a cloud provider agreed to, or the on-device model available.
+    /// Where the text goes with `config` (`Autocomplete.Words.destination`): to the provider, what each pause sends; with
+    /// AllInOneIME Cloud picked, that it uses Apple Intelligence. Nil with Apple Intelligence picked.
+    static func destination(_ config: Config) -> String? {
+        Autocomplete.Words(language: UIText.language).destination(config)
+    }
+
+    /// Whether the model it would ask can answer: a cloud provider (whether it does is seen at the first pause), or the
+    /// on-device model available.
     static func modelReady(_ config: Config) -> Bool {
         Autocomplete.route(config) != .onDevice || AppleModel.system.availability == .available
     }
 
-    /// 「续写 已开启：停一下，灰字出现后按 Tab」, with the model (and why it isn't AllInOneIME Cloud, with that picked); or
-    /// why nothing will show.
+    /// 「续写 已开启：停一下，灰字出现后按 Tab」, with the model (and, with AllInOneIME Cloud picked, what is faster); or why
+    /// nothing will show.
     static func onNotice(_ config: Config) -> String {
-        let model: String
-        switch Autocomplete.route(config) {
-        case let .cloud(provider): model = provider.displayName
-        case .onDevice:
+        if Autocomplete.route(config) == .onDevice {
             let availability = AppleModel.system.availability
             guard availability == .available else {
                 return tr("续写 已开启，但本机的 Apple Intelligence 不可用，不会出灰字：", "Autocomplete on, but Apple Intelligence on this Mac isn't available, so nothing shows: ")
                     + UIText.describe(AppleModelError.unavailable(availability))
             }
-            model = tr("本机 Apple Intelligence", "Apple Intelligence on this Mac")
-            // Never AllInOneIME Cloud (`Autocomplete.offersCloud`): why, with it picked.
-            if config.provider == .hosted {
-                return UIText.triggered(tr("续写 已开启（本机 Apple Intelligence；AllInOneIME 云每天的免费次数留给 @ 命令）：停一下，灰字出现后按 Tab 接受",
-                                           "Autocomplete on (Apple Intelligence on this Mac; AllInOneIME Cloud's free requests a day are kept for @ commands): pause, and Tab takes the gray text"))
+            if config.provider == .hosted, let destination = destination(config) {
+                return tr("续写 已开启：", "Autocomplete on: ") + destination
             }
         }
+        let model = modelName(config)
         return tr("续写 已开启（\(model)）：停一下，灰字出现后按 Tab 接受", "Autocomplete on (\(model)): pause, and Tab takes the gray text")
-    }
-}
-
-// MARK: - The question about the cloud
-
-/// Whether autocomplete may send the text before the caret to the cloud provider picked: a small panel of its own, never a
-/// modal loop. It takes no focus (the field being typed in keeps it) and the input method goes on taking every key, in
-/// every app, while it's up; a click on its buttons answers it ("Use …", "On This Mac Only"), Cancel or its close button
-/// answers nothing. One at a time: a new question takes the place of the one up (which answers nothing).
-@MainActor
-final class AutocompleteConsentPanel: NSPanel {
-    /// The question up, if any.
-    private(set) static var shown: AutocompleteConsentPanel?
-    /// Invisible and click-through in the self-test, as the candidate panel there (someone may be using the Mac); its
-    /// buttons are pressed in code there.
-    static var invisible = false
-
-    let useButton: NSButton
-    let onDeviceButton: NSButton
-    let cancelButton: NSButton
-    let message: String
-    private var answered: (@MainActor (Bool?) -> Void)?
-
-    /// Asks about `config`'s cloud provider (and where its requests go); `onDevice`: whether the on-device model can run.
-    static func ask(_ config: Config, onDevice: Bool, answered: @escaping @MainActor (Bool?) -> Void) {
-        shown?.answer(nil)
-        let panel = AutocompleteConsentPanel(config, onDevice: onDevice, answered: answered)
-        shown = panel
-        panel.present()
-    }
-
-    private init(_ config: Config, onDevice: Bool, answered: @escaping @MainActor (Bool?) -> Void) {
-        let name = config.provider.displayName
-        // Where, for a service at an address of its own (an OpenAI-compatible one, a proxy): its host.
-        let host = config.provider == .bedrock ? nil : HTTPProviders.host(of: config.settings(for: config.provider))
-        let place = host.map { "\(name) (\($0))" } ?? name
-        let otherwise = onDevice ? tr("不用的话，只用这台 Mac 上的 Apple Intelligence。", "Otherwise it uses only Apple Intelligence on this Mac.")
-            : tr("不用的话只用这台 Mac 上的 Apple Intelligence，但它现在不可用，不会出灰字。",
-                 "Otherwise it uses only Apple Intelligence on this Mac, which isn't available now: no suggestions.")
-        message = tr("每次停顿会把光标前最多 1,500 字（和光标后最多 200 字）发给 \(place)，照常隐藏敏感信息。",
-                     "Each pause sends up to 1,500 characters before the caret (and up to 200 after it) to \(place), with sensitive information hidden as usual. ")
-            + otherwise
-        useButton = NSButton(title: tr("用 \(name)", "Use \(name)"), target: nil, action: nil)
-        onDeviceButton = NSButton(title: tr("只用本机", "On This Mac Only"), target: nil, action: nil)
-        cancelButton = NSButton(title: tr("取消", "Cancel"), target: nil, action: nil)
-        self.answered = answered
-        super.init(contentRect: NSRect(x: 0, y: 0, width: 420, height: 160), styleMask: [.titled, .closable, .nonactivatingPanel],
-                   backing: .buffered, defer: true)
-        title = tr("续写用 \(name) 吗？", "Use \(name) for Autocomplete?")
-        isFloatingPanel = true
-        becomesKeyOnlyIfNeeded = true
-        hidesOnDeactivate = false
-        isReleasedWhenClosed = false
-        level = .floating
-        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        let heading = NSTextField(labelWithString: title)
-        heading.font = .boldSystemFont(ofSize: NSFont.systemFontSize)
-        let text = NSTextField(wrappingLabelWithString: message)
-        text.preferredMaxLayoutWidth = 380
-        for (button, action) in [(useButton, #selector(use)), (onDeviceButton, #selector(onDeviceOnly)), (cancelButton, #selector(cancel))] {
-            button.target = self
-            button.action = action
-            button.bezelStyle = .push
-        }
-        useButton.keyEquivalent = "\r"
-        let buttons = NSStackView(views: [cancelButton, onDeviceButton, useButton])
-        buttons.spacing = 8
-        let stack = NSStackView(views: [heading, text, buttons])
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 12
-        stack.edgeInsets = NSEdgeInsets(top: 16, left: 20, bottom: 16, right: 20)
-        stack.setHuggingPriority(.required, for: .vertical)
-        buttons.setHuggingPriority(.required, for: .horizontal)
-        contentView = stack
-        buttons.trailingAnchor.constraint(equalTo: stack.trailingAnchor, constant: -20).isActive = true
-    }
-
-    override var canBecomeKey: Bool { true }
-    override var canBecomeMain: Bool { false }
-
-    /// Up near the top of the screen with the pointer, over the app, without taking the focus from it.
-    private func present() {
-        setContentSize(contentView?.fittingSize ?? NSSize(width: 420, height: 160))
-        let screen = NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) } ?? NSScreen.main
-        if let visible = screen?.visibleFrame {
-            setFrameOrigin(NSPoint(x: visible.midX - frame.width / 2, y: visible.maxY - frame.height - visible.height / 6))
-        }
-        alphaValue = Self.invisible ? 0 : 1
-        ignoresMouseEvents = Self.invisible
-        orderFrontRegardless()
-    }
-
-    @objc private func use() { answer(true) }
-    @objc private func onDeviceOnly() { answer(false) }
-    @objc private func cancel() { answer(nil) }
-
-    /// The answer (nil: none), once; the panel goes.
-    func answer(_ value: Bool?) {
-        let done = answered
-        answered = nil
-        if Self.shown === self { Self.shown = nil }
-        orderOut(nil)
-        done?(value)
-    }
-
-    /// Its close button: no answer.
-    override func close() {
-        answer(nil)
-        super.close()
     }
 }
 

@@ -61,9 +61,9 @@ public enum ICloudSync {
 
     /// Never synced, whatever the switches: each Mac decides for itself. The keys and tokens aren't in the config at all
     /// (they're in the keychain); extension sources and their clones run code; extension folders and plugins are paths on
-    /// this Mac, and so is where `@note` saves (`notes`: a folder's path); the sync setting itself is per Mac, and so are
-    /// autocomplete's switch and the yes to it sending text to a cloud provider (`autocomplete`, `autocompleteCloud`:
-    /// turning it on asks that on this Mac), and so is its choice for an app (`thisMacsOwnAppFields`); `typeOutSpeed` is only read (from older files); `outputLanguage` and
+    /// this Mac, and so is where `@note` saves (`notes`: a folder's path); the sync setting itself is per Mac, and so is
+    /// autocomplete's switch (`autocomplete`: it sends text to the provider picked once it's turned on, on this Mac), and so
+    /// is its choice for an app (`thisMacsOwnAppFields`); `typeOutSpeed` is only read (from older files); `outputLanguage` and
     /// `defaultInput` come with their lists. `@agent`'s agent and its program are what this Mac has installed, and
     /// whether it takes Chrome's page is this Mac's choice (as they always were: never synced). Suggestions' switch, the
     /// completion sources enabled and the plugins' preferences are this Mac's plugins' (`suggestions`,
@@ -73,7 +73,7 @@ public enum ICloudSync {
         "extensionSources", "extensionFolders", "hiddenExtensionFolders", "findRaycastScripts", "disabledExtensions",
         "extensionPreferences", "jargonFile", "iCloudSync", "typeOutSpeed", "outputLanguage", "defaultInput",
         "typeOutNoTyposApps", "recentApps", "notes", "agent", "agentCommand", "agentPageContext", "autocomplete",
-        "autocompleteCloud", "suggestions", "completionSources", "pluginPreferences",
+        "suggestions", "completionSources", "pluginPreferences",
     ]
 
     /// The category `key` (a key of `settings.json`) is synced under; nil for a key this version doesn't sync (one a newer

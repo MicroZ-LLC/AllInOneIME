@@ -24,9 +24,22 @@ public struct ConverseRequest: Encodable, Equatable, Sendable {
         public var temperature: Double?
     }
 
+    /// What the model is asked beyond the Converse API's own fields (Bedrock's `additionalModelRequestFields`; the Claude
+    /// API's request has them at its top level): only autocomplete's request has some, to ask a Claude model not to think
+    /// (`Autocomplete.Thinking`). Nil: none.
+    public struct ModelFields: Encodable, Equatable, Sendable {
+        public struct Thinking: Encodable, Equatable, Sendable {
+            /// "disabled", or "between_tools" (Claude Sonnet 5.5's no thinking).
+            public var type: String
+        }
+
+        public var thinking: Thinking?
+    }
+
     public var system: [Text]
     public var messages: [Message]
     public var inferenceConfig: InferenceConfig
+    public var additionalModelRequestFields: ModelFields?
 }
 
 public enum BedrockStreamEvent: Equatable, Sendable {

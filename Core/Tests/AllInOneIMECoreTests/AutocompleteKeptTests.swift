@@ -52,6 +52,7 @@ struct AutocompleteKeptTests {
     func field(_ answer: @escaping @Sendable (String) -> String, app: String = "com.example.editor",
                store: AutocompleteStore = AutocompleteStore()) -> (host: FakeHost, model: ContinuingModel, clock: Uptime) {
         var config = Config.default
+        config.provider = .apple  // the on-device model: the stand-in
         config.uiLanguage = "en"
         config.setOrder([Language.english])
         config.setOrder([OutputLanguage.english, .chinese])

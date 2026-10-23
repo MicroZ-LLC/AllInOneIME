@@ -46,6 +46,8 @@ public enum HTTPProviders {
         let base = (settings.baseURL ?? "").trimmingCharacters(in: CharacterSet(charactersIn: "/ "))
         let system = body.system.map(\.text).joined(separator: "\n\n")
         let effort = settings.effortToSend
+        // Thinking asked away (autocomplete's request, `ConverseRequest.additionalModelRequestFields`): no room for it.
+        let thinking = provider == .anthropic ? body.additionalModelRequestFields?.thinking : nil
         var headers = ["Content-Type": "application/json", "Accept": "text/event-stream"]
         let path: String
         var json: [String: Any]
@@ -56,12 +58,13 @@ public enum HTTPProviders {
             headers["anthropic-version"] = "2023-06-01"
             json = [
                 "model": model,
-                "max_tokens": maxTokens + (effort == nil ? 0 : thinkingHeadroom),
+                "max_tokens": maxTokens + (effort == nil || thinking != nil ? 0 : thinkingHeadroom),
                 "stream": true,
                 "system": system,
                 "messages": body.messages.map { ["role": $0.role, "content": $0.content.map(\.text).joined()] },
             ]
             if let effort { json["output_config"] = ["effort": effort] }
+            if let thinking { json["thinking"] = ["type": thinking.type] }
             if fallbackModels.contains(model) {
                 headers["anthropic-beta"] = fallbackBeta
                 json["fallbacks"] = "default"

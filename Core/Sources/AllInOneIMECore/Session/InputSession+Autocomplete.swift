@@ -38,6 +38,8 @@ struct AutocompleteField {
     /// When Tab last put a suggestion in, and how many characters of it went in (typed along and by Tab): ⌘Z as the next key
     /// takes it back (`Autocomplete.undoWindow`).
     var taken: (at: TimeInterval, characters: Int)?
+    /// The provider couldn't answer, and that was said: once while the field has the focus.
+    var failureSaid = false
 }
 
 /// What autocomplete says, in the interface language.
@@ -57,11 +59,10 @@ struct AutocompleteMessages {
         words.tr("续写需要本机的 Apple Intelligence：\(reason)", "Autocomplete needs Apple Intelligence on this Mac: \(reason)")
     }
 
-    /// The user agreed to send text to a cloud provider, and `provider` (its name), or its host, AWS profile or region, is
-    /// another now: the on-device model until they agree again.
-    func askAgain(_ provider: String) -> String {
-        words.tr("AI 服务改了，续写先用本机模型；要把文字发给 \(provider)，在输入法菜单里勾「续写用 \(provider)」",
-                 "Your AI provider changed: Autocomplete uses the model on this Mac until you agree to send text to \(provider) (“Autocomplete with \(provider)” in the input menu)")
+    /// The provider picked (`provider`, its name) couldn't answer (`reason`: no key, the network, a refusal): nothing is
+    /// shown, and no other model is asked.
+    func noAnswer(from provider: String, _ reason: String) -> String {
+        words.tr("续写没拿到 \(provider) 的回应：\(reason)", "Autocomplete got no answer from \(provider): \(reason)")
     }
 }
 
@@ -228,19 +229,11 @@ extension InputSession {
         emit(.startTimer(.autocomplete(autocomplete.pause), after: services.autocomplete.pause(base, in: app)))
     }
 
-    /// The pause is over: what the field says is read (`SessionOutput.readField`). Where the user agreed to a cloud
-    /// provider and its requests would go elsewhere now (`Autocomplete.asksForCloud`: changed in Settings, by the
-    /// Assistant or by iCloud sync), it says so once for each: the on-device model is asked meanwhile. Where that is the
-    /// model to ask and it can't run, nothing would answer: the field isn't read, and that is said once.
+    /// The pause is over: what the field says is read (`SessionOutput.readField`). Where the model to ask is the
+    /// on-device one and it can't run, nothing would answer: the field isn't read, and that is said once.
     func autocompletePaused(_ token: Int) {
         guard token == autocomplete.pause, autocomplete.suggestion == nil, autocompleteMayRun() else { return }
-        let config = services.loadSettings()
-        if config.autocompleteCloud?.allowed == true, Autocomplete.asksForCloud(config), let destination = Autocomplete.destination(config),
-           services.autocomplete.once("ask again: " + destination) {
-            log.notice("autocomplete: the cloud provider agreed to changed; the on-device model until asked again")
-            say(AutocompleteMessages(language: UIText.language).askAgain(config.provider.displayName), long: true)
-        }
-        if Autocomplete.route(config) == .onDevice {
+        if Autocomplete.route(services.loadSettings()) == .onDevice {
             let availability = services.converter.onDeviceAvailability
             guard availability == .available else {
                 if services.autocomplete.once("unavailable") {
@@ -288,8 +281,9 @@ extension InputSession {
     }
 
     /// Request `request` answered: its suggestion kept, and shown if it's still wanted and not too late
-    /// (`Autocomplete.Route.late`); neither if it is one waved away for this text. A failure shows nothing; the
-    /// on-device model unavailable is said once.
+    /// (`Autocomplete.Route.late`); neither if it is one waved away for this text. A failure shows nothing, and nothing
+    /// else is asked: the on-device model unavailable is said once, the provider picked unable to answer once while the
+    /// field has the focus.
     func autocompleteAnswered(_ result: Result<Autocomplete.Answer, any Error>, request: Int) {
         guard autocomplete.asked == request, request == autocomplete.pause else { return }
         autocomplete.asked = nil
@@ -297,8 +291,12 @@ extension InputSession {
         case let .failure(error):
             services.autocomplete.count { $0.failed += 1 }
             log.notice("autocomplete \(request): no suggestion (\(errorKind(error)))")
-            if case AppleModelError.unavailable = error, services.autocomplete.once("unavailable") {
-                say(AutocompleteMessages(language: UIText.language).unavailable(UIText.describe(error)), long: true)
+            let messages = AutocompleteMessages(language: UIText.language)
+            if case AppleModelError.unavailable = error {
+                if services.autocomplete.once("unavailable") { say(messages.unavailable(UIText.describe(error)), long: true) }
+            } else if case let .cloud(provider) = Autocomplete.route(services.loadSettings()), !autocomplete.failureSaid {
+                autocomplete.failureSaid = true
+                say(messages.noAnswer(from: provider.displayName, UIText.describe(error)), long: true)
             }
         case let .success(answer):
             if answer.inputTokens != nil || answer.outputTokens != nil {

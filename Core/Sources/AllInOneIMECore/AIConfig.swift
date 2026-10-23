@@ -82,8 +82,8 @@ public enum AIConfig {
         case forbidden(String, secret: Bool)
         /// Sync through iCloud on or off (`iCloudSync.enabled`); what syncs is only set in Settings.
         case iCloudSync
-        /// Autocomplete (「续写」) on or off (`Config.autocomplete`); whether it may send text to a cloud provider is only
-        /// asked as it's turned on in the input method (`Config.autocompleteCloud`), never here.
+        /// Autocomplete (「续写」) on or off (`Config.autocomplete`): it asks the provider picked (`Autocomplete.route`),
+        /// which the row says (`checkAutocomplete`).
         case autocomplete
 
         public var path: String {

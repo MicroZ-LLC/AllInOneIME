@@ -848,53 +848,6 @@
         }
       }
     },
-    ", not available" : {
-      "comment" : "，不可用 — Sources/AllInOneIME/AutocompleteOverlay.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : ", nicht verfügbar"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : ", no disponible"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : ", non disponible"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "、利用不可"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : ", 사용할 수 없음"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : ", indisponível"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "，無法使用"
-          }
-        }
-      }
-    },
     ", required" : {
       "comment" : "，必填 — Sources/AllInOneIME/ExtensionSourcesSettings.swift",
       "localizations" : {
@@ -5132,53 +5085,6 @@
         }
       }
     },
-    "Apple Intelligence on this Mac" : {
-      "comment" : "本机 Apple Intelligence — Sources/AllInOneIME/AutocompleteOverlay.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Apple Intelligence auf diesem Mac"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Apple Intelligence en este Mac"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Apple Intelligence sur ce Mac"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "このMacのApple Intelligence"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "이 Mac의 Apple Intelligence"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Apple Intelligence neste Mac"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "本機 Apple Intelligence"
-          }
-        }
-      }
-    },
     "Applied in a second or two: the dictionaries are deployed again." : {
       "comment" : "改完词库会重新部署，一两秒生效。 — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
@@ -5604,6 +5510,7 @@
     },
     "Autocomplete on (Apple Intelligence on this Mac; AllInOneIME Cloud's free requests a day are kept for @ commands): pause, and Tab takes the gray text" : {
       "comment" : "续写 已开启（本机 Apple Intelligence；AllInOneIME 云每天的免费次数留给 @ 命令）：停一下，灰字出现后按 Tab 接受 — Sources/AllInOneIME/AutocompleteOverlay.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -5651,6 +5558,7 @@
     },
     "Autocomplete on this Mac only: AllInOneIME Cloud is kept for @ commands" : {
       "comment" : "续写只用本机：AllInOneIME 云留给 @ 命令 — Sources/AllInOneIME/InputMenu.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -5743,8 +5651,56 @@
         }
       }
     },
+    "Autocomplete on: " : {
+      "comment" : "续写 已开启： — Sources/AllInOneIME/AutocompleteOverlay.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autovervollständigen an: "
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autocompletar activado: "
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Complétion automatique activée : "
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オートコンプリート：オン："
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자동 완성 켜짐: "
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autocompletar ativado: "
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "續寫已開啟："
+          }
+        }
+      }
+    },
     "Autocomplete with %@" : {
       "comment" : "续写用 %@ — Sources/AllInOneIME/InputMenu.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -10838,6 +10794,7 @@
     },
     "Each pause sends up to 1,500 characters before the caret (and up to 200 after it) to %@, with sensitive information hidden as usual. " : {
       "comment" : "每次停顿会把光标前最多 1,500 字（和光标后最多 200 字）发给 %@，照常隐藏敏感信息。 — Sources/AllInOneIME/AutocompleteOverlay.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -17206,6 +17163,7 @@
     },
     "On This Mac Only" : {
       "comment" : "只用本机 — Sources/AllInOneIME/AutocompleteOverlay.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -18334,6 +18292,7 @@
     },
     "Otherwise it uses only Apple Intelligence on this Mac, which isn't available now: no suggestions." : {
       "comment" : "不用的话只用这台 Mac 上的 Apple Intelligence，但它现在不可用，不会出灰字。 — Sources/AllInOneIME/AutocompleteOverlay.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -18381,6 +18340,7 @@
     },
     "Otherwise it uses only Apple Intelligence on this Mac." : {
       "comment" : "不用的话，只用这台 Mac 上的 Apple Intelligence。 — Sources/AllInOneIME/AutocompleteOverlay.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -28912,6 +28872,7 @@
     },
     "Use %@" : {
       "comment" : "用 %@ — Sources/AllInOneIME/AutocompleteOverlay.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -28959,6 +28920,7 @@
     },
     "Use %@ for Autocomplete?" : {
       "comment" : "续写用 %@ 吗？ — Sources/AllInOneIME/AutocompleteOverlay.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
