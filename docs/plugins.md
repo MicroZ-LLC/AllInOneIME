@@ -167,8 +167,7 @@ It declares its sources in `completions` (optional; `api` 1 stays valid) and its
       "prefix": "#", "minChars": 1, "compare": "prefix",
       "list": true, "refresh": "15m",
       "query": true, "queryMinChars": 2,
-      "insert": { "default": ["{arg} {title}", "{arg}"], "chat": ["{arg} {title} {url}", "{arg} {url}", "{arg}"],
-                  "terminal": "{match}" } } ] }
+      "insert": { "default": ["{arg} {title} {url}", "{arg} {title}", "{arg}"], "terminal": "{match}" } } ] }
 ```
 
 | Key | Default | Meaning |
@@ -204,8 +203,8 @@ plugin.json still lists them (the hosts approved come on standard input too):
   and `variables` (texts of the plugin's choosing) fill the templates: `{match}`, `{arg}`, and any of the item's
   variables by name (`{url}`, `{title}`…). The order is the rank; the rows the user picked before come first.
 - What a row puts in is the plugin's to decide, per app class, in `insert`: the number alone (`{arg}`), with its title
-  (`{arg} {title}`), or with a link too (`{arg} {title} {url}`). The example inserts `#1234 Fix login` in documents and
-  mail, `#1234 Fix login https://github.com/…/issues/1234` in chat apps, and `#1234` in terminals; a template whose
+  (`{arg} {title}`), or with a link too (`{arg} {title} {url}`). The example inserts `#1234 Fix login https://github.com/…/issues/1234`
+  everywhere but terminals, where it inserts `#1234`; a template whose
   variables an item lacks is skipped for the next in its list.
 - `ctx` is `{ source, preferences, language }` (`"zh"` or `"en"`): nothing about the app, the field or the text around
   the caret.
