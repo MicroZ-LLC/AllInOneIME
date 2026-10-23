@@ -329,8 +329,9 @@ public struct SuggestionsSettings: Equatable, Sendable {
     /// source's last load loads it again now, paused or not (spec 3, 6.17).
     public var refreshes: [CompletionSourceRefresh]
     /// The custom commands of type `suggestions` (`Config.customCommands`'), each a source while it exists, with no
-    /// approval (decision 24: the user's own); one removed: its cached list is deleted. A command of another type, or
-    /// one refused (`CustomCommand.suggestionSource`), is none.
+    /// approval (decision 24: the user's own), but for one from another Mac not confirmed here (decision 26: it isn't
+    /// among them until it is, `Config.awaitsConfirmation`); one removed: its cached list is deleted. A command of
+    /// another type, or one refused (`CustomCommand.suggestionSource`), is none.
     public var commands: [CustomCommand]
 
     public init(master: Bool? = nil, apps: [String: Bool] = [:], enabled: [CompletionSourceApproval] = [],

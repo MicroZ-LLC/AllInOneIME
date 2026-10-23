@@ -17664,6 +17664,53 @@
         }
       }
     },
+    "From another Mac: runs %@" : {
+      "comment" : "来自另一台 Mac：运行 %@ — Sources/AllInOneIMECore/Suggestions/CommandsFromOtherMacs.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Von einem anderen Mac: führt %@ aus"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De otro Mac: ejecuta %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "D’un autre Mac : exécute %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "別の Mac から：%@ を実行します"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다른 Mac에서 옴: %@ 실행"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De outro Mac: executa %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "來自另一台 Mac：執行 %@"
+          }
+        }
+      }
+    },
     "Fuzzy pinyin" : {
       "comment" : "模糊音 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
@@ -19823,6 +19870,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "它會在「終端機」中打開，並以你輸入的文字作為第一則訊息。"
+          }
+        }
+      }
+    },
+    "It runs nothing on this Mac until you allow it." : {
+      "comment" : "在这台 Mac 上允许之前，它什么都不运行。 — Sources/AllInOneIMECore/Suggestions/CommandsFromOtherMacs.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Er führt auf diesem Mac nichts aus, bis du ihn erlaubst."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No ejecuta nada en este Mac hasta que lo permitas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elle n’exécute rien sur ce Mac tant que vous ne l’autorisez pas."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この Mac で許可するまで、何も実行しません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Mac에서 허용하기 전까지 아무것도 실행하지 않습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ele não executa nada neste Mac até você permitir."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在這台 Mac 上允許之前，它什麼都不執行。"
           }
         }
       }

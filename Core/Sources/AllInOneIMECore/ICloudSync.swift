@@ -67,13 +67,15 @@ public enum ICloudSync {
     /// `defaultInput` come with their lists. `@agent`'s agent and its program are what this Mac has installed, and
     /// whether it takes Chrome's page is this Mac's choice (as they always were: never synced). Suggestions' switch, the
     /// completion sources enabled and the plugins' preferences are this Mac's plugins' (`suggestions`,
-    /// `completionSources`, `pluginPreferences`), and so is Suggestions' choice for an app (`thisMacsOwnAppFields`). Apps
-    /// without typos and the recent apps aren't config keys either: named so that no later version adds them.
+    /// `completionSources`, `pluginPreferences`), and so is Suggestions' choice for an app (`thisMacsOwnAppFields`); and so
+    /// are the custom commands from another Mac not confirmed here (`unconfirmedCommands`: what this Mac allows to run is
+    /// its own, decision 26). Apps without typos and the recent apps aren't config keys either: named so that no later
+    /// version adds them.
     public static let neverSynced: Set<String> = [
         "extensionSources", "extensionFolders", "hiddenExtensionFolders", "findRaycastScripts", "disabledExtensions",
         "extensionPreferences", "jargonFile", "iCloudSync", "typeOutSpeed", "outputLanguage", "defaultInput",
         "typeOutNoTyposApps", "recentApps", "notes", "agent", "agentCommand", "agentPageContext", "autocomplete",
-        "suggestions", "completionSources", "pluginPreferences",
+        "suggestions", "completionSources", "pluginPreferences", "unconfirmedCommands",
     ]
 
     /// The category `key` (a key of `settings.json`) is synced under; nil for a key this version doesn't sync (one a newer
@@ -1054,6 +1056,8 @@ public enum ICloudSync {
     /// `config` with `incoming` values (nil: deleted) put in, each checked first (`problem`): those that pass, and the
     /// others with why. Each goes in as the config file holds it and is read back as the config reads a file, so the
     /// result is a config this version would read (its own normalizing included: the language in use leads its list).
+    /// Custom commands that come in mark each `suggestions` command whose program this Mac doesn't run yet as from another
+    /// Mac (`Config.unconfirmedCommands`, decision 26): it runs nothing here until confirmed.
     public static func applying(_ incoming: [String: AIConfig.JSONValue?], to config: Config, environment env: Environment)
         -> (config: Config, applied: [String], rejected: [String: Problem]) {
         var current = config
@@ -1112,6 +1116,7 @@ public enum ICloudSync {
                let styles = next.appProfiles[app]?.rewriteStyles {
                 next.appProfiles[app]?.rewriteStyles = styles.filter { RewriteStyle.named($0) != nil }
             }
+            if key == commandsKey { next.unconfirmedCommands = next.unconfirmed(after: current) }
             current = next
             applied.append(key)
         }

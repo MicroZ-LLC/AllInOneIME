@@ -79,6 +79,10 @@ public struct ICloudSyncEngine: @unchecked Sendable {  // used from one queue at
         public var questionsSetAside: String?
         /// This Mac's custom commands that iCloud's of the same name replaced when they were merged (logged).
         public var replacedCommands: [String] = []
+        /// The custom `suggestions` commands that came from another Mac this run with a program this Mac doesn't run yet,
+        /// by name (`Config.unconfirmedCommands`, decision 26): the notice that says there's one to look at in Settings →
+        /// Custom Commands, once (one that stays unconfirmed isn't here again).
+        public var unconfirmedCommands: [String] = []
 
         public init(outcome: Outcome) { self.outcome = outcome }
     }
@@ -296,6 +300,10 @@ public struct ICloudSyncEngine: @unchecked Sendable {  // used from one queue at
             }
             report.applied = result.applied.filter { incoming[$0] != nil && written.contains(Self.topKey($0)) && !skipped.contains($0) }
             report.configKeys = written
+            if written.contains("unconfirmedCommands"), !skipped.contains(ICloudSync.commandsKey) {
+                let marked = Set(config.unconfirmedCommands)
+                report.unconfirmedCommands = result.config.unconfirmedCommands.filter { !marked.contains($0) }.map(\.name)
+            }
         }
 
         // The jargon list: a newer one (or a merge) once its file is here and is the one stamped.

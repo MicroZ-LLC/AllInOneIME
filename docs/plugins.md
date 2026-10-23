@@ -227,7 +227,9 @@ above, with the same limits and defaults; a prefix is required, and the list is 
 command's does, with no input for the list and, with `query`, what follows the prefix as one argument (in place of
 `{input}`, else last); `timeoutSeconds` is 20 at most, a query's 3 seconds. It may print the `{ items }` above, or lines
 `match⇥title⇥url` (a title is also `{title}`). It's the user's own: no approval and no `hosts` (it runs locally), on
-while it exists; rows, keys, picks, the cache, back-off and pause are a plugin source's. An entry that breaks the rules
+while it exists, but one that came from another Mac through iCloud runs nothing until the user allows it on this Mac
+once (Settings → Custom Commands shows the program it would run; its program changed there asks again); rows, keys,
+picks, the cache, back-off and pause are a plugin source's. An entry that breaks the rules
 isn't a source, and Settings → Custom Commands says why.
 
 ```json

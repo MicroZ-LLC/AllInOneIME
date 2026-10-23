@@ -143,6 +143,13 @@ final class SettingsModel: ObservableObject {
     /// The Delete dialog's Delete of a command config.json has that can't be read (`SettingsStore.deleteRefusedCommand`).
     func deleteRefusedCommand(_ refused: CustomCommand.Refused) { store.deleteRefusedCommand(refused) }
 
+    /// Allow of a suggestions command from another Mac, as the page showed it (`SettingsStore.allowCommand`): its program
+    /// runs on this Mac from now on, its list at once.
+    func allowCommand(_ command: CustomCommand) {
+        store.allowCommand(command)
+        commandSourceChanged(saved: command, was: command)
+    }
+
     /// Switches the window's language at once (a config value, `Config.uiLanguage`; nil: follow the system) and saves
     /// the choice.
     func setUILanguage(_ language: String?) {
@@ -1254,8 +1261,20 @@ struct SettingsView: View {
                               systemImage: "exclamationmark.triangle")
                             .font(.caption).foregroundStyle(.orange)
                     }
-                    // A suggestion source: how it is doing (its items, last update, last error), or why it isn't used.
-                    if command.type == .suggestions {
+                    // From another Mac, not allowed here yet (decision 26): the program it would run, Allow or Remove.
+                    if model.config.awaitsConfirmation(command) {
+                        HStack(alignment: .firstTextBaseline) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Label(UIText.fromAnotherMac(command), systemImage: "desktopcomputer").foregroundStyle(.orange)
+                                Text(UIText.runsNothingUntilAllowed()).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Button(tr("允许", "Allow")) { model.allowCommand(command) }
+                            Button(tr("移除", "Remove")) { commandToDelete = command }
+                        }
+                        .font(.caption).fixedSize(horizontal: false, vertical: true).padding(.leading, 36)
+                    } else if command.type == .suggestions {
+                        // A suggestion source: how it is doing (its items, last update, last error), or why it isn't used.
                         CommandSourceStatus(command: command, config: model.config).padding(.leading, 36)
                     }
                 }

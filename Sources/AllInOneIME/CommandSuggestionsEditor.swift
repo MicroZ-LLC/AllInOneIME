@@ -138,9 +138,10 @@ extension CustomCommand.InsertPreset {
     static let defaultInsert: AIConfig.JSONValue = .object(["default": .string("{arg}")])
 }
 
-/// How a custom suggestion source is doing, under it in the command editor and the command list: why it isn't used,
-/// that Suggestions are off, or its items, when it last updated and its last error; read again whenever suggestions
-/// report a change. With `refresh`, Refresh Now beside it.
+/// How a custom suggestion source is doing, under it in the command editor and the command list: that it came from
+/// another Mac and runs nothing until allowed, why it isn't used, that Suggestions are off, or its items, when it last
+/// updated and its last error; read again whenever suggestions report a change. With `refresh`, Refresh Now beside it
+/// (not for one awaiting confirmation: nothing of it runs).
 struct CommandSourceStatus: View {
     let command: CustomCommand
     let config: Config
@@ -156,7 +157,7 @@ struct CommandSourceStatus: View {
                     Text(state.text).foregroundStyle(.secondary)
                 }
                 Spacer()
-                if let refresh, command.isValid { Button(tr("立即刷新", "Refresh Now"), action: refresh) }
+                if let refresh, command.isValid, !config.awaitsConfirmation(command) { Button(tr("立即刷新", "Refresh Now"), action: refresh) }
             }
             .font(.caption).fixedSize(horizontal: false, vertical: true)
             .onAppear(perform: read)

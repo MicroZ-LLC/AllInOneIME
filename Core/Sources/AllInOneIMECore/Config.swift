@@ -141,6 +141,11 @@ public struct Config: Codable, Equatable, Sendable {
     /// are and written back after the others (before `unreadCustomCommands`), never run; Settings → Custom Commands shows
     /// each with its reason. Their names are taken (`unreadCustomCommandNames`).
     public var refusedCustomCommands: [CustomCommand.Refused] = []
+    /// The custom `suggestions` commands that came from another Mac through iCloud and aren't confirmed here, each by its
+    /// name and the program it came with (spec Suggestions v1, decision 26; CommandsFromOtherMacs.swift): none of them runs
+    /// until the user allows it in Settings → Custom Commands, or edits it here. Sync marks them as they come; a command
+    /// made on this Mac is never marked. This Mac's own, never synced. None by default.
+    public var unconfirmedCommands: [CustomCommand.Unconfirmed] = []
 
     /// The names of the entries kept without being read, `unreadCustomCommands`' and `refusedCustomCommands`': no command
     /// of this version's may have one (`CustomCommand.problem(among:)`).
@@ -368,7 +373,7 @@ public struct Config: Codable, Equatable, Sendable {
         case autocomplete
         case iCloudSync
         case notes
-        case suggestions, completionSources, pluginPreferences
+        case suggestions, completionSources, pluginPreferences, unconfirmedCommands
         case extensionSources
         case provider, anthropic, gemini, openai
     }
@@ -471,6 +476,8 @@ public struct Config: Codable, Equatable, Sendable {
         suggestions = (try? c.decodeIfPresent(Bool.self, forKey: .suggestions)).flatMap { $0 }
         completionSources = (try? c.decodeIfPresent([CompletionSourceApproval].self, forKey: .completionSources)).flatMap { $0 } ?? []
         pluginPreferences = (try? c.decodeIfPresent([String: [String: String]].self, forKey: .pluginPreferences)).flatMap { $0 } ?? [:]
+        // A value of the wrong type reads as none, not an error.
+        unconfirmedCommands = (try? c.decodeIfPresent([CustomCommand.Unconfirmed].self, forKey: .unconfirmedCommands)).flatMap { $0 } ?? []
         provider = try c.decodeIfPresent(Provider.self, forKey: .provider) ?? d.provider
         anthropic = try c.decodeIfPresent(ProviderSettings.self, forKey: .anthropic) ?? d.anthropic
         gemini = try c.decodeIfPresent(ProviderSettings.self, forKey: .gemini) ?? d.gemini
@@ -495,6 +502,8 @@ public struct Config: Codable, Equatable, Sendable {
             guard builtins.contains(name.lowercased()),
                   let new = Self.renameCandidates(for: name).first(where: { !taken.contains($0) }) else { continue }
             taken.insert(new)
+            // One from another Mac stays unconfirmed under its new name.
+            if let mark = unconfirmedCommands.firstIndex(where: { $0.marks(customCommands[index]) }) { unconfirmedCommands[mark].name = new }
             customCommands[index].name = new
             renamed.append((name, new))
         }
@@ -502,7 +511,8 @@ public struct Config: Codable, Equatable, Sendable {
     }
 
     /// `renamed` (what `freeBuiltinNames` did) written into the config file at `url`, and nothing else: in its
-    /// `customCommands`, the first command named `old` that isn't renamed yet takes `new` as its name. Its other fields,
+    /// `customCommands`, the first command named `old` that isn't renamed yet takes `new` as its name, and so does its mark
+    /// if it came from another Mac unconfirmed (`unconfirmedCommands`). Its other fields,
     /// the other commands (a later version's too) and every other key of the file stay as they were
     /// (`AIConfig.patchingFile`); writing the whole config would add the keys this version always writes, with their
     /// defaults. What was written: a rename whose command the file no longer has (changed meanwhile) isn't.
@@ -518,10 +528,19 @@ public struct Config: Codable, Equatable, Sendable {
                     return fields["name"] == .string(pair.old)
                 }
                 guard let index = found, case var .object(fields) = commands[index] else { continue }
+                let argv = fields["argv"]
                 fields["name"] = .string(pair.new)
                 commands[index] = .object(fields)
                 done.insert(index)
                 written.append(pair)
+                // Its mark, if it came from another Mac unconfirmed: the same command's.
+                guard case var .array(marks)? = file["unconfirmedCommands"], let mark = marks.firstIndex(where: { mark in
+                    guard case let .object(fields) = mark else { return false }
+                    return fields["name"] == .string(pair.old) && fields["argv"] == argv
+                }), case var .object(markFields) = marks[mark] else { continue }
+                markFields["name"] = .string(pair.new)
+                marks[mark] = .object(markFields)
+                file["unconfirmedCommands"] = .array(marks)
             }
             file["customCommands"] = .array(commands)
         }
@@ -640,6 +659,7 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encodeIfPresent(suggestions, forKey: .suggestions)
         if !completionSources.isEmpty { try c.encode(completionSources, forKey: .completionSources) }
         if !pluginPreferences.isEmpty { try c.encode(pluginPreferences, forKey: .pluginPreferences) }
+        if !unconfirmedCommands.isEmpty { try c.encode(unconfirmedCommands, forKey: .unconfirmedCommands) }
         try c.encode(provider, forKey: .provider)
         try c.encode(anthropic, forKey: .anthropic)
         try c.encode(gemini, forKey: .gemini)
