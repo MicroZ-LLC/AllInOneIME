@@ -195,14 +195,49 @@ public enum Autocomplete {
         return words(in: text) > maxWords || text.filter(\.isWide).count > maxWideCharacters
     }
 
-    /// Whether `line` starts a new word after `before` though the model wrote no space (a small model often doesn't): the
-    /// word `before` ends with is one on its own ("the" + "file"), and isn't the start of one `line` finishes ("wor" +
-    /// "ld"), by the English word list the core has (`RedactionWords`). Latin letters only.
+    /// Whether `line` starts a new word after `before` though the model wrote no space (a small model often doesn't), when
+    /// it starts with a Latin letter or a digit:
+    /// - after a word on its own ("the" + "file", "to" + "another", "yesterday's" + "meeting") that isn't the start of
+    ///   one `line` finishes ("wor" + "ld"), by the English words the core has (`isWord`);
+    /// - after , ; : ! ? …, and a full stop before a capital or a digit ("update." + "I will") or after an abbreviation
+    ///   ("e.g." + "grep"), not a number's ("3." + "5", "1," + "000", "10:" + "30");
+    /// - after a digit, before a word ("room 4" + "on the second floor"), not "4" + "th" nor "3" + "pm".
     static func needsSpace(_ line: String, before: String) -> Bool {
-        func letters<S: Sequence<Character>>(_ text: S) -> String { String(text.prefix { $0.isASCII && $0.isLetter }).lowercased() }
-        let end = String(letters(before.reversed()).reversed()), start = letters(line)
-        guard !end.isEmpty, !start.isEmpty else { return false }
-        return !RedactionWords.isEnglish(end + start) && RedactionWords.isEnglish(end)
+        guard let last = before.last, let next = line.first, next.isASCII, next.isLetter || next.isNumber else { return false }
+        let start = String(line.prefix { $0.isASCII && $0.isLetter }).lowercased()
+        if last.isASCII, last.isLetter {
+            let end = lastWord(before).lowercased()
+            guard !start.isEmpty else { return false }
+            return !isWord(end + start) && (isWord(end) || endsWithContraction(before))
+        }
+        let afterDigit = before.dropLast().last?.isNumber == true
+        switch last {
+        case ",", ";", ":": return !(afterDigit && next.isNumber)
+        case "!", "?", "…": return true
+        case ".":
+            if afterDigit && next.isNumber { return false }
+            return next.isUppercase || next.isNumber || endsWithAbbreviation(before.dropLast()) || before.hasSuffix("...")
+        default:
+            return last.isNumber && isWord(start) && !unitsAfterNumbers.contains(start)
+        }
+    }
+
+    /// Words of one or two letters (the English word list has none): "to" + "another", "Hi" + "there".
+    static let shortWords: Set<String> = [
+        "a", "i", "am", "an", "as", "at", "be", "by", "do", "go", "he", "hi", "if", "in", "is", "it", "me", "my", "no", "of",
+        "oh", "ok", "on", "or", "so", "to", "up", "us", "we",
+    ]
+
+    /// Words that go right after a number: "3am", "4a".
+    static let unitsAfterNumbers: Set<String> = ["a", "am"]
+
+    /// Whether `text` ends with an English contraction's ending, a word's end: "yesterday's", "don't", "we're", "I'll".
+    static func endsWithContraction(_ text: String) -> Bool {
+        let end = lastWord(text)
+        let rest = text.dropLast(end.count)
+        guard ["s", "t", "d", "m", "ll", "re", "ve"].contains(end.lowercased()), let mark = rest.last, mark == "'" || mark == "’"
+        else { return false }
+        return rest.dropLast().last?.isLetter == true
     }
 
     /// `text` up to the end of its first sentence, `maxWords` words and `maxWideCharacters` wide characters.
@@ -333,9 +368,10 @@ public enum Autocomplete {
         String(text.reversed().prefix { $0.isASCII && $0.isLetter }.reversed())
     }
 
-    /// Whether `word` (in small letters) is a word on its own, by the English word list the core has (`RedactionWords`).
+    /// Whether `word` (in small letters) is a word on its own, by the English word list the core has (`RedactionWords`)
+    /// and the short words it leaves out (`shortWords`).
     static func isWord(_ word: String) -> Bool {
-        RedactionWords.isEnglish(word)
+        shortWords.contains(word) || RedactionWords.isEnglish(word)
     }
 
     // MARK: Keys

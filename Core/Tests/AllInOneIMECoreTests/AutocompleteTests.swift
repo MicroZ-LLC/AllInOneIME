@@ -109,6 +109,21 @@ struct AutocompleteTests {
         #expect(Autocomplete.trimmed("\n\n", before: "Hi") == nil)
     }
 
+    @Test func aNewWordGetsTheSpaceTheModelLeftOut() {
+        #expect(Autocomplete.trimmed("<after>be late</after>", before: "I might") == " be late")
+        #expect(Autocomplete.trimmed("<after>worry about it.</after>", before: "Don't you") == " worry about it.")
+        #expect(Autocomplete.trimmed("<after>worry.</after>", before: "Please don't") == " worry.")
+        #expect(Autocomplete.trimmed("<after>Thanks!</after>", before: "Done!") == " Thanks!")
+        #expect(Autocomplete.trimmed("<after>grep.</after>", before: "Use a tool, e.g.") == " grep.")
+        #expect(Autocomplete.trimmed("<after>maybe later</after>", before: "Well...") == " maybe later")
+        // None inside a number, a time, a web address, after a number's ending.
+        #expect(Autocomplete.trimmed("<after>000 people</after>", before: "About 1,") == "000 people")
+        #expect(Autocomplete.trimmed("<after>30 tomorrow</after>", before: "See you at 10:") == "30 tomorrow")
+        #expect(Autocomplete.trimmed("<after>com for details</after>", before: "Go to example.") == "com for details")
+        #expect(Autocomplete.trimmed("<after>th floor</after>", before: "Room 4") == "th floor")
+        #expect(Autocomplete.trimmed("<after>am tomorrow</after>", before: "Call me at 9") == "am tomorrow")
+    }
+
     @Test func theEndOfTheTextSaidAgainIsNotShown() {
         // All of the answer is the end of the text, from a word's start, in any case: nothing.
         #expect(Autocomplete.trimmed("Hello.", before: "Just say hello") == nil)
