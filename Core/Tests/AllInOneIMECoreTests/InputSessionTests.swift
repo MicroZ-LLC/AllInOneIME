@@ -626,25 +626,28 @@ struct InputSessionTests {
         }
     }
 
+    /// With voice input on (`Features.voiceInput`, off for now: `VoiceOffTests`).
     @Test func holdingTheVoiceKeyStartsDictation() async {
-        await inEnglish {
-            let host = host {
-                $0.voiceSupported = { true }
-                $0.isVoiceKeyHeld = { true }
+        await Features.$voiceInputInTests.withValue(true) {
+            await inEnglish {
+                let host = host {
+                    $0.voiceSupported = { true }
+                    $0.isVoiceKeyHeld = { true }
+                }
+                host.modifiers(ModifierChange(key: .modifier(.option, .right), modifiers: [.option, .rightOption], timestamp: 100))
+                #expect(host.timers.contains { if case .voiceHold = $0 { true } else { false } }, "\(host.timers)")
+                host.fireTimers()
+                guard case let .startVoice(id, language)? = host.platformActions.last else {
+                    Issue.record("no dictation: \(host.platformActions)")
+                    return
+                }
+                #expect(language == .chinese)
+                host.send(.voice(.text("你好", id: id)))
+                host.modifiers(ModifierChange(key: .modifier(.option, .right), modifiers: [], timestamp: 101))  // let go
+                #expect(host.platformActions.last == .stopVoice(id: id), "\(host.platformActions)")
+                host.send(.voice(.finished("你好。", id: id)))
+                #expect(host.composer.voice == .off && host.document == "你好。", "the transcript goes in (\(host.document) | \(host.marked))")
             }
-            host.modifiers(ModifierChange(key: .modifier(.option, .right), modifiers: [.option, .rightOption], timestamp: 100))
-            #expect(host.timers.contains { if case .voiceHold = $0 { true } else { false } }, "\(host.timers)")
-            host.fireTimers()
-            guard case let .startVoice(id, language)? = host.platformActions.last else {
-                Issue.record("no dictation: \(host.platformActions)")
-                return
-            }
-            #expect(language == .chinese)
-            host.send(.voice(.text("你好", id: id)))
-            host.modifiers(ModifierChange(key: .modifier(.option, .right), modifiers: [], timestamp: 101))  // let go
-            #expect(host.platformActions.last == .stopVoice(id: id), "\(host.platformActions)")
-            host.send(.voice(.finished("你好。", id: id)))
-            #expect(host.composer.voice == .off && host.document == "你好。", "the transcript goes in (\(host.document) | \(host.marked))")
         }
     }
 

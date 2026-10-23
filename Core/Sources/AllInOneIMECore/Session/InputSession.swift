@@ -413,7 +413,7 @@ public final class InputSession {
         services.autocomplete.saw(switch: config.autocomplete)
         autocompleteTakeSettings(config)
         let app = app ?? self.app
-        composer.voiceEnabled = config.voiceInput && services.voiceSupported()
+        composer.voiceEnabled = Features.voiceInput && config.voiceInput && services.voiceSupported()  // off for now
         composer.actionKey = config.actionKey
         composer.commandTrigger = config.commandTrigger
         UIText.commandTrigger = config.commandTrigger  // the panel's and the notices' text

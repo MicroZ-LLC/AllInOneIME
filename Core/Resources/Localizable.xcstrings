@@ -1929,6 +1929,53 @@
         }
       }
     },
+    "@py, @js and the like in pasted text weren't run: kept as text" : {
+      "comment" : "粘贴来的文字里的 @py、@js 等没有运行，当作文字 — Sources/AllInOneIMECore/Composer.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@py, @js usw. in eingefügtem Text wurden nicht ausgeführt, sondern als Text belassen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@py, @js y similares en el texto pegado no se ejecutaron: se mantienen como texto"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@py, @js et autres dans du texte collé n’ont pas été exécutés : conservés comme texte"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ペーストしたテキスト内の@py、@jsなどは実行せず、テキストのまま残しました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "붙여넣은 텍스트의 @py, @js 등은 실행하지 않음: 텍스트로 유지"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@py, @js e afins em texto colado não foram executados: mantidos como texto"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "貼上的文字中的 @py、@js 等未執行，保留為文字"
+          }
+        }
+      }
+    },
     "@search searches the web with Brave Search, using your own API key: Brave gives some free credit each month (about 1,000 searches for now); signing up needs a credit card. What you search for is sent to Brave. The key is kept in the keychain; you can also set BRAVE_API_KEY in your shell." : {
       "comment" : "@search 用 Brave Search 搜网页，用你自己的 API key：Brave 每月送一些免费额度（目前约 1000 次搜索），注册时要绑信用卡。要搜的内容会发给 Brave。key 存在钥匙串里；也可以在 shell 里设置 BRAVE_API_KEY。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
@@ -27207,6 +27254,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "按一下任一側的 ⌥ 並立即放開；按住右 ⌥ 仍然是聽寫。@ 指令按 Return 也會執行。"
+          }
+        }
+      }
+    },
+    "Press either ⌥ and let go right away. @ commands also run on Return." : {
+      "comment" : "按一下 ⌥ 马上松开，左右都行。@ 命令按 ⏎ 也执行。 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine der ⌥-Tasten drücken und sofort loslassen. @-Befehle laufen auch mit Return."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pulsa cualquiera de las teclas ⌥ y suéltala enseguida. Los comandos @ también se ejecutan con Retorno."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appuyez sur l’une des touches ⌥ et relâchez-la aussitôt. Les commandes @ s’exécutent aussi avec Retour."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "左右どちらかの⌥を押してすぐに離します。@コマンドはReturnでも実行できます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "⌥ 키(왼쪽 또는 오른쪽)를 눌렀다가 바로 떼세요. @ 명령은 Return 키로도 실행됩니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pressione qualquer ⌥ e solte em seguida. Comandos @ também são executados com Return."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按一下任一側的 ⌥ 並立即放開。@ 指令按 Return 也會執行。"
           }
         }
       }

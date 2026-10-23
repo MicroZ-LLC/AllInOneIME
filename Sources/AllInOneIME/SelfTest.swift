@@ -961,6 +961,10 @@ enum SelfTest {
     static func testVoice(_ controller: AllInOneIMEInputController, _ client: FakeTextClient,
                           snapshotDirectory: URL) {
         section("voice input (on-device recognition of synthesized speech)", needs: .composing)
+        guard Features.voiceInput else {
+            print("  voice input is off for now (Features.voiceInput); skipped")
+            return
+        }
         guard #available(macOS 26.0, *), VoiceInput.isSupported else {
             print("  SpeechAnalyzer not available on this macOS; skipped")
             return

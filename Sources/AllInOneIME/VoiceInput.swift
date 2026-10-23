@@ -32,9 +32,11 @@ enum VoiceInput {
         }
     }
 
-    /// Shows the system prompt (once); the answer applies from the next recording on.
+    /// Shows the system prompt (once); the answer applies from the next recording on. Never while voice input is off
+    /// (`Features.voiceInput`).
     static func requestMicrophoneAccess() async -> Bool {
-        await AVCaptureDevice.requestAccess(for: .audio)
+        guard Features.voiceInput else { return false }
+        return await AVCaptureDevice.requestAccess(for: .audio)
     }
 
     static let microphoneSettingsURL =

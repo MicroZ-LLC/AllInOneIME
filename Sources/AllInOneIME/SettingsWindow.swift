@@ -727,6 +727,7 @@ final class SettingsModel: ObservableObject {
     @Published private(set) var voiceError: String?
 
     func refreshVoice() {
+        guard Features.voiceInput else { return }  // off for now: its page isn't shown
         microphone = VoiceInput.microphoneAccess
         // A download started by the input method (first dictation) shows its progress here too.
         for language in VoiceInput.downloads.keys where modelProgress[language] == nil { downloadModel(language) }
@@ -1708,7 +1709,7 @@ struct SettingsView: View {
             .overlay(Capsule().strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5))
             .shadow(color: .black.opacity(0.06), radius: 2, y: 1)
             .padding(.horizontal, 12)
-            let shown = SettingsPage.allCases.filter { $0.matches(query, trigger: model.config.commandTrigger) }
+            let shown = SettingsPage.allCases.filter { $0.isShown && $0.matches(query, trigger: model.config.commandTrigger) }
             List(selection: Binding(get: { page }, set: { if let new = $0 { page = new } })) {
                 // In groups, like System Settings: what you type with, what it runs, the rest.
                 let groups = SettingsPage.groups.map { $0.filter(shown.contains) }.filter { !$0.isEmpty }
@@ -2085,7 +2086,7 @@ struct SettingsView: View {
             if model.config.provider == .bedrock { model.aws.refresh(profile: model.config.awsProfile) }
         }
         .onReceive(NotificationCenter.default.publisher(for: .allInOneIMEShowSettingsPage)) { note in
-            if let raw = note.userInfo?["page"] as? String, let shown = SettingsPage(rawValue: raw) { page = shown }
+            if let raw = note.userInfo?["page"] as? String, let shown = SettingsPage(rawValue: raw), shown.isShown { page = shown }
         }
         .onReceive(NotificationCenter.default.publisher(for: .allInOneIMEConfigChanged).receive(on: RunLoop.main)) { _ in
             model.reloadIfChanged()
@@ -3003,6 +3004,9 @@ enum SettingsPage: String, CaseIterable, Identifiable {
 
     static let groups: [[SettingsPage]] = [[.assistant], [.general, .input, .writing, .voice, .apps],
                                            [.commands, .plugins, .codingLanguages, .agent, .provider], [.advanced, .about]]
+
+    /// Whether the window has the page: Voice Input only while voice input is on (`Features.voiceInput`, off for now).
+    var isShown: Bool { self != .voice || Features.voiceInput }
 
     var title: String {
         switch self {
