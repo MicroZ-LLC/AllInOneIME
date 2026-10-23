@@ -2069,6 +2069,53 @@
         }
       }
     },
+    "%@ isn't on this Mac: until it is, this source shows an error." : {
+      "comment" : "这台 Mac 上找不到 %@：装好之前，这个来源会显示出错。 — Sources/AllInOneIME/CommandSuggestionsEditor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ist nicht auf diesem Mac: Bis dahin zeigt diese Quelle einen Fehler."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ no está en este Mac: hasta que lo esté, esta fuente muestra un error."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ est introuvable sur ce Mac : tant qu’il n’est pas installé, cette source affiche une erreur."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このMacに%@がありません。インストールされるまで、このソースはエラーを表示します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@이(가) 이 Mac에 없습니다. 설치될 때까지 이 소스는 오류를 표시합니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ não está neste Mac: até que esteja, esta fonte mostra um erro."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台 Mac 上找不到 %@：安裝之前，這個來源會顯示出錯。"
+          }
+        }
+      }
+    },
     "%@ key" : {
       "comment" : "%@ 的 key — Sources/AllInOneIME/KeyRow.swift",
       "localizations" : {
@@ -5361,6 +5408,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "按「套用」會打開 AI 服務頁面以登入"
+          }
+        }
+      }
+    },
+    "As a plugin's insert: default (ordinary apps), chat (chat apps and browsers), terminal (terminals and code editors: the match only); each a template or a list tried in turn, with {match} {arg} {title} {url}." : {
+      "comment" : "和插件的 insert 一样：default（一般 App）、chat（聊天 App 和浏览器）、terminal（终端和代码编辑器，只插入匹配）；每个是一个模板或依次尝试的一组，变量有 {match} {arg} {title} {url}。 — Sources/AllInOneIME/CommandSuggestionsEditor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wie das insert eines Plug-ins: default (normale Apps), chat (Chat-Apps und Browser), terminal (Terminals und Code-Editoren: nur der Treffer); jeweils eine Vorlage oder eine Liste, die der Reihe nach probiert wird, mit {match} {arg} {title} {url}."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Como el insert de un plugin: default (apps normales), chat (apps de chat y navegadores), terminal (terminales y editores de código: solo la coincidencia); cada uno una plantilla o una lista que se prueba en orden, con {match} {arg} {title} {url}."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comme le insert d’un plug-in : default (apps ordinaires), chat (apps de messagerie et navigateurs), terminal (terminaux et éditeurs de code : la correspondance seule) ; chacun un modèle ou une liste essayée dans l’ordre, avec {match} {arg} {title} {url}."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プラグインの insert と同じです：default（一般のアプリ）、chat（チャットアプリとブラウザ）、terminal（ターミナルとコードエディタ：一致部分のみ）。それぞれ 1 つのテンプレートか、順に試すリスト。変数は {match} {arg} {title} {url}。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "플러그인의 insert와 같습니다: default(일반 앱), chat(채팅 앱과 브라우저), terminal(터미널과 코드 편집기: 일치 부분만). 각각 템플릿 하나 또는 차례로 시도하는 목록이며, 변수는 {match} {arg} {title} {url}입니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Como o insert de um plug-in: default (apps comuns), chat (apps de chat e navegadores), terminal (terminais e editores de código: só a correspondência); cada um um modelo ou uma lista tentada em ordem, com {match} {arg} {title} {url}."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "和外掛的 insert 一樣：default（一般 App）、chat（聊天 App 和瀏覽器）、terminal（終端機和程式碼編輯器，只插入匹配）；每個是一個範本或依次嘗試的一組，變數有 {match} {arg} {title} {url}。"
           }
         }
       }
@@ -11541,6 +11635,53 @@
         }
       }
     },
+    "From character %@ on" : {
+      "comment" : "从第 %@ 个字开始查 — Sources/AllInOneIME/CommandSuggestionsEditor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ab Zeichen %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desde el carácter %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "À partir du caractère %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@文字目から検索"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@번째 글자부터 조회"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A partir do caractere %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "從第 %@ 個字開始查"
+          }
+        }
+      }
+    },
     "Get an API Key…" : {
       "comment" : "获取 API key… — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
@@ -12107,6 +12248,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "插入佔位符"
+          }
+        }
+      }
+    },
+    "Insert templates" : {
+      "comment" : "插入模板 — Sources/AllInOneIME/CommandSuggestionsEditor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einfügevorlagen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plantillas de inserción"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modèles d’insertion"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "挿入テンプレート"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "삽입 템플릿"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modelos de inserção"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "插入範本"
           }
         }
       }
@@ -12765,6 +12953,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "行話詞庫"
+          }
+        }
+      }
+    },
+    "Jira issues" : {
+      "comment" : "Jira 问题 — Sources/AllInOneIME/CommandEditor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jira-Tickets"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Incidencias de Jira"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tickets Jira"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jira の課題"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jira 이슈"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Issues do Jira"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jira 問題"
           }
         }
       }
@@ -19372,6 +19607,53 @@
         }
       }
     },
+    "Program" : {
+      "comment" : "程序 — Sources/AllInOneIME/CommandSuggestionsEditor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Programm"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Programa"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Programme"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プログラム"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "프로그램"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Programa"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "程式"
+          }
+        }
+      }
+    },
     "Question" : {
       "comment" : "问题 — Sources/AllInOneIME/AssistantPage.swift",
       "localizations" : {
@@ -19984,53 +20266,6 @@
         }
       }
     },
-    "Refresh" : {
-      "comment" : "刷新 — Sources/AllInOneIME/CodingLanguagesPage.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aktualisieren"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Actualizar"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Actualiser"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "更新"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "새로 고침"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Atualizar"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "重新整理"
-          }
-        }
-      }
-    },
     "Refresh Library" : {
       "comment" : "刷新插件库 — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
@@ -20079,7 +20314,7 @@
       }
     },
     "Refresh Now" : {
-      "comment" : "立即刷新 — Sources/AllInOneIME/PluginCompletionsSettings.swift",
+      "comment" : "立即刷新 — Sources/AllInOneIME/CommandSuggestionsEditor.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -22015,6 +22250,53 @@
         }
       }
     },
+    "Run with no input, it prints every item: a line each, \"match⇥title⇥url\" (title and url optional), or the plugins' JSON. Type the prefix and the rows that match show under the caret; Tab inserts. Never through a shell (for one, write zsh -c …); quote arguments with spaces." : {
+      "comment" : "不带参数运行时打印全部条目：每行「匹配⇥标题⇥网址」（标题、网址可以不写），或者插件那样的 JSON。打了前缀，光标下面就列出对得上的行，Tab 插入。不经过 shell（要 shell 就写 zsh -c …）；参数里有空格时用引号。 — Sources/AllInOneIME/CommandSuggestionsEditor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ohne Eingabe gestartet, gibt es alle Einträge aus: einen pro Zeile, „Treffer⇥Titel⇥URL“ (Titel und URL optional), oder das JSON der Plug-ins. Tippe das Präfix, und die passenden Zeilen erscheinen unter der Einfügemarke; Tab fügt ein. Nie über eine Shell (für eine schreibe zsh -c …); setze Argumente mit Leerzeichen in Anführungszeichen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ejecutado sin entrada, imprime todos los elementos: uno por línea, \"coincidencia⇥título⇥url\" (título y url opcionales), o el JSON de los plugins. Escribe el prefijo y las filas que coinciden aparecen bajo el cursor; Tab inserta. Nunca a través de un shell (para usar uno, escribe zsh -c …); pon entre comillas los argumentos con espacios."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lancé sans entrée, il affiche tous les éléments : un par ligne, « correspondance⇥titre⇥url » (titre et url facultatifs), ou le JSON des plug-ins. Tapez le préfixe et les lignes qui correspondent s’affichent sous le curseur ; Tab insère. Jamais via un shell (pour en avoir un, écrivez zsh -c …) ; mettez entre guillemets les arguments avec des espaces."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "引数なしで実行すると全項目を出力します：1 行に 1 つ「一致⇥タイトル⇥URL」（タイトルと URL は省略可）、またはプラグインと同じ JSON。プレフィックスを入力すると一致する候補がカーソルの下に並び、Tab で挿入します。シェルは通しません（必要なら zsh -c … と書きます）。空白を含む引数は引用符で囲んでください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "인수 없이 실행하면 모든 항목을 출력합니다: 한 줄에 하나씩 \"일치⇥제목⇥URL\"(제목과 URL은 생략 가능) 또는 플러그인과 같은 JSON. 접두사를 입력하면 일치하는 항목이 커서 아래에 표시되고 Tab으로 삽입합니다. 셸을 거치지 않습니다(셸이 필요하면 zsh -c …로 작성). 공백이 있는 인수는 따옴표로 묶으세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Executado sem entrada, imprime todos os itens: um por linha, \"correspondência⇥título⇥url\" (título e url opcionais), ou o JSON dos plug-ins. Digite o prefixo e as linhas que correspondem aparecem sob o cursor; Tab insere. Nunca por um shell (para usar um, escreva zsh -c …); coloque entre aspas argumentos com espaços."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不帶參數執行時列印全部條目：每行「匹配⇥標題⇥網址」（標題、網址可以不寫），或者外掛那樣的 JSON。打了前綴，游標下面就列出對得上的行，Tab 插入。不經過 shell（要 shell 就寫 zsh -c …）；參數裡有空格時用引號。"
+          }
+        }
+      }
+    },
     "running" : {
       "comment" : "进行中 — Sources/AllInOneIME/FloatingPanel.swift",
       "localizations" : {
@@ -23697,6 +23979,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "status"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "狀態"
+          }
+        }
+      }
+    },
+    "Status" : {
+      "comment" : "状态 — Sources/AllInOneIME/CommandEditor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Status"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "État"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "状態"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "상태"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estado"
           }
         },
         "zh-Hant" : {
@@ -29133,6 +29462,53 @@
         }
       }
     },
+    "Write the insert templates as JSON, like {\"default\": \"{arg}\"}" : {
+      "comment" : "插入模板要写成 JSON，比如 {\"default\": \"{arg}\"} — Sources/AllInOneIME/CommandEditor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schreibe die Einfügevorlagen als JSON, etwa {\"default\": \"{arg}\"}"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escribe las plantillas de inserción en JSON, como {\"default\": \"{arg}\"}"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Écrivez les modèles d’insertion en JSON, comme {\"default\": \"{arg}\"}"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "挿入テンプレートは JSON で書いてください（例：{\"default\": \"{arg}\"}）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "삽입 템플릿은 JSON으로 작성하세요(예: {\"default\": \"{arg}\"})"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escreva os modelos de inserção em JSON, como {\"default\": \"{arg}\"}"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "插入範本要寫成 JSON，比如 {\"default\": \"{arg}\"}"
+          }
+        }
+      }
+    },
     "You can add it back with +" : {
       "comment" : "以后可以再用 ＋ 加回来 — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
@@ -29176,6 +29552,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你可以用 + 加回來"
+          }
+        }
+      }
+    },
+    "Your own templates" : {
+      "comment" : "自己写的模板 — Sources/AllInOneIME/CommandSuggestionsEditor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eigene Vorlagen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tus propias plantillas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vos propres modèles"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "独自のテンプレート"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "직접 만든 템플릿"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seus próprios modelos"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自己寫的範本"
           }
         }
       }

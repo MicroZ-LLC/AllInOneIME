@@ -134,7 +134,7 @@ extension CompletionSource {
     }
 
     /// "15 min", "1 h", "1 d".
-    static func interval(_ seconds: TimeInterval, in t: InterfaceWords) -> String {
+    public static func interval(_ seconds: TimeInterval, in t: InterfaceWords = InterfaceWords(language: UIText.language)) -> String {
         let whole = Int(seconds)
         if whole % 86400 == 0 { return t.tr("\(whole / 86400) 天", "\(whole / 86400) d") }
         if whole % 3600 == 0 { return t.tr("\(whole / 3600) 小时", "\(whole / 3600) h") }
@@ -157,5 +157,28 @@ extension CompletionSourceStatus {
             parts.append(t.tr("上次出错：", "Last error: ") + error)
         }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+}
+
+extension CustomCommand {
+    /// How a `suggestions` command is doing, as Settings says it under it (the Mac's editor and command list, the
+    /// settings document's): why it isn't used (`problem`: refused by a source's rules, its prefix the magic key's), that
+    /// Suggestions are off, or its source's status (its items, when it last updated, its last error, a pause); not
+    /// loaded yet. `problem`: what is said is why nothing of it shows. Nil: not a `suggestions` command.
+    public func suggestionsState(_ config: Config, status: CompletionSourceStatus?, now: Date = Date(),
+                                 in t: InterfaceWords = InterfaceWords(language: UIText.language)) -> (text: String, problem: Bool)? {
+        guard let read = suggestionSource else { return nil }
+        switch read {
+        case .failure:
+            // What the source's rules refused, as the editor says it (the magic key is the next case's).
+            return (suggestionProblem(trigger: "").map(UIText.describe) ?? t.tr("不能作为建议来源", "Can't be a suggestion source"), true)
+        case let .success(source):
+            if let reason = source.inactiveReason(config) { return (reason, true) }
+            if config.suggestions == false {
+                return (t.tr("建议关着，这个来源不会出现：在「通用」里打开。", "Suggestions are off, so this source doesn't show: turn them on in General."), true)
+            }
+            if let summary = status?.summary(now: now, in: t) { return (summary, status?.error != nil) }
+            return (t.tr("还没加载过：第一次打它的前缀时加载。", "Not loaded yet: it loads the first time you type its prefix."), false)
+        }
     }
 }

@@ -667,7 +667,11 @@ struct SettingsSchema {
         list.schema = Self.commandSchema(terms)
         list.items = config.customCommands.map { command in
             let value = (try? JSONEncoder().encode(command)).flatMap { try? JSONSerialization.jsonObject(with: $0) }.flatMap(JSON.init)
+            // A suggestion source: how it is doing, or why it isn't used.
+            let key = CompletionSourceKey(command: command.name)
+            let state = command.suggestionsState(config, status: suggestionStatuses.first { $0.plugin == key.plugin && $0.source == key.source })
             let detail = [UIText.customKind(command), command.summary].compactMap { $0 }.joined(separator: " · ")
+                + (state.map { "\n" + $0.text } ?? "")
                 + (Command.builtins.contains { $0.name == command.name.lowercased() }
                    ? "\n" + tr("和内置命令重名，不会生效，请改名", "Same name as a built-in command: rename it to use it") : "")
             return SettingsDocument.Item(id: command.name, title: config.commandTrigger + command.name, detail: detail, value: value,
@@ -682,14 +686,15 @@ struct SettingsSchema {
     /// window, this PC, cmd, Enter).
     static func commandSchema(_ terms: PlatformTerms) -> [Field] {
         let mac = terms.terminal == .terminalApp
-        let types = ["prompt", "run", "terminal", "link", "snippet"].map(JSON.string)
+        let types = ["prompt", "run", "terminal", "link", "snippet", "suggestions"].map(JSON.string)
         func only(_ values: String...) -> [String: [JSON]] { ["type": values.map(JSON.string)] }
         var name = Field(id: "name", kind: .text, label: tr("名字", "Name"))
         name.placeholder = tr("只用英文字母，比如 py", "Letters only, e.g. py")
         var type = Field(id: "type", kind: .choice, label: tr("做什么", "What it does"), value: .string("prompt"))
         type.choices = zip(types, [tr("AI 指令", "AI instruction"), tr("运行程序", "Run a program"),
                                    mac ? tr("在终端运行", "Run in Terminal") : tr("在终端窗口运行", "Run in a terminal"),
-                                   tr("打开网页", "Open a web page"), tr("插入文字", "Insert text")]).map { Choice(value: $0, label: $1) }
+                                   tr("打开网页", "Open a web page"), tr("插入文字", "Insert text"), tr("建议", "Suggestions")])
+            .map { Choice(value: $0, label: $1) }
         var summary = Field(id: "summary", kind: .text, label: tr("说明", "Description"))
         (summary.placeholder, summary.optional) = (tr("命令列表里显示，可以不填", "Shown in the command list (optional)"), true)
         var prompt = Field(id: "prompt", kind: .text, label: tr("AI 指令", "AI instruction"),
@@ -713,13 +718,13 @@ struct SettingsSchema {
                                   "{input} becomes the text after the command, always as one argument, never through a shell (for one, write zsh -c {input}). Quote arguments with spaces.")
                              : tr("{input} 换成命令后面写的内容，始终是一个参数，不经过 shell（要 shell 就写 cmd /c {input}）。参数里有空格时用引号。",
                                   "{input} becomes the text after the command, always as one argument, never through a shell (for one, write cmd /c {input}). Quote arguments with spaces."))
-        (argv.placeholder, argv.ordered, argv.when) = ("python3 -c {input}", true, only("run", "terminal"))
+        (argv.placeholder, argv.ordered, argv.when) = ("python3 -c {input}", true, only("run", "terminal", "suggestions"))
         var stdin = Field(id: "stdin", kind: .text, label: tr("标准输入", "Standard input"),
                           help: tr("把内容作为标准输入（命令里不用写 {input}）", "Send the text to standard input (no {input} needed)"))
         (stdin.placeholder, stdin.optional, stdin.when) = (CustomCommand.placeholder, true, only("run"))
         var timeout = Field(id: "timeoutSeconds", kind: .number, label: tr("最多运行（秒）", "Stop after (seconds)"))
         (timeout.min, timeout.max, timeout.step, timeout.optional) = (1, 120, 1, true)
-        (timeout.placeholder, timeout.when) = (String(Int(CustomCommand.defaultTimeout)), only("run"))
+        (timeout.placeholder, timeout.when) = (String(Int(CustomCommand.defaultTimeout)), only("run", "suggestions"))
         var ascii = Field(id: "ascii", kind: .toggle, label: tr("用英文字母输入（写代码、路径时）", "Type English letters (for code and paths)"))
         (ascii.optional, ascii.when) = (true, only("prompt", "run", "terminal", "link"))
         var programs = Field(id: "programs", kind: .info, label: "",
@@ -729,7 +734,52 @@ struct SettingsSchema {
                                  : tr("「运行程序」和「在终端窗口运行」会在这台电脑上执行命令：只加你自己写的、信得过的。它们只在你按执行键时运行，密码框里不运行。",
                                       "Programs run on this PC: add only commands you wrote and trust. They run only when you press the action key, never in password fields.")))
         programs.when = only("run", "terminal")
-        return [name, type, summary, prompt, text, url, argv, stdin, timeout, ascii, programs]
+        return [name, type, summary, prompt, text, url] + suggestionsSchema(terms, only: only("suggestions"), first: true)
+            + [argv, stdin, timeout, ascii, programs] + suggestionsSchema(terms, only: only("suggestions"), first: false)
+    }
+
+    /// A `suggestions` command's own fields (decision 24), as the Mac's editor has them: its prefix before the program
+    /// (`first`); after it Look up as you type and from which character, how often the list runs again, what a row
+    /// inserts (the editor's presets), and what the program is given.
+    static func suggestionsSchema(_ terms: PlatformTerms, only: [String: [JSON]], first: Bool) -> [Field] {
+        guard !first else {
+            var prefix = Field(id: "prefix", kind: .text, label: tr("前缀", "Prefix"),
+                               help: tr("打了它，光标下面就列出程序给的、对得上的行，Tab 插入：1 到 16 个英文字母、数字或 . _ - #，比如 JIRA-",
+                                        "Type it and the program's rows that match show under the caret; Tab inserts. 1 to 16 letters, digits or . _ - #, like JIRA-"))
+            (prefix.placeholder, prefix.when) = ("JIRA-", only)
+            return [prefix]
+        }
+        var query = Field(id: "query", kind: .toggle, label: tr("边打边查（把前缀后面打的字交给程序）", "Look up as you type (what you type after the prefix goes to the program)"),
+                          help: tr("前缀后面打的字作为一个参数给程序：写在命令里 {input} 的位置，没写就放在最后。",
+                                   "What you type after the prefix goes to the program as one argument: where {input} is in the command, else last."))
+        (query.optional, query.when) = (true, only)
+        var from = Field(id: "queryMinChars", kind: .number, label: tr("从第几个字开始查", "Look up from character"))
+        (from.min, from.max, from.step, from.optional, from.placeholder, from.when) = (1, 32, 1, true, "3", only)
+        var refresh = Field(id: "refresh", kind: .choice, label: tr("刷新", "Refresh"), value: .string("1h"))
+        refresh.choices = ["5m", "15m", "30m", "1h", "6h", "12h", "1d", "7d"].map { choice in
+            Choice(value: .string(choice), label: CompletionDeclaration.duration(choice).map {
+                tr("每 \(CompletionSource.interval($0))", "Every \(CompletionSource.interval($0))")
+            } ?? choice)
+        }
+        (refresh.optional, refresh.when) = (true, only)
+        var insert = Field(id: "insert", kind: .choice, label: tr("插入", "Insert"),
+                           help: tr("其他写法（自己的模板）和插件的 insert 一样，写在配置文件里。", "Other templates of your own are written as a plugin's insert, in the config file."))
+        insert.choices = [
+            Choice(value: CustomCommand.InsertPreset.match.insert ?? .object(["default": .string("{arg}")]), label: tr("只插入匹配的部分", "Just the match")),
+            Choice(value: CustomCommand.InsertPreset.title.insert ?? .null, label: tr("连同标题", "With its title")),
+            Choice(value: CustomCommand.InsertPreset.titleAndLink.insert ?? .null, label: tr("连同标题和链接（聊天 App 里）", "With title and link (in chat apps)")),
+        ]
+        (insert.optional, insert.when) = (true, only)
+        var program = Field(id: "suggestionsProgram", kind: .info, label: "",
+                            value: .string(terms.device == .mac
+                                ? tr("这个程序会在你的 Mac 上运行：打前缀时按刷新间隔拿列表，边打边查时把前缀后面的字作为一个参数给它，别的什么都不给；密码框里不运行。只加你自己写的、信得过的程序。",
+                                     "The program runs on your Mac: for its list when you type the prefix (then at the refresh interval), and with Look up as you type with what follows the prefix as one argument, nothing else; never in password fields. Add only programs you wrote and trust.")
+                                : tr("这个程序会在这台电脑上运行：打前缀时按刷新间隔拿列表，边打边查时把前缀后面的字作为一个参数给它，别的什么都不给；密码框里不运行。只加你自己写的、信得过的程序。",
+                                     "The program runs on this PC: for its list when you type the prefix (then at the refresh interval), and with Look up as you type with what follows the prefix as one argument, nothing else; never in password fields. Add only programs you wrote and trust.")))
+        program.help = tr("不带参数运行时打印全部条目：每行「匹配⇥标题⇥网址」（标题、网址可以不写），或者插件那样的 JSON。",
+                          "Run with no input, it prints every item: a line each, \"match⇥title⇥url\" (title and url optional), or the plugins' JSON.")
+        program.when = only
+        return [query, from, refresh, insert, program]
     }
 
     // MARK: Advanced

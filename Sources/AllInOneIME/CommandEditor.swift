@@ -16,8 +16,8 @@ struct CommandEdit: Identifiable {
 }
 
 /// The form for one custom @ command: its name, what it does (an instruction for the AI, a program
-/// to run, a program in Terminal, a web page to open, or a text to insert) and how. Saving hands the finished
-/// definition back.
+/// to run, a program in Terminal, a web page to open, a text to insert, or suggestions from a program as a prefix is
+/// typed) and how. Saving hands the finished definition back.
 struct CommandEditor: View {
     let original: CommandEdit
     /// The other custom commands, the installed plugins and the custom commands a later version wrote
@@ -25,6 +25,10 @@ struct CommandEditor: View {
     let others: [CustomCommand]
     let plugins: [String]
     let unread: [String]
+    /// The settings as they are (the magic key, Suggestions' switch): what a suggestion source says of itself.
+    let config: Config
+    /// A suggestion source's Refresh Now, by its name.
+    let refreshNow: (String) -> Void
     /// Saves the definition; false when it wasn't (another command has its name by now): the editor stays open.
     let onSave: (CustomCommand) -> Bool
     @Environment(\.dismiss) private var dismiss
@@ -47,15 +51,23 @@ struct CommandEditor: View {
     @State private var text: String
     /// The "Insert Placeholder" menu puts its placeholder in at the text's caret.
     @State private var placeholderTarget = PlainTextEditor.Inserter()
+    /// `suggestions`: its keys as the form has them (`SuggestionSourceForm`); `insert` as JSON text (empty: the default).
+    @State private var prefix: String
+    @State private var query: Bool
+    @State private var queryMinChars: Int
+    @State private var refresh: String
+    @State private var insert: String
     /// The program of the command line isn't on this Mac (looked up in the background).
     @State private var missingProgram: String?
 
-    init(edit: CommandEdit, others: [CustomCommand], plugins: [String] = [], unread: [String] = [],
-         onSave: @escaping (CustomCommand) -> Bool) {
+    init(edit: CommandEdit, others: [CustomCommand], plugins: [String] = [], unread: [String] = [], config: Config = .default,
+         refreshNow: @escaping (String) -> Void = { _ in }, onSave: @escaping (CustomCommand) -> Bool) {
         original = edit
         self.others = others
         self.plugins = plugins
         self.unread = unread
+        self.config = config
+        self.refreshNow = refreshNow
         self.onSave = onSave
         let c = edit.command
         _name = State(initialValue: c.name)
@@ -68,6 +80,11 @@ struct CommandEditor: View {
         _timeout = State(initialValue: c.timeout)
         _url = State(initialValue: c.url ?? "")
         _text = State(initialValue: c.text ?? "")
+        _prefix = State(initialValue: c.prefix ?? "")
+        _query = State(initialValue: c.query ?? false)
+        _queryMinChars = State(initialValue: c.queryMinChars ?? 3)
+        _refresh = State(initialValue: c.refresh ?? "1h")
+        _insert = State(initialValue: SuggestionSourceForm.text(c.insert))
     }
 
     /// The definition as the form has it now (nil: the command line has an open quote).
@@ -90,22 +107,30 @@ struct CommandEditor: View {
         case .snippet:
             c.text = text
         case .suggestions:
-            // Its own form comes with the Suggestions type's editor: the source's keys kept as they were.
-            let kept = original.command
-            guard let argv = CustomCommand.arguments(fromCommandLine: commandLine) else { return nil }
-            (c.argv, c.timeoutSeconds) = (argv, kept.timeoutSeconds)
-            (c.prefix, c.minChars, c.compare, c.refresh) = (kept.prefix, kept.minChars, kept.compare, kept.refresh)
-            (c.query, c.queryMinChars, c.insert) = (kept.query, kept.queryMinChars, kept.insert)
+            guard let argv = CustomCommand.arguments(fromCommandLine: commandLine),
+                  case let .some(parsed) = SuggestionSourceForm.parse(insert) else { return nil }
+            c.argv = argv
+            c.prefix = prefix.trimmingCharacters(in: .whitespaces)
+            // What the form doesn't show (config.json's own) as it was.
+            (c.minChars, c.compare) = (original.command.minChars, original.command.compare)
+            if query { (c.query, c.queryMinChars) = (true, queryMinChars) }
+            if refresh != "1h" { c.refresh = refresh }
+            if timeout != CustomCommand.defaultTimeout { c.timeoutSeconds = timeout }
+            // A preset as config.json writes it (the default: none); else the templates as written.
+            c.insert = CustomCommand.InsertPreset(parsed).map(\.insert) ?? parsed
         }
         // Stored only when it differs from the type's default (Latin for programs, as typed for the AI and pages).
-        if latin != CustomCommand.typesLatinByDefault(type), type != .snippet { c.ascii = latin }
+        if latin != CustomCommand.typesLatinByDefault(type), type != .snippet, type != .suggestions { c.ascii = latin }
         return c
     }
 
     private var problem: String? {
+        if type == .suggestions, SuggestionSourceForm.parse(insert) == nil {
+            return tr("插入模板要写成 JSON，比如 {\"default\": \"{arg}\"}", "Write the insert templates as JSON, like {\"default\": \"{arg}\"}")
+        }
         guard let draft else { return Self.describe(.unbalancedQuote) }
         if let takenOnSave, draft.name == takenOnSave { return Self.describe(.nameTaken) }
-        return draft.problem(among: others, plugins: plugins, unread: unread).map(Self.describe)
+        return draft.problem(among: others, plugins: plugins, unread: unread, trigger: config.commandTrigger).map(Self.describe)
     }
 
     var body: some View {
@@ -122,7 +147,7 @@ struct CommandEditor: View {
                         }
                         .fixedSize()
                     }
-                    // Segmented where the five fit (Chinese, in the editor's 560 points), else a menu (English and the
+                    // Segmented where the six fit (Chinese, in the editor's 560 points), else a menu (English and the
                     // longer languages): never cut off.
                     ViewThatFits(in: .horizontal) {
                         HStack {
@@ -175,7 +200,10 @@ struct CommandEditor: View {
                         Text(tr("{input} 换成命令后面写的内容（自动编码），放在 ? 后面。按执行键在浏览器打开，不上屏。只能用 https://。",
                                 "{input} becomes the text after the command (encoded), after the ?. The action key opens it in the browser; nothing is inserted. https:// only."))
                             .font(.caption).foregroundStyle(.secondary)
-                    case .run, .terminal, .suggestions:
+                    case .suggestions:
+                        SuggestionSourceForm(prefix: $prefix, commandLine: $commandLine, query: $query, queryMinChars: $queryMinChars,
+                                             refresh: $refresh, timeout: $timeout, insert: $insert, missingProgram: missingProgram)
+                    case .run, .terminal:
                         TextField(tr("命令", "Command"), text: $commandLine, prompt: Text("python3 -c {input}"))
                             .font(.body.monospaced())
                         Text(tr("{input} 换成命令后面写的内容，始终是一个参数，不经过 shell（要 shell 就写 zsh -c {input}）。参数里有空格时用引号。",
@@ -195,13 +223,23 @@ struct CommandEditor: View {
                                 .font(.caption).foregroundStyle(.orange)
                         }
                     }
-                    if type != .snippet {
+                    if type != .snippet, type != .suggestions {
                         Toggle(tr("用英文字母输入（写代码、路径时）", "Type English letters (for code and paths)"), isOn: $latin)
+                    }
+                }
+                // How the source saved is doing (not a new one's, nor one being turned into another type).
+                if original.original != nil, original.command.type == .suggestions, type == .suggestions {
+                    Section(tr("状态", "Status")) {
+                        CommandSourceStatus(command: original.command, config: config) { refreshNow(original.command.name) }
                     }
                 }
                 if type == .run || type == .terminal {
                     Text(tr("「运行程序」和「在终端运行」会在你的 Mac 上执行命令：只加你自己写的、信得过的。它们只在你按执行键时运行，密码框里不运行。",
                             "Programs run on your Mac: add only commands you wrote and trust. They run only when you press the action key, never in password fields."))
+                        .font(.caption).foregroundStyle(.secondary)
+                } else if type == .suggestions {
+                    Text(tr("这个程序会在你的 Mac 上运行：打前缀时按刷新间隔拿列表，边打边查时把前缀后面的字作为一个参数给它，别的什么都不给；密码框里不运行。只加你自己写的、信得过的程序。",
+                            "The program runs on your Mac: for its list when you type the prefix (then at the refresh interval), and with Look up as you type with what follows the prefix as one argument, nothing else; never in password fields. Add only programs you wrote and trust."))
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
@@ -225,7 +263,7 @@ struct CommandEditor: View {
         .task(id: type) { await checkProgram() }
     }
 
-    /// "What it does": the five kinds of command (its label for accessibility; the row shows it).
+    /// "What it does": the six kinds of command (its label for accessibility; the row shows it).
     private var typePicker: some View {
         Picker(tr("做什么", "What it does"), selection: $type) {
             Text(tr("AI 指令", "AI instruction")).tag(CustomCommand.CommandType.prompt)
@@ -233,6 +271,7 @@ struct CommandEditor: View {
             Text(tr("在终端运行", "Run in Terminal")).tag(CustomCommand.CommandType.terminal)
             Text(tr("打开网页", "Open a web page")).tag(CustomCommand.CommandType.link)
             Text(tr("插入文字", "Insert text")).tag(CustomCommand.CommandType.snippet)
+            Text(tr("建议", "Suggestions")).tag(CustomCommand.CommandType.suggestions)
         }
         .labelsHidden()
     }
@@ -252,6 +291,11 @@ struct CommandEditor: View {
         timeout = example.timeout
         url = example.url ?? ""
         text = example.text ?? ""
+        prefix = example.prefix ?? ""
+        query = example.query ?? false
+        queryMinChars = example.queryMinChars ?? 3
+        refresh = example.refresh ?? "1h"
+        insert = SuggestionSourceForm.text(example.insert)
     }
 
     /// What the "Insert Placeholder" menu adds (at the text's caret).
@@ -272,7 +316,7 @@ struct CommandEditor: View {
 
     /// Looks the command line's program up in the user's shell PATH (the first time, the shell is asked).
     private func checkProgram() async {
-        guard type == .run || type == .terminal, let program = CustomCommand.arguments(fromCommandLine: commandLine)?.first, !program.isEmpty else {
+        guard type == .run || type == .terminal || type == .suggestions, let program = CustomCommand.arguments(fromCommandLine: commandLine)?.first, !program.isEmpty else {
             missingProgram = nil
             return
         }
@@ -299,6 +343,9 @@ struct CommandEditor: View {
                           url: "https://www.google.com/search?q=" + CustomCommand.placeholder),
             CustomCommand(name: "sh", type: .terminal, summary: tr("在终端运行", "Run in Terminal"),
                           argv: ["zsh", "-c", CustomCommand.placeholder + "; exec zsh"]),
+            // A program of your own that prints "match⇥title⇥url" lines (docs: custom commands).
+            CustomCommand(name: "jira", type: .suggestions, summary: tr("Jira 问题", "Jira issues"), argv: ["~/bin/jira-list"],
+                          prefix: "JIRA-", insert: CustomCommand.InsertPreset.title.insert),
         ]
     }
 }

@@ -200,6 +200,35 @@ struct CommandSuggestionsTests {
         #expect(CompletionSourceKey(fileName: "custom-command.jira.json") == nil)
     }
 
+    /// What Settings says under it (the Mac's editor and command list, the settings document): how its source is doing,
+    /// or why nothing of it shows.
+    @Test func settingsSayHowItIsDoing() async {
+        await withInterfaceLanguage("en") {
+            var config = Config.default
+            let now = Date()
+            let jira = Self.jira()
+            let fresh = jira.suggestionsState(config, status: nil, now: now)
+            #expect(fresh?.text.hasPrefix("Not loaded yet") == true && fresh?.problem == false, "\(String(describing: fresh))")
+            var status = CompletionSourceStatus(plugin: CompletionSourceKey.customCommands, source: "jira", items: 12,
+                                                refreshed: now.addingTimeInterval(-120), error: nil, paused: false)
+            let loaded = jira.suggestionsState(config, status: status, now: now)
+            #expect(loaded?.text.contains("12 items") == true && loaded?.problem == false, "\(String(describing: loaded))")
+            status.error = "jira: not logged in"
+            let failed = jira.suggestionsState(config, status: status, now: now)
+            #expect(failed?.text.contains("Last error: jira: not logged in") == true && failed?.problem == true)
+            config.suggestions = false
+            #expect(jira.suggestionsState(config, status: status, now: now)?.text.hasPrefix("Suggestions are off") == true)
+            config.suggestions = nil
+            config.commandTrigger = "#"
+            let shadowed = Self.jira { $0.prefix = "#J" }.suggestionsState(config, status: nil, now: now)
+            #expect(shadowed?.problem == true && shadowed?.text.contains("magic key") == true, "\(String(describing: shadowed))")
+            let refused = Self.jira { $0.refresh = "1m" }.suggestionsState(config, status: nil, now: now)
+            #expect(refused?.problem == true && refused?.text.hasPrefix("Can't be a suggestion source: ") == true)
+            #expect(Self.jira { $0.prefix = "JIRA 1" }.suggestionsState(config, status: nil, now: now)?.text.hasPrefix("The prefix must be") == true)
+            #expect(CustomCommand(name: "py", type: .run, argv: ["python3"]).suggestionsState(config, status: nil) == nil)
+        }
+    }
+
     /// In the command list it is a source: no program run from there, an icon of its own, what it is said.
     @Test func inTheCommandListItIsASource() {
         let catalog = Command.catalog([Self.jira()])

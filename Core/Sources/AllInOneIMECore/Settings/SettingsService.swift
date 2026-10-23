@@ -585,7 +585,7 @@ public final class SettingsService: @unchecked Sendable {
         }
         let plugins = PluginStore.load(from: library.directory).plugins.map(\.name)
         if let problem = command.problem(among: store.otherCommands(than: action.item), plugins: plugins,
-                                         unread: store.config.unreadCustomCommandNames) {
+                                         unread: store.config.unreadCustomCommandNames, trigger: store.config.commandTrigger) {
             return .failure(SettingsProblem(.badValue, field: action.field, message: UIText.describe(problem)))
         }
         return saving(action.field) {
