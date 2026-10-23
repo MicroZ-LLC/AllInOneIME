@@ -193,8 +193,6 @@ extension AllInOneIMEInputController {
         showNotice(text + why, client: nil, lasting: why.isEmpty ? TranslateModeShared.noticeLasting : nil)
     }
 
-    /// Nothing to translate into but the languages typed (`Config.hasLanguageToTranslateInto`): where one is added, the
-    /// page named as the settings' sidebar names it.
     /// Half way through a long press of Shift, near the caret (`SuggestionsServices.holdHint`, as in 0.6.6): 「继续按住 →
     /// 边打边译」, 「继续按住 → 关闭边打边译」 while it's on, or that there's nothing to translate into.
     @MainActor
@@ -210,6 +208,8 @@ extension AllInOneIMEInputController {
         return tr("继续按住 → 边打边译", "Keep holding → Translate as You Type")
     }
 
+    /// Nothing to translate into but the languages typed (`Config.hasLanguageToTranslateInto`): where one is added, the
+    /// page named as the settings' sidebar names it.
     private var noTargetText: String {
         let page = SettingsPage.writing.title
         return tr("没有要翻译成的语言：在设置 →「\(page)」里加一种", "No language to translate into: add one in Settings → \(page)")
