@@ -448,6 +448,10 @@ if arguments.first == InlineCode.javaScriptHostOption {
 }
 if arguments.first == "--run-plugin" {
     guard let invocation = PluginHost.invocation(Array(arguments.dropFirst())) else { exit(2) }
+    // A completion script's load or query (suggestions, which the engine doesn't show yet), its ctx on standard input.
+    if let function = PluginHost.completionFunction(Array(arguments.dropFirst())) {
+        exit(PluginHost.runCompletion(directory: invocation.directory, function: function))
+    }
     exit(PluginHost.run(directory: invocation.directory, language: invocation.language))
 }
 // And the process of each console window it opens, which stays open after the program in it ends.

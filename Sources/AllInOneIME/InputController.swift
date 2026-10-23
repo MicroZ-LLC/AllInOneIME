@@ -143,6 +143,9 @@ final class AllInOneIMEInputController: IMKInputController {
         services.translateChip = { MainActor.assumeIsolated { box.value?.translateChip() } }
         // Autocomplete: what it learns and counts, one for every field; an app's name for what it says of the app.
         services.autocomplete = MainActor.assumeIsolated { MainThreadBox(AutocompleteSwitch.store) }.value
+        // Suggestions: one store for every field, coding mode and Translate as You Type the input method's (this field
+        // turns the latter on and off for the session's chooser).
+        services.suggestions = MainActor.assumeIsolated { MainThreadBox(SuggestionsShared.services(field: box)) }.value
         services.appName = { app in MainActor.assumeIsolated { AppNames.name(for: app) } }
         services.page = { app in
             MainActor.assumeIsolated { () -> MainThreadBox<PageSource?> in
@@ -441,7 +444,7 @@ final class AllInOneIMEInputController: IMKInputController {
 
     override func menu() -> NSMenu! {
         log.notice("input menu requested")
-        return MainActor.assumeIsolated { MainThreadBox(addingAutocomplete(to: makeMenu())) }.value
+        return MainActor.assumeIsolated { MainThreadBox(addingSuggestions(to: addingAutocomplete(to: makeMenu()))) }.value
     }
 
     // MARK: - The session
@@ -478,7 +481,7 @@ final class AllInOneIMEInputController: IMKInputController {
         // A result still being typed out: Esc stops it there; any other key types the rest at once,
         // then goes on as usual.
         if TerminalPaste.isOurs(event) { return false }  // a line break being pasted into a terminal
-        translateModeKeyDown()  // Shift held with a key is no long press of it
+        translateModeKeyDown()
         if typingTask != nil {
             if event.keyCode == VirtualKey.escape {
                 stopTyping(insertingRest: false)
@@ -514,7 +517,7 @@ final class AllInOneIMEInputController: IMKInputController {
     func handleFlagsChanged(_ event: NSEvent, client: IMKTextInput?) {
         // Chromium and Electron apps (Slack, VS Code, Chrome) hand every modifier change over twice, the same event,
         // after the next change too when the page is busy: the copy changes nothing, for the session's composer (a tap
-        // of Shift or ⌥) and the long press of Shift alike.
+        // of Shift or ⌥) and its long press of Shift (the chooser) alike.
         guard !Self.modifierEchoes.isEcho(keyCode: event.keyCode, flags: event.modifierFlags.rawValue,
                                           timestamp: event.timestamp, now: ProcessInfo.processInfo.systemUptime) else {
             // Each copy dropped, how long after the event's time it came (`log stream --level debug --predicate
@@ -538,16 +541,8 @@ final class AllInOneIMEInputController: IMKInputController {
             if missing.isEmpty { break }
             read(missing, of: target, into: &context)
         }
+        // The session times a long press of Shift itself: its chooser of Translate as You Type and coding mode.
         apply(session.handle(.modifiers(change, context)).outputs, client: client)
-        guard !context.secure else {
-            // No long press of Shift either, and Shift as it is now: the release isn't missed by the next press.
-            translateModeFlagsMissed(shiftDown: event.modifierFlags.contains(.shift))
-            return
-        }
-        // fn held with Shift is no long press of it either (only Translate as You Type is told of fn).
-        var modifiers = Self.flagsChangedModifiers(event.modifierFlags)
-        if event.modifierFlags.contains(.function) { modifiers.insert(.function) }
-        translateModeFlagsChanged(keyCode: event.keyCode, modifiers: modifiers)
     }
 
     /// What the field says around the caret as `key` goes down: what the session wants of it (`fieldWants`), asked again
