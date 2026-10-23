@@ -523,6 +523,7 @@ final class SettingsModel: ObservableObject {
         pluginError = store.uninstall(plugin)
         refreshPlugins()
         _ = LivePlugins.current(rescan: true)  // the command list drops it right away
+        SuggestionsShared.settingsChanged()  // what was enabled of it forgotten, its cached lists deleted
     }
 
     /// Opens the plugins folder (made first), where a plugin folder can be put by hand.

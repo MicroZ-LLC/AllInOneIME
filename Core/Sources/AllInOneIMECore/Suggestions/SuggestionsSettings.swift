@@ -38,6 +38,18 @@ extension CompletionSourceApproval {
         return holds(for: source, hosts: plugin.manifest.hosts, scriptSHA256: sha)
     }
 
+    /// The approvals of `enabled` that no longer hold for `plugins` as they are installed now: their plugin or source is
+    /// gone, or changed since (`holds`). `sha256`: a script's SHA-256 (nil: none to read).
+    public static func lapsed(_ enabled: [CompletionSourceApproval], plugins: [InstalledPlugin],
+                              sha256: (URL) -> String? = PluginStore.sha256(of:)) -> [CompletionSourceApproval] {
+        enabled.filter { approval in
+            guard let plugin = plugins.first(where: { $0.name == approval.plugin }),
+                  let source = plugin.manifest.completions.first(where: { $0.name == approval.source }),
+                  let sha = plugin.scriptURL.flatMap(sha256) else { return true }
+            return !approval.holds(for: source, hosts: plugin.manifest.hosts, scriptSHA256: sha)
+        }
+    }
+
     /// `holds(for:of:)` with the plugin's hosts and its script's SHA-256 as they are now.
     func holds(for source: CompletionSource, hosts: [String], scriptSHA256 sha: String) -> Bool {
         self.source == source.name && query == source.query && scriptSHA256 == sha

@@ -272,7 +272,7 @@ public enum PluginStore {
         try FileManager.default.removeItem(at: plugin.directory)
     }
 
-    static func sha256(of url: URL) -> String? {
+    public static func sha256(of url: URL) -> String? {
         guard let data = try? Data(contentsOf: url) else { return nil }
         return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }

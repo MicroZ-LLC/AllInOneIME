@@ -58,17 +58,41 @@ enum SuggestionsShared {
         settingsChanged()
     }
 
-    /// The settings of suggestions changed (a source enabled or disabled, "Refresh now"): the field being typed in takes
-    /// them in at once (a source disabled is forgotten, its cache deleted; a refresh asked for starts).
+    /// The settings of suggestions changed (a source enabled or disabled, "Refresh now", a plugin removed): the field
+    /// being typed in takes them in at once (a source disabled, or whose approval no longer holds, is forgotten, its cache
+    /// deleted; a refresh asked for starts).
     static func settingsChanged() {
         if let field = AllInOneIMEInputController.activeController {
             field.received(.configChanged)
         } else {
-            // No field: what's disabled is still forgotten now.
-            store.prune(keeping: Set(LiveConfig.current.completionSources.map { CompletionSourceKey(plugin: $0.plugin, source: $0.source) }),
+            // No field: what's disabled or no longer approved is still forgotten now, with the plugins as they are.
+            let enabled = LiveConfig.current.completionSources
+            let lapsed = CompletionSourceApproval.lapsed(enabled, plugins: LivePlugins.current(rescan: true))
+            store.prune(keeping: Set(enabled.filter { !lapsed.contains($0) }.map { CompletionSourceKey(plugin: $0.plugin, source: $0.source) }),
                         folder: cacheFolder)
+            dropApprovals(lapsed)
         }
         NotificationCenter.default.post(name: .allInOneIMESuggestionsChanged, object: nil)
+    }
+
+    /// Approvals that no longer hold (their plugin removed, or changed since: `CompletionSourceApproval.lapsed`) taken out
+    /// of the config file, once the key or focus being handled is done: the same plugin installed again asks again.
+    static func dropApprovals(_ lapsed: [CompletionSourceApproval]) {
+        guard !lapsed.isEmpty else { return }
+        DispatchQueue.main.async {
+            do {
+                var config = try Config.load()
+                let before = config.completionSources
+                config.completionSources.removeAll { lapsed.contains($0) }
+                guard config.completionSources != before else { return }
+                try config.write()
+                log.notice("suggestions: \(before.count - config.completionSources.count, privacy: .public) approval(s) dropped")
+                NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
+                NotificationCenter.default.post(name: .allInOneIMESuggestionsChanged, object: nil)
+            } catch {
+                log.error("suggestions: approvals couldn't be dropped: \(String(describing: error), privacy: .public)")
+            }
+        }
     }
 
     /// A source's status changed (from any thread): Settings → Plugins shows it.
@@ -94,6 +118,7 @@ enum SuggestionsShared {
         services.loadPicks = { MainActor.assumeIsolated { picks.all } }
         services.recordPick = { pick in MainActor.assumeIsolated { picks.record(pick) } }
         services.reportStatus = { reported($0) }
+        services.approvalsLapsed = { lapsed in MainActor.assumeIsolated { dropApprovals(lapsed) } }
         services.pointer = { MainActor.assumeIsolated { TranslateModeShared.pointer() } }
         services.stickyKeys = { MainActor.assumeIsolated { TranslateModeShared.stickyKeys() } }
         services.chooserHint = { MainActor.assumeIsolated { chooserHint } }

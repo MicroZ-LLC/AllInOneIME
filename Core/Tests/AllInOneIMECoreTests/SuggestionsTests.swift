@@ -411,6 +411,29 @@ struct SuggestionsTests {
         #expect(service.document().field("codingLanguages.installed")?.items?.isEmpty == true)
     }
 
+    /// Removing a plugin (Settings → Plugins, the Mac's or the settings document's) forgets what was enabled of it, and
+    /// saves that: installed again, its sources are off until enabled again. Other plugins' stay.
+    @Test func uninstallingAPluginForgetsWhatWasEnabledOfIt() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("suggestions-uninstall-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let plugins = folder.appendingPathComponent("plugins", isDirectory: true)
+        try FileManager.default.createDirectory(at: plugins, withIntermediateDirectories: true)
+        try FileManager.default.copyItem(at: Self.github, to: plugins.appendingPathComponent("github"))
+        let url = folder.appendingPathComponent("config.json")
+        try Data("{}".utf8).write(to: url)
+        let store = SettingsStore(configURL: url)
+        let plugin = try #require(PluginStore.load(from: plugins).plugins.first)
+        store.config.setCompletionSource(try #require(plugin.manifest.completions.first), of: plugin, enabled: true)
+        let other = CompletionSourceApproval(plugin: "aws", source: "accounts", hosts: [], query: false, scriptSHA256: String(repeating: "b", count: 64))
+        store.config.completionSources.append(other)
+        store.save()
+        #expect(try Config.load(from: url).completionSources.count == 2)
+        #expect(store.uninstall(plugin) == nil)
+        #expect(store.config.completionSources == [other], "\(store.config.completionSources)")
+        #expect(try Config.load(from: url).completionSources == [other], "saved")
+        #expect(PluginStore.load(from: plugins).plugins.isEmpty)
+    }
+
     // MARK: - Coding packs from the library
 
     static func pack(_ language: String = "python", version: String = "1.0.0") -> Data {

@@ -69,3 +69,58 @@ extension SuggestionsSessionTests {
         }
     }
 }
+
+extension SuggestionsSessionTests {
+    enum Gone: String, CaseIterable, Sendable {
+        case uninstalled, updated
+    }
+
+    /// An approval that no longer holds (its plugin removed, or updated since in a way that needs enabling again) is
+    /// dropped (the shell takes it out of the settings) and the source's cached list deleted, in memory and on disk:
+    /// the same plugin installed again asks again.
+    @Test(arguments: Gone.allCases)
+    func anApprovalThatNoLongerHoldsIsDroppedWithItsCache(_ gone: Gone) throws {
+        try inEnglish {
+            let world = SuggestionsWorld()
+            let cache = world.folder.appendingPathComponent("cache", isDirectory: true)
+            world.cacheFolder = cache
+            let plugin = try world.github(enable: false)
+            let issues = try #require(plugin.manifest.completions.first)
+            let approval = try #require(CompletionSourceApproval(enabling: issues, of: plugin))
+            world.switches.enabled = [approval]
+            let lapsed = Locked<[CompletionSourceApproval]>(initialState: [])
+            func field() -> SuggestionsField {
+                world.field(app: "com.apple.TextEdit") { services in
+                    services.suggestions.approvalsLapsed = { dropped in
+                        lapsed.withLock { $0 += dropped }
+                        world.switches.enabled.removeAll { dropped.contains($0) }
+                    }
+                }
+            }
+            let file = cache.appendingPathComponent("github.issues.json")
+            let first = field()
+            first.type("#7")
+            #expect(first.waitForIssues(["#7001", "#7002", "#7090", "#7100", "#789"]), "\(first.issuesShown)")
+            #expect(first.settle { FileManager.default.fileExists(atPath: file.path) }, "cached")
+            #expect(lapsed.withLock { $0 }.isEmpty, "it holds: kept")
+
+            switch gone {
+            case .uninstalled: world.plugins = []
+            case .updated:
+                let script = SuggestionsPlugins.script + "\nfunction extra() { return 1; }\n"
+                world.plugins = [try #require(try SuggestionsPlugins.install(SuggestionsPlugins.githubManifest(), script: script, in: world.folder))]
+            }
+            let next = field()
+            #expect(lapsed.withLock { $0 } == [approval], "\(gone): dropped (\(lapsed.withLock { $0 }))")
+            #expect(next.settle { !FileManager.default.fileExists(atPath: file.path) }, "\(gone): its cached list deleted")
+
+            // The plugin as it was, again: off until enabled again; nothing listed from before.
+            world.plugins = [try #require(try SuggestionsPlugins.install(SuggestionsPlugins.githubManifest(), in: world.folder))]
+            let calls = world.runtime.calls.count
+            let again = field()
+            again.type("#7")
+            again.idle()
+            #expect(again.rows.isEmpty && world.runtime.calls.count == calls, "\(gone), installed again: asks again (\(again.issuesShown))")
+        }
+    }
+}
