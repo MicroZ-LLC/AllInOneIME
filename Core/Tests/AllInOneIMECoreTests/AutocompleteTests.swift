@@ -217,6 +217,43 @@ struct AutocompleteTests {
         #expect(mail.system[0].text.contains("an email") && mail.messages[0].content[0].text.hasSuffix("<after>\nBest</after>"))
     }
 
+    @Test func onlyTheNextLineAfterTheCaretIsSent() {
+        // What a model needs so as not to write it again: up to the end of the first line with something on it.
+        #expect(Autocomplete.context(FieldText(before: "Dear Ann,", after: "\n\nBest regards,\nTom\n"))?.after == "\n\nBest regards,")
+        #expect(Autocomplete.context(FieldText(before: "Dear Ann,", after: "  \n \n"))?.after == "")
+    }
+
+    @Test func theOnDeviceModelHasExamplesInTheTextsOwnScript() {
+        func request(_ before: String, onDevice: Bool = true) -> ConverseRequest {
+            Prompt.autocompleteRequest(Autocomplete.Context(before: before), app: nil, onDevice: onDevice)
+        }
+        func answers(_ request: ConverseRequest) -> [String] {
+            request.messages.filter { $0.role == "assistant" }.map { $0.content[0].text }
+        }
+        // English: four, asked to start with no space (the English words put it in), and the text last, as it was.
+        let english = request("Sounds good, see you tomo")
+        #expect(english.messages.count == 9 && english.messages.last?.content[0].text == "<before>Sounds good, see you tomo</before>")
+        #expect(answers(english).contains("next Wednesday?") && !answers(english).contains { $0.hasPrefix(" ") })
+        #expect(english.system[0].text.contains("Never start with a space"))
+        // Another language in Latin letters keeps the model's spaces; Chinese gets the Chinese ones; Japanese none.
+        let german = request("Vielen Dank für die schnelle Antwort. Wir sehen uns")
+        #expect(answers(german).contains(" next Wednesday?") && !german.system[0].text.contains("Never start with a space"))
+        #expect(answers(request("谢谢你的帮助，")) == Prompt.autocompleteChineseExamples.map(\.answer))
+        #expect(request("明日の会議は").messages.count == 1)
+        // A cloud model gets none.
+        #expect(request("Sounds good, see you tomo", onDevice: false).messages.count == 1)
+        // As the on-device model takes it: the examples earlier turns, the text the prompt.
+        let apple = AppleModel.request(from: english, maxTokens: Autocomplete.maxTokens, contextSize: 4096)
+        #expect(apple.examples.count == 4 && apple.prompt == "<before>Sounds good, see you tomo</before>")
+    }
+
+    @Test func englishIsToldByItsWords() {
+        #expect(Autocomplete.looksEnglish("Thanks for the quick reply. I will send you the rep"))
+        #expect(Autocomplete.looksEnglish("iss"))
+        #expect(!Autocomplete.looksEnglish("Vielen Dank für die schnelle Antwort. Wir sehen uns"))
+        #expect(!Autocomplete.looksEnglish("Merci pour votre message. Je vous envoie le rapport"))
+    }
+
     // MARK: - The model
 
     @Test func theOnDeviceModelUnlessTheUserAgreedToTheirCloudProvider() {
@@ -276,6 +313,7 @@ struct AutocompleteTests {
         let converter = Converter(loadConfig: { fixed }, appleModel: model)
         let answer = try await converter.autocomplete(Autocomplete.Context(before: "See you", after: "\nTomorrow at noon, then"), app: nil)
         #expect(answer.text == nil && model.requests.count == 1)
+        #expect(model.requests.first?.examples.count == 4 && model.requests.first?.prompt == "<before>See you</before>\n<after>\nTomorrow at noon, then</after>")
     }
 
     @Test func theConverterHidesValuesAndPutsThemBack() async throws {

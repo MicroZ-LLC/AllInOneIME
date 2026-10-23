@@ -13,7 +13,7 @@ import Foundation
 /// read once it's over (`SessionOutput.readField`), the request runs in a slot of its own that every key stops, and the
 /// suggestion is an output (`SessionOutput.ghost`) the shell draws after the caret.
 public enum Autocomplete {
-    /// What goes with a request: the text before the caret (its last characters) and after it.
+    /// What goes with a request: the text before the caret (its last characters) and after it (`following`).
     public static let beforeLimit = 1500
     public static let afterLimit = 200
     /// The most a suggestion is: about a dozen words, or 25 characters of Chinese or Japanese, to the end of a sentence.
@@ -114,8 +114,8 @@ public enum Autocomplete {
 
     // MARK: What is sent
 
-    /// What a request continues: the text before the caret, the last `beforeLimit` characters of it, and after it, the
-    /// first `afterLimit`.
+    /// What a request continues: the text before the caret, the last `beforeLimit` characters of it, and what of the text
+    /// after it a model needs so as not to write it again (`following`).
     public struct Context: Equatable, Sendable {
         public var before: String
         public var after: String
@@ -140,7 +140,17 @@ public enum Autocomplete {
         let line = before.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline).last.map(String.init) ?? ""
         guard line.filter({ !$0.isWhitespace }).count >= 2 else { return nil }
         if looksLikeNumbers(line) { return nil }
-        return Context(before: String(before.suffix(beforeLimit)), after: String(after.prefix(afterLimit)))
+        return Context(before: String(before.suffix(beforeLimit)), after: following(after))
+    }
+
+    /// What of the text after the caret goes with a request: up to the end of its first line with something on it (what a
+    /// small model says again in place of a suggestion, and what the answer is checked against: `copiesWhatFollows`),
+    /// `afterLimit` characters at most. Nothing past it, nor only spaces: the field's later lines aren't for the model to
+    /// go on with.
+    static func following(_ after: String) -> String {
+        guard let start = after.firstIndex(where: { !$0.isWhitespace }) else { return "" }
+        let end = after[start...].firstIndex(where: \.isNewline) ?? after.endIndex
+        return String(after[..<end].prefix(afterLimit))
     }
 
     /// A line of digits with no letters (four or more digits): a one-time code, a card's number, a phone number.
@@ -422,6 +432,15 @@ public enum Autocomplete {
     /// The Latin letters `text` ends with: the word being typed ("iss" in "Frobnicate. iss"), none after a space or a mark.
     static func lastWord(_ text: String) -> String {
         String(text.reversed().prefix { $0.isASCII && $0.isLetter }.reversed())
+    }
+
+    /// Whether `text` reads as English: half its Latin words at least, but the one being typed, are English words
+    /// (`isWord`), or it has none yet ("iss"). What the spaces of an answer are put in by are English words
+    /// (`needsSpace`, `gluesAWordOn`): "Wir sehen uns" isn't.
+    static func looksEnglish(_ text: String) -> Bool {
+        var words = text.split { !($0.isASCII && $0.isLetter) }.map { $0.lowercased() }
+        if let last = text.last, last.isASCII, last.isLetter { words.removeLast() }
+        return words.isEmpty || words.filter(isWord).count * 2 >= words.count
     }
 
     /// Whether `word` (in small letters) is a word on its own, by the English word list the core has (`RedactionWords`)
@@ -763,38 +782,85 @@ public final class AutocompleteStore: @unchecked Sendable {
 
 extension Prompt {
     /// Bump when the wording of autocomplete's request changes.
-    public static let autocompleteVersion = 1
+    public static let autocompleteVersion = 2
 
-    /// Autocomplete's instructions, for where it is typed (`AppClass`).
-    static func autocompleteSystem(app: String?) -> String {
+    /// Autocomplete's instructions, for where it is typed (`AppClass`). Unspaced (`spaced` false), the answer is asked
+    /// to start with no space (`autocompleteRequest`).
+    static func autocompleteSystem(app: String?, spaced: Bool = true) -> String {
         let place: String
         switch AppClass(app: app) {
         case .chat: place = "a chat message"
         case .mail: place = "an email"
         case .other: place = "a document or a text field"
         }
+        let start = spaced
+            ? "If the text stops inside a word, first finish that word, with no space before it; otherwise start with a "
+                + "space before the next word (none in Chinese or Japanese)."
+            : "If the text stops inside a word, first finish that word. Never start with a space: one is put in where a "
+                + "new word starts."
         return """
-            You suggest how the user's text goes on, like the gray suggestion after the caret in an editor. The text is \
-            \(place). The text before the caret is between <before> and </before>; the text after the caret, if any, \
-            between <after> and </after>.
+            You are the autocomplete of a text field: you suggest the next words the user is about to type, shown in gray \
+            after the caret. The text is \(place). The text before the caret is between <before> and </before>. The text \
+            between <after> and </after>, if any, is already in the field after the caret: never write it.
 
             Rules:
             - Answer with only the words that come right after the caret, as plain text: no tags, no quotes, no \
-            explanations, never the text before the caret again.
+            explanations.
+            - Write as the user, going on with their own text: never reply to it, answer it or greet them.
+            - \(start)
+            - Never repeat the text before the caret.
             - Use the same language, tone and style as the text.
             - At most one sentence, ending where that sentence ends; at most \(Autocomplete.maxWords) words (\
             \(Autocomplete.maxWideCharacters) characters in Chinese or Japanese).
-            - Start exactly where the text stops: with a space if a new word follows, without one if the last word isn't \
-            finished.
             - If you can't tell how it goes on, answer with nothing at all.
             """
     }
 
-    /// Autocomplete's request: the instructions, then the text before the caret (and after it) as the message.
-    public static func autocompleteRequest(_ context: Autocomplete.Context, app: String?) -> ConverseRequest {
-        ConverseRequest(system: [.init(autocompleteSystem(app: app))],
-                        messages: [.init(role: "user", text: autocompleteMessage(context))],
-                        inferenceConfig: .init(maxTokens: Autocomplete.maxTokens, temperature: 0.2))
+    typealias AutocompleteExample = (context: Autocomplete.Context, answer: String)
+
+    /// Autocomplete's few-shot examples, for Apple's on-device model (a small one, which without them answers in the
+    /// request's tags, replies to the text, says it again and glues words on): a new word, the text after the caret not
+    /// written, the writer's own text going on (not a reply), a word finished.
+    static let autocompleteEnglishExamples: [AutocompleteExample] = [
+        (.init(before: "Can we push the deadline to"), " next Wednesday?"),
+        (.init(before: "Hi Mark,\nJust a quick reminder about", after: "\nCheers,"), " the budget review on Friday."),
+        (.init(before: "Thank you for the invitation."), " I would be happy to join."),
+        (.init(before: "Please review the attached docu"), "ment before our call."),
+    ]
+    static let autocompleteChineseExamples: [AutocompleteExample] = [
+        (.init(before: "这周五晚上我们"), "一起去吃火锅吧？"),
+        (.init(before: "下班后我打算", after: "\n别忘了带钥匙"), "去超市买点水果。"),
+        (.init(before: "感谢大家的支持，"), "我们下周会公布最终结果。"),
+    ]
+
+    /// The examples for text that ends with `before`, in its script (the model answers in the examples' language): the
+    /// English ones after Latin letters (without the space at the start, `spaced` false), the Chinese ones after
+    /// Chinese, none after Japanese, Korean or another script.
+    static func autocompleteExamples(for before: String, spaced: Bool = true) -> [AutocompleteExample] {
+        let end = String(before.suffix(200))
+        if end.unicodeScalars.contains(where: { (0x3040...0x30FF).contains($0.value) || (0xAC00...0xD7AF).contains($0.value) }) {
+            return []
+        }
+        if end.contains(where: \.isWide) { return autocompleteChineseExamples }
+        guard AppleModel.mostlyLatin(end) else { return [] }
+        return spaced ? autocompleteEnglishExamples : autocompleteEnglishExamples.map { ($0.context, String($0.answer.drop { $0 == " " })) }
+    }
+
+    /// Autocomplete's request: the instructions, then the text before the caret (and after it) as the message; for the
+    /// on-device model (`onDevice`), few-shot examples before it (`autocompleteExamples`). On English (`Autocomplete
+    /// .looksEnglish`) the on-device model is asked for no space at the start: it can't tell a word being finished from
+    /// a new one ("rep" + " report", "comm" + " mand"), and a space is put in by the English words where a new one starts
+    /// (`Autocomplete.needsSpace`). Other languages keep the model's own spaces.
+    public static func autocompleteRequest(_ context: Autocomplete.Context, app: String?, onDevice: Bool = false) -> ConverseRequest {
+        let end = String(context.before.suffix(200))
+        let spaced = !onDevice || !(AppleModel.mostlyLatin(end) && Autocomplete.looksEnglish(end))
+        let examples = onDevice ? autocompleteExamples(for: context.before, spaced: spaced).flatMap { example in
+            [ConverseRequest.Message(role: "user", text: autocompleteMessage(example.context)),
+             ConverseRequest.Message(role: "assistant", text: example.answer)]
+        } : []
+        return ConverseRequest(system: [.init(autocompleteSystem(app: app, spaced: spaced))],
+                               messages: examples + [.init(role: "user", text: autocompleteMessage(context))],
+                               inferenceConfig: .init(maxTokens: Autocomplete.maxTokens, temperature: 0.2))
     }
 
     static func autocompleteMessage(_ context: Autocomplete.Context) -> String {
@@ -840,7 +906,7 @@ extension Converter {
         var redaction = Redaction(config.redaction)
         let hidden = redaction?.hide([context.before, context.after]) ?? [context.before, context.after]
         let sent = Autocomplete.Context(before: hidden[0], after: hidden[1])
-        let request = Prompt.autocompleteRequest(sent, app: app)
+        let request = Prompt.autocompleteRequest(sent, app: app, onDevice: route == .onDevice)
         let body = redaction?.protect(request, sent: Prompt.autocompleteMessage(sent)) ?? request
         var text = ""
         var inputTokens: Int?, outputTokens: Int?
