@@ -97,6 +97,7 @@ public struct PersonalDictionaryStore: Sendable {
             changes.append(Change(url: manifest, data: try encode(after)))
             try write(changes)
             removeUnlistedTables(after)
+            if after.dictionaries.isEmpty { removeBuiltDictionary() }
         }
     }
 
@@ -127,6 +128,7 @@ public struct PersonalDictionaryStore: Sendable {
             }
             try write(changes)
             removeUnlistedTables(state)
+            if state.dictionaries.isEmpty { removeBuiltDictionary() }
             if previous == wanted, !repairedWrapper { return .unchanged }
             return wanted == nil ? .removed : .written
         }
@@ -405,6 +407,18 @@ public struct PersonalDictionaryStore: Sendable {
             let owned = (try? handle.read(upToCount: marker.count)) == marker
             try? handle.close()
             if owned { try? fm.removeItem(at: table) }
+        }
+    }
+
+    /// What Rime built of the wrapper (its words and rime-ice's, as large as rime-ice's own), once no dictionary is left:
+    /// nothing uses it any more, and Rime never removes it. Only the wrapper's files; a failure (one in use on Windows)
+    /// leaves them for the next time.
+    private func removeBuiltDictionary() {
+        let build = userDirectory.appendingPathComponent("build", isDirectory: true)
+        for kind in ["table", "prism", "reverse"] {
+            let built = build.appendingPathComponent("\(Self.dictionaryName).\(kind).bin")
+            guard (try? checkRegular(built)) != nil else { continue }
+            try? FileManager.default.removeItem(at: built)
         }
     }
 

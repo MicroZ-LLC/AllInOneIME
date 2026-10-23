@@ -8749,6 +8749,53 @@
         }
       }
     },
+    "Each import, update or removal compiles pinyin's dictionary again (all of rime-ice's words with yours), which can take a minute or so; Chinese input pauses until it's done." : {
+      "comment" : "每次导入、更新或移除都会重新编译拼音词库（雾凇拼音的全部词条加上你的），可能要一分钟左右；这期间暂时打不了中文。 — Sources/AllInOneIME/PersonalDictionariesSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jedes Importieren, Aktualisieren oder Entfernen kompiliert das Pinyin-Wörterbuch neu (alle Wörter von rime-ice und deine), was etwa eine Minute dauern kann; so lange ist keine chinesische Eingabe möglich."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cada importación, actualización o eliminación vuelve a compilar el diccionario de pinyin (todas las palabras de rime-ice y las tuyas), lo que puede tardar un minuto o así; mientras tanto, la escritura en chino se pausa."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chaque import, mise à jour ou suppression recompile le dictionnaire pinyin (tous les mots de rime-ice et les vôtres), ce qui peut prendre une minute environ ; la saisie du chinois est suspendue jusque-là."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "インポート・更新・削除のたびにピンイン辞書（rime-ice の全語彙とあなたの語彙）を再コンパイルするため、1分ほどかかることがあります。その間は中国語を入力できません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "가져오기, 업데이트, 제거할 때마다 병음 사전(rime-ice의 모든 단어와 사용자 단어)을 다시 컴파일하므로 1분 정도 걸릴 수 있으며, 그동안에는 중국어를 입력할 수 없습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cada importação, atualização ou remoção recompila o dicionário de pinyin (todas as palavras do rime-ice com as suas), o que pode levar cerca de um minuto; enquanto isso, a digitação em chinês fica pausada."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每次匯入、更新或移除都會重新編譯拼音詞庫（霧凇拼音的全部詞條加上你的），可能要一分鐘左右；這段期間暫時打不了中文。"
+          }
+        }
+      }
+    },
     "Edit" : {
       "comment" : "编辑 — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {

@@ -173,6 +173,28 @@ struct PersonalDictionaryRecoveryTests {
         try expectConsistent(left, listed: 2)
     }
 
+    // MARK: What Rime built
+
+    /// The last dictionary removed: what Rime built of the wrapper goes, nothing else it built; while one is left, it
+    /// stays (Rime builds it again).
+    @Test func removingTheLastDictionaryRemovesWhatRimeBuiltOfIt() throws {
+        defer { try? FileManager.default.removeItem(at: root) }
+        let first = try store().importDictionary(from: try source("team_alpha", "霁鸢星槎\tji yuan xing cha"), fuzzyPinyin: [])
+        let second = try store().importDictionary(from: try source("team_beta", "鹭汀云笺\tlu ting yun jian"), fuzzyPinyin: [])
+        let build = user.appendingPathComponent("build")
+        try FileManager.default.createDirectory(at: build, withIntermediateDirectories: true)
+        let personal = ["table", "prism", "reverse"].map { "allinoneime_personal.\($0).bin" }
+        let others = ["rime_ice.table.bin", "rime_ice.prism.bin", "rime_ice.reverse.bin", "melt_eng.table.bin"]
+        for name in personal + others { try Data(name.utf8).write(to: build.appendingPathComponent(name)) }
+        func built() -> Set<String> { Set((try? FileManager.default.contentsOfDirectory(atPath: build.path)) ?? []) }
+        try store().removeDictionary(named: first.name, fuzzyPinyin: [])
+        #expect(built().isSuperset(of: personal + others))
+        try store().removeDictionary(named: second.name, fuzzyPinyin: [])
+        #expect(built().isDisjoint(with: personal))
+        #expect(built().isSuperset(of: others))
+        for name in others { #expect(try Data(contentsOf: build.appendingPathComponent(name)) == Data(name.utf8)) }
+    }
+
     /// A table the manifest lists, gone (deleted by hand): left out, and the wrapper no longer imports it.
     @Test func aListedTableThatIsGoneIsLeftOut() throws {
         defer { try? FileManager.default.removeItem(at: root) }

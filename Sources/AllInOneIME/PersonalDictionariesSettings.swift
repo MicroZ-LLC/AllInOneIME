@@ -178,9 +178,14 @@ struct PersonalDictionariesSection: View {
         } header: {
             SectionTitle(tr("个人词库", "Personal Dictionaries"), icon: CandidateView.Icon(symbol: "character.book.closed", color: .systemTeal))
         } footer: {
-            Text(tr("补充自带词库；文件需直接包含文字、拼音编码和可选的数字权重，不支持依赖其他词库。再次导入相同 name 会更新副本；只修改原文件不会自动更新。副本只留在这台 Mac 上，不通过 iCloud 同步或发给 AI。移除后已学到的词会保留。",
-                    "Supplements the built-in vocabulary. Files must contain their own text, pinyin codes and optional numeric weights, without other dictionary dependencies. Import the same name again to update its copy; editing the source alone doesn't update it. Copies stay on this Mac, outside iCloud sync and AI context. Learned words are kept when you remove a dictionary."))
-                .font(.caption).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(tr("补充自带词库；文件需直接包含文字、拼音编码和可选的数字权重，不支持依赖其他词库。再次导入相同 name 会更新副本；只修改原文件不会自动更新。副本只留在这台 Mac 上，不通过 iCloud 同步或发给 AI。移除后已学到的词会保留。",
+                        "Supplements the built-in vocabulary. Files must contain their own text, pinyin codes and optional numeric weights, without other dictionary dependencies. Import the same name again to update its copy; editing the source alone doesn't update it. Copies stay on this Mac, outside iCloud sync and AI context. Learned words are kept when you remove a dictionary."))
+                // The wrapper takes in all of rime-ice's words: each change compiles them again.
+                Text(tr("每次导入、更新或移除都会重新编译拼音词库（雾凇拼音的全部词条加上你的），可能要一分钟左右；这期间暂时打不了中文。",
+                        "Each import, update or removal compiles pinyin's dictionary again (all of rime-ice's words with yours), which can take a minute or so; Chinese input pauses until it's done."))
+            }
+            .font(.caption).foregroundStyle(.secondary)
         }
         .disabled(!model.canSave || !model.store.persists)
         .task { if model.store.persists { await dictionaries.refresh() } }

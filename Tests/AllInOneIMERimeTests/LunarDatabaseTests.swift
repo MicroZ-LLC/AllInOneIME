@@ -2,14 +2,11 @@ import Foundation
 import Testing
 @testable import AllInOneIMECore
 @testable import AllInOneIMERime
-#if canImport(Darwin)
-import Darwin
-#endif
 
 /// rime-ice's lunar date database in the Rime user folder (`RimeService.prepareLunarDatabase`): copied from the shared
 /// data, copied again when that changes (a language pack or app update), the user's own left alone, and never what keeps
 /// pinyin from starting. The copying in folders of the test's own; starting librime in a process of its own each
-/// (`LunarDatabaseWorker`), since it starts once per process.
+/// (`RimeWorker`), since it starts once per process.
 struct LunarDatabaseTests {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-lunar-\(UUID().uuidString)")
     var shared: URL { root.appendingPathComponent("shared") }
@@ -92,79 +89,32 @@ struct LunarDatabaseTests {
 
     /// librime starts, and pinyin works, though the database can't be copied; and a shared one that changes while it runs
     /// is copied again when it deploys again.
-    @Test(.enabled(if: LunarDatabaseWorker.scenario == nil && (LunarDatabaseWorker.dataAvailable || LunarDatabaseWorker.required)))
+    @Test(.enabled(if: RimeWorker.scenario == nil && (RimeWorker.dataAvailable || RimeWorker.required)))
     func pinyinStartsWithoutItAndDeployingCopiesANewOne() throws {
         defer { try? FileManager.default.removeItem(at: root) }
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        try LunarDatabaseWorker.run("unwritable", root: root.appendingPathComponent("unwritable"))
-        try LunarDatabaseWorker.run("redeploy", root: root.appendingPathComponent("redeploy"))
+        try RimeWorker.run("lunar-unwritable", root: root.appendingPathComponent("unwritable"))
+        try RimeWorker.run("lunar-redeploy", root: root.appendingPathComponent("redeploy"))
     }
-}
 
-/// The scenarios run in a copy of the test process each (`LunarDatabaseWorkerTests`).
-enum LunarDatabaseWorker {
-    static let scenarioKey = "ALLINONEIME_LUNAR_WORKER"
-    static let rootKey = "ALLINONEIME_LUNAR_WORKER_ROOT"
-    static var scenario: String? { ProcessInfo.processInfo.environment[scenarioKey] }
-    static var dataAvailable: Bool {
-        FileManager.default.fileExists(atPath: RimeFixture.sharedData.appendingPathComponent("build/rime_ice.table.bin").path)
-    }
-    static var required: Bool { RimeFixture.dataRequired }
-
-    static func run(_ scenario: String, root: URL) throws {
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        let output = root.appendingPathComponent("output.txt")
-        FileManager.default.createFile(atPath: output.path, contents: nil)
-        let handle = try FileHandle(forWritingTo: output)
-        defer { try? handle.close() }
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: try #require(CommandLine.arguments.first))
-        // As PersonalDictionaryRimeAcceptanceTests runs its workers: the test bundle's argument kept, if there is one.
-        if let bundle = CommandLine.arguments.firstIndex(of: "--test-bundle-path"), bundle + 1 < CommandLine.arguments.count {
-            let path = CommandLine.arguments[bundle + 1]
-            process.arguments = ["--test-bundle-path", path, "--filter", "LunarDatabaseWorkerTests", path, "--testing-library", "swift-testing"]
-        } else {
-            process.arguments = ["--testing-library", "swift-testing", "--filter", "LunarDatabaseWorkerTests"]
-        }
-        var environment = ProcessInfo.processInfo.environment
-        environment[scenarioKey] = scenario
-        environment[rootKey] = root.path
-        process.environment = environment
-        process.standardOutput = handle
-        process.standardError = handle
-        try process.run()
-        let deadline = Date().addingTimeInterval(240)
-        while process.isRunning && Date() < deadline { Thread.sleep(forTimeInterval: 0.05) }
-        if process.isRunning { kill(process.processIdentifier, SIGKILL) }
-        process.waitUntilExit()
-        let text = (try? String(contentsOf: output, encoding: .utf8)) ?? ""
-        try #require(process.terminationReason == .exit && process.terminationStatus == 0, "\(scenario):\n\(text)")
-        try #require(text.contains("LUNAR_WORKER_FINISHED:\(scenario)"), "\(scenario) didn't run:\n\(text)")
-    }
-}
-
-@Suite(.serialized, .enabled(if: LunarDatabaseWorker.scenario != nil))
-struct LunarDatabaseWorkerTests {
-    @Test func runScenario() throws {
-        let scenario = try #require(LunarDatabaseWorker.scenario)
-        let root = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment[LunarDatabaseWorker.rootKey]))
-        let user = root.appendingPathComponent("Rime")
-        let service = RimeService.shared
-        switch scenario {
-        case "unwritable":
+    /// In a process of its own each (`RimeWorker`).
+    static let scenarios: [String: @Sendable (URL) throws -> Void] = [
+        "lunar-unwritable": { root in
             // `lua` in the user folder a file: no database can go there.
+            let user = root.appendingPathComponent("Rime")
             try FileManager.default.createDirectory(at: user, withIntermediateDirectories: true)
             try Data("not a folder".utf8).write(to: user.appendingPathComponent("lua"))
+            let service = RimeService.shared
             try service.start(sharedDataDir: RimeFixture.sharedData, userDataDir: user, logDir: nil)
             try #require(service.waitUntilReady(timeout: 120))
             let session = try #require(service.makeSession())
             for byte in "nihao".utf8 { _ = session.processKey(Int32(byte), mask: 0) }
             #expect(session.snapshot().candidates.contains { $0.text == "你好" })
-        case "redeploy":
+        },
+        "lunar-redeploy": { root in
             // The shared data as rime-ice's, but with a lunar database of the test's own to change.
-            let shared = root.appendingPathComponent("shared")
-            try FileManager.default.createDirectory(at: shared.appendingPathComponent("lua"), withIntermediateDirectories: true)
             let fm = FileManager.default
+            let shared = root.appendingPathComponent("shared"), user = root.appendingPathComponent("Rime")
+            try fm.createDirectory(at: shared.appendingPathComponent("lua"), withIntermediateDirectories: true)
             for name in try fm.contentsOfDirectory(atPath: RimeFixture.sharedData.path) where name != "lua" {
                 try fm.createSymbolicLink(at: shared.appendingPathComponent(name), withDestinationURL: RimeFixture.sharedData.appendingPathComponent(name))
             }
@@ -174,6 +124,7 @@ struct LunarDatabaseWorkerTests {
             }
             let original = try Data(contentsOf: lua.appendingPathComponent("lunar.db"))
             try original.write(to: shared.appendingPathComponent("lua/lunar.db"))
+            let service = RimeService.shared
             try service.start(sharedDataDir: shared, userDataDir: user, logDir: nil)
             try #require(service.waitUntilReady(timeout: 120))
             let copy = user.appendingPathComponent("lua/lunar.db")
@@ -184,9 +135,7 @@ struct LunarDatabaseWorkerTests {
             service.redeploy()
             try #require(service.waitUntilReady(timeout: 120))
             #expect(try Data(contentsOf: copy) == updated)
-        default:
-            Issue.record("unknown scenario \(scenario)")
-        }
-        print("LUNAR_WORKER_FINISHED:\(scenario)")
-    }
+        },
+    ]
 }
+
