@@ -536,10 +536,11 @@ Composer with the real engine (the action keys, @ commands, English mode, Caps L
 (n ↔ l) and its rules in rime-ice's schema, and the learned words' sync through a shared folder. Added here: paging
 (Page Down / Page Up and rime-ice's `=` / `-`), picking a candidate (by its place, its number key, on the second page),
 learning (a word picked from the second page comes up front the next time), and `installation.yaml` as librime writes
-it on Windows. Before `Scripts/fetch-librime.sh` they don't link (no `rime.lib`; `swift build` without the tests needs
-none); with librime but before `Scripts/build-rime-data.sh` the engine tests fail, naming the folder, and the schema's
-is skipped unless `ALLINONEIME_REQUIRE_RIME_DATA=1`. librime's warnings (glog) go to stderr and fail nothing:
-`circular dependencies detected in melt_eng.schema`, `lua/lunar.db` not in the user folder.
+it on Windows. Before `Scripts/fetch-librime.sh` they don't link, nor do the engine and the command line (no
+`rime.lib`: `swift build` needs it too, and so does CI's Windows job); with librime but before
+`Scripts/build-rime-data.sh` the engine tests fail, naming the folder, and the schema's is skipped unless
+`ALLINONEIME_REQUIRE_RIME_DATA=1`. librime's warnings (glog) go to stderr and fail nothing: `circular dependencies
+detected in melt_eng.schema` (`lua/lunar.db` is copied into the user folder as librime starts, since 0.6.7).
 
 ## What differs from macOS
 

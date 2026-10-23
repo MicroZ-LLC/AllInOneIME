@@ -104,6 +104,14 @@ jobs:
       - name: Run the tests of what differs on Windows
         run: swift test --skip-build --filter 'PathCheckTests|SwapRecoveryTests|RedactionWordListTests|ScriptEngineTests|QuickJSEngineTests|OnQuickJSTests|AllInOneIMEWireTests'
         working-directory: ../core
+      # The engine and the command line link librime (rime.lib): its release build, checked against its SHA-256.
+      - uses: actions/cache@v4
+        with:
+          path: Windows/ThirdParty/librime
+          key: librime-windows-${{ hashFiles('Windows/Scripts/fetch-librime.sh') }}
+      - name: librime for the Windows shell
+        shell: bash
+        run: Windows/Scripts/fetch-librime.sh
       - name: Build the Windows shell
         run: swift build
         working-directory: Windows
