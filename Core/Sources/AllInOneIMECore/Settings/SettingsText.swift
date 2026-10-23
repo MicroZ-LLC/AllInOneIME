@@ -120,6 +120,18 @@ extension UIText {
         }
     }
 
+    /// When a custom `suggestions` command's program runs on `device`, as its editor says it (the Mac's, the settings
+    /// document's): as the session runs it (InputSession+Suggestions), its list as a text field takes the focus (before
+    /// anything is typed, so maybe in a password field; given nothing of the field) and at its refresh interval; a query
+    /// only with what follows the prefix, where rows may show (never in a password field).
+    public static func suggestionsProgramRuns(on device: PlatformTerms.Device) -> String {
+        device == .mac
+            ? tr("这个程序会在你的 Mac 上运行：有输入框获得焦点时拿列表（可能是密码框，但输入框里的内容一概不给它），之后按刷新间隔再拿；边打边查时把前缀后面打的字作为一个参数给它，密码框里从不查。只加你自己写的、信得过的程序。",
+                 "The program runs on your Mac: for its list when a text field gets the focus (it may be a password field: nothing of the field is given to it), then at the refresh interval; with Look up as you type, with what you type after the prefix as one argument, never in a password field. Add only programs you wrote and trust.")
+            : tr("这个程序会在这台电脑上运行：有输入框获得焦点时拿列表（可能是密码框，但输入框里的内容一概不给它），之后按刷新间隔再拿；边打边查时把前缀后面打的字作为一个参数给它，密码框里从不查。只加你自己写的、信得过的程序。",
+                 "The program runs on this PC: for its list when a text field gets the focus (it may be a password field: nothing of the field is given to it), then at the refresh interval; with Look up as you type, with what you type after the prefix as one argument, never in a password field. Add only programs you wrote and trust.")
+    }
+
     /// Why a custom command in config.json isn't used (`CustomCommand.Refused`), as Settings → Custom Commands says it
     /// under its name: "This command isn't used: “minChars” should be a whole number".
     public static func describe(_ refused: CustomCommand.Refused) -> String {

@@ -183,7 +183,7 @@ extension CustomCommand {
                 return (t.tr("建议关着，这个来源不会出现：在「通用」里打开。", "Suggestions are off, so this source doesn't show: turn them on in General."), true)
             }
             if let summary = status?.summary(now: now, in: t) { return (summary, status?.error != nil) }
-            return (t.tr("还没加载过：第一次打它的前缀时加载。", "Not loaded yet: it loads the first time you type its prefix."), false)
+            return (t.tr("还没加载过：下次有输入框获得焦点时加载。", "Not loaded yet: it loads when a text field next gets the focus."), false)
         }
     }
 }

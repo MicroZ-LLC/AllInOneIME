@@ -776,12 +776,7 @@ struct SettingsSchema {
             Choice(value: CustomCommand.InsertPreset.titleAndLink.insert ?? .null, label: tr("连同标题和链接（聊天 App 里）", "With title and link (in chat apps)")),
         ]
         (insert.optional, insert.when) = (true, only)
-        var program = Field(id: "suggestionsProgram", kind: .info, label: "",
-                            value: .string(terms.device == .mac
-                                ? tr("这个程序会在你的 Mac 上运行：打前缀时按刷新间隔拿列表，边打边查时把前缀后面的字作为一个参数给它，别的什么都不给；密码框里不运行。只加你自己写的、信得过的程序。",
-                                     "The program runs on your Mac: for its list when you type the prefix (then at the refresh interval), and with Look up as you type with what follows the prefix as one argument, nothing else; never in password fields. Add only programs you wrote and trust.")
-                                : tr("这个程序会在这台电脑上运行：打前缀时按刷新间隔拿列表，边打边查时把前缀后面的字作为一个参数给它，别的什么都不给；密码框里不运行。只加你自己写的、信得过的程序。",
-                                     "The program runs on this PC: for its list when you type the prefix (then at the refresh interval), and with Look up as you type with what follows the prefix as one argument, nothing else; never in password fields. Add only programs you wrote and trust.")))
+        var program = Field(id: "suggestionsProgram", kind: .info, label: "", value: .string(UIText.suggestionsProgramRuns(on: terms.device)))
         program.help = tr("不带参数运行时打印全部条目：每行「匹配⇥标题⇥网址」（标题、网址可以不写），或者插件那样的 JSON。",
                           "Run with no input, it prints every item: a line each, \"match⇥title⇥url\" (title and url optional), or the plugins' JSON.")
         program.when = only
