@@ -5,6 +5,22 @@ import CoreGraphics
 /// narrow field's suggestion never covers the window beside it. Where that leaves its text too little room, it doesn't go
 /// anywhere.
 public enum GhostPlacement {
+    /// Which line the suggestion goes on and where on it, from what a field tells of its caret, three ways: the line
+    /// as the candidate panel goes by it (`line`, from `attributes(forCharacterIndex:lineHeightRectangle:)`), the empty
+    /// range at the caret (`caret`) and the character before it (`previous`). The line first: where it is as narrow as a
+    /// caret it is the caret itself, its x too (Notes tells the other two a line above it, the panel's line right).
+    /// Else the empty range's x where it is on that line, else the end of the character before. Nil, the candidate
+    /// panel's line instead: no line told; the empty range more than a line away from a wide line; no x on the line.
+    public static func line(_ line: CGRect?, caret: CGRect?, previous: CGRect?) -> (line: CGRect, x: CGFloat)? {
+        guard let line = line ?? caret else { return nil }
+        if line.width <= 2 { return (line, line.minX) }
+        func apart(_ rect: CGRect) -> CGFloat { abs(rect.midY - line.midY) }
+        if let caret, apart(caret) > line.height { return nil }
+        if let caret, apart(caret) <= line.height / 2 { return (line, caret.maxX) }
+        if let previous, apart(previous) <= line.height / 2 { return (line, previous.maxX) }
+        return caret == nil ? (line, line.minX) : nil
+    }
+
     /// The overlay's frame for the suggestion's `size` after `caret` (a rect on the screen, as tall as its line), within
     /// `visible` (the screen's visible frame; nil: none known) and `field` (the field's frame; nil: not known; one that
     /// doesn't hold the caret is taken for none: what Accessibility calls focused isn't always the field). `chrome` of

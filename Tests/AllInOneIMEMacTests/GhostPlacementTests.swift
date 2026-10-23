@@ -55,4 +55,24 @@ struct GhostPlacementTests {
         #expect(frame(short, caret: at(240 - 1 - chrome - 10), field: field, few: 10)?.width == chrome + 10)
         #expect(frame(short, caret: at(240 - chrome - 10), field: field, few: 10) == nil)
     }
+
+    /// The line and the x the suggestion goes at: Notes's numbers (its caret and the character before it a line above the
+    /// panel's line, which is as narrow as a caret) put it on the panel's line at its x; a wide line takes the caret's x
+    /// where the caret is on it, the end of the character before where only that is.
+    @Test func theLineAsNarrowAsACaretIsTheCaret() {
+        let notesLine = CGRect(x: 883.7, y: 426, width: 1, height: 16)
+        let notesCaret = CGRect(x: 883.7, y: 442, width: 0, height: 16)
+        let notesPrevious = CGRect(x: 870.8, y: 442, width: 12.9, height: 16)
+        let placed = GhostPlacement.line(notesLine, caret: notesCaret, previous: notesPrevious)
+        #expect(placed?.line == notesLine && placed?.x == 883.7, "\(String(describing: placed))")
+        let wide = CGRect(x: 40, y: 500, width: 400, height: 18)
+        #expect(GhostPlacement.line(wide, caret: CGRect(x: 120, y: 500, width: 0, height: 18), previous: nil)?.x == 120)
+        #expect(GhostPlacement.line(wide, caret: CGRect(x: 120, y: 511, width: 0, height: 18),
+                                    previous: CGRect(x: 100, y: 501, width: 12, height: 18))?.x == 112)
+        // A caret more than a line from a wide line, or no line told at all: the candidate panel's line.
+        #expect(GhostPlacement.line(wide, caret: CGRect(x: 120, y: 540, width: 0, height: 18), previous: nil) == nil)
+        #expect(GhostPlacement.line(nil, caret: nil, previous: nil) == nil)
+        // No line told: the caret's own rect is the line.
+        #expect(GhostPlacement.line(nil, caret: CGRect(x: 120, y: 500, width: 0, height: 18), previous: nil)?.x == 120)
+    }
 }
