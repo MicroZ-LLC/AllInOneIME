@@ -1,0 +1,16 @@
+{
+  "items": [
+    { "match": "#6001", "title": "A good one" },
+    { "match": "", "title": "BAD-empty" },
+    { "match": "#6 002", "title": "BAD-space" },
+    { "match": "#6003/6004", "title": "BAD-slash" },
+    { "match": "#60000000000000000000000000000000000000000000000000000000000000005", "title": "BAD-too-long (65 characters)" },
+    { "match": "#6006😀", "title": "BAD-emoji" },
+    { "match": "#6008\"", "title": "BAD-quote" },
+    { "match": 6009, "title": "BAD-number" },
+    { "title": "BAD-missing" },
+    "#6010",
+    null,
+    { "match": "#6070", "title": "Another good one" }
+  ]
+}

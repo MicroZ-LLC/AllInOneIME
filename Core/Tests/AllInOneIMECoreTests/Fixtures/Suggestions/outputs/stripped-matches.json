@@ -1,0 +1,9 @@
+{
+  "items": [
+    { "match": "#60\u200b02", "title": "A zero-width space inside" },
+    { "match": "\u202e#6003", "title": "A right-to-left override first" },
+    { "match": "#6004\u2060", "title": "A word joiner last" },
+    { "match": "\u200b\u200d", "title": "BAD-nothing-left" },
+    { "match": "#6005\u0007 x", "title": "BAD-a-space-left" }
+  ]
+}

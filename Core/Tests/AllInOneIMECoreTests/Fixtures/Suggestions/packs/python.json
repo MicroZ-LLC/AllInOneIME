@@ -1,0 +1,7 @@
+{ "language": "python", "title": "Python", "version": "1.0.0",
+  "keywords": ["def", "class", "return", "lambda", "import", "from", "while", "yield", "async", "await", "elif", "else",
+               "except", "finally", "global", "nonlocal", "pass", "raise", "with", "assert", "break", "continue"],
+  "snippets": [
+    { "trigger": "def", "body": "def ${1:name}(${2}):\n    $0", "title": "function" },
+    { "trigger": "class", "body": "class ${1:Name}:\n    def __init__(self):\n        $0\n", "title": "class with __init__" },
+    { "trigger": "print", "body": "print($0)", "title": "print" } ] }

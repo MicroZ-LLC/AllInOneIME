@@ -1,0 +1,15 @@
+{
+  "fetchedAt": 1789992800,
+  "items": [
+    { "match": "#6001", "title": "Crash when the panel opens at the screen's edge", "subtitle": "open · bug",
+      "variables": { "url": "https://github.com/octo-org/octo-repo/issues/6001" } },
+    { "match": "#6007", "title": "Settings: a switch per app", "subtitle": "open · enhancement",
+      "variables": { "url": "https://github.com/octo-org/octo-repo/issues/6007" } },
+    { "match": "#6090", "title": "Docs: how to write a plugin", "subtitle": "closed",
+      "variables": { "url": "https://github.com/octo-org/octo-repo/issues/6090" } },
+    { "match": "#6800", "title": "Typing lag in long documents", "subtitle": "open",
+      "variables": { "url": "https://github.com/octo-org/octo-repo/issues/6800" } },
+    { "match": "#9001", "title": "Release checklist", "subtitle": "open",
+      "variables": { "url": "https://github.com/octo-org/octo-repo/issues/9001" } }
+  ]
+}
