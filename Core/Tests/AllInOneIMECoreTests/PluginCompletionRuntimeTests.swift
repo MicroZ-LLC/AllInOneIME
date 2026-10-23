@@ -78,19 +78,21 @@ struct PluginCompletionRuntimeTests {
     @Test func aCancelledCallStopsItsChild() async throws {
         let placeholder = try StandIn("")
         let pidFile = placeholder.folder.appendingPathComponent("pid")
-        let standIn = try StandIn("echo $$ > '\(pidFile.path)'; exec sleep \(Timing.longSleep)")
-        let started = Date()
+        let standIn = try StandIn("echo $$ > '\(pidFile.path)'; exec sleep \(Timing.longSleep * 2)")
         let runtime = standIn.runtime
-        let task = Task { try await runtime.query("12", Self.call(timeout: Double(Timing.longSleep * 2))) }
+        let task = Task { try await runtime.query("12", Self.call(timeout: Double(Timing.longSleep * 4))) }
+        // Started (under load, the first program run may wait for the user's shell's PATH).
         var pid: Int32?
-        while pid == nil, Date().timeIntervalSince(started) < 10 {
+        let waiting = Date()
+        while pid == nil, Date().timeIntervalSince(waiting) < Double(Timing.longSleep) {
             try await Task.sleep(for: .milliseconds(50))
             pid = (try? String(contentsOf: pidFile, encoding: .utf8)).flatMap { Int32($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
         }
         let child = try #require(pid, "the child started")
+        let cancelled = Date()
         task.cancel()
         _ = try? await task.value
-        #expect(Date().timeIntervalSince(started) < Timing.wellBeforeLongSleep)
+        #expect(Date().timeIntervalSince(cancelled) < Timing.wellBeforeLongSleep)
         // Gone (asked to end, killed after a grace): signal 0 reaches no process.
         let deadline = Date().addingTimeInterval(5)
         while kill(child, 0) == 0, Date() < deadline { try await Task.sleep(for: .milliseconds(50)) }
