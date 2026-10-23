@@ -118,30 +118,10 @@ public enum Autocomplete {
         return config.autocomplete && !stopped && !isCodeEditor(app)
     }
 
-    /// Code editors, by the beginning of their bundle ids (in small letters): Tab indents there and takes the editor's own
-    /// completion, which a gray suggestion would take instead, and what is written there is code. Off there unless the
-    /// app is set to autocomplete always (`AppProfile.autocomplete`). Xcode, Visual Studio Code (and its Insiders build),
-    /// VSCodium, Cursor, Windsurf, Zed, JetBrains' IDEs (IntelliJ IDEA, PyCharm, WebStorm, GoLand, CLion, Rider, PhpStorm,
-    /// RubyMine, DataGrip, Fleet), Android Studio, Sublime Text, Nova, BBEdit, TextMate, MacVim, Emacs. Jupyter in a
-    /// browser goes by the browser's id, and can't be told.
-    static let codeEditors = [
-        "com.apple.dt.xcode", "com.microsoft.vscode", "com.vscodium", "com.todesktop.230313mzl4w4u92", "com.exafunction.windsurf",
-        "dev.zed.zed", "com.jetbrains.", "com.google.android.studio", "com.sublimetext.", "com.panic.nova", "com.barebones.bbedit",
-        "com.macromates.textmate", "org.vim.macvim", "org.gnu.emacs",
-    ]
-    /// The same on Windows, by their program's file name (an app id "win:code.exe"), with Visual Studio and Notepad++.
-    static let codeEditorPrograms: Set<String> = [
-        "code.exe", "code - insiders.exe", "vscodium.exe", "cursor.exe", "windsurf.exe", "zed.exe", "devenv.exe", "idea64.exe",
-        "pycharm64.exe", "webstorm64.exe", "goland64.exe", "clion64.exe", "rider64.exe", "phpstorm64.exe", "rubymine64.exe",
-        "datagrip64.exe", "studio64.exe", "sublime_text.exe", "notepad++.exe",
-    ]
-
-    /// Whether `app` (a bundle id, or a Windows app id; in any case) is a code editor (`codeEditors`).
-    public static func isCodeEditor(_ app: String?) -> Bool {
-        guard let app = app?.lowercased() else { return false }
-        if app.hasPrefix("win:") { return codeEditorPrograms.contains(String(app.dropFirst(4))) }
-        return codeEditors.contains { app.hasPrefix($0) }
-    }
+    /// Whether `app` (a bundle id, or a Windows app id; in any case) is a code editor (`CodeEditors`, which suggestions go
+    /// by too): Tab indents there and takes the editor's own completion, which a gray suggestion would take instead, and
+    /// what is written there is code. Off there unless the app is set to autocomplete always (`AppProfile.autocomplete`).
+    public static func isCodeEditor(_ app: String?) -> Bool { CodeEditors.contains(app) }
 
     /// Why it never runs in a field, whatever the settings.
     public enum Blocker: Equatable, Sendable {

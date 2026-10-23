@@ -133,6 +133,27 @@ struct SuggestionsTests {
         #expect(SuggestionsAppClass(app: nil, terminal: false) == .ordinary)
     }
 
+    /// One list of code editors (`CodeEditors`), which autocomplete (off there unless set so) and suggestions (the
+    /// terminal and code editor class) both go by: spec 6.11's and the ones autocomplete had besides, on the Mac and on
+    /// Windows by program.
+    @Test(arguments: ["com.apple.dt.Xcode", "com.microsoft.VSCode", "com.microsoft.VSCodeInsiders", "com.vscodium",
+                      "com.todesktop.230313mzl4w4u92", "com.exafunction.windsurf", "dev.zed.Zed", "com.panic.Nova", "com.sublimetext.4",
+                      "com.jetbrains.intellij", "com.jetbrains.goland", "com.google.android.studio", "com.barebones.BBEdit",
+                      "com.macromates.TextMate", "org.vim.MacVim", "org.gnu.Emacs", "win:Code.exe", "win:code - insiders.exe",
+                      "win:VSCodium.exe", "win:cursor.exe", "win:devenv.exe", "win:pycharm64.exe", "win:sublime_text.exe",
+                      "win:notepad++.exe"])
+    func codeEditorsAreOneListForAutocompleteAndSuggestions(_ app: String) {
+        #expect(CodeEditors.contains(app))
+        #expect(Autocomplete.isCodeEditor(app), "autocomplete: off there")
+        #expect(SuggestionsAppClass(app: app, terminal: false) == .codeEditor, "suggestions: Tab completes the shared start")
+    }
+
+    @Test func otherAppsAreNoCodeEditors() {
+        for app in ["com.apple.TextEdit", "com.example.editor", "com.tinyspeck.slackmacgap", "com.microsoft.Word", "win:notepad.exe", nil] {
+            #expect(!CodeEditors.contains(app) && !Autocomplete.isCodeEditor(app), "\(app ?? "none")")
+        }
+    }
+
     // MARK: - The declaration, written back
 
     @Test func aManifestWithCompletionsReadsBackAsWritten() throws {

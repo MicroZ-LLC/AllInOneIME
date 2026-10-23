@@ -45,18 +45,6 @@ public enum SuggestionsAppClass: Equatable, Sendable {
         "mattermost.exe", "feishu.exe", "lark.exe", "dingtalk.exe", "skype.exe",
     ]
 
-    /// Xcode, VS Code, Cursor, Windsurf, Zed, Nova, Sublime Text, JetBrains' IDEs, Android Studio; the same on Windows,
-    /// and Visual Studio.
-    static let codeEditors = [
-        "com.apple.dt.xcode", "com.microsoft.vscode", "com.todesktop.230313mzl4w4u92", "com.exafunction.windsurf", "dev.zed.zed",
-        "com.panic.nova", "com.sublimetext.", "com.jetbrains.", "com.google.android.studio",
-    ]
-    static let codeEditorPrograms: Set<String> = [
-        "code.exe", "code - insiders.exe", "cursor.exe", "windsurf.exe", "zed.exe", "sublime_text.exe", "devenv.exe",
-        "idea64.exe", "pycharm64.exe", "webstorm64.exe", "clion64.exe", "goland64.exe", "rider64.exe", "phpstorm64.exe",
-        "rubymine64.exe", "datagrip64.exe", "studio64.exe",
-    ]
-
     static func isLauncher(_ id: String) -> Bool {
         matches(id, launchers, launcherPrograms)
     }
@@ -65,8 +53,9 @@ public enum SuggestionsAppClass: Equatable, Sendable {
         matches(id, chatApps, chatPrograms)
     }
 
+    /// The code editors autocomplete goes by too (`CodeEditors`).
     static func isCodeEditor(_ id: String) -> Bool {
-        matches(id, codeEditors, codeEditorPrograms)
+        CodeEditors.contains(id)
     }
 
     /// A Windows app id by its program's name; a bundle id that is one of `prefixes` or starts with one and a dot (or
