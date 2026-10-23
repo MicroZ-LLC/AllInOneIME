@@ -93,7 +93,8 @@ final class PanelStandIns {
             return on
         }
         sources.autocompleteSummary = { nil }
-        sources.autocompleteModel = { self.autocomplete ? tr("本机 Apple Intelligence", "Apple Intelligence on this Mac") : nil }
+        sources.autocompleteModel = { tr("本机 Apple Intelligence", "Apple Intelligence on this Mac") }
+        sources.autocompleteDestination = { nil }
         sources.commandTrigger = { self.commandTrigger }
         return sources
     }

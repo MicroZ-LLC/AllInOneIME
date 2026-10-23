@@ -2593,12 +2593,10 @@ enum SelfTest {
         ICloudSyncController.shared.keys = nil
         // Suggestions keep nothing where the user's are (the lists' cache, the rows picked, the coding packs).
         isolateSuggestions(in: snapshotDirectory)
-        // Autocomplete learns and counts in memory, never in the input method's defaults; its cloud question is answered
-        // "On This Mac Only" (its own section shows the real one, invisible); its suggestion is drawn invisible, and the
-        // user's clicks don't take it down.
+        // Autocomplete learns and counts in memory, never in the input method's defaults; its suggestion is drawn
+        // invisible, and the user's clicks don't take it down.
         AutocompleteSwitch.store = AutocompleteStore()
-        AutocompleteSwitch.askCloud = { _, _, answered in answered(false) }
-        (GhostOverlay.invisible, GhostOverlay.watchesPointer, AutocompleteConsentPanel.invisible) = (true, false, true)
+        (GhostOverlay.invisible, GhostOverlay.watchesPointer) = (true, false)
         _ = secureInputGoes()  // held elsewhere just now (a password field): a while for it to go
 
         let className = Bundle.main.object(forInfoDictionaryKey: "InputMethodServerControllerClass") as? String ?? ""

@@ -2,8 +2,9 @@ import Foundation
 
 // MARK: - Autocomplete
 
-/// Autocomplete (「续写」): after a pause in typing, the rest of the sentence in gray after the caret, from a model; Tab
-/// puts it in. One switch (`Config.autocomplete`, the input menu and the menu bar panel); an app's own choice
+/// Autocomplete (「续写」): after a pause in typing, the rest of the sentence in gray after the caret, from the user's own
+/// AI provider or Apple's on-device model (`route`); Tab puts it in. One switch (`Config.autocomplete`, the input menu and
+/// the menu bar panel, which say where the text goes: `Words`); an app's own choice
 /// (`AppProfile.autocomplete`; code editors are off until set so, `isCodeEditor`); in an app where none of the last 30
 /// suggestions was taken it stops by itself (`Learning`).
 ///
@@ -33,10 +34,11 @@ public enum Autocomplete {
 
     // MARK: The model
 
-    /// The model a pause asks: Apple's on-device model, unless the user picked a cloud provider of their own
-    /// (`offersCloud`) and agreed, once, to send it what is before the caret: there, as it is set now
-    /// (`Config.autocompleteCloud`, `destination`). Where the on-device model can't run nothing is shown: it never turns
-    /// to a cloud provider by itself.
+    /// The model a pause asks: the user's own AI provider, the one Settings → AI Provider has and the @ commands use,
+    /// with its model and settings, where that is a cloud provider of theirs (`offersCloud`); Apple's on-device model with
+    /// Apple Intelligence picked, and with AllInOneIME Cloud (never asked). Nothing asks first: turning it on is the
+    /// user's choice, and the switch says where the text goes (`Words`). Where the model it asks can't answer nothing is
+    /// shown: it never turns to another one.
     public enum Route: Equatable, Sendable {
         case onDevice
         case cloud(Provider)
@@ -51,62 +53,55 @@ public enum Autocomplete {
     }
 
     public static func route(_ config: Config) -> Route {
-        cloudAnswer(config) == true ? .cloud(config.provider) : .onDevice
+        offersCloud(config.provider) ? .cloud(config.provider) : .onDevice
     }
 
-    /// Whether turning it on asks first: a cloud provider picked, and the user hasn't said yet whether it may go there,
-    /// where its requests go now (`destination`): never asked, or asked about another provider, host, AWS profile or
-    /// region.
-    public static func asksForCloud(_ config: Config) -> Bool {
-        destination(config) != nil && cloudAnswer(config) == nil
-    }
-
-    /// The user's answer about sending text where `config`'s requests go now (`destination`): true yes, false the
-    /// on-device model only; nil not asked about it (an answer about another destination is none).
-    public static func cloudAnswer(_ config: Config) -> Bool? {
-        guard let destination = destination(config), let consent = config.autocompleteCloud, consent.destination == destination else {
-            return nil
-        }
-        return consent.allowed
-    }
-
-    /// `yes` (or no) as the answer about where `config`'s requests go now; nothing for a provider it never asks.
-    public static func answer(_ yes: Bool, in config: inout Config) {
-        guard let destination = destination(config) else { return }
-        config.autocompleteCloud = Consent(allowed: yes, destination: destination)
-    }
-
-    /// Where a request of autocomplete's would go with `config`'s cloud provider: the provider and the host its requests go
-    /// to ("anthropic api.anthropic.com", "openai api.deepseek.com"); for Bedrock, the AWS profile and the region set
-    /// (none: the profile's own), whose account and place they are ("bedrock default us-west-2"). Nil for one it never
-    /// asks (`offersCloud`).
-    public static func destination(_ config: Config) -> String? {
-        guard offersCloud(config.provider) else { return nil }
-        if config.provider == .bedrock {
-            return ["bedrock", config.awsProfile, config.region ?? ""].joined(separator: " ").trimmingCharacters(in: .whitespaces)
-        }
-        return config.provider.rawValue + " " + (HTTPProviders.host(of: config.settings(for: config.provider)) ?? "")
-    }
-
-    /// The user's answer about sending the text before the caret to a cloud provider (`Config.autocompleteCloud`), and
-    /// where it was about (`destination`).
-    public struct Consent: Codable, Equatable, Sendable {
-        /// Yes, it may send there; no, the on-device model only.
-        public var allowed: Bool
-        public var destination: String
-
-        public init(allowed: Bool, destination: String) {
-            self.allowed = allowed
-            self.destination = destination
-        }
-    }
-
-    /// Whether autocomplete may ask `provider`, once the user agreed: a cloud provider of the user's own (an API key, an
-    /// AWS profile). Never AllInOneIME Cloud: its free requests a day are for the @ commands, and a few minutes of pauses
-    /// would use them up (the day's commands would then all fail); with it picked, autocomplete uses the on-device model,
-    /// and says why (`AIConfig.Text.autocompleteHostedOnDevice`, the Mac's input menu).
+    /// Whether autocomplete asks `provider`: a cloud provider of the user's own (an API key, an AWS profile). Never
+    /// AllInOneIME Cloud: its free requests a day are for the @ commands, and a few minutes of pauses would use them up
+    /// (the day's commands would then all fail); with it picked, autocomplete uses the on-device model, and turning it on
+    /// says so (`Words.destination`).
     public static func offersCloud(_ provider: Provider) -> Bool {
         provider != .apple && provider != .hosted
+    }
+
+    /// What the switch says about the model it asks and where the text goes (`route`), in the interface language: the
+    /// input menu, the menu bar panel and Settings → Assistant (Mac and Windows alike).
+    public struct Words: Sendable {
+        let words: InterfaceWords
+
+        public init(language: String) { words = InterfaceWords(language: language) }
+
+        /// The model it asks with `config`: the provider and its model ("Claude API · claude-haiku-5-5"; the provider
+        /// alone where no model is set), or Apple Intelligence on this Mac (and that it isn't available, where
+        /// `onDeviceAvailable` says so).
+        public func model(_ config: Config, onDeviceAvailable: Bool = true) -> String {
+            guard case let .cloud(provider) = route(config) else {
+                return words.tr("本机 Apple Intelligence", "Apple Intelligence on this Mac") + (onDeviceAvailable ? "" : words.tr("，不可用", ", not available"))
+            }
+            let model = (provider == .bedrock ? config.modelId : config.settings(for: provider).model ?? "")
+                .trimmingCharacters(in: .whitespaces)
+            return model.isEmpty ? provider.displayName : provider.displayName + " · " + model
+        }
+
+        /// Where the text goes with `config`, said where it's turned on: to the provider and its model, what is before
+        /// the caret (`beforeLimit`) and after it (`afterLimit`), the hidden words removed where hiding is on
+        /// (`Redaction`, as for the @ commands). With AllInOneIME Cloud picked, that it uses Apple Intelligence, and what
+        /// is faster. Nil with Apple Intelligence picked: nothing leaves this Mac.
+        public func destination(_ config: Config) -> String? {
+            switch route(config) {
+            case .cloud:
+                let name = model(config)
+                return config.redaction.enabled
+                    ? words.tr("每次停顿会把光标前最多 1,500 字（和光标后 200 字）发给 \(name)，先去掉隐藏词",
+                               "Each pause sends up to 1,500 characters before the caret (and 200 after) to \(name), hidden words removed")
+                    : words.tr("每次停顿会把光标前最多 1,500 字（和光标后 200 字）发给 \(name)",
+                               "Each pause sends up to 1,500 characters before the caret (and 200 after) to \(name)")
+            case .onDevice:
+                guard config.provider == .hosted else { return nil }
+                return words.tr("用的是 Apple Intelligence；设置自己的 AI 服务，灰字来得更快",
+                                "Uses Apple Intelligence; set your own AI provider for faster suggestions")
+            }
+        }
     }
 
     // MARK: Where it runs
@@ -1189,12 +1184,104 @@ extension Autocomplete {
     }
 }
 
+extension Autocomplete {
+    /// How autocomplete's request asks a model to think (`thinking(of:)`): a suggestion is a dozen words, wanted within a
+    /// second or two, so not at all where the model can be asked so.
+    enum Thinking: Equatable, Sendable {
+        /// `thinking: {"type": "disabled"}`: Claude Haiku 5.5, Sonnet 5 and Opus 5, which think unless asked not to.
+        case disabled
+        /// `thinking: {"type": "between_tools"}`: Claude Sonnet 5.5, which refuses `disabled` (without tools, it doesn't
+        /// think).
+        case betweenTools
+        /// It can't be turned off (Claude Opus 5.5, Fable, Mythos), or the Claude model is newer than this version knows
+        /// (so as not to send what it may refuse): nothing sent about it, the lowest effort (`lowestEffort`), and room for
+        /// the thinking on top of the answer.
+        case alwaysOn
+        /// A model that doesn't think unless asked (Claude 4 and earlier), or another maker's: nothing sent about it.
+        case none
+
+        /// Bedrock's `additionalModelRequestFields` (the Claude API's request has the same at its top level).
+        var fields: ConverseRequest.ModelFields? {
+            switch self {
+            case .disabled: return ConverseRequest.ModelFields(thinking: .init(type: "disabled"))
+            case .betweenTools: return ConverseRequest.ModelFields(thinking: .init(type: "between_tools"))
+            case .alwaysOn, .none: return nil
+            }
+        }
+    }
+
+    /// How autocomplete's request asks `model` (a model ID, the Claude API's or Bedrock's: "claude-haiku-5-5",
+    /// "us.anthropic.claude-haiku-4-5-20251001-v1:0") to think, by its family and version.
+    static func thinking(of model: String) -> Thinking {
+        let id = model.lowercased()
+        if id.contains("claude-fable") || id.contains("claude-mythos") { return .alwaysOn }
+        for family in ["haiku", "sonnet", "opus"] {
+            guard let start = id.range(of: "claude-\(family)-") else { continue }
+            // "4-5-20251001-v1:0": 4.5; "5": 5; "4-20250514": 4 (a date isn't a minor version).
+            let parts = id[start.upperBound...].split(separator: "-", omittingEmptySubsequences: false)
+            guard let major = parts.first.flatMap({ Int($0) }) else { return .none }
+            let minor = parts.dropFirst().first.flatMap { $0.count == 1 ? Int($0) : nil } ?? 0
+            let version = major * 10 + minor
+            switch (family, version) {
+            case (_, ..<50): return .none
+            case ("haiku", 55), ("sonnet", 50), ("opus", 50): return .disabled
+            case ("sonnet", 55): return .betweenTools
+            default: return .alwaysOn
+            }
+        }
+        return .none
+    }
+
+    /// The lowest of an effort set (`ProviderSettings.effort`) and "low", the lowest that every model taking one takes
+    /// (the Claude API's `output_config.effort`, Gemini's thinking level, OpenAI's `reasoning_effort`, whose
+    /// "minimal" and "none" only some models take): "medium", "high", "xhigh" and "max" become "low"; one set lower, or
+    /// one this version doesn't know, stays as set, and so does none (nothing sent).
+    static func lowestEffort(_ effort: String?) -> String? {
+        let levels = ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+        guard let set = effort?.trimmingCharacters(in: .whitespaces).lowercased(), let level = levels.firstIndex(of: set),
+              level > levels.firstIndex(of: "low")! else { return effort }
+        return "low"
+    }
+
+    /// `request` and `config` made small and fast for the cloud provider `config` has (its model and settings otherwise
+    /// as they are): no thinking where the model can be asked for none (`thinking(of:)`), else the lowest effort
+    /// (`lowestEffort`), with room for the thinking only where it may happen; the suggestion's own `maxTokens` otherwise.
+    /// The Claude API and Gemini add that room themselves where an effort is sent and thinking isn't turned off
+    /// (`HTTPProviders.thinkingHeadroom`); Bedrock has no effort to send.
+    static func quick(_ request: inout ConverseRequest, config: inout Config) {
+        let room = maxTokens + HTTPProviders.thinkingHeadroom
+        switch config.provider {
+        case .bedrock:
+            let thinking = thinking(of: config.modelId)
+            request.additionalModelRequestFields = thinking.fields
+            if thinking == .alwaysOn { request.inferenceConfig.maxTokens = room }
+        case .anthropic:
+            let settings = config.settings(for: .anthropic)
+            let thinking = thinking(of: settings.model ?? "")
+            request.additionalModelRequestFields = thinking.fields
+            // Thinking that can't be turned off: at the lowest effort, even where none is set.
+            let effort = lowestEffort(settings.effort)
+            config.anthropic.effort = thinking == .alwaysOn && (effort ?? "").trimmingCharacters(in: .whitespaces).isEmpty ? "low" : effort
+        case .gemini:
+            config.gemini.effort = lowestEffort(config.settings(for: .gemini).effort)
+        case .openai:
+            config.openai.effort = lowestEffort(config.settings(for: .openai).effort)
+            // A reasoning model's reasoning counts toward `max_completion_tokens`.
+            if config.settings(for: .openai).effortToSend != nil { request.inferenceConfig.maxTokens = room }
+        case .hosted, .apple:
+            break
+        }
+    }
+}
+
 extension Converter {
     /// Autocomplete's suggestion for `context` in `app` (`Prompt.autocompleteRequest`), from the model the settings
-    /// give it (`Autocomplete.route`): the on-device one unless the user agreed to a cloud provider. Throws
-    /// `AppleModelError.unavailable` where the on-device model can't run (never another model in its place), and
-    /// `AppProfile.Refusal.noAI` in an app with no AI. Hidden values as for any request (`Redaction`); the answer is read
-    /// only as far as a suggestion goes (`Autocomplete.isEnough`).
+    /// give it (`Autocomplete.route`): the user's own AI provider, with its model, asked for a small, fast answer
+    /// (`Autocomplete.quick`); the on-device model with Apple Intelligence or AllInOneIME Cloud picked. Throws the
+    /// provider's error where it can't answer (no key, the network, a refusal) and `AppleModelError.unavailable` where
+    /// the on-device model can't run: never another model in its place. Throws `AppProfile.Refusal.noAI` in an app with
+    /// no AI. Hidden values as for any request (`Redaction`); the answer is read only as far as a suggestion goes
+    /// (`Autocomplete.isEnough`).
     public func autocomplete(_ context: Autocomplete.Context, app: String?) async throws -> Autocomplete.Answer {
         var config = try Self.settings(try loadConfig(), app: app)
         let route = Autocomplete.route(config)
@@ -1207,7 +1294,8 @@ extension Converter {
         var redaction = Redaction(config.redaction)
         let hidden = redaction?.hide([context.before, context.after]) ?? [context.before, context.after]
         let sent = Autocomplete.Context(before: hidden[0], after: hidden[1])
-        let request = Prompt.autocompleteRequest(sent, app: app, onDevice: route == .onDevice)
+        var request = Prompt.autocompleteRequest(sent, app: app, onDevice: route == .onDevice)
+        if route != .onDevice { Autocomplete.quick(&request, config: &config) }
         let body = redaction?.protect(request, sent: Prompt.autocompleteMessage(sent)) ?? request
         var text = ""
         var inputTokens: Int?, outputTokens: Int?
@@ -1241,17 +1329,16 @@ extension Converter {
 // MARK: - Settings → Assistant
 
 extension AIConfig {
-    /// Autocomplete turned on or off in a sentence (`Key.autocomplete`). On with a cloud provider picked, the row says
-    /// that it uses the model on this Mac until the user allows the provider, in the input menu; with AllInOneIME Cloud
-    /// picked, that it only ever uses that model, and why (`Autocomplete.offersCloud`).
+    /// Autocomplete turned on or off in a sentence (`Key.autocomplete`). On, the row says where the text goes, as the
+    /// switch does (`Autocomplete.Words.destination`): the provider and its model, or, with AllInOneIME Cloud picked,
+    /// that it uses Apple Intelligence.
     static func checkAutocomplete(_ value: JSONValue, in config: Config, text: Text) -> Row? {
         let (label, path) = (text.autocompleteLabel, Key.autocomplete.path)
         guard case let .bool(on) = value else { return Row(key: path, label: label, status: .refused(text.notValid)) }
         guard on != config.autocomplete else { return nil }
-        let onDevice = !on ? "" : Autocomplete.asksForCloud(config) ? text.autocompleteOnDevice(config.provider)
-            : config.provider == .hosted ? text.autocompleteHostedOnDevice : ""
-        return Row(key: path, label: label, old: text.onOff(config.autocomplete), new: text.onOff(on) + onDevice, status: .change,
-                   edit: .autocomplete(on))
+        let destination = on ? Autocomplete.Words(language: text.language).destination(config) : nil
+        return Row(key: path, label: label, old: text.onOff(config.autocomplete),
+                   new: text.onOff(on) + (destination.map { text.tr("。", ". ") + $0 } ?? ""), status: .change, edit: .autocomplete(on))
     }
 
     /// Autocomplete's names, lowercased, as `AIConfigFit.relevance` reads words: the interface's own in its languages (续写,
@@ -1302,18 +1389,6 @@ extension AIConfig {
 
 extension AIConfig.Text {
     public var autocompleteLabel: String { tr("续写", "Autocomplete") }
-    /// After "Autocomplete: off → on" with a cloud provider picked (`provider`): where to allow it, the input menu's
-    /// item for it (`AutocompleteSwitch`, the Mac's).
-    func autocompleteOnDevice(_ provider: Provider) -> String {
-        let name = provider.displayName
-        return tr("（先用本机模型；要用 \(name)，在输入法菜单里选「续写用 \(name)」）",
-                  " (it uses the model on this Mac; to use \(name), choose “Autocomplete with \(name)” in the input menu)")
-    }
-    /// After "Autocomplete: off → on" with AllInOneIME Cloud picked (`Autocomplete.offersCloud`).
-    var autocompleteHostedOnDevice: String {
-        UIText.triggered(tr("（只用本机模型：AllInOneIME 云每天的免费次数留给 @ 命令）",
-                            " (it uses only the model on this Mac: AllInOneIME Cloud's free requests a day are kept for @ commands)"))
-    }
 }
 
 // MARK: - The candidate panel's line

@@ -238,7 +238,7 @@ final class AssistantModel: ObservableObject {
         appliedWritesSettings = !preview.edits.isEmpty
         applied = preview.edits.isEmpty
             ? tr("已完成：", "Done: ") + preview.rows.filter { $0.action != nil }.map(\.label).joined(separator: tr("；", "; "))
-            : Self.changed(preview.edits.count)
+            : Self.changed(preview.edits.count) + Self.autocompleteOn(preview.edits)
         if preview.edits.isEmpty, preview.actions.isEmpty { applied = nil }
         if let provider = preview.needsKey { AIConfigSession.openKeyField(provider) }
         if preview.changesProvider { testConnection() }
@@ -247,6 +247,14 @@ final class AssistantModel: ObservableObject {
 
     /// "已改 2 项" / "Changed 2 settings".
     static func changed(_ count: Int) -> String { AIConfig.Text(language: UIText.language).applied(count) }
+
+    /// Autocomplete turned on by `edits`: where its text goes now, as its row said (`Autocomplete.Words.destination`),
+    /// after the confirmation; else nothing.
+    static func autocompleteOn(_ edits: [AIConfig.Edit]) -> String {
+        guard edits.contains(.autocomplete(true)), let config = try? Config.load(from: AIConfigSession.url),
+              let destination = Autocomplete.Words(language: UIText.language).destination(config) else { return "" }
+        return tr("。", ". ") + destination
+    }
 
     /// Settings' own Test Connection on the config file as it is now; its line under the confirmation.
     private func testConnection() {

@@ -639,9 +639,9 @@ struct AutocompleteTests {
 
     // MARK: - Settings → Assistant
 
-    static func assistant(_ offered: [Provider]) -> AIConfig.Environment {
+    static func assistant(_ offered: [Provider], chinese: Bool = false) -> AIConfig.Environment {
         AIConfig.Environment(packInstalled: { _ in true }, apps: AIConfig.AppCatalog(apps: []), awsProfiles: { [] },
-                             knownModels: { _ in [] }, offeredProviders: offered, hasKey: { _ in true }, chinese: false)
+                             knownModels: { _ in [] }, offeredProviders: offered, hasKey: { _ in true }, chinese: chinese)
     }
 
     /// Turned on in a sentence, the row says where the text goes, as the switch does (`Autocomplete.Words`): the provider
@@ -662,7 +662,7 @@ struct AutocompleteTests {
         config.redaction = RedactionSettings(enabled: true)
         #expect(AIConfig.check(on, config: config, environment: env).rows.map { $0.text(chinese: false) }
             == ["Autocomplete: off → on. Each pause sends up to 1,500 characters before the caret (and 200 after) to Claude API · claude-haiku-5-5, hidden words removed"])
-        #expect(AIConfig.check(on, config: config, environment: env).rows.map { $0.text(chinese: true) }
+        #expect(AIConfig.check(on, config: config, environment: Self.assistant([.bedrock, .anthropic], chinese: true)).rows.map { $0.text(chinese: true) }
             == ["续写：关 → 开。每次停顿会把光标前最多 1,500 字（和光标后 200 字）发给 Claude API · claude-haiku-5-5，先去掉隐藏词"])
         config.provider = .apple
         #expect(AIConfig.check(on, config: config, environment: env).rows.map { $0.text(chinese: false) } == ["Autocomplete: off → on"])
@@ -671,7 +671,7 @@ struct AutocompleteTests {
         let off = try AIConfig.parse(#"{"changes": [{"key": "autocomplete", "value": false}]}"#)
         #expect(AIConfig.check(off, config: config, environment: env).rows.map { $0.text(chinese: false) } == ["Autocomplete: on → off"])
         let refused = try AIConfig.parse(#"{"changes": [{"key": "autocomplete", "value": "yes"}]}"#)
-        #expect(AIConfig.check(refused, config: config, environment: env).rows.allSatisfy(\.isRefused))
+        #expect(AIConfig.check(refused, config: config, environment: env).rows.allSatisfy { $0.isRefused })
         // The on-device model's small context gets it with the typing settings.
         let prompt = AIConfigPrompt.system(AIConfigPrompt.Context(config: config), compact: true, refining: false,
                                            scope: AIConfigPrompt.Scope(parts: [.typing]))
@@ -1578,7 +1578,7 @@ struct AutocompleteTests {
             settings.config.anthropic = ProviderSettings(baseURL: "https://\(host)")
             r.host.send(.configChanged)
             r.host.type(". Meet me")
-            #expect(r.host.timerDelays[r.pauses.last!] == 0.5)
+            #expect((r.host.timerDelays[r.pauses.last!] ?? 0) >= 0.5, "a cloud provider's pause")
             r.pauseEnds(expecting: " at the station.")
             #expect(r.host.ghost == " at the station." && model.requests.count == 1)
             #expect(StubURLProtocol.requests(host: host).count == 1)

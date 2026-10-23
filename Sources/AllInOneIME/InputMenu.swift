@@ -173,61 +173,48 @@ extension AllInOneIMEInputController {
     }
 
 
+    /// The tag of the input menu's line under Autocomplete that says where the text goes (what comes after it goes below).
+    static let autocompleteDestinationTag = 0x4143_4C4E
+
     /// `menu` (`makeMenu`'s) with autocomplete's switch after "@improve Also Translates": one switch for every app (an
-    /// app's own choice is in "This App"), on, the model it uses in its title, what was counted of it on the item's
-    /// tooltip; with a cloud provider picked, whether it may send text there; with AllInOneIME Cloud picked, that it never
-    /// goes there, and why (`Autocomplete.offersCloud`).
+    /// app's own choice is in "This App"), the model it asks in its title (`AutocompleteSwitch.modelName`), what was
+    /// counted of it on the item's tooltip; under it, where the text goes (`AutocompleteSwitch.destination`): what each
+    /// pause sends to the cloud provider picked, or, with AllInOneIME Cloud picked, that it uses Apple Intelligence.
     @MainActor
     func addingAutocomplete(to menu: NSMenu) -> NSMenu {
         let config = LiveConfig.currentIfValid
         let current = config ?? .default
         var items: [NSMenuItem] = []
+        // The model it asks, and where the text goes, whether it's on or not: turning it on is the choice to send it there.
         let model = AutocompleteSwitch.modelName(current)
-        let title = current.autocomplete ? tr("续写（\(model)）", "Autocomplete (\(model))") : tr("续写", "Autocomplete")
-        let autocomplete = NSMenuItem(title: title, action: #selector(toggleAutocomplete(_:)), keyEquivalent: "")
+        let autocomplete = NSMenuItem(title: tr("续写（\(model)）", "Autocomplete (\(model))"), action: #selector(toggleAutocomplete(_:)),
+                                      keyEquivalent: "")
         autocomplete.target = self
         autocomplete.state = current.autocomplete ? .on : .off
         autocomplete.isEnabled = config != nil  // don't overwrite a config file that failed to parse
         autocomplete.toolTip = AutocompleteSwitch.store.metrics.summary(language: UIText.language)
             ?? tr("停一下，光标后出现灰字，按 Tab 接受", "Pause, and the rest of the sentence shows in gray after the caret; Tab takes it")
         items.append(autocomplete)
-        if current.autocomplete, current.provider == .hosted {
-            let onDevice = NSMenuItem(title: UIText.triggered(tr("续写只用本机：AllInOneIME 云留给 @ 命令",
-                                                                 "Autocomplete on this Mac only: AllInOneIME Cloud is kept for @ commands")),
-                                      action: nil, keyEquivalent: "")
-            onDevice.isEnabled = false
-            onDevice.indentationLevel = 1
-            onDevice.toolTip = UIText.triggered(tr("AllInOneIME 云每天的免费次数，停顿几分钟就会用完，当天的 @ 命令就用不了了",
+        if let destination = AutocompleteSwitch.destination(current) {
+            let line = NSMenuItem(title: destination, action: nil, keyEquivalent: "")
+            line.isEnabled = false
+            line.indentationLevel = 1
+            line.tag = Self.autocompleteDestinationTag
+            if current.provider == .hosted {
+                line.toolTip = UIText.triggered(tr("AllInOneIME 云每天的免费次数，停顿几分钟就会用完，当天的 @ 命令就用不了了",
                                                    "A few minutes of pauses would use up AllInOneIME Cloud's free requests for the day, and your @ commands would fail"))
-            items.append(onDevice)
-        } else if current.autocomplete, Autocomplete.offersCloud(current.provider) {
-            let name = current.provider.displayName
-            let cloud = NSMenuItem(title: tr("续写用 \(name)", "Autocomplete with \(name)"), action: #selector(toggleAutocompleteCloud(_:)),
-                                   keyEquivalent: "")
-            cloud.target = self
-            cloud.state = Autocomplete.cloudAnswer(current) == true ? .on : .off
-            cloud.isEnabled = config != nil
-            cloud.indentationLevel = 1
-            items.append(cloud)
+            }
+            items.append(line)
         }
         let after = menu.items.firstIndex { $0.action == #selector(toggleImproveTranslates(_:)) }.map { $0 + 1 } ?? menu.items.count
         for (offset, item) in items.enumerated() { menu.insertItem(item, at: after + offset) }
         return menu
     }
 
-    /// Autocomplete on or off for every app (`AutocompleteSwitch`): on with a cloud provider not asked about yet, it is on
-    /// at once with the on-device model, and asks in a panel that takes no focus (`AutocompleteConsentPanel`): the text
-    /// being typed stays as it is, and typing goes on.
+    /// Autocomplete on or off for every app (`AutocompleteSwitch`): nothing asks first; the item above says where the text
+    /// goes.
     @objc func toggleAutocomplete(_ sender: Any?) {
         MainActor.assumeIsolated { _ = AutocompleteSwitch.set(!AutocompleteSwitch.isOn, notify: self) }
-    }
-
-    /// Autocomplete with the cloud provider picked (asked in the same panel), or with the on-device model only.
-    @objc func toggleAutocompleteCloud(_ sender: Any?) {
-        MainActor.assumeIsolated {
-            AutocompleteSwitch.setCloud(Autocomplete.cloudAnswer(LiveConfig.current) != true)
-            applySettings()
-        }
     }
 
     @objc func toggleImproveTranslates(_ sender: Any?) {

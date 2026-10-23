@@ -207,15 +207,10 @@ public struct Config: Codable, Equatable, Sendable {
     public var redaction: RedactionSettings
     /// Autocomplete (「续写」, `Autocomplete`): after a pause in typing, the rest of the sentence in gray after the caret,
     /// Tab puts it in. In every app but those set otherwise (`AppProfile.autocomplete`) or where it stopped for want of
-    /// use. Off by default.
+    /// use. It asks the AI provider picked (`provider`) or Apple's on-device model (`Autocomplete.route`); nothing else is
+    /// kept about it (an `autocompleteCloud` key an early 0.6.7 build wrote is ignored). This Mac's own: never synced.
+    /// Off by default.
     public var autocomplete: Bool = false
-    /// Whether autocomplete may send the text before the caret to the cloud provider picked (`provider`), as the user
-    /// answered when it was turned on, and where that answer was about: the provider and the host its requests go to
-    /// (`Autocomplete.Consent`, `Autocomplete.destination`). Nil: not asked yet. An answer about another destination (the
-    /// provider changed, in Settings, by the Assistant or by iCloud sync; another base URL, AWS profile or region) is no
-    /// answer: it asks again. Without a yes for where requests go now it uses Apple's on-device model, and shows nothing
-    /// where that can't run (`Autocomplete.route`). This Mac's own: never synced.
-    public var autocompleteCloud: Autocomplete.Consent?
     /// Sync through iCloud (`ICloudSync`) and what syncs: this Mac's own, never synced. Off by default.
     public var iCloudSync: ICloudSyncSettings
     /// Where `@note` saves (`NoteSettings`): Notes by default, a folder of Markdown files, or Notion. This Mac's own (a
@@ -352,7 +347,7 @@ public struct Config: Codable, Equatable, Sendable {
         case checkForUpdates, useSelection, appProfiles
         case rememberQuestions, questionRounds, questionContinueIn
         case redaction
-        case autocomplete, autocompleteCloud
+        case autocomplete
         case iCloudSync
         case notes
         case suggestions, completionSources, pluginPreferences
@@ -443,8 +438,6 @@ public struct Config: Codable, Equatable, Sendable {
         redaction = try c.decodeIfPresent(RedactionSettings.self, forKey: .redaction) ?? d.redaction
         // A value of the wrong type reads as the default, not an error.
         autocomplete = (try? c.decodeIfPresent(Bool.self, forKey: .autocomplete)).flatMap { $0 } ?? d.autocomplete
-        // A yes or no without where it was about (an early 0.6.7 build's true or false) is none: asked again.
-        autocompleteCloud = (try? c.decodeIfPresent(Autocomplete.Consent.self, forKey: .autocompleteCloud)).flatMap { $0 }
         extensionSources = ExtensionSource.decodeAll(c, forKey: .extensionSources)
         iCloudSync = (try? c.decodeIfPresent(ICloudSyncSettings.self, forKey: .iCloudSync)).flatMap { $0 } ?? d.iCloudSync
         notes = (try? c.decodeIfPresent(NoteSettings.self, forKey: .notes)).flatMap { $0 } ?? d.notes
@@ -607,9 +600,8 @@ public struct Config: Codable, Equatable, Sendable {
         let profiles = appProfiles.filter { !$0.value.isEmpty }
         if !profiles.isEmpty { try c.encode(profiles, forKey: .appProfiles) }
         try c.encode(redaction, forKey: .redaction)
-        // Only once turned on, or asked: a file from before autocomplete doesn't gain the keys.
+        // Only once turned on: a file from before autocomplete doesn't gain the key.
         if autocomplete { try c.encode(autocomplete, forKey: .autocomplete) }
-        try c.encodeIfPresent(autocompleteCloud, forKey: .autocompleteCloud)
         // Only once a source is added: a file from before sources doesn't gain an empty key.
         if !extensionSources.isEmpty { try c.encode(extensionSources, forKey: .extensionSources) }
         // Only once it was turned on: a file from before sync doesn't gain the key.

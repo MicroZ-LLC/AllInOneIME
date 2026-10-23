@@ -115,10 +115,10 @@ struct DashboardSources {
         return AutocompleteSwitch.isOn
     }
     var autocompleteSummary: @MainActor () -> String? = { AutocompleteSwitch.store.metrics.summary(language: UIText.language) }
-    /// The model it uses, while it's on (`AutocompleteSwitch.modelName`).
-    var autocompleteModel: @MainActor () -> String? = {
-        AutocompleteSwitch.isOn ? AutocompleteSwitch.modelName(LiveConfig.current) : nil
-    }
+    /// The model it asks, and where the text goes, on or off: turning it on is the choice to send it there
+    /// (`AutocompleteSwitch.modelName`, `AutocompleteSwitch.destination`).
+    var autocompleteModel: @MainActor () -> String? = { AutocompleteSwitch.modelName(LiveConfig.current) }
+    var autocompleteDestination: @MainActor () -> String? = { AutocompleteSwitch.destination(LiveConfig.current) }
     /// The command trigger the settings have (`Config.commandTrigger`): what its text names commands with.
     var commandTrigger: @MainActor () -> String = { LiveConfig.current.commandTrigger }
 
@@ -245,6 +245,7 @@ final class FloatingPanel: ObservableObject {
     @Published private(set) var autocomplete = false
     @Published private(set) var autocompleteSummary: String?
     @Published private(set) var autocompleteModel: String?
+    @Published private(set) var autocompleteDestination: String?
     /// The lists' height, measured by the view: the window is as tall as they need, up to `maxHeight`.
     @Published var listHeight: CGFloat = 0 {
         didSet { if listHeight != oldValue { resize() } }
@@ -355,6 +356,7 @@ final class FloatingPanel: ObservableObject {
         commandTrigger = sources.commandTrigger()
         now = sources.now()
         (autocomplete, autocompleteSummary, autocompleteModel) = (sources.autocompleteOn(), sources.autocompleteSummary(), sources.autocompleteModel())
+        autocompleteDestination = sources.autocompleteDestination()
         notes = SavedNotesStore.load(sources.defaults).newest(Self.notesShown)
         dropMissingFiles()
         scriptRuns = ScriptTasks.shared.background
@@ -568,11 +570,11 @@ final class FloatingPanel: ObservableObject {
         }
     }
 
-    /// Autocomplete turned on or off here (on with a cloud provider not asked about yet, it asks too, in a panel of its own
-    /// that blocks nothing: `AutocompleteConsentPanel`).
+    /// Autocomplete turned on or off here (nothing asks first: the switch says where the text goes).
     func setAutocomplete(_ on: Bool) {
         autocomplete = sources.setAutocomplete(on)
         (autocompleteSummary, autocompleteModel) = (sources.autocompleteSummary(), sources.autocompleteModel())
+        autocompleteDestination = sources.autocompleteDestination()
     }
 
     /// Opens the note where it was saved, by its id's scheme: a note in Notes there (one that's gone is dropped once
@@ -1137,13 +1139,17 @@ struct FloatingPanelView: View {
         .padding(.vertical, 10)
     }
 
-    /// Autocomplete's switch, with the model it uses and what was counted of it.
+    /// Autocomplete's switch, with the model it asks, where the text goes and what was counted of it.
     private var autocompleteSwitch: some View {
         Toggle(isOn: Binding(get: { panel.autocomplete }, set: { on in panel.click { panel.setAutocomplete(on) } })) {
             VStack(alignment: .leading, spacing: 1) {
                 Text(tr("续写", "Autocomplete")).font(.system(size: 13))
                 if let model = panel.autocompleteModel {
                     Text(tr("模型：\(model)", "Model: \(model)")).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                }
+                if let destination = panel.autocompleteDestination {
+                    Text(destination).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 Text(panel.autocompleteSummary ?? tr("停一下，光标后出现灰字，按 Tab 接受", "Pause, and the rest of the sentence shows in gray after the caret; Tab takes it"))
                     .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(2).fixedSize(horizontal: false, vertical: true)

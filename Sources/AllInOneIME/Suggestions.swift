@@ -280,7 +280,7 @@ extension AllInOneIMEInputController {
         item.toolTip = tr("插件的补全（比如 #12 → GitHub issue）和编码模式的关键字、代码片段，按 Tab 插入",
                           "Plugins' completions (#12 → a GitHub issue, say) and coding mode's keywords and snippets: Tab inserts")
         let after = menu.items.lastIndex {
-            $0.action == #selector(toggleAutocomplete(_:)) || $0.action == #selector(toggleAutocompleteCloud(_:))
+            $0.action == #selector(toggleAutocomplete(_:)) || $0.tag == Self.autocompleteDestinationTag
                 || $0.action == #selector(toggleImproveTranslates(_:))
         }.map { $0 + 1 } ?? menu.items.count
         menu.insertItem(item, at: after)
