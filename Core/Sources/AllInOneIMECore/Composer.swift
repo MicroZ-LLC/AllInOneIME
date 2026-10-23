@@ -257,8 +257,9 @@ public final class Composer {
         public var noteNotSaved: String
         /// ⏎ on a send command (`@imessage`) before a recipient was picked.
         public var pickRecipient = "先选收件人：↑↓ 选择，⏎ / Tab 确定（也可以直接输入手机号或邮箱）"
-        /// `@py` (or another command that runs code) in pasted or dictated text: left as text.
-        public var codeNotRun = "粘贴或语音来的文字里的 @py、@js 等没有运行，当作文字"
+        /// `@py` (or another command that runs code) in pasted or dictated text: left as text. Dictation only while voice
+        /// input is on (`Features.voiceInput`).
+        public var codeNotRun = "粘贴来的文字里的 @py、@js 等没有运行，当作文字"
         /// The notices of a switch to French or Korean (Shift).
         public var frenchMode = "法"
         public var koreanMode = "韩"
@@ -352,7 +353,9 @@ public final class Composer {
                 noteNotSaved: t.tr("笔记还没存，原文已复制到剪贴板", "The note wasn't saved; its text is on the clipboard"),
                 pickRecipient: t.tr("先选收件人：↑↓ 选择，\(terms.enter) / Tab 确定（也可以直接输入手机号或邮箱）",
                                     "Pick a recipient first: ↑↓ choose, \(terms.enter) / Tab confirm (or type a phone number or email)"),
-                codeNotRun: t.tr("粘贴或语音来的文字里的 @py、@js 等没有运行，当作文字", "@py, @js and the like in pasted or dictated text weren't run: kept as text"),
+                codeNotRun: Features.voiceInput
+                    ? t.tr("粘贴或语音来的文字里的 @py、@js 等没有运行，当作文字", "@py, @js and the like in pasted or dictated text weren't run: kept as text")
+                    : t.tr("粘贴来的文字里的 @py、@js 等没有运行，当作文字", "@py, @js and the like in pasted text weren't run: kept as text"),
                 frenchMode: t.tr("法", "French"),
                 koreanMode: t.tr("韩", "Korean"),
                 hindiMode: t.tr("印", "Hindi"),
@@ -650,7 +653,8 @@ public final class Composer {
     /// Code is the input now: Latin letters as English (`inputLanguage` is English), with no English words learned, no
     /// autocomplete and no Translate as You Type; the session offers the Code pack's rows.
     public private(set) var coding = false
-    /// Holding the right Option key records speech.
+    /// Holding the right Option key records speech. Off, as voice input is for now (`Features.voiceInput`), unless
+    /// made so directly.
     public var voiceEnabled: Bool
     /// The key that runs the @ command at the start of the draft.
     public var actionKey: ActionKey
@@ -750,7 +754,7 @@ public final class Composer {
     /// The language of the engine in place when it isn't in its ASCII mode.
     private var nativeLanguage: Language { hindiActive ? .hindi : .chinese }
 
-    public init(engine: PinyinEngine? = nil, voiceEnabled: Bool = true, actionKey: ActionKey = .enter) {
+    public init(engine: PinyinEngine? = nil, voiceEnabled: Bool = Features.voiceInput, actionKey: ActionKey = .enter) {
         primaryEngine = engine
         self.voiceEnabled = voiceEnabled
         self.actionKey = actionKey

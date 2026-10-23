@@ -119,6 +119,7 @@ public enum Doctor {
         public var apple: AppleModelAvailability = .unsupportedSystem
         public var connection: Connection = .notRun
         public var accessibility: Permission = .unknown
+        /// Unknown, so not checked, while voice input is off (`Features.voiceInput`): the shell doesn't look.
         public var microphone: Permission = .unknown
         /// The apps the commands control (Notes, Reminders, Terminal, Messages) and whether that's allowed (unknown: not
         /// told without asking).

@@ -274,7 +274,7 @@ enum SettingsPageImages {
         try? FileManager.default.createDirectory(at: samples, withIntermediateDirectories: true)
         let rig = SelfTest.AssistantRig(samples, name: "config.json", config: SelfTest.assistantSampleConfig)
         let assistant = SelfTest.sampleAssistant(rig)
-        for page in SettingsPage.allCases {
+        for page in SettingsPage.allCases where page.isShown {
             SettingsImage.render(model, page: page, assistant: page == .assistant ? assistant : nil,
                                  to: output.appendingPathComponent("settings-\(page.rawValue).png"),
                                  appearance: dark ? .darkAqua : .aqua) { RunLoop.main.run(until: Date().addingTimeInterval($0)) }

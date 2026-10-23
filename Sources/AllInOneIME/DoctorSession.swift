@@ -82,10 +82,12 @@ enum DoctorSession {
         // This process's own: the input method's, which reads the selection (the settings window runs in it), so this
         // build's signature. System Settings may still show the switch on for the build before an update.
         facts.accessibility = AXIsProcessTrusted() ? .granted : .denied
-        switch VoiceInput.microphoneAccess {
-        case .granted: facts.microphone = .granted
-        case .denied: facts.microphone = .denied
-        case .notDetermined: facts.microphone = .notDetermined
+        if Features.voiceInput {  // the microphone is for voice input, off for now: left unknown, no check
+            switch VoiceInput.microphoneAccess {
+            case .granted: facts.microphone = .granted
+            case .denied: facts.microphone = .denied
+            case .notDetermined: facts.microphone = .notDetermined
+            }
         }
         facts.automation = read.automation
         switch read.reminders {

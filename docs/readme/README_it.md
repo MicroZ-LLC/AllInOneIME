@@ -22,7 +22,7 @@ Niente copia in una finestra di chat, niente cambi di app. Il tuo fornitore di I
 
 **[Scarica](https://allinoneime.com/download)** · **[Sito web](https://allinoneime.com)** · **[Documentazione](https://github.com/MicroZ-LLC/AllInOneIME/wiki)** · **[Estensioni](../extensions.md)**
 
-[Come si usa](#come-si-usa) · [Comandi](#comandi--beta) · [I tuoi comandi](#i-tuoi-comandi) · [Lingue](#inserimento-e-traduzione) · [Voce](#input-vocale) · [Installazione](#installazione) · [Privacy](#privacy)
+[Come si usa](#come-si-usa) · [Comandi](#comandi--beta) · [I tuoi comandi](#i-tuoi-comandi) · [Lingue](#inserimento-e-traduzione) · [Installazione](#installazione) · [Privacy](#privacy)
 
 <br>
 
@@ -35,7 +35,7 @@ Niente copia in una finestra di chat, niente cambi di app. Il tuo fornitore di I
 > [!NOTE]
 > Dalla 0.6.3 AllInOneIME è firmato con un Developer ID e autenticato (notarized) da Apple: non serve più consentirlo in System Settings → Privacy & Security (Impostazioni di Sistema → Privacy e sicurezza). Dopo l'aggiornamento da una versione precedente, macOS chiede una volta la password di login per ogni chiave che AllInOneIME ha salvato nel portachiavi: inseriscila e fai clic su "Always Allow" (Consenti sempre). Scarica AllInOneIME solo dalle [GitHub Releases](https://github.com/MicroZ-LLC/AllInOneIME/releases) o da [allinoneime.com](https://allinoneime.com).
 
-Un metodo di inserimento per macOS con comandi IA in ogni campo di testo. Inizia una frase con `@` e premi ⏎ quando hai finito: `@improve` rifinisce ciò che hai scritto e propone alcune riformulazioni, `@translate` lo traduce nelle lingue che scegli, `@question` fa una domanda, `@agent` lo passa a un agente di programmazione (Claude Code, Gemini CLI, Kiro CLI …), e `@open` trova file e app o apre un indirizzo web. Puoi anche tenere premuto il tasto ⌥ destro e parlare. Senza `@`, i tasti vanno all'app come al solito. Scrive anche in cinese (pinyin, basato su Rime e rime-ice), francese, coreano (hangul) e hindi (devanagari a partire da lettere latine), ed esegue i tuoi script come comandi @.
+Un metodo di inserimento per macOS con comandi IA in ogni campo di testo. Inizia una frase con `@` e premi ⏎ quando hai finito: `@improve` rifinisce ciò che hai scritto e propone alcune riformulazioni, `@translate` lo traduce nelle lingue che scegli, `@question` fa una domanda, `@agent` lo passa a un agente di programmazione (Claude Code, Gemini CLI, Kiro CLI …), e `@open` trova file e app o apre un indirizzo web. Senza `@`, i tasti vanno all'app come al solito. Scrive anche in cinese (pinyin, basato su Rime e rime-ice), francese, coreano (hangul) e hindi (devanagari a partire da lettere latine), ed esegue i tuoi script come comandi @.
 
 Il tasto magico, il simbolo con cui iniziano i comandi, è `@` per impostazione predefinita. In Settings → General → Magic key puoi sceglierne un altro: `#`, `%`, `&`, `*`, `+`, `|` o `~`; i comandi cominciano allora con quello (per esempio `~translate`) e `@` si digita normalmente. Lettere, cifre, spazi e i simboli che servono per scrivere (tasti del pinyin come `'` `-` `=` `[` `]` `` ` `` e quelli che il pinyin scrive come punteggiatura cinese, come `,` `.` `?` `\`) vengono rifiutati, e le impostazioni spiegano perché. Nel file di configurazione: `"commandTrigger": "~"`.
 
@@ -62,7 +62,6 @@ Senza `@`, non si mette in mezzo: in inglese le lettere vengono digitate diretta
 | ⌘⏎, ⌘1–⌘9 | In una conversazione di `@question`: mostra dove proseguirla (gli agenti di programmazione installati, per primo quello a cui `@agent` passa i compiti; Claude, ChatGPT, Gemini; o copiarla); ⌘1, ⌘2 … ne scelgono uno |
 | Clic su una riga | Nel pannello dei candidati: la sceglie, come farebbe la sua cifra (una parola, un comando dell'elenco, un risultato, un file di `@open`, un destinatario, la riga di un'estensione); la riga sotto il puntatore è evidenziata. Il campo di testo mantiene il focus |
 | Tocco breve su Maiuscole | Con più lingue di inserimento: la successiva, nel loro ordine (inglese → cinese → francese → …, poi di nuovo la prima) |
-| Tenere premuto ⌥ destro | Parla, rilascia per fermarti. Nella lingua in cui stai scrivendo (inglese, cinese, francese, coreano o hindi). In un comando, il testo va dopo di esso; altrimenti viene inserito direttamente |
 
 ## Comandi @ (beta)
 
@@ -83,7 +82,7 @@ Senza `@`, non si mette in mezzo: in inglese le lettere vengono digitate diretta
 | `@reportissue` | Segnala un problema: apre nel browser la pagina di GitHub per una nuova issue, con quello che hai digitato dopo il comando come titolo e "What happened / What you expected" (cosa è successo / cosa ti aspettavi) da compilare. Aggiunge le versioni dell'app e di macOS, l'architettura del tuo Mac, le lingue dell'interfaccia e di inserimento, i pacchetti di lingua installati, il tipo di fornitore di IA (e il modello, se è pubblico; altrimenti "custom"), il tasto azione e quanti comandi personalizzati, plugin ed estensioni hai, mai i loro nomi, il tuo testo, percorsi o chiavi. ⏎ (o il tuo tasto azione) mostra prima tutto questo nel pannello dei candidati; ⏎ di nuovo, o un clic sulla riga, apre la pagina, dove lo rileggi e fai clic su Submit (con il tuo account GitHub); Esc torna indietro. Anche nel menu di inserimento ("Report an Issue…") e in Settings → About |
 | `@imessage` | Invia un iMessage: digita un nome, un numero di telefono o un'email (un nome cinese anche col suo pinyin, completo o con le iniziali) e scegli il destinatario nel pannello dei candidati (prima quelli a cui hai scritto di recente; funziona anche un numero o un indirizzo completo), poi scrivi il messaggio (i comandi al suo interno come `@stock AAPL` vengono eseguiti prima). ⏎ mostra "Send to Alex (…): message" nel pannello, un altro ⏎ lo invia, Esc torna alla modifica; nel campo di testo non viene digitato nulla. La prima volta, macOS chiede se AllInOneIME può accedere a Contatti e controllare Messaggi: fai clic su OK per entrambi |
 
-Esempio: `@q` ⏎, digita `what is quantum computing`, ⏎. `@note books to read: The Three-Body Problem` ⏎ salva una nota. `@reminder call Bob tomorrow at 3pm` ⏎, controlla l'ora interpretata, poi di nuovo ⏎ per aggiungerlo. Una volta scelto il comando, puoi anche tenere premuto ⌥ destro e parlare. In modalità cinese, `@open` passa momentaneamente alle lettere latine e torna al cinese quando hai finito.
+Esempio: `@q` ⏎, digita `what is quantum computing`, ⏎. `@note books to read: The Three-Body Problem` ⏎ salva una nota. `@reminder call Bob tomorrow at 3pm` ⏎, controlla l'ora interpretata, poi di nuovo ⏎ per aggiungerlo. In modalità cinese, `@open` passa momentaneamente alle lettere latine e torna al cinese quando hai finito.
 
 Il codice per `@py` e `@js` si digita in lettere latine, e la punteggiatura a larghezza piena (dalla modalità cinese) diventa ASCII; scrivilo su una sola riga, con `;` tra le istruzioni. Viene eseguito in un processo separato, interrotto dopo 10 secondi o in qualsiasi momento con Esc; in caso di errore, viene mostrata la prima riga dell'errore, ad es. `ZeroDivisionError: division by zero`. Un output su più righe viene inserito così come è stato stampato; in un terminale va su una sola riga (un terminale esegue ogni riga che riceve). Un terminale all'interno di un editor (VS Code, Cursor, JetBrains) non si distingue dall'editor stesso, quindi lì l'output su più righe di qualsiasi comando viene inserito così com'è. Entrambi funzionano anche all'interno della frase di un altro comando: `@reply the answer is @py 2**100`; metti tra virgolette il codice con spazi: `@question explain @py "sum(x * x for x in range(10))"`. Non vale il contrario: il codice di `@py` e `@js` viene sempre eseguito esattamente come l'hai digitato, e gli `@commands` al suo interno non vengono eseguiti prima.
 
@@ -246,7 +245,7 @@ I comandi che recuperano qualcosa (plugin e programmi) funzionano anche all'inte
 
 ### Tasto azione
 
-⏎ per impostazione predefinita; cambialo in "Action key" (tasto azione) nelle impostazioni (`actionKey` nella configurazione): ⏎, Tap ⌥ (tocco breve su ⌥, di entrambi i lati: premi e rilascia subito; tenere premuto ⌥ destro resta per parlare), ⌥Spazio, o Spazio (premi Spazio un'altra volta dopo aver scelto le parole; due volte in modalità inglese). Qualunque sia il tasto azione, i comandi @ vengono eseguiti anche con ⏎. Se ⌥Spazio è già una scorciatoia per Alfred, Raycast o simili, la ricevono loro per primi.
+⏎ per impostazione predefinita; cambialo in "Action key" (tasto azione) nelle impostazioni (`actionKey` nella configurazione): ⏎, Tap ⌥ (tocco breve su ⌥, di entrambi i lati: premi e rilascia subito), ⌥Spazio, o Spazio (premi Spazio un'altra volta dopo aver scelto le parole; due volte in modalità inglese). Qualunque sia il tasto azione, i comandi @ vengono eseguiti anche con ⏎. Se ⌥Spazio è già una scorciatoia per Alfred, Raycast o simili, la ricevono loro per primi.
 
 ### Digitare i risultati
 
@@ -345,7 +344,7 @@ Nelle impostazioni:
 - **Pinyin approssimativo** (con l'inserimento in cinese): suoni che non distingui, digitati in un modo o nell'altro, ad es. z ↔ zh, n ↔ l, in ↔ ing. Nella pagina Input, scegli Chinese (pinyin) nella barra delle lingue di inserimento, attiva "Fuzzy pinyin" e scegli le coppie; i dizionari vengono ridistribuiti in un secondo o due. Viene scritto `rime_ice.custom.yaml` nella cartella utente di Rime, e mai sopra un tuo file presente lì.
 - **Personal Dictionaries** (dizionari personali, con l'input cinese): Settings → Input → Chinese (pinyin) → Personal Dictionaries → **Import or Update…** aggiunge un vocabolario Rime in UTF-8 (`.dict.yaml`) accanto a rime-ice (prima va installato il pacchetto della lingua cinese). L'elenco mostra il `name` Rime, il nome del file e il numero di voci di ciascuno; importare di nuovo lo stesso `name` sostituisce la copia salvata (modificare solo il file originale non la aggiorna). Ogni importazione, aggiornamento o rimozione ricompila il dizionario del pinyin (tutte le parole di rime-ice più le tue), il che può richiedere un minuto circa; nel frattempo l'input cinese è sospeso, e la pagina mostra l'avanzamento o un errore. Le copie restano su questo Mac, fuori dalla sincronizzazione iCloud e dalle richieste all'IA; ma una parola che scegli da esse viene imparata come le altre, nel dizionario utente di Rime, che si sincronizza con le parole imparate se è attivo e resta anche dopo aver rimosso il dizionario. Se hai un tuo `rime_ice.custom.yaml`, l'importazione viene rifiutata prima di modificare qualsiasi file.
 - **Traduzione (@translate)**: aggiungi le lingue in cui tradurre (spagnolo, francese, tedesco, giapponese, coreano, cinese, hindi, bengalese, tamil e le altre principali lingue indiane…) e trascinale nell'ordine voluto. L'hindi digitato in lettere latine ("aap kaise ho") torna in devanagari. `@translate` scrive una riga in ciascuna, in quest'ordine (tre versioni se ce n'è una sola); la lingua della frase stessa viene saltata. Una nuova installazione traduce nella prima lingua tra le lingue preferite del tuo Mac che non sia l'inglese; con il solo inglese, `@translate` avvisa che non c'è ancora una lingua in cui tradurre, e ⏎ su quell'avviso apre questa pagina con "Add…" (aggiungi…) riquadrato (la frase viene inserita così come l'hai scritta). Traduci mentre scrivi allora non si attiva, e dice dove aggiungerne una.
-- **Layout di tastiera**: il francese si digita con il layout scelto nella sua scheda (`keyboardLayouts` nella configurazione). Per le altre lingue, sotto il metodo di inserimento macOS mantiene il tuo ultimo layout latino (AZERTY, QWERTZ, spagnolo, U.S. International…), quindi scrivi come al solito, `@` compresa ovunque la preveda il tuo layout, e i tasti morti compongono anche nel testo di un comando (⌥E poi E → é, ^ poi e → ê). I layout senza lettere latine (russo, hindi InScript) non si possono usare sotto un metodo di inserimento: passa a essi con ⌃Spazio, oppure incolla (⌃V) o detta il testo in un comando.
+- **Layout di tastiera**: il francese si digita con il layout scelto nella sua scheda (`keyboardLayouts` nella configurazione). Per le altre lingue, sotto il metodo di inserimento macOS mantiene il tuo ultimo layout latino (AZERTY, QWERTZ, spagnolo, U.S. International…), quindi scrivi come al solito, `@` compresa ovunque la preveda il tuo layout, e i tasti morti compongono anche nel testo di un comando (⌥E poi E → é, ^ poi e → ê). I layout senza lettere latine (russo, hindi InScript) non si possono usare sotto un metodo di inserimento: passa a essi con ⌃Spazio, oppure incolla (⌃V) il testo in un comando.
 - `@improve` rifinisce e riformula senza tradurre; `@translate @improve` insieme traducono e riformulano in un'unica richiesta. Attiva "@improve also translates" nelle impostazioni perché `@improve` faccia sempre così.
 
 Un dizionario personale ha questo aspetto (i campi di ogni voce sono separati da **tabulazioni**):
@@ -403,22 +402,9 @@ L'etichetta "ZH → EN" (「中 → 英」 nell'interfaccia in cinese) compare i
 - **App**: passare a un'altra app (anche una senza campo di testo) lo disattiva, senza avviso, e quando torni resta disattivato, a meno che quell'app non abbia "Always Translate as You Type" (「总是边打边译」) in Settings → Apps (`translateAlways` nel suo profilo): lì si attiva da solo. In un'app con No AI non fa nulla: il testo entra così come digitato, con un avviso; lo stesso per ciò che digiti durante l'inserimento sicuro (un campo password).
 - **Privacy**: come per `@translate`: il testo viene inviato solo quando premi ⏎, al tuo fornitore di IA, con le informazioni sensibili nascoste se l'opzione è attiva.
 
-## Input vocale
-
-<img src="../en/voice.png" width="340" alt="Tieni premuto ⌥ destro per parlare">
-
-Tieni premuto ⌥ destro e parla; quando rilasci, il testo viene inserito. Viene riconosciuto nella lingua in cui stai scrivendo (inglese, cinese, francese, coreano o hindi). Se prima digiti un comando (ad es. `@improve `, `@question `) e poi parli, il testo va dopo il comando e ⏎ lo esegue; puoi anche premere ⏎ senza rilasciare ⌥ destro per eseguirlo appena finisci. Il parlato viene riconosciuto sul Mac dal riconoscimento vocale integrato di macOS (SpeechAnalyzer), e nessun audio viene caricato; serve macOS 26 o successivo.
-
-La prima volta:
-
-- macOS chiede se AllInOneIME può usare il microfono. Puoi anche fare clic in anticipo su "Allow Microphone" (consenti microfono) nelle impostazioni.
-- Se questo Mac non ha ancora il modello vocale per quella lingua, viene scaricato una volta, automaticamente. Puoi anche scaricarlo nelle impostazioni.
-
-La registrazione inizia solo dopo aver tenuto premuto il tasto per circa 0,2 s, quindi un tocco breve su ⌥ destro non accende il microfono (con il tasto azione impostato su "Tap ⌥", un tocco breve esegue l'azione). Se premi un altro tasto mentre lo tieni premuto (una scorciatoia con ⌥, ⌥←), conta come scorciatoia e anche in questo caso non viene registrato nulla. Premere qualsiasi altro tasto durante la registrazione la annulla.
-
 ## Installazione
 
-Per usarlo serve macOS 14 o successivo, per l'input vocale macOS 26 o successivo. Il programma di installazione è universale: funziona sui Mac con Apple silicon e Intel. Finora è stato testato solo su macOS 27 con Apple silicon (la build per Intel solo tramite il suo autotest sotto Rosetta).
+Per usarlo serve macOS 14 o successivo. Il programma di installazione è universale: funziona sui Mac con Apple silicon e Intel. Finora è stato testato solo su macOS 27 con Apple silicon (la build per Intel solo tramite il suo autotest sotto Rosetta).
 
 1. Scarica `AllInOneIME-<version>.dmg` dalle [Releases](https://github.com/MicroZ-LLC/AllInOneIME/releases/latest) (solo da lì) e aprilo.
 2. Fai doppio clic su "Install AllInOneIME" al suo interno e fai clic su Install. Il metodo di inserimento va in `~/Library/Input Methods` e "AllInOneIME Settings" in `~/Applications`. Solo per questo utente; non serve la password di amministratore.
@@ -438,7 +424,7 @@ Per disinstallare, apri "Install AllInOneIME" e fai clic su Uninstall…. Impost
 
 ### Compilare dai sorgenti
 
-Per compilare serve Xcode 26 o successivo, poiché l'input vocale usa l'SDK di macOS 26.
+Per compilare serve Xcode 26 o successivo (l'SDK di macOS 26).
 
 ```sh
 git clone https://github.com/MicroZ-LLC/AllInOneIME.git
@@ -530,7 +516,6 @@ Tutte le impostazioni sono memorizzate in `~/.config/allinoneime/config.json`; d
 | `keyboardLayouts` | Il layout di tastiera con cui si digita una lingua di inserimento, in base al suo codice (per ora solo il francese): `{"fr": "com.apple.keylayout.French-PC"}` | Francese: `com.apple.keylayout.French` (AZERTY) |
 | `outputLanguages` | Le lingue in cui traduce `@translate`, in ordine: `["es", "fr", "de"]`, … | `["en"]` |
 | `improveTranslates` | `@improve` traduce anche (come `@translate @improve`) | `false` |
-| `voiceInput` | Tenere premuto ⌥ destro per parlare | `true` |
 | `actionKey` | Tasto azione: `"enter"` (⏎), `"optionTap"` (Tap ⌥), `"optionSpace"` (⌥Spazio), `"space"` (Spazio) | `"enter"` |
 | `commandTrigger` | Il simbolo con cui iniziano i comandi: uno tra `"#"`, `"%"`, `"&"`, `"*"`, `"+"`, `"@"`, `"\|"`, `"~"`; qualsiasi altro valore vale `"@"` | `"@"` |
 | `uiLanguage` | Lingua dell'interfaccia (finestra delle impostazioni, suggerimenti del pannello dei candidati, menu): `"zh"` (cinese semplificato), `"en"`, o il codice di un'altra lingua inclusa nell'app: `"zh-Hant"`, `"ja"`, `"ko"`, `"de"`, `"fr"`, `"es"`, `"pt-BR"` | `null` (segue il sistema) |
@@ -559,9 +544,8 @@ Tutte le impostazioni sono memorizzate in `~/.config/allinoneime/config.json`; d
 - Proseguire altrove una conversazione di `@question` (⌘1 … dopo l'ultimo turno, o ⌘⏎) la invia, con ciò che hai digitato, al servizio che scegli: un agente di programmazione su questo Mac (Claude Code, Gemini CLI, Kiro CLI o il tuo, ciascuno con il proprio account e il proprio servizio), claude.ai, chatgpt.com o gemini.google.com, nell'indirizzo web o tramite gli appunti. Parte così come l'hai vista: i valori nascosti alle richieste all'IA (vedi sotto) ci sono così come sono, dato che sei tu a scegliere di mandarla lì. Non va da nessuna parte finché non ne scegli uno; "Copy the conversation" la mette soltanto negli appunti.
 - Con AllInOneIME Cloud, la frase passa attraverso il server dello sviluppatore verso un fornitore di modelli (attualmente tramite OpenRouter): il server conserva solo dei conteggi, mai il testo. L'accesso conserva solo il tuo indirizzo email.
 - Nascondere le informazioni sensibili (Settings → AI Provider → Privacy, disattivato per impostazione predefinita): prima che parta qualsiasi richiesta (`@improve`, `@translate`, `@question`, i tuoi comandi di istruzione e plugin di istruzione, con tutti i fornitori, compreso AllInOneIME Cloud), indirizzi email, numeri di telefono, numeri di carte di pagamento (verificati con Luhn), chiavi API e token (`sk-`, `sk-ant-`, `AKIA…`, `ghp_`, `xox…` e lunghe stringhe casuali), indirizzi IP e le tue parole (un nome in codice, un nome) vengono sostituiti sul Mac con segnaposto come `[EMAIL_1]`, `[PHONE_1]`, `[ITEM_1]`; lo stesso valore riceve lo stesso segnaposto. I risultati del modello riavranno i valori reali prima di essere mostrati o inseriti, e il pannello dice "2 items hidden from the AI". Un risultato il cui segnaposto è stato modificato dal modello fino a renderlo irriconoscibile viene mostrato così com'è, contrassegnato da "⚠ placeholder changed". Le voci dell'elenco del gergo con un valore nascosto non vengono inviate. Ogni tipo si può disattivare. Vengono trovate anche le forme a larghezza piena (`zhang＠example.com`, `１３８…`), e un valore o un'espressione possono essere spezzati da un a capo. Riconosce valori formattati come email, numeri e chiavi; non può riconoscere nomi o indirizzi (aggiungili come parole tue), né lettere simili di altri alfabeti. Si applica alle richieste al tuo servizio di IA; `@agent` (con la pagina di Chrome che porta con sé), i plugin che recuperano dati da un sito web (`@stock`) o ne aprono uno (`@x`) e le estensioni script inviano il testo così come è stato digitato. Nella configurazione: `redaction` (`enabled`, `emails`, `phones`, `cards`, `keys`, `ips`, `customWords`).
-- La voce viene registrata solo mentre tieni premuto ⌥ destro e viene riconosciuta sul Mac; il testo riconosciuto viene inviato solo nei comandi sopra indicati, quando premi il tasto azione.
 - Il metodo di inserimento legge il testo degli appunti una volta, solo quando premi ⌃V o ⌘V in un comando; i contenuti che i gestori di password contrassegnano come nascosti non vengono letti. Il testo viene prima mostrato nel comando e, di nuovo, viene inviato solo quando premi il tasto azione. Le versioni recenti di macOS chiedono se AllInOneIME può leggere gli appunti: consentilo. Per non sentirti chiedere ogni volta, imposta il permesso di incollare di AllInOneIME su consenti sempre in Impostazioni di Sistema → Privacy e sicurezza.
-- Nei campi password macOS passa alla propria tastiera (U.S. o ABC) e torna indietro quando li lasci. Ogni volta che l'app in cui scrivi attiva l'inserimento sicuro, AllInOneIME non compone testo e non può registrare: i tasti entrano così come digitati. E mentre il sistema è in inserimento sicuro (campi password, Inserimento sicuro da tastiera di Terminale, ecc.), nulla viene inviato all'IA.
+- Nei campi password macOS passa alla propria tastiera (U.S. o ABC) e torna indietro quando li lasci. Ogni volta che l'app in cui scrivi attiva l'inserimento sicuro, AllInOneIME non compone testo: i tasti entrano così come digitati. E mentre il sistema è in inserimento sicuro (campi password, Inserimento sicuro da tastiera di Terminale, ecc.), nulla viene inviato all'IA.
 - `@note` e `@reminder` non passano dall'IA: AllInOneIME consegna il testo solo a Note e Promemoria su questo Mac, e interpreta anche l'ora del promemoria sul Mac (se quelle app lo sincronizzano con gli altri tuoi dispositivi dipende dai loro account, come iCloud). Quindi funzionano anche durante l'inserimento sicuro. `@note` verso una cartella scrive un file su questo Mac (che si sincronizza se la cartella si sincronizza, come una cartella di iCloud Drive o di Obsidian Sync). `@note` verso Notion invia la nota a Notion (api.notion.com, con il token della tua integrazione, conservato nel portachiavi), e solo in quel caso: non durante l'inserimento sicuro.
 - `@reportissue` (e "Report an Issue…") non invia nulla da solo: apre nel browser la pagina di GitHub per una nuova issue con il titolo che hai digitato e le versioni, le lingue, il tipo di fornitore e i conteggi indicati sopra, mostrati prima nel pannello dei candidati. Nulla arriva a GitHub finché non fai clic su Submit lì.
 - `@open` cerca solo su questo Mac. Ricorda ciò che hai aperto con esso (gli ultimi 200 elementi), nelle preferenze proprie del metodo di inserimento (non in config.json), per elencarli per primi.
@@ -581,7 +565,7 @@ make test         # unit tests, plus tests that run the real Rime engine (and ma
 make strings      # adds new interface text to Resources/Localizable.xcstrings, marks what's unused stale
 make pack         # the Chinese language pack: build/packs/zh-pinyin-<version>.tar.xz, its sha256, its packs.json entry
 make packs        # all the language packs: Chinese, and Korean and Hindi from Core/LanguagePacks/ (ko-hangul, hi-phonetic)
-make selftest     # drives the input method through a simulated text field: real Bedrock calls, plus on-device recognition tested with synthesized speech
+make selftest     # drives the input method through a simulated text field: real Bedrock calls
 make realtest     # types into a real app's text field (needs the screen unlocked; takes over the foreground for about 1 minute)
 make screenshots  # regenerates the screenshots in docs/
 make cli && .build/release/allinoneime-cli --styles concise,jargon "this is a blocker bug your team need fix it asap"   # try polishing and rewrites in the terminal
@@ -597,13 +581,13 @@ Il testo dell'interfaccia si scrive come `tr("中文", "English")`: cinese sempl
 
 Struttura del codice: la radice è l'app per macOS; `Core/` è il core condiviso da tutte le piattaforme, un pacchetto Swift a sé (si compila e si testa da solo, su macOS, Linux e Windows); `Windows/` è l'inizio dell'app per Windows.
 
-- `Core/Sources/AllInOneIMECore`: client Bedrock, SigV4, prompt, la macchina a stati di inserimento a due livelli (compresi i comandi @ e il gesto vocale); nessuna dipendenza da AppKit
+- `Core/Sources/AllInOneIMECore`: client Bedrock, SigV4, prompt, la macchina a stati di inserimento a due livelli (compresi i comandi @); nessuna dipendenza da AppKit
 - `Core/Sources/AllInOneIMEText`: il testo dell'interfaccia e la sua lingua (`UIString`, `InterfaceText`, `InterfaceLanguage` e `StringCatalog`, che legge il catalogo dove non ci sono bundle `.lproj`); tutti i link che aprono le impostazioni (`AllInOneIMECore` lo riesporta)
 - `Core/Sources/AllInOneIMEQuickJS`: QuickJS-ng (i suoi sorgenti C in `Core/Sources/CQuickJS`), che esegue il JavaScript dei plugin e di `@js` dove non c'è JavaScriptCore (Windows, Linux, Android)
 - `Core/Sources/AllInOneIMERime`: wrapper di librime
 - `Core/Sources/AllInOneIMECLI`: la riga di comando, `allinoneime-cli` (`make cli`), avviata dal `main` proprio di ogni piattaforma
 - `Sources/AllInOneIMEMac`: ciò che ha solo il Mac (layout di tastiera, firma del codice, Spotlight, AppleScript, l'installazione degli aggiornamenti), e `Platform.mac`
-- `Sources/AllInOneIME`: il metodo di inserimento InputMethodKit, il pannello dei candidati, la finestra delle impostazioni, il riconoscimento vocale
+- `Sources/AllInOneIME`: il metodo di inserimento InputMethodKit, il pannello dei candidati, la finestra delle impostazioni
 - `Sources/AllInOneIMESettings`: il launcher "AllInOneIME Settings"
 - `Sources/AllInOneIMEInstaller`: "Install AllInOneIME" sull'immagine disco: installa, aggiorna e disinstalla
 
@@ -619,7 +603,7 @@ Pubblicare una versione (l'aggiornamento integrato legge https://allinoneime.com
 
 L'app verifica la firma del manifesto con la chiave pubblica integrata prima di leggerlo, non installa mai una versione che non sia più recente, scarica solo via https da allinoneime.com o dai file delle release GitHub del repository, e installa l'archivio solo quando dimensione e SHA-256 corrispondono al manifesto, i bundle ID, le versioni e le firme del codice di entrambe le app sono corretti e il nuovo metodo di inserimento si avvia. Il metodo di inserimento passa poi il compito al proprio eseguibile come aiutante (`--apply-update`), che aspetta che si chiuda, scambia le app come fa il programma di installazione (le vecchie messe da parte, ripristinate se qualcosa non va) e registra la nuova. Per provarlo con un server locale: `make update-test`, oppure `--test-key` con `Scripts/build-update-manifest.swift` e `AllInOneIME --install-update --manifest-url http://127.0.0.1:<port>/update.json --key <its public key> --target-dir <folder>`.
 
-Il bundle ID è ancora `com.aipinyin.inputmethod.AIPinyin`: macOS lo usa per ricordare la sorgente di input aggiunta e il permesso del microfono, quindi cambiarlo significherebbe aggiungere di nuovo il metodo di inserimento e concedere di nuovo il permesso.
+Il bundle ID è ancora `com.aipinyin.inputmethod.AIPinyin`: macOS lo usa per ricordare la sorgente di input aggiunta e i permessi che le sono stati concessi, quindi cambiarlo significherebbe aggiungere di nuovo il metodo di inserimento e concederli di nuovo.
 
 ## Licenza
 

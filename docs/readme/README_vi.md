@@ -22,7 +22,7 @@ Không phải sao chép vào cửa sổ chat, không phải chuyển ứng dụn
 
 **[Tải về](https://allinoneime.com/download)** · **[Trang web](https://allinoneime.com)** · **[Tài liệu](https://github.com/MicroZ-LLC/AllInOneIME/wiki)** · **[Tiện ích mở rộng](../extensions.md)**
 
-[Cách sử dụng](#cách-sử-dụng) · [Lệnh](#lệnh--beta) · [Lệnh của riêng bạn](#lệnh-của-riêng-bạn) · [Ngôn ngữ](#nhập-liệu-và-dịch) · [Giọng nói](#nhập-bằng-giọng-nói) · [Cài đặt](#cài-đặt) · [Quyền riêng tư](#quyền-riêng-tư)
+[Cách sử dụng](#cách-sử-dụng) · [Lệnh](#lệnh--beta) · [Lệnh của riêng bạn](#lệnh-của-riêng-bạn) · [Ngôn ngữ](#nhập-liệu-và-dịch) · [Cài đặt](#cài-đặt) · [Quyền riêng tư](#quyền-riêng-tư)
 
 <br>
 
@@ -35,7 +35,7 @@ Không phải sao chép vào cửa sổ chat, không phải chuyển ứng dụn
 > [!NOTE]
 > Từ 0.6.3, AllInOneIME được ký bằng Developer ID và được Apple công chứng (notarize): không cần cho phép nó trong System Settings → Privacy & Security (Cài đặt hệ thống → Quyền riêng tư & Bảo mật) nữa. Sau khi cập nhật từ một phiên bản cũ hơn, macOS sẽ hỏi mật khẩu đăng nhập của bạn một lần cho mỗi khóa mà AllInOneIME đã lưu trong keychain: nhập mật khẩu rồi nhấp "Always Allow" (Luôn cho phép). Chỉ tải AllInOneIME từ [GitHub Releases](https://github.com/MicroZ-LLC/AllInOneIME/releases) hoặc [allinoneime.com](https://allinoneime.com).
 
-Một bộ gõ cho macOS mang các lệnh AI vào mọi ô văn bản. Bắt đầu câu bằng `@` và nhấn ⏎ khi viết xong: `@improve` trau chuốt những gì bạn viết và đưa ra vài cách viết lại, `@translate` dịch nó sang các ngôn ngữ bạn chọn, `@question` đặt một câu hỏi, `@agent` giao nó cho một coding agent (Claude Code, Gemini CLI, Kiro CLI …), và `@open` tìm tệp và ứng dụng hoặc mở một địa chỉ web. Bạn cũng có thể giữ phím ⌥ bên phải và nói. Khi không có `@`, các phím bạn gõ vẫn đi vào ứng dụng như thường lệ. Nó còn gõ được tiếng Trung (pinyin, xây dựng trên Rime và rime-ice), tiếng Pháp, tiếng Hàn (Hangul) và tiếng Hindi (chữ Devanagari từ chữ cái Latin), và chạy các script của riêng bạn như những lệnh @.
+Một bộ gõ cho macOS mang các lệnh AI vào mọi ô văn bản. Bắt đầu câu bằng `@` và nhấn ⏎ khi viết xong: `@improve` trau chuốt những gì bạn viết và đưa ra vài cách viết lại, `@translate` dịch nó sang các ngôn ngữ bạn chọn, `@question` đặt một câu hỏi, `@agent` giao nó cho một coding agent (Claude Code, Gemini CLI, Kiro CLI …), và `@open` tìm tệp và ứng dụng hoặc mở một địa chỉ web. Khi không có `@`, các phím bạn gõ vẫn đi vào ứng dụng như thường lệ. Nó còn gõ được tiếng Trung (pinyin, xây dựng trên Rime và rime-ice), tiếng Pháp, tiếng Hàn (Hangul) và tiếng Hindi (chữ Devanagari từ chữ cái Latin), và chạy các script của riêng bạn như những lệnh @.
 
 Phím ma thuật (ký hiệu mở đầu lệnh) mặc định là `@`. Trong Settings → General → Magic key, bạn có thể chọn ký hiệu khác: `#`, `%`, `&`, `*`, `+`, `|` hoặc `~`; khi đó lệnh bắt đầu bằng ký hiệu đó (ví dụ `~translate`), còn `@` được gõ như bình thường. Chữ cái, chữ số, dấu cách và các ký hiệu cần cho việc gõ (các phím của bính âm như `'` `-` `=` `[` `]` `` ` ``, và những ký hiệu bính âm gõ thành dấu câu tiếng Trung như `,` `.` `?` `\`) không được chấp nhận, và phần cài đặt sẽ cho biết lý do. Trong tệp cấu hình: `"commandTrigger": "~"`.
 
@@ -62,7 +62,6 @@ Khi không có `@`, bộ gõ không can thiệp: ở chế độ tiếng Anh, ch
 | ⌘⏎, ⌘1–⌘9 | Trong một cuộc hội thoại `@question`: hiện những nơi có thể tiếp tục nó (các coding agent đã cài, agent mà `@agent` giao việc tới đứng đầu; Claude, ChatGPT, Gemini; hoặc sao chép); ⌘1, ⌘2 … chọn một nơi |
 | Nhấp vào một dòng | Trong bảng ứng viên: chọn dòng đó, như chữ số của nó (một từ, một lệnh trong danh sách, một kết quả, một tệp của `@open`, một người nhận, một dòng của tiện ích mở rộng); dòng dưới con trỏ được tô sáng. Ô văn bản vẫn giữ tiêu điểm |
 | Nhấn nhanh Shift | Khi có nhiều ngôn ngữ nhập: chuyển sang ngôn ngữ kế tiếp theo thứ tự của chúng (tiếng Anh → tiếng Trung → tiếng Pháp → …, rồi quay lại ngôn ngữ đầu tiên) |
-| Giữ ⌥ bên phải | Nói, thả ra để dừng. Bằng ngôn ngữ bạn đang gõ (tiếng Anh, tiếng Trung, tiếng Pháp, tiếng Hàn hoặc tiếng Hindi). Trong một lệnh, văn bản được đặt sau lệnh; nếu không, văn bản được chèn trực tiếp |
 
 ## Lệnh @ (beta)
 
@@ -83,7 +82,7 @@ Khi không có `@`, bộ gõ không can thiệp: ở chế độ tiếng Anh, ch
 | `@reportissue` | Báo cáo sự cố: mở trang tạo issue mới của GitHub trong trình duyệt, với nội dung bạn gõ sau lệnh làm tiêu đề, cùng "What happened / What you expected" (chuyện gì đã xảy ra / bạn mong đợi điều gì) để điền. Nó thêm phiên bản ứng dụng và macOS, kiến trúc máy Mac, ngôn ngữ giao diện và ngôn ngữ nhập, các gói ngôn ngữ đã cài, loại nhà cung cấp AI (và mô hình, nếu là mô hình công khai; nếu không thì "custom"), phím thực thi, và số lượng lệnh tùy chỉnh, plugin và tiện ích mở rộng bạn có, không bao giờ kèm tên của chúng, văn bản, đường dẫn hay khóa của bạn. ⏎ (hoặc phím thực thi của bạn) trước tiên hiện tất cả trong bảng ứng viên; ⏎ lần nữa, hoặc nhấp vào dòng, sẽ mở trang, nơi bạn xem lại và nhấp Submit (bằng tài khoản GitHub của bạn); Esc quay lại. Cũng có trong menu nhập ("Report an Issue…") và Settings → About |
 | `@imessage` | Gửi một iMessage: gõ tên, số điện thoại hoặc email (tên tiếng Trung cũng gõ được bằng pinyin, đầy đủ hoặc chữ cái đầu) và chọn người nhận trong bảng ứng viên (những người bạn nhắn tin gần đây xếp trước; số hoặc địa chỉ đầy đủ cũng được), rồi viết tin nhắn (các lệnh bên trong như `@stock AAPL` được chạy trước). ⏎ hiển thị "Send to Alex (…): message" trong bảng, ⏎ lần nữa để gửi, Esc quay lại chỉnh sửa; không có gì được gõ vào ô văn bản. Lần đầu, macOS hỏi AllInOneIME có được truy cập Contacts và điều khiển Messages không: nhấp OK cho cả hai |
 
-Ví dụ: `@q` ⏎, gõ `what is quantum computing`, ⏎. `@note books to read: The Three-Body Problem` ⏎ lưu một ghi chú. `@reminder call Bob tomorrow at 3pm` ⏎, kiểm tra thời gian đã đọc được, rồi ⏎ lần nữa để thêm. Khi đã chọn lệnh, bạn cũng có thể giữ ⌥ bên phải và nói. Ở chế độ tiếng Trung, `@open` tạm thời chuyển sang chữ cái tiếng Anh và trở lại tiếng Trung khi bạn xong.
+Ví dụ: `@q` ⏎, gõ `what is quantum computing`, ⏎. `@note books to read: The Three-Body Problem` ⏎ lưu một ghi chú. `@reminder call Bob tomorrow at 3pm` ⏎, kiểm tra thời gian đã đọc được, rồi ⏎ lần nữa để thêm. Ở chế độ tiếng Trung, `@open` tạm thời chuyển sang chữ cái tiếng Anh và trở lại tiếng Trung khi bạn xong.
 
 Mã cho `@py` và `@js` được gõ bằng chữ cái tiếng Anh, và dấu câu toàn độ rộng (từ chế độ tiếng Trung) được đổi thành ASCII; hãy viết trên một dòng, với `;` giữa các câu lệnh. Mã chạy trong một tiến trình riêng, bị dừng sau 10 giây hoặc bằng Esc bất cứ lúc nào; khi có lỗi, dòng đầu tiên của lỗi được hiển thị, ví dụ `ZeroDivisionError: division by zero`. Đầu ra nhiều dòng được chèn đúng như khi in ra; trong terminal nó được đưa vào thành một dòng (terminal chạy mọi dòng nó nhận được). Terminal bên trong trình soạn thảo (VS Code, Cursor, JetBrains) không thể phân biệt được với chính trình soạn thảo, nên ở đó đầu ra nhiều dòng của bất kỳ lệnh nào cũng được đưa vào nguyên vẹn. Cả hai cũng hoạt động bên trong câu của một lệnh khác: `@reply the answer is @py 2**100`; đặt mã có dấu cách trong dấu ngoặc kép: `@question explain @py "sum(x * x for x in range(10))"`. Chiều ngược lại thì không: mã của `@py` và `@js` luôn chạy đúng như bạn đã gõ, và các `@commands` bên trong nó không được chạy trước.
 
@@ -246,7 +245,7 @@ Các lệnh lấy dữ liệu (plugin và chương trình) cũng hoạt động 
 
 ### Phím thực thi
 
-Mặc định là ⏎; thay đổi ở mục "Action key" (phím thực thi) trong phần cài đặt (`actionKey` trong tệp cấu hình): ⏎, "Tap ⌥" (nhấn nhanh ⌥, bên nào cũng được: nhấn và thả ngay; giữ ⌥ bên phải vẫn dùng để nói), ⌥Space, hoặc Space (nhấn Space thêm một lần sau khi đã chọn từ; hai lần ở chế độ tiếng Anh). Dù phím thực thi là gì, lệnh @ cũng chạy khi nhấn ⏎. Nếu ⌥Space đã là phím tắt của Alfred, Raycast hoặc ứng dụng tương tự, chúng sẽ nhận phím đó trước.
+Mặc định là ⏎; thay đổi ở mục "Action key" (phím thực thi) trong phần cài đặt (`actionKey` trong tệp cấu hình): ⏎, "Tap ⌥" (nhấn nhanh ⌥, bên nào cũng được: nhấn và thả ngay), ⌥Space, hoặc Space (nhấn Space thêm một lần sau khi đã chọn từ; hai lần ở chế độ tiếng Anh). Dù phím thực thi là gì, lệnh @ cũng chạy khi nhấn ⏎. Nếu ⌥Space đã là phím tắt của Alfred, Raycast hoặc ứng dụng tương tự, chúng sẽ nhận phím đó trước.
 
 ### Gõ từng ký tự kết quả
 
@@ -345,7 +344,7 @@ Trong phần cài đặt:
 - **Fuzzy pinyin** (pinyin mờ, khi nhập tiếng Trung): những âm bạn không phân biệt thì gõ kiểu nào cũng được, ví dụ z ↔ zh, n ↔ l, in ↔ ing. Ở trang "Input", chọn "Chinese (pinyin)" trên thanh ngôn ngữ nhập, bật "Fuzzy pinyin" và chọn các cặp; các từ điển được triển khai lại trong một hai giây. Tính năng này ghi `rime_ice.custom.yaml` vào thư mục người dùng của Rime, và không bao giờ ghi đè lên tệp của riêng bạn ở đó.
 - **Personal Dictionaries** (từ điển cá nhân, khi nhập tiếng Trung): Settings → Input → Chinese (pinyin) → Personal Dictionaries → **Import or Update…** thêm một tệp từ vựng Rime UTF-8 (`.dict.yaml`) bên cạnh rime-ice (cần cài gói ngôn ngữ tiếng Trung trước). Danh sách hiển thị `name` của Rime, tên tệp và số mục của từng tệp; nhập lại cùng `name` sẽ thay bản sao đã lưu (chỉ sửa tệp gốc thì không). Mỗi lần nhập, cập nhật hoặc xóa đều biên dịch lại từ điển bính âm (toàn bộ từ của rime-ice cộng với của bạn), có thể mất khoảng một phút; trong lúc đó không gõ được tiếng Trung, và trang hiển thị tiến độ hoặc lỗi. Các bản sao nằm trên máy Mac này, ngoài đồng bộ iCloud và các yêu cầu gửi đến AI; nhưng từ bạn chọn từ chúng được học như mọi từ khác, vào từ điển người dùng của Rime, vốn được đồng bộ cùng các từ đã học khi bật và vẫn còn sau khi xóa từ điển. Nếu bạn có `rime_ice.custom.yaml` của riêng mình, việc nhập sẽ bị từ chối trước khi bất kỳ tệp nào thay đổi.
 - **Translate (@translate)**: thêm các ngôn ngữ cần dịch sang (tiếng Tây Ban Nha, tiếng Pháp, tiếng Đức, tiếng Nhật, tiếng Hàn, tiếng Trung, tiếng Hindi, tiếng Bengal, tiếng Tamil và các ngôn ngữ chính khác của Ấn Độ…) và kéo để sắp xếp thứ tự. Tiếng Hindi gõ bằng chữ Latin ("aap kaise ho") được trả về bằng chữ Devanagari. `@translate` viết một dòng cho mỗi ngôn ngữ, theo thứ tự này (ba phiên bản nếu chỉ có một ngôn ngữ); ngôn ngữ của chính câu đó được bỏ qua. Bản cài mới dịch sang ngôn ngữ đầu tiên trong danh sách ngôn ngữ ưu tiên của máy Mac mà không phải tiếng Anh; nếu chỉ có tiếng Anh, `@translate` báo rằng chưa có ngôn ngữ nào để dịch sang, và nhấn ⏎ trên thông báo đó sẽ mở trang này với "Add…" (thêm…) được đóng khung (câu được chèn đúng như bạn đã gõ). Khi đó Dịch trong khi gõ cũng không bật, và cho biết nơi thêm một ngôn ngữ.
-- **Keyboard layouts** (bố cục bàn phím): tiếng Pháp gõ bằng bố cục được chọn trên thẻ của nó (`keyboardLayouts` trong tệp cấu hình). Với các ngôn ngữ khác, khi dùng bộ gõ, macOS giữ bố cục Latin cuối cùng của bạn (AZERTY, QWERTZ, Spanish, US International…), nên bạn gõ như thường lệ, kể cả `@` ở bất cứ vị trí nào bố cục của bạn đặt nó, và phím chết cũng ghép dấu trong văn bản của lệnh (⌥E rồi E → é, ^ rồi e → ê). Các bố cục không có chữ Latin (tiếng Nga, Hindi InScript) không dùng được dưới một bộ gõ: hãy chuyển sang chúng bằng ⌃Space, hoặc dán (⌃V) hay đọc chính tả văn bản vào một lệnh.
+- **Keyboard layouts** (bố cục bàn phím): tiếng Pháp gõ bằng bố cục được chọn trên thẻ của nó (`keyboardLayouts` trong tệp cấu hình). Với các ngôn ngữ khác, khi dùng bộ gõ, macOS giữ bố cục Latin cuối cùng của bạn (AZERTY, QWERTZ, Spanish, US International…), nên bạn gõ như thường lệ, kể cả `@` ở bất cứ vị trí nào bố cục của bạn đặt nó, và phím chết cũng ghép dấu trong văn bản của lệnh (⌥E rồi E → é, ^ rồi e → ê). Các bố cục không có chữ Latin (tiếng Nga, Hindi InScript) không dùng được dưới một bộ gõ: hãy chuyển sang chúng bằng ⌃Space, hoặc dán (⌃V) văn bản vào một lệnh.
 - `@improve` trau chuốt và viết lại mà không dịch; `@translate @improve` dùng cùng nhau sẽ dịch và viết lại trong một yêu cầu. Bật "@improve also translates" trong phần cài đặt để `@improve` luôn làm như vậy.
 
 Một từ điển cá nhân trông như sau (các trường của mỗi mục được ngăn cách bằng **tab**):
@@ -403,22 +402,9 @@ Khi đang bật, một thẻ nhỏ "ZH → EN" (「中 → 英」 trong giao di�
 - **Ứng dụng**: chuyển sang ứng dụng khác (kể cả ứng dụng không có ô văn bản) sẽ tắt nó, không có thông báo, và khi quay lại thì nó vẫn tắt, trừ khi ứng dụng đó bật "Always Translate as You Type" (luôn dịch trong khi gõ; 「总是边打边译」 trong giao diện tiếng Trung) trong Settings → Apps (`translateAlways` trong hồ sơ của nó): ở đó nó tự bật. Trong ứng dụng đặt No AI, nó không làm gì: văn bản được chèn nguyên văn, kèm một thông báo; những gì bạn gõ khi đang ở chế độ nhập liệu bảo mật (một ô mật khẩu) cũng vậy.
 - **Quyền riêng tư**: như với `@translate`: chỉ được gửi khi bạn nhấn ⏎, đến nhà cung cấp AI của chính bạn, với thông tin nhạy cảm được ẩn nếu tính năng đó đang bật.
 
-## Nhập bằng giọng nói
-
-<img src="../en/voice.png" width="340" alt="Giữ ⌥ bên phải để nói">
-
-Giữ ⌥ bên phải và nói; khi bạn thả ra, văn bản được chèn. Giọng nói được nhận dạng theo ngôn ngữ bạn đang gõ (tiếng Anh, tiếng Trung, tiếng Pháp, tiếng Hàn hoặc tiếng Hindi). Nếu bạn gõ một lệnh trước (ví dụ `@improve `, `@question `) rồi mới nói, văn bản được đặt sau lệnh và ⏎ sẽ chạy nó; bạn cũng có thể nhấn ⏎ mà không thả ⌥ bên phải để chạy ngay khi nói xong. Giọng nói được nhận dạng ngay trên máy Mac bằng tính năng nhận dạng giọng nói có sẵn của macOS (SpeechAnalyzer), và không có âm thanh nào được tải lên; tính năng này cần macOS 26 trở lên.
-
-Lần đầu tiên:
-
-- macOS hỏi AllInOneIME có được dùng micrô không. Bạn cũng có thể nhấp "Allow Microphone" trong phần cài đặt từ trước.
-- Nếu máy Mac này chưa có mô hình giọng nói cho ngôn ngữ đó, mô hình sẽ được tự động tải về một lần. Bạn cũng có thể tải nó trong phần cài đặt.
-
-Việc ghi âm chỉ bắt đầu sau khi bạn giữ phím khoảng 0,2 giây, nên nhấn nhanh ⌥ bên phải sẽ không bật micrô (khi phím thực thi được đặt là "Tap ⌥", một lần nhấn nhanh sẽ thực thi). Nếu bạn nhấn một phím khác trong khi đang giữ (một phím tắt với ⌥, ⌥←), thao tác đó được tính là phím tắt và cũng không có gì được ghi âm. Nhấn bất kỳ phím nào khác trong khi đang ghi âm sẽ hủy việc ghi âm.
-
 ## Cài đặt
 
-Để chạy cần macOS 14 trở lên, nhập bằng giọng nói cần macOS 26 trở lên. Trình cài đặt là bản universal: hoạt động trên máy Mac dùng Apple silicon và Intel. Đến nay nó mới chỉ được kiểm thử trên macOS 27 với Apple silicon (bản Intel chỉ được kiểm thử qua bài tự kiểm tra dưới Rosetta).
+Để chạy cần macOS 14 trở lên. Trình cài đặt là bản universal: hoạt động trên máy Mac dùng Apple silicon và Intel. Đến nay nó mới chỉ được kiểm thử trên macOS 27 với Apple silicon (bản Intel chỉ được kiểm thử qua bài tự kiểm tra dưới Rosetta).
 
 1. Tải `AllInOneIME-<version>.dmg` từ [Releases](https://github.com/MicroZ-LLC/AllInOneIME/releases/latest) (chỉ từ đó) và mở nó.
 2. Nhấp đúp vào "Install AllInOneIME" bên trong và nhấp "Install". Bộ gõ được đặt vào `~/Library/Input Methods` và "AllInOneIME Settings" vào `~/Applications`. Chỉ cho người dùng này; không cần mật khẩu quản trị viên.
@@ -438,7 +424,7 @@ Nếu bạn đã cài AIPinyin (tên cũ của AllInOneIME), chỉ cần cài: A
 
 ### Biên dịch từ mã nguồn
 
-Việc biên dịch cần Xcode 26 trở lên, vì nhập bằng giọng nói dùng SDK macOS 26.
+Việc biên dịch cần Xcode 26 trở lên (SDK macOS 26).
 
 ```sh
 git clone https://github.com/MicroZ-LLC/AllInOneIME.git
@@ -530,7 +516,6 @@ Mọi cài đặt được lưu trong `~/.config/allinoneime/config.json`; sau k
 | `keyboardLayouts` | Bố cục bàn phím mà một ngôn ngữ nhập dùng, theo mã ngôn ngữ (hiện mới chỉ có tiếng Pháp): `{"fr": "com.apple.keylayout.French-PC"}` | Tiếng Pháp: `com.apple.keylayout.French` (AZERTY) |
 | `outputLanguages` | Các ngôn ngữ `@translate` dịch sang, theo thứ tự: `["es", "fr", "de"]`, … | `["en"]` |
 | `improveTranslates` | `@improve` kiêm dịch (như `@translate @improve`) | `false` |
-| `voiceInput` | Giữ ⌥ bên phải để nói | `true` |
 | `actionKey` | Phím thực thi: `"enter"` (⏎), `"optionTap"` (Tap ⌥), `"optionSpace"` (⌥Space), `"space"` (Space) | `"enter"` |
 | `commandTrigger` | Ký hiệu mở đầu lệnh: một trong `"#"`, `"%"`, `"&"`, `"*"`, `"+"`, `"@"`, `"\|"`, `"~"`; giá trị khác được coi là `"@"` | `"@"` |
 | `uiLanguage` | Ngôn ngữ giao diện (cửa sổ cài đặt, gợi ý trong bảng ứng viên, menu): `"zh"` (tiếng Trung giản thể), `"en"`, hoặc mã của một ngôn ngữ khác mà ứng dụng có: `"zh-Hant"`, `"ja"`, `"ko"`, `"de"`, `"fr"`, `"es"`, `"pt-BR"` | `null` (theo hệ thống) |
@@ -559,9 +544,8 @@ Mọi cài đặt được lưu trong `~/.config/allinoneime/config.json`; sau k
 - Tiếp tục một cuộc hội thoại `@question` ở nơi khác (⌘1 … sau lượt cuối, hoặc ⌘⏎) sẽ gửi nó, kèm những gì bạn đã gõ, đến dịch vụ bạn chọn: một coding agent trên máy Mac này (Claude Code, Gemini CLI, Kiro CLI hoặc của riêng bạn, mỗi agent với tài khoản và dịch vụ riêng), claude.ai, chatgpt.com hoặc gemini.google.com, qua địa chỉ web hoặc qua clipboard. Nó được gửi đúng như bạn đã thấy: các giá trị được ẩn khỏi yêu cầu gửi AI (xem bên dưới) vẫn nằm nguyên trong đó, vì chính bạn chọn gửi nó tới đó. Không có gì được gửi đi đâu cho đến khi bạn chọn một nơi; "Copy the conversation" chỉ đưa nó vào clipboard.
 - Với AllInOneIME Cloud, câu đi qua máy chủ của nhà phát triển đến một nhà cung cấp mô hình (hiện qua OpenRouter): máy chủ chỉ lưu số đếm, không bao giờ lưu văn bản. Việc đăng nhập chỉ lưu địa chỉ email của bạn.
 - Ẩn thông tin nhạy cảm (Settings → AI Provider → Privacy, mặc định tắt): trước khi bất kỳ yêu cầu nào được gửi đi (`@improve`, `@translate`, `@question`, các lệnh chỉ dẫn và plugin chỉ dẫn của bạn, với mọi nhà cung cấp kể cả AllInOneIME Cloud), địa chỉ email, số điện thoại, số thẻ thanh toán (kiểm tra Luhn), API key và token (`sk-`, `sk-ant-`, `AKIA…`, `ghp_`, `xox…` và chuỗi ngẫu nhiên dài), địa chỉ IP và từ của riêng bạn (một mật danh, một cái tên) được thay ngay trên máy Mac bằng các ký hiệu giữ chỗ như `[EMAIL_1]`, `[PHONE_1]`, `[ITEM_1]`; cùng một giá trị nhận cùng một ký hiệu. Kết quả của mô hình được trả lại giá trị thật trước khi hiện hoặc chèn, và bảng hiện "2 items hidden from the AI". Kết quả có ký hiệu giữ chỗ bị mô hình sửa đến mức không nhận ra được hiện đúng như đã viết, kèm dấu "⚠ placeholder changed". Các mục trong danh sách Jargon chứa giá trị bị ẩn sẽ không được gửi. Mỗi loại đều có thể tắt. Các dạng toàn độ rộng (`zhang＠example.com`, `１３８…`) cũng được tìm ra, và một giá trị hay cụm từ có thể bị ngắt bởi xuống dòng. Nó nhận ra các giá trị có định dạng như email, số và khóa; nó không nhận ra tên người hay địa chỉ (hãy thêm chúng làm từ của riêng bạn), cũng như các chữ cái trông giống nhau từ bảng chữ cái khác. Áp dụng cho các yêu cầu gửi đến dịch vụ AI của bạn; `@agent` (cùng trang Chrome mà nó mang theo), các plugin lấy dữ liệu từ một trang web (`@stock`) hoặc mở một trang (`@x`) và tiện ích mở rộng dạng script gửi văn bản đúng như đã gõ. Trong tệp cấu hình: `redaction` (`enabled`, `emails`, `phones`, `cards`, `keys`, `ips`, `customWords`).
-- Giọng nói chỉ được ghi âm khi bạn giữ ⌥ bên phải và được nhận dạng ngay trên máy Mac; văn bản nhận dạng được chỉ được gửi đi trong các lệnh nêu trên, khi bạn nhấn phím thực thi.
 - Bộ gõ đọc văn bản trong bộ nhớ tạm, một lần, chỉ khi bạn nhấn ⌃V hoặc ⌘V trong một lệnh; nội dung mà trình quản lý mật khẩu đánh dấu là ẩn sẽ không được đọc. Văn bản được hiển thị trong lệnh trước và, một lần nữa, chỉ được gửi đi khi bạn nhấn phím thực thi. Các phiên bản macOS gần đây hỏi AllInOneIME có được đọc bộ nhớ tạm không: hãy cho phép. Để không bị hỏi mỗi lần, hãy đặt quyền dán của AllInOneIME thành luôn cho phép trong System Settings → Privacy & Security.
-- Trong ô mật khẩu, macOS chuyển sang bàn phím riêng của nó (U.S. hoặc ABC) và chuyển lại khi bạn rời ô đó. Bất cứ khi nào ứng dụng bạn đang gõ giữ chế độ nhập liệu bảo mật, AllInOneIME không soạn văn bản và không thể ghi âm: các phím được đưa vào đúng như đã gõ. Và trong khi hệ thống ở chế độ nhập liệu bảo mật (ô mật khẩu, Secure Keyboard Entry của Terminal, v.v.), không có gì được gửi đến AI.
+- Trong ô mật khẩu, macOS chuyển sang bàn phím riêng của nó (U.S. hoặc ABC) và chuyển lại khi bạn rời ô đó. Bất cứ khi nào ứng dụng bạn đang gõ giữ chế độ nhập liệu bảo mật, AllInOneIME không soạn văn bản: các phím được đưa vào đúng như đã gõ. Và trong khi hệ thống ở chế độ nhập liệu bảo mật (ô mật khẩu, Secure Keyboard Entry của Terminal, v.v.), không có gì được gửi đến AI.
 - `@note` và `@reminder` không đi đến AI: AllInOneIME chỉ chuyển văn bản cho Notes và Reminders trên máy Mac này, và cũng đọc thời gian của lời nhắc ngay trên máy Mac (việc các ứng dụng đó có đồng bộ sang các thiết bị khác của bạn hay không tùy thuộc vào tài khoản của chúng, chẳng hạn iCloud). Vì vậy chúng cũng hoạt động khi đang ở chế độ nhập liệu bảo mật. `@note` vào một thư mục sẽ ghi một tệp trên máy Mac này (tệp được đồng bộ nếu thư mục đó được đồng bộ, như một thư mục iCloud Drive hay Obsidian Sync). `@note` vào Notion sẽ gửi ghi chú đến Notion (api.notion.com, bằng token của integration, được lưu trong keychain), và chỉ vào lúc đó: không gửi khi đang ở chế độ nhập liệu bảo mật.
 - `@reportissue` (và "Report an Issue…") tự nó không gửi gì: nó mở trang tạo issue mới của GitHub trong trình duyệt với tiêu đề bạn đã gõ cùng các phiên bản, ngôn ngữ, loại nhà cung cấp và số lượng nêu ở trên, hiện trước trong bảng ứng viên. Không có gì đến GitHub trừ khi bạn nhấp Submit ở đó.
 - `@open` chỉ tìm trên máy Mac này. Nó ghi nhớ những gì bạn đã mở bằng nó (200 mục gần nhất), trong phần tùy chọn riêng của bộ gõ (không phải trong config.json), để liệt kê chúng trước.
@@ -581,7 +565,7 @@ make test         # unit tests, plus tests that run the real Rime engine (and ma
 make strings      # adds new interface text to Resources/Localizable.xcstrings, marks what's unused stale
 make pack         # the Chinese language pack: build/packs/zh-pinyin-<version>.tar.xz, its sha256, its packs.json entry
 make packs        # all the language packs: Chinese, and Korean and Hindi from Core/LanguagePacks/ (ko-hangul, hi-phonetic)
-make selftest     # drives the input method through a simulated text field: real Bedrock calls, plus on-device recognition tested with synthesized speech
+make selftest     # drives the input method through a simulated text field: real Bedrock calls
 make realtest     # types into a real app's text field (needs the screen unlocked; takes over the foreground for about 1 minute)
 make screenshots  # regenerates the screenshots in docs/
 make cli && .build/release/allinoneime-cli --styles concise,jargon "this is a blocker bug your team need fix it asap"   # try polishing and rewrites in the terminal
@@ -597,13 +581,13 @@ Văn bản giao diện được viết dưới dạng `tr("中文", "English")`:
 
 Cấu trúc mã: thư mục gốc là ứng dụng macOS; `Core/` là phần lõi mà mọi nền tảng dùng chung, một Swift package riêng (tự biên dịch và chạy kiểm thử độc lập, trên macOS, Linux và Windows); `Windows/` là bước khởi đầu của ứng dụng Windows.
 
-- `Core/Sources/AllInOneIMECore`: client Bedrock, SigV4, các prompt, máy trạng thái nhập hai cấp (bao gồm lệnh @ và cử chỉ giọng nói); không phụ thuộc AppKit
+- `Core/Sources/AllInOneIMECore`: client Bedrock, SigV4, các prompt, máy trạng thái nhập hai cấp (bao gồm lệnh @); không phụ thuộc AppKit
 - `Core/Sources/AllInOneIMEText`: văn bản giao diện và ngôn ngữ của nó (`UIString`, `InterfaceText`, `InterfaceLanguage`, và `StringCatalog`, đọc catalog ở những nơi không có bundle `.lproj`); mọi liên kết mở các trang cài đặt (`AllInOneIMECore` re-export nó)
 - `Core/Sources/AllInOneIMEQuickJS`: QuickJS-ng (mã nguồn C của nó nằm trong `Core/Sources/CQuickJS`), chạy JavaScript của plugin và `@js` ở những nơi không có JavaScriptCore (Windows, Linux, Android)
 - `Core/Sources/AllInOneIMERime`: lớp bọc librime
 - `Core/Sources/AllInOneIMECLI`: dòng lệnh, `allinoneime-cli` (`make cli`), được chạy bởi `main` riêng của từng nền tảng
 - `Sources/AllInOneIMEMac`: những gì chỉ máy Mac có (bố cục phím, ký mã, Spotlight, AppleScript, bước cài đặt của trình cập nhật), và `Platform.mac`
-- `Sources/AllInOneIME`: bộ gõ InputMethodKit, bảng ứng viên, cửa sổ cài đặt, nhận dạng giọng nói
+- `Sources/AllInOneIME`: bộ gõ InputMethodKit, bảng ứng viên, cửa sổ cài đặt
 - `Sources/AllInOneIMESettings`: trình khởi chạy "AllInOneIME Settings"
 - `Sources/AllInOneIMEInstaller`: "Install AllInOneIME" trên ảnh đĩa: cài đặt, cập nhật và gỡ cài đặt
 
@@ -619,7 +603,7 @@ Phát hành một phiên bản (trình cập nhật trong ứng dụng đọc ht
 
 Ứng dụng kiểm tra chữ ký của manifest bằng khóa công khai tích hợp sẵn trước khi đọc nó, không bao giờ cài phiên bản không mới hơn, chỉ tải qua https từ allinoneime.com hoặc các tệp phát hành GitHub của kho mã, và chỉ cài gói lưu trữ khi kích thước và SHA-256 khớp với manifest, bundle ID, phiên bản và chữ ký mã của cả hai ứng dụng đều hợp lệ và bộ gõ mới khởi động được. Sau đó bộ gõ giao việc cho chính tệp thực thi của nó làm trình trợ giúp (`--apply-update`), trình này chờ bộ gõ thoát, hoán đổi các ứng dụng như trình cài đặt làm (bản cũ được để sang bên, đặt lại nếu có gì thất bại) và đăng ký bản mới. Để thử với máy chủ cục bộ: `make update-test`, hoặc `--test-key` với `Scripts/build-update-manifest.swift` và `AllInOneIME --install-update --manifest-url http://127.0.0.1:<port>/update.json --key <its public key> --target-dir <folder>`.
 
-Bundle ID vẫn là `com.aipinyin.inputmethod.AIPinyin`: macOS dùng nó để ghi nhớ nguồn nhập đã thêm và quyền dùng micrô, nên thay đổi nó đồng nghĩa với việc phải thêm lại bộ gõ và cấp lại quyền.
+Bundle ID vẫn là `com.aipinyin.inputmethod.AIPinyin`: macOS dùng nó để ghi nhớ nguồn nhập đã thêm và các quyền đã cấp cho nó, nên thay đổi nó đồng nghĩa với việc phải thêm lại bộ gõ và cấp lại các quyền đó.
 
 ## Giấy phép
 

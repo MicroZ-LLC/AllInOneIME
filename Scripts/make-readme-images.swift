@@ -43,6 +43,10 @@ func render(_ name: String) -> URL {
 
 func load(_ name: String) -> NSBitmapImageRep { load(url: render(name)) }
 
+/// Whether the self-test rendered `name`: dictation's only while voice input is on (`Features.voiceInput`, off for now),
+/// so voice.png is left as it is until then.
+func rendered(_ name: String) -> Bool { FileManager.default.fileExists(atPath: render(name).path) }
+
 /// One of the English README's own scenes (`en-*.png`), as it is.
 func loadScene(_ name: String) -> NSBitmapImageRep { load(url: source.appendingPathComponent(name + ".png")) }
 
@@ -150,10 +154,12 @@ if language == "en" {
         Step(caption: "② Press ⏎: polished versions, plus rewrites", marked: "improve › this is a blocker bug your team need fix it asap",
              panel: loadScene("en-improve")),
     ], to: "improve.png")
-    try composite([
-        Step(caption: "Type @improve, then hold right ⌥ to talk", marked: marked("8-voice-english", "improve › This is a blocker"),
-             panel: load("8-voice-english")),
-    ], to: "voice.png")
+    if rendered("8-voice-english") {
+        try composite([
+            Step(caption: "Type @improve, then hold right ⌥ to talk", marked: marked("8-voice-english", "improve › This is a blocker"),
+                 panel: load("8-voice-english")),
+        ], to: "voice.png")
+    }
     try composite([
         Step(caption: "① Type @ first: the command list; letters filter it", marked: "@", panel: loadScene("en-palette")),
         Step(caption: "② @question and a question, press ⏎: the answer", marked: "question › what is quantum computing",
@@ -181,10 +187,12 @@ if language == "en" {
              marked: "improve › 这个项目的进度太慢了", panel: load("7b-chinese-output")),
     ], to: "english.png")
 
-    try composite([
-        Step(caption: tr("先打 @improve，再按住右 ⌥ 说话", "Type @improve, then hold right ⌥ to talk"),
-             marked: "improve › 我今天有", panel: load("8-voice")),
-    ], to: "voice.png")
+    if rendered("8-voice") {
+        try composite([
+            Step(caption: tr("先打 @improve，再按住右 ⌥ 说话", "Type @improve, then hold right ⌥ to talk"),
+                 marked: "improve › 我今天有", panel: load("8-voice")),
+        ], to: "voice.png")
+    }
 
     try composite([
         Step(caption: tr("① 开头打 @：命令列表，打字母筛选", "① Type @ first: the command list; letters filter it"),

@@ -128,12 +128,15 @@ struct InputLanguageTests {
 
     @Test func dictationListensInTheInputLanguage() {
         let c = korean()
+        c.voiceEnabled = true  // as if voice input were on (`Features.voiceInput`)
         _ = c.handleFlagsChanged(keyCode: VirtualKey.rightOption, modifiers: [.option, .rightOption], timestamp: 1)
         let effects = c.voiceHoldElapsed()
         #expect(effects.contains(.startVoice(id: 1, language: .korean)))
     }
 
+    /// Holds the right ⌥ long enough to dictate, voice input on for the composer (`Features.voiceInput` is off for now).
     func holdToTalk(_ c: Composer, at t: Double) -> [Composer.Effect] {
+        c.voiceEnabled = true
         _ = c.handleFlagsChanged(keyCode: VirtualKey.rightOption, modifiers: [.option, .rightOption], timestamp: t)
         return c.voiceHoldElapsed()
     }

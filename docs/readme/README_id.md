@@ -22,7 +22,7 @@ Tanpa menyalin ke jendela chat, tanpa berpindah aplikasi. Penyedia AI Anda sendi
 
 **[Unduh](https://allinoneime.com/download)** · **[Situs web](https://allinoneime.com)** · **[Dokumentasi](https://github.com/MicroZ-LLC/AllInOneIME/wiki)** · **[Ekstensi](../extensions.md)**
 
-[Cara menggunakan](#cara-menggunakan) · [Perintah](#perintah--beta) · [Perintah buatan sendiri](#perintah-buatan-sendiri) · [Bahasa](#input-dan-terjemahan) · [Suara](#input-suara) · [Instalasi](#instalasi) · [Privasi](#privasi)
+[Cara menggunakan](#cara-menggunakan) · [Perintah](#perintah--beta) · [Perintah buatan sendiri](#perintah-buatan-sendiri) · [Bahasa](#input-dan-terjemahan) · [Instalasi](#instalasi) · [Privasi](#privasi)
 
 <br>
 
@@ -35,7 +35,7 @@ Tanpa menyalin ke jendela chat, tanpa berpindah aplikasi. Penyedia AI Anda sendi
 > [!NOTE]
 > Mulai 0.6.3, AllInOneIME ditandatangani dengan Developer ID dan dinotarisasi oleh Apple: tidak perlu lagi mengizinkannya di System Settings → Privacy & Security (Pengaturan Sistem → Privasi & Keamanan). Setelah memperbarui dari versi sebelumnya, macOS menanyakan kata sandi login Anda sekali untuk setiap kunci yang disimpan AllInOneIME di keychain: masukkan kata sandinya lalu klik "Always Allow" (Selalu Izinkan). Unduh AllInOneIME hanya dari [GitHub Releases](https://github.com/MicroZ-LLC/AllInOneIME/releases) atau [allinoneime.com](https://allinoneime.com).
 
-Metode input macOS dengan perintah AI di setiap kolom teks. Awali kalimat dengan `@` dan tekan ⏎ setelah selesai: `@improve` memoles tulisan Anda dan menawarkan beberapa versi tulis ulang, `@translate` menerjemahkannya ke bahasa-bahasa yang Anda pilih, `@question` mengajukan pertanyaan, `@agent` menyerahkannya ke coding agent (Claude Code, Gemini CLI, Kiro CLI …), dan `@open` menemukan file dan aplikasi atau membuka alamat web. Anda juga bisa menahan ⌥ kanan dan berbicara. Tanpa `@`, tombol yang Anda tekan diteruskan ke aplikasi seperti biasa. Metode input ini juga bisa mengetik bahasa Mandarin (pinyin, dibangun di atas Rime dan rime-ice), Prancis, Korea (Hangul), dan Hindi (Devanagari dari huruf Latin), serta menjalankan skrip Anda sendiri sebagai perintah @.
+Metode input macOS dengan perintah AI di setiap kolom teks. Awali kalimat dengan `@` dan tekan ⏎ setelah selesai: `@improve` memoles tulisan Anda dan menawarkan beberapa versi tulis ulang, `@translate` menerjemahkannya ke bahasa-bahasa yang Anda pilih, `@question` mengajukan pertanyaan, `@agent` menyerahkannya ke coding agent (Claude Code, Gemini CLI, Kiro CLI …), dan `@open` menemukan file dan aplikasi atau membuka alamat web. Tanpa `@`, tombol yang Anda tekan diteruskan ke aplikasi seperti biasa. Metode input ini juga bisa mengetik bahasa Mandarin (pinyin, dibangun di atas Rime dan rime-ice), Prancis, Korea (Hangul), dan Hindi (Devanagari dari huruf Latin), serta menjalankan skrip Anda sendiri sebagai perintah @.
 
 Tombol ajaib, simbol yang mengawali perintah, secara bawaan adalah `@`. Di Settings → General → Magic key Anda bisa memilih simbol lain: `#`, `%`, `&`, `*`, `+`, `|` atau `~`; perintah lalu diawali dengan simbol itu (misalnya `~translate`), dan `@` diketik seperti biasa. Huruf, angka, spasi, dan simbol yang dibutuhkan saat mengetik (tombol pinyin seperti `'` `-` `=` `[` `]` `` ` ``, serta simbol yang diketik pinyin sebagai tanda baca Tionghoa, seperti `,` `.` `?` `\`) ditolak, dan Settings menjelaskan alasannya. Di file konfigurasi: `"commandTrigger": "~"`.
 
@@ -62,7 +62,6 @@ Tanpa `@`, metode input ini tidak mengganggu: dalam mode bahasa Inggris, huruf d
 | ⌘⏎, ⌘1–⌘9 | Dalam percakapan `@question`: menampilkan tempat untuk melanjutkannya (coding agent yang terinstal, yang menerima tugas dari `@agent` lebih dulu; Claude, ChatGPT, Gemini; atau menyalinnya); ⌘1, ⌘2 … memilih salah satunya |
 | Klik sebuah baris | Di panel kandidat: memilihnya, seperti angkanya (sebuah kata, perintah di daftar, hasil, berkas `@open`, penerima, baris ekstensi); baris di bawah penunjuk disorot. Kolom teks tetap memegang fokus |
 | Ketuk Shift | Jika ada lebih dari satu bahasa input: beralih ke bahasa berikutnya, sesuai urutannya (Inggris → Mandarin → Prancis → …, lalu kembali ke yang pertama) |
-| Tahan ⌥ kanan | Berbicara, lepaskan untuk berhenti. Dalam bahasa yang sedang Anda ketik (Inggris, Mandarin, Prancis, Korea, atau Hindi). Di dalam perintah, teksnya ditaruh setelah perintah; jika tidak, teks langsung disisipkan |
 
 ## Perintah @ (beta)
 
@@ -83,7 +82,7 @@ Tanpa `@`, metode input ini tidak mengganggu: dalam mode bahasa Inggris, huruf d
 | `@reportissue` | Melaporkan masalah: membuka halaman GitHub untuk issue baru di peramban Anda, dengan yang Anda ketik setelah perintah sebagai judulnya, serta "What happened / What you expected" (apa yang terjadi / apa yang Anda harapkan) untuk diisi. Perintah ini menambahkan versi aplikasi dan macOS, arsitektur Mac Anda, bahasa antarmuka dan input, paket bahasa yang terpasang, jenis penyedia AI (dan modelnya, jika model publik; jika tidak, "custom"), tombol aksi, serta berapa banyak perintah kustom, plugin, dan ekstensi yang Anda miliki, tidak pernah nama-namanya, teks Anda, path, atau kunci. ⏎ (atau tombol aksi Anda) lebih dulu menampilkan semuanya di panel kandidat; ⏎ lagi, atau klik pada barisnya, membuka halaman itu, tempat Anda membacanya dan mengeklik Submit (dengan akun GitHub Anda); Esc kembali. Juga ada di menu input ("Report an Issue…") dan Settings → About |
 | `@imessage` | Mengirim iMessage: ketik nama, nomor telepon, atau email (nama Mandarin juga bisa lewat pinyin-nya, lengkap atau inisialnya) dan pilih penerima di panel kandidat (orang yang baru-baru ini Anda kirimi pesan muncul lebih dulu; nomor atau alamat lengkap juga bisa), lalu tulis pesannya (perintah di dalamnya seperti `@stock AAPL` dijalankan lebih dulu). ⏎ menampilkan "Send to Alex (…): message" di panel, ⏎ sekali lagi mengirimnya, Esc kembali ke penyuntingan; tidak ada yang diketik ke kolom teks. Saat pertama kali, macOS bertanya apakah AllInOneIME boleh mengakses Contacts dan mengontrol Messages: klik OK untuk keduanya |
 
-Contoh: `@q` ⏎, ketik `what is quantum computing`, ⏎. `@note books to read: The Three-Body Problem` ⏎ menyimpan sebuah catatan. `@reminder call Bob tomorrow at 3pm` ⏎, periksa waktu yang terbaca, lalu ⏎ sekali lagi untuk menambahkannya. Setelah perintah dipilih, Anda juga bisa menahan ⌥ kanan dan berbicara. Dalam mode Mandarin, `@open` beralih sementara ke huruf Inggris dan kembali ke Mandarin setelah Anda selesai.
+Contoh: `@q` ⏎, ketik `what is quantum computing`, ⏎. `@note books to read: The Three-Body Problem` ⏎ menyimpan sebuah catatan. `@reminder call Bob tomorrow at 3pm` ⏎, periksa waktu yang terbaca, lalu ⏎ sekali lagi untuk menambahkannya. Dalam mode Mandarin, `@open` beralih sementara ke huruf Inggris dan kembali ke Mandarin setelah Anda selesai.
 
 Kode untuk `@py` dan `@js` diketik dengan huruf Inggris, dan tanda baca lebar penuh (dari mode Mandarin) menjadi ASCII; tulis dalam satu baris, dengan `;` di antara pernyataan. Kode berjalan di proses terpisah, dihentikan setelah 10 detik atau dengan Esc kapan saja; jika terjadi error, baris pertama error ditampilkan, misalnya `ZeroDivisionError: division by zero`. Output dengan beberapa baris disisipkan sebagaimana dicetak; di terminal, output masuk sebagai satu baris (terminal menjalankan setiap baris yang diberikan kepadanya). Terminal di dalam editor (VS Code, Cursor, JetBrains) tidak bisa dibedakan dari editornya sendiri, jadi di sana output perintah apa pun yang memiliki beberapa baris masuk apa adanya. Keduanya juga berfungsi di dalam kalimat perintah lain: `@reply the answer is @py 2**100`; beri tanda kutip pada kode yang mengandung spasi: `@question explain @py "sum(x * x for x in range(10))"`. Tidak sebaliknya: kode `@py` dan `@js` selalu berjalan persis seperti yang Anda ketik, dan `@commands` di dalamnya tidak dijalankan lebih dulu.
 
@@ -246,7 +245,7 @@ Perintah yang mengambil sesuatu (plugin dan program) juga berfungsi di dalam kal
 
 ### Tombol aksi
 
-Secara default ⏎; ubah di "Action key" (tombol aksi) di pengaturan (`actionKey` di konfigurasi): ⏎, "Tap ⌥" (ketuk ⌥, kiri atau kanan: tekan dan langsung lepaskan; menahan ⌥ kanan tetap untuk berbicara), ⌥Space, atau Space (tekan Space sekali lagi setelah kata-kata dipilih; dua kali dalam mode bahasa Inggris). Apa pun tombol aksinya, perintah @ juga berjalan dengan ⏎. Jika ⌥Space sudah menjadi pintasan untuk Alfred, Raycast, atau sejenisnya, aplikasi itu yang menerimanya lebih dulu.
+Secara default ⏎; ubah di "Action key" (tombol aksi) di pengaturan (`actionKey` di konfigurasi): ⏎, "Tap ⌥" (ketuk ⌥, kiri atau kanan: tekan dan langsung lepaskan), ⌥Space, atau Space (tekan Space sekali lagi setelah kata-kata dipilih; dua kali dalam mode bahasa Inggris). Apa pun tombol aksinya, perintah @ juga berjalan dengan ⏎. Jika ⌥Space sudah menjadi pintasan untuk Alfred, Raycast, atau sejenisnya, aplikasi itu yang menerimanya lebih dulu.
 
 ### Mengetikkan hasil
 
@@ -345,7 +344,7 @@ Di pengaturan:
 - **Fuzzy pinyin** (pinyin samar, dengan input Mandarin): bunyi yang tidak Anda bedakan bisa diketik dengan cara mana pun, misalnya z ↔ zh, n ↔ l, in ↔ ing. Di halaman "Input", pilih "Chinese (pinyin)" di bilah bahasa input, aktifkan "Fuzzy pinyin", dan pilih pasangannya; kamus di-deploy ulang dalam satu atau dua detik. Fitur ini menulis `rime_ice.custom.yaml` di folder pengguna Rime, dan tidak pernah menimpa file milik Anda sendiri di sana.
 - **Personal Dictionaries** (kamus pribadi, saat input Tionghoa): Settings → Input → Chinese (pinyin) → Personal Dictionaries → **Import or Update…** menambahkan file kosakata Rime UTF-8 (`.dict.yaml`) di samping rime-ice (paket bahasa Tionghoa harus sudah terpasang). Daftarnya menampilkan `name` Rime, nama file, dan jumlah entri masing-masing; mengimpor `name` yang sama lagi mengganti salinan yang tersimpan (mengubah file sumbernya saja tidak). Setiap impor, pembaruan, atau penghapusan mengompilasi ulang kamus pinyin (semua kata rime-ice ditambah milik Anda), yang bisa memakan waktu sekitar satu menit; selama itu input Tionghoa terhenti, dan halamannya menampilkan kemajuan atau galat. Salinannya tetap di Mac ini, di luar sinkronisasi iCloud dan permintaan ke AI; tetapi kata yang Anda pilih darinya dipelajari seperti kata lain, ke kamus pengguna Rime, yang disinkronkan bersama kata yang dipelajari jika itu aktif dan tetap ada setelah kamusnya dihapus. Jika Anda punya `rime_ice.custom.yaml` sendiri, impor ditolak sebelum ada file yang berubah.
 - **Translate (@translate)**: tambahkan bahasa-bahasa tujuan terjemahan (Spanyol, Prancis, Jerman, Jepang, Korea, Mandarin, Hindi, Bengali, Tamil, dan bahasa-bahasa utama India lainnya…) dan seret untuk mengurutkannya. Bahasa Hindi yang diketik dengan huruf Latin ("aap kaise ho") kembali dalam Devanagari. `@translate` menulis satu baris untuk setiap bahasa, dalam urutan ini (tiga versi jika hanya ada satu bahasa); bahasa kalimat itu sendiri dilewati. Instalasi baru menerjemahkan ke bahasa pertama dalam daftar bahasa pilihan Mac Anda yang bukan bahasa Inggris; jika hanya ada bahasa Inggris, `@translate` memberi tahu bahwa belum ada bahasa tujuan terjemahan, dan ⏎ pada pemberitahuan itu membuka halaman ini dengan "Add…" diberi bingkai (kalimatnya dimasukkan persis seperti yang diketik). Menerjemahkan sambil mengetik pun tidak aktif saat itu, dan memberi tahu di mana menambahkan bahasa.
-- **Keyboard layouts** (tata letak keyboard): bahasa Prancis diketik dengan tata letak yang dipilih di kartunya (`keyboardLayouts` di konfigurasi). Untuk bahasa lainnya, di bawah metode input, macOS mempertahankan tata letak Latin terakhir Anda (AZERTY, QWERTZ, Spanish, US International…), jadi Anda mengetik seperti biasa, termasuk `@` di mana pun letaknya di tata letak Anda, dan tombol mati juga menyusun huruf di teks perintah (⌥E lalu E → é, ^ lalu e → ê). Tata letak tanpa huruf Latin (Rusia, Hindi InScript) tidak bisa dipakai di bawah metode input: beralihlah ke tata letak itu dengan ⌃Space, atau tempel (⌃V) atau diktekan teks ke dalam perintah.
+- **Keyboard layouts** (tata letak keyboard): bahasa Prancis diketik dengan tata letak yang dipilih di kartunya (`keyboardLayouts` di konfigurasi). Untuk bahasa lainnya, di bawah metode input, macOS mempertahankan tata letak Latin terakhir Anda (AZERTY, QWERTZ, Spanish, US International…), jadi Anda mengetik seperti biasa, termasuk `@` di mana pun letaknya di tata letak Anda, dan tombol mati juga menyusun huruf di teks perintah (⌥E lalu E → é, ^ lalu e → ê). Tata letak tanpa huruf Latin (Rusia, Hindi InScript) tidak bisa dipakai di bawah metode input: beralihlah ke tata letak itu dengan ⌃Space, atau tempel (⌃V) teks ke dalam perintah.
 - `@improve` memoles dan menulis ulang tanpa menerjemahkan; `@translate @improve` bersama-sama menerjemahkan dan menulis ulang dalam satu permintaan. Aktifkan "@improve also translates" di pengaturan agar `@improve` selalu melakukannya.
 
 Kamus pribadi terlihat seperti ini (kolom setiap entri dipisahkan dengan **tab**):
@@ -403,22 +402,9 @@ Selama aktif, chip kecil "ZH → EN" (「中 → 英」 di antarmuka Mandarin) t
 - **Aplikasi**: berpindah ke aplikasi lain (juga aplikasi tanpa kolom teks) mematikannya, tanpa pemberitahuan, dan saat kembali fitur ini tetap mati, kecuali aplikasi itu punya "Always Translate as You Type" (selalu menerjemahkan sambil mengetik; 「总是边打边译」) di Settings → Apps (`translateAlways` di profilnya): di sana fitur ini menyala sendiri. Di aplikasi dengan No AI fitur ini tidak melakukan apa-apa: teks masuk sebagaimana diketik, dengan pemberitahuan; begitu pula apa yang Anda ketik selagi input aman aktif (kolom kata sandi).
 - **Privasi**: sama seperti `@translate`: hanya dikirim saat Anda menekan ⏎, ke penyedia AI Anda sendiri, dengan informasi sensitif disembunyikan jika fitur itu aktif.
 
-## Input suara
-
-<img src="../en/voice.png" width="340" alt="Tahan ⌥ kanan untuk berbicara">
-
-Tahan ⌥ kanan dan berbicaralah; saat Anda melepaskannya, teks disisipkan. Suara dikenali dalam bahasa yang sedang Anda ketik (Inggris, Mandarin, Prancis, Korea, atau Hindi). Jika Anda mengetik perintah lebih dulu (misalnya `@improve `, `@question `) lalu berbicara, teks ditaruh setelah perintah dan ⏎ menjalankannya; Anda juga bisa menekan ⏎ tanpa melepaskan ⌥ kanan untuk menjalankannya begitu Anda selesai. Suara dikenali di Mac oleh pengenalan suara bawaan macOS (SpeechAnalyzer), dan tidak ada audio yang diunggah; fitur ini membutuhkan macOS 26 atau yang lebih baru.
-
-Pertama kali:
-
-- macOS bertanya apakah AllInOneIME boleh menggunakan mikrofon. Anda juga bisa mengeklik "Allow Microphone" di pengaturan sebelumnya.
-- Jika Mac ini belum memiliki model suara untuk bahasa tersebut, model itu diunduh sekali, secara otomatis. Anda juga bisa mengunduhnya di pengaturan.
-
-Perekaman baru dimulai setelah Anda menahan tombol sekitar 0,2 detik, jadi ketukan cepat pada ⌥ kanan tidak menyalakan mikrofon (jika tombol aksi diatur ke "Tap ⌥", ketukan menjalankan aksi). Jika Anda menekan tombol lain sambil menahannya (pintasan ⌥, ⌥←), itu dianggap pintasan dan tidak ada yang direkam juga. Menekan tombol lain apa pun saat sedang merekam akan membatalkan perekaman.
-
 ## Instalasi
 
-Untuk menjalankannya dibutuhkan macOS 14 atau yang lebih baru, untuk input suara macOS 26 atau yang lebih baru. Penginstalnya universal: berfungsi di Mac dengan Apple silicon maupun Intel. Sejauh ini baru diuji di macOS 27 pada Apple silicon (build Intel hanya lewat uji mandirinya di bawah Rosetta).
+Untuk menjalankannya dibutuhkan macOS 14 atau yang lebih baru. Penginstalnya universal: berfungsi di Mac dengan Apple silicon maupun Intel. Sejauh ini baru diuji di macOS 27 pada Apple silicon (build Intel hanya lewat uji mandirinya di bawah Rosetta).
 
 1. Unduh `AllInOneIME-<version>.dmg` dari [Releases](https://github.com/MicroZ-LLC/AllInOneIME/releases/latest) (hanya dari sana) dan buka.
 2. Klik dua kali "Install AllInOneIME" di dalamnya dan klik "Install". Metode input dipasang ke `~/Library/Input Methods` dan "AllInOneIME Settings" ke `~/Applications`. Hanya untuk pengguna ini; tidak perlu kata sandi administrator.
@@ -438,7 +424,7 @@ Untuk menghapus instalasi, buka "Install AllInOneIME" dan klik "Uninstall…". P
 
 ### Membangun dari kode sumber
 
-Membangun membutuhkan Xcode 26 atau yang lebih baru, karena input suara memakai SDK macOS 26.
+Membangun membutuhkan Xcode 26 atau yang lebih baru (SDK macOS 26).
 
 ```sh
 git clone https://github.com/MicroZ-LLC/AllInOneIME.git
@@ -530,7 +516,6 @@ Semua pengaturan disimpan di `~/.config/allinoneime/config.json`; setelah ada pe
 | `keyboardLayouts` | Tata letak keyboard yang dipakai sebuah bahasa input, berdasarkan kodenya (sejauh ini hanya Prancis): `{"fr": "com.apple.keylayout.French-PC"}` | Prancis: `com.apple.keylayout.French` (AZERTY) |
 | `outputLanguages` | Bahasa tujuan `@translate`, secara berurutan: `["es", "fr", "de"]`, … | `["en"]` |
 | `improveTranslates` | `@improve` juga menerjemahkan (seperti `@translate @improve`) | `false` |
-| `voiceInput` | Tahan ⌥ kanan untuk berbicara | `true` |
 | `actionKey` | Tombol aksi: `"enter"` (⏎), `"optionTap"` (Tap ⌥), `"optionSpace"` (⌥Space), `"space"` (Space) | `"enter"` |
 | `commandTrigger` | Simbol yang mengawali perintah: salah satu dari `"#"`, `"%"`, `"&"`, `"*"`, `"+"`, `"@"`, `"\|"`, `"~"`; nilai lain dianggap `"@"` | `"@"` |
 | `uiLanguage` | Bahasa antarmuka (jendela pengaturan, petunjuk panel kandidat, menu): `"zh"` (Mandarin Sederhana), `"en"`, atau kode bahasa lain yang disertakan aplikasi: `"zh-Hant"`, `"ja"`, `"ko"`, `"de"`, `"fr"`, `"es"`, `"pt-BR"` | `null` (mengikuti sistem) |
@@ -559,9 +544,8 @@ Semua pengaturan disimpan di `~/.config/allinoneime/config.json`; setelah ada pe
 - Melanjutkan percakapan `@question` di tempat lain (⌘1 … setelah putaran terakhir, atau ⌘⏎) mengirimnya, beserta apa yang Anda ketik, ke layanan yang Anda pilih: coding agent di Mac ini (Claude Code, Gemini CLI, Kiro CLI, atau milik Anda sendiri, masing-masing dengan akun dan layanannya sendiri), claude.ai, chatgpt.com, atau gemini.google.com, lewat alamat web atau papan klip. Percakapan dikirim seperti yang Anda lihat: nilai yang disembunyikan dari permintaan ke AI (lihat di bawah) tetap ada apa adanya, karena Anda sendiri yang memilih mengirimnya ke sana. Tidak ada yang dikirim ke mana pun sampai Anda memilih salah satunya; "Copy the conversation" hanya menaruhnya di papan klip.
 - Dengan AllInOneIME Cloud, kalimat melewati server pengembang menuju penyedia model (saat ini melalui OpenRouter): server hanya menyimpan hitungan, tidak pernah teksnya. Masuk (sign in) hanya menyimpan alamat email Anda.
 - Menyembunyikan informasi sensitif (Settings → AI Provider → Privacy, nonaktif secara bawaan): sebelum permintaan apa pun dikirim (`@improve`, `@translate`, `@question`, perintah instruksi dan plugin instruksi Anda, dengan semua penyedia termasuk AllInOneIME Cloud), alamat email, nomor telepon, nomor kartu pembayaran (diperiksa dengan Luhn), kunci API dan token (`sk-`, `sk-ant-`, `AKIA…`, `ghp_`, `xox…`, dan string acak yang panjang), alamat IP, dan kata-kata Anda sendiri (nama sandi, sebuah nama) diganti di Mac dengan placeholder seperti `[EMAIL_1]`, `[PHONE_1]`, `[ITEM_1]`; nilai yang sama mendapat placeholder yang sama. Hasil model mendapatkan kembali nilai aslinya sebelum ditampilkan atau disisipkan, dan panel menampilkan "2 items hidden from the AI". Hasil yang placeholder-nya diubah model hingga tak dikenali ditampilkan apa adanya, ditandai "⚠ placeholder changed". Entri daftar jargon yang berisi nilai tersembunyi tidak dikirim. Setiap jenis bisa dimatikan. Bentuk lebar penuh (`zhang＠example.com`, `１３８…`) juga ditemukan, dan sebuah nilai atau frasa boleh terpotong oleh baris baru. Ia mengenali nilai berformat seperti email, nomor, dan kunci; ia tidak bisa mengenali nama atau alamat (tambahkan itu sebagai kata-kata Anda sendiri), maupun huruf mirip dari abjad lain. Berlaku untuk permintaan ke layanan AI Anda; `@agent` (beserta halaman Chrome yang ikut dibawanya), plugin yang mengambil data dari situs web (`@stock`) atau membukanya (`@x`), dan ekstensi skrip mengirim teks apa adanya. Di konfigurasi: `redaction` (`enabled`, `emails`, `phones`, `cards`, `keys`, `ips`, `customWords`).
-- Suara hanya direkam selama Anda menahan ⌥ kanan dan dikenali di Mac; teks hasil pengenalan hanya dikirim dalam perintah-perintah di atas, ketika Anda menekan tombol aksi.
 - Metode input membaca teks clipboard, sekali, hanya ketika Anda menekan ⌃V atau ⌘V di dalam perintah; konten yang ditandai tersembunyi oleh pengelola kata sandi tidak dibaca. Teks ditampilkan di perintah lebih dulu dan, sekali lagi, hanya dikirim ketika Anda menekan tombol aksi. Versi macOS terbaru bertanya apakah AllInOneIME boleh membaca clipboard: izinkan. Agar tidak ditanya setiap kali, atur izin tempel AllInOneIME ke selalu izinkan di System Settings → Privacy & Security.
-- Di kolom kata sandi, macOS beralih ke keyboard-nya sendiri (U.S. atau ABC) dan kembali saat Anda meninggalkannya. Setiap kali aplikasi tempat Anda mengetik memegang input aman, AllInOneIME tidak menyusun teks dan tidak bisa merekam: tombol masuk sebagaimana diketik. Dan selama sistem berada dalam input aman (kolom kata sandi, Secure Keyboard Entry di Terminal, dll.), tidak ada yang dikirim ke AI.
+- Di kolom kata sandi, macOS beralih ke keyboard-nya sendiri (U.S. atau ABC) dan kembali saat Anda meninggalkannya. Setiap kali aplikasi tempat Anda mengetik memegang input aman, AllInOneIME tidak menyusun teks: tombol masuk sebagaimana diketik. Dan selama sistem berada dalam input aman (kolom kata sandi, Secure Keyboard Entry di Terminal, dll.), tidak ada yang dikirim ke AI.
 - `@note` dan `@reminder` tidak dikirim ke AI: AllInOneIME hanya menyerahkan teks ke Notes dan Reminders di Mac ini, dan membaca waktu pengingat di Mac juga (apakah aplikasi-aplikasi itu menyinkronkannya ke perangkat Anda yang lain bergantung pada akunnya, seperti iCloud). Jadi keduanya juga berfungsi selama input aman. `@note` ke folder menulis file di Mac ini (file itu ikut tersinkron jika foldernya tersinkron, seperti folder iCloud Drive atau Obsidian Sync). `@note` ke Notion mengirim catatan ke Notion (api.notion.com, dengan token integrasi Anda, yang disimpan di keychain), dan hanya saat itu: tidak selama input aman.
 - `@reportissue` (dan "Report an Issue…") tidak mengirim apa pun sendiri: ia membuka halaman issue baru GitHub di peramban Anda dengan judul yang Anda ketik serta versi, bahasa, jenis penyedia, dan jumlah yang disebutkan di atas, yang lebih dulu ditampilkan di panel kandidat. Tidak ada yang sampai ke GitHub kecuali Anda mengeklik Submit di sana.
 - `@open` hanya mencari di Mac ini. Perintah ini mengingat apa yang Anda buka dengannya (200 terakhir), di preferensi milik metode input sendiri (bukan di config.json), untuk menampilkannya lebih dulu.
@@ -581,7 +565,7 @@ make test         # unit tests, plus tests that run the real Rime engine (and ma
 make strings      # adds new interface text to Resources/Localizable.xcstrings, marks what's unused stale
 make pack         # the Chinese language pack: build/packs/zh-pinyin-<version>.tar.xz, its sha256, its packs.json entry
 make packs        # all the language packs: Chinese, and Korean and Hindi from Core/LanguagePacks/ (ko-hangul, hi-phonetic)
-make selftest     # drives the input method through a simulated text field: real Bedrock calls, plus on-device recognition tested with synthesized speech
+make selftest     # drives the input method through a simulated text field: real Bedrock calls
 make realtest     # types into a real app's text field (needs the screen unlocked; takes over the foreground for about 1 minute)
 make screenshots  # regenerates the screenshots in docs/
 make cli && .build/release/allinoneime-cli --styles concise,jargon "this is a blocker bug your team need fix it asap"   # try polishing and rewrites in the terminal
@@ -597,13 +581,13 @@ Teks antarmuka ditulis sebagai `tr("中文", "English")`: Mandarin Sederhana dan
 
 Struktur kode: root-nya adalah aplikasi macOS; `Core/` adalah core yang dipakai bersama oleh semua platform, sebuah Swift package tersendiri (bisa dibangun dan diuji sendiri, di macOS, Linux, dan Windows); `Windows/` adalah awal aplikasi Windows.
 
-- `Core/Sources/AllInOneIMECore`: klien Bedrock, SigV4, prompt, state machine input dua tingkat (termasuk perintah @ dan gestur suara); tanpa ketergantungan pada AppKit
+- `Core/Sources/AllInOneIMECore`: klien Bedrock, SigV4, prompt, state machine input dua tingkat (termasuk perintah @); tanpa ketergantungan pada AppKit
 - `Core/Sources/AllInOneIMEText`: teks antarmuka dan bahasanya (`UIString`, `InterfaceText`, `InterfaceLanguage`, dan `StringCatalog`, yang membaca katalog di tempat yang tidak punya bundle `.lproj`); semua tautan peluncur pengaturan (`AllInOneIMECore` mengekspornya ulang)
 - `Core/Sources/AllInOneIMEQuickJS`: QuickJS-ng (kode sumber C-nya di `Core/Sources/CQuickJS`), JavaScript untuk plugin dan `@js` di tempat yang tidak punya JavaScriptCore (Windows, Linux, Android)
 - `Core/Sources/AllInOneIMERime`: wrapper librime
 - `Core/Sources/AllInOneIMECLI`: baris perintah, `allinoneime-cli` (`make cli`), dijalankan oleh `main` milik setiap platform
 - `Sources/AllInOneIMEMac`: yang hanya ada di Mac (tata letak tombol, penandatanganan kode, Spotlight, AppleScript, pemasangan oleh pembaru), dan `Platform.mac`
-- `Sources/AllInOneIME`: metode input InputMethodKit, panel kandidat, jendela pengaturan, pengenalan suara
+- `Sources/AllInOneIME`: metode input InputMethodKit, panel kandidat, jendela pengaturan
 - `Sources/AllInOneIMESettings`: peluncur "AllInOneIME Settings"
 - `Sources/AllInOneIMEInstaller`: "Install AllInOneIME" di disk image: menginstal, memperbarui, dan menghapus instalasi
 
@@ -619,7 +603,7 @@ Merilis versi (pembaru bawaan aplikasi membaca https://allinoneime.com/update.js
 
 Aplikasi memeriksa tanda tangan manifes dengan kunci publik bawaannya sebelum membacanya, tidak pernah memasang versi yang tidak lebih baru, hanya mengunduh lewat https dari allinoneime.com atau berkas rilis GitHub repositori, dan memasang arsipnya hanya setelah ukuran dan SHA-256-nya cocok dengan manifes, ID bundle, versi, dan tanda tangan kode kedua aplikasi lolos pemeriksaan, dan metode input baru berhasil dijalankan. Metode input lalu menyerahkan tugas kepada berkas eksekusinya sendiri sebagai pembantu (`--apply-update`), yang menunggunya keluar, menukar aplikasi seperti yang dilakukan penginstal (yang lama disisihkan, dikembalikan jika ada yang gagal), dan mendaftarkan yang baru. Untuk mencobanya dengan server lokal: `make update-test`, atau `--test-key` dengan `Scripts/build-update-manifest.swift` dan `AllInOneIME --install-update --manifest-url http://127.0.0.1:<port>/update.json --key <its public key> --target-dir <folder>`.
 
-Bundle ID masih `com.aipinyin.inputmethod.AIPinyin`: macOS memakainya untuk mengingat sumber input yang sudah ditambahkan dan izin mikrofon, jadi mengubahnya berarti harus menambahkan metode input dan memberikan izin itu lagi.
+Bundle ID masih `com.aipinyin.inputmethod.AIPinyin`: macOS memakainya untuk mengingat sumber input yang sudah ditambahkan dan izin-izin yang diberikan kepadanya, jadi mengubahnya berarti harus menambahkan metode input dan memberikan izin-izin itu lagi.
 
 ## Lisensi
 
