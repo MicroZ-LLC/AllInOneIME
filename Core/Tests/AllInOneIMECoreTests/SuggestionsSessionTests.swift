@@ -259,6 +259,34 @@ extension SuggestionsSessionTests {
         }
     }
 
+    enum NoRows: String, CaseIterable, Sendable {
+        case masterOff, appOff, remoteDesktop, virtualMachine, sshClient, launcher
+    }
+
+    /// Where no rows may show (Suggestions off in the input menu or for the app; a remote desktop, virtual machine, SSH
+    /// client or launcher) coding mode reads nothing of the field: not once typing pauses, nor with a key.
+    @Test(arguments: NoRows.allCases)
+    func codingModeReadsNothingOfTheFieldWhereNoRowsMayShow(_ place: NoRows) async throws {
+        try await inEnglish {
+            let world = SuggestionsWorld()
+            world.codingMode = true
+            var app = SuggestionsApps.editor
+            switch place {
+            case .masterOff: world.switches.master = false
+            case .appOff: world.switches.apps[SuggestionsApps.editor] = false
+            case .remoteDesktop: app = SuggestionsApps.remoteDesktop
+            case .virtualMachine: app = SuggestionsApps.virtualMachine
+            case .sshClient: app = SuggestionsApps.sshClient
+            case .launcher: app = "com.raycast.macos"
+            }
+            let field = world.field(app: app)
+            let reads = typeAsTheMacDoes("total_amount = total_amount + to", into: field)
+            field.pause(1)
+            #expect(reads == 0 && field.host.fieldReads == 0, "\(place): \(reads) keys asked, \(field.host.fieldReads) reads")
+            #expect(field.rows.isEmpty, "\(place): \(field.rows.map(\.text))")
+        }
+    }
+
     /// A snippet of more than one line put in with Tab gets the caret's line's indentation as the field tells it with
     /// that Tab, typed in a hurry (no pause, no read since the line was indented); one line only, nothing is read.
     @Test func aSnippetIsIndentedAsTheLineIsWhenItGoesIn() async throws {

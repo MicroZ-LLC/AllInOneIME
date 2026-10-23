@@ -112,6 +112,14 @@ extension InputSession {
         return (!settings.enabled.isEmpty || services.suggestions.codingMode()) && suggestionsOn(settings)
     }
 
+    /// Whether coding mode reads the field's text here (its words, the caret's line's indentation): it is on, the field is
+    /// no terminal's, not in secure input, and rows may show in it (the input menu's and the app's switches on, not an app
+    /// with none: a remote desktop, a virtual machine, an SSH client, a launcher). Nowhere else is the field read for it.
+    func codingModeReadsTheField() -> Bool {
+        services.suggestions.codingMode() && !terminal && !secureInputActive()
+            && SuggestionsAppClass(app: app, terminal: terminal) != .none && suggestionsOn(services.suggestions.settings())
+    }
+
     /// Whether rows, the chooser or coding mode hold the caret: no ghost text then (spec 0, 2).
     var suggestionsHoldTheCaret: Bool {
         suggesting.shown || services.suggestions.codingMode()
@@ -217,7 +225,7 @@ extension InputSession {
         case let .words(pause):
             // Typing paused: coding mode's words read again, by the shell after the key (`SessionOutput.readField`, this
             // pause's id below 0).
-            guard pause == suggesting.wordsPause, services.suggestions.codingMode(), !terminal, !secureInputActive() else { return }
+            guard pause == suggesting.wordsPause, codingModeReadsTheField() else { return }
             suggesting.wordsReading = pause
             emit(.readField(id: -pause))
         }
@@ -228,8 +236,8 @@ extension InputSession {
     func suggestionsFieldRead(_ context: FieldContext, pause: Int) {
         guard pause == suggesting.wordsReading else { return }
         suggesting.wordsReading = nil
-        guard context.read.contains(.secure), !context.secure, !secureInputActive(), services.suggestions.codingMode(), !terminal,
-              context.read.contains(.text), let text = context.text else { return }
+        guard context.read.contains(.secure), !context.secure, codingModeReadsTheField(), context.read.contains(.text),
+              let text = context.text else { return }
         (suggesting.words, suggesting.indent) = (CodingRows.words(text), CodingRows.indent(text.before))
         log.notice("suggestions: the field's words read (\(suggesting.words.count))")
         if !suggesting.token.isEmpty { suggestionsUpdate() }
@@ -272,7 +280,7 @@ extension InputSession {
     func suggestionsFieldWants(for key: KeyEvent) -> FieldContext.Parts {
         var wants: FieldContext.Parts = []
         if suggesting.shown { wants.insert(.selectedRange) }
-        if services.suggestions.codingMode(), !terminal, let row = suggestionsRowPut(by: key), row.insertion.contains(where: \.isNewline) {
+        if let row = suggestionsRowPut(by: key), row.insertion.contains(where: \.isNewline), codingModeReadsTheField() {
             wants.insert(.text)
         }
         return wants
@@ -301,8 +309,8 @@ extension InputSession {
         suggesting.ranges = context.read.contains(.selectedRange) && context.selectedRange != nil
         if let highlighted = suggesting.chooser { return chooserKey(event, highlighted) }
         // The caret's line as the field tells it now: a snippet the key puts in is indented as it is.
-        if services.suggestions.codingMode(), !terminal, context.read.contains(.text), let text = context.text,
-           CodingRows.indent(text.before) != suggesting.indent {
+        if context.read.contains(.text), let text = context.text, CodingRows.indent(text.before) != suggesting.indent,
+           codingModeReadsTheField() {
             suggesting.indent = CodingRows.indent(text.before)
             if suggesting.shown { suggestionsUpdate() }
         }
@@ -364,7 +372,7 @@ extension InputSession {
             }
         }
         suggestionsFollowed(started: started, mayShow: mayShow, at: now)
-        if services.suggestions.codingMode(), !terminal {
+        if codingModeReadsTheField() {
             // The field told its text with the key (a shell where that's cheap): its words now.
             if context.read.contains(.text), let text = context.text {
                 (suggesting.words, suggesting.indent) = (CodingRows.words(text), CodingRows.indent(text.before))
