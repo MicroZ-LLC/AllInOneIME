@@ -522,12 +522,13 @@ extension AllInOneIMEInputController {
         rect.map { String(format: "x %.1f y %.1f w %.1f h %.1f", $0.minX, $0.minY, $0.width, $0.height) } ?? "none"
     }
 
-    /// What the field says once autocomplete's pause is over (`SessionOutput.readField`): secure input, a password field
-    /// as Accessibility tells it where secure input isn't on (`FocusedField.isSecure`: the field marked
-    /// secure), the selection, the text around the caret (nothing of it during secure input or in a password field). Read
-    /// once this event is done, and handed back.
+    /// What the field says once a pause in typing is over (`SessionOutput.readField`): autocomplete's, or coding mode's
+    /// for the field's words (`id` below 0, more after the caret): secure input, a password field as Accessibility tells
+    /// it where secure input isn't on (`FocusedField.isSecure`: the field marked secure), the selection, the text around
+    /// the caret (nothing of it during secure input or in a password field). Read once this event is done, and handed
+    /// back.
     @MainActor
-    func readFieldForAutocomplete(id: Int, in client: IMKTextInput?) {
+    func readFieldAfterPause(id: Int, in client: IMKTextInput?) {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             let target = client ?? self.clientOverride ?? self.client()
@@ -536,8 +537,11 @@ extension AllInOneIMEInputController {
             if !context.secure, self.passwordFieldByAccessibility() { context.field?.secure = true }
             if !context.secure, context.field?.secure != true {
                 context.selectedRange = target.flatMap { Self.range($0.selectedRange()) }
-                context.text = self.readFieldText(from: target, before: Autocomplete.beforeLimit, after: Autocomplete.afterLimit,
-                                                  purpose: "autocomplete")
+                context.text = id < 0
+                    ? self.readFieldText(from: target, before: ReplyContext.Limits.fieldBefore, after: ReplyContext.Limits.fieldAfter,
+                                         purpose: "coding mode's words")
+                    : self.readFieldText(from: target, before: Autocomplete.beforeLimit, after: Autocomplete.afterLimit,
+                                         purpose: "autocomplete")
                 context.read.formUnion([.selectedRange, .text])
             }
             self.received(.field(context, id: id))

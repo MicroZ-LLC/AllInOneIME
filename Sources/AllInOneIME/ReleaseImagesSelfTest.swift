@@ -58,7 +58,7 @@ extension SelfTest {
         section("0.6.5's release images (canned answers)", needs: .composing)
         let saved = (converter: controller.services.converter, settings: settings, load: controller.services.loadSettings,
                      clipboard: controller.readClipboard, recognizer: controller.services.recognizeText, secure: controller.services.secureInputActive,
-                     defaults: TranslateModeShared.defaults, lastTarget: TranslateModeShared.lastTarget, shiftHeld: TranslateModeShared.shiftHeld)
+                     defaults: TranslateModeShared.defaults, lastTarget: TranslateModeShared.lastTarget)
         let caretBefore = client.caretRect
         let suite = "com.aipinyin.selftest.releaseimages"
         UserDefaults.standard.removePersistentDomain(forName: suite)
@@ -75,7 +75,6 @@ extension SelfTest {
             (controller.readClipboard, controller.services.recognizeText, controller.services.secureInputActive) = (saved.clipboard, saved.recognizer, saved.secure)
             TranslateModeShared.defaults = saved.defaults
             if TranslateModeShared.lastTarget != saved.lastTarget { TranslateModeShared.lastTarget = saved.lastTarget }
-            TranslateModeShared.shiftHeld = saved.shiftHeld
             UserDefaults.standard.removePersistentDomain(forName: suite)
             client.bundleIDOverride = nil
             client.caretRect = caretBefore

@@ -63,6 +63,8 @@ public enum TaskUpdate: Sendable {
     case statusEnded
     /// Autocomplete's request `request` answered (`Converter.autocomplete`), or failed.
     case suggested(Result<Autocomplete.Answer, any Error>, request: Int)
+    /// A completion source's load or query came back: its result is in the store (`SuggestionsStore`), to be taken in.
+    case completionsAnswered
 }
 
 /// How a save to notes or Reminders went (`TaskUpdate.saved`): told where the user is when it comes back, even if the

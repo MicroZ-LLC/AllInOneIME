@@ -64,13 +64,15 @@ public enum ICloudSync {
     /// autocomplete's switch and the yes to it sending text to a cloud provider (`autocomplete`, `autocompleteCloud`:
     /// turning it on asks that on this Mac), and so is its choice for an app (`thisMacsOwnAppFields`); `typeOutSpeed` is only read (from older files); `outputLanguage` and
     /// `defaultInput` come with their lists. `@agent`'s agent and its program are what this Mac has installed, and
-    /// whether it takes Chrome's page is this Mac's choice (as they always were: never synced). Apps without typos and the recent apps aren't config keys
+    /// whether it takes Chrome's page is this Mac's choice (as they always were: never synced). Suggestions' switch, the
+    /// completion sources enabled and the plugins' preferences are this Mac's plugins' (`suggestions`,
+    /// `completionSources`, `pluginPreferences`). Apps without typos and the recent apps aren't config keys
     /// either: named so that no later version adds them.
     public static let neverSynced: Set<String> = [
         "extensionSources", "extensionFolders", "hiddenExtensionFolders", "findRaycastScripts", "disabledExtensions",
         "extensionPreferences", "jargonFile", "iCloudSync", "typeOutSpeed", "outputLanguage", "defaultInput",
         "typeOutNoTyposApps", "recentApps", "notes", "agent", "agentCommand", "agentPageContext", "autocomplete",
-        "autocompleteCloud",
+        "autocompleteCloud", "suggestions", "completionSources", "pluginPreferences",
     ]
 
     /// The category `key` (a key of `settings.json`) is synced under; nil for a key this version doesn't sync (one a newer

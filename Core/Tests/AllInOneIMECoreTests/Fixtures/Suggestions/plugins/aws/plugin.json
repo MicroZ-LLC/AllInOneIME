@@ -1,0 +1,5 @@
+{ "name": "aws", "version": "1.0.0", "type": "script", "script": "main.js", "hosts": [],
+  "completions": [
+    { "name": "accounts", "title": {"en": "AWS accounts", "zh": "AWS 账号"},
+      "compare": "exact", "list": true, "refresh": "1d",
+      "insert": { "default": ["{match} ({alias})", "{match}"], "chat": "{match} ({alias})", "terminal": null } } ] }

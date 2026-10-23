@@ -1,0 +1,8 @@
+{
+  "items": [
+    { "match": "#6001", "title": "Fix\u0007 the‮ build​ now", "subtitle": "\u001B[31mred\u001B[0m",
+      "arg": "#6001", "variables": { "url": "https://github.com/octo-org/octo-repo/issues/6001\u0007‮" } },
+    { "match": "#6007", "title": "⁦Isolated⁩ ﻿title‍‌⁠", "subtitle": "line break\u0085" },
+    { "match": "#6090", "title": "Right-to-left ‏mark and ؜arabic mark", "arg": "#6090\u0000" }
+  ]
+}

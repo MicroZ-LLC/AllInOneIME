@@ -150,6 +150,9 @@ final class AllInOneIMEInputController: IMKInputController {
         services.translateChip = { MainActor.assumeIsolated { box.value?.translateChip() } }
         // Autocomplete: what it learns and counts, one for every field; an app's name for what it says of the app.
         services.autocomplete = MainActor.assumeIsolated { MainThreadBox(AutocompleteSwitch.store) }.value
+        // Suggestions: one store for every field, coding mode and Translate as You Type the input method's (this field
+        // turns the latter on and off for the session's chooser).
+        services.suggestions = MainActor.assumeIsolated { MainThreadBox(SuggestionsShared.services(field: box)) }.value
         services.appName = { app in MainActor.assumeIsolated { AppNames.name(for: app) } }
         services.page = { app in
             MainActor.assumeIsolated { () -> MainThreadBox<PageSource?> in
@@ -448,7 +451,7 @@ final class AllInOneIMEInputController: IMKInputController {
 
     override func menu() -> NSMenu! {
         log.notice("input menu requested")
-        return MainActor.assumeIsolated { MainThreadBox(addingAutocomplete(to: makeMenu())) }.value
+        return MainActor.assumeIsolated { MainThreadBox(addingSuggestions(to: addingAutocomplete(to: makeMenu()))) }.value
     }
 
     // MARK: - The session
@@ -485,7 +488,7 @@ final class AllInOneIMEInputController: IMKInputController {
         // A result still being typed out: Esc stops it there; any other key types the rest at once,
         // then goes on as usual.
         if TerminalPaste.isOurs(event) { return false }  // a line break being pasted into a terminal
-        translateModeKeyDown()  // Shift held with a key is no long press of it
+        translateModeKeyDown()
         if typingTask != nil {
             if event.keyCode == VirtualKey.escape {
                 stopTyping(insertingRest: false)
@@ -521,7 +524,7 @@ final class AllInOneIMEInputController: IMKInputController {
     func handleFlagsChanged(_ event: NSEvent, client: IMKTextInput?) {
         // Chromium and Electron apps (Slack, VS Code, Chrome) hand every modifier change over twice, the same event,
         // after the next change too when the page is busy: the copy changes nothing, for the session's composer (a tap
-        // of Shift or ⌥) and the long press of Shift alike.
+        // of Shift or ⌥) and its long press of Shift (the chooser) alike.
         guard !Self.modifierEchoes.isEcho(keyCode: event.keyCode, flags: event.modifierFlags.rawValue,
                                           timestamp: event.timestamp, now: ProcessInfo.processInfo.systemUptime) else {
             // Each copy dropped, how long after the event's time it came (`log stream --level debug --predicate
@@ -536,8 +539,11 @@ final class AllInOneIMEInputController: IMKInputController {
             return
         }
         let target: IMKTextInput? = client ?? clientOverride ?? self.client()
-        // The key was held up to the event; the pointer is asked later, so look back that much further.
-        let change = ModifierChange(key: MacKeyCodes.key(event.keyCode), modifiers: Self.flagsChangedModifiers(event.modifierFlags),
+        // The key was held up to the event; the pointer is asked later, so look back that much further. fn held with Shift
+        // is no long press of it (only the session's long press minds fn).
+        var modifiers = Self.flagsChangedModifiers(event.modifierFlags)
+        if event.modifierFlags.contains(.function) { modifiers.insert(.function) }
+        let change = ModifierChange(key: MacKeyCodes.key(event.keyCode), modifiers: modifiers,
                                     timestamp: event.timestamp, late: max(ProcessInfo.processInfo.systemUptime - event.timestamp, 0))
         var context = FieldContext(field: Self.fieldInfo(target))
         while true {
@@ -545,16 +551,8 @@ final class AllInOneIMEInputController: IMKInputController {
             if missing.isEmpty { break }
             read(missing, of: target, into: &context)
         }
+        // The session times a long press of Shift itself: its chooser of Translate as You Type and coding mode.
         apply(session.handle(.modifiers(change, context)).outputs, client: client)
-        guard !context.secure else {
-            // No long press of Shift either, and Shift as it is now: the release isn't missed by the next press.
-            translateModeFlagsMissed(shiftDown: event.modifierFlags.contains(.shift))
-            return
-        }
-        // fn held with Shift is no long press of it either (only Translate as You Type is told of fn).
-        var modifiers = Self.flagsChangedModifiers(event.modifierFlags)
-        if event.modifierFlags.contains(.function) { modifiers.insert(.function) }
-        translateModeFlagsChanged(keyCode: event.keyCode, modifiers: modifiers)
     }
 
     /// What the field says around the caret as `key` goes down: what the session wants of it (`fieldWants`), asked again
@@ -577,7 +575,7 @@ final class AllInOneIMEInputController: IMKInputController {
     /// Reads `parts` of what the field says (`FieldContext`). Password fields and prompts turn on secure event input: the
     /// session composes nothing in the app that turned it on. The selection is read with Accessibility where the field
     /// doesn't tell it (only how it was read and how long it is are logged); the character before the caret, where "@"
-    /// is typed; the text around the caret for `@reply` (`readFieldText`).
+    /// is typed; the text around the caret for `@reply`, or a snippet of more than one line put in (`readFieldText`).
     @MainActor
     private func read(_ parts: FieldContext.Parts, of target: IMKTextInput?, into context: inout FieldContext) {
         if parts.contains(.secure) { context.secure = SecureInput.blocksComposing(target) }
@@ -590,7 +588,10 @@ final class AllInOneIMEInputController: IMKInputController {
             context.selection = Composer.Selection(text: read.text, range: read.range.map { $0.location..<NSMaxRange($0) })
         }
         if parts.contains(.beforeCaret) { context.beforeCaret = Self.beforeCaret(in: target) }
-        if parts.contains(.text) { context.text = readFieldText(from: target) }
+        if parts.contains(.text) {
+            context.text = readFieldText(from: target, before: ReplyContext.Limits.fieldBefore, after: ReplyContext.Limits.fieldAfter,
+                                         purpose: "a key (@reply, a snippet's indentation)")
+        }
         context.read.formUnion(parts)
     }
 
@@ -721,7 +722,7 @@ final class AllInOneIMEInputController: IMKInputController {
             case .keyboardLayout:
                 applyKeyboardLayout(client: target)
             case let .readField(id):
-                readFieldForAutocomplete(id: id, in: target)
+                readFieldAfterPause(id: id, in: target)
             case let .ghost(text):
                 showGhost(text, in: target)
             case let .startTimer(.notice(token), seconds):

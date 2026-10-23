@@ -221,6 +221,15 @@ public struct Config: Codable, Equatable, Sendable {
     /// Where `@note` saves (`NoteSettings`): Notes by default, a folder of Markdown files, or Notion. This Mac's own (a
     /// path on it), never synced.
     public var notes: NoteSettings
+    /// Suggestions (plugin completions, coding mode's rows): the input menu's switch; nil: on (it shows once a completion
+    /// source is enabled). This Mac's own, never synced.
+    public var suggestions: Bool?
+    /// The completion sources enabled in Settings → Plugins, each with what was enabled (the plugin's hosts, whether it
+    /// queries, its script's SHA-256): an update that changes one needs enabling again (`CompletionSourceApproval`). Off
+    /// until enabled. This Mac's own (its plugins), never synced.
+    public var completionSources: [CompletionSourceApproval] = []
+    /// Plugins' preferences that aren't passwords (those are in the keychain): plugin name → name → value. Never synced.
+    public var pluginPreferences: [String: [String: String]] = [:]
 
     /// The settings of an API-key provider, with its defaults filled in.
     public func settings(for provider: Provider) -> ProviderSettings {
@@ -346,6 +355,7 @@ public struct Config: Codable, Equatable, Sendable {
         case autocomplete, autocompleteCloud
         case iCloudSync
         case notes
+        case suggestions, completionSources, pluginPreferences
         case extensionSources
         case provider, anthropic, gemini, openai
     }
@@ -438,6 +448,10 @@ public struct Config: Codable, Equatable, Sendable {
         extensionSources = ExtensionSource.decodeAll(c, forKey: .extensionSources)
         iCloudSync = (try? c.decodeIfPresent(ICloudSyncSettings.self, forKey: .iCloudSync)).flatMap { $0 } ?? d.iCloudSync
         notes = (try? c.decodeIfPresent(NoteSettings.self, forKey: .notes)).flatMap { $0 } ?? d.notes
+        // A value of the wrong type reads as none, not an error.
+        suggestions = (try? c.decodeIfPresent(Bool.self, forKey: .suggestions)).flatMap { $0 }
+        completionSources = (try? c.decodeIfPresent([CompletionSourceApproval].self, forKey: .completionSources)).flatMap { $0 } ?? []
+        pluginPreferences = (try? c.decodeIfPresent([String: [String: String]].self, forKey: .pluginPreferences)).flatMap { $0 } ?? [:]
         provider = try c.decodeIfPresent(Provider.self, forKey: .provider) ?? d.provider
         anthropic = try c.decodeIfPresent(ProviderSettings.self, forKey: .anthropic) ?? d.anthropic
         gemini = try c.decodeIfPresent(ProviderSettings.self, forKey: .gemini) ?? d.gemini
@@ -602,6 +616,10 @@ public struct Config: Codable, Equatable, Sendable {
         if iCloudSync != ICloudSyncSettings() { try c.encode(iCloudSync, forKey: .iCloudSync) }
         // Only once it differs from Notes: a file from before the setting doesn't gain the key.
         if notes != NoteSettings() { try c.encode(notes, forKey: .notes) }
+        // Only once set: a file from before suggestions doesn't gain the keys.
+        try c.encodeIfPresent(suggestions, forKey: .suggestions)
+        if !completionSources.isEmpty { try c.encode(completionSources, forKey: .completionSources) }
+        if !pluginPreferences.isEmpty { try c.encode(pluginPreferences, forKey: .pluginPreferences) }
         try c.encode(provider, forKey: .provider)
         try c.encode(anthropic, forKey: .anthropic)
         try c.encode(gemini, forKey: .gemini)

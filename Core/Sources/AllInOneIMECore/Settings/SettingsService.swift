@@ -19,8 +19,11 @@ public final class SettingsService: @unchecked Sendable {
     private var revisionValue: UInt64 = 1
     /// The Test buttons' last outcomes, by field.
     private var tests: [String: SettingsStore.TestStatus] = [:]
-    /// What the plugin library offers, once browsed (`browse`).
+    /// What the plugin library offers, once browsed (`browse`); and the coding language library.
     private var libraryEntries: [PluginIndex.Entry]?
+    private var codingEntries: [CodingPackIndex.Entry]?
+    /// Where coding packs come from and are kept (Settings → Coding Languages).
+    public let codingLibrary: CodingPackLibrary
     /// The actions that take a while running now, by field and item (an install's plugin): shown `running`, with
     /// `cancel` among the actions.
     private var runs: [Run: Running] = [:]
@@ -103,6 +106,11 @@ public final class SettingsService: @unchecked Sendable {
         get { hooks.withLock { $0.keySource } }
         set { hooks.withLock { $0.keySource = newValue } }
     }
+    /// How the completion sources are doing, where the shell runs them (none: not known here).
+    public var suggestionStatuses: @Sendable () -> [CompletionSourceStatus] {
+        get { hooks.withLock { $0.suggestionStatuses } }
+        set { hooks.withLock { $0.suggestionStatuses = newValue } }
+    }
     /// After a plugin is installed or removed: the shell's command lists pick it up.
     public var pluginsChanged: @Sendable () -> Void {
         get { hooks.withLock { $0.pluginsChanged } }
@@ -136,6 +144,7 @@ public final class SettingsService: @unchecked Sendable {
         var changed: @Sendable (UInt64) -> Void = { _ in }
         var keySource: @Sendable (Provider) -> APIKeys.Source = { APIKeys.source($0) }
         var pluginsChanged: @Sendable () -> Void = {}
+        var suggestionStatuses: @Sendable () -> [CompletionSourceStatus] = { [] }
         var recentApps: @Sendable () -> [String] = { [] }
         var loadCredentials: Converter.CredentialLoader = { try await AWSCredentialResolver.shared.resolve(profile: $0, forceRefresh: true) }
         var notionSession: URLSession = NotionAPI.session
@@ -149,11 +158,16 @@ public final class SettingsService: @unchecked Sendable {
     /// Held while `changed` is called: one call at a time, in the order of the revisions.
     private let notifying = NSLock()
 
+    /// `codingLibrary` nil: the language library's, its packs kept in the app's data folder; or, for plugins kept in a
+    /// folder of their own (a test's), beside it.
     public init(store: SettingsStore, platform: SettingsPlatform, library: PluginLibrary = PluginLibrary(),
-                secrets: APIKeys.Keychain? = nil) {
+                secrets: APIKeys.Keychain? = nil, codingLibrary: CodingPackLibrary? = nil) {
         self.store = store
         self.platform = platform
         self.library = library
+        self.codingLibrary = codingLibrary ?? CodingPackLibrary(store: CodingPackStore(
+            directory: library.directory == PluginStore.directory ? CodingPackStore.defaultDirectory
+                : library.directory.deletingLastPathComponent().appendingPathComponent("CodingPacks", isDirectory: true)))
         self.secrets = secrets
         // Any change: the config, a key, the file turned unreadable or a save that failed (the document says so).
         observation = store.observe { [unowned self] _ in revisionValue += 1 }
@@ -307,6 +321,7 @@ public final class SettingsService: @unchecked Sendable {
     }
 
     private func longAction(_ action: SettingsAction) async -> Result<SettingsActionOutcome, SettingsProblem> {
+        if action.field == "codingLanguages.library" { return await codingPacks(action) }
         switch action.name {
         case SettingsAction.test: return await test(action)
         case SettingsAction.browse: return await browse(action)
@@ -492,6 +507,27 @@ public final class SettingsService: @unchecked Sendable {
             return .success(SettingsActionOutcome())
         case let .failure(error):
             return .failure(SettingsProblem(.failed, field: action.field, message: error.message))
+        }
+    }
+
+    /// The coding language library opened (`browse`: what it offers this version), or a pack of it installed.
+    private func codingPacks(_ action: SettingsAction) async -> Result<SettingsActionOutcome, SettingsProblem> {
+        do {
+            if action.name == SettingsAction.browse {
+                let offered = codingLibrary.offered(in: try await codingLibrary.fetchIndex())
+                guard !Task.isCancelled else { return .failure(Self.cancelled(action.field)) }
+                locked { codingEntries = offered }
+                return .success(SettingsActionOutcome())
+            }
+            guard let entry = locked({ codingEntries?.first { $0.language == action.item } }) else {
+                return .failure(SettingsProblem(.badValue, field: action.field, message: Self.badValue))
+            }
+            try await codingLibrary.install(entry)
+            if Task.isCancelled { changing { revisionValue += 1 } }
+            return .success(SettingsActionOutcome())
+        } catch {
+            return .failure(Task.isCancelled ? Self.cancelled(action.field)
+                                             : SettingsProblem(.failed, field: action.field, message: UIText.describe(error)))
         }
     }
 
@@ -693,6 +729,7 @@ public final class SettingsService: @unchecked Sendable {
         builder.recentApps = recentApps()
         builder.addedApps = addedApps
         builder.extensions = ExtensionStore.load(ExtensionStore.folders(store.config, found: []), cache: extensionCache)
+        (builder.suggestionStatuses, builder.codingPacks, builder.codingEntries) = (suggestionStatuses(), codingLibrary.store, codingEntries)
         // Its text names commands with the trigger its settings have, whatever the process's own is.
         let sections = UIText.$scopedCommandTrigger.withValue(store.config.commandTrigger) { builder.sections() }
         var document = SettingsDocument(language: UIText.language, platform: platform, loadError: loadError,

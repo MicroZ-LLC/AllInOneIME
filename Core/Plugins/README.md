@@ -11,6 +11,7 @@ They're under the MIT license there and here, like the rest of [AllInOneIME-plug
 | `@bsky` | link | Opens Bluesky's composer: `https://bsky.app/intent/compose?text=…` |
 | `@weibo` | link | Opens Weibo's share page: `https://service.weibo.com/share/share.php?title=…` |
 | `@xe` | script | Converts currencies: `@xe 100 USD CNY` → `100 USD = 670.69 CNY (1 USD = 6.7069 CNY · 2026-10-11)` |
+| `@github` | script | GitHub issues as you type (`#12` → `#1234 Fix login`, Tab inserts; only numbers are looked up), and `@github <words>` searches their titles in your repositories |
 
 A `link` plugin runs no code: the text after the command is put into the address and the page opens in
 your default browser, where you post it yourself (signed in as usual). Nothing is inserted or sent by the
@@ -59,3 +60,13 @@ cp -R Plugins/x ~/.config/allinoneime/plugins/
 
 The folder name must match the plugin's `name`. A plugin copied by hand shows as **local (not reviewed)**.
 To remove it, use Remove in Settings → Plugins or delete the folder.
+
+## @github
+
+GitHub issues and pull requests as suggestions (completions, 0.6.7): after `#`, the 100 most recently updated of each
+repository in its `repos` preference (owner/repo, comma-separated; `MicroZ-LLC/AllInOneIME` by default), refreshed every
+15 minutes while it's used, and an issue looked up by its number from 2 digits on. Tab inserts `#1234`; in chat apps
+`#1234 https://github.com/…/issues/1234`; in terminals and code editors `#1234`. A token (optional, its `token`
+preference, kept in the keychain) reads private repositories. Only `api.github.com` is reached, and only once its
+completions are turned on in Settings → Plugins (the lookup sends what follows `#`). `@github <words>` lists the
+matching issues and PRs with their addresses.

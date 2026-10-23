@@ -420,7 +420,11 @@ let arguments = Array(CommandLine.arguments.dropFirst())
 // A script plugin's own process (started by the input method): nothing else runs, nothing else is printed.
 if arguments.first == "--run-plugin" {
     guard let invocation = PluginHost.invocation(Array(arguments.dropFirst())) else { exit(2) }
-    exit(PluginHost.run(directory: invocation.directory, language: invocation.language))
+    // A completion script's load or query (suggestions), its ctx on standard input.
+    if let function = PluginHost.completionFunction(Array(arguments.dropFirst())) {
+        exit(PluginHost.runCompletion(directory: invocation.directory, function: function))
+    }
+    exit(PluginHost.run(directory: invocation.directory, language: invocation.language, preferences: invocation.preferences))
 }
 // The same for `@js` code (`InlineCode`): the code on standard input, what it prints on standard output.
 if arguments.first == InlineCode.javaScriptHostOption {

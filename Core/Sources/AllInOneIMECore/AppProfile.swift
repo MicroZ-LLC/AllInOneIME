@@ -21,24 +21,29 @@ public struct AppProfile: Codable, Equatable, Sendable {
     /// learned there (Settings → Apps: 「续写」); nil: as everywhere. This Mac's own, as the switch is: never synced
     /// (`ICloudSync.thisMacsOwnAppFields`).
     public var autocomplete: Bool?
+    /// Suggestions (plugin completions, coding mode's rows) in the app (Settings → Apps: 「建议」): off (false), or as
+    /// everywhere (nil, or true).
+    public var suggestions: Bool?
 
     public init(inputLanguage: Language? = nil, rewriteStyles: [String]? = nil, typeOut: Bool? = nil, noAI: Bool? = nil,
-                translateAlways: Bool? = nil, autocomplete: Bool? = nil) {
+                translateAlways: Bool? = nil, autocomplete: Bool? = nil, suggestions: Bool? = nil) {
         self.inputLanguage = inputLanguage
         self.rewriteStyles = rewriteStyles
         self.typeOut = typeOut
         self.noAI = noAI
         self.translateAlways = translateAlways
         self.autocomplete = autocomplete
+        self.suggestions = suggestions
     }
 
     /// Sets nothing: the app follows every setting.
     public var isEmpty: Bool {
         inputLanguage == nil && rewriteStyles == nil && typeOut == nil && noAI != true && translateAlways != true && autocomplete == nil
+            && suggestions == nil
     }
 
     private enum CodingKeys: String, CodingKey {
-        case inputLanguage, rewriteStyles, typeOut, noAI, translateAlways, autocomplete
+        case inputLanguage, rewriteStyles, typeOut, noAI, translateAlways, autocomplete, suggestions
     }
 
     /// Each key on its own: one of the wrong type, or a language code this version doesn't know, is left unset;
@@ -51,6 +56,7 @@ public struct AppProfile: Codable, Equatable, Sendable {
         noAI = (try? c.decodeIfPresent(Bool.self, forKey: .noAI)).flatMap { $0 }
         translateAlways = (try? c.decodeIfPresent(Bool.self, forKey: .translateAlways)).flatMap { $0 }
         autocomplete = (try? c.decodeIfPresent(Bool.self, forKey: .autocomplete)).flatMap { $0 }
+        suggestions = (try? c.decodeIfPresent(Bool.self, forKey: .suggestions)).flatMap { $0 }
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -61,6 +67,7 @@ public struct AppProfile: Codable, Equatable, Sendable {
         try c.encodeIfPresent(noAI, forKey: .noAI)
         try c.encodeIfPresent(translateAlways, forKey: .translateAlways)
         try c.encodeIfPresent(autocomplete, forKey: .autocomplete)
+        try c.encodeIfPresent(suggestions, forKey: .suggestions)
     }
 
     /// `Config.appProfiles` from a config file: an entry that isn't an object, or whose key is no bundle id (empty, or

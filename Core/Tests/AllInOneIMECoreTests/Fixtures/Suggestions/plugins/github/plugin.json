@@ -1,0 +1,13 @@
+{ "name": "github", "version": "1.0.0", "api": 1, "type": "script", "script": "main.js", "hosts": ["api.github.com"],
+  "summary": { "en": "GitHub issues after #", "zh": "# 后面补全 GitHub issue" },
+  "timeoutSeconds": 15,
+  "preferences": [
+    { "name": "repos", "type": "text", "title": {"en": "Repositories", "zh": "仓库"},
+      "placeholder": "owner/repo, owner/other", "default": "octo-org/octo-repo" },
+    { "name": "token", "type": "password", "title": {"en": "Token (optional, for private repos)", "zh": "Token（可选，私有仓库用）"} } ],
+  "completions": [
+    { "name": "issues", "title": {"en": "GitHub issues", "zh": "GitHub issue"},
+      "prefix": "#", "minChars": 1, "compare": "prefix",
+      "list": true, "refresh": "15m",
+      "query": true, "queryMinChars": 2,
+      "insert": { "default": "{arg}", "chat": "{arg} {url}", "terminal": "{match}" } } ] }

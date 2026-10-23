@@ -76,6 +76,7 @@ enum AppProfileText {
         if profile.noAI == true { parts.append(tr("不用 AI", "No AI")) }
         if profile.translateAlways == true { parts.append(tr("总是边打边译", "Always Translate as You Type")) }
         if let autocomplete = profile.autocomplete { parts.append(autocomplete ? tr("总是续写", "Always autocomplete") : tr("不续写", "No autocomplete")) }
+        if profile.suggestions == false { parts.append(tr("不显示建议", "No suggestions")) }
         return parts.isEmpty ? tr("和全局设置一样", "Same as everywhere", key: "appProfile.sameAsEverywhere") : parts.joined(separator: " · ")
     }
 
@@ -219,6 +220,21 @@ struct AppProfilesSection: View {
                     Text(tr("续写", "Autocomplete"))
                     Text(tr("停一下，光标后出现灰字，按 Tab 接受。「总是」在这里不管全局开关，也不会因为没用上而停下。代码编辑器（Xcode、VS Code、Cursor、JetBrains 等）里默认关，设成「总是」才开。",
                             "Pause, and the rest of the sentence shows in gray after the caret; Tab takes it. Always: here whatever the switch, and it doesn't stop for want of use. Off in code editors (Xcode, VS Code, Cursor, JetBrains…) unless set to Always."))
+                        .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            // Suggestions as everywhere (the input menu's switch), or none in the app.
+            Picker(selection: Binding(
+                get: { profile.suggestions == false ? false : nil },
+                set: { value in model.changeProfile(app) { $0.suggestions = value == false ? false : nil } })) {
+                Text(model.config.suggestions != false ? tr("跟全局一样（开）", "Same as everywhere (on)")
+                     : tr("跟全局一样（关）", "Same as everywhere (off)")).tag(Bool?.none)
+                Text(tr("关", "Off")).tag(Bool?.some(false))
+            } label: {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(tr("建议", "Suggestions"))
+                    Text(tr("插件的补全（比如 #12 → GitHub issue）和编码模式的关键字、代码片段，按 Tab 插入。关掉后这个 App 里不列出。",
+                            "Plugins' completions (#12 → a GitHub issue, say) and coding mode's keywords and snippets, Tab inserts. Off: none in this app."))
                         .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
             }

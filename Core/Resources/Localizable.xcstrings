@@ -2540,6 +2540,100 @@
         }
       }
     },
+    "%@ d" : {
+      "comment" : "%@ 天 — Sources/AllInOneIMECore/Suggestions/SuggestionsSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ T."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ d"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ j"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 日"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@일"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ d"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 天"
+          }
+        }
+      }
+    },
+    "%@ d ago" : {
+      "comment" : "%@ 天前 — Sources/AllInOneIMECore/Session/InputSession+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "vor %@ T."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "hace %@ d"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "il y a %@ j"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 日前"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@일 전"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "há %@ d"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 天前"
+          }
+        }
+      }
+    },
     "%@ days ago" : {
       "comment" : "%@ 天前 — Sources/AllInOneIMECore/RelativeTime.swift",
       "localizations" : {
@@ -2724,6 +2818,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ 項正常"
+          }
+        }
+      }
+    },
+    "%@ h" : {
+      "comment" : "%@ 小时 — Sources/AllInOneIMECore/Suggestions/SuggestionsSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ Std."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ h"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ h"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 時間"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@시간"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ h"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 小時"
           }
         }
       }
@@ -3057,6 +3198,53 @@
         }
       }
     },
+    "%@ is the command trigger: typing it opens the command list, so these completions can't show (pick another trigger in General)" : {
+      "comment" : "%@ 是命令触发符，打 %@ 会打开命令列表，所以这个补全不会出现（在「通用」里换一个命令触发符就行） — Sources/AllInOneIMECore/Suggestions/SuggestionsContract.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ist das Befehlszeichen: Es öffnet die Befehlsliste, daher können diese Vervollständigungen nicht erscheinen (wähle unter „Allgemein“ ein anderes Zeichen)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ es el activador de comandos: al escribirlo se abre la lista de comandos, así que estas sugerencias no pueden aparecer (elige otro activador en General)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ est le déclencheur des commandes : le taper ouvre la liste des commandes, ces complétions ne peuvent donc pas s’afficher (choisissez un autre déclencheur dans Général)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ はコマンドの起動記号です。入力するとコマンド一覧が開くため、この補完は表示されません（「一般」で別の記号を選んでください）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@는 명령 트리거입니다. 입력하면 명령 목록이 열리므로 이 자동 완성은 표시되지 않습니다(일반에서 다른 트리거를 선택하세요)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ é o gatilho de comandos: digitá-lo abre a lista de comandos, então estas sugestões não podem aparecer (escolha outro gatilho em Geral)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 是命令觸發符，打它會打開命令列表，所以這個補全不會出現（在「一般」裡換一個命令觸發符就行）"
+          }
+        }
+      }
+    },
     "%@ isn't one of your input languages" : {
       "comment" : "%@还不是输入语言 — Sources/AllInOneIMECore/AIConfigText.swift",
       "localizations" : {
@@ -3104,6 +3292,53 @@
         }
       }
     },
+    "%@ items" : {
+      "comment" : "%@ 项 — Sources/AllInOneIMECore/Suggestions/SuggestionsSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ Einträge"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ elementos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ éléments"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 件"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@개 항목"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ itens"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 項"
+          }
+        }
+      }
+    },
     "%@ items hidden from the AI" : {
       "comment" : "已对 AI 隐藏 %@ 项 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
       "localizations" : {
@@ -3147,6 +3382,100 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已對 AI 隱藏 %@ 項"
+          }
+        }
+      }
+    },
+    "%@ keywords" : {
+      "comment" : "%@ 个关键字 — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ Schlüsselwörter"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ palabras clave"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ mots-clés"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キーワード %@ 個"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "키워드 %@개"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ palavras-chave"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 個關鍵字"
+          }
+        }
+      }
+    },
+    "%@ min" : {
+      "comment" : "%@ 分钟 — Sources/AllInOneIMECore/Suggestions/SuggestionsSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ Min."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ min"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ min"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 分"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@분"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ min"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 分鐘"
           }
         }
       }
@@ -4326,6 +4655,53 @@
         }
       }
     },
+    "%@ snippets" : {
+      "comment" : "%@ 个代码片段 — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ Snippets"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ fragmentos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ extraits"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スニペット %@ 個"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "스니펫 %@개"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ trechos"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 個程式碼片段"
+          }
+        }
+      }
+    },
     "%@ tasks running" : {
       "comment" : "%@ 个任务进行中 — Sources/AllInOneIMECore/Dashboard.swift",
       "localizations" : {
@@ -4745,6 +5121,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%%.1f 秒：%%@%%@"
+          }
+        }
+      }
+    },
+    "↑↓ or 1–2 to choose, %@ to confirm, Esc to cancel" : {
+      "comment" : "↑↓ 或 1–2 选，%@ 确定，Esc 取消 — Sources/AllInOneIMECore/Session/InputSession+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "↑↓ oder 1–2 zum Wählen, %@ zum Bestätigen, Esc zum Abbrechen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "↑↓ o 1–2 para elegir, %@ para confirmar, Esc para cancelar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "↑↓ ou 1–2 pour choisir, %@ pour valider, Échap pour annuler"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "↑↓ または 1–2 で選択、%@ で決定、Esc で取消"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "↑↓ 또는 1–2로 선택, %@로 확인, Esc로 취소"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "↑↓ ou 1–2 para escolher, %@ para confirmar, Esc para cancelar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "↑↓ 或 1–2 選，%@ 確定，Esc 取消"
           }
         }
       }
@@ -6772,6 +7195,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "進階"
+          }
+        }
+      }
+    },
+    "after %@" : {
+      "comment" : "在 %@ 后面 — Sources/AllInOneIMECore/Suggestions/SuggestionsSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "nach %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "tras %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "après %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ の後に"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 뒤에"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "após %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 %@ 後面"
           }
         }
       }
@@ -11582,6 +12052,288 @@
         }
       }
     },
+    "Coding language library" : {
+      "comment" : "编程语言库 — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bibliothek der Programmiersprachen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Biblioteca de lenguajes de programación"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bibliothèque de langages de programmation"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プログラミング言語ライブラリ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "프로그래밍 언어 라이브러리"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Biblioteca de linguagens de programação"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "程式語言庫"
+          }
+        }
+      }
+    },
+    "Coding language packs are signed and verified; the library is fetched only when you open it (languages.allinoneime.com)." : {
+      "comment" : "编程语言包经过签名和校验；打开时才会联网（languages.allinoneime.com）。 — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Programmiersprachen-Pakete sind signiert und geprüft; die Bibliothek wird nur geladen, wenn du sie öffnest (languages.allinoneime.com)."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los paquetes de lenguajes de programación están firmados y verificados; la biblioteca solo se descarga cuando la abres (languages.allinoneime.com)."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les paquets de langages de programmation sont signés et vérifiés ; la bibliothèque n’est chargée que lorsque vous l’ouvrez (languages.allinoneime.com)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プログラミング言語パックは署名・検証済みです。ライブラリは開いたときだけ取得します（languages.allinoneime.com）。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "프로그래밍 언어 팩은 서명되고 검증됩니다. 라이브러리는 열 때만 가져옵니다(languages.allinoneime.com)."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Os pacotes de linguagens de programação são assinados e verificados; a biblioteca só é baixada quando você a abre (languages.allinoneime.com)."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "程式語言包經過簽名和校驗；打開時才會連網（languages.allinoneime.com）。"
+          }
+        }
+      }
+    },
+    "Coding Languages" : {
+      "comment" : "编程语言 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Programmiersprachen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lenguajes de programación"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Langages de programmation"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プログラミング言語"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "프로그래밍 언어"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linguagens de programação"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "程式語言"
+          }
+        }
+      }
+    },
+    "Coding mode" : {
+      "comment" : "编码模式 — Sources/AllInOneIMECore/Session/InputSession+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Programmiermodus"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modo de programación"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mode programmation"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コーディングモード"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "코딩 모드"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modo de programação"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編碼模式"
+          }
+        }
+      }
+    },
+    "Coding mode off" : {
+      "comment" : "编码模式已关 — Sources/AllInOneIMECore/Session/InputSession+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Programmiermodus aus"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modo de programación desactivado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mode programmation désactivé"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コーディングモード オフ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "코딩 모드 끔"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modo de programação desativado"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編碼模式已關"
+          }
+        }
+      }
+    },
+    "Coding mode on: keywords, snippets and the field's words, Tab completes" : {
+      "comment" : "编码模式已开：关键字、代码片段和字段里的词，Tab 补全 — Sources/AllInOneIMECore/Session/InputSession+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Programmiermodus an: Schlüsselwörter, Snippets und die Wörter im Feld, Tab vervollständigt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modo de programación activado: palabras clave, fragmentos y las palabras del campo; Tab completa"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mode programmation activé : mots-clés, extraits et mots du champ, Tab complète"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コーディングモード オン：キーワード、スニペット、入力欄の単語。Tab で補完"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "코딩 모드 켬: 키워드, 스니펫, 입력란의 단어, Tab으로 완성"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modo de programação ativado: palavras-chave, trechos e as palavras do campo; Tab completa"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編碼模式已開：關鍵字、程式碼片段和欄位裡的詞，Tab 補全"
+          }
+        }
+      }
+    },
     "columns must contain text, code and optionally weight, each exactly once." : {
       "comment" : "columns 必须是 text、code，以及可选的 weight，每种只出现一次。 — Sources/AllInOneIMECore/PersonalDictionary.swift",
       "localizations" : {
@@ -11719,6 +12471,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "命令觸發符"
+          }
+        }
+      }
+    },
+    "Completions not used" : {
+      "comment" : "没有用上的补全 — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht verwendete Vervollständigungen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sugerencias no usadas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Complétions non utilisées"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使われない補完"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "사용되지 않는 자동 완성"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sugestões não usadas"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有用上的補全"
           }
         }
       }
@@ -14028,6 +14827,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "別在這裡輸入金鑰：它沒有送出，⏎ 會打開金鑰欄位。"
+          }
+        }
+      }
+    },
+    "Download" : {
+      "comment" : "下载 — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Laden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descargar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Télécharger"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ダウンロード"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다운로드"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Baixar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下載"
           }
         }
       }
@@ -16717,6 +17563,53 @@
         }
       }
     },
+    "Hold Shift for a second and pick Coding mode (or 2) to turn it on, again to turn it off; it stays on in every app until then. While it's on each text field starts in English, and from two letters on the rows offer keywords, snippets and the words already in the field: Tab inserts. It can't be on with Translate as You Type." : {
+      "comment" : "按住 Shift 一秒，选「编码模式」（或 2）打开，再选一次关闭；在所有 App 里一直开着，直到关掉。开着时每个输入框从英文开始，打两个字母起显示关键字、代码片段和输入框里已有的词，Tab 插入。和边打边译不能同时开。 — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Halte Umschalt eine Sekunde und wähle Programmiermodus (oder 2), um ihn einzuschalten, noch einmal zum Ausschalten; bis dahin bleibt er in allen Apps an. Solange er an ist, beginnt jedes Textfeld auf Englisch, und ab zwei Buchstaben bieten die Zeilen Schlüsselwörter, Snippets und Wörter aus dem Feld an: Tab fügt ein. Er kann nicht zusammen mit „Beim Tippen übersetzen“ an sein."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mantén Mayúsculas un segundo y elige Modo de programación (o 2) para activarlo, otra vez para desactivarlo; hasta entonces sigue activo en todas las apps. Mientras está activo, cada campo empieza en inglés y, desde dos letras, las filas ofrecen palabras clave, fragmentos y palabras que ya están en el campo: Tab inserta. No puede estar activo a la vez que Traducir al escribir."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maintenez Maj une seconde et choisissez Mode programmation (ou 2) pour l’activer, à nouveau pour le désactiver ; il reste actif dans toutes les apps jusque-là. Tant qu’il est actif, chaque champ commence en anglais et, dès deux lettres, les lignes proposent mots-clés, extraits et mots déjà présents dans le champ : Tab insère. Il ne peut pas être actif en même temps que Traduire en tapant."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shift を 1 秒押して「コーディングモード」（または 2）を選ぶとオン、もう一度でオフ。オフにするまですべての App でオンのままです。オンの間、各入力欄は英語で始まり、2 文字目からキーワード、スニペット、入力欄にある単語が並びます。Tab で挿入。「入力しながら翻訳」と同時にはオンにできません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shift를 1초간 누르고 코딩 모드(또는 2)를 선택하면 켜지고, 다시 선택하면 꺼집니다. 끌 때까지 모든 앱에서 켜져 있습니다. 켜져 있는 동안 각 입력란은 영어로 시작하고, 두 글자부터 키워드, 스니펫, 입력란에 이미 있는 단어가 표시됩니다. Tab으로 삽입합니다. 입력하며 번역과 동시에 켤 수 없습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Segure Shift por um segundo e escolha Modo de programação (ou 2) para ativá-lo, de novo para desativá-lo; ele fica ativo em todos os apps até lá. Enquanto ativo, cada campo começa em inglês e, a partir de duas letras, as linhas oferecem palavras-chave, trechos e palavras que já estão no campo: Tab insere. Não pode ficar ativo junto com Traduzir ao Digitar."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按住 Shift 一秒，選「編碼模式」（或 2）打開，再選一次關閉；在所有 App 裡一直開著，直到關掉。開著時每個輸入框從英文開始，打兩個字母起顯示關鍵字、程式碼片段和輸入框裡已有的詞，Tab 插入。和邊打邊譯不能同時開。"
+          }
+        }
+      }
+    },
     "Horizontal" : {
       "comment" : "横排 — Sources/AllInOneIMECore/AIConfigText.swift",
       "localizations" : {
@@ -17376,7 +18269,7 @@
       }
     },
     "Installed" : {
-      "comment" : "已安装 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "comment" : "已安装 — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -17418,6 +18311,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已安裝"
+          }
+        }
+      }
+    },
+    "Installed coding languages" : {
+      "comment" : "已安装的编程语言 — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installierte Programmiersprachen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lenguajes de programación instalados"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Langages de programmation installés"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "インストール済みのプログラミング言語"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "설치된 프로그래밍 언어"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linguagens de programação instaladas"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已安裝的程式語言"
           }
         }
       }
@@ -18170,6 +19110,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "翻譯語言"
+          }
+        }
+      }
+    },
+    "Last error: " : {
+      "comment" : "上次出错： — Sources/AllInOneIMECore/Suggestions/SuggestionsSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Letzter Fehler: "
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Último error: "
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dernière erreur : "
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "前回のエラー："
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "마지막 오류: "
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Último erro: "
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上次出錯："
           }
         }
       }
@@ -20436,6 +21423,53 @@
         }
       }
     },
+    "No coding languages yet: download the ones you write from the library below." : {
+      "comment" : "还没有安装编程语言：从下面的语言库里下载你写的语言。 — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noch keine Programmiersprachen: Lade die, in denen du schreibst, aus der Bibliothek unten."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aún no hay lenguajes de programación: descarga los que usas desde la biblioteca de abajo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun langage de programmation pour l’instant : téléchargez ceux que vous utilisez depuis la bibliothèque ci-dessous."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プログラミング言語はまだありません。使う言語を下のライブラリからダウンロードしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "아직 프로그래밍 언어가 없습니다. 아래 라이브러리에서 사용하는 언어를 다운로드하세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ainda não há linguagens de programação: baixe as que você usa na biblioteca abaixo."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒有安裝程式語言：從下面的語言庫裡下載你寫的語言。"
+          }
+        }
+      }
+    },
     "No contact found; or type a full phone number or email" : {
       "comment" : "没有找到联系人；也可以输入完整的手机号或邮箱 — Sources/AllInOneIMECore/Session/SessionTasks.swift",
       "localizations" : {
@@ -21467,6 +22501,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "~/.aws 中沒有這個 profile"
+          }
+        }
+      }
+    },
+    "No suggestions" : {
+      "comment" : "不显示建议 — Sources/AllInOneIMECore/Settings/SettingsSchema+Apps.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Vorschläge"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sin sugerencias"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pas de suggestions"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "候補なし"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "제안 없음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sem sugestões"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不顯示建議"
           }
         }
       }
@@ -23586,6 +24667,53 @@
         }
       }
     },
+    "On: choose it again to turn it off" : {
+      "comment" : "已开：再选一次就关 — Sources/AllInOneIMECore/Session/InputSession+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "An: zum Ausschalten noch einmal wählen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activado: elígelo otra vez para desactivarlo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activé : choisissez-le à nouveau pour le désactiver"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オン：もう一度選ぶとオフ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "켜짐: 다시 선택하면 꺼집니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ativado: escolha de novo para desativar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已開：再選一次就關"
+          }
+        }
+      }
+    },
     "Once a day, in the background; a new version is mentioned here and in the menu bar panel, and only installed when you click Update." : {
       "comment" : "每天在后台看一次有没有新版本，有就在这里和菜单栏面板里提一句；只有你点「更新」才会安装。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
@@ -23676,6 +24804,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "儲存後，在任何文字欄位開頭輸入 @ 加上它的名稱即可使用，就像 @improve。"
+          }
+        }
+      }
+    },
+    "once the whole number is typed" : {
+      "comment" : "打完整个号码后 — Sources/AllInOneIMECore/Suggestions/SuggestionsSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sobald die ganze Nummer getippt ist"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "una vez escrito el número completo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "une fois le numéro entier tapé"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "番号をすべて入力したら"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "번호를 모두 입력하면"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "depois de digitar o número inteiro"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打完整個號碼後"
           }
         }
       }
@@ -25049,6 +26224,53 @@
         }
       }
     },
+    "Paused (failed in a row): " : {
+      "comment" : "已暂停（连续失败）： — Sources/AllInOneIMECore/Suggestions/SuggestionsSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pausiert (mehrmals hintereinander fehlgeschlagen): "
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En pausa (falló varias veces seguidas): "
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En pause (échecs à la suite) : "
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一時停止（連続して失敗）："
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "일시 중지(연속 실패): "
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pausado (falhou várias vezes seguidas): "
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已暫停（連續失敗）："
+          }
+        }
+      }
+    },
     "Payment card numbers" : {
       "comment" : "银行卡号 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
@@ -25609,6 +26831,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "外掛"
+          }
+        }
+      }
+    },
+    "Plugins' completions (GitHub issues after #, say) and coding mode's rows, in the candidate panel; Tab inserts. Turn each plugin's on first, in Plugins." : {
+      "comment" : "插件的补全（比如 # 后面的 GitHub issue）和编码模式的行，在候选框里显示，按 Tab 插入。每个插件的补全要先在「插件」里打开。 — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vervollständigungen von Plug-ins (etwa GitHub-Issues nach #) und die Zeilen des Programmiermodus, im Kandidatenfenster; Tab fügt ein. Schalte die jedes Plug-ins zuerst unter „Plug-ins“ ein."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las sugerencias de los plugins (por ejemplo, issues de GitHub tras #) y las filas del modo de programación, en el panel de candidatos; Tab inserta. Activa primero las de cada plugin en Plugins."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les complétions des plug-ins (par exemple les issues GitHub après #) et les lignes du mode programmation, dans le panneau des candidats ; Tab insère. Activez d’abord celles de chaque plug-in dans Plug-ins."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プラグインの補完（例：# の後の GitHub issue）とコーディングモードの候補を候補ウインドウに表示します。Tab で挿入。各プラグインの補完は先に「プラグイン」でオンにしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "플러그인의 자동 완성(예: # 뒤의 GitHub 이슈)과 코딩 모드의 항목을 후보 창에 표시합니다. Tab으로 삽입합니다. 각 플러그인의 자동 완성은 먼저 플러그인에서 켜세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "As sugestões dos plug-ins (issues do GitHub depois de #, por exemplo) e as linhas do modo de programação, no painel de candidatos; Tab insere. Ative primeiro as de cada plug-in em Plug-ins."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "外掛的補全（比如 # 後面的 GitHub issue）和編碼模式的行，在候選框裡顯示，按 Tab 插入。每個外掛的補全要先在「外掛」裡打開。"
           }
         }
       }
@@ -27588,6 +28857,53 @@
         }
       }
     },
+    "refreshed " : {
+      "comment" : "更新于  — Sources/AllInOneIMECore/Suggestions/SuggestionsSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "aktualisiert "
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "actualizado "
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "actualisé "
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新："
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "업데이트 "
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "atualizado "
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新於 "
+          }
+        }
+      }
+    },
     "Region" : {
       "comment" : "区域 — Sources/AllInOneIMECore/AIConfigText.swift",
       "localizations" : {
@@ -28571,6 +29887,100 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "透過 %@ 的角色"
+          }
+        }
+      }
+    },
+    "Rows %@ from the plugin" : {
+      "comment" : "%@显示插件的行 — Sources/AllInOneIMECore/Suggestions/SuggestionsSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zeilen %@ vom Plug-in"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filas %@ del plugin"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lignes %@ du plug-in"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@プラグインの候補を表示"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 플러그인의 항목 표시"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linhas %@ do plug-in"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@顯示外掛的行"
+          }
+        }
+      }
+    },
+    "Rows %@ from the plugin's list (refreshed every %@, while you use it)" : {
+      "comment" : "%@显示插件列表里的行（每 %@更新一次，只在你用到时） — Sources/AllInOneIMECore/Suggestions/SuggestionsSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zeilen %@ aus der Liste des Plug-ins (alle %@ aktualisiert, solange du es nutzt)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filas %@ de la lista del plugin (se actualiza cada %@ mientras lo usas)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lignes %@ depuis la liste du plug-in (actualisée toutes les %@, tant que vous l’utilisez)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@プラグインのリストから候補を表示（使っている間、%@ごとに更新）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 플러그인 목록의 항목 표시(사용하는 동안 %@마다 업데이트)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linhas %@ da lista do plug-in (atualizada a cada %@, enquanto você usa)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@顯示外掛列表裡的行（每 %@更新一次，只在你用到時）"
           }
         }
       }
@@ -31819,6 +33229,100 @@
         }
       }
     },
+    "sends what you type after %@ to %@" : {
+      "comment" : "会把你在 %@ 后面打的字发给 %@ — Sources/AllInOneIMECore/Suggestions/SuggestionsSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sendet, was du nach %@ tippst, an %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "envía lo que escribes tras %@ a %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "envoie ce que vous tapez après %@ à %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ の後に入力した文字を %@ に送ります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 뒤에 입력한 내용을 %@에 보냅니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "envia o que você digita depois de %@ para %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "會把你在 %@ 後面打的字發給 %@"
+          }
+        }
+      }
+    },
+    "sends what you type to %@" : {
+      "comment" : "会把你打的号码发给 %@ — Sources/AllInOneIMECore/Suggestions/SuggestionsSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sendet, was du tippst, an %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "envía lo que escribes a %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "envoie ce que vous tapez à %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "入力した番号を %@ に送ります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "입력한 번호를 %@에 보냅니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "envia o que você digita para %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "會把你打的號碼發給 %@"
+          }
+        }
+      }
+    },
     "Sent to " : {
       "comment" : "已发送给  — Sources/AllInOneIMECore/Session/InputSession.swift",
       "localizations" : {
@@ -32614,6 +34118,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已登入"
+          }
+        }
+      }
+    },
+    "snippet" : {
+      "comment" : "代码片段 — Sources/AllInOneIMECore/Suggestions/SuggestionRows.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Snippet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "fragmento"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "extrait"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スニペット"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "스니펫"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "trecho"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "程式碼片段"
           }
         }
       }
@@ -34205,6 +35756,53 @@
         }
       }
     },
+    "Suggestions" : {
+      "comment" : "建议 — Sources/AllInOneIMECore/Settings/SettingsSchema+Apps.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vorschläge"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sugerencias"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suggestions"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "候補"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "제안"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sugestões"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建議"
+          }
+        }
+      }
+    },
     "Sync through iCloud" : {
       "comment" : "通过 iCloud 同步 — Sources/AllInOneIMECore/ICloudSyncDoctor.swift",
       "localizations" : {
@@ -34436,6 +36034,147 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tab 接受 · Esc 不要"
+          }
+        }
+      }
+    },
+    "Tab completes what they share" : {
+      "comment" : "Tab 补全它们共同的开头 — Sources/AllInOneIMECore/Session/InputSession+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab vervollständigt das Gemeinsame"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab completa lo que comparten"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab complète ce qu’elles ont en commun"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab で共通部分を補完"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab으로 공통 부분 완성"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab completa o que elas têm em comum"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab 補全它們共同的開頭"
+          }
+        }
+      }
+    },
+    "Tab inserts · ↑↓ %@ to pick · Esc hides" : {
+      "comment" : "Tab 插入 · ↑↓ %@ 选择 · Esc 隐藏 — Sources/AllInOneIMECore/Session/InputSession+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab fügt ein · ↑↓ %@ zum Wählen · Esc blendet aus"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab inserta · ↑↓ %@ para elegir · Esc oculta"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab insère · ↑↓ %@ pour choisir · Échap masque"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab で挿入 · ↑↓ %@ で選択 · Esc で隠す"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab 삽입 · ↑↓ %@ 선택 · Esc 숨기기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab insere · ↑↓ %@ para escolher · Esc oculta"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab 插入 · ↑↓ %@ 選擇 · Esc 隱藏"
+          }
+        }
+      }
+    },
+    "Tab inserts the first row" : {
+      "comment" : "Tab 插入第一行 — Sources/AllInOneIMECore/Session/InputSession+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab fügt die erste Zeile ein"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab inserta la primera fila"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab insère la première ligne"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab で最初の候補を挿入"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab으로 첫 번째 항목 삽입"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab insere a primeira linha"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab 插入第一行"
           }
         }
       }
@@ -36884,6 +38623,336 @@
         }
       }
     },
+    "the plugin" : {
+      "comment" : "插件 — Sources/AllInOneIMECore/Suggestions/SuggestionsSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "das Plug-in"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "el plugin"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "le plug-in"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プラグイン"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "플러그인"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "o plug-in"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "外掛"
+          }
+        }
+      }
+    },
+    "The plugin changed its hosts, its live query or its script since you turned this on: turn it on again" : {
+      "comment" : "插件更新后改了联网的主机、实时查询或脚本：要再打开一次 — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Plug-in hat seit dem Einschalten seine Hosts, seine Live-Abfrage oder sein Skript geändert: Schalte es erneut ein"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El plugin cambió sus hosts, su consulta en vivo o su script desde que lo activaste: actívalo de nuevo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le plug-in a changé ses hôtes, sa recherche en direct ou son script depuis que vous l’avez activé : réactivez-le"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オンにした後でプラグインの接続先、ライブ検索、スクリプトが変わりました。もう一度オンにしてください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "켠 이후 플러그인의 호스트, 실시간 조회 또는 스크립트가 바뀌었습니다. 다시 켜세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O plug-in mudou seus hosts, sua consulta ao vivo ou seu script desde que você o ativou: ative de novo"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "外掛更新後改了連網的主機、即時查詢或腳本：要再打開一次"
+          }
+        }
+      }
+    },
+    "The plugin changed its hosts, its prefix, its live query or its script since you turned this on: turn it on again" : {
+      "comment" : "插件更新后改了联网的主机、前缀、实时查询或脚本：要再打开一次 — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Plug-in hat seit dem Einschalten seine Hosts, sein Präfix, seine Live-Abfrage oder sein Skript geändert: Schalte es erneut ein"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El plugin cambió sus hosts, su prefijo, su consulta en vivo o su script desde que lo activaste: actívalo de nuevo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le plug-in a changé ses hôtes, son préfixe, sa recherche en direct ou son script depuis que vous l’avez activé : réactivez-le"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オンにした後でプラグインの接続先、プレフィックス、ライブ検索、スクリプトが変わりました。もう一度オンにしてください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "켠 이후 플러그인의 호스트, 접두어, 실시간 조회 또는 스크립트가 바뀌었습니다. 다시 켜세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O plug-in mudou seus hosts, seu prefixo, sua consulta ao vivo ou seu script desde que você o ativou: ative de novo"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "外掛更新後改了連網的主機、前綴、即時查詢或腳本：要再打開一次"
+          }
+        }
+      }
+    },
+    "The plugin didn't return a JSON object with an items list" : {
+      "comment" : "插件返回的不是带 items 列表的 JSON 对象 — Sources/AllInOneIMECore/Suggestions/CompletionText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Plug-in hat kein JSON-Objekt mit einer items-Liste geliefert"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El plugin no devolvió un objeto JSON con una lista items"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le plug-in n’a pas renvoyé d’objet JSON avec une liste items"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プラグインが items リストを持つ JSON オブジェクトを返しませんでした"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "플러그인이 items 목록이 있는 JSON 객체를 반환하지 않았습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O plug-in não retornou um objeto JSON com uma lista items"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "外掛回傳的不是帶 items 列表的 JSON 物件"
+          }
+        }
+      }
+    },
+    "The plugin failed" : {
+      "comment" : "插件出错了 — Sources/AllInOneIMECore/Session/InputSession+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Plug-in ist fehlgeschlagen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El plugin falló"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le plug-in a échoué"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プラグインでエラーが起きました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "플러그인 오류"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O plug-in falhou"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "外掛出錯了"
+          }
+        }
+      }
+    },
+    "The plugin's list has more than 20,000 items: not used" : {
+      "comment" : "插件返回的列表超过 20,000 项，没有用 — Sources/AllInOneIMECore/Suggestions/CompletionText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Liste des Plug-ins hat mehr als 20.000 Einträge: nicht verwendet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La lista del plugin tiene más de 20.000 elementos: no se usa"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La liste du plug-in a plus de 20 000 éléments : non utilisée"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プラグインのリストが 20,000 件を超えています。使いません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "플러그인 목록이 20,000개를 넘습니다. 사용하지 않습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A lista do plug-in tem mais de 20.000 itens: não usada"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "外掛回傳的列表超過 20,000 項，沒有用"
+          }
+        }
+      }
+    },
+    "The plugin's list is larger than 4 MB: not used" : {
+      "comment" : "插件返回的列表超过 4 MB，没有用 — Sources/AllInOneIMECore/Suggestions/CompletionText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Liste des Plug-ins ist größer als 4 MB: nicht verwendet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La lista del plugin ocupa más de 4 MB: no se usa"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La liste du plug-in dépasse 4 Mo : non utilisée"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プラグインのリストが 4 MB を超えています。使いません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "플러그인 목록이 4MB를 넘습니다. 사용하지 않습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A lista do plug-in tem mais de 4 MB: não usada"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "外掛回傳的列表超過 4 MB，沒有用"
+          }
+        }
+      }
+    },
     "The previous mini" : {
       "comment" : "上一代 mini — Sources/AllInOneIMECore/Settings/SuggestedModel.swift",
       "localizations" : {
@@ -38577,6 +40646,53 @@
         }
       }
     },
+    "Translate as You Type" : {
+      "comment" : "边打边译 — Sources/AllInOneIMECore/Session/InputSession+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beim Tippen übersetzen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Traducir al escribir"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Traduire en tapant"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "入力しながら翻訳"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "입력하며 번역"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Traduzir ao Digitar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "邊打邊譯"
+          }
+        }
+      }
+    },
     "Translate into your languages; with @improve, both" : {
       "comment" : "翻译成你加的语言；和 @improve 一起写就翻译加改写 — Sources/AllInOneIMECore/UIText+Names.swift",
       "localizations" : {
@@ -39759,7 +41875,7 @@
       }
     },
     "Update (from %@)" : {
-      "comment" : "更新（当前 %@） — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "comment" : "更新（当前 %@） — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -40318,6 +42434,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "只有一種時，Shift 不會切換"
+          }
+        }
+      }
+    },
+    "Words in this field" : {
+      "comment" : "这个字段里的词 — Sources/AllInOneIMECore/Suggestions/SuggestionRows.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wörter in diesem Feld"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Palabras de este campo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mots de ce champ"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この入力欄の単語"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 입력란의 단어"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Palavras deste campo"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個欄位裡的詞"
           }
         }
       }

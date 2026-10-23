@@ -19,8 +19,9 @@ public enum SessionEvent: Sendable {
     case scroll(Int)
     /// The clipboard as `SessionOutput.readClipboard` asked for it, for the draft's request `id`.
     case clipboard(ClipboardContent, id: Int)
-    /// What the field says as `SessionOutput.readField` asked for it (autocomplete's pause `id`): whether secure input is
-    /// on, the selection, the text around the caret (what wasn't read, `FieldContext.read`, counts as unknown).
+    /// What the field says as `SessionOutput.readField` asked for it (its `id`: autocomplete's pause, or below 0 coding
+    /// mode's): whether secure input is on, the selection, the text around the caret (what wasn't read,
+    /// `FieldContext.read`, counts as unknown).
     case field(FieldContext, id: Int)
     /// What the session's work answers (`SessionTasks`).
     case task(TaskID, TaskUpdate)
@@ -87,8 +88,9 @@ public enum SessionOutput: Equatable, Sendable {
     /// `SessionEvent.timer(id)` after `seconds`.
     case startTimer(TimerID, after: TimeInterval)
     /// Read what the field says now (secure input, the selection, the text around the caret: up to
-    /// `Autocomplete.beforeLimit` characters before it and `Autocomplete.afterLimit` after it), never during secure
-    /// input, and hand it back as `SessionEvent.field` with `id`. A shell that can't read it answers with nothing read.
+    /// `Autocomplete.beforeLimit` characters before it and `Autocomplete.afterLimit` after it; for an `id` below 0, coding
+    /// mode's words once typing paused, `ReplyContext.Limits.fieldBefore` and `fieldAfter`), never during secure input,
+    /// and hand it back as `SessionEvent.field` with `id`. A shell that can't read it answers with nothing read.
     case readField(id: Int)
     /// Autocomplete's suggestion (`Autocomplete`): `text` in gray right after the caret (where the caret can't be placed,
     /// a line of the candidate panel), until the next one; nil: none. Shown again as the caret moves (typed along).
@@ -121,11 +123,25 @@ public enum TimerID: Hashable, Sendable {
     case voiceHold(Int)
     /// Autocomplete's pause is over (`Autocomplete.Route.pause`): its suggestion may be asked for.
     case autocomplete(Int)
+    /// Suggestions' (`InputSession+Suggestions.swift`): Shift held long enough for the chooser, a pause before a query
+    /// is asked again, a list's refresh (or its back-off or pause) due.
+    case suggestions(SuggestionsTimer)
+}
+
+/// A timer of suggestions' (`TimerID.suggestions`), counted: an older one of a kind does nothing.
+public enum SuggestionsTimer: Hashable, Sendable {
+    /// The long press of Shift half way (its hint), then long enough for the chooser.
+    case chooserHint(Int)
+    case chooser(Int)
+    case query(Int)
+    case refresh(Int)
+    /// A pause in typing in coding mode: the field's words read again (`SessionOutput.readField`).
+    case words(Int)
 }
 
 /// The modifier keys changed: `key` the one that did (`.modifier(kind, side)`), `modifiers` those down now with their
-/// sides, `timestamp` when (seconds), `late` how long ago that was when the shell got it (the pointer is asked later:
-/// it looks back that much further).
+/// sides (fn as `.function`, where there is one: only the long press of Shift minds it), `timestamp` when (seconds),
+/// `late` how long ago that was when the shell got it (the pointer is asked later: it looks back that much further).
 public struct ModifierChange: Equatable, Sendable {
     public var key: Key
     public var modifiers: Modifiers

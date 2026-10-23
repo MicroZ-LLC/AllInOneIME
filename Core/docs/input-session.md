@@ -75,6 +75,26 @@ its start. What is kept across fields and launches (the suggestions, what is lea
 `SessionServices.autocomplete` (`AutocompleteStore`); the time it goes by, `SessionServices.uptime`. The shell draws the
 suggestion and reads the field; the Windows engine, which doesn't run the session yet, has neither.
 
+## Suggestions
+
+Suggestions (`InputSession+Suggestions.swift`, Suggestions/) are the session's too, around the composer: the token typed
+into the field since a boundary (what went in with each key: the app's typing of it, the input method's commits; a
+space, a mark, ⏎, an arrow, a click, another field end it), the rows its sources have for it (plugins' lists and live
+queries, coding mode's packs and the field's own words, `FieldContext.text` read with the token's first key), drawn as the
+candidate panel's rows (`panel`, the session's own while nothing is composed), the keys they take per app class
+(`SuggestionsAppClass`: Tab, ↓ ↑, ⏎ once moved, Esc in ordinary apps; Tab only in chat apps; the rows' common start in
+terminals and code editors), and the chooser a long press of Shift opens (`TranslateMode.ShiftHold` on the session's
+clock; Translate as You Type and coding mode, which the shell keeps: `SuggestionsServices.setTranslateAsYouType`,
+`setCodingMode`). What every field of a launch shares is `SuggestionsServices.store` (`SuggestionsStore`: each source's
+list, its failures and pause, its queries' answers; a 0600 cache file per source in `cacheFolder`). Plugins' scripts run
+off the session's thread (`SuggestionsServices.runtime`, the shell's `PluginCompletionRuntime`, on Dispatch's threads);
+what they answer is left in the store and every field with the focus is told (`TaskUpdate.completionsAnswered`), so a
+list loaded for one field shows in the next. Its timers are `TimerID.suggestions` (the chooser's press, a query's pause,
+a list's refresh, back-off or pause); its rows hold the caret: no ghost text while they show, none in coding mode
+(`autocompleteMayRun`). Where no rows may show (no source enabled, coding mode off), a key asks nothing of the pointer
+for the token, as autocomplete off does nothing for a key. The Windows engine, which doesn't run the session yet, shows
+no rows.
+
 ## The candidate panel
 
 The `panel` output (and `InputSession.panelModel()`) is a `PanelModel` (`Session/PanelModel.swift`), which

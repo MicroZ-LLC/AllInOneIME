@@ -60,16 +60,11 @@ extension SelfTest {
     static func replay(_ events: [Reached], _ controller: AllInOneIMEInputController, _ client: FakeTextClient,
                        after: TimeInterval, watch: () -> Void = {}) {
         let start = ProcessInfo.processInfo.systemUptime
-        var shiftDown = false
-        let saved = (TranslateModeShared.shiftHeld, TranslateModeShared.shiftDown)
-        (TranslateModeShared.shiftHeld, TranslateModeShared.shiftDown) = ({ shiftDown }, { shiftDown })
-        defer { (TranslateModeShared.shiftHeld, TranslateModeShared.shiftDown) = saved }
         for reached in events {
             _ = pump(timeout: start + reached.at - ProcessInfo.processInfo.systemUptime) { watch(); return false }
             switch reached.kind {
             case .flagsChanged, .keyDown:
                 let flags = NSEvent.ModifierFlags(rawValue: reached.flags)
-                if reached.kind == .flagsChanged { shiftDown = flags.contains(.shift) }
                 guard let event = NSEvent.keyEvent(
                     with: reached.kind == .keyDown ? .keyDown : .flagsChanged, location: .zero, modifierFlags: flags,
                     timestamp: start + reached.timestamp, windowNumber: 0, context: nil, characters: reached.characters,
@@ -156,31 +151,31 @@ extension SelfTest {
         REC 1.7000 end
         """
 
-    /// Translate as You Type's long press in Slack (an Electron app: every modifier change twice): a long press turns it
-    /// on and, again, off; a tap switches the input language once and toggles nothing, with the page busy too (the
-    /// tap's copies after its release); Shift held with a capital, or with the pointer used (a Shift-click), toggles
-    /// nothing. A tap of ⌥, the action key, acts once. The controller drops a copy before the composer and the long
+    /// The long press of Shift in Slack (an Electron app: every modifier change twice): it opens the chooser, where 1
+    /// turns Translate as You Type on and, again, off; a tap switches the input language once and opens nothing, with the
+    /// page busy too (the tap's copies after its release); Shift held with a capital, or with the pointer used (a
+    /// Shift-click), opens nothing. A tap of ⌥, the action key, acts once. The controller drops a copy before the composer and the long
     /// press see it, in any text field (`checkCopiesDroppedFirst`). Then the live harness, when there is one.
     static func testShiftHoldInElectron(_ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
-        section("Translate as You Type's long press of Shift in an Electron app (Slack)", needs: .composing)
+        section("The long press of Shift in an Electron app (Slack): the chooser", needs: .composing)
         let saved = (settings: settings, pointer: TranslateModeShared.pointer, stickyKeys: TranslateModeShared.stickyKeys,
-                     defaults: TranslateModeShared.defaults, pointerUsed: controller.services.pointerUsedWithin)
+                     defaults: TranslateModeShared.defaults, pointerUsed: controller.services.pointerUsedWithin,
+                     shiftHeld: TranslateModeShared.shiftHeld)
         let suite = "com.aipinyin.selftest.translatemode.electron"
         UserDefaults.standard.removePersistentDomain(forName: suite)
         TranslateModeShared.defaults = UserDefaults(suiteName: suite) ?? .standard
-        (TranslateModeShared.pointer, TranslateModeShared.stickyKeys) = ({ .zero }, { false })
+        // The recorded presses' Shift down as the system has it while the timers run.
+        (TranslateModeShared.pointer, TranslateModeShared.stickyKeys, TranslateModeShared.shiftHeld) = ({ .zero }, { false }, { true })
         // Everything as it was found: off, no press timed, no notice, the self-test's own app again.
         defer {
             TranslateModeShared.state = TranslateMode.State()
-            TranslateModeShared.hold.resync(shiftDown: false)
-            TranslateModeShared.holdToken += 1
-            (TranslateModeShared.hint, TranslateModeShared.hintField) = (nil, nil)
             controller.perform(controller.composer.setTranslateMode(nil), client: client)
             controller.commitComposition(client)
             controller.hideTranslateChip()
             MenuBarIcon.shared.setTranslating(false)
             (settings, TranslateModeShared.pointer, TranslateModeShared.stickyKeys) = (saved.settings, saved.pointer, saved.stickyKeys)
             (TranslateModeShared.defaults, controller.services.pointerUsedWithin) = (saved.defaults, saved.pointerUsed)
+            TranslateModeShared.shiftHeld = saved.shiftHeld
             UserDefaults.standard.removePersistentDomain(forName: suite)
             client.bundleIDOverride = nil
             controller.activateServer(client)
@@ -205,23 +200,25 @@ extension SelfTest {
     static func checkElectronRecordings(hold: [Reached], tap: [Reached], busyTap: [Reached], letter: [Reached],
                                         optionTap: [Reached], from: String,
                                         _ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
-        let onHint = tr("继续按住 → 边打边译", "Keep holding → Translate as You Type")
         let shifts = hold.filter { $0.kind == .flagsChanged }
         check(shifts.count == 4 && shifts[0].timestamp == shifts[1].timestamp && shifts[0].flags == shifts[1].flags,
               "\(from): Shift down and up each reach the input method twice, the same event (\(shifts.map { String(format: "%.3f", $0.at) }))")
-        // Held: the hint at 0.5 s, then on at 1.0 s, the hint seen while it's held.
-        var hinted = false
-        replay(hold, controller, client, after: 0.2) { hinted = hinted || controller.notice == onHint }
-        check(hinted && TranslateModeShared.state.isOn && controller.composer.translateMode?.target == .english
+        // Held: the chooser at 1.0 s; 1 turns Translate as You Type on.
+        var opened = false
+        replay(hold, controller, client, after: 0.2) { opened = opened || chooserIsOpen(controller) }
+        if chooserIsOpen(controller) { press(controller, client, "1", code: 0x12) }
+        check(opened && TranslateModeShared.state.isOn && controller.composer.translateMode?.target == .english
               && controller.composer.inputLanguage == .chinese,
-              "\(from): a long press of Shift in Slack shows the hint, then turns Translate as You Type on (\(controller.notice ?? "-"))")
+              "\(from): a long press of Shift in Slack opens the chooser, 1 turns Translate as You Type on (\(controller.notice ?? "-"))")
         replay(hold, controller, client, after: 0.2)
+        if chooserIsOpen(controller) { press(controller, client, "1", code: 0x12) }
         check(!TranslateModeShared.state.isOn && controller.composer.translateMode == nil,
-              "\(from): …and a long press again turns it off (\(controller.notice ?? "-"))")
+              "\(from): …and a long press again, 1, turns it off (\(controller.notice ?? "-"))")
         if let notice = controller.notice { controller.endNotice(notice) }
-        // A tap: the input language switched once, nothing toggled.
-        replay(tap, controller, client, after: 1.0)
-        check(controller.composer.inputLanguage == .english && !TranslateModeShared.state.isOn,
+        // A tap: the input language switched once, no chooser.
+        var tapOpened = false
+        replay(tap, controller, client, after: 1.0) { tapOpened = tapOpened || chooserIsOpen(controller) }
+        check(controller.composer.inputLanguage == .english && !TranslateModeShared.state.isOn && !tapOpened,
               "\(from): a tap of Shift switches the input language once (\(controller.composer.inputLanguage)) and toggles nothing")
         tapShift(controller, client)
         // The page busy: the tap's down and up come again after its release, and still switch nothing.
@@ -229,21 +226,24 @@ extension SelfTest {
         check(busy.count == 4 && busy[2].timestamp == busy[0].timestamp && busy[2].flags == busy[0].flags
               && busy[3].timestamp == busy[1].timestamp && busy[2].at > busy[1].at,
               "\(from), the page busy: Shift's down and up reach the input method again after the release (\(busy.map { String(format: "%.3f", $0.at) }))")
-        replay(busyTap, controller, client, after: 1.0)
-        check(controller.composer.inputLanguage == .english && !TranslateModeShared.state.isOn,
+        var busyOpened = false
+        replay(busyTap, controller, client, after: 1.0) { busyOpened = busyOpened || chooserIsOpen(controller) }
+        check(controller.composer.inputLanguage == .english && !TranslateModeShared.state.isOn && !busyOpened,
               "\(from), the page busy: a tap of Shift switches the input language once (\(controller.composer.inputLanguage)), not back")
         if controller.composer.inputLanguage == .english { tapShift(controller, client) }
-        // Shift held with a capital typed: nothing turns on.
-        replay(letter, controller, client, after: 0.3)
-        check(!TranslateModeShared.state.isOn, "\(from): Shift held with a capital typed toggles nothing")
+        // Shift held with a capital typed: no chooser.
+        var letterOpened = false
+        replay(letter, controller, client, after: 0.3) { letterOpened = letterOpened || chooserIsOpen(controller) }
+        check(!TranslateModeShared.state.isOn && !letterOpened, "\(from): Shift held with a capital typed opens no chooser")
         controller.commitComposition(client)
         controller.composer.setInputMode(.chinese)
         client.inserted.removeAll()
-        // A Shift-click (the pointer used while Shift is held): nothing turns on.
+        // A Shift-click (the pointer used while Shift is held): no chooser.
         controller.services.pointerUsedWithin = { _ in true }
-        replay(hold, controller, client, after: 0.2)
+        var clickOpened = false
+        replay(hold, controller, client, after: 0.2) { clickOpened = clickOpened || chooserIsOpen(controller) }
         controller.services.pointerUsedWithin = { _ in false }
-        check(!TranslateModeShared.state.isOn, "\(from): a Shift-click held as long toggles nothing")
+        check(!TranslateModeShared.state.isOn && !clickOpened, "\(from): a Shift-click held as long opens no chooser")
         if let notice = controller.notice { controller.endNotice(notice) }
         // A tap of ⌥, the action key, with "@i" typed: it takes the command offered ("@improve "), once.
         let options = optionTap.filter { $0.kind == .flagsChanged }
@@ -264,22 +264,22 @@ extension SelfTest {
         client.inserted.removeAll()
     }
 
-    /// The controller drops a copy before anything sees it (`handleFlagsChanged`): before the composer and before the
-    /// long press, in any text field. A tap with the page busy, then a long press with the tap's copies coming while
-    /// Shift is held: one switch, and Translate as You Type on (the copy of the tap's release, reaching the long press,
-    /// would end the press; reaching the composer, the two copies would switch back). Then Shift+Tab with the page busy:
+    /// The controller drops a copy before anything sees it (`handleFlagsChanged`): before the composer and its long
+    /// press, in any text field. A tap with the page busy, then a long press with the tap's copies coming while Shift is
+    /// held: one switch, and the chooser (the copy of the tap's release, reaching the long press, would end the press;
+    /// reaching the composer, the two copies would switch back). Then Shift+Tab with the page busy:
     /// the focus in the next field before Shift's copies come; there the copy of Shift's down and the release would be a
     /// tap, but the copy is known in every field (the composer of each field its own).
     static func checkCopiesDroppedFirst(_ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
-        let onHint = tr("继续按住 → 边打边译", "Keep holding → Translate as You Type")
-        var hinted = false
+        var opened = false
         replay(reached(in: electronTapThenHoldBusy), controller, client, after: 0.2) {
-            hinted = hinted || controller.notice == onHint
+            opened = opened || chooserIsOpen(controller)
         }
-        check(hinted && TranslateModeShared.state.isOn && controller.composer.inputLanguage == .english,
+        if chooserIsOpen(controller) { press(controller, client, "1", code: 0x12) }
+        check(opened && TranslateModeShared.state.isOn && controller.composer.inputLanguage == .english,
               "a tap with the page busy, then a long press with its copies coming while Shift is held: the input language "
-              + "switched once (\(controller.composer.inputLanguage)) and Translate as You Type on (\(controller.notice ?? "-"))")
-        if TranslateModeShared.state.isOn { replay(reached(in: electronShiftHold), controller, client, after: 0.2) }  // off again
+              + "switched once (\(controller.composer.inputLanguage)) and the chooser, Translate as You Type on (\(controller.notice ?? "-"))")
+        if TranslateModeShared.state.isOn { controller.toggleTranslateMode() }  // off again
         if let notice = controller.notice { controller.endNotice(notice) }
         if controller.composer.inputLanguage == .english { tapShift(controller, client) }
 

@@ -2590,6 +2590,8 @@ enum SelfTest {
         // moved between the login keychain and iCloud Keychain when a section turns sync on).
         APIKeys.keychain = .inMemory()
         ICloudSyncController.shared.keys = nil
+        // Suggestions keep nothing where the user's are (the lists' cache, the rows picked, the coding packs).
+        isolateSuggestions(in: snapshotDirectory)
         // Autocomplete learns and counts in memory, never in the input method's defaults; its cloud question is answered
         // "On This Mac Only" (its own section shows the real one, invisible); its suggestion is drawn invisible, and the
         // user's clicks don't take it down.
@@ -3157,6 +3159,7 @@ enum SelfTest {
         testTranslateMode(controller, client, snapshotDirectory: snapshotDirectory)
         testAutocomplete(controller, client, snapshotDirectory: snapshotDirectory)
         testShiftHoldInElectron(controller, client)
+        testSuggestions(controller, client, snapshotDirectory: snapshotDirectory)
         testRecentQuestions(controller, client, snapshotDirectory: snapshotDirectory)
         testQuestionChat(controller, client, snapshotDirectory: snapshotDirectory)
         testContinueListKeepsAgentsNotInstalled(snapshotDirectory: snapshotDirectory)

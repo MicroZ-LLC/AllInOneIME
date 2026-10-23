@@ -154,6 +154,11 @@ public struct SessionServices {
     public var loadContacts: @Sendable () async -> [Contact]?
     public var messageSender: any MessageSender
 
+    // MARK: Suggestions
+
+    /// Plugin completions and coding mode (`SuggestionsServices`, Suggestions/SuggestionsContract.swift).
+    public var suggestions: SuggestionsServices
+
     public init(converter: Converter = Converter(), loadSettings: @escaping () -> Config = { .default }) {
         self.converter = converter
         self.loadSettings = loadSettings
@@ -219,6 +224,7 @@ public struct SessionServices {
         addReminder = { _ in throw SessionServicesError.unsupported }
         loadContacts = { nil }
         messageSender = NoMessageSender()
+        suggestions = SuggestionsServices()
     }
 
     /// Where a default can't do what was asked.

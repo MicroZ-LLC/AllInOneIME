@@ -8,6 +8,9 @@
 //   swift Scripts/build-packs-index.swift --test-key KEYFILE OUT_DIR ENTRY.json...
 //        signed with a test key instead (KEYFILE: a raw Ed25519 private key, base64; made if missing, and
 //        its public half printed for `AllInOneIME --install-pack … --key`), for a local test server
+//   swift Scripts/build-packs-index.swift [--test-key KEYFILE] --coding OUT_DIR ENTRY.json...
+//        coding-packs.json instead, the coding language packs' index (CodingPackLibrary), from the entries
+//        `make coding-packs` wrote (build/coding-packs/*.json.entry), signed with the same key
 //
 // The archives themselves are not in the repository (too large for git): they are release assets, and
 // each entry's url points there. The app checks the signature before reading packs.json, then each
@@ -26,25 +29,31 @@ if arguments.first == "--test-key", arguments.count > 1 {
     testKeyFile = arguments[1]
     arguments.removeFirst(2)
 }
+// Coding language packs: their own index, entries by language.
+let coding = arguments.first == "--coding"
+if coding { arguments.removeFirst() }
+let indexName = coding ? "coding-packs.json" : "packs.json"
 guard arguments.count >= 2 else {
-    print("usage: build-packs-index.swift [--test-key KEYFILE] OUT_DIR ENTRY.json...")
+    print("usage: build-packs-index.swift [--test-key KEYFILE] [--coding] OUT_DIR ENTRY.json...")
     exit(2)
 }
 let out = URL(fileURLWithPath: arguments[0], isDirectory: true)
 
 var packs: [[String: Any]] = []
 for path in arguments.dropFirst() {
+    let key = coding ? "language" : "id"
     guard let data = FileManager.default.contents(atPath: path),
           let entry = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
-          entry["id"] is String, entry["version"] is String,
+          entry[key] is String, entry["version"] is String, !coding || entry["title"] is String,
           let sha = entry["sha256"] as? String, sha.count == 64, (entry["size"] as? Int ?? 0) > 0,
           let url = entry["url"] as? String, url.hasPrefix("https://") || !url.contains(":") else {
-        print("✗ \(path): not a pack entry (id, version, sha256, size, url)")
+        print("✗ \(path): not a pack entry (\(key), version, sha256, size, url\(coding ? ", title" : ""))")
         exit(1)
     }
     packs.append(entry)
 }
-packs.sort { ($0["id"] as! String, $1["version"] as! String) < ($1["id"] as! String, $0["version"] as! String) }
+let idKey = coding ? "language" : "id"
+packs.sort { ($0[idKey] as! String, $1["version"] as! String) < ($1[idKey] as! String, $0["version"] as! String) }
 
 let privateKey: Curve25519.Signing.PrivateKey
 if let testKeyFile {
@@ -86,6 +95,6 @@ data.append(0x0A)
 let signature = try! privateKey.signature(for: data)
 precondition(privateKey.publicKey.isValidSignature(signature, for: data))
 try! FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
-try! data.write(to: out.appendingPathComponent("packs.json"))
-try! Data((signature.base64EncodedString() + "\n").utf8).write(to: out.appendingPathComponent("packs.json.sig"))
-print("✓ \(out.path)/packs.json: \(packs.count) pack version(s), signed into packs.json.sig")
+try! data.write(to: out.appendingPathComponent(indexName))
+try! Data((signature.base64EncodedString() + "\n").utf8).write(to: out.appendingPathComponent(indexName + ".sig"))
+print("✓ \(out.path)/\(indexName): \(packs.count) pack version(s), signed into \(indexName).sig")

@@ -1,0 +1,5 @@
+{ "language": "javascript", "title": "JavaScript", "version": "1.2.0",
+  "keywords": ["function", "const", "let", "return", "async", "await", "export", "default", "typeof", "instanceof"],
+  "snippets": [
+    { "trigger": "function", "body": "function ${1:name}(${2:args}) {\n  $0\n}", "title": "function" },
+    { "trigger": "console", "body": "console.log($0);" } ] }

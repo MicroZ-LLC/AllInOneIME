@@ -100,6 +100,11 @@ extension SettingsSchema {
         add(toggle(prefix + "translateAlways", tr("总是边打边译", "Always Translate as You Type"), nil, profile.translateAlways == true,
                    platforms: [.mac]),
             to: &fields, set: change { $0.translateAlways = Self.bool($1) ? true : nil })
+        // Suggestions (plugins' completions, coding mode's rows): off here, or as everywhere.
+        let suggestions = config.suggestions != false ? tr("跟全局一样（开）", "Same as everywhere (on)") : tr("跟全局一样（关）", "Same as everywhere (off)")
+        add(choice(prefix + "suggestions", tr("建议", "Suggestions"), value: profile.suggestions == false ? .bool(false) : .null,
+                   choices: [(Choice(value: .null, label: suggestions), nil), (Choice(value: .bool(false), label: tr("关", "Off")), nil)]),
+            to: &fields, set: change { $0.suggestions = $1.bool == false ? false : nil })
         return fields
     }
 
@@ -119,6 +124,7 @@ extension SettingsSchema {
         }
         if profile.noAI == true { parts.append(tr("不用 AI", "No AI")) }
         if platform == .mac, profile.translateAlways == true { parts.append(tr("总是边打边译", "Always Translate as You Type")) }
+        if profile.suggestions == false { parts.append(tr("不显示建议", "No suggestions")) }
         return parts.isEmpty ? tr("和全局设置一样", "Same as everywhere", key: "appProfile.sameAsEverywhere") : parts.joined(separator: " · ")
     }
 
