@@ -67,8 +67,9 @@ extension InputSession {
 
     // MARK: - The sources
 
-    /// The completion sources enabled (`SuggestionsSettings.enabled`) with the hosts, query and script their plugin has
-    /// now (an update that changed one needs enabling again), and active with the settings (`inactiveReason`).
+    /// The completion sources enabled (`SuggestionsSettings.enabled`) with the hosts, query, script and terms (prefix,
+    /// when the query is first asked, how it compares) their plugin has now (an update that changed one needs enabling
+    /// again), and active with the settings (`inactiveReason`).
     func activeSources(_ settings: SuggestionsSettings, plugins: [InstalledPlugin]? = nil) -> [ActiveSource] {
         guard !settings.enabled.isEmpty else { return [] }
         let config = services.loadSettings()
@@ -77,10 +78,8 @@ extension InputSession {
         for plugin in plugins ?? services.plugins(false) where !plugin.manifest.completions.isEmpty {
             let approvals = settings.enabled.filter { $0.plugin == plugin.name }
             guard !approvals.isEmpty, let script = plugin.scriptURL, let sha = store.sha256(of: script) else { continue }
-            let hosts = Set(plugin.manifest.hosts.map { $0.lowercased() })
             for source in plugin.manifest.completions where source.inactiveReason(config) == nil {
-                guard approvals.contains(where: { $0.source == source.name && $0.query == source.query && $0.scriptSHA256 == sha
-                    && Set($0.hosts.map { $0.lowercased() }) == hosts }) else { continue }
+                guard approvals.contains(where: { $0.holds(for: source, hosts: plugin.manifest.hosts, scriptSHA256: sha) }) else { continue }
                 active.append(ActiveSource(plugin: plugin, source: source, key: CompletionSourceKey(plugin: plugin.name, source: source.name)))
             }
         }

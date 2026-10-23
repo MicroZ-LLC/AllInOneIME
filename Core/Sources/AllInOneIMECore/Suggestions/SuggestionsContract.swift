@@ -231,23 +231,43 @@ public protocol CompletionRuntime: Sendable {
 // MARK: - Trust, switches, what is kept (spec 1.4, 1.5, 3)
 
 /// A completion source the user enabled in Settings → Plugins, and what they enabled: the plugin's `hosts`, whether the
-/// source queries, and the SHA-256 (lowercase hex) of its script file. A plugin whose hosts, query or script differ now
-/// needs enabling again: until then the source is off.
+/// source queries, the SHA-256 (lowercase hex) of its script file, and what else its switch said (`terms`). A plugin
+/// whose hosts, query, script or terms differ now needs enabling again: until then the source is off.
 public struct CompletionSourceApproval: Codable, Equatable, Hashable, Sendable {
+    /// What a source's switch says besides its hosts and whether it queries ("sends what you type after # to …"): its
+    /// prefix, how many characters after it before its query is first asked, how it compares.
+    public struct Terms: Codable, Equatable, Hashable, Sendable {
+        public var prefix: String?
+        public var queryMinChars: Int
+        public var compare: CompletionSource.Compare
+
+        public init(_ source: CompletionSource) {
+            prefix = source.prefix
+            queryMinChars = source.queryMinChars
+            compare = source.compare
+        }
+    }
+
     public var plugin: String
     public var source: String
     public var hosts: [String]
     public var query: Bool
     public var scriptSHA256: String
+    /// Nil: not kept (an approval made without them), which holds whatever they are now. Settings always keeps them
+    /// (`init(enabling:of:)`).
+    public var terms: Terms?
 
-    public init(plugin: String, source: String, hosts: [String], query: Bool, scriptSHA256: String) {
+    public init(plugin: String, source: String, hosts: [String], query: Bool, scriptSHA256: String, terms: Terms? = nil) {
         self.plugin = plugin
         self.source = source
         self.hosts = hosts
         self.query = query
         self.scriptSHA256 = scriptSHA256
+        self.terms = terms
     }
 }
+
+extension CompletionSource.Compare: Codable {}
 
 /// The switches suggestions follow, as the shell has them from its settings: the input menu's "Suggestions" (nil: the
 /// default, on once a source is enabled), Settings → Apps' per-app "Suggestions" by app id (absent: the default), the

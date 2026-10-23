@@ -38483,6 +38483,7 @@
     },
     "The plugin changed its hosts, its live query or its script since you turned this on: turn it on again" : {
       "comment" : "插件更新后改了联网的主机、实时查询或脚本：要再打开一次 — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -38524,6 +38525,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "外掛更新後改了連網的主機、即時查詢或腳本：要再打開一次"
+          }
+        }
+      }
+    },
+    "The plugin changed its hosts, its prefix, its live query or its script since you turned this on: turn it on again" : {
+      "comment" : "插件更新后改了联网的主机、前缀、实时查询或脚本：要再打开一次 — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Plug-in hat seit dem Einschalten seine Hosts, sein Präfix, seine Live-Abfrage oder sein Skript geändert: Schalte es erneut ein"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El plugin cambió sus hosts, su prefijo, su consulta en vivo o su script desde que lo activaste: actívalo de nuevo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le plug-in a changé ses hôtes, son préfixe, sa recherche en direct ou son script depuis que vous l’avez activé : réactivez-le"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オンにした後でプラグインの接続先、プレフィックス、ライブ検索、スクリプトが変わりました。もう一度オンにしてください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "켠 이후 플러그인의 호스트, 접두어, 실시간 조회 또는 스크립트가 바뀌었습니다. 다시 켜세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O plug-in mudou seus hosts, seu prefixo, sua consulta ao vivo ou seu script desde que você o ativou: ative de novo"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "外掛更新後改了連網的主機、前綴、即時查詢或腳本：要再打開一次"
           }
         }
       }

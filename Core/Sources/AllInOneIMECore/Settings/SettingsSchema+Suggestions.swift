@@ -17,8 +17,8 @@ extension SettingsSchema {
             if let reason = source.inactiveReason(config) {
                 field.status = reason
             } else if approval != nil, !holds {
-                field.status = tr("插件更新后改了联网的主机、实时查询或脚本：要再打开一次",
-                                  "The plugin changed its hosts, its live query or its script since you turned this on: turn it on again")
+                field.status = tr("插件更新后改了联网的主机、前缀、实时查询或脚本：要再打开一次",
+                                  "The plugin changed its hosts, its prefix, its live query or its script since you turned this on: turn it on again")
             } else if holds, let status = suggestionStatuses.first(where: { $0.plugin == plugin.name && $0.source == source.name }) {
                 field.status = status.summary()
             }

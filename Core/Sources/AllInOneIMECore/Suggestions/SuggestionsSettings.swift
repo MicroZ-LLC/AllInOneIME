@@ -23,18 +23,26 @@ extension Config {
 
 extension CompletionSourceApproval {
     /// What enabling `source` of `plugin` approves now: the plugin's hosts, whether the source queries, its script's
-    /// SHA-256. Nil: the plugin has no script to read.
+    /// SHA-256, what else its switch says (its prefix, when its query is first asked, how it compares). Nil: the plugin
+    /// has no script to read.
     public init?(enabling source: CompletionSource, of plugin: InstalledPlugin) {
         guard let script = plugin.scriptURL, let sha = PluginStore.sha256(of: script) else { return nil }
-        self.init(plugin: plugin.name, source: source.name, hosts: plugin.manifest.hosts, query: source.query, scriptSHA256: sha)
+        self.init(plugin: plugin.name, source: source.name, hosts: plugin.manifest.hosts, query: source.query, scriptSHA256: sha,
+                  terms: Terms(source))
     }
 
-    /// Whether it still holds for `source` of `plugin` as they are now: the same hosts (in any order or case), query and
-    /// script. Else the source needs enabling again (spec 1.5).
+    /// Whether it still holds for `source` of `plugin` as they are now: the same hosts (in any order or case), query,
+    /// script and terms. Else the source needs enabling again (spec 1.5).
     public func holds(for source: CompletionSource, of plugin: InstalledPlugin) -> Bool {
-        guard let fresh = CompletionSourceApproval(enabling: source, of: plugin) else { return false }
-        return fresh.query == query && fresh.scriptSHA256 == scriptSHA256
-            && Set(fresh.hosts.map { $0.lowercased() }) == Set(hosts.map { $0.lowercased() })
+        guard let script = plugin.scriptURL, let sha = PluginStore.sha256(of: script) else { return false }
+        return holds(for: source, hosts: plugin.manifest.hosts, scriptSHA256: sha)
+    }
+
+    /// `holds(for:of:)` with the plugin's hosts and its script's SHA-256 as they are now.
+    func holds(for source: CompletionSource, hosts: [String], scriptSHA256 sha: String) -> Bool {
+        self.source == source.name && query == source.query && scriptSHA256 == sha
+            && Set(self.hosts.map { $0.lowercased() }) == Set(hosts.map { $0.lowercased() })
+            && terms.map { $0 == Terms(source) } ?? true
     }
 }
 

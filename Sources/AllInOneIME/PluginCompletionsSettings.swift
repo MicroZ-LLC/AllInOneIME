@@ -5,8 +5,9 @@ import SwiftUI
 // its preferences, under its row (spec suggestions v1, 1.5 and 3).
 
 extension SettingsModel {
-    /// `source` of `plugin` turned on (enabling what it is now: the plugin's hosts, whether it queries, its script) or off,
-    /// and saved; the field being typed in takes it at once (one turned off is forgotten, its cached list deleted).
+    /// `source` of `plugin` turned on (enabling what it is now: the plugin's hosts, whether it queries, its script, its
+    /// prefix and when its query is first asked) or off, and saved; the field being typed in takes it at once (one turned
+    /// off is forgotten, its cached list deleted).
     func setCompletionSource(_ source: CompletionSource, of plugin: InstalledPlugin, enabled: Bool) {
         config.setCompletionSource(source, of: plugin, enabled: enabled)
         save()
@@ -79,7 +80,7 @@ extension SettingsModel {
 /// A plugin's suggestions and preferences, under its row in Settings → Plugins: each completion source with its switch
 /// (off until turned on here), what it does and, for one that queries, what it sends where; how it is doing (its items,
 /// when its list was loaded, its last error) and Refresh Now; one turned on before an update that changed its hosts,
-/// queries or script says it needs turning on again, and one the command trigger shadows says why it can't show. The
+/// prefix, queries or script says it needs turning on again, and one the command trigger shadows says why it can't show. The
 /// completion entries the plugin.json declares that were refused, with why. Its preferences: text in the config file,
 /// passwords in the keychain.
 struct PluginCompletionsView: View {
@@ -131,7 +132,7 @@ struct PluginCompletionsView: View {
     /// can't show, that it changed since it was turned on, or how it is doing.
     @ViewBuilder private func sourceRow(_ source: CompletionSource) -> some View {
         let approval = model.config.approval(of: source, in: plugin)
-        // Turned on before an update that changed its hosts, queries or script: off until turned on again.
+        // Turned on before an update that changed its hosts, prefix, queries or script: off until turned on again.
         let changed = approval.map { !$0.holds(for: source, of: plugin) } ?? false
         let on = approval != nil && !changed
         let title = source.title.text(chinese: UIText.chinese)
@@ -154,8 +155,8 @@ struct PluginCompletionsView: View {
                     Label(reason, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
                 }
                 if changed {
-                    Label(tr("插件更新后变了（联系的网址、查询或脚本），已经关掉：要用的话再打开一次。",
-                             "Changed since you turned it on (its hosts, queries or script), so it's off: turn it on again to use it."),
+                    Label(tr("插件更新后变了（联系的网址、前缀、查询或脚本），已经关掉：要用的话再打开一次。",
+                             "Changed since you turned it on (its hosts, prefix, queries or script), so it's off: turn it on again to use it."),
                           systemImage: "exclamationmark.triangle")
                         .foregroundStyle(.orange)
                 } else if on {

@@ -5988,8 +5988,56 @@
         }
       }
     },
+    "Changed since you turned it on (its hosts, prefix, queries or script), so it's off: turn it on again to use it." : {
+      "comment" : "插件更新后变了（联系的网址、前缀、查询或脚本），已经关掉：要用的话再打开一次。 — Sources/AllInOneIME/PluginCompletionsSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seit dem Einschalten geändert (Hosts, Präfix, Abfragen oder Skript), daher aus: Schalte es wieder ein, um es zu nutzen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cambió desde que lo activaste (sus hosts, prefijo, consultas o script), así que está desactivado: actívalo de nuevo para usarlo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modifié depuis que vous l’avez activé (ses hôtes, son préfixe, ses recherches ou son script) : il est désactivé, réactivez-le pour l’utiliser."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オンにした後で変更されたため（接続先、プレフィックス、検索、スクリプト）オフになっています。使うにはもう一度オンにしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "켠 이후 바뀌어서(호스트, 접두어, 조회 또는 스크립트) 꺼졌습니다. 사용하려면 다시 켜세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mudou desde que você o ativou (hosts, prefixo, consultas ou script), então está desativado: ative de novo para usar."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "外掛更新後變了（連線的網址、前綴、查詢或腳本），已經關掉：要用的話再打開一次。"
+          }
+        }
+      }
+    },
     "Changed since you turned it on (its hosts, queries or script), so it's off: turn it on again to use it." : {
       "comment" : "插件更新后变了（联系的网址、查询或脚本），已经关掉：要用的话再打开一次。 — Sources/AllInOneIME/PluginCompletionsSettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {

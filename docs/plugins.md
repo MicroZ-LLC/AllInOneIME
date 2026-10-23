@@ -205,7 +205,8 @@ input), with the same `fetch` to its `hosts`:
 - Only what wasn't typed goes in: `#12` and the row `#1234` insert `34` and the rest of the template.
 
 The user turns each source on in Settings → Plugins; the switch says what it does and, for a source with `query`, where
-what is typed after the prefix goes. An update that changes `hosts`, `query` or the script needs turning on again.
+what is typed after the prefix goes. An update that changes `hosts`, `query`, the script, or the source's `prefix`,
+`queryMinChars` or `compare` needs turning on again.
 [Core/Plugins/github](../Core/Plugins/github/) is the example.
 
 ## Milestones
