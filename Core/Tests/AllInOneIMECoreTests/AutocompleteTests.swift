@@ -377,8 +377,10 @@ struct AutocompleteTests {
         let back = try JSONDecoder().decode(Config.self, from: JSONEncoder().encode(config))
         #expect(back.autocomplete && back.autocompleteCloud == Autocomplete.Consent(allowed: false, destination: "bedrock default")
                 && back.profile(for: "com.example.app")?.autocomplete == false)
-        let written = try JSONSerialization.jsonObject(with: JSONEncoder().encode(back)) as? [String: Any]
-        #expect(written?["autocompleteCloud"] as? [String: AnyHashable] == ["allowed": false, "destination": "bedrock default"])
+        // As the config file has it, read as JSON values (`AIConfig.encoded`): JSONSerialization's `false` is no `Bool` to
+        // `as?` on Linux (an NSNumber that compares as 0), a JSON value's is on every platform.
+        #expect(AIConfig.encoded(back)["autocompleteCloud"]
+                == .object(["allowed": .bool(false), "destination": .string("bedrock default")]))
         #expect(!AppProfile(autocomplete: false).isEmpty)
         // A value of the wrong type reads as none; so does a yes without where it was about (an early build's): asked again.
         let odd = try JSONDecoder().decode(Config.self, from: Data(#"{"autocomplete": "yes", "autocompleteCloud": "no"}"#.utf8))
