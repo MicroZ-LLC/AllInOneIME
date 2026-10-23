@@ -845,7 +845,6 @@ struct SettingsView: View {
     /// The page shown (Assistant when none is asked for) and what's typed in the sidebar's search field.
     @State private var page: SettingsPage
     @State private var query = ""
-    @State private var commandTriggerEntry = "@"
     /// The input language whose settings the Input page shows.
     @State private var inputTab: Language = .chinese
     /// The language packs and their downloads (Chinese is a download: the app ships English only).
@@ -899,36 +898,27 @@ struct SettingsView: View {
                     }
                 }
             } label: {
-                titled(tr("执行键", "Action key"), Self.actionKeyNote(model.config.actionKey))
+                titled(tr("执行键", "Action key"), Self.actionKeyNote(model.config.actionKey, trigger: model.config.commandTrigger))
             }
             .disabled(!model.canSave)
+            // One of the symbols that type as themselves in every mode (`Config.commandTriggers`): picked, never typed,
+            // so there is nothing to refuse.
             LabeledContent {
-                HStack(spacing: 8) {
-                    TextField("@", text: $commandTriggerEntry)
-                        .frame(width: 48)
-                        .textFieldStyle(.roundedBorder)
-                        .onChange(of: commandTriggerEntry) {
-                            if Config.validCommandTrigger(commandTriggerEntry) {
-                                model.config.commandTrigger = commandTriggerEntry
-                            }
-                        }
-                    if model.config.commandTrigger != "@" || commandTriggerEntry != "@" {
-                        Button(tr("恢复 @", "Use @")) {
-                            commandTriggerEntry = "@"
-                        }
+                Picker("", selection: $model.config.commandTrigger) {
+                    ForEach(Config.commandTriggers, id: \.self) { symbol in
+                        Text(symbol == "@" ? tr("@（默认）", "@ (default)") : symbol)
+                            .font(.body.monospaced())
+                            .tag(symbol)
                     }
                 }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .fixedSize()
             } label: {
                 titled(tr("命令触发符", "Command trigger"),
-                       tr("输入一个符号，例如 @ 或 ~。打在句首打开命令列表。",
-                          "Type one symbol, such as @ or ~, to open commands at the start of a sentence."))
+                       tr("打在句首打开命令列表。", "Typed at the start of a sentence, it opens the commands."))
             }
             .disabled(!model.canSave)
-            // One that typing needs, or not a symbol: said, and the trigger stays the one in use.
-            if let problem = Config.commandTriggerProblem(commandTriggerEntry) {
-                Label(problem.errorDescription ?? "", systemImage: "exclamationmark.triangle")
-                    .foregroundStyle(.red)
-            }
             // Results typed in character by character, like a person typing.
             Toggle(isOn: $model.config.typeOut) {
                 titled(tr("逐字上屏", "Type results out"),
@@ -2016,7 +2006,6 @@ struct SettingsView: View {
         .onChange(of: model.config.voiceInput) { model.save() }
         .onChange(of: model.config.actionKey) { model.save() }
         .onChange(of: model.config.commandTrigger) {
-            commandTriggerEntry = model.config.commandTrigger
             UIText.commandTrigger = model.config.commandTrigger  // the core's text the window shows
             model.save()
         }
@@ -2042,7 +2031,6 @@ struct SettingsView: View {
         .onChange(of: model.config.customCommands) { model.refreshExtensions() }  // a name an extension had may be taken now
         .onChange(of: model.config.notes) { model.refreshNotesFolder() }
         .onAppear {
-            commandTriggerEntry = model.config.commandTrigger
             UIText.commandTrigger = model.config.commandTrigger
             model.refreshPlugins()
             model.refreshExtensions(discover: page == .commands)
@@ -2221,7 +2209,10 @@ struct SettingsView: View {
     static func roundedRate(_ rate: Double) -> Double { TypeOut.rounded(rate: rate) }
 
     /// How the chosen action key works (`UIText.actionKeyNote`).
-    static func actionKeyNote(_ key: ActionKey) -> String { UIText.actionKeyNote(key) }
+    /// With the trigger the window's config has (passed, so the note is drawn again when it changes).
+    static func actionKeyNote(_ key: ActionKey, trigger: String) -> String {
+        UIText.triggered(UIText.actionKeyNote(key), trigger: trigger)
+    }
 
     @ViewBuilder
     private func modelStatus(_ language: Language) -> some View {
