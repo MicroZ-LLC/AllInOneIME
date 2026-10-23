@@ -202,6 +202,21 @@ extension AIConfig {
             case .notUnderstood: return tr("没能把这句话变成设置", "Couldn't turn that into a setting")
             case .notAllowed: return tr("这些请到设置里对应的那一页改", "Change those on their own pages in Settings")
             case .alreadySet: return tr("已经是这样设置的了", "Already set that way")
+            case let .unclearSwitch(key):
+                let name = switchLabel(key)
+                return tr("没看懂要打开还是关闭「\(name)」", "Couldn't tell whether to turn \(name) on or off")
+            case .unclearSetting: return tr("没看懂这句话要改哪项设置", "Couldn't tell which setting that is about")
+            }
+        }
+
+        /// The label of a switch (`Failure.unclearSwitch`).
+        func switchLabel(_ key: Key) -> String {
+            switch key {
+            case let .setting(setting): return label(setting)
+            case .iCloudSync: return iCloudSyncLabel
+            case .autocomplete: return autocompleteLabel
+            case let .app(app, field): return appLabel(app, field)
+            case let .forbidden(path, _): return path
             }
         }
 

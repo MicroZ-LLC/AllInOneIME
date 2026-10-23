@@ -12951,6 +12951,100 @@
         }
       }
     },
+    "Couldn't tell whether to turn %@ on or off" : {
+      "comment" : "没看懂要打开还是关闭「%@」 — Sources/AllInOneIMECore/AIConfigText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unklar, ob %@ ein- oder ausgeschaltet werden soll"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No quedó claro si activar o desactivar %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de savoir s’il faut activer ou désactiver %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ をオンにするかオフにするか分かりませんでした"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@을(를) 켤지 끌지 알 수 없었습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não ficou claro se é para ativar ou desativar %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒看懂要開啟還是關閉「%@」"
+          }
+        }
+      }
+    },
+    "Couldn't tell which setting that is about" : {
+      "comment" : "没看懂这句话要改哪项设置 — Sources/AllInOneIMECore/AIConfigText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unklar, um welche Einstellung es geht"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No quedó claro de qué ajuste se trata"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de savoir de quel réglage il s’agit"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "どの設定のことか分かりませんでした"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "어떤 설정에 관한 것인지 알 수 없었습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não ficou claro de qual ajuste se trata"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒看懂這句話要改哪項設定"
+          }
+        }
+      }
+    },
     "Couldn't turn that into a setting" : {
       "comment" : "没能把这句话变成设置 — Sources/AllInOneIMECore/AIConfigText.swift",
       "localizations" : {

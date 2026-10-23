@@ -494,6 +494,132 @@ struct AutocompleteTests {
         #expect(prompt.contains("autocomplete: true or false"))
     }
 
+    /// Sentences that turn Autocomplete on, and off, in the interface's languages, with the usual words for it.
+    static let turnedOn = ["我要把 auto complete 打开", "打开续写", "开启自动补全", "启用自动联想", "把续写开了", "turn on autocomplete",
+                           "I want auto complete on", "enable auto-complete", "打開續寫", "オートコンプリートをオンにして", "자동 완성 켜 줘",
+                           "Autovervollständigen einschalten", "Active la complétion automatique", "Activa el autocompletado",
+                           "Ative o autocompletar"]
+    static let turnedOff = ["我要把 auto complete 关闭", "关闭续写", "关掉自动补全", "把自动联想关了", "turn off autocomplete",
+                            "disable auto-complete", "Autocomplete off", "關閉續寫", "オートコンプリートを無効にして", "자동 완성 꺼 줘",
+                            "Autovervollständigung ausschalten", "Désactive la complétion automatique", "Desactiva el autocompletado",
+                            "Desligue o autocompletar"]
+
+    /// The bug as reported: "我要把 auto complete 关闭" and "我要把 auto complete 打开" both said "Already set that way", the
+    /// on-device model answering with the setting as it was (on macOS 27.2; with nothing, or another app's settings, too).
+    /// A sentence that only turns Autocomplete on or off is done as it says, whatever the model would answer: it isn't
+    /// asked.
+    @Test func aSentenceThatOnlyTurnsItOnOrOffIsDoneAsItSays() async throws {
+        for (sentences, on) in [(Self.turnedOn, true), (Self.turnedOff, false)] {
+            for sentence in sentences {
+                for now in [false, true] {
+                    let model = AIConfigTests.GuidedStub(answer: #"{"changes": [{"key": "autocomplete", "value": \#(now)}]}"#)
+                    var config = Config.default
+                    config.autocomplete = now
+                    let answer = try await AIConfigService(client: ChatClient(apple: model)).ask(sentence, context: .init(config: config))
+                    let env = AIConfig.Environment(chinese: true, typedText: sentence)
+                    let preview = AIConfig.preview(try AIConfig.parse(answer.text), config: config, environment: env)
+                    if on == now {
+                        #expect(preview == .failure(.alreadySet), "“\(sentence)”, now \(now): \(preview)")
+                    } else {
+                        #expect((try? preview.get())?.edits == [.autocomplete(on)], "“\(sentence)”, now \(now): \(preview)")
+                    }
+                    #expect(model.schemas.isEmpty, "“\(sentence)”: the model was asked")
+                }
+            }
+        }
+    }
+
+    /// A sentence that says more goes to the model: Autocomplete is as the sentence turns it whatever the model answered
+    /// for it (the other way, or nothing, its note about that left out), the rest as the model answered.
+    @Test func aSentenceThatSaysMoreTurnsItAsItSaysToo() async throws {
+        var config = Config.default
+        config.candidateLayout = .horizontal
+        let column = #"{"key": "candidateLayout", "value": "vertical"}"#
+        for (sentence, on, answer) in [
+            ("打开续写，候选竖排", true, #"{"changes": [\#(column), {"key": "autocomplete", "value": false}], "note": "续写已经关了"}"#),
+            ("turn on autocomplete and put the candidates in a column", true, #"{"changes": [\#(column)]}"#),
+            ("关闭自动补全，候选竖排", false, #"{"changes": [\#(column), {"key": "autocomplete", "value": true}], "note": "续写已经开了"}"#),
+        ] {
+            config.autocomplete = !on
+            let model = AIConfigTests.GuidedStub(answer: answer)
+            let text = try await AIConfigService(client: ChatClient(apple: model)).ask(sentence, context: .init(config: config)).text
+            let preview = AIConfig.preview(try AIConfig.parse(text), config: config, environment: AIConfig.Environment(chinese: true, typedText: sentence))
+            let shown = try #require(try? preview.get(), "“\(sentence)”: \(preview)")
+            #expect(shown.edits == [.candidateLayout(.vertical), .autocomplete(on)] && shown.note == nil, "“\(sentence)”: \(shown)")
+            #expect(model.schemas.count == 1)
+        }
+        // For one app, it is set in Settings → Apps: the answer is taken as it is.
+        let wechat = AIConfig.AppCatalog(apps: [.init(bundleID: "com.tencent.xinWeChat", names: ["WeChat", "微信"])])
+        config.autocomplete = false
+        let env = AIConfig.Environment(apps: wechat, chinese: true, typedText: "在微信里打开续写")
+        #expect(AIConfig.preview(try AIConfig.parse(#"{"changes": [], "note": "-"}"#), config: config, environment: env) == .failure(.notUnderstood))
+    }
+
+    /// "Already set that way" only when what the answer keeps as it is is what the sentence asks for: a switch it turns
+    /// the other way ("打开逐字上屏" answered with it off, as it is), or only settings it isn't about, say what wasn't
+    /// understood instead.
+    @Test func alreadySetOnlyWhenItIsWhatTheSentenceAsks() throws {
+        var config = Config.default
+        config.typeOut = false
+        config.autocomplete = false
+        config.candidateLayout = .vertical
+        func outcome(_ sentence: String, _ answer: String, chinese: Bool = true) throws -> (Result<AIConfig.Preview, AIConfig.Failure>, String?) {
+            let env = AIConfig.Environment(chinese: chinese, typedText: sentence)
+            let proposal = try AIConfig.parse(answer)
+            let preview = AIConfig.preview(proposal, config: config, environment: env)
+            guard case let .failure(failure) = preview else { return (preview, nil) }
+            return (preview, AIConfig.failureLine(failure, proposal: proposal, config: config, environment: env))
+        }
+        let typeOutOff = #"{"changes": [{"key": "typeOut", "value": false}]}"#
+        let inputs = #"{"changes": [{"key": "inputLanguages", "value": ["\#(config.inputLanguages.map(\.rawValue).joined(separator: #"", ""#))"]}]}"#
+        var (preview, line) = try outcome("打开逐字上屏", typeOutOff)
+        #expect(preview == .failure(.unclearSwitch(.setting(.typeOut))) && line == "没看懂要打开还是关闭「逐字上屏」", "\(preview) \(line ?? "")")
+        (preview, line) = try outcome("turn on typing out", typeOutOff, chinese: false)
+        #expect(line == "Couldn't tell whether to turn Type results out on or off", "\(line ?? "")")
+        (preview, line) = try outcome("候选竖排", inputs)
+        #expect(preview == .failure(.unclearSetting) && line == "没看懂这句话要改哪项设置", "\(preview) \(line ?? "")")
+        (preview, line) = try outcome("candidates in a column", inputs, chinese: false)
+        #expect(line == "Couldn't tell which setting that is about", "\(line ?? "")")
+        // Autocomplete, which the sentence doesn't name, is another setting than the typing out it names.
+        let autocompleteOff = #"{"changes": [{"key": "autocomplete", "value": false}]}"#
+        #expect(try outcome("打开逐字上屏", autocompleteOff).0 == .failure(.unclearSetting))
+        // Already so as it asks: said so.
+        for (sentence, answer) in [("关闭逐字上屏", typeOutOff), ("候选竖排", #"{"changes": [{"key": "candidateLayout", "value": "vertical"}]}"#),
+                                   ("关闭自动补全", inputs), ("我要把 auto complete 关闭", autocompleteOff), ("关掉灰字", autocompleteOff),
+                                   // Neither on nor off (a negation), or no setting named: taken at the answer's word.
+                                   ("别打开逐字上屏", typeOutOff), ("", typeOutOff), ("就这样吧", inputs)] {
+            #expect(try outcome(sentence, answer).0 == .failure(.alreadySet), "“\(sentence)” → \(answer)")
+        }
+    }
+
+    /// Autocomplete by the names the interface gives it in its languages and the usual others: the on-device model's
+    /// small context gets its setting (`AIConfigFit.relevance`), the instructions have them; on or off as the
+    /// interface's languages say it, nothing when the sentence says both or a negation.
+    @Test func itsNamesAndOnAndOffInTheInterfacesLanguages() async throws {
+        let context = AIConfigPrompt.Context(config: .default)
+        for name in ["auto complete", "Autocomplete", "autocompletion", "续写", "續寫", "自动补全", "自动完成", "自动联想", "自動完成", "オートコンプリート",
+                     "自動補完", "자동 완성", "Autovervollständigen", "Autovervollständigung", "Complétion automatique", "autocomplétion",
+                     "Autocompletar", "autocompletado"] {
+            #expect(AIConfigFit.relevance(["\(name)?"], context: context).parts == [.typing], "\(name)")
+        }
+        // Fitted to a 4096-token context, a sentence that says more has Autocomplete's switch in its schema.
+        let model = ContextLimitedModel(contextSize: 4096)
+        let big = AIConfigContextTests.context(AIConfigContextTests.bigConfig(apps: 60))
+        _ = try await AIConfigContextTests.service(model).ask("Autovervollständigen ausschalten und Kandidaten in einer Spalte", context: big,
+                                                               tools: AIConfigContextTests.tools)
+        let keys = AIConfigContextTests.keys(try #require(model.sent.last).schema)
+        #expect(keys.contains("autocomplete") && keys.contains("candidateLayout"), "\(keys)")
+        let prompt = AIConfigPrompt.system(context, compact: true, refining: false)
+        #expect(["自动补全", "自动联想", #""打开续写""#, #""turn off autocomplete""#].allSatisfy(prompt.contains))
+
+        for sentence in Self.turnedOn { #expect(AIConfig.switchAsked(sentence) == true, "\(sentence)") }
+        for sentence in Self.turnedOff { #expect(AIConfig.switchAsked(sentence) == false, "\(sentence)") }
+        for sentence in ["续写", "don't turn off autocomplete", "不要关闭续写", "Autovervollständigen nicht ausschalten", "ne désactive pas la complétion",
+                         "打开逐字上屏，关闭续写", "자동 완성 끄지 마", "autocomplete is an annoyance", "关于续写", "自動補完を無効にしないで"] {
+            #expect(AIConfig.switchAsked(sentence) == nil, "\(sentence)")
+        }
+    }
+
     // MARK: - Keys
 
     @Test func tabTakesItOnlyOnceItHasBeenUpAMoment() {

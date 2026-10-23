@@ -1221,6 +1221,51 @@ extension AIConfig {
         return Row(key: path, label: label, old: text.onOff(config.autocomplete), new: text.onOff(on) + onDevice, status: .change,
                    edit: .autocomplete(on))
     }
+
+    /// Autocomplete's names, lowercased, as `AIConfigFit.relevance` reads words: the interface's own in its languages (续写,
+    /// 續寫, Autovervollständigen, Complétion automatique, オートコンプリート, 자동 완성, Autocompletar) and the usual others
+    /// ("auto complete", "autocompletion", 自动补全, 自动完成, 自动联想, 補完, Vervollständigung, autocompletado).
+    static let autocompleteNames = [
+        "autocompl", "auto compl", "续写", "續寫", "补全", "補全", "自动完成", "自動完成", "自动联想", "自動聯想", "オートコンプリート", "補完",
+        "자동 완성", "자동완성", "이어 쓰기", "autovervollständig", "vervollständig", "complétion", "saisie semi",
+    ]
+
+    /// Words that may mean Autocomplete ("suggestions", 灰字), lowercased: its setting goes into the on-device model's
+    /// context with them, but a sentence with them is never read as turning it.
+    static let autocompleteHints = ["suggestion", "灰字", "sugerencia", "sugestão"]
+
+    /// Whether `text` (what the user typed) turns Autocomplete on (true) or off (false): it names it and says which
+    /// (`switchAsked`: neither, both or a negation say nothing). Nil too when it names an app, or apps: Autocomplete for
+    /// one app is set in Settings → Apps, not here.
+    static func autocompleteAsked(_ text: String, context: AIConfigPrompt.Context) -> Bool? {
+        guard autocompleteNames.contains(where: AIConfigFit.Words(text).contains), let on = switchAsked(text) else { return nil }
+        let relevant = AIConfigFit.relevance([text], context: context)
+        return relevant.parts.contains(.apps) || !relevant.apps.isEmpty ? nil : on
+    }
+
+    /// `autocompleteAsked`, when that is all `sentence` asks: it names no other setting, language or style
+    /// (`AIConfigFit.relevance` without Autocomplete's names). Such a sentence is answered from that alone, without a
+    /// request (`AIConfigService.ask`): the on-device model has answered "我要把 auto complete 打开" with it off as it was,
+    /// with nothing, and with another app's settings.
+    static func onlyAutocomplete(_ sentence: String, context: AIConfigPrompt.Context) -> Bool? {
+        guard let on = autocompleteAsked(sentence, context: context) else { return nil }
+        return AIConfigFit.relevance([sentence], context: context, ignoring: Set(autocompleteNames)).parts.isEmpty ? on : nil
+    }
+
+    /// The answer to a sentence `onlyAutocomplete` reads, as a model writes it.
+    static func autocompleteAnswer(_ on: Bool) -> String { #"{"changes": [{"key": "autocomplete", "value": \#(on)}]}"# }
+
+    /// `proposal` with Autocomplete as what the user typed turns it (`autocompleteAsked`), whatever the model answered: its
+    /// value the other way is the sentence's, and an answer without it gets it; the model's note, about what it answered,
+    /// goes then. As it is when the sentence doesn't turn Autocomplete, or the answer already has it so.
+    static func followingSentence(_ proposal: Proposal, config: Config, env: Environment) -> Proposal {
+        guard let on = autocompleteAsked(env.typedText, context: AIConfigPrompt.Context(config: config, apps: env.apps)) else {
+            return proposal
+        }
+        let asked = Change(key: .autocomplete, value: .bool(on))
+        guard !proposal.changes.contains(asked) else { return proposal }
+        return Proposal(changes: proposal.changes.filter { $0.key != .autocomplete } + [asked])
+    }
 }
 
 extension AIConfig.Text {

@@ -22,6 +22,8 @@ public final class AIConfigService: Sendable {
         /// The user's own provider, which answered instead of the on-device model: the request was too long for its
         /// context (`AIConfig.Text.sentInstead`).
         public var instead: Provider? = nil
+        /// Read from the sentence, with no model asked: it only turns Autocomplete on or off (`AIConfig.onlyAutocomplete`).
+        public var fromSentence = false
     }
 
     /// The request was too long for the on-device model's context, and the user's own provider couldn't take it instead:
@@ -111,7 +113,8 @@ public final class AIConfigService: Sendable {
         guided.prewarm()
     }
 
-    /// The answer for `sentence` (keys already dropped), or with `turns`, the revised one after them. Throws the
+    /// The answer for `sentence` (keys already dropped), or with `turns`, the revised one after them; a sentence that only
+    /// turns Autocomplete on or off is read without a request (`AIConfig.onlyAutocomplete`). Throws the
     /// provider's error (no key, the network …), `AppleModelError.unavailable` when the user's provider is the on-device
     /// model and it can't be used, or `TooLong` when the request was too long for the on-device model and the user's own
     /// provider couldn't take it instead. `sendingInstead` is called with that provider before it is asked instead of the
@@ -120,9 +123,13 @@ public final class AIConfigService: Sendable {
                     sendingInstead: (@Sendable (Provider) async -> Void)? = nil) async throws -> Answer {
         let onDevice = self.onDevice
         let config = context.config
-        if !onDevice, config.provider == .apple { throw AppleModelError.unavailable(client.apple.availability) }
         // Whatever the caller did: a key typed into the sentence or a refine's line never goes out.
         let sentence = AIConfig.droppingKeys(sentence).text
+        // A sentence that only turns Autocomplete on or off: read here, whatever model there is, if any.
+        if turns.isEmpty, let on = AIConfig.onlyAutocomplete(sentence, context: context) {
+            return Answer(text: AIConfig.autocompleteAnswer(on), fromCache: false, onDevice: false, hidden: 0, fromSentence: true)
+        }
+        if !onDevice, config.provider == .apple { throw AppleModelError.unavailable(client.apple.availability) }
         var turns = turns
         for index in turns.indices { turns[index].instruction = AIConfig.droppingKeys(turns[index].instruction).text }
         var redaction = Redaction(config.redaction)

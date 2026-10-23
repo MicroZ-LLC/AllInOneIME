@@ -2,7 +2,8 @@ import Foundation
 
 /// Settings → Assistant's "Change settings in a sentence": settings changed by describing them ("output languages English
 /// and French", "微信里用中文").
-/// One AI request turns the sentence into changes (`AIConfigPrompt`, `AIConfigService`); the answer is JSON only, a list of
+/// One AI request turns the sentence into changes (`AIConfigPrompt`, `AIConfigService`; a sentence that only turns
+/// Autocomplete on or off needs none, `onlyAutocomplete`); the answer is JSON only, a list of
 /// `{ "key": <setting>, "value": <JSON> }` and an optional `"note"`, read strictly (`parse`). Each change is checked with
 /// the rules Settings uses (`preview`) and shown as a row, old → new, or refused with the reason; the user confirms, and
 /// the changes go through the config's save path (`apply`), which hands back what puts them back (`Edit`s, for undo).

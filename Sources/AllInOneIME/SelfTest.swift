@@ -3166,6 +3166,7 @@ enum SelfTest {
         testReleaseImages(controller, client, snapshotDirectory: snapshotDirectory)
         testAIConfig(snapshotDirectory: snapshotDirectory)
         testAssistantOnDevice(snapshotDirectory: snapshotDirectory)
+        testAssistantAutocompleteOnDevice(snapshotDirectory: snapshotDirectory)
         testDoctor(snapshotDirectory: snapshotDirectory)
         testAssistantPage(snapshotDirectory: snapshotDirectory)
         testAWSCredentials(snapshotDirectory: snapshotDirectory)

@@ -64,12 +64,13 @@ public struct AIConfigFit: Sendable {
     /// English, Chinese and the interface's other languages, the names of languages and styles, the apps they name),
     /// and the parts of the keys in `answers` (a refine's earlier answers, which the revised one repeats); in the order
     /// `Part.allCases` has them, the provider with AWS's. And the apps with settings of their own named there (their
-    /// keys in `Config.appProfiles`): by a name the catalog has for them, their bundle ID, or their key.
-    public static func relevance(_ texts: [String], answers: [String] = [], context: AIConfigPrompt.Context)
-        -> (parts: [AIConfigPrompt.Part], apps: [String]) {
+    /// keys in `Config.appProfiles`): by a name the catalog has for them, their bundle ID, or their key. The words in
+    /// `ignoring` aren't looked for (what else a sentence that names Autocomplete names: `AIConfig.onlyAutocomplete`).
+    public static func relevance(_ texts: [String], answers: [String] = [], context: AIConfigPrompt.Context,
+                                 ignoring: Set<String> = []) -> (parts: [AIConfigPrompt.Part], apps: [String]) {
         let text = Words(texts.joined(separator: "\n"))
         var parts = Set<AIConfigPrompt.Part>()
-        for (part, words) in Self.words where words.contains(where: text.contains) { parts.insert(part) }
+        for (part, words) in Self.words where words.contains(where: { !ignoring.contains($0) && text.contains($0) }) { parts.insert(part) }
         // A language named: the languages typed in, or translated into (the rules tell them apart).
         if Self.languageNames.contains(where: text.contains) { parts.formUnion([.outputLanguages, .inputLanguages]) }
         if Self.styleNames.contains(where: text.contains) { parts.insert(.rewriteStyles) }
@@ -133,9 +134,7 @@ public struct AIConfigFit: Sendable {
         .typing: ["type out", "typing", "typed in", "character by character", "speed", "fast", "slow", "typo", "mistake", "like a person",
                   "human", "逐字", "打字", "上屏", "速度", "快", "慢", "错字", "錯字", "打错", "打錯", "真人", "タイピング", "タイプ", "速さ",
                   "타이핑", "속도", "오타", "tipp", "geschwindigkeit", "schnell", "langsam", "frappe", "vitesse", "rapide", "lent",
-                  "escrit", "velocidad", "rápid", "lent", "digita", "velocidade",
-                  "autocompl", "auto-compl", "suggestion", "续写", "續寫", "补全", "補全", "灰字", "オートコンプリート", "補完", "자동 완성", "자동완성",
-                  "이어 쓰기", "vervollständig", "saisie semi", "sugerencia", "sugestão"],
+                  "escrit", "velocidad", "rápid", "lent", "digita", "velocidade"] + AIConfig.autocompleteNames + AIConfig.autocompleteHints,
         .selection: ["selection", "selected", "select", "选中", "選中", "选择", "選擇", "選取", "選択", "선택", "auswahl", "markiert",
                      "sélection", "selección", "seleção", "selecion"],
         .questions: ["question", "history", "remember", "问题", "問題", "记住", "記住", "历史", "歷史", "質問", "履歴", "覚え", "질문", "기록",
