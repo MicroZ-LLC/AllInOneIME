@@ -25093,6 +25093,53 @@
         }
       }
     },
+    "Suggestions Insert:" : {
+      "comment" : "建议插入： — Sources/AllInOneIME/AppProfiles.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vorschläge fügen ein:"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las sugerencias insertan:"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les suggestions insèrent :"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "候補の挿入："
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "제안 삽입:"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inserção das Sugestões:"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建議插入："
+          }
+        }
+      }
+    },
     "Supplements the built-in vocabulary. Files must contain their own text, pinyin codes and optional numeric weights, without other dictionary dependencies. Import the same name again to update its copy; editing the source alone doesn't update it. Copies stay on this Mac, outside iCloud sync and AI context. Learned words are kept when you remove a dictionary." : {
       "comment" : "补充自带词库；文件需直接包含文字、拼音编码和可选的数字权重，不支持依赖其他词库。再次导入相同 name 会更新副本；只修改原文件不会自动更新。副本只留在这台 Mac 上，不通过 iCloud 同步或发给 AI。移除后已学到的词会保留。 — Sources/AllInOneIME/PersonalDictionariesSettings.swift",
       "localizations" : {

@@ -86,7 +86,14 @@ enum AppProfileText {
         if profile.translateAlways == true { parts.append(tr("总是边打边译", "Always Translate as You Type")) }
         if let autocomplete = profile.autocomplete { parts.append(autocomplete ? tr("总是续写", "Always autocomplete") : tr("不续写", "No autocomplete")) }
         if profile.suggestions == false { parts.append(tr("不显示建议", "No suggestions")) }
+        if let insert = profile.suggestionsInsert { parts.append(tr("插入", "Insert") + tr("：", ": ") + insert.label) }
         return parts.isEmpty ? tr("和全局设置一样", "Same as everywhere", key: "appProfile.sameAsEverywhere") : parts.joined(separator: " · ")
+    }
+
+    /// 「跟全局一样（带标题）」: what a suggestion row inserts in an app without its own choice (decision 28).
+    static func insertEverywhere(_ config: Config) -> String {
+        let label = (config.suggestionsInsert ?? .source).label
+        return tr("跟全局一样（\(label)）", "Same as everywhere (\(label))")
     }
 
     /// The notice of an AI command refused in an app with no AI (`InputSession.aiRefusal`).
@@ -253,6 +260,18 @@ struct AppProfilesSection: View {
                         .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
             }
+            // What a suggestion row inserts here (decision 28): as everywhere, or its own.
+            Picker(selection: Binding(
+                get: { profile.suggestionsInsert },
+                set: { value in model.changeProfile(app) { $0.suggestionsInsert = value } })) {
+                Text(AppProfileText.insertEverywhere(model.config)).tag(SuggestionsInsert?.none)
+                ForEach(SuggestionsInsert.allCases, id: \.self) { insert in Text(insert.label).tag(SuggestionsInsert?.some(insert)) }
+            } label: {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(tr("插入", "Insert"))
+                    Text(SuggestionsInsert.help).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+            }
             Toggle(isOn: Binding(get: { profile.translateAlways == true },
                                  set: { on in model.changeProfile(app) { $0.translateAlways = on ? true : nil } })) {
                 VStack(alignment: .leading, spacing: 2) {
@@ -291,8 +310,9 @@ struct AppProfilesSection: View {
 // MARK: - The input menu
 
 extension AllInOneIMEInputController {
-    /// "This App: Slack": no AI, typing out, autocomplete (with where its text goes, as under the main switch) and the
-    /// input language a field starts in, for the app being typed in (`AppProfile`), and its page in the settings. Nil
+    /// "This App: Slack": no AI, typing out, autocomplete (with where its text goes, as under the main switch), the input
+    /// language a field starts in and, where there is a suggestion source (a plugin's turned on, a custom command), what a
+    /// suggestion row inserts (decision 28), for the app being typed in (`AppProfile`), and its page in the settings. Nil
     /// without an app.
     @MainActor
     func appMenuItem(config: Config?, app: String?) -> NSMenuItem? {
@@ -329,6 +349,16 @@ extension AllInOneIMEInputController {
             #selector(setAppInput(_:)), on: profile.startingInput == nil)
         for input in current.inputs {
             add(AppProfileText.inputName(input, current), #selector(setAppInput(_:)), value: input.rawValue, on: profile.startingInput == input)
+        }
+        if !current.completionSources.isEmpty || current.customCommands.contains(where: { $0.type == .suggestions }) {
+            menu.addItem(.separator())
+            let inserts = NSMenuItem(title: tr("建议插入：", "Suggestions Insert:"), action: nil, keyEquivalent: "")
+            inserts.isEnabled = false
+            menu.addItem(inserts)
+            add(AppProfileText.insertEverywhere(current), #selector(setAppSuggestionsInsert(_:)), on: profile.suggestionsInsert == nil)
+            for insert in SuggestionsInsert.allCases {
+                add(insert.label, #selector(setAppSuggestionsInsert(_:)), value: insert.rawValue, on: profile.suggestionsInsert == insert)
+            }
         }
         menu.addItem(.separator())
         let settings = NSMenuItem(title: tr("按 App 设置…", "Per-App Settings…"), action: #selector(showAppSettings(_:)), keyEquivalent: "")
@@ -387,6 +417,13 @@ extension AllInOneIMEInputController {
     @objc func setAppInput(_ sender: Any?) {
         MainActor.assumeIsolated {
             changeAppProfile(sender, "starting input") { profile, _, value in profile.startingInput = Input(rawValue: value) }
+        }
+    }
+
+    /// What a suggestion row inserts in the app: its own choice, or as everywhere (none).
+    @objc func setAppSuggestionsInsert(_ sender: Any?) {
+        MainActor.assumeIsolated {
+            changeAppProfile(sender, "suggestions insert") { profile, _, value in profile.suggestionsInsert = SuggestionsInsert(rawValue: value) }
         }
     }
 

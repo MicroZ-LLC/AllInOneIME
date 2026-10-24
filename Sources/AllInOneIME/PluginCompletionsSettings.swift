@@ -28,6 +28,13 @@ extension SettingsModel {
         if store.persists { SuggestionsShared.settingsChanged() }
     }
 
+    /// What a suggestion row inserts everywhere (decision 28; nil: the source's own), and saved; the field being typed in
+    /// takes it with its next key.
+    func setSuggestionsInsert(_ insert: SuggestionsInsert?) {
+        config.suggestionsInsert = insert == .source ? nil : insert
+        save()
+    }
+
     /// A plugin's text preference as saved, else its default.
     func pluginPreference(_ plugin: InstalledPlugin, _ preference: PluginPreference) -> String {
         config.pluginPreferences[plugin.name]?[preference.name] ?? preference.defaultValue ?? ""
@@ -73,6 +80,24 @@ extension SettingsModel {
     private func reloadLists(of plugin: InstalledPlugin) {
         for source in plugin.manifest.completions where source.list && config.approval(of: source, in: plugin) != nil {
             SuggestionsShared.refreshNow(plugin: plugin.name, source: source.name)
+        }
+    }
+}
+
+/// What a suggestion row inserts everywhere (decision 28), in Settings → Plugins: the source's own (a plugin's `insert`, a
+/// custom command's Insert), ID only, with title, with title and link; for every source, plugins' and custom commands',
+/// never Code's. An app's own is in Apps.
+struct SuggestionsInsertPicker: View {
+    @ObservedObject var model: SettingsModel
+
+    var body: some View {
+        Picker(selection: Binding(get: { model.config.suggestionsInsert ?? .source }, set: { model.setSuggestionsInsert($0) })) {
+            ForEach(SuggestionsInsert.allCases, id: \.self) { insert in Text(insert.label).tag(insert) }
+        } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(tr("插入", "Insert"))
+                Text(SuggestionsInsert.help).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 }

@@ -1461,6 +1461,8 @@ struct SettingsView: View {
                         .replacingOccurrences(of: "@", with: model.config.commandTrigger))
                     .font(.caption).foregroundStyle(.secondary)
             }
+            // What a suggestion row inserts, for every source (decision 28).
+            SuggestionsInsertPicker(model: model)
             HStack {
                 Button(tr("打开插件文件夹", "Open Plugins Folder")) { model.openPluginsFolder() }
                 Button(tr("刷新", "Refresh")) { model.refreshPlugins() }
