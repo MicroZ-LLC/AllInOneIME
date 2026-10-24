@@ -984,9 +984,9 @@ final class AllInOneIMEInputController: IMKInputController {
         }
         guard placement.reasks else {
             anchorSaid = nil
-            // Every placement, numbers only, while the owner's Google Docs case is looked into (`log stream --predicate
-            // 'subsystem == "com.aipinyin.inputmethod.AIPinyin" AND eventMessage BEGINSWITH "panel anchor"'`).
-            log.notice("""
+            // Every placement, numbers only (`log stream --level debug --predicate 'subsystem ==
+            // "com.aipinyin.inputmethod.AIPinyin" AND eventMessage BEGINSWITH "panel anchor"'`): what Google Docs told.
+            log.debug("""
                 panel anchor trusted: told \(Self.describe(told), privacy: .public), line \(Self.describe(self.toldAnchor(client)), privacy: .public), \
                 marked \(Self.describe(Self.markedRect(client)), privacy: .public), window \(Self.describe(self.panelAnchor.window), privacy: .public), \
                 page \(Self.describe(self.panelAnchor.page), privacy: .public), screen \(Self.describe(NSScreen.screens.first?.frame), privacy: .public)
