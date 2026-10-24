@@ -56,6 +56,13 @@ extension CompletionSourceApproval {
         self.init(plugin: key.plugin, source: key.source, hosts: [], query: source.query, scriptSHA256: sha, terms: Terms(source))
     }
 
+    /// What turning on the source `command` declares approves now (`init(enabling:of:)`). Nil: it declares none, or one
+    /// refused, or its script can't be read.
+    public init?(enabling command: ScriptCommand) {
+        guard case let .success(source)? = command.completion else { return nil }
+        self.init(enabling: source, of: command)
+    }
+
     /// Whether it still holds for `source` of `command` as they are now: the same script, query, prefix and compare (a
     /// change to its script file, `prefix`, `query` or `compare` turns the source off again; one without terms never
     /// holds). Never once marked lapsed.
