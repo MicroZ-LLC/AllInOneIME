@@ -150,7 +150,9 @@ enum SettingsSpot: String, CaseIterable {
         case .inputLanguages: return "pinyin english chinese french korean hindi shift default chips 拼音 中文 英文 法语 韩语 印地语 默认 语言包 language pack"
         case .fuzzyPinyin: return "zh ch sh z c s 拼音 pinyin"
         case .personalDictionaries: return "dictionary import dict yaml vocabulary 词库 导入 个人"
-        case .englishWords: return "english words dictionary learn bedrock 英文词 词典 学习"
+        // Not "learn": learning them is Privacy's switch (`learnEnglishWords`), which the search would otherwise rank
+        // after this chip in a Chinese interface.
+        case .englishWords: return "english words dictionary bedrock 英文词 词典"
         case .codingLanguage: return "code coding languages programming packs python java go typescript javascript c++ keywords snippets 代码 编程语言 语言包 关键字 代码片段"
         case .outputLanguages: return "@translate translate languages 翻译 语言"
         case .rewriteStyles: return "@improve rewrite styles polish concise formal casual tactful jargon 改写 润色 简洁 正式 口语 委婉 黑话 风格"

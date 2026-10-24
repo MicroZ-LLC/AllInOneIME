@@ -525,7 +525,9 @@ extension SelfTest {
 
         // The cloud provider picked, through a local endpoint: the caret's line, whole (at most 1,500 characters), the
         // values hidden, the tokens counted. The session's settings and the endpoint's converter name the same address, as
-        // one config file does.
+        // one config file does. Apple Intelligence is picked again afterwards: the on-device checks below ask that model,
+        // not the self-test config's provider.
+        let onDevice = (settings.provider, settings.anthropic, settings.redaction)
         settings.provider = .anthropic
         settings.anthropic.baseURL = "https://autocomplete-selftest.invalid"
         settings.anthropic.model = "claude-selftest"
@@ -546,7 +548,7 @@ extension SelfTest {
         // The answer is read only as far as the suggestion goes: the tokens read are told at its start, those written at its end.
         check(store.metrics.cloudInputTokens == tokens + 120, "the tokens it read counted (\(store.metrics.cloudInputTokens - tokens))")
         harnessKey(controller, harness, "\u{1B}", code: VirtualKey.escape)
-        (settings.provider, settings.anthropic, settings.redaction) = (settingsBefore.provider, settingsBefore.anthropic, settingsBefore.redaction)
+        (settings.provider, settings.anthropic, settings.redaction) = onDevice
 
         let metrics = store.metrics
         check(metrics.shown >= 8 && metrics.accepted >= 3 && metrics.p90 != nil
@@ -613,6 +615,11 @@ extension SelfTest {
         let store = AutocompleteSwitch.store
         let (failed, shown) = (store.metrics.failed, store.metrics.shown)
         let modelSettings = settings
+        // Else the pauses below would ask the provider picked (live, and billed where it has credentials).
+        guard Autocomplete.route(modelSettings) == .onDevice else {
+            check(false, "the settings ask the on-device model, not \(modelSettings.provider)")
+            return
+        }
         controller.services.converter = Converter(loadConfig: { modelSettings })
         controller.activateServer(harness)
         controller.composer.setInputMode(.english)

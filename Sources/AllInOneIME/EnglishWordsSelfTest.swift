@@ -156,11 +156,16 @@ extension SelfTest {
         let found = ["英文词", "english words"].map { SettingsSpot.search($0, trigger: "@", config: .default).first }
         check(found.allSatisfy { $0 == .englishWords } && SettingsSpot.englishWords.chip == .language(.english),
               "the search finds the English words, in the English chip (\(found))")
-        check(SettingsSpot.search("learn english", trigger: "@", config: .default).first == .learnEnglishWords
-              && SettingsSpot.learnEnglishWords.page == .privacy, "…and learning them, in Privacy")
-
+        // In either interface language: in Chinese the titles don't say "learn", so only the words a row goes by tell.
         let chosen = UIText.choice
         defer { UIText.choice = chosen }
+        let learning = ["zh", "en"].flatMap { language -> [SettingsSpot?] in
+            UIText.choice = language
+            return ["learn english", "学习 英文词"].map { SettingsSpot.search($0, trigger: "@", config: .default).first }
+        }
+        check(learning.allSatisfy { $0 == .learnEnglishWords } && SettingsSpot.learnEnglishWords.page == .privacy,
+              "…and learning them, in Privacy (\(learning))")
+
         for (name, language) in [("settings-english-words", "zh"), ("settings-english-words-en", "en")] {
             UIText.choice = language
             let preview = SettingsModel(configURL: Config.defaultURL, persists: false)

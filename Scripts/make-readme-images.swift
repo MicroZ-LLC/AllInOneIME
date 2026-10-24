@@ -14,7 +14,7 @@
 // selection.png @improve on the selected text, with an email and a phone number hidden from the AI
 // question-chat.png   an @question conversation: two rounds, the next question's line on top (canned answers)
 // question-chat-handoff.png   after the last round: where to go on (the agents installed, Claude, ChatGPT, a copy)
-// panel-dark.png, settings.png, dashboard.png   copies of the renders (settings: AI after Test Connection; dashboard: the
+// panel-dark.png, settings.png, dashboard.png   copies of the renders (settings: General, where it opens; dashboard: the
 //               floating panel, sample data)
 // settings-search.png   Settings' search typed, its "Change: …" preview on General (a canned answer, made-up findings)
 // settings-problem.png   a problem the checks found: the banner on AI, its dot in the sidebar (made-up findings)

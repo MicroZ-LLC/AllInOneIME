@@ -719,7 +719,7 @@ enum SelfTest {
         needing([])
 
         // Rendered offscreen (nothing appears on screen) for a visual check and the README: the
-        // self-test's config, read-only, with a live Test Connection (测试连接) result.
+        // self-test's config, read-only, on General.
         let list = dir.appendingPathComponent("jargon.txt")
         try? Data("# 我们组的\nbandwidth：精力\nLP\tLeadership Principles\n抓手 - 着力点\n".utf8).write(to: list)
         model.config.jargonFile = list.path
@@ -751,18 +751,27 @@ enum SelfTest {
             UIText.choice = chinese ? "zh" : "en"
             let preview = SettingsModel(configURL: Config.defaultURL, persists: false)
             preview.profileShownAs = "default"  // README images are public: not the user's own profile name
-            if !chinese {
+            if chinese {
+                // The Chinese README's: pinyin and English, translating into English.
+                preview.config.setOrder([Language.chinese, .english])
+            } else {
                 // The English README's: someone who writes English, translating into Spanish, French and German.
                 preview.config.setOrder([Language.english])
                 preview.config.setOrder(["es", "fr", "de"].map(OutputLanguage.init))
                 preview.config.uiLanguage = "en"
             }
-            preview.runTest()
-            _ = pump(timeout: 20) { preview.testStatus != .running }
-            // The AI page, with the connection test's result: what the README's setup shows.
-            SettingsImage.render(preview, page: .ai, to: snapshotDirectory.appendingPathComponent("\(name).png")) { seconds in
+            // The checks behind the banners and the sidebar's dots: stand-ins that find nothing wrong, never this Mac's
+            // own probes, whose findings differ from Mac to Mac.
+            let rig = AssistantRig(snapshotDirectory, name: "\(name)-checks.json", config: assistantSampleConfig)
+            defer { rig.restore() }
+            let fine = sampleAssistant(rig, fine: true)
+            fine.dismissPreview()
+            // General, the page the window opens on: what the README's setup shows. Nothing is asked of the AI.
+            SettingsImage.render(preview, page: .general, assistant: fine,
+                                 to: snapshotDirectory.appendingPathComponent("\(name).png")) { seconds in
                 _ = pump(timeout: seconds) { false }
             }
+            check(fine.allFine, "the README's Settings: no banner or dot (\(name): \(fine.issues.map(\.element.title)))")
         }
         render("6-settings", chinese: true)  // README
         render("6-settings-en", chinese: false)  // README (docs/en)
