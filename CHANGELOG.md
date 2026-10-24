@@ -16,6 +16,8 @@ English | [中文](CHANGELOG.zh-CN.md)
 ### Changed
 
 - Voice input is turned off for now; your setting is kept.
+- Settings → General: the action key is set as macOS sets a keyboard shortcut (click it, then press the key), and the magic key is picked from a menu of the symbols it can be; both rows look like System Settings' own.
+- The command list shows each command by its name alone ("improve"), without the magic key before it.
 
 ### Fixed
 
