@@ -871,13 +871,13 @@ They take the place of [autocomplete](#autocomplete-beta-new)'s gray text while 
   are on the Input page too. A tap of Shift goes through your inputs: the languages, then Code (Chinese → English → Code). The input
   menu lists Code with its language ("Code (Python)") and changes it; an app can start in Code (Settings → Apps); the menu
   bar icon shows `{}` while it's the input. In Code you type letters as in English, but nothing you type is learned as
-  an English word and there's no autocomplete; from two letters on the rows offer that one language's keywords and
-  snippets and the words already in the field (`de` → `def`, `define_task`), each saying what it is (`function`,
-  `keyword`). ⏎ inserts the highlighted row at once, as in an IDE (no ↓ first; in code editors the first row; in chat
-  apps and terminals ⏎ stays the app's). A snippet goes in with its line breaks, its later lines indented as the line
-  you're on, the caret at the first place to type: its first placeholder, left empty for you to type (`def ():`, the
-  caret after `def `), or its body where that comes first (`try:`). No AI writes code. Translate as You Type doesn't run
-  in Code.
+  an English word and there's no autocomplete; from two letters on the rows offer that one language's keywords,
+  built-ins and snippets and the words already in the field (`de` → `def`, `define_task`), each saying what it is
+  (`function`, `keyword`, `built-in`). ⏎ inserts the highlighted row at once, as in an IDE (no ↓ first; in code
+  editors the first row; in chat apps and terminals ⏎ stays the app's). A snippet goes in with its line breaks, its
+  later lines indented as the line you're on, the caret at the first place to type: its first placeholder, left empty
+  for you to type (`def ():`, the caret after `def `), or its body where that comes first (`try:`). No AI writes code.
+  Translate as You Type doesn't run in Code.
 - **Privacy:** a plugin's script never sees what you type, the app or the field, only, for a lookup you turned on, what
   follows its prefix (sent to the hosts it lists). The lists, what you type and the lookups are never logged, sent to the
   AI, learned as English words or synced; the lists are cached in `~/Library/Caches/AllInOneIME/suggestions/` (readable

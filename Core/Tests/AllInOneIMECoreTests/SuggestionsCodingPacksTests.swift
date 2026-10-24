@@ -46,6 +46,18 @@ struct SuggestionsCodingPacksTests {
         for (file, language) in zip(files, languages) {
             let pack = try store.keep(Data(contentsOf: file), language: language)
             #expect(Set(pack.keywords).count == pack.keywords.count, "\(language): a keyword twice")
+            let builtins = pack.builtins ?? []
+            #expect(Set(builtins).count == builtins.count, "\(language): a built-in twice")
+            #expect(Set(pack.keywords).isDisjoint(with: builtins), "\(language): a word both a keyword and a built-in")
+            // Every word offered from its first characters, saying which it is.
+            for (word, kind) in pack.keywords.map({ ($0, "keyword") }) + builtins.map({ ($0, "built-in") })
+            where word.count > CodingRows.minChars {
+                let rows = CodingRows.rows(String(word.prefix(CodingRows.minChars)), pack: pack, words: [], appClass: .ordinary, in: t)
+                #expect(rows.contains { $0.text == word && $0.comment == kind }, "\(language): \(word) isn't offered as a \(kind)")
+            }
+            // A language's built-in functions, types and library names aren't its keywords.
+            let someBuiltins = Self.someBuiltins[language] ?? []
+            #expect(!someBuiltins.isEmpty && Set(someBuiltins).isSubset(of: builtins), "\(language): \(someBuiltins) among \(builtins)")
             for snippet in pack.snippets {
                 let rows = CodingRows.rows(snippet.trigger, pack: pack, words: [], appClass: .ordinary, in: t)
                 let (text, back) = CodingRows.expand(snippet.body)
@@ -55,6 +67,53 @@ struct SuggestionsCodingPacksTests {
             }
         }
         #expect(store.installed().map(\.title) == ["C", "C++", "Go", "Java", "JavaScript", "Python", "TypeScript"])
+    }
+
+    /// Words of each shipped pack that are built-ins (functions, types, library names), not keywords.
+    static let someBuiltins: [String: [String]] = [
+        "python": ["format", "len", "range", "enumerate", "isinstance", "ValueError"],
+        "go": ["len", "make", "append", "string", "nil", "Println"],
+        "java": ["String", "System", "ArrayList", "println", "Override"],
+        "javascript": ["console", "Promise", "setTimeout", "undefined", "forEach"],
+        "typescript": ["Promise", "Partial", "setTimeout", "parseInt", "forEach"],
+        "c": ["strlen", "memcpy", "NULL", "size_t", "stdio"],
+        "cpp": ["vector", "string", "push_back", "make_unique", "std"],
+    ]
+
+    /// A pack's `builtins` (optional): their rows say "built-in" (in the interface's language), as a keyword's say
+    /// "keyword"; a pack without them is read as before, and one listing too many isn't kept.
+    @Test func aBuiltInsRowSaysBuiltIn() async throws {
+        let json = #"""
+            { "language": "example", "title": "Example", "version": "1.0.0", "keywords": ["for"],
+              "builtins": ["format", "forward"], "snippets": [] }
+            """#
+        let pack = try JSONDecoder().decode(CodingLanguagePack.self, from: Data(json.utf8))
+        #expect(pack.builtins == ["format", "forward"] && pack.problem == nil)
+        #expect(try JSONDecoder().decode(CodingLanguagePack.self, from: JSONEncoder().encode(pack)) == pack)
+        let without = try JSONDecoder().decode(CodingLanguagePack.self, from: Data(#"{ "language": "example", "title": "Example", "version": "1.0.0", "keywords": ["for"], "snippets": [] }"#.utf8))
+        #expect(without.builtins == nil && without.problem == nil)
+        var tooMany = pack
+        tooMany.builtins = Array(repeating: "x", count: CodingLanguagePack.maxKeywords + 1)
+        #expect(tooMany.problem != nil)
+        tooMany.builtins = ["two words"]
+        #expect(tooMany.problem != nil)
+
+        let rows = { (language: String) in
+            CodingRows.rows("fo", pack: pack, words: ["format", "fortune"], appClass: .ordinary, in: InterfaceWords(language: language))
+                .map { $0.text + " " + $0.comment }
+        }
+        #expect(rows("en") == ["for keyword", "format built-in", "forward built-in", "fortune "], "\(rows("en"))")
+        #expect(rows("zh-Hans") == ["for 关键字", "format 内置", "forward 内置", "fortune "], "\(rows("zh-Hans"))")
+
+        // Python's: "for" offers its snippets and the built-in format, said so.
+        try await inEnglish {
+            let world = Self.coding([try Self.shipped("python")])
+            let field = world.codeField()
+            field.type("for")
+            #expect(field.settle { !field.rows.isEmpty }, "\(Self.texts(field))")
+            #expect(Self.texts(field) == ["for for … in", "for for … in range", "for for … in enumerate", "format built-in"],
+                    "\(Self.texts(field))")
+        }
     }
 
     @Test func theCaretsLineGivesTheIndentation() {

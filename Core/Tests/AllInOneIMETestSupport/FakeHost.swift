@@ -32,6 +32,11 @@ public final class FakeHost: @unchecked Sendable {
     /// The field is a password field by what the shell tells of it when it is read (the Mac's Accessibility:
     /// `AXSecureTextField`), though secure input isn't on.
     public var passwordField = false
+    /// A key reads only what the session wants of the field (`InputSession.fieldWants`), asked until it wants nothing
+    /// more, as the Mac does: its text isn't told with every key, only once a pause asks for it (`SessionOutput.readField`).
+    public var readsWhatIsWanted = false
+    /// The field is read once the test says (`answerFieldReads`), not at once: keys may come before what it says.
+    public var fieldReadsWait = false
 
     // MARK: What the session did
 
@@ -53,6 +58,8 @@ public final class FakeHost: @unchecked Sendable {
     /// Autocomplete's suggestion up after the caret (`SessionOutput.ghost`), and the reads of the field it asked for.
     public private(set) var ghost: String?
     public private(set) var fieldReads = 0
+    /// What the reads asked for while `fieldReadsWait` say, not handed to the session yet.
+    private var waitingReads: [SessionEvent] = []
 
     private let inbox = Locked<[SessionEvent]>(initialState: [])
     private let arrived = DispatchSemaphore(value: 0)
@@ -86,6 +93,24 @@ public final class FakeHost: @unchecked Sendable {
                             text: FieldText(before: text.substring(to: caret), after: text.substring(from: end)))
     }
 
+    /// What the field says around the caret as the Mac reads it for `key` (`readsWhatIsWanted`): only the parts the
+    /// session wants, the others unknown.
+    public func context(wantedFor key: KeyEvent) -> FieldContext {
+        let full = context
+        var told = FieldContext()
+        while true {
+            let missing = session.fieldWants(for: key, given: told).subtracting(told.read)
+            if missing.isEmpty { return told }
+            told.read.formUnion(missing)
+            if missing.contains(.secure) { told.secure = full.secure }
+            if missing.contains(.markedText) { told.markedTextTaken = full.markedTextTaken }
+            if missing.contains(.selectedRange) { told.selectedRange = full.selectedRange }
+            if missing.contains(.selection) { told.selection = full.selection }
+            if missing.contains(.beforeCaret) { told.beforeCaret = full.beforeCaret }
+            if missing.contains(.text) { told.text = full.text }
+        }
+    }
+
     // MARK: Events
 
     /// The field takes the focus; a rename to tell is said then (`InputSession.tellBuiltinRenames`).
@@ -97,7 +122,7 @@ public final class FakeHost: @unchecked Sendable {
     /// A key goes down: whether the session took it.
     @discardableResult
     public func press(_ key: KeyEvent) -> Bool {
-        let response = session.handle(.key(key, context))
+        let response = session.handle(.key(key, readsWhatIsWanted ? context(wantedFor: key) : context))
         appTakesMarkedText = false
         apply(response.outputs)
         if appTypesKeys, !response.handled, let text = key.printableText { insert(text, replacing: selection) }
@@ -117,6 +142,12 @@ public final class FakeHost: @unchecked Sendable {
     /// The modifier keys changed.
     public func modifiers(_ change: ModifierChange) {
         apply(session.handle(.modifiers(change, context)).outputs)
+    }
+
+    /// The shell says `text` in the field (`InputSession.showNotice`), as the Mac says what it tells there (Autocomplete
+    /// turned on in the input menu, a save's outcome).
+    public func showNotice(_ text: String) {
+        apply(session.showNotice(text))
     }
 
     /// Hands `event` to the session, as the shell does what isn't a key.
@@ -154,6 +185,14 @@ public final class FakeHost: @unchecked Sendable {
             _ = arrived.wait(timeout: .now() + 0.01)
         }
         return true
+    }
+
+    /// Hands the session what the field said for the reads waiting (`fieldReadsWait`), in order: the field as it was
+    /// when each was asked for.
+    public func answerFieldReads() {
+        let reads = waitingReads
+        waitingReads = []
+        for read in reads { send(read) }
     }
 
     /// Fires the timers started so far, in order.
@@ -219,7 +258,7 @@ public final class FakeHost: @unchecked Sendable {
                 var read = context
                 if tellsNoText { read.text = nil }
                 if passwordField { read.field = FieldInfo(app: app, terminal: terminal, secure: true) }
-                send(.field(read, id: id))
+                if fieldReadsWait { waitingReads.append(.field(read, id: id)) } else { send(.field(read, id: id)) }
             case let .ghost(text):
                 ghost = text
             case let .platform(action):

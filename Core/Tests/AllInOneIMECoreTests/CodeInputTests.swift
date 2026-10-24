@@ -56,6 +56,30 @@ struct CodeInputTests {
         }
     }
 
+    /// The notice of a tap of Shift into Code ("Code (Python)") is the candidate panel's, never a panel of its own: rows
+    /// typed while it's up take the panel, the notice on their footer's right until it's over, and a notice said while
+    /// rows show goes there too. One panel at the caret: nothing of ours sits behind the rows.
+    @Test func codesNoticeYieldsToTheRows() async throws {
+        try await inEnglish {
+            let world = SuggestionsWorld()
+            world.addCode("python", packs: [try Self.shipped("python")])
+            let field = world.field(app: "com.apple.Notes")
+            field.tapShift()
+            #expect(field.host.composer.coding && field.host.noticeAlone == "Code (Python)", "\(String(describing: field.host.noticeAlone))")
+            let before = field.host.outputs.count
+            field.type("de")
+            #expect(!field.rows.isEmpty && field.host.noticeAlone == nil, "\(field)")
+            #expect(field.host.panel?.detail == "Code (Python)", "the notice on the rows' footer: \(field.footer)")
+            let outputs = field.host.outputs.dropFirst(before)
+            #expect(!outputs.contains { if case .notice = $0 { true } else { false } }, "no notice of its own: \(Array(outputs))")
+            // Said while the rows show: on their footer.
+            let said = field.host.outputs.count
+            field.host.showNotice("Saved")
+            #expect(!field.host.outputs.dropFirst(said).contains { if case .notice = $0 { true } else { false } }
+                    && field.host.panel?.detail == "Saved" && !field.rows.isEmpty, "\(field)")
+        }
+    }
+
     /// Code is an input only once its pack is installed, as a language is: without it a tap of Shift goes from the last
     /// language back to the first. With one language and Code, Shift goes between the two.
     @Test func codeIsAnInputOnceItsPackIsInstalled() async throws {

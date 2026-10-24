@@ -28,6 +28,13 @@ struct SuggestionRow: Equatable {
     /// What goes in for it where the field reports ranges (`ranges`), or not: what wasn't typed yet (the typed part, its
     /// case, stays).
     func rest(ranges: Bool) -> String { String((ranges ? insertion : plainInsertion ?? insertion).dropFirst(typed.count)) }
+
+    /// Whether `other` is this row made again for the same token: the same item, keyword or snippet (its pick), else the
+    /// same word from the same source. What it puts in, and what its comment says, may differ (the caret's line's
+    /// indentation read since, an item's title as a query tells it).
+    func isSame(as other: SuggestionRow) -> Bool {
+        pick == other.pick && source == other.source && text == other.text && completion == other.completion
+    }
 }
 
 /// A list's or a query's items with what finding a token's among them needs, made once (off the session's thread, as
@@ -452,10 +459,10 @@ enum CodingRows {
     }
 
     /// The rows for `identifier` (what is typed of it): `pack`'s snippets whose trigger it starts (the whole trigger too)
-    /// and whose body starts with it, its keywords it starts (not one typed in full), and `words`; in an app of
-    /// `appClass` (terminals and code editors: a snippet completes as its trigger). A snippet's later lines get `indent`
-    /// (the caret's line's); two that put in the same are one row (spec 6.19). The comment says what a row is, not its
-    /// language: Code has one (decision 22).
+    /// and whose body starts with it, its keywords and built-ins it starts (not one typed in full), and `words`; in an
+    /// app of `appClass` (terminals and code editors: a snippet completes as its trigger). A snippet's later lines get
+    /// `indent` (the caret's line's); two that put in the same are one row (spec 6.19). The comment says what a row is,
+    /// not its language: Code has one (decision 22).
     static func rows(_ identifier: String, pack: CodingLanguagePack?, words: [String], indent: String = "",
                      appClass: SuggestionsAppClass, in t: InterfaceWords) -> [SuggestionRow] {
         guard identifier.count >= minChars else { return [] }
@@ -491,12 +498,15 @@ enum CodingRows {
         }
         var keywords = Set<String>()
         if let pack {
-            let keywordWord = t.tr("关键字", "keyword")
-            for keyword in pack.keywords where keyword.hasPrefix(identifier) && keyword != identifier {
-                guard keywords.insert(keyword).inserted else { continue }
-                rows.append(SuggestionRow(text: keyword, comment: keywordWord, insertion: keyword, completion: keyword, typed: identifier,
-                                          pick: SuggestionPick(plugin: "", source: pack.language, match: keyword), source: pack.title,
-                                          coding: true))
+            // Its keywords, then its built-ins (functions, types, library names), each saying which it is.
+            let lists = [(pack.keywords, t.tr("关键字", "keyword")), (pack.builtins ?? [], t.tr("内置", "built-in"))]
+            for (list, comment) in lists {
+                for keyword in list where keyword.hasPrefix(identifier) && keyword != identifier {
+                    guard keywords.insert(keyword).inserted else { continue }
+                    rows.append(SuggestionRow(text: keyword, comment: comment, insertion: keyword, completion: keyword, typed: identifier,
+                                              pick: SuggestionPick(plugin: "", source: pack.language, match: keyword), source: pack.title,
+                                              coding: true))
+                }
             }
         }
         let fieldWords = t.tr("这个字段里的词", "Words in this field")
