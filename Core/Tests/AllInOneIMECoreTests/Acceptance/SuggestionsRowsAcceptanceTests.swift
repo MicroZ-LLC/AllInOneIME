@@ -118,11 +118,14 @@ struct SuggestionsRowsAcceptanceTests {
         }
     }
 
-    /// ↓ and ↑ move the highlight; Return then inserts the highlighted row.
+    /// ↓ and ↑ move the highlight; Return then inserts the highlighted row. Nothing is chosen at first: the first ↓
+    /// chooses the first row (spec decision 29).
     @Test func arrowsMoveTheHighlightAndReturnInsertsIt() async throws {
         try await inEnglish {
             let field = try typedHash7()
             #expect(field.waitForIssues(Self.allRows))
+            #expect(field.press(SuggestionKeys.down))
+            #expect(field.host.panel?.highlighted == 0, "the first ↓: the first row")
             #expect(field.press(SuggestionKeys.down))
             #expect(field.press(SuggestionKeys.down))
             #expect(field.press(SuggestionKeys.up))
@@ -351,7 +354,7 @@ struct SuggestionsRowsAcceptanceTests {
                 #expect(ordinary.waitForIssues(Self.allRows), "the same source in an ordinary app: \(ordinary.issuesShown)")
             case .ordinary:
                 #expect(field.waitForIssues(Self.allRows), "\(field.issuesShown)")
-                #expect(field.press(SuggestionKeys.down), "↓ moves the highlight")
+                #expect(field.press(SuggestionKeys.down) && field.press(SuggestionKeys.down), "↓ chooses the first row, ↓ moves on")
                 #expect(field.host.panel?.highlighted == 1, "\(String(describing: field.host.panel?.highlighted))")
             case .chat:
                 #expect(field.waitForIssues(Self.allRows), "\(field.issuesShown)")

@@ -402,7 +402,12 @@ extension InputSession {
             return suggestionsCompleteShared(event) ? true : nil
         case (.ordinary, .arrow(.down)), (.ordinary, .arrow(.up)):
             let count = suggesting.rows.count
-            suggesting.highlighted = (suggesting.highlighted + (event.key == .arrow(.down) ? 1 : -1) + count) % count
+            if suggestionsReturnRow() == nil {
+                // Nothing chosen yet (the first row only outlined): ↓ chooses the first row, ↑ the last; then they move.
+                suggesting.highlighted = event.key == .arrow(.down) ? 0 : count - 1
+            } else {
+                suggesting.highlighted = (suggesting.highlighted + (event.key == .arrow(.down) ? 1 : -1) + count) % count
+            }
             suggesting.moved = true
             suggestionsShow()
             return true

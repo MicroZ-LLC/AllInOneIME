@@ -696,7 +696,9 @@ struct SuggestionsCustomCommandsAcceptanceTests {
                 #expect(!early.press(SuggestionKeys.enter), "Return before ↓: the app's")
                 #expect(early.document == "JIRA-4", "\(early.document)")
                 let moved = typed()
-                #expect(moved.press(SuggestionKeys.down) && moved.press(SuggestionKeys.down) && moved.press(SuggestionKeys.up))
+                // The first ↓ chooses the first row (spec decision 29), then ↓ and ↑ move.
+                #expect(moved.press(SuggestionKeys.down) && moved.press(SuggestionKeys.down) && moved.press(SuggestionKeys.down)
+                        && moved.press(SuggestionKeys.up))
                 #expect(moved.host.panel?.highlighted == 1, "\(String(describing: moved.host.panel?.highlighted))")
                 #expect(moved.press(SuggestionKeys.enter))
                 #expect(moved.document == "JIRA-4012", "\(moved.document)")

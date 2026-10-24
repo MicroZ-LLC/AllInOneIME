@@ -560,13 +560,14 @@ struct SuggestionsField {
         return handled
     }
 
-    /// Picks the row at `index` as the keys do in an ordinary app (digits never do): Tab the first, else ↓ that many
-    /// times and Return. Whether the session took every key.
+    /// Picks the row at `index` as the keys do in an ordinary app (digits never do): Tab the first, else ↓ once more than
+    /// `index` (the first ↓ chooses the first row, nothing being chosen before: spec decision 29) and Return. Whether the
+    /// session took every key.
     @discardableResult
     func pick(at index: Int) -> Bool {
         if index == 0 { return press(SuggestionKeys.tab) }
         var handled = true
-        for _ in 0..<index { handled = press(SuggestionKeys.down) && handled }
+        for _ in 0...index { handled = press(SuggestionKeys.down) && handled }
         return press(SuggestionKeys.enter) && handled
     }
 
