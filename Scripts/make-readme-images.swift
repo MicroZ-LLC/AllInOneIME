@@ -6,7 +6,7 @@
 // improve.png   @improve: polished, plus rewrites
 // english.png   (Chinese only) English typed directly → English polish; Chinese as the output language
 // voice.png     dictation (hold right ⌥) after a command
-// commands.png  the @ command palette → @question's answer
+// commands.png  the command list (typed @) → @question's answer
 // open.png      @open: Spotlight as you type, and a path listing a folder (only macOS's own apps)
 // candidates-horizontal.png   pinyin candidates side by side (the default layout)
 // refine.png    refining the results: an instruction typed under them → the refined results
@@ -14,8 +14,10 @@
 // selection.png @improve on the selected text, with an email and a phone number hidden from the AI
 // question-chat.png   an @question conversation: two rounds, the next question's line on top (canned answers)
 // question-chat-handoff.png   after the last round: where to go on (the agents installed, Claude, ChatGPT, a copy)
-// panel-dark.png, settings.png, dashboard.png   copies of the renders (dashboard: the floating panel, sample data)
-// settings-assistant.png   Settings → Assistant: a request's preview and the checks (a canned answer, made-up findings)
+// panel-dark.png, settings.png, dashboard.png   copies of the renders (settings: AI after Test Connection; dashboard: the
+//               floating panel, sample data)
+// settings-search.png   Settings' search typed, its "Change: …" preview on General (a canned answer, made-up findings)
+// settings-problem.png   a problem the checks found: the banner on AI, its dot in the sidebar (made-up findings)
 // translate-as-you-type.png   Translate as You Type on: its chip near the caret over a draft, and its notice
 // reply-screenshot.png   @reply with a screenshot pasted (read on this Mac) → three replies (canned)
 // agent-page.png   @agent's notice when it took the Chrome page along
@@ -264,10 +266,11 @@ try composite([
 
 let dark = language == "en" ? source.appendingPathComponent("en-improve-dark.png") : render("4-final-dark")
 for (from, to) in [(dark, "panel-dark.png"), (render("6-settings"), "settings.png"), (render("14-dashboard"), "dashboard.png"),
-                   (render("assistant"), "settings-assistant.png"), (render("release-snippet-editor"), "snippet-editor.png")] {
+                   (render("assistant"), "settings-search.png"), (render("settings-problem"), "settings-problem.png"),
+                   (render("release-snippet-editor"), "snippet-editor.png")] {
     try? FileManager.default.removeItem(at: output.appendingPathComponent(to))
     try FileManager.default.copyItem(at: from, to: output.appendingPathComponent(to))
 }
 print("wrote \(output.path)/demo.png, improve.png, english.png, voice.png, commands.png, open.png, panel-dark.png, settings.png, dashboard.png, "
       + "candidates-horizontal.png, refine.png, recent-questions.png, selection.png, question-chat.png, question-chat-handoff.png, "
-      + "settings-assistant.png, translate-as-you-type.png, reply-screenshot.png, agent-page.png, snippet-editor.png")
+      + "settings-search.png, settings-problem.png, translate-as-you-type.png, reply-screenshot.png, agent-page.png, snippet-editor.png")

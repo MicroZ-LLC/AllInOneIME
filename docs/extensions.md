@@ -1,6 +1,6 @@
 # Script extensions: protocol 1
 
-A script extension adds an @ command to AllInOneIME without touching the app: a program in any language plus a few
+A script extension adds a command to AllInOneIME without touching the app: a program in any language plus a few
 lines of metadata. The same mechanism serves a personal script, a team's private bundle of tools, and existing
 Raycast Script Commands. Extensions live outside the app's repository; this page is the contract between them.
 
@@ -27,7 +27,7 @@ app's) is listed in Settings as needing a newer AllInOneIME, and isn't run.
 Extensions are read from folders:
 
 - `~/.config/allinoneime/extensions/` (in the list from the start),
-- folders added under Settings → Custom Commands → Script Extensions → Add Folder…,
+- folders added under Settings → Commands → Script Extensions → Add Folder…,
 - folders holding Raycast Script Commands, found with Spotlight (on by default; a found folder can be hidden),
 - bundles installed from a Git repository: extension sources (§10).
 
@@ -157,9 +157,9 @@ export (in `.zshrc`, say) don't arrive: a bundle's preferences are the way to pa
 - Nothing runs while secure input is on (a password field, the lock screen).
 - An extension doesn't run inside another command's text (`@question … @flights …` leaves it as text).
 - It gets the text as typed. With text selected in the field, it doesn't use the selection: its arguments are what's
-  typed after its name, and the selection stays as it is. "Hide sensitive information before sending" (Settings → AI
-  Provider → Privacy) applies to requests to the AI only, not to what an extension gets. An app set to "No AI in this
-  app" (Settings → Apps) still runs extensions: they aren't the AI.
+  typed after its name, and the selection stays as it is. "Hide sensitive information before sending" (Settings →
+  Privacy) applies to requests to the AI only, not to what an extension gets. An app in "Apps without AI" (Settings →
+  Privacy) still runs extensions: they aren't the AI.
 - Color codes and other terminal escapes are removed from what it prints.
 
 **Exit status.** Non-zero is a failure: the last line of standard error with words in it (else of standard output)
@@ -333,7 +333,7 @@ Raycast's keys are read as they are, and mean:
 
 ## 10. Extension sources
 
-A bundle can be installed from a Git repository and updated from there: Settings → Custom Commands → Extension
+A bundle can be installed from a Git repository and updated from there: Settings → Commands → Extension
 Sources → Add from Link…, or `AllInOneIME --add-source <url>`.
 
 **The repository.** Any layout, as long as the bundle is a folder with its `extension.json` (§6) and the scripts it

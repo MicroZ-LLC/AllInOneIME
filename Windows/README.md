@@ -174,7 +174,7 @@ mode the goldens bring their own (`#! settings`); `settings.jsonl` replays over 
 - **Not done yet on Windows:** results typed out step by step (they go in at once), the keyboard layout of an input
   language (French's AZERTY), Translate as You Type's chip, the command usage order and the recent questions kept
   between runs, `@open`'s search (a plain walk of a few folders, not an index), UI-less mode (`ITfUIElement`) for
-  full-screen games; personal pinyin dictionaries (0.6.7, the Mac's Settings → Input → Chinese: the core's
+  full-screen games; personal pinyin dictionaries (0.6.7, the Mac's Settings → General → Chinese chip: the core's
   `PersonalDictionaryStore` would write librime's files here as it is, but the settings document has no field for
   them and the Settings app no file to pick yet). The magic key (0.6.7, `commandTrigger`) works as on the Mac.
 

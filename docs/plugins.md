@@ -1,9 +1,9 @@
 # Plugins: plan
 
-@ commands come in three tiers: **built-in** (`@improve`, `@translate`, `@question`, `@agent`, `@open`, `@note`,
+Commands come in three tiers: **built-in** (`@improve`, `@translate`, `@question`, `@agent`, `@open`, `@note`,
 `@reminder`, `@py`, `@js`, `@tasks`, `@settings`, `@imessage`, `@reportissue`;
 `@read` and `@search` are built but not offered yet, their names still taken), **plugins** installed from the plugin
-library (what not everyone wants, like `@stock`), and the user's **custom** commands (Settings → Custom @ Commands).
+library (what not everyone wants, like `@stock`), and the user's **custom** commands (Settings → Commands → Your Commands).
 When names clash: built-in > plugin > custom, so a plugin named like a built-in command never shows up.
 
 ## What a plugin is
@@ -53,7 +53,7 @@ browser. Nothing is inserted; the draft is cleared, as when `@open` opens someth
   `@stock` first and opens the link with its output in the text.
 - Refused during secure input, like every command.
 - Custom commands have the same type (`{"name": "google", "type": "link", "url": "https://www.google.com/search?q={input}"}`,
-  or "Open a web page" in Settings → Custom @ Commands).
+  or "Open a web page" in Settings → Commands → Your Commands).
 
 [Core/Plugins/](../Core/Plugins/) in the repository has `@x`, `@threads`, `@bsky` and `@weibo`, and a script plugin, `@xe`
 (currency conversion, `@xe 100 USD CNY`); the library publishes them.
@@ -95,9 +95,9 @@ fetch([url, …], {headers}) → [{status, ok, text, json()} | {ok: false, error
 - At most 8 requests a run, 1 MB a response, 5 s a request; the run itself ends after `timeoutSeconds` (≤ 20).
 - No file system, processes, environment, timers or clipboard: neither engine has them, as the app makes it.
 - Secure input (password fields) refuses plugins like any command.
-- The text goes to the plugin's hosts as typed: "Hide sensitive information before sending" (Settings → AI Provider →
+- The text goes to the plugin's hosts as typed: "Hide sensitive information before sending" (Settings →
   Privacy) covers requests to the AI, so a `prompt` plugin, but not what a script or link plugin sends. Likewise an
-  app set to "No AI in this app" (Settings → Apps) refuses `prompt` plugins and still runs script and link plugins.
+  app in "Apps without AI" (Settings → Privacy) refuses `prompt` plugins and still runs script and link plugins.
 
 `run(input, context)` gets the text (trimmed) and a plain object, `context`:
 
@@ -135,7 +135,7 @@ main branch's files; 0.5.0 reads `raw.githubusercontent.com/…/main/` directly)
   from the keychain. CI runs it with `--validate` on pull requests and `--check` on main (the index matches the
   plugins, the signature is valid); CI can't sign. Only the maintainer merges.
 
-In the app (`PluginLibrary`, Settings → Plugins → "Browse Library…"):
+In the app (`PluginLibrary`, Settings → Commands → Plugins → "Browse Library…"):
 
 - Network only when the user opens or refreshes the library, or installs: no background polling.
 - The signature is verified **before** the index is parsed; an unknown `schema` is refused. Offered is, per plugin,
@@ -211,8 +211,9 @@ plugin.json still lists them (the hosts approved come on standard input too):
   mail, `#1234 Fix login https://github.com/…/issues/1234` in chat apps, and `#1234` in terminals; a template whose
   variables an item lacks is skipped for the next in its list.
 - The plugin's `insert` is the default: the user may choose otherwise, everywhere (Settings → General → Insert) or per
-  app (Settings → Apps), and then every class of app gets the choice: ID only (`{arg}`), with title (`{arg} {title}`,
-  else `{arg}`), or with title and link (`{arg} {title} {url}`, else `{arg} {title}`, else `{arg}`). So give an item
+  app ("In these apps" there), and then every class of app gets the choice: with title (`{arg} {title}`, else `{arg}`),
+  or with title and link (`{arg} {title} {url}`, else `{arg} {title}`, else `{arg}`); ID only (`{arg}`) is no longer
+  offered, and still used where a config has it. So give an item
   the variables `title` (the title alone, without the number: the row's `title` isn't `{title}`) and `url` where it has
   them. A class whose `insert` is `null` still has no rows, whatever the user chose.
 - `ctx` is `{ source, preferences, language }` (`"zh"` or `"en"`): nothing about the app, the field or the text around
@@ -222,7 +223,7 @@ plugin.json still lists them (the hosts approved come on standard input too):
   later. Bad items are dropped one by one; control, bidi and zero-width characters are taken out of everything first.
 - Only what wasn't typed goes in: `#12` and the row `#1234` insert `34` and the rest of the template.
 
-The user turns each source on in Settings → Plugins; the switch says what it does and, for a source with `query`, where
+The user turns each source on in Settings → Commands → Plugins; the switch says what it does and, for a source with `query`, where
 what is typed after the prefix goes. An update that changes `hosts`, `query`, the script, or the source's `prefix`,
 `queryMinChars` or `compare` needs turning on again.
 [Core/Plugins/github](../Core/Plugins/github/) is the example.
@@ -236,9 +237,9 @@ command's does, with no input for the list and, with `query`, what follows the p
 `{input}`, else last); `timeoutSeconds` is 20 at most, a query's 3 seconds. It may print the `{ items }` above, or lines
 `match⇥title⇥url` (a title is also `{title}`). It's the user's own: no approval and no `hosts` (it runs locally), on
 while it exists, but one that came from another Mac through iCloud runs nothing until the user allows it on this Mac
-once (Settings → Custom Commands shows the program it would run; its program changed there asks again); rows, keys,
+once (Settings → Commands → Your Commands shows the program it would run; its program changed there asks again); rows, keys,
 picks, the cache, back-off and pause are a plugin source's. An entry that breaks the rules
-isn't a source, and Settings → Custom Commands says why.
+isn't a source, and Settings → Commands → Your Commands says why.
 
 ```json
 { "name": "jira", "type": "suggestions", "summary": "Jira issues", "prefix": "PROJ-",

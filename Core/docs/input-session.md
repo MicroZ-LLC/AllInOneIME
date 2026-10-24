@@ -164,6 +164,10 @@ launches, level one's engine, the language packs, programs, plugins and extensio
 reminders, contacts and messages, the web page, the secret store's keys. Its defaults do nothing and keep nothing; the
 Mac fills it in (`SessionServices.mac`), a test with stand-ins (`FakeHost` in `AllInOneIMETestSupport` drives a session
 as a shell does; `InputSessionTests` run on every platform).
+What a session learns about apps is apart from the settings: `SessionServices.learned` (`LearnedStore`, Learned.swift),
+the starting input a field's switches teach its app (InputSession+Learning.swift: switched with Shift before anything
+is typed, to the same input in two fields in a row) and what else is learned on the device, kept there only (the Mac:
+`learned.json` in its data folder), never in config.json, never synced.
 
 Still the Mac shell's: Translate as You Type's state shared by every field and its chip (`TranslateModeShared`), the
 recording itself, typing out, drawing the panel, the input menu.

@@ -652,6 +652,23 @@ given and sends back what the user did. It opens no sessions.
 | `commands` | `commands.custom` |
 | `advanced` | `configFile` |
 
+- **The Mac's window** lays these settings, and some the document doesn't have (`autocomplete`, `questionContinueIn`,
+  the extension sources), out on pages of its own, not by these sections (0.6.7: General, AI, Privacy, Commands,
+  Advanced, About; `SettingsPage` and `SettingsSpot`, Sources/AllInOneIME/SettingsSearch.swift).
+  General: `inputLanguages` and `codingLanguage` as chips (fuzzy pinyin, the personal dictionaries, `englishWords` and
+  the coding packs in a chip's options), `writing`'s fields, `autocomplete`, `suggestions`, `suggestionsInsert` and each
+  app's (`.suggestionsInsert`), `commandTrigger`, `actionKey`, `menuBarIcon`, `uiLanguage`, `iCloudSync`, and an app's
+  other fields as "Previous per-app settings" (only while one is set). AI: `provider`'s fields; `request`'s only when
+  one isn't its default. Privacy: `privacy`'s fields (a kind set off only then), each app's `.noAI` (Apps without AI),
+  `agentPageContext`, `rememberQuestions`, `learnsEnglishWords`. Commands: `commands`, `agent`, `questionContinueIn`,
+  `notes`, `search`, `plugins`, `extensions`, the extension sources. Advanced: `typeOut` and its rate, variation and
+  typos, `candidateLayout`, `useSelection`, `configFile`. About: `checkForUpdates`. The ids above stay as they are:
+  they are the wire's.
+- **What is learned isn't a setting** (`LearnedStore`, Learned.swift: the starting input each app learned and the
+  streaks toward one, the apps where typos couldn't be fixed, the suggestion rows picked, and through it what
+  autocomplete and `TemperatureSupport` learned): kept on the device by its shell (the Mac:
+  `~/Library/Application Support/AllInOneIME/learned.json`), never in config.json or the document, never synced.
+
 ### 12.4 Changes (`settingsSet`)
 
 - **One at a time:** `field` and `value`. The value is checked against the field (its kind, bounds, choices), then set

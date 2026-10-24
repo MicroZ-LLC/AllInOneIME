@@ -1,7 +1,7 @@
 # Plugins
 
 Plugins kept with the app's source. They are **not installed with the app**: the plugin library
-(Settings → Plugins → Browse Library…) publishes them, signed, from its own repository.
+(Settings → Commands → Plugins → Browse Library…) publishes them, signed, from its own repository.
 They're under the MIT license there and here, like the rest of [AllInOneIME-plugins](https://github.com/MicroZ-LLC/AllInOneIME-plugins).
 
 | Plugin | Type | What it does |
@@ -51,7 +51,7 @@ about 30 currencies). One request a run (two when the first fails).
 ## Installing one by hand
 
 Copy its folder into the plugins folder; the command list has it the next time you click into a text field,
-and Settings → Plugins lists it (Refresh):
+and Settings → Commands → Plugins lists it (Refresh):
 
 ```sh
 mkdir -p ~/.config/allinoneime/plugins
@@ -59,7 +59,7 @@ cp -R Plugins/x ~/.config/allinoneime/plugins/
 ```
 
 The folder name must match the plugin's `name`. A plugin copied by hand shows as **local (not reviewed)**.
-To remove it, use Remove in Settings → Plugins or delete the folder.
+To remove it, use Remove in Settings → Commands → Plugins or delete the folder.
 
 ## @github
 
@@ -68,7 +68,7 @@ repository in its `repos` preference (owner/repo, comma-separated; `MicroZ-LLC/A
 15 minutes while it's used, and an issue looked up by its number from 2 digits on. ⏎ or Tab inserts the chosen row, the
 number and its title, `#1234 Fix login`; in chat apps the address too, `#1234 Fix login https://github.com/…/issues/1234`;
 in terminals and code editors `#1234`. Only what wasn't typed goes in. Settings → General → Insert (or an
-app's own, in Settings → Apps) can choose ID only, with title, or with title and link instead. A token (optional, its `token`
+app's own, under "In these apps" there) can choose with title, or with title and link, instead. A token (optional, its `token`
 preference, kept in the keychain) reads private repositories. Only `api.github.com` is reached, and only once its
-completions are turned on in Settings → Plugins (the lookup sends what follows `#`). `@github <words>` lists the
+completions are turned on in Settings → Commands → Plugins (the lookup sends what follows `#`). `@github <words>` lists the
 matching issues and PRs with their addresses.

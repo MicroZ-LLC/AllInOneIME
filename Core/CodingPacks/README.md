@@ -3,8 +3,8 @@
 Coding language packs (Suggestions v1, spec 2; decision 22): what the Code input suggests besides the words already in
 the text field, from the pack of Code's language (one at a time), one JSON file per language. They are **not installed
 with the app**: the language library publishes them, like the input languages' packs but listed apart
-(`coding-packs.json`, signed with the same key). Picking a language for Code (Settings → Input, or the input menu)
-downloads its pack; the Input page lists the packs installed and the library.
+(`coding-packs.json`, signed with the same key). Picking a language for Code (Settings → General → Add… → Code, or the input menu)
+downloads its pack; Code's chip there lists the packs installed and the library.
 
 ```json
 { "language": "python", "title": "Python", "version": "1.0.0",
