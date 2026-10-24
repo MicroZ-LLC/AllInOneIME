@@ -3,7 +3,8 @@ import Foundation
 /// Script extensions in the settings document: the folders they are read from (`Config.extensionFolders`: one added by
 /// its path, one removed; a folder found by the Mac's Spotlight hidden or shown again), and what is in them, each bundle
 /// and script an item with its own fields: its switch (`Config.disabledExtensions`), a bundle's preferences
-/// (`Config.extensionPreferences`; a password in the secret store, as a key is) and its commands' switches.
+/// (`Config.extensionPreferences`; a password in the secret store, as a key is), its commands' switches, and under a
+/// command that declares a completion source its switch (0.6.7.1 §2), or why it is refused.
 extension SettingsSchema {
     mutating func scriptExtensions() -> [Field] {
         var fields: [Field] = []
@@ -68,6 +69,7 @@ extension SettingsSchema {
             var fields: [Field] = []
             add(toggle(Self.switchID(command.id), config.commandTrigger + command.name, UIText.summary(command), store.isEnabled(command.id)),
                 to: &fields) { store.setEnabled(command.id, Self.bool($0)) }
+            fields += extensionCompletionFields(command)
             items.append(SettingsDocument.Item(id: command.id, title: config.commandTrigger + command.name,
                                                detail: command.source == .raycast ? command.title + " · Raycast" : command.title,
                                                fields: fields))
@@ -124,7 +126,42 @@ extension SettingsSchema {
             for command in commands {
                 add(toggle(Self.switchID(command.id), config.commandTrigger + command.name, UIText.summary(command), store.isEnabled(command.id)),
                     to: &fields) { store.setEnabled(command.id, Self.bool($0)) }
+                fields += extensionCompletionFields(command)
             }
+        }
+        return fields
+    }
+
+    /// The completion source `command` declares (0.6.7.1 §2), under its switch: its own switch, off until turned on here,
+    /// saying what it does (it runs the script in the background; one that queries gets what you type after its prefix),
+    /// then why it can't show (the magic key), that it changed since it was turned on (its script, prefix, query or
+    /// compare: off until turned on again), that Suggestions are off, or how it is doing (its items, last refresh, last
+    /// error); or why its declaration is refused. None for a command that declares none.
+    mutating func extensionCompletionFields(_ command: ScriptCommand) -> [Field] {
+        var fields: [Field] = []
+        switch command.completion {
+        case nil:
+            break
+        case let .failure(refused)?:
+            var field = Field(id: "extensions.completion.refused." + command.id, kind: .info, label: tr("没有用上的补全", "Completions not used"))
+            field.help = refused.reason
+            add(field, to: &fields)
+        case let .success(source)?:
+            let store = store
+            let key = CompletionSourceKey(extension: command)
+            let approval = config.approval(of: source, in: command)
+            let holds = approval?.holds(for: source, of: command) ?? false
+            var field = toggle("extensions.completion." + command.id, tr("建议", "Suggestions"), source.scriptSummary(), holds)
+            if let reason = source.inactiveReason(config) {
+                field.status = reason
+            } else if approval != nil, !holds {
+                field.status = CompletionSource.scriptChanged
+            } else if holds, config.suggestions == false {
+                field.status = tr("建议关着，这些补全不会出现：在「通用」里打开。", "Suggestions are off, so these completions don't show: turn them on in General.")
+            } else if holds, let status = suggestionStatuses.first(where: { $0.plugin == key.plugin && $0.source == key.source }) {
+                field.status = status.summary()
+            }
+            add(field, to: &fields) { store.config.setCompletionSource(source, of: command, enabled: Self.bool($0)) }
         }
         return fields
     }

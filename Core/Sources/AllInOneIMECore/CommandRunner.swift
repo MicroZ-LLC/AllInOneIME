@@ -70,6 +70,25 @@ public enum CommandRunner {
         }
     }
 
+    /// Runs a script extension's completion program (`ExtensionCompletionRunner`, 0.6.7.1 §2): its launch and
+    /// `arguments` (none for its list, a query's text), in its folder (or its `currentDirectoryPath`) with `environment`
+    /// (`ScriptCommand.completionEnvironment`), /usr/local/bin on the PATH, as its commands run; nothing on standard
+    /// input. What it printed (cleaned), once it exited, `maxOutput` bytes at most (more stops it: a list's 4 MB, not a
+    /// command's 64 KB) within `timeout`; when it fails, its last line says why. Cancelling the task stops it.
+    static func completionOutput(_ command: ScriptCommand, arguments: [String], environment: [String: String],
+                                 timeout: Double, maxOutput: Int) async throws -> String {
+        let launch = Launch(argv: command.launch + arguments, stdin: nil, timeout: timeout, directory: command.directory,
+                            failureOnStandardOutput: true, maxOutput: maxOutput)
+        #if os(Windows)
+        let stream = run(launch, environment: environment)
+        #else
+        let stream = run(launch, environment: environment, extraPath: "/usr/local/bin")
+        #endif
+        for try await update in stream where update.isFinal { return update.rawText }
+        try Task.checkCancellation()
+        return ""
+    }
+
     private static func run(_ launch: Launch, environment: [String: String]?,
                             extraPath: String? = nil) -> AsyncThrowingStream<ConversionUpdate, Error> {
         AsyncThrowingStream { continuation in

@@ -67,8 +67,9 @@ public struct CompletionSource: Equatable, Hashable, Sendable {
 /// What a source's row inserts (`insert`), per app class: `default` (ordinary apps), `chat` and `terminal` (a class not
 /// declared uses `default`'s). Templates name an item's variables in braces: `{match}`, `{arg}`, and the item's own
 /// `variables` (`{url}`). The terminal and code editor class only says whether there are rows there: `null`, none;
-/// anything else, `{match}` is what goes in (spec 6.10). A row whose insertion doesn't start with what was typed (in any
-/// case) isn't offered for that token (spec 6.13).
+/// anything else, `{match}` is what goes in (spec 6.10). A template that doesn't start with what was typed (in any case)
+/// takes the token's place where the field reports ranges, and is skipped for the next elsewhere (0.6.7.1 §1, which
+/// replaced spec 6.13).
 public struct CompletionInsert: Equatable, Hashable, Sendable {
     public enum Templates: Equatable, Hashable, Sendable {
         /// A template, or several tried in turn: the first whose variables the item all has.
@@ -492,6 +493,9 @@ public struct SuggestionsServices {
     /// Runs custom commands' programs for their lists and queries: as `run` commands run (`CommandCompletionRunner`)
     /// unless the shell gives another.
     public var commandRuntime: any CommandCompletionRuntime
+    /// Runs script extensions' completion programs (0.6.7.1 §2): as their commands run (`ExtensionCompletionRunner`)
+    /// unless the shell gives another.
+    public var extensionRuntime: any ExtensionCompletionRuntime
     /// The switches (read again as the settings change).
     public var settings: () -> SuggestionsSettings
     /// The time now.
@@ -541,6 +545,7 @@ public struct SuggestionsServices {
         store = SuggestionsStore()
         runtime = NoCompletionRuntime()
         commandRuntime = CommandCompletionRunner()
+        extensionRuntime = ExtensionCompletionRunner()
         settings = { SuggestionsSettings() }
         now = { Date() }
         cacheFolder = nil

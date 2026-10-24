@@ -19,7 +19,7 @@ app's) is listed in Settings as needing a newer AllInOneIME, and isn't run.
 | `battery.sh` | a `status` line (`status self`, `statusRefresh`) |
 | `say.sh` | `confirm`, and `silent` (its last line as a notice) |
 | `word-count.sh` | a Raycast Script Command as Raycast writes it (`mode compact`, `packageName`) |
-| `bookmarks/` | a bundle: each list row action (`open`, `copy`, `run` for a second step), a row of information only, a text and a password preference |
+| `bookmarks/` | a bundle: each list row action (`open`, `copy`, `run` for a second step), a row of information only, a text and a password preference; a completion source (`bm.` and a title, a Markdown link: §11) |
 | `units/` | a bundle: a dropdown preference, two commands sharing code in `lib/` through `ALLINONEIME_EXTENSION_DIR` |
 
 ## 1. Where extensions come from
@@ -92,6 +92,7 @@ A file may use `@allinoneime.<key> <value>` (the protocol's own keys) or `@rayca
 | `timeout` | seconds before it's stopped | 10; 600 with `background` |
 | `queryDelay` | `list`: milliseconds after the last key before it runs again | 150 |
 | `currentDirectoryPath` | where it runs (from the script's folder, or `~/…`) | the script's folder |
+| `completion` | a completion source, as JSON on one line: suggestions as you type a prefix (§11) | none |
 
 A bundle's command may also set `alias`: the name it takes when its `name` is another command's (§7).
 
@@ -257,8 +258,8 @@ reached through `ALLINONEIME_EXTENSION_DIR`) and settings. One folder to install
 - `schemaVersion`, `name` (letters, digits, `-`, `_`; two bundles can't share one) and `commands` or `snippets` are
   required.
 - Each command names its `script` (a path inside the bundle) and takes the keys of §2 in JSON: strings, `true` /
-  `false`, numbers, and the `argumentN` objects as they are. They override the `@allinoneime.` lines in the script, if
-  it has any.
+  `false`, numbers, and the `argumentN` and `completion` objects as they are. They override the `@allinoneime.` lines in
+  the script, if it has any.
 - The other paths a bundle's command gives are inside it too, from its script's folder as written (no `..`, no `/…`,
   `~/…` or `C:…`): an `icon` image, a `status` program given as a path (`./left.sh`; a program name alone, `date`, is
   still looked for in the script's folder, then on the PATH), and a `currentDirectoryPath` that isn't `~/…` or
@@ -297,7 +298,7 @@ reached through `ALLINONEIME_EXTENSION_DIR`) and settings. One folder to install
   commands with a word of their title or a keyword starting with them. A digit right after letters is part of a name
   when a command's name goes on that way (`@base6` → `@base64`); otherwise digits pick a row.
 - **Limits.** A few processes at a time (status lines two at once, background runs four), 64 KB of output, the
-  timeouts above.
+  timeouts above. A completion's runs have limits of their own (§11).
 
 ## 8. Raycast Script Commands
 
@@ -330,6 +331,7 @@ Raycast's keys are read as they are, and mean:
 | `disabledExtensions` | `[]` | commands (ids) and bundles (names) turned off |
 | `extensionPreferences` | `{}` | bundle → preference → value (not passwords) |
 | `extensionSources` | `[]` | Git repositories bundles are installed from (§10) |
+| `completionSources` | `[]` | the completion sources turned on (§11), plugins' too: for a command, `"plugin": "script-extensions"` and its id as `source`, with what was approved (its script's SHA-256, `query`, its prefix and `compare`); this Mac's own, never synced |
 
 ## 10. Extension sources
 
@@ -427,3 +429,77 @@ bundle, others in a repository of their own.
 They take only these options (and `--config FILE`, `--sources-dir DIR` for tests); any other is refused.
 
 There is no signature on a source: it runs what its repository holds, as you. Add only repositories you trust.
+
+## 11. Completions
+
+A command may also complete what you type (0.6.7.1): rows in the candidate panel as you type its prefix (`#12`,
+`bm.sw`), the same rows, keys and choices as a plugin's completions (docs/plugins.md, "Completions"), from a list its
+script prints, and, if it says so, a lookup of what follows the prefix. The command is still a command, run as before.
+
+**Declaring it.** One source per command, with the keys of a plugin's `completions` entry, the same meaning, defaults
+and limits: `prefix`, `minChars`, `compare`, `list`, `refresh`, `query`, `queryMinChars`, `insert` (a template, a list
+of them tried in turn, or per class of app `default` / `chat` / `terminal`, `null` for no rows in that class). There is
+no `name` or `title`: the source is the command's (its name, its title).
+
+- A single script: one metadata line, any comment mark as other keys.
+
+  ```bash
+  #!/bin/bash
+  # @allinoneime.schemaVersion 1
+  # @allinoneime.title Tickets
+  # @allinoneime.completion {"prefix": "TCK-", "list": true, "refresh": "15m", "query": true, "queryMinChars": 2, "insert": {"default": ["[{title}]({url})", "{arg}"], "terminal": "{match}"}}
+  ```
+
+- A bundle: `"completion"` in the command's entry, used over its script's own line, as the other keys are (§6).
+
+  ```json
+  { "script": "bookmarks.sh", "name": "bm", "title": "Bookmarks", "output": "list",
+    "completion": { "prefix": "bm.", "list": true, "refresh": "1h",
+                    "insert": { "default": "[{title}]({url})", "terminal": null } } }
+  ```
+
+A declaration that breaks the rules (a `query` without a `prefix`, a source without a prefix that isn't `exact` over
+digits, a template that isn't one, a value out of range, anything but a JSON object) is refused on its own: Settings
+says why under the command, and the command still loads.
+
+**Running it.** As its commands run (§3: its folder or `currentDirectoryPath`, the PATH, its process group, its last
+line on standard error as the error), with nothing on standard input, and limits of its own:
+
+- **The list:** with `ALLINONEIME_COMPLETION=load` and no arguments, it prints
+  `{ "items": [Item], "fetchedAt"?: unixSeconds }` as JSON on standard output. Up to 20 seconds (whatever its
+  `timeout`), 20,000 items and 4 MB (the 64 KB of a command's output doesn't apply).
+- **A lookup** (`query`): with `ALLINONEIME_COMPLETION=query` and what follows the prefix as its one argument (`$1`:
+  `12` for `TCK-12`; never in the environment), it prints `{ "items": [Item] }`. Up to 3 seconds. It's called as a
+  plugin's query is: once the token has `queryMinChars` after the prefix, then again only when what its answers give
+  leaves fewer than 5 rows, after a pause of 150 ms in typing.
+- **Environment:** `ALLINONEIME_PROTOCOL`, `ALLINONEIME_VERSION`, `ALLINONEIME_COMPLETION`, `ALLINONEIME_LANGUAGE` (the
+  interface's), `ALLINONEIME_EXTENSION_DIR` and the bundle's `ALLINONEIME_PREF_<NAME>` (passwords from the keychain, as
+  for its commands; while a required one has no value, it doesn't run and its status says what to set). Never the app
+  in front, the language being typed or the token itself (`ALLINONEIME_APP`, `ALLINONEIME_INPUT_LANGUAGE` and
+  `ALLINONEIME_QUERY` aren't set): a lookup gets only its argument.
+- **`Item`**, as a plugin's: `{ match, title?, subtitle?, arg?, variables? }`, `match` (1–64 letters, digits and
+  `. _ - @ #`, the prefix included) compared with the token, `title` and `subtitle` shown, `arg` (default `match`) and
+  `variables` filling the templates (`{match}`, `{arg}`, `{url}`, `{title}`…: give `title`, the title alone, and `url` as
+  variables for the Insert choices). Bad items are dropped one by one; an output that isn't an object with `items`, too
+  large, a failure or a timeout keeps the old list and backs off (1 min, 5 min, 30 min, 2 h; the fifth in a row pauses
+  it until Refresh now, an update or a day later).
+- **One at a time.** One completion program of a bundle runs at a time (a bundle's programs may share state: a cookie
+  file, a cache); the others wait their turn. A newer lookup for the same source cancels the one before, waiting or
+  running (SIGTERM to its process group, then SIGKILL).
+- The list is kept on this Mac (cached in `~/Library/Caches/AllInOneIME/suggestions/`, readable only by you) and loaded
+  again every `refresh` while you use it, not after a week unused; rows you picked come first. Nothing runs, and no rows
+  show, during secure input or in a password field.
+
+**What a row puts in.** The first template the item fills that can go in there: one that starts with the token adds
+what wasn't typed; one that doesn't (`[{title}]({url})`) takes the token's place where the text field tells where its
+text is (the token, prefix and all, taken out and the text put in, one change you can undo as one), and is skipped for
+the next elsewhere (terminals). Its `insert` is the default: Settings → General → Insert (With title, With title and
+link, Markdown link) and each app's own choice apply to it, as to every source.
+
+**Trust.** As a plugin's completions: off until you turn it on in Settings → Commands, under the command (its switch,
+what it does: it runs this script in the background, and with `query` it also gets what you type after the prefix;
+then its last refresh, items, last error and Refresh Now). What you turned on is its script (its SHA-256), `query`,
+`prefix` and `compare`: a change to any of them, an extension source's update or your own edit (a single script's
+`completion` line is part of its script), turns it off again, and Settings says so; only the script you turned on
+runs. Turning the command or its bundle off turns its suggestions off too.
+

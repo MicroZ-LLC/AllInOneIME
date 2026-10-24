@@ -672,6 +672,7 @@ final class SettingsModel: ObservableObject {
             _ = store.setPreference(bundle, preference, value)
         }
         refreshExtensions()
+        reloadLists(of: bundle)
     }
 
     /// Removes a password preference from the keychain: Remove…, confirmed.
@@ -679,6 +680,7 @@ final class SettingsModel: ObservableObject {
         guard persists, preference.kind == .password else { return }
         extensionError = store.removePassword(bundle, preference)
         refreshExtensions()
+        reloadLists(of: bundle)
     }
 
     // MARK: Plugin library
@@ -1563,6 +1565,10 @@ struct SettingsView: View {
             if let hidden {
                 Label(tr("没有加载：", "Not loaded: ") + UIText.describe(hidden, file: command.file), systemImage: "exclamationmark.triangle")
                     .font(.caption).foregroundStyle(.orange).padding(.leading, 28)
+            }
+            // The completion source it declares (suggestions as you type), with its own switch.
+            if command.completion != nil, model.isEnabled(command.id) {
+                ScriptCompletionView(model: model, command: command).padding(.top, 2)
             }
         }
         .help(ExtensionStore.abbreviated(command.file.path))

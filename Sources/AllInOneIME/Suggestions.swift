@@ -58,15 +58,17 @@ enum SuggestionsShared {
             // no longer holds marked, with the plugins as they are.
             let config = LiveConfig.current
             store.prune(keeping: settings(config).sourceKeys, folder: cacheFolder)
-            markLapsed(CompletionSourceApproval.lapsed(config.completionSources, plugins: LivePlugins.current(rescan: true)))
+            let extensions = LiveExtensions.current(config).commands
+            markLapsed(CompletionSourceApproval.lapsed(config.completionSources, plugins: LivePlugins.current(rescan: true))
+                       + CompletionSourceApproval.lapsed(config.completionSources, extensions: extensions))
         }
         NotificationCenter.default.post(name: .allInOneIMESuggestionsChanged, object: nil)
     }
 
-    /// Approvals that no longer hold (their plugin changed since: `CompletionSourceApproval.lapsed`) marked so in the
-    /// config file, kept, once the key or focus being handled is done: Settings says the source changed since it was
-    /// turned on, and it stays off until turned on again. (Approvals go only with their plugin, `SettingsStore.uninstall`,
-    /// or when turned off.)
+    /// Approvals that no longer hold (their plugin or script extension changed since: `CompletionSourceApproval.lapsed`)
+    /// marked so in the config file, kept, once the key or focus being handled is done: Settings says the source changed
+    /// since it was turned on, and it stays off until turned on again. (Approvals go only with their plugin,
+    /// `SettingsStore.uninstall`, or when turned off.)
     static func markLapsed(_ lapsed: [CompletionSourceApproval]) {
         guard !lapsed.isEmpty else { return }
         DispatchQueue.main.async {

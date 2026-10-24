@@ -12,10 +12,16 @@ public struct CompletionSourceKey: Hashable, Sendable {
     }
 
     /// Its file in the cache folder: "<plugin>.<source>.json" (names of small letters and digits), a custom command's
-    /// "custom-commands.<name>.json".
-    var fileName: String { "\(plugin).\(source).json" }
+    /// "custom-commands.<name>.json"; a script extension's "script-extensions.<16 hex digits>.json", from its command's
+    /// id (a path, or a bundle's name and the command's), which a file's name can't hold as it is.
+    var fileName: String {
+        guard isScriptExtension else { return "\(plugin).\(source).json" }
+        let digest = SHA256.hash(data: Data(source.utf8)).prefix(8).map { String(format: "%02x", $0) }.joined()
+        return "\(plugin).\(digest).json"
+    }
 
-    /// The source a cache file is of, by its name; nil for any other file.
+    /// The source a cache file is of, by its name; nil for any other file, and for a script extension's (its name is its
+    /// id's digest: `isCacheFile`).
     init?(fileName: String) {
         let parts = fileName.split(separator: ".", omittingEmptySubsequences: false)
         guard parts.count == 3, parts[2] == "json", CompletionDeclaration.isName(String(parts[1])),
@@ -23,6 +29,14 @@ public struct CompletionSourceKey: Hashable, Sendable {
                 || (1...24).contains(parts[0].count) && parts[0].allSatisfy({ $0.isASCII && $0.isLowercase && $0.isLetter })
         else { return nil }
         self.init(plugin: String(parts[0]), source: String(parts[1]))
+    }
+
+    /// Whether `name` is a source's cache file (`fileName`): a plugin's, a custom command's, a script extension's.
+    static func isCacheFile(_ name: String) -> Bool {
+        if CompletionSourceKey(fileName: name) != nil { return true }
+        let parts = name.split(separator: ".", omittingEmptySubsequences: false)
+        return parts.count == 3 && parts[0] == Self.scriptExtensions && parts[2] == "json" && parts[1].count == 16
+            && parts[1].allSatisfy(\.isHexDigit)
     }
 }
 
@@ -497,8 +511,8 @@ public final class SuggestionsStore: @unchecked Sendable {
         guard let folder else { return }
         Self.disk.async {
             guard let names = try? FileManager.default.contentsOfDirectory(atPath: folder.path) else { return }
-            for name in names {
-                guard let key = CompletionSourceKey(fileName: name), !enabled.contains(key) else { continue }
+            let kept = Set(enabled.map(\.fileName))
+            for name in names where CompletionSourceKey.isCacheFile(name) && !kept.contains(name) {
                 try? FileManager.default.removeItem(at: folder.appendingPathComponent(name))
             }
             let staging = Self.staging(for: folder)

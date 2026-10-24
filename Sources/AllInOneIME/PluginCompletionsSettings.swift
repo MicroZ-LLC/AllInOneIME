@@ -2,7 +2,7 @@ import AllInOneIMECore
 import SwiftUI
 
 // Settings → Plugins: each plugin's completion sources (suggestions: rows as you type a token like #12, Tab inserts) and
-// its preferences, under its row (spec suggestions v1, 1.5 and 3).
+// its preferences, under its row (spec suggestions v1, 1.5 and 3); a script extension's, under its command (0.6.7.1 §2).
 
 extension SettingsModel {
     /// `source` of `plugin` turned on (enabling what it is now: the plugin's hosts, whether it queries, its script, its
@@ -18,6 +18,32 @@ extension SettingsModel {
     func refreshNow(_ source: CompletionSource, of plugin: InstalledPlugin) {
         guard store.persists else { return }
         SuggestionsShared.refreshNow(plugin: plugin.name, source: source.name)
+    }
+
+    /// `source` of the script extension `command` turned on (approving what it is now: its script, whether it queries, its
+    /// prefix and how it compares) or off, and saved; the field being typed in takes it at once.
+    func setCompletionSource(_ source: CompletionSource, of command: ScriptCommand, enabled: Bool) {
+        config.setCompletionSource(source, of: command, enabled: enabled)
+        save()
+        if store.persists { SuggestionsShared.settingsChanged() }
+    }
+
+    /// "Refresh Now" for a script extension's source.
+    func refreshNow(_ source: CompletionSource, of command: ScriptCommand) {
+        guard store.persists else { return }
+        let key = CompletionSourceKey(extension: command)
+        SuggestionsShared.refreshNow(plugin: key.plugin, source: key.source)
+    }
+
+    /// The lists of `bundle`'s commands' sources that are on, loaded again (a preference changed: another account, a
+    /// token).
+    func reloadLists(of bundle: ExtensionBundle) {
+        guard store.persists else { return }
+        for command in extensionIndex.commands where command.source.bundleName == bundle.name {
+            guard case let .success(source)? = command.completion, source.list, config.approval(of: source, in: command) != nil
+            else { continue }
+            refreshNow(source, of: command)
+        }
     }
 
     /// Suggestions on or off everywhere, as the input menu's "Suggestions" switches them (on is the default, written as
@@ -263,5 +289,81 @@ private struct PluginPreferenceField: View {
         edited = false
         if text != value { save(text) }
         if text.isEmpty { text = value }
+    }
+}
+
+/// A script extension's completion source, under its command in Settings → Commands (0.6.7.1 §2), as a plugin's is under
+/// it: its switch (off until turned on here), what it does (it runs the script in the background; one that queries gets
+/// what you type after its prefix), Refresh Now while its list is on, how it is doing (its items, last refresh, last
+/// error); one turned on before its script, prefix, query or compare changed says it needs turning on again, one the
+/// command trigger shadows why it can't show. A declaration refused says why (the command loads all the same).
+struct ScriptCompletionView: View {
+    @ObservedObject var model: SettingsModel
+    let command: ScriptCommand
+    /// How it is doing this launch, read again whenever suggestions report a change.
+    @State private var status: CompletionSourceStatus?
+
+    var body: some View {
+        switch command.completion {
+        case let .success(source)?:
+            sourceRow(source)
+                .onAppear(perform: readStatus)
+                .onReceive(NotificationCenter.default.publisher(for: .allInOneIMESuggestionsChanged)) { _ in readStatus() }
+        case let .failure(refused)?:
+            Label(tr("补全没有加载：", "Completions not loaded: ") + refused.reason, systemImage: "exclamationmark.triangle")
+                .font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true).padding(.leading, 28)
+        case nil:
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder private func sourceRow(_ source: CompletionSource) -> some View {
+        let approval = model.config.approval(of: source, in: command)
+        // Turned on before its script, prefix, query or compare changed: off until turned on again.
+        let changed = approval.map { !$0.holds(for: source, of: command) } ?? false
+        let on = approval != nil && !changed
+        let title = tr("建议", "Suggestions")
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Image(systemName: "text.append").foregroundStyle(.secondary).frame(width: 20)
+                Text(title).fontWeight(.medium)
+                if let prefix = source.prefix { Text(prefix).font(.body.monospaced()).foregroundStyle(.secondary) }
+                Spacer()
+                if on, source.list {
+                    Button(tr("立即刷新", "Refresh Now")) { model.refreshNow(source, of: command) }
+                }
+                Toggle("", isOn: Binding(get: { on }, set: { model.setCompletionSource(source, of: command, enabled: $0) }))
+                    .labelsHidden().toggleStyle(.switch).controlSize(.small)
+                    .accessibilityLabel(model.config.commandTrigger + command.name + " " + title)
+            }
+            Group {
+                Text(source.scriptSummary()).foregroundStyle(.secondary)
+                if let reason = source.inactiveReason(model.config) {
+                    Label(reason, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
+                }
+                if changed {
+                    Label(CompletionSource.scriptChanged, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
+                } else if on {
+                    if model.config.suggestions == false {
+                        Label(tr("建议关着，这些补全不会出现。", "Suggestions are off, so these completions don't show."),
+                              systemImage: "exclamationmark.triangle")
+                            .foregroundStyle(.orange)
+                    }
+                    if let summary = status?.summary() {
+                        Text(summary).foregroundStyle(status?.error == nil ? AnyShapeStyle(.secondary) : AnyShapeStyle(.orange))
+                    } else if source.list {
+                        Text(tr("还没加载过：第一次用到时加载。", "Not loaded yet: it loads the first time you use it."))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .font(.caption).fixedSize(horizontal: false, vertical: true).padding(.leading, 28)
+        }
+        .padding(.leading, 28)
+    }
+
+    private func readStatus() {
+        let key = CompletionSourceKey(extension: command)
+        status = SuggestionsShared.store.status(key)
     }
 }

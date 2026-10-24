@@ -662,6 +662,53 @@
         }
       }
     },
+    " (its list refreshed every %@, while you use it)" : {
+      "comment" : "（列表每 %@更新一次，只在你用到时） — Sources/AllInOneIMECore/Suggestions/ExtensionCompletions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (die Liste wird alle %@ aktualisiert, solange du es nutzt)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (su lista se actualiza cada %@ mientras lo usas)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (sa liste actualisée toutes les %@, tant que vous l’utilisez)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "（リストは使っている間、%@ごとに更新）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(사용하는 동안 목록을 %@마다 업데이트)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (a lista é atualizada a cada %@, enquanto você usa)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "（列表每 %@更新一次，只在你用到時）"
+          }
+        }
+      }
+    },
     " (optional)" : {
       "comment" : "（可选） — Sources/AllInOneIMECore/UIText+Names.swift",
       "localizations" : {
@@ -1175,6 +1222,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "；"
+          }
+        }
+      }
+    },
+    "; it also gets what you type after %@" : {
+      "comment" : "；它还会收到你在 %@ 后面打的字 — Sources/AllInOneIMECore/Suggestions/ExtensionCompletions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "; es bekommt auch, was du nach %@ tippst"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "; también recibe lo que escribes tras %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " ; il reçoit aussi ce que vous tapez après %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "。%@ の後に入力した文字もスクリプトに渡ります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "; %@ 뒤에 입력한 내용도 이 스크립트에 전달됩니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "; ele também recebe o que você digita depois de %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "；它還會收到你在 %@ 後面打的字"
           }
         }
       }
@@ -8145,7 +8239,7 @@
       }
     },
     "after %@" : {
-      "comment" : "在 %@ 后面 — Sources/AllInOneIMECore/Suggestions/SuggestionsSettings.swift",
+      "comment" : "在 %@ 后面 — Sources/AllInOneIMECore/Suggestions/ExtensionCompletions.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -14276,7 +14370,7 @@
       }
     },
     "Completions not used" : {
-      "comment" : "没有用上的补全 — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
+      "comment" : "没有用上的补全 — Sources/AllInOneIMECore/Settings/SettingsSchema+Extensions.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -21250,6 +21344,53 @@
         }
       }
     },
+    "Its script, prefix, live query or how it compares changed since you turned it on, so it's off: turn it on again to use it." : {
+      "comment" : "脚本、前缀、实时查询或比较方式改过了，已经关掉：要用的话再打开一次。 — Sources/AllInOneIMECore/Suggestions/ExtensionCompletions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sein Skript, Präfix, seine Live-Abfrage oder sein Vergleich hat sich seit dem Einschalten geändert, daher ist es aus: Schalte es wieder ein, um es zu nutzen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Su script, prefijo, consulta en vivo o forma de comparar cambió desde que lo activaste, así que está desactivado: actívalo de nuevo para usarlo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Son script, son préfixe, sa recherche en direct ou sa façon de comparer a changé depuis que vous l’avez activé, il est donc désactivé : réactivez-le pour l’utiliser."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オンにした後でスクリプト、プレフィックス、ライブ検索、比較方法のいずれかが変わったため、オフになりました。使うにはもう一度オンにしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "켠 뒤에 스크립트, 접두사, 실시간 조회 또는 비교 방식이 바뀌어 꺼졌습니다. 사용하려면 다시 켜세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O script, o prefixo, a consulta ao vivo ou a forma de comparar mudou desde que você ativou, então está desativado: ative de novo para usar."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "腳本、前綴、即時查詢或比較方式改過了，已經關掉：要用的話再開啟一次。"
+          }
+        }
+      }
+    },
     "Jargon list" : {
       "comment" : "黑话库 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
@@ -22517,6 +22658,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "偶爾打錯再修正"
+          }
+        }
+      }
+    },
+    "Markdown link" : {
+      "comment" : "Markdown 链接 — Sources/AllInOneIMECore/AIConfigText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Markdown-Link"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enlace Markdown"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lien Markdown"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Markdown リンク"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Markdown 링크"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Link Markdown"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Markdown 連結"
           }
         }
       }
@@ -28082,7 +28270,7 @@
       }
     },
     "once the whole number is typed" : {
-      "comment" : "打完整个号码后 — Sources/AllInOneIMECore/Suggestions/SuggestionsSettings.swift",
+      "comment" : "打完整个号码后 — Sources/AllInOneIMECore/Suggestions/ExtensionCompletions.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -35147,6 +35335,53 @@
         }
       }
     },
+    "Runs this script in the background for rows %@" : {
+      "comment" : "在后台运行这个脚本，%@显示它给的行 — Sources/AllInOneIMECore/Suggestions/ExtensionCompletions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Führt dieses Skript im Hintergrund aus, für Zeilen %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ejecuta este script en segundo plano para las filas %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exécute ce script en arrière-plan pour les lignes %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このスクリプトをバックグラウンドで実行し、%@候補を表示"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 스크립트를 백그라운드에서 실행해 %@ 항목을 표시"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Executa este script em segundo plano para as linhas %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在背景執行這個腳本，%@顯示它給的行"
+          }
+        }
+      }
+    },
     "runs when a request needs credentials" : {
       "comment" : "需要凭证时才运行 — Sources/AllInOneIMECore/AWSCredentialResolver.swift",
       "localizations" : {
@@ -37449,6 +37684,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "請先在設定中為 %2$@ 設定「%1$@」"
+          }
+        }
+      }
+    },
+    "Set “%@” in the settings first" : {
+      "comment" : "先在设置里填好「%@」 — Sources/AllInOneIMECore/Suggestions/ExtensionCompletions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lege zuerst „%@“ in den Einstellungen fest"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Primero define «%@» en los ajustes"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Définissez d’abord « %@ » dans les réglages"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先に設定で「%@」を入力してください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "먼저 설정에서 '%@'을(를) 입력하세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Defina \"%@\" nos ajustes primeiro"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先在設定裡填好「%@」"
           }
         }
       }
@@ -40172,7 +40454,7 @@
       }
     },
     "Suggestions are off, so these completions don't show: turn them on in General." : {
-      "comment" : "建议关着，这些补全不会出现：在「通用」里打开。 — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
+      "comment" : "建议关着，这些补全不会出现：在「通用」里打开。 — Sources/AllInOneIMECore/Settings/SettingsSchema+Extensions.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -44654,6 +44936,53 @@
         }
       }
     },
+    "The script changed since its suggestions were turned on: not run" : {
+      "comment" : "脚本在打开补全以后改过，没有运行 — Sources/AllInOneIMECore/Suggestions/ExtensionCompletions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Skript hat sich seit dem Einschalten seiner Vorschläge geändert: nicht ausgeführt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El script cambió desde que se activaron sus sugerencias: no se ejecutó"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le script a changé depuis l’activation de ses suggestions : non exécuté"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "候補をオンにした後でスクリプトが変わったため、実行しませんでした"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "제안을 켠 뒤에 스크립트가 바뀌어 실행하지 않았습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O script mudou desde que as sugestões dele foram ativadas: não executado"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "腳本在開啟補全以後改過，沒有執行"
+          }
+        }
+      }
+    },
     "The search is too long: %@ characters and %@ words at most" : {
       "comment" : "要搜的内容太长：最多 %@ 个字、%@ 个词 — Sources/AllInOneIMECore/UIText+Errors.swift",
       "localizations" : {
@@ -48530,6 +48859,7 @@
     },
     "What a suggestion row puts in: by default what its plugin or command says; for a GitHub issue, with title is \"#1234 Fix login\", and with title and link adds its link." : {
       "comment" : "建议的行插入什么：默认按插件或命令自己定的；比如 GitHub issue，带标题是「#1234 Fix login」，带标题和链接再加上它的链接。 — Sources/AllInOneIMECore/Suggestions/SuggestionsInsert.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -48571,6 +48901,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "建議的行插入什麼：預設依外掛或指令自己定的；比如 GitHub issue，帶標題是「#1234 Fix login」，帶標題和連結再加上它的連結。"
+          }
+        }
+      }
+    },
+    "What a suggestion row puts in: by default what its plugin or command says; for a GitHub issue, with title is \"#1234 Fix login\", with title and link adds its link, and Markdown link puts \"[Fix login](https://…)\" in place of the #1234 typed." : {
+      "comment" : "建议的行插入什么：默认按插件或命令自己定的；比如 GitHub issue，带标题是「#1234 Fix login」，带标题和链接再加上它的链接，Markdown 链接是「[Fix login](https://…)」，替换掉打的 #1234。 — Sources/AllInOneIMECore/Suggestions/SuggestionsInsert.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Was eine Vorschlagszeile einfügt: standardmäßig, was ihr Plug-in oder Befehl vorgibt; bei einem GitHub-Issue ist „Mit Titel“ „#1234 Fix login“, „Mit Titel und Link“ hängt seinen Link an, und „Markdown-Link“ setzt „[Fix login](https://…)“ an die Stelle des getippten #1234."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lo que inserta una fila de sugerencias: de forma predeterminada, lo que diga su plugin o comando; para un issue de GitHub, «Con título» es «#1234 Fix login», «Con título y enlace» añade su enlace, y «Enlace Markdown» pone «[Fix login](https://…)» en lugar del #1234 escrito."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce qu’insère une ligne de suggestion : par défaut, ce que dit son plug-in ou sa commande ; pour un ticket GitHub, « Avec le titre » donne « #1234 Fix login », « Avec le titre et le lien » ajoute son lien, et « Lien Markdown » met « [Fix login](https://…) » à la place du #1234 tapé."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "候補の行が挿入する内容：デフォルトではプラグインやコマンドが決めたものです。GitHub の Issue なら、タイトル付きは「#1234 Fix login」、タイトルとリンク付きはさらにリンクを加え、Markdown リンクは入力した #1234 を「[Fix login](https://…)」に置き換えます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "제안 행이 삽입하는 내용: 기본적으로 플러그인이나 명령이 정한 것입니다. GitHub 이슈라면 제목 포함은 \"#1234 Fix login\"이고, 제목과 링크 포함은 링크를 덧붙이며, Markdown 링크는 입력한 #1234를 \"[Fix login](https://…)\"로 바꿉니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O que uma linha de sugestão insere: por padrão, o que o plug-in ou o comando define; para um issue do GitHub, Com título é \"#1234 Fix login\", Com título e link acrescenta o link, e Link Markdown coloca \"[Fix login](https://…)\" no lugar do #1234 digitado."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建議的行插入什麼：預設依外掛或指令自己定的；比如 GitHub issue，帶標題是「#1234 Fix login」，帶標題和連結再加上它的連結，Markdown 連結是「[Fix login](https://…)」，取代打的 #1234。"
           }
         }
       }

@@ -4,6 +4,15 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ## 0.6.7.1 (unreleased)
 
+### Added
+
+- Suggestions from script extensions: a script extension's command can be a completion source, as a plugin's completions are, with the same keys and meaning (`prefix`, `minChars`, `compare`, `list`, `refresh`, `query`, `queryMinChars`, `insert`; its name and title are the command's): one metadata line in its script, `# @allinoneime.completion {"prefix": "TCK-", "list": true}`, or `"completion"` in its bundle's entry in `extension.json` (used over the line). Its script runs as its commands run, in the background: with `ALLINONEIME_COMPLETION=load` and no arguments it prints its list (`{"items": […]}`, up to 20 seconds, 20,000 items and 4 MB: a command's 64 KB doesn't apply), and with `query` turned on, `ALLINONEIME_COMPLETION=query` and what follows the prefix as its one argument (3 seconds). It gets the interface language and its bundle's preferences (passwords from the keychain), never the app in front or what you type beyond that argument; one program of a bundle runs at a time, and a newer lookup cancels the one before. It's off until you turn it on in Settings → Commands, under the command, which says it runs the script in the background and, with `query`, gets what you type after the prefix, with its last refresh, items, last error and Refresh Now; a change to its script, prefix, `query` or `compare` turns it off again, and Settings says so. A declaration that breaks the rules is refused with its reason under the command, which still loads. Lists are cached and refreshed as a plugin's, the rows you picked first; Insert (everywhere and per app) applies to them. The example bundle `bookmarks` has one: `bm.sw` puts in `[Swift](https://www.swift.org)`. The protocol: [docs/extensions.md §11](docs/extensions.md#11-completions). In the config: `completionSources` (`"plugin": "script-extensions"`). Windows doesn't show suggestion rows yet.
+- Insert has **Markdown link**: `[{title}]({url})` in the place of what you typed (`#12` becomes `[Fix login](https://github.com/…/issues/1234)`), the number where that can't be done (terminals), after With title and link in Settings → General → Insert, under "In these apps" and in the input menu's This App ▸ Insert. In the config: `"markdownLink"`.
+
+### Changed
+
+- A suggestion row may replace what you typed. Whether it shows is decided by its item's match alone, never by what it puts in; what it puts in is the first of its source's templates the item fills that can go in there. One that starts with what you typed adds the rest, as before; one that doesn't (a Markdown link, a plugin's `"Fixes #1234"`) takes its place, the prefix too, as one change you can undo as one, where the app tells where its text is, and in terminals (and the few fields that don't tell) the next template in the list goes in instead: `["[{title}]({url})", "{arg}"]` is a link in a document and the number in a terminal. Such rows weren't offered before.
+
 ## 0.6.7 (2026-10-24)
 
 ### Added

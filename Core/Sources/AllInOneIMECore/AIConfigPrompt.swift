@@ -251,7 +251,8 @@ public enum AIConfigPrompt {
         lines.append((.apps, line("appProfiles.<app>.noAI", "true or null: no AI in the app", nil, shown)))
         let inserts = SuggestionsInsert.offered.map { "\"\($0.rawValue)\"" }.joined(separator: ", ") + ", null"
         lines.append((.apps, line("appProfiles.<app>.suggestionsInsert", "what a suggestion row (a plugin's or a custom command's) inserts in "
-                                      + "the app: \"title\" its ID with its title, \"titleAndLink\" with its title and link, or null as everywhere",
+                                      + "the app: \"title\" its ID with its title, \"titleAndLink\" with its title and link, "
+                                      + "\"markdownLink\" a Markdown link of its title, or null as everywhere",
                                   inserts, "as above")))
         return lines
     }

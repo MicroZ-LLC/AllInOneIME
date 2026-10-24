@@ -901,6 +901,14 @@ They take the place of [autocomplete](#autocomplete-beta-new)'s gray text while 
 
 - **Your own program:** a custom command of type `suggestions` is a source too, its prefix and its items yours: a program
   that prints `match⇥title⇥url` lines ([Suggestions from a program of your own](#suggestions-from-a-program-of-your-own-new)).
+- **Script extensions (0.6.7.1):** a script extension's command can be a source as a plugin's completions are: one line
+  in its script, `# @allinoneime.completion {"prefix": "TCK-", "list": true}`, or `"completion"` in its bundle's
+  `extension.json`. Its script prints the items, run in the background with `ALLINONEIME_COMPLETION=load` (and, with
+  `query`, `query` and what follows the prefix as its one argument); it's off until you turn it on in Settings →
+  Commands, under the command, which says it runs the script in the background and, with `query`, gets what you type
+  after the prefix, with its last refresh, items, last error and Refresh now; a change to its script, prefix, `query` or
+  `compare` turns it off again. The example bundle `bookmarks` has one: `bm.sw` → `[Swift](https://www.swift.org)`
+  ([docs/extensions.md §11](docs/extensions.md#11-completions)).
 - **Plugins' completions:** a plugin declares what it completes after a prefix, `#12` for `@github`'s issues, or a whole
   12-digit AWS account id with no prefix. Its list is kept on this Mac (loaded again every 15 minutes or so while you
   use it, never when you haven't for a week), and some also look up what you type, from 2 characters after the prefix,
@@ -909,6 +917,9 @@ They take the place of [autocomplete](#autocomplete-beta-new)'s gray text while 
   typed while pinyin is composed puts the words in and starts the token; a prefix of letters and a dash (`PROJ-`) typed
   in pinyin goes in as typed once its dash is typed (its letters aren't made Chinese), and the digits after it are
   typed. What you typed stays as typed; only the rest goes in (`#12` and the row `#1234 Fix login` add `34 Fix login`).
+  A row whose text doesn't start with what you typed (a Markdown link, `[Fix login](https://…)`) takes its place
+  instead, the prefix too, as one change you can undo, where the app tells where its text is; in a terminal it puts in
+  its source's next choice (the number). Whether a row shows is its item's match alone.
 - **Keys:** the same for every kind of row, in every app (chat apps, browsers, code editors and terminals too) and every
   input (English, pinyin when nothing is being composed, Code), as in the command list: while the rows show, the keys
   are AllInOneIME's first. The first row that puts something in is chosen from the start, drawn selected; ↓ ↑ move it;
@@ -928,14 +939,15 @@ They take the place of [autocomplete](#autocomplete-beta-new)'s gray text while 
 - **What a row inserts:** what its source says (a plugin's `insert`, per class of app: `@github` puts in `#1234 Fix
   login` in documents and the link too in chat apps; a custom command's Insert), unless you choose otherwise in Settings
   → General → **Insert**, under the Suggestions switch, for every source: **Default** (each source's own), **With title**
-  (`#1234 Fix login`) or **With title and link** (`#1234 Fix login https://github.com/…/issues/1234`), the same in every
-  app, terminals and code editors too; an item without a title or a link goes in with what it has. An app can have its
+  (`#1234 Fix login`), **With title and link** (`#1234 Fix login https://github.com/…/issues/1234`) or **Markdown link**
+  (`[Fix login](https://github.com/…/issues/1234)` in the place of the `#12` you typed; the number in a terminal), the
+  same in every app, terminals and code editors too; an item without a title or a link goes in with what it has. An app can have its
   own under "In these apps" (Add App…, Remove) or in the input menu's This App, over the one everywhere: links in Slack,
   titles in Mail; or **Off**, no suggestion rows in that app at all (plugins', Suggestions commands' and Code's). "ID
   only" (`#1234`) is no longer offered: a config that has it, everywhere or for an app, keeps it,
   and Settings shows it with Restore Default. Code's rows never change with it, and only what you haven't typed goes in,
-  as always. In the config: `suggestionsInsert` (`"title"`, `"titleAndLink"`, or `"id"` from before; absent: the
-  source's), and `suggestionsInsert` in an app's profile (`"source"` too); both sync with your settings, unlike the
+  as always (a Markdown link takes its place). In the config: `suggestionsInsert` (`"title"`, `"titleAndLink"`,
+  `"markdownLink"`, or `"id"` from before; absent: the source's), and `suggestionsInsert` in an app's profile (`"source"` too); both sync with your settings, unlike the
   Suggestions switches (an app's Off is `"suggestions": false` in its profile, this Mac's own).
 - **Code:** an input, after your input languages and apart from them. Add it in Settings → Input with **Add…** →
   Code (its chip comes after the languages, "Code · Python") and pick its coding language: Python, Java, Go, TypeScript, JavaScript, C or C++. A language
@@ -1156,8 +1168,8 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 | `appProfiles` | Settings of one app, by bundle ID, each optional: `noAI`, `suggestionsInsert` (as below, or `"source"`; synced) and `suggestions` (`false`: no suggestion rows there, Off in "In these apps"; this Mac's own: not synced), which Settings shows; and from earlier versions, still used: `inputLanguage` (a language's code, or `"code"` for Code), `rewriteStyles`, `typeOut`, `translateAlways`, `autocomplete` (this Mac's own: not synced) (see Per-app settings) | `{}` |
 | `autocomplete` | Autocomplete: the rest of the sentence in gray after the caret, Tab puts it in; it asks your AI provider (see Autocomplete); never synced | `false` |
 | `suggestions` | Suggestions (Settings → General, the input menu): `false` turns off every suggestion row, plugins', Suggestions commands' and Code's; this Mac's own, never synced (see Suggestions and Code) | absent (on) |
-| `suggestionsInsert` | What a suggestion row inserts in every app without a choice of its own (Settings → General → Insert): `"title"` or `"titleAndLink"`; `"id"` still works but is no longer offered; absent: what its source says; syncs with the settings | absent |
-| `completionSources` | The plugins' completion sources turned on in Settings → Commands → Plugins, each by `plugin` and `source` with what was approved: `hosts`, `query`, `scriptSHA256` (its script's) and `terms` (its `prefix`, `queryMinChars`, `compare`); `"lapsed": true` once an update changed one of them, off until turned on again. Written by Settings; this Mac's own, never synced | `[]` |
+| `suggestionsInsert` | What a suggestion row inserts in every app without a choice of its own (Settings → General → Insert): `"title"`, `"titleAndLink"` or `"markdownLink"`; `"id"` still works but is no longer offered; absent: what its source says; syncs with the settings | absent |
+| `completionSources` | The plugins' completion sources turned on in Settings → Commands → Plugins, each by `plugin` and `source` with what was approved: `hosts`, `query`, `scriptSHA256` (its script's) and `terms` (its `prefix`, `queryMinChars`, `compare`); `"lapsed": true` once an update changed one of them, off until turned on again. A script extension command's source too: `"plugin": "script-extensions"` and the command's id as `source`, lapsed once its script, `query`, prefix or `compare` changed. Written by Settings; this Mac's own, never synced | `[]` |
 | `pluginPreferences` | Plugins' preferences other than passwords, by plugin and name: `{"github": {"repos": "octo-org/octo-repo"}}`; never synced through iCloud Drive (a password preference is in the keychain, and goes through iCloud Keychain only with "API keys and passwords" on) | `{}` |
 | `unconfirmedCommands` | The `suggestions` custom commands that came from another Mac through iCloud and still await Allow on this one, each by its `name` and the `argv` it came with: none of them runs here. Allow (or editing or deleting it here) takes it off the list; its program changed on another Mac puts it back. Written by sync and Settings; this Mac's own, never synced | `[]` |
 | `notes` | Where `@note` saves (Settings → Commands → Notes): `{"destination": "folder", "folder": "~/Vault/Inbox"}`, or `"notion"` with the page or database Test found; never synced through iCloud Drive (the token is in the keychain, and goes through iCloud Keychain only with "API keys and passwords" on) | `destination: "notes"` |
