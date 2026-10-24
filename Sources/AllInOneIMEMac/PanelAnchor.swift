@@ -71,17 +71,19 @@ public enum PanelAnchor {
     /// empty rect, zero wide and high, has none), isn't at the screen's origin, is on one of `screens` (their frames; none
     /// known: not checked), isn't at the top-left corner of the focused window or its page (`window`, `page`, where
     /// Accessibility told them), where Chromium's rect goes before it has the page's bounds, and isn't on the window's
-    /// left edge near its top (`atLeftEdgeNearTop`).
-    public static func trusted(_ rect: CGRect, screens: [CGRect], window: CGRect? = nil, page: CGRect? = nil) -> Bool {
+    /// left edge near its top (`atLeftEdgeNearTop`). The left edges (`edges`) count only where the field tells nothing
+    /// of its marked text itself: a terminal with no padding, filling the screen, has its caret on the screen's edge and
+    /// tells its marked text's rect there too, where Google Docs, telling its page's corner, tells none.
+    public static func trusted(_ rect: CGRect, screens: [CGRect], window: CGRect? = nil, page: CGRect? = nil, edges: Bool = true) -> Bool {
         guard rect.minX.isFinite, rect.minY.isFinite, rect.width.isFinite, rect.height.isFinite,
               rect.height > 1, rect.origin != .zero else { return false }
         if !screens.isEmpty, !screens.contains(where: { $0.intersects(rect.insetBy(dx: -2, dy: -2)) }) { return false }
         // On a screen's very left edge: the page's corner of a window that fills the screen (the owner's Google Docs told
         // x 0 y 817 h 18 on a screen 956 high), never a caret, whatever Accessibility told or not.
-        if screens.contains(where: { abs(rect.minX - $0.minX) <= 2 && $0.insetBy(dx: -2, dy: -2).contains(CGPoint(x: rect.minX, y: rect.midY)) }) {
+        if edges, screens.contains(where: { abs(rect.minX - $0.minX) <= 2 && $0.insetBy(dx: -2, dy: -2).contains(CGPoint(x: rect.minX, y: rect.midY)) }) {
             return false
         }
-        if let window, atLeftEdgeNearTop(rect, of: window) { return false }
+        if edges, let window, atLeftEdgeNearTop(rect, of: window) { return false }
         return ![window, page].contains { $0.map { atTopLeft(rect, of: $0) } == true }
     }
 
@@ -150,15 +152,17 @@ public enum PanelAnchor {
         /// else the caret `accessibility` tells (asked only then, and not once it timed out in this field) where it is
         /// one to trust inside the focused window; else the last rect to trust; else `told`, as before.
         @discardableResult
-        public mutating func place(_ told: CGRect, screens: [CGRect], accessibility: () -> Accessibility?) -> Placement {
-            if trusted(told, screens: screens, window: window, page: page) {
+        public mutating func place(_ told: CGRect, screens: [CGRect], edges: Bool = true,
+                                   accessibility: () -> Accessibility?) -> Placement {
+            if trusted(told, screens: screens, window: window, page: page, edges: edges) {
                 last = told
                 return Placement(rect: told, source: .field)
             }
             if !accessibilityGivenUp, let read = accessibility() {
                 window = read.window ?? window
                 page = read.page ?? page
-                accessibilityGivenUp = read.timedOut
+                // Timed out, or no caret told: not asked again in this field (it would cost every key up to 0.1 s).
+                accessibilityGivenUp = read.timedOut || read.caret == nil
                 if let caret = read.caret, let window, trusted(caret, screens: screens, window: window, page: page),
                    window.insetBy(dx: -2, dy: -2).contains(CGPoint(x: caret.midX, y: caret.midY)) {
                     return Placement(rect: caret, source: .accessibility)
@@ -170,8 +174,8 @@ public enum PanelAnchor {
 
         /// The field asked again (`reaskDelays`) and telling `told` now: the rect the panel moves to, if it is one to trust
         /// (remembered); nil, the panel stays where it is.
-        public mutating func reasked(_ told: CGRect, screens: [CGRect]) -> CGRect? {
-            guard trusted(told, screens: screens, window: window, page: page) else { return nil }
+        public mutating func reasked(_ told: CGRect, screens: [CGRect], edges: Bool = true) -> CGRect? {
+            guard trusted(told, screens: screens, window: window, page: page, edges: edges) else { return nil }
             last = told
             return told
         }

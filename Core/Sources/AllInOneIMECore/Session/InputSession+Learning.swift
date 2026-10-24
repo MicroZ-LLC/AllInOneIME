@@ -25,17 +25,20 @@ struct LearnedMessages {
 }
 
 extension InputSession {
-    /// A field took the focus, its starting input applied: what Shift does in it before anything is typed is followed.
+    /// A field took the focus, its starting input applied: what Shift does in it before anything is typed is followed,
+    /// from the app's starting input (`appliedDefaultInput`), not the input the composer happens to be in: another field
+    /// of the same session (a page's next field in Chrome, an Electron window's) keeps the last one's input, and a
+    /// switch back to the app's own from there is no correction.
     func learningFocused() {
         let learns = field.app?.isEmpty == false && !secureInputActive()
-        startingCorrection = StartingCorrection(started: learns ? composer.input : nil)
+        startingCorrection = StartingCorrection(started: learns ? appliedDefaultInput ?? composer.input : nil)
     }
 
     /// The field's starting input applied again before anything was typed or switched in it (the engine came, the
     /// settings changed): that is where it started.
     func learningApplied() {
         guard startingCorrection.started != nil, startingCorrection.switchedTo == nil else { return }
-        startingCorrection.started = composer.input
+        startingCorrection.started = appliedDefaultInput ?? composer.input
     }
 
     /// A modifier changed (a tap of Shift, say) with the field in `before`: the input it is in now, if that changed

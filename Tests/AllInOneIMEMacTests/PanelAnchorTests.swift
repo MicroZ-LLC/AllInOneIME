@@ -107,6 +107,32 @@ struct PanelAnchorTests {
         #expect(memory.place(corner, screens: screen) { nil } == PanelAnchor.Placement(rect: right, source: .last))
     }
 
+    /// A terminal with no padding filling the screen (kitty, Alacritty; the independent review of 0.6.7): its caret at a
+    /// line's start is on the screen's left edge, and it tells its marked text's rect there too, so the edges don't count.
+    @Test func theEdgesDontCountWhereTheFieldTellsItsMarkedText() {
+        let screen = [CGRect(x: 0, y: 0, width: 1470, height: 956)]
+        let lineStart = CGRect(x: 0, y: 817, width: 1, height: 18)
+        #expect(!PanelAnchor.trusted(lineStart, screens: screen))
+        #expect(PanelAnchor.trusted(lineStart, screens: screen, edges: false))
+        var memory = PanelAnchor.Memory()
+        memory.enter(field(client))
+        #expect(memory.place(lineStart, screens: screen, edges: false) { nil } == PanelAnchor.Placement(rect: lineStart, source: .field))
+    }
+
+    /// Accessibility that tells no caret isn't asked again in the field: it would cost every key up to 0.1 s.
+    @Test func accessibilityWithNoCaretIsNotAskedAgainInTheField() {
+        var memory = PanelAnchor.Memory()
+        memory.enter(field(client))
+        var asked = 0
+        for _ in 0..<3 {
+            memory.place(pageCorner, screens: screens) {
+                asked += 1
+                return PanelAnchor.Accessibility(caret: nil, window: window)
+            }
+        }
+        #expect(asked == 1 && memory.accessibilityGivenUp)
+    }
+
     @Test func aRectOffEveryScreenIsNotTrusted() {
         let off = CGRect(x: 5000, y: 3000, width: 0, height: 18)
         #expect(!PanelAnchor.trusted(off, screens: screens))

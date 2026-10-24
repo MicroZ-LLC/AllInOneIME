@@ -471,7 +471,8 @@ public enum Doctor {
         // The Mac shows them under AI (Settings v2: each set otherwise than its default with Restore Default).
         if config.maxTokens < 1 || config.timeoutSeconds <= 0 || (config.temperature.map { $0 < 0 || $0 > 2 } ?? false) {
             let mac = Platform.current.terms.device == .mac
-            out.append(Finding(area: .config, status: .problem,
+            // On the Mac its banner is the AI page's, where the row with Restore Default is.
+            out.append(Finding(area: mac ? .provider : .config, status: .problem,
                                title: mac ? t.tr("模型参数超出范围", "A model setting is out of range")
                                    : t.tr("高级设置里的值超出范围", "An Advanced setting is out of range"),
                                detail: mac ? t.tr("在设置 → AI 里恢复默认（最多输出 tokens、超时、temperature）",

@@ -955,15 +955,17 @@ final class AllInOneIMEInputController: IMKInputController {
         }
         var told = toldAnchor(client)
         let screens = NSScreen.screens.map(\.frame)
-        if !PanelAnchor.trusted(told, screens: screens, window: panelAnchor.window, page: panelAnchor.page),
+        // The left edges distrust a rect only where the field tells nothing of its marked text (`PanelAnchor.trusted`).
+        let edges = Self.markedAnchor(client) == nil
+        if !PanelAnchor.trusted(told, screens: screens, window: panelAnchor.window, page: panelAnchor.page, edges: edges),
            let marked = Self.markedAnchor(client),
-           PanelAnchor.trusted(marked, screens: screens, window: panelAnchor.window, page: panelAnchor.page) {
+           PanelAnchor.trusted(marked, screens: screens, window: panelAnchor.window, page: panelAnchor.page, edges: false) {
             told = marked  // the line's rect not one to trust, the marked text's own is
         }
         var asked = "Accessibility not asked"
         // Read before `place`, which has `panelAnchor` borrowed while it asks Accessibility (reading it in there crashed).
         let needsPage = panelAnchor.page == nil
-        var placement = panelAnchor.place(told, screens: screens) {
+        var placement = panelAnchor.place(told, screens: screens, edges: edges) {
             let start = ProcessInfo.processInfo.systemUptime
             let read = caretByAccessibility(client, page: needsPage)
             asked = String(format: "Accessibility %.1f ms", (ProcessInfo.processInfo.systemUptime - start) * 1000)
@@ -1074,8 +1076,9 @@ final class AllInOneIMEInputController: IMKInputController {
                 // The marked text's rect, which the field is really asked for each time: InputMethodKit keeps the first
                 // `attributes(forCharacterIndex: 0, …)` answer for the whole composition (caretresearch, 0.6.7), so
                 // asking that again would only ever get the page's corner back.
-                let told = Self.markedAnchor(client) ?? self.toldAnchor(client)
-                guard let rect = self.panelAnchor.reasked(told, screens: NSScreen.screens.map(\.frame)) else {
+                let marked = Self.markedAnchor(client)
+                let told = marked ?? self.toldAnchor(client)
+                guard let rect = self.panelAnchor.reasked(told, screens: NSScreen.screens.map(\.frame), edges: marked == nil) else {
                     if index == PanelAnchor.reaskDelays.count - 1 {
                         log.debug("panel anchor: still not trusted \(Int(delay * 1000)) ms later, told \(Self.describe(told), privacy: .public)")
                     }
