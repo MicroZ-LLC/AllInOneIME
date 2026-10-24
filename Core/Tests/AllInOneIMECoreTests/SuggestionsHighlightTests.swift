@@ -43,9 +43,9 @@ struct SuggestionsHighlightTests {
         }
     }
 
-    /// "#70" with the list still loading: the query's answer are the rows; ↓ to the second. The list comes back, its
-    /// rows go first: the issue the arrows moved to stays highlighted where it is now, and Return (the arrows moved)
-    /// still puts it in.
+    /// "#70" with the list still loading: the query's answer are the rows; ↓ chooses the first (nothing was chosen,
+    /// decision 29), ↓ again to the second. The list comes back, its rows go first: the issue the arrows moved to stays
+    /// highlighted where it is now, and Return (the arrows moved) still puts it in.
     @Test func aListComingBackKeepsTheRowTheArrowsMovedTo() async throws {
         try await inEnglish {
             let world = SuggestionsWorld()
@@ -56,7 +56,7 @@ struct SuggestionsHighlightTests {
             let field = world.field(app: "com.apple.Notes")
             field.type("#70")
             #expect(field.settle { field.issuesShown == ["#7050", "#7000"] }, "\(field)")
-            #expect(field.press(SuggestionKeys.down))
+            #expect(field.press(SuggestionKeys.down) && field.press(SuggestionKeys.down))
             #expect(field.issuesShown[field.host.panel?.highlighted ?? 0] == "#7000", "\(field)")
             world.runtime.release("load:issues")
             #expect(field.settle { field.issuesShown.count > 2 }, "\(field)")
@@ -65,6 +65,33 @@ struct SuggestionsHighlightTests {
                     "\(field.issuesShown), highlighted \(String(describing: field.host.panel?.highlighted))")
             #expect(field.press(SuggestionKeys.enter), "Return puts in the row the arrows moved to")
             #expect(field.document.hasSuffix("#7000"), "\(field.document.debugDescription)")
+        }
+    }
+
+    /// Nothing chosen yet, a first row that puts nothing in (what was typed is all of it: "#70" typed, issue #70) isn't
+    /// the one the first ↓ chooses: it goes on to the next that puts something in (decision 29). The first ↑ chooses the
+    /// last. (↑ first: a row put in comes first after.)
+    @Test func theFirstDownSkipsAFirstRowThatPutsNothingIn() async throws {
+        try await inEnglish {
+            let world = SuggestionsWorld()
+            try world.github(items: [SuggestionsItems.issue(70, "Seventy"), SuggestionsItems.issue(7050, "Fifty"),
+                                     SuggestionsItems.issue(7000, "Zero")])
+            let up = world.field(app: "com.apple.Notes")
+            up.type("#70")
+            #expect(up.settle { up.issuesShown == ["#70", "#7050", "#7000"] }, "\(up)")
+            #expect(up.press(SuggestionKeys.up))
+            #expect(up.host.panel?.highlighted == 2 && up.host.panel?.highlightChosen == true,
+                    "\(String(describing: up.host.panel?.highlighted))")
+
+            let field = world.field(app: "com.apple.Notes")
+            field.type("#70")
+            #expect(field.settle { field.issuesShown == ["#70", "#7050", "#7000"] }, "\(field)")
+            #expect(field.host.panel?.highlightChosen == false, "nothing chosen yet")
+            #expect(field.press(SuggestionKeys.down))
+            #expect(field.host.panel?.highlighted == 1 && field.host.panel?.highlightChosen == true,
+                    "\(String(describing: field.host.panel?.highlighted))")
+            #expect(field.press(SuggestionKeys.enter))
+            #expect(field.document == "#7050", "\(field.document.debugDescription)")
         }
     }
 

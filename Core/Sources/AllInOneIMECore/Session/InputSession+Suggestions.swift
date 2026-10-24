@@ -404,7 +404,11 @@ extension InputSession {
             let count = suggesting.rows.count
             if suggestionsReturnRow() == nil {
                 // Nothing chosen yet (the first row only outlined): ↓ chooses the first row, ↑ the last; then they move.
-                suggesting.highlighted = event.key == .arrow(.down) ? 0 : count - 1
+                // Not one that puts nothing in (what was typed is all of it: "JIRA-12" typed, its row): ↓ goes on to the
+                // next that puts something in, ↑ back to the one before.
+                let down = event.key == .arrow(.down)
+                let fills = suggesting.rows.indices.filter { !suggesting.rows[$0].rest(ranges: suggesting.ranges).isEmpty }
+                suggesting.highlighted = (down ? fills.first : fills.last) ?? (down ? 0 : count - 1)
             } else {
                 suggesting.highlighted = (suggesting.highlighted + (event.key == .arrow(.down) ? 1 : -1) + count) % count
             }
