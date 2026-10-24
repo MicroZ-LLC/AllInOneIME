@@ -2224,11 +2224,12 @@ struct SettingsView: View {
                     ChangeCard(assistant: assistant)
                     switch page {
                     case .general:
+                        // The keys first, then the menu bar and the interface language (the owner, 0.6.7).
+                        keysSection
+                        appearanceSection
                         writingSection
                         autocompleteSection
                         SuggestionsSection(model: model)
-                        keysSection
-                        appearanceSection
                         ICloudSyncSection(model: model)
                         PreviousAppSettingsSection(model: model)
                     case .input:
