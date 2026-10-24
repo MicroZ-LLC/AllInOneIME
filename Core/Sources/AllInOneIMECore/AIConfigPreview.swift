@@ -324,7 +324,7 @@ extension AIConfig {
             case action
         }
 
-        /// The key as resolved ("appProfiles.com.tencent.xinWeChat.inputLanguage").
+        /// The key as resolved ("appProfiles.com.tencent.xinWeChat.noAI").
         public var key: String
         public var label: String
         public var old: String?
@@ -436,12 +436,18 @@ extension AIConfig {
         return .success(preview)
     }
 
-    /// The one line when nothing can be applied: the refused part's own when there is one (its reason), else `failure`'s.
+    /// The one line when nothing can be applied: the refused part's own when there is one (its reason); the model's note
+    /// when the answer asks for nothing and says why, as the rules have it reply (an app's starting language: it is
+    /// learned); else `failure`'s.
     public static func failureLine(_ failure: Failure, proposal: Proposal?, config: Config, environment env: Environment) -> String {
         let text = Text(language: env.language)
         if failure == .notAllowed, let proposal {
             let refused = check(proposal, config: config, environment: env).rows.filter(\.isRefused)
             if refused.count == 1 { return refused[0].text(language: env.language) }
+        }
+        // Never a key in it, as over a preview.
+        if failure == .notUnderstood, let proposal, proposal.changes.isEmpty, let note = proposal.note, note.contains(where: \.isLetter) {
+            return maskingKeys(note)
         }
         return text.failure(failure)
     }
@@ -572,6 +578,10 @@ extension AIConfig {
     static func check(_ change: Change, in config: Config, env: Environment, text: Text) -> Row? {
         switch change.key {
         case let .forbidden(path, secret):
+            // An app's field set here before: refused, saying where it is set now; never written.
+            if !secret, let removed = RemovedAppField.of(path) {
+                return Row(key: path, label: text.appLabel(removed.app, removed.field), status: .refused(text.notPerApp(removed.field)))
+            }
             // A secret's value is never shown, nor anything about it.
             return Row(key: path, label: secret ? text.keyLabel(nil) : path,
                        status: .refused(secret ? text.secretRefused : path.hasPrefix("iCloudSync.") ? text.syncOnlyInSettings : text.notHere))
@@ -741,44 +751,29 @@ extension AIConfig {
             Row(key: resolved, label: label, old: old, new: new, status: .change, edit: .app(key, edit))
         }
         switch field {
-        case .inputLanguage:
-            var language: Language?
-            switch value {
-            case .null: language = nil
-            case let .string(code):
-                guard let found = inputLanguage(code) else { return refused(text.unknownLanguage(code)) }
-                language = found
-            default: return refused(text.notValid)
-            }
-            // As in Settings → Apps: one of the input languages added.
-            if let language, !config.inputLanguages.contains(language) { return refused(text.notAnInputLanguage(language)) }
-            guard language != profile.inputLanguage else { return nil }
-            return row(text.appInput(profile.inputLanguage), text.appInput(language), .inputLanguage(language))
-        case .rewriteStyles:
-            var names: [String]?
-            if value != .null {
-                switch styleNames(value) {
-                case nil: return refused(text.notValid)
-                case let .failure(error)?: return refused(text.unknownStyle(error.name))
-                case let .success(found)?: names = found
-                }
-            }
-            guard names != profile.rewriteStyles.map({ RewriteStyle.resolve($0).map(\.name) }) else { return nil }
-            return row(text.appStyles(profile.rewriteStyles), text.appStyles(names), .rewriteStyles(names))
-        case .typeOut, .noAI:
+        case .noAI:
             var on: Bool?
             switch value {
             case .null: on = nil
             case let .bool(flag): on = flag
             default: return refused(text.notValid)
             }
-            if field == .noAI {
-                if on == false { on = nil }  // as the switch in Settings: off is "not set"
-                guard on != profile.noAI else { return nil }
-                return row(text.onOff(profile.noAI == true), text.onOff(on == true), .noAI(on))
+            if on == false { on = nil }  // as the switch in Settings: off is "not set"
+            guard on != profile.noAI else { return nil }
+            return row(text.onOff(profile.noAI == true), text.onOff(on == true), .noAI(on))
+        case .suggestionsInsert:
+            var insert: SuggestionsInsert?
+            switch value {
+            case .null: insert = nil
+            case let .string(name):
+                // One of those Settings offers ("ID only" and the source's own can't be chosen any more).
+                guard let found = SuggestionsInsert.offered.first(where: { $0.rawValue.caseInsensitiveCompare(name) == .orderedSame })
+                else { return refused(text.notValid) }
+                insert = found
+            default: return refused(text.notValid)
             }
-            guard on != profile.typeOut else { return nil }
-            return row(text.appFlag(profile.typeOut), text.appFlag(on), .typeOut(on))
+            guard insert != profile.suggestionsInsert else { return nil }
+            return row(text.appInsert(profile.suggestionsInsert), text.appInsert(insert), .suggestionsInsert(insert))
         }
     }
 

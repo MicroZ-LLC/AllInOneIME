@@ -5,7 +5,7 @@ import Foundation
 /// only (never a key, a word hidden from the AI, or any other part of the config), and the rules of the answer; the
 /// user's sentence is the message. Bump `version` when the wording changes (it is part of the cache key).
 public enum AIConfigPrompt {
-    public static let version = 4
+    public static let version = 5
 
     /// What the instructions say about this Mac besides the config: the models the app knows, the AWS profiles (names
     /// only), the providers offered, the language packs installed.
@@ -120,6 +120,9 @@ public enum AIConfigPrompt {
             in Settings.
             - A setting for one app: key "appProfiles.<app>.<field>", the app as the user named it ("WeChat", "Mail") or its \
             bundle ID; the value null means the same as everywhere.
+            - An app's starting language ("Chinese in WeChat"), rewrite styles or typing out: change nothing, and say in the \
+            note, in the user's language, that the starting language is learned (switch it with Shift before typing, twice \
+            in a row, in that app) and styles and typing out are set for every app.
             - "Output", "translate into" and "translation" languages are outputLanguages; the languages the user types \
             in are inputLanguages. Leave the one not asked about as it is.
             - Choosing a provider ("use Claude", "switch to Gemini") is provider, with its model only if the user names one.
@@ -129,7 +132,7 @@ public enum AIConfigPrompt {
 
             Examples:
             "translate into English and French" → {"changes": [{"key": "outputLanguages", "value": ["en", "fr"]}]}
-            "use Chinese in WeChat" → {"changes": [{"key": "appProfiles.WeChat.inputLanguage", "value": "zh"}]}
+            "no AI in WeChat" → {"changes": [{"key": "appProfiles.WeChat.noAI", "value": true}]}
             "use Claude" → {"changes": [{"key": "provider", "value": "anthropic"}]}
             "candidates in a row", "side by side", "horizontal candidates", "候选横排" → {"changes": [{"key": "candidateLayout", "value": "horizontal"}]}
             "candidates in a column", "one under the other", "vertical candidates", "候选竖排" → {"changes": [{"key": "candidateLayout", "value": "vertical"}]}
@@ -228,27 +231,26 @@ public enum AIConfigPrompt {
         }
         lines.append((.provider, line("openai.baseURL", "the base URL of an OpenAI-compatible service, or null for OpenAI's", "an https:// URL",
                                       json(config.openai.baseURL.map(shownURL)))))
+        // Of each app, only the fields this can set (`AIConfig.AppField`): what else its profile holds isn't shown.
         var profiles: [String: Any] = [:]
         var others = 0
-        for (app, profile) in config.appProfiles where !profile.isEmpty {
+        for (app, profile) in config.appProfiles where profile.noAI == true || profile.suggestionsInsert != nil {
             guard apps?.contains(app) ?? true else {
                 others += 1
                 continue
             }
             var fields: [String: Any] = [:]
-            if let language = profile.inputLanguage { fields["inputLanguage"] = language.rawValue }
-            if let styles = profile.rewriteStyles { fields["rewriteStyles"] = styles }
-            if let typeOut = profile.typeOut { fields["typeOut"] = typeOut }
             if profile.noAI == true { fields["noAI"] = true }
+            if let insert = profile.suggestionsInsert { fields["suggestionsInsert"] = insert.rawValue }
             profiles[app] = fields
         }
         // Left out to fit the on-device model's context: how many, so it doesn't take them for none.
         let shown = json(profiles) + (others == 0 ? "" : others == 1 ? " (and 1 other app, not shown)" : " (and \(others) other apps, not shown)")
-        lines.append((.apps, line("appProfiles.<app>.inputLanguage", "one of the input languages a text field of the app starts in, or null", nil,
-                                  shown)))
-        lines.append((.apps, line("appProfiles.<app>.rewriteStyles", "a list of rewrite style names for the app, or null", nil, "as above")))
-        lines.append((.apps, line("appProfiles.<app>.typeOut", "true, false or null: type results out in the app", nil, "as above")))
-        lines.append((.apps, line("appProfiles.<app>.noAI", "true or null: no AI in the app", nil, "as above")))
+        lines.append((.apps, line("appProfiles.<app>.noAI", "true or null: no AI in the app", nil, shown)))
+        let inserts = SuggestionsInsert.offered.map { "\"\($0.rawValue)\"" }.joined(separator: ", ") + ", null"
+        lines.append((.apps, line("appProfiles.<app>.suggestionsInsert", "what a suggestion row (a plugin's or a custom command's) inserts in "
+                                      + "the app: \"title\" its ID with its title, \"titleAndLink\" with its title and link, or null as everywhere",
+                                  inserts, "as above")))
         return lines
     }
 
@@ -271,11 +273,10 @@ public enum AIConfigPrompt {
 
     /// What the on-device model's answer is held to (guided generation): the same JSON as the others write, each change
     /// one of the allowed settings with its allowed values. An app's setting is written with the app on its own
-    /// (`{"key": "appProfiles.*.inputLanguage", "app": "WeChat", "value": "zh"}`, the framework takes no pattern for a
-    /// key), put back into the usual key by `canonical` before it is read like any answer (`AIConfig.parse`).
+    /// (`{"key": "appProfiles.*.noAI", "app": "WeChat", "value": true}`, the framework takes no pattern for a key), put
+    /// back into the usual key by `canonical` before it is read like any answer (`AIConfig.parse`).
     /// Only the settings in `scope`'s parts (the on-device model's small context, `AIConfigFit`).
     public static func schema(_ context: Context, scope: Scope = .everything) -> GuidedSchema {
-        let config = context.config
         /// `meaning`: what the values stand for, as the model reads them while it writes the value (guided generation).
         func change(_ name: String, _ keys: [String], _ value: GuidedSchema, app: Bool = false, meaning: String? = nil) -> GuidedSchema {
             var properties = [GuidedSchema.Property(name: "key", schema: .strings(name: name + "Key", keys))]
@@ -285,7 +286,6 @@ public enum AIConfigPrompt {
         }
         let outputs = GuidedSchema.strings(name: "OutputLanguage", OutputLanguage.catalog.map(\.code))
         let inputs = GuidedSchema.strings(name: "InputLanguage", Language.allCases.map(\.rawValue))
-        let added = GuidedSchema.strings(name: "AddedInputLanguage", config.inputLanguages.map(\.rawValue))
         let styles = GuidedSchema.array(.strings(name: "Style", RewriteStyle.catalog.map(\.name)), min: 0, max: RewriteStyle.catalog.count)
         let flags = AIConfig.Setting.allCases.filter { $0.isFlag && scope.has($0) }.map(\.path)
             + (scope.has(.iCloudSync) ? [AIConfig.Key.iCloudSync.path] : [])
@@ -307,9 +307,9 @@ public enum AIConfigPrompt {
         add(.provider, change("Provider", ["provider"], .strings(name: "ProviderName", context.offeredProviders.map(\.rawValue))))
         add(.aws, change("Region", ["region"], .strings(name: "RegionName", AIConfig.regions)))
         add(.provider, change("BaseURL", ["openai.baseURL"], .string))
-        add(.apps, change("AppInput", ["appProfiles.*.inputLanguage"], .optional(added), app: true))
-        add(.apps, change("AppStyles", ["appProfiles.*.rewriteStyles"], .optional(styles), app: true))
-        add(.apps, change("AppSwitch", ["appProfiles.*.typeOut", "appProfiles.*.noAI"], .optional(.bool), app: true))
+        add(.apps, change("AppNoAI", ["appProfiles.*.noAI"], .optional(.bool), app: true))
+        add(.apps, change("AppInsert", ["appProfiles.*.suggestionsInsert"],
+                          .optional(.strings(name: "Insert", SuggestionsInsert.offered.map(\.rawValue))), app: true))
         if !context.awsProfiles.isEmpty, scope.has(.aws) {
             choices.append(change("AWSProfile", ["awsProfile"], .strings(name: "ProfileName", context.awsProfiles)))
         }

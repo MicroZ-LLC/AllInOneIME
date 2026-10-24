@@ -554,9 +554,9 @@ Then their row shows, with Restore Default. Shown or not, they work as before.
 what the row says and by the words they go by, in English and Chinese), each with its page; ↑↓ choose one, and ⏎ or a
 click shows it on its page, outlined. The search sends nothing. Its last row, **Change: …**, asks the AI to change the
 settings as you wrote (the Assistant page before 0.6.7, `@config` before 0.6.5): "translate into Japanese and English",
-"微信里用中文，邮件里语气正式一点", "candidates in a column", "turn off the typos", "use Claude". The changes show at the
+"微信里不用 AI", "candidates in a column", "turn off the typos", "use Claude". The changes show at the
 top of the page, a row each, old → new, with the labels Settings uses ("Translation languages: English, Japanese →
-English, French", "Apps · WeChat · Starts in: Same as everywhere → Chinese"); nothing is changed yet. Apply writes them,
+English, French", "Apps · WeChat · No AI in this app: off → on"); nothing is changed yet. Apply writes them,
 Cancel drops them. "Changed N settings" then has Undo for 10 minutes, which puts back exactly the values those settings
 had (one you changed since is left as it is, and named).
 
@@ -566,9 +566,13 @@ had (one you changed since is left as it is, and named).
   layout, typing results out (on/off, speed, speeding up and slowing down, typos), Autocomplete (on/off: "turn on
   autocomplete"; the row says where its text goes), using the selection, remembering
   questions, hiding sensitive information (on/off, what is hidden, words to add), checking for updates, syncing through
-  iCloud (on/off; what syncs only in Settings), an app's No AI and the per-app settings of before (where it starts, its
-  rewrite styles, typing out; an app named as you call it, found among your apps by name or bundle ID), and the AI provider: which one, the Bedrock
+  iCloud (on/off; what syncs only in Settings), an app's two settings, No AI and Insert (with title, with title and
+  link, or as everywhere; an app named as you call it, found among your apps by name or bundle ID), and the AI provider: which one, the Bedrock
   profile (from `~/.aws`) and region, a model the app knows for it, and an OpenAI-compatible base URL (`https://` only).
+- **Not per app any more:** asked where an app starts, its rewrite styles or typing out, it changes nothing and says
+  why: where an app starts is learned (switch with Shift before typing, in two of its fields in a row), and the rewrite
+  styles and typing out are set for every app. An answer that still sets one of them for an app is refused in its row,
+  with that reason, and never written.
 - **What it never touches:** API keys and anything in the keychain, custom commands, extension folders and sources,
   plugins, the jargon list, anything that runs programs, and every other setting. Those rows are refused, with the
   reason, and the rest can still be applied.

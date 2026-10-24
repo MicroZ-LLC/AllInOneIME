@@ -155,8 +155,10 @@ extension SelfTest {
         config.appProfiles = [:]
         for index in 0..<250 {
             let id = index == 0 ? "com.tencent.xinWeChat" : "com.example.selftest.app\(index)"
+            // What an earlier version set (never shown to the model) and what can be set here (shown).
             config.appProfiles[id] = AppProfile(inputLanguage: Language.allCases[index % Language.allCases.count],
-                                                rewriteStyles: Array(styles.prefix(1 + index % 3)), typeOut: index % 2 == 0)
+                                                rewriteStyles: Array(styles.prefix(1 + index % 3)), typeOut: index % 2 == 0,
+                                                suggestionsInsert: index % 2 == 0 ? .title : .titleAndLink)
         }
         config.redaction = RedactionSettings(enabled: true, customWords: (0..<50).map { "SelfTestWord\($0)" })
         return config

@@ -55,14 +55,23 @@ extension AIConfig {
             }
         }
 
-        /// "按 App · 微信 · 开始的输入语言" / "Apps · WeChat · Starts in".
+        /// "按 App · 微信 · 这个 App 里不用 AI" / "Apps · WeChat · No AI in this app".
         public func appLabel(_ app: String, _ field: AppField) -> String {
+            let name: String
+            switch field {
+            case .noAI: name = tr("这个 App 里不用 AI", "No AI in this app")
+            case .suggestionsInsert: name = tr("插入", "Insert")
+            }
+            return tr("按 App · ", "Apps · ") + app + " · " + name
+        }
+
+        /// "按 App · 微信 · 开始的输入语言" / "Apps · WeChat · Starts in": an app's field that can't be set here any more.
+        public func appLabel(_ app: String, _ field: RemovedAppField) -> String {
             let name: String
             switch field {
             case .inputLanguage: name = tr("开始的输入语言", "Starts in")
             case .rewriteStyles: name = tr("改写风格", "Rewrite styles")
             case .typeOut: name = tr("逐字上屏", "Type results out")
-            case .noAI: name = tr("这个 App 里不用 AI", "No AI in this app")
             }
             return tr("按 App · ", "Apps · ") + app + " · " + name
         }
@@ -129,9 +138,16 @@ extension AIConfig {
         var byDefault: String { tr("默认", "default") }
         var profileRegion: String { tr("profile 的区域", "the profile's region") }
 
-        func appInput(_ language: Language?) -> String { language.map(input) ?? everywhere }
-        func appStyles(_ names: [String]?) -> String { names.map(styles) ?? everywhere }
-        func appFlag(_ on: Bool?) -> String { on.map(onOff) ?? everywhere }
+        /// What a suggestion row inserts in an app, as Settings names it (`SuggestionsInsert.label`); nil: as everywhere.
+        func appInsert(_ insert: SuggestionsInsert?) -> String {
+            switch insert {
+            case nil: return everywhere
+            case .source?: return tr("来源的默认", "Source's default")
+            case .id?: return tr("只有 ID", "ID only")
+            case .title?: return tr("带标题", "With title")
+            case .titleAndLink?: return tr("带标题和链接", "With title and link")
+            }
+        }
 
         /// A style's name in English ("Concise"), as the model is told it and may write it.
         static func englishStyle(_ style: RewriteStyle) -> String { style.name(in: "en") }
@@ -197,6 +213,17 @@ extension AIConfig {
                "\(count) more not added: at most \(AIConfig.maxWordsAdded) at a time, each one line of at most \(AIConfig.maxWordLength) characters")
         }
         var unknownApp: String { tr("找不到这个 App", "no such app found") }
+        /// Why an app's field that can't be set here any more is refused: where it starts is learned (Shift before typing,
+        /// in two of its fields in a row: `LearnedStore.corrected`); rewrite styles and typing out are set for every app.
+        func notPerApp(_ field: RemovedAppField) -> String {
+            switch field {
+            case .inputLanguage:
+                return tr("这是学出来的：在这个 App 里打字前用 Shift 切换，连续两次就记住",
+                          "it's learned: in this app, switch with Shift before typing, twice in a row")
+            case .rewriteStyles, .typeOut:
+                return tr("现在对所有 App 一起设置，不再按 App 设", "it's set for every app now, not per app")
+            }
+        }
         func ambiguousApp(_ names: [String]) -> String {
             tr("有好几个：", "several match: ") + names.prefix(3).joined(separator: separator)
         }
@@ -292,10 +319,8 @@ extension AIConfig {
             case let .app(app, value):
                 let field: AppField
                 switch value {
-                case .inputLanguage: field = .inputLanguage
-                case .rewriteStyles: field = .rewriteStyles
-                case .typeOut: field = .typeOut
                 case .noAI: field = .noAI
+                case .suggestionsInsert: field = .suggestionsInsert
                 }
                 return appLabel(app, field)
             case .provider: return label(.provider)

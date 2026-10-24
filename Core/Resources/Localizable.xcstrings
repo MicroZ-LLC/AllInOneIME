@@ -19887,7 +19887,7 @@
       }
     },
     "ID only" : {
-      "comment" : "只有 ID — Sources/AllInOneIMECore/Suggestions/SuggestionsInsert.swift",
+      "comment" : "只有 ID — Sources/AllInOneIMECore/AIConfigText.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -20358,7 +20358,7 @@
       }
     },
     "Insert" : {
-      "comment" : "插入 — Sources/AllInOneIMECore/Settings/SettingsSchema+Apps.swift",
+      "comment" : "插入 — Sources/AllInOneIMECore/AIConfigText.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -21105,6 +21105,100 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在這台 Mac 上允許之前，它什麼都不執行。"
+          }
+        }
+      }
+    },
+    "it's learned: in this app, switch with Shift before typing, twice in a row" : {
+      "comment" : "这是学出来的：在这个 App 里打字前用 Shift 切换，连续两次就记住 — Sources/AllInOneIMECore/AIConfigText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "wird gelernt: in dieser App vor dem Tippen mit der Umschalttaste wechseln, zweimal hintereinander"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "se aprende: en esta app, cambia con Mayúsculas antes de escribir, dos veces seguidas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "c’est appris : dans cette app, changez avec Maj avant de taper, deux fois de suite"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "学習で決まります：このAppで入力前にShiftで切り替えるのを2回続けると覚えます"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "학습됩니다: 이 앱에서 입력하기 전에 Shift로 전환하기를 두 번 연속 하면 기억합니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "é aprendido: neste app, alterne com Shift antes de digitar, duas vezes seguidas"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這是學出來的：在這個 App 裡打字前用 Shift 切換，連續兩次就記住"
+          }
+        }
+      }
+    },
+    "it's set for every app now, not per app" : {
+      "comment" : "现在对所有 App 一起设置，不再按 App 设 — Sources/AllInOneIMECore/AIConfigText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "wird jetzt für alle Apps festgelegt, nicht pro App"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ahora se configura para todas las apps, no por app"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "se règle désormais pour toutes les apps, plus par app"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今はAppごとではなく、すべてのAppで共通に設定します"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이제 앱별이 아니라 모든 앱에 공통으로 설정합니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "agora é definido para todos os apps, não por app"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在對所有 App 一起設定，不再按 App 設"
           }
         }
       }
@@ -38206,7 +38300,7 @@
       }
     },
     "Source's default" : {
-      "comment" : "来源的默认 — Sources/AllInOneIMECore/Suggestions/SuggestionsInsert.swift",
+      "comment" : "来源的默认 — Sources/AllInOneIMECore/AIConfigText.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -48756,7 +48850,7 @@
       }
     },
     "With title" : {
-      "comment" : "带标题 — Sources/AllInOneIMECore/Suggestions/SuggestionsInsert.swift",
+      "comment" : "带标题 — Sources/AllInOneIMECore/AIConfigText.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -48803,7 +48897,7 @@
       }
     },
     "With title and link" : {
-      "comment" : "带标题和链接 — Sources/AllInOneIMECore/Suggestions/SuggestionsInsert.swift",
+      "comment" : "带标题和链接 — Sources/AllInOneIMECore/AIConfigText.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {

@@ -207,8 +207,8 @@ extension SelfTest {
         window.setContentSize(NSSize(width: 880, height: 900))
         window.makeKeyAndOrderFront(nil)
         _ = pump(timeout: 0.6) { false }
-        // The search's Change: Mail's results typed out, emails no longer hidden; the window not told.
-        _ = try? AIConfig.applying([.app(mail, .typeOut(true)), .flag(.redactionEmails, false)], at: url, now: Date())
+        // The search's Change: no AI in Mail, emails no longer hidden; the window not told.
+        _ = try? AIConfig.applying([.app(mail, .noAI(true)), .flag(.redactionEmails, false)], at: url, now: Date())
         // The window: WeChat inserts with title (its list's picker), phone numbers hidden again (Restore Default), saved as
         // its controls save.
         model.changeProfile(weChat) { $0.suggestionsInsert = .title }
@@ -218,12 +218,12 @@ extension SelfTest {
         model.save()  // as the settings window's close does
         _ = pump(timeout: 0.3) { false }
         let file = (try? Config.load(from: url)) ?? .default
-        check(file.appProfiles[mail] == AppProfile(inputLanguage: .english, typeOut: true)
+        check(file.appProfiles[mail] == AppProfile(inputLanguage: .english, noAI: true)
               && file.appProfiles[weChat] == AppProfile(inputLanguage: .chinese, suggestionsInsert: .title)
               && !file.redaction.emails && file.redaction.phones && file.redaction.cards,
               "a Settings save over a Change it hadn't read keeps both: another app's profile, another switch (\(file.appProfiles), "
               + "emails \(file.redaction.emails), phones \(file.redaction.phones))")
-        check(model.config.appProfiles[mail]?.typeOut == true && !model.config.redaction.emails, "and the window then shows the Change's change")
+        check(model.config.appProfiles[mail]?.noAI == true && !model.config.redaction.emails, "and the window then shows the Change's change")
     }
 
     /// General → Previous per-app settings → Remove clears what an app's profile still sets of the settings no longer

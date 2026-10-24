@@ -205,20 +205,20 @@ extension SelfTest {
         check(!assistant.canPreview && model.requests == 0 && assistant.preview == nil, "an empty request sends nothing")
 
         // The preview: a row per change, old → new, a refused part with its reason; nothing changes yet.
-        ask("candidates in a column, Chinese in WeChat", """
-            {"changes": [{"key": "candidateLayout", "value": "vertical"}, {"key": "appProfiles.*.inputLanguage", "app": "微信", "value": "zh"},
-                         {"key": "customCommands", "value": []}], "note": "竖排候选，微信里用中文。"}
+        ask("candidates in a column, no AI in WeChat", """
+            {"changes": [{"key": "candidateLayout", "value": "vertical"}, {"key": "appProfiles.*.noAI", "app": "微信", "value": true},
+                         {"key": "customCommands", "value": []}], "note": "竖排候选，微信里不用 AI。"}
             """)
-        check(model.requests == 1 && assistant.lines == ["候选排列：横排 → 竖排", "按 App · WeChat · 开始的输入语言：跟全局一样 → 中文",
+        check(model.requests == 1 && assistant.lines == ["候选排列：横排 → 竖排", "按 App · WeChat · 这个 App 里不用 AI：关 → 开",
                                                          "✕ customCommands：请到设置里对应的那一页改"],
               "the request goes to the on-device model; the preview shows each change and the refused part (\(assistant.lines))")
-        check(assistant.preview?.note == "竖排候选，微信里用中文。" && rig.file().candidateLayout == .horizontal,
+        check(assistant.preview?.note == "竖排候选，微信里不用 AI。" && rig.file().candidateLayout == .horizontal,
               "its note shows; nothing changed before Apply")
 
         // Apply: written to the file, "已改 2 项" with Undo.
         assistant.apply()
         let applied = rig.file()
-        check(applied.candidateLayout == .vertical && applied.profile(for: "com.tencent.xinWeChat")?.inputLanguage == .chinese,
+        check(applied.candidateLayout == .vertical && applied.profile(for: "com.tencent.xinWeChat")?.noAI == true,
               "Apply writes the changes to the config file")
         check(assistant.applied == "已改 2 项" && assistant.canUndo && assistant.preview == nil,
               "the section says what changed and offers Undo (\(assistant.applied ?? "-"))")
@@ -263,6 +263,14 @@ extension SelfTest {
         ask("install the weather plugin", #"{"changes": [{"key": "plugins", "value": []}]}"#)
         check(assistant.preview == nil && assistant.message == "✕ plugins：请到设置里对应的那一页改",
               "a refused request is one line (\(assistant.message ?? "-"))")
+        // An app's starting input, as an earlier version set it: refused, saying it is learned; nothing written.
+        ask("微信里用中文", #"{"changes": [{"key": "appProfiles.*.inputLanguage", "app": "微信", "value": "zh"}]}"#)
+        check(assistant.preview == nil && assistant.message == "✕ 按 App · 微信 · 开始的输入语言：这是学出来的：在这个 App 里打字前用 Shift 切换，连续两次就记住"
+              && rig.file().appProfiles.isEmpty, "an app's starting input isn't set here: the line says it's learned (\(assistant.message ?? "-"))")
+        // The model as the rules ask: nothing changed, its note says why.
+        ask("微信里用英文开始", #"{"changes": [], "note": "微信从哪种输入开始是学出来的：在微信里打字前用 Shift 切换，连续两次。"}"#)
+        check(assistant.preview == nil && assistant.message == "微信从哪种输入开始是学出来的：在微信里打字前用 Shift 切换，连续两次。",
+              "an answer that changes nothing says why in one line (\(assistant.message ?? "-"))")
         ask("make it nice", "not json")
         check(assistant.message == "没能把这句话变成设置", "an answer that isn't settings is one line (\(assistant.message ?? "-"))")
 
@@ -301,9 +309,9 @@ extension SelfTest {
         // In English.
         UIText.choice = .english
         try? start.write(to: rig.url)
-        ask("translate into English and French, Chinese in WeChat, candidates in a column", Self.assistantChanges)
+        ask("translate into English and French, no AI in WeChat, candidates in a column", Self.assistantChanges)
         check(assistant.lines == ["Translation languages: English, Chinese → English, French", "Candidate layout: Horizontal → Vertical",
-                                  "Apps · WeChat · Starts in: Same as everywhere → Chinese"], "the preview in English (\(assistant.lines))")
+                                  "Apps · WeChat · No AI in this app: off → on"], "the preview in English (\(assistant.lines))")
         assistant.apply()
         check(assistant.applied == "Changed 3 settings", "the confirmation in English (\(assistant.applied ?? "-"))")
         assistant.reset()
@@ -415,7 +423,7 @@ extension SelfTest {
         let shown = AssistantModel()
         if UIText.chinese {
             rig.model.answer = assistantChanges
-            shown.request = "翻译成英语和法语，微信里用中文，候选竖排"
+            shown.request = "翻译成英语和法语，微信里不用 AI，候选竖排"
         } else {
             // In English, nothing Chinese: translating into German before, Spanish and French after.
             var config = (try? Config.load(from: rig.url)) ?? assistantSampleConfig
@@ -433,7 +441,7 @@ extension SelfTest {
 
     /// The canned answer the page's images show: three changes.
     static let assistantChanges = """
-        {"changes": [{"key": "outputLanguages", "value": ["en", "fr"]}, {"key": "appProfiles.*.inputLanguage", "app": "WeChat", "value": "zh"},
+        {"changes": [{"key": "outputLanguages", "value": ["en", "fr"]}, {"key": "appProfiles.*.noAI", "app": "WeChat", "value": true},
                      {"key": "candidateLayout", "value": "vertical"}]}
         """
 
@@ -706,7 +714,7 @@ extension SelfTest {
             }
             _ = pump(timeout: 0.3) { false }
         }
-        let request = UIText.chinese ? "翻译成英语和法语，微信里用中文，候选竖排" : "translate into Spanish and French, sync through iCloud, candidates in a column"
+        let request = UIText.chinese ? "翻译成英语和法语，微信里不用 AI，候选竖排" : "translate into Spanish and French, sync through iCloud, candidates in a column"
         rig.model.answer = UIText.chinese ? assistantChanges : assistantChangesInEnglish
         type("candidate layout")
         check(model.spot == .candidateLayout && !assistant.working && assistant.preview == nil,
