@@ -298,7 +298,7 @@ The first frame is `hello`. Its shape, and the shape of `welcome`, never change 
 - drawing candidates and notices (in its own window);
 - reading and writing the clipboard;
 - opening URLs and paths, terminals and agents, notes, reminders and messages;
-- voice, AI, scripts and search;
+- AI, scripts and search (and voice, off for now: `Features.voiceInput`);
 - **type out:** the engine pushes a series of `apply` frames, one `commit` per step, and fixes typos with `deleteBefore`. Each step waits for the previous `applied`. No `SendInput`.
 
 ## 7. Async pushes
