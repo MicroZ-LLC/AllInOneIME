@@ -945,9 +945,19 @@ final class AllInOneIMEInputController: IMKInputController {
         anchorToken += 1
         panelAnchor.enter(PanelAnchor.Field(client: ObjectIdentifier(client as AnyObject), app: client.bundleIdentifier(),
                                             session: fieldSession))
-        let told = toldAnchor(client)
+        // The window's frame once in the field (a rect on its left edge near its top is the page's corner, `PanelAnchor`).
+        if clientOverride == nil, !session.secureInputActive(), let app = client.bundleIdentifier() {
+            panelAnchor.learnWindow { FocusedField.windowFrame(in: app) }
+        }
+        var told = toldAnchor(client)
+        let screens = NSScreen.screens.map(\.frame)
+        if !PanelAnchor.trusted(told, screens: screens, window: panelAnchor.window, page: panelAnchor.page),
+           let marked = Self.markedRect(client),
+           PanelAnchor.trusted(marked, screens: screens, window: panelAnchor.window, page: panelAnchor.page) {
+            told = marked  // the line's rect not one to trust, the marked text's own is
+        }
         var asked = "Accessibility not asked"
-        let placement = panelAnchor.place(told, screens: NSScreen.screens.map(\.frame)) {
+        let placement = panelAnchor.place(told, screens: screens) {
             let start = ProcessInfo.processInfo.systemUptime
             let read = caretByAccessibility(client)
             asked = String(format: "Accessibility %.1f ms", (ProcessInfo.processInfo.systemUptime - start) * 1000)
@@ -963,7 +973,8 @@ final class AllInOneIMEInputController: IMKInputController {
         if said != anchorSaid {
             anchorSaid = said
             log.notice("""
-                panel anchor not trusted in \(client.bundleIdentifier() ?? "", privacy: .private): told \(Self.describe(told), privacy: .public); \
+                panel anchor not trusted in \(client.bundleIdentifier() ?? "", privacy: .private): told \(Self.describe(told), privacy: .public), \
+                marked \(Self.describe(Self.markedRect(client)), privacy: .public), window \(Self.describe(self.panelAnchor.window), privacy: .public); \
                 \(placement.source.rawValue, privacy: .public) used, \(Self.describe(placement.rect), privacy: .public) (\(asked, privacy: .public))
                 """)
         }
@@ -982,6 +993,16 @@ final class AllInOneIMEInputController: IMKInputController {
         var lineRect = NSRect.zero
         _ = client.attributes(forCharacterIndex: 0, lineHeightRectangle: &lineRect)
         return lineRect
+    }
+
+    /// The rect `client` tells for its marked text's first character: where its line's rect isn't one to trust, the field
+    /// may still tell this one right (and the log says it, to see what else Chromium tells).
+    @MainActor
+    private static func markedRect(_ client: IMKTextInput) -> NSRect? {
+        let marked = client.markedRange()
+        guard marked.location != NSNotFound, marked.length > 0 else { return nil }
+        let rect = client.firstRect(forCharacterRange: NSRange(location: marked.location, length: 1), actualRange: nil)
+        return rect == .zero ? nil : rect
     }
 
     /// What Accessibility tells of the caret in `client`'s app (`FocusedField.caret`; the page's frame till it is known):

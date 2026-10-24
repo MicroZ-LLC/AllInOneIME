@@ -42,6 +42,30 @@ enum FocusedField {
 
     // MARK: The caret, for a panel
 
+    /// The frame of `app`'s focused window, in AppKit's coordinates (`PanelAnchor.Memory.learnWindow`): two calls, each
+    /// waiting `timeout` at most. Nil: Accessibility not allowed (never asked for here), `app` not running, no window told.
+    static func windowFrame(in app: String, timeout: Float = 0.05) -> (frame: CGRect?, timedOut: Bool)? {
+        guard AXIsProcessTrusted(), let pid = PageContextReader.runningPID(app) else { return nil }
+        let application = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(application, timeout)
+        var found: CFTypeRef?
+        let error = AXUIElementCopyAttributeValue(application, kAXFocusedWindowAttribute as CFString, &found)
+        guard error == .success, let found, CFGetTypeID(found) == AXUIElementGetTypeID() else {
+            return (nil, error == .cannotComplete)
+        }
+        let window = found as! AXUIElement  // checked just above
+        AXUIElementSetMessagingTimeout(window, timeout)
+        var position: CFTypeRef?, size: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString, &position) == .success,
+              AXUIElementCopyAttributeValue(window, kAXSizeAttribute as CFString, &size) == .success,
+              let position, let size, CFGetTypeID(position) == AXValueGetTypeID(), CFGetTypeID(size) == AXValueGetTypeID()
+        else { return (nil, false) }
+        var origin = CGPoint.zero, extent = CGSize.zero
+        guard AXValueGetValue(position as! AXValue, .cgPoint, &origin), AXValueGetValue(size as! AXValue, .cgSize, &extent),  // checked
+              extent.width > 0, extent.height > 0 else { return (nil, false) }
+        return (PanelAnchor.appKit(CGRect(origin: origin, size: extent), top: NSScreen.screens.first?.frame.maxY ?? 0), false)
+    }
+
     /// What Accessibility tells of the caret in `app`'s focused element, where its field told the panel no rect to trust
     /// (`PanelAnchor`): its bounds (`AXSelectedTextRange` and `AXBoundsForRange`: the caret, the selection's last
     /// character where there is one), the focused window's frame and, with `page`, the frame of the outermost web area

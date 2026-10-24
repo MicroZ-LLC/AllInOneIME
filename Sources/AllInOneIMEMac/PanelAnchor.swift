@@ -68,18 +68,32 @@ public enum PanelAnchor {
 
     /// Whether `rect`, on the screen in AppKit's coordinates, is one to trust: it has a height (more than a point: an
     /// empty rect, zero wide and high, has none), isn't at the screen's origin, is on one of `screens` (their frames; none
-    /// known: not checked), and isn't at the top-left corner of the focused window or its page (`window`, `page`, where
-    /// Accessibility told them), where Chromium's rect goes before it has the page's bounds.
+    /// known: not checked), isn't at the top-left corner of the focused window or its page (`window`, `page`, where
+    /// Accessibility told them), where Chromium's rect goes before it has the page's bounds, and isn't on the window's
+    /// left edge near its top (`atLeftEdgeNearTop`).
     public static func trusted(_ rect: CGRect, screens: [CGRect], window: CGRect? = nil, page: CGRect? = nil) -> Bool {
         guard rect.minX.isFinite, rect.minY.isFinite, rect.width.isFinite, rect.height.isFinite,
               rect.height > 1, rect.origin != .zero else { return false }
         if !screens.isEmpty, !screens.contains(where: { $0.intersects(rect.insetBy(dx: -2, dy: -2)) }) { return false }
+        if let window, atLeftEdgeNearTop(rect, of: window) { return false }
         return ![window, page].contains { $0.map { atTopLeft(rect, of: $0) } == true }
     }
 
     /// Whether `rect`'s top-left corner is `frame`'s (two points either way).
     static func atTopLeft(_ rect: CGRect, of frame: CGRect) -> Bool {
         abs(rect.minX - frame.minX) <= 2 && abs(rect.maxY - frame.maxY) <= 2
+    }
+
+    /// How far under a window's top Chromium's page starts at most (its tabs and toolbar, a bookmarks bar, a banner):
+    /// a rect on the window's left edge down to here is the page's corner, not a caret.
+    static let pageTopBelowWindowTop: CGFloat = 220
+
+    /// Whether `rect` starts on `window`'s left edge (two points either way) within `pageTopBelowWindowTop` of its top:
+    /// where the page's top-left corner is, under Chromium's tabs and toolbar. Google Docs' rect for marked text is a line
+    /// high there (the hidden element it types into, not moved to the caret), so its height doesn't make it one to trust;
+    /// no app draws a caret on its window's very edge.
+    static func atLeftEdgeNearTop(_ rect: CGRect, of window: CGRect) -> Bool {
+        abs(rect.minX - window.minX) <= 2 && rect.maxY <= window.maxY + 2 && rect.maxY >= window.maxY - pageTopBelowWindowTop
     }
 
     /// `rect` as Accessibility tells it (from the main screen's top-left, y down) in AppKit's coordinates (from its
@@ -99,6 +113,8 @@ public enum PanelAnchor {
         /// Accessibility got no answer in time in this field: not asked there again (an app that hangs would hold up
         /// every key).
         public private(set) var accessibilityGivenUp = false
+        /// The window's frame was asked in this field (`learnWindow`), told or not.
+        public private(set) var windowAsked = false
 
         public init() {}
 
@@ -112,6 +128,17 @@ public enum PanelAnchor {
 
         /// The field is left.
         public mutating func forget() { self = Memory() }
+
+        /// The focused window's frame, asked (`read`) once in the field, before its first rect is judged: a rect on its
+        /// left edge near its top isn't one to trust even where it has a height (`atLeftEdgeNearTop`). Not once
+        /// Accessibility timed out in the field.
+        public mutating func learnWindow(_ read: () -> (frame: CGRect?, timedOut: Bool)?) {
+            guard window == nil, !windowAsked, !accessibilityGivenUp else { return }
+            windowAsked = true
+            guard let told = read() else { return }
+            window = told.frame
+            accessibilityGivenUp = told.timedOut
+        }
 
         /// Where the panel goes for `told`, the rect the field tells now: there, if it is one to trust (remembered);
         /// else the caret `accessibility` tells (asked only then, and not once it timed out in this field) where it is

@@ -55,6 +55,41 @@ struct PanelAnchorTests {
         #expect(PanelAnchor.trusted(CGRect(x: 5000, y: 420, width: 0, height: 18), screens: []))
     }
 
+    /// Google Docs (owner's report, 0.6.7): the rect for marked text is a line high on the window's left edge, under
+    /// Chrome's toolbar (its hidden element, not at the caret), the page's frame unknown: not trusted once the window's
+    /// frame is known, asked once in the field before its first rect is judged.
+    @Test func aLineHighOnTheWindowsLeftEdgeNearItsTopIsNotTrusted() {
+        let docs = CGRect(x: window.minX, y: window.maxY - 110, width: 1, height: 18)
+        #expect(PanelAnchor.trusted(docs, screens: screens), "no window known: as before")
+        #expect(!PanelAnchor.trusted(docs, screens: screens, window: window))
+        // The same edge lower down, or a caret a little in from it: trusted.
+        #expect(PanelAnchor.trusted(CGRect(x: window.minX, y: window.maxY - 400, width: 1, height: 18), screens: screens, window: window))
+        #expect(PanelAnchor.trusted(CGRect(x: window.minX + 24, y: window.maxY - 110, width: 1, height: 18), screens: screens, window: window))
+
+        var memory = PanelAnchor.Memory()
+        memory.enter(field(client))
+        var asked = 0
+        memory.learnWindow {
+            asked += 1
+            return (window, false)
+        }
+        memory.learnWindow {
+            asked += 1
+            return (window, false)
+        }
+        #expect(asked == 1 && memory.window == window, "once in a field")
+        memory.place(line, screens: screens) { nil }
+        let placed = memory.place(docs, screens: screens) { nil }
+        #expect(placed == PanelAnchor.Placement(rect: line, source: .last) && placed.reasks)
+        // Another field asks again.
+        memory.enter(field(other))
+        memory.learnWindow {
+            asked += 1
+            return (nil, true)
+        }
+        #expect(asked == 2 && memory.window == nil && memory.accessibilityGivenUp)
+    }
+
     @Test func aRectOffEveryScreenIsNotTrusted() {
         let off = CGRect(x: 5000, y: 3000, width: 0, height: 18)
         #expect(!PanelAnchor.trusted(off, screens: screens))
