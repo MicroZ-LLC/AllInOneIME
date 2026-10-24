@@ -1,15 +1,15 @@
 {
-  "build" : "13",
-  "generated" : "2026-10-20T22:37:06Z",
+  "build" : "14",
+  "generated" : "2026-10-24T21:55:35Z",
   "minimumSystemVersion" : "14.0",
-  "notesURL" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/tag/v0.6.6",
+  "notesURL" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/tag/v0.6.7",
   "schema" : 1,
-  "sha256" : "bcc07acdb5b3695e147727b1da2746b638732fd593640895f238c4f0b895f967",
-  "size" : 24043316,
+  "sha256" : "2facebfee5ed47afbb71b47d6cea36d0f968c744353348d8fdc6861b2b8351fd",
+  "size" : 27602761,
   "summary" : {
-    "en" : "English words in pinyin (bedr → Bedrock), learned as you type; fixes for Slack's Shift and ⌥, Settings → Assistant on Apple Intelligence, and @translate with no language to translate into.",
-    "zh" : "拼音里能打英文词（bedr → Bedrock），打过的会自动学会；修好 Slack 里的 Shift 和 ⌥、设置 →「助手」用 Apple Intelligence 时的报错，以及没有翻译语言时的 @translate。"
+    "en" : "Simpler Settings (seven pages; search changes settings in a sentence; where each app starts is learned); autocomplete (beta) after a pause; suggestions as you type from plugins and your own programs (GitHub issues: #12 → #1234); Code, an input for writing code; the magic key; and fixes.",
+    "zh" : "更简单的设置（七页；搜索框里一句话改设置；每个 App 从哪种输入开始靠学）；停顿后的续写（Beta）；插件和你自己的程序提供的打字建议（GitHub issue：#12 → #1234）；写代码用的代码输入；魔法键；以及若干修复。"
   },
-  "url" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/download/v0.6.6/AllInOneIME-0.6.6-update.zip",
-  "version" : "0.6.6"
+  "url" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/download/v0.6.7/AllInOneIME-0.6.7-update.zip",
+  "version" : "0.6.7"
 }
