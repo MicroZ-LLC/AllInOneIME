@@ -13,9 +13,10 @@ import CoreGraphics
 /// went. Then the field is asked again a moment later (`reaskDelays`), and the panel moves once it tells a rect to trust.
 /// Accessibility is asked only for a rect not to trust: never on every key in an app that tells its caret right.
 public enum PanelAnchor {
-    /// When the field is asked again, in seconds after a panel placed by anything but a rect it told to trust:
-    /// Chromium's bounds usually come within a frame or two.
-    public static let reaskDelays: [Double] = [0.04, 0.15]
+    /// When the field is asked again, in seconds after a panel placed by anything but a rect it told to trust: Chromium's
+    /// bounds come a frame or more after the marked text (asked at once, the first key of a composition gets the page's
+    /// corner); Google Docs' came half a second later at times (the owner's log). Every frame at first, then less often.
+    public static let reaskDelays: [Double] = [0.016, 0.033, 0.05, 0.1, 0.15, 0.3, 0.5, 0.8]
 
     /// The field a panel is for: its client object and app, in one focus session (an activation of it).
     public struct Field: Equatable, Sendable {
