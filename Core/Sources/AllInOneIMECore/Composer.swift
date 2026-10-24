@@ -591,8 +591,8 @@ public final class Composer {
     /// what it typed into the field (a terminal tells nothing); a composer on its own knows none. Right after a word
     /// (`continuesWord`) the "@" is just text: no command list.
     public var characterBeforeCaret: () -> Character? = { nil }
-    /// Whether `typed`, the letters pinyin holds and the key typed after them ("cr-"), finishes the prefix of a suggestion
-    /// source that may show rows here ("CR-"): the composition then goes in as typed and the token starts
+    /// Whether `typed`, the letters pinyin holds and the key typed after them ("proj-"), finishes the prefix of a suggestion
+    /// source that may show rows here ("PROJ-"): the composition then goes in as typed and the token starts
     /// (`endForSuggestionPrefix`). Set by the session; a composer on its own has no sources.
     public var finishesSuggestionPrefix: (String) -> Bool = { _ in false }
     /// Whether the field's app still acts on a key the input method lets through after inserting text during it, as
@@ -2015,7 +2015,7 @@ public final class Composer {
         return Response(effects: effects, handled: consumed)
     }
 
-    /// "-" (or "_", ".") after the letters pinyin holds, finishing a suggestion source's prefix ("cr" then "-" for "CR-",
+    /// "-" (or "_", ".") after the letters pinyin holds, finishing a suggestion source's prefix ("proj" then "-" for "PROJ-",
     /// any case: `finishesSuggestionPrefix`): the letters and the key go in as typed, not converted, and the token starts
     /// there, as "#" ends a composition (suggestions spec 1.3). Digits after it are typed then, so the rows come as in
     /// English. Only with nothing but those letters composed, on the candidates' first page (where librime's "-" turns

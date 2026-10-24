@@ -504,7 +504,7 @@ extension InputSession {
     }
 
     /// Whether `typed`, the letters pinyin holds and the key after them, finishes the prefix of a source whose rows may
-    /// show here, after what this token has so far ("cr-" for "CR-", in any case): the composer then puts them in as
+    /// show here, after what this token has so far ("proj-" for "PROJ-", in any case): the composer then puts them in as
     /// typed, and the token goes on from them (`Composer.finishesSuggestionPrefix`). The same rules as the rows'
     /// (`suggestionsRows`): a source active with its templates for this app's class, the switches on, no secure input,
     /// a field known to be no password field.
