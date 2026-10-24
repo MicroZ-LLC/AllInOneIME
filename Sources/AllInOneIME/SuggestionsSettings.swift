@@ -2,8 +2,8 @@ import AllInOneIMECore
 import SwiftUI
 
 /// Settings → General → Suggestions (spec suggestions v1, 3): their switch, the input menu's, for plugins' completions
-/// (each turned on in Plugins) and Code's rows (Code is in Input) alike, an app's own choice in Apps; and forgetting the
-/// rows picked.
+/// (each turned on in Plugins) and Code's rows (Code is in Input) alike, an app's own choice in Apps; what a row inserts,
+/// under it; and forgetting the rows picked.
 struct SuggestionsSection: View {
     @ObservedObject var model: SettingsModel
     /// How many rows picked are kept (rows picked before come first).
@@ -16,6 +16,8 @@ struct SuggestionsSection: View {
                        tr("插件的补全（比如打 #12 列出 GitHub issue；每个插件的补全在「插件」里打开）和代码输入的关键字、代码片段（在「输入」里）：光标下面列出几行，按 Tab 插入。和输入法菜单里的「建议」是同一个开关；某个 App 里不要可以在「按 App 设置」里关掉。",
                           "Plugins' completions (#12 lists GitHub issues, say; turn each plugin's on in Plugins) and Code's keywords and snippets (see Input): a few rows under the caret, Tab inserts. The same switch as Suggestions in the input menu; an app can turn them off in Apps."))
             }
+            // What a suggestion row inserts, for every source (decision 28).
+            SuggestionsInsertPicker(model: model)
             HStack {
                 Text(tr("选过的行下次排在前面，只存在这台 Mac 上。", "Rows you pick come first next time; they're kept on this Mac only."))
                     .font(.caption).foregroundStyle(.secondary)
@@ -39,6 +41,24 @@ struct SuggestionsSection: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
             Text(note).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+/// What a suggestion row inserts everywhere (decision 28), in Settings → General under the Suggestions switch: the
+/// source's own (a plugin's `insert`, a custom command's Insert), ID only, with title, with title and link; for every
+/// source, plugins' and custom commands', never Code's. An app's own is in Apps.
+struct SuggestionsInsertPicker: View {
+    @ObservedObject var model: SettingsModel
+
+    var body: some View {
+        Picker(selection: Binding(get: { model.config.suggestionsInsert ?? .source }, set: { model.setSuggestionsInsert($0) })) {
+            ForEach(SuggestionsInsert.allCases, id: \.self) { insert in Text(insert.label).tag(insert) }
+        } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(tr("插入", "Insert"))
+                Text(SuggestionsInsert.help).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 }
