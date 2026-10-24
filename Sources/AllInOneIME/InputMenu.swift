@@ -40,7 +40,8 @@ extension AllInOneIMEInputController {
         outputs.addItem(.separator())
         let addOutput = NSMenuItem(title: tr("添加 / 排序语言…", "Add or Reorder Languages…"), action: #selector(showPreferences(_:)), keyEquivalent: "")
         addOutput.target = self
-        addOutput.representedObject = SettingsPage.writing.rawValue
+        // The page and the row it opens Settings at, as `SettingsPage` and `SettingsSpot` name them (`showPreferences`).
+        addOutput.representedObject = "general/outputLanguages"
         outputs.addItem(addOutput)
         outputItem.submenu = outputs
         menu.addItem(outputItem)
@@ -71,7 +72,7 @@ extension AllInOneIMEInputController {
         }
         let addInput = NSMenuItem(title: tr("添加语言…", "Add Languages…"), action: #selector(showPreferences(_:)), keyEquivalent: "")
         addInput.target = self
-        addInput.representedObject = SettingsPage.input.rawValue
+        addInput.representedObject = "general/inputLanguages"
         inputs.addItem(addInput)
         inputItem.submenu = inputs
         menu.addItem(inputItem)
@@ -312,9 +313,11 @@ extension AllInOneIMEInputController {
     override func showPreferences(_ sender: Any!) {
         MainActor.assumeIsolated {
             perform(composer.commitAll(), client: nil)  // the window takes focus from the text field
-            // "Add Languages…" opens the page with the languages; Settings… opens on Assistant.
-            if let page = (Self.menuItem(from: sender)?.representedObject as? String).flatMap(SettingsPage.init(rawValue:)) {
-                SettingsWindow.shared.show(page: page)
+            // "Add Languages…" opens the page with the languages, at their row ("general/inputLanguages"); Settings… opens
+            // on General.
+            let place = (Self.menuItem(from: sender)?.representedObject as? String)?.split(separator: "/").map(String.init) ?? []
+            if let page = place.first.flatMap(SettingsPage.init(rawValue:)) {
+                SettingsWindow.shared.show(page: page, spot: place.dropFirst().first.flatMap(SettingsSpot.init(rawValue:)))
             } else {
                 SettingsWindow.shared.show()
             }

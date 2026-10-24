@@ -377,8 +377,8 @@ struct SuggestionsInsertChoiceTests {
             #expect(everywhere.choices?.map(\.value) == [.null, .string("title"), .string("titleAndLink")])
             #expect(everywhere.choices?.map(\.label) == ["Default (each source's own)", "With title", "With title and link"])
             let help = try #require(everywhere.help)
-            #expect(help.contains("#1234") && help.contains("#1234 Fix login")
-                    && help.contains("#1234 Fix login https://github.com/…/issues/1234"), "\(help)")
+            // One sentence (Settings v2): the example with title, and that the link comes after it.
+            #expect(help.contains("#1234 Fix login") && help.contains("link") && !help.contains("Settings →"), "\(help)")
 
             #expect((try? service.set("suggestionsInsert", to: .string("title")).get()) != nil)
             #expect(try Config.load(from: url).suggestionsInsert == .title)

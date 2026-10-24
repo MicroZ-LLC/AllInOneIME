@@ -9,14 +9,11 @@ extension SettingsSchema {
     // MARK: Suggestions' switch
 
     /// Suggestions on or off everywhere (`Config.suggestions`: on unless turned off), General's: what it covers (plugins'
-    /// completions, Code's rows) and where each part is turned on; on the Mac, the input menu's Suggestions too.
+    /// completions, Code's rows), in one sentence as the Mac's window says it.
     func suggestionsSwitch() -> Field {
         toggle("suggestions", tr("建议", "Suggestions"),
-               platform == .mac
-                   ? tr("插件的补全（比如打 #12 列出 GitHub issue；每个插件的补全在「插件」里打开）和代码输入的关键字、代码片段（在「输入」里）：光标下面列出几行，按 Tab 插入。和输入法菜单里的「建议」是同一个开关；某个 App 里不要可以在「按 App 设置」里关掉。",
-                        "Plugins' completions (#12 lists GitHub issues, say; turn each plugin's on in Plugins) and Code's keywords and snippets (see Input): a few rows under the caret, Tab inserts. The same switch as Suggestions in the input menu; an app can turn them off in Apps.")
-                   : tr("插件的补全（比如打 #12 列出 GitHub issue；每个插件的补全在「插件」里打开）和代码输入的关键字、代码片段（在「输入」里）：光标下面列出几行，按 Tab 插入。某个应用里不要可以在「按 App 设置」里关掉。",
-                        "Plugins' completions (#12 lists GitHub issues, say; turn each plugin's on in Plugins) and Code's keywords and snippets (see Input): a few rows under the caret, Tab inserts. An app can turn them off in Apps."),
+               tr("插件的补全和代码输入的关键字、代码片段：光标下面列出几行，按 Tab 插入。",
+                  "Plugins' completions and Code's keywords and snippets, a few rows under the caret; Tab inserts."),
                config.suggestions != false)
     }
 

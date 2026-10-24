@@ -596,8 +596,9 @@ struct SuggestionsTests {
                 #expect(section("general").contains("suggestions") && !section("input").contains("suggestions"),
                         "\(platform): \(section("general"))")
                 let help = try #require(service.document().field("suggestions")?.help)
-                #expect(help.contains("Plugins") && help.contains("Code's keywords") && help.contains("see Input")
-                        && help.contains("input menu") == (platform == .mac), "\(platform): \(help)")
+                // One sentence of what it covers, pointing at no other page (Settings v2).
+                #expect(help.contains("Plugins") && help.contains("Code's keywords") && !help.contains("see Input")
+                        && !help.contains(" in Apps"), "\(platform): \(help)")
                 // Code in Python, its pack installed: nothing to say of it yet.
                 try CodingPackStore(directory: folder.appendingPathComponent("CodingPacks", isDirectory: true)).keep(Self.pack(), language: "python")
                 #expect((try? service.set("codingLanguage", to: .string("python")).get()) != nil)

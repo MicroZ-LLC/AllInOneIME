@@ -43,10 +43,10 @@ public enum SuggestionsInsert: String, CaseIterable, Codable, Sendable {
     /// still honored.
     public static var offered: [SuggestionsInsert] { [.title, .titleAndLink] }
 
-    /// What Settings says of it, with GitHub's issues for an example.
+    /// What Settings says of it, with GitHub's issues for an example: one sentence, the same on every platform.
     public static var help: String {
-        tr("建议的行插入什么（插件的补全和建议类的自定义命令，不管代码输入）：比如 GitHub issue #1234，带标题是「#1234 Fix login」，带标题和链接是「#1234 Fix login https://github.com/…/issues/1234」，不设就用插件或命令自己定的。",
-           "What a suggestion row inserts (plugins' completions and Suggestions commands, not Code): for GitHub issue #1234, with title is \"#1234 Fix login\", with title and link \"#1234 Fix login https://github.com/…/issues/1234\", and unset, what the plugin or the command says.")
+        tr("建议的行插入什么：默认按插件或命令自己定的；比如 GitHub issue，带标题是「#1234 Fix login」，带标题和链接再加上它的链接。",
+           "What a suggestion row puts in: by default what its plugin or command says; for a GitHub issue, with title is \"#1234 Fix login\", and with title and link adds its link.")
     }
 
     /// Where it is chosen, for Settings → Plugins, where a plugin's completions are turned on.

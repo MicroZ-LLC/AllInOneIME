@@ -465,11 +465,13 @@ extension SelfTest {
         check(store.stopped(in: "com.aipinyin.selftest.harness")
               && controller.notice?.hasPrefix(tr("续写在「", "Autocomplete wasn't used in")) == true,
               "none taken: it stops there and says so (\(controller.notice ?? "none"))")
-        let stoppedMenu = controller.menu()?.items.first { $0.title.hasPrefix(tr("这个 App：", "This App: ")) }?.submenu?.items.map(\.title) ?? []
-        check(stoppedMenu.contains(tr("跟全局一样（在这里没用上，已停）", "Same as everywhere (stopped here: not used)"))
-              && stoppedMenu.contains(tr("总是续写", "Always", key: "autocomplete.always")),
-              "the input menu's This App says so, and offers Always (\(stoppedMenu))")
-        // Turned off and on again elsewhere than the switch (Settings → Assistant writes the file): seen as a field takes
+        // This App has no autocomplete of its own any more (Settings v2: Insert and No AI only); the switch is the menu's.
+        let menu = controller.menu()
+        let stoppedMenu = menu?.items.first { $0.title.hasPrefix(tr("这个 App：", "This App: ")) }?.submenu?.items.map(\.title) ?? []
+        check(!stoppedMenu.contains { $0.hasPrefix(tr("续写", "Autocomplete")) || $0.hasPrefix(tr("跟全局一样（在这里没用上", "Same as everywhere (stopped")) }
+              && menu?.items.contains { $0.action == #selector(AllInOneIMEInputController.toggleAutocomplete(_:)) } == true,
+              "the input menu has the switch, This App no autocomplete choice of its own (\(stoppedMenu))")
+        // Turned off and on again elsewhere than the switch (the settings search's Change writes the file): seen as a field takes
         // the focus, every app starts over, as with the switch.
         let turnedOn = store.metrics.turnedOn
         settings.autocomplete = false
@@ -477,7 +479,7 @@ extension SelfTest {
         settings.autocomplete = true
         controller.activateServer(harness)
         check(!store.stopped(in: "com.aipinyin.selftest.harness") && store.metrics.turnedOn == turnedOn + 1,
-              "turned on again by Settings → Assistant: counted, and the app starts over")
+              "turned on again by the search's Change: counted, and the app starts over")
         store.learn { $0.restart() }
 
         // A field that tells no caret rect: a line of the candidate panel. (The fake field's caret rect made empty, and its

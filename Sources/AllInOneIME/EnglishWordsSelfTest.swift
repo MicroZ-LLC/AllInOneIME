@@ -153,7 +153,11 @@ extension SelfTest {
         model.config.learnsEnglishWords = false
         model.save()
         check(saved()?.learnsEnglishWords == false, "learning turned off is saved")
-        check(SettingsPage.input.matches("英文词") && SettingsPage.input.matches("english words"), "the search finds the English words")
+        let found = ["英文词", "english words"].map { SettingsSpot.search($0, trigger: "@", config: .default).first }
+        check(found.allSatisfy { $0 == .englishWords } && SettingsSpot.englishWords.chip == .language(.english),
+              "the search finds the English words, in the English chip (\(found))")
+        check(SettingsSpot.search("learn english", trigger: "@", config: .default).first == .learnEnglishWords
+              && SettingsSpot.learnEnglishWords.page == .privacy, "…and learning them, in Privacy")
 
         let chosen = UIText.choice
         defer { UIText.choice = chosen }
@@ -163,8 +167,8 @@ extension SelfTest {
             preview.config.setOrder([Language.chinese, .english])
             preview.config.englishWords = ["Bedrock", "frobnicate", "LangGraph", "Kiro", "OpenRouter Chat"]
             let image = snapshotDirectory.appendingPathComponent("\(name).png")
-            SettingsImage.render(preview, page: .input, inputTab: .chinese, to: image) { seconds in _ = pump(timeout: seconds) { false } }
-            check(FileManager.default.fileExists(atPath: image.path), "Settings → Input → English words drawn (\(language))")
+            SettingsImage.render(preview, page: .general, inputTab: .language(.english), to: image) { seconds in _ = pump(timeout: seconds) { false } }
+            check(FileManager.default.fileExists(atPath: image.path), "Settings → General → English's chip, its words drawn (\(language))")
         }
     }
 }

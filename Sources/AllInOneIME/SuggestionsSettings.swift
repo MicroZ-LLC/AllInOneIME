@@ -2,8 +2,8 @@ import AllInOneIMECore
 import SwiftUI
 
 /// Settings → General → Suggestions (spec suggestions v1, 3): their switch, the input menu's, for plugins' completions
-/// (each turned on in Plugins) and Code's rows (Code is in Input) alike, an app's own choice in Apps; what a row inserts,
-/// under it; and forgetting the rows picked.
+/// and Code's rows alike; what a row inserts (decision 28; Settings v2, 4): everywhere, then in the apps with their own
+/// choice; and forgetting the rows picked.
 struct SuggestionsSection: View {
     @ObservedObject var model: SettingsModel
     /// How many rows picked are kept (rows picked before come first).
@@ -12,12 +12,13 @@ struct SuggestionsSection: View {
     var body: some View {
         Section {
             Toggle(isOn: Binding(get: { model.config.suggestions != false }, set: { model.setSuggestions($0) })) {
-                titled(tr("建议", "Suggestions"),
-                       tr("插件的补全（比如打 #12 列出 GitHub issue；每个插件的补全在「插件」里打开）和代码输入的关键字、代码片段（在「输入」里）：光标下面列出几行，按 Tab 插入。和输入法菜单里的「建议」是同一个开关；某个 App 里不要可以在「按 App 设置」里关掉。",
-                          "Plugins' completions (#12 lists GitHub issues, say; turn each plugin's on in Plugins) and Code's keywords and snippets (see Input): a few rows under the caret, Tab inserts. The same switch as Suggestions in the input menu; an app can turn them off in Apps."))
+                titled(.suggestions)
             }
-            // What a suggestion row inserts, for every source (decision 28).
+            .settingsRow(.suggestions, shown: model.spot)
+            // What a suggestion row inserts, for every source: everywhere, then the apps with their own.
             SuggestionsInsertPicker(model: model)
+                .settingsRow(.suggestionsInsert, shown: model.spot)
+            AppInsertsList(model: model)
             HStack {
                 Text(tr("选过的行下次排在前面，只存在这台 Mac 上。", "Rows you pick come first next time; they're kept on this Mac only."))
                     .font(.caption).foregroundStyle(.secondary)
@@ -37,28 +38,98 @@ struct SuggestionsSection: View {
     }
 
     /// A row's title with a short explanation under it, as the other pages show them.
-    private func titled(_ title: String, _ note: String) -> some View {
+    @ViewBuilder private func titled(_ spot: SettingsSpot) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-            Text(note).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Text(spot.title)
+            if let note = spot.note {
+                Text(note).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 }
 
-/// What a suggestion row inserts everywhere (decision 28), in Settings → General under the Suggestions switch: the
-/// source's own (a plugin's `insert`, a custom command's Insert), ID only, with title, with title and link; for every
-/// source, plugins' and custom commands', never Code's. An app's own is in Apps.
+/// What a suggestion row inserts everywhere (decision 28), under the Suggestions switch: the source's own (a plugin's
+/// `insert`, a custom command's Insert) until another is chosen, with title, or with title and link; for every source,
+/// plugins' and custom commands', never Code's. "ID only" can't be chosen any more (Settings v2, 4): a config that has it,
+/// or the source's own written out, shows it on its own row with Restore Default.
 struct SuggestionsInsertPicker: View {
     @ObservedObject var model: SettingsModel
 
     var body: some View {
-        Picker(selection: Binding(get: { model.config.suggestionsInsert ?? .source }, set: { model.setSuggestionsInsert($0) })) {
-            ForEach(SuggestionsInsert.allCases, id: \.self) { insert in Text(insert.label).tag(insert) }
-        } label: {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(tr("插入", "Insert"))
-                Text(SuggestionsInsert.help).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        if let kept = model.config.suggestionsInsert, !SuggestionsInsert.offered.contains(kept) {
+            RestoreDefaultRow(title: SettingsSpot.suggestionsInsert.title + tr("：", ": ") + kept.label,
+                              note: SuggestionsInsert.notOffered) { model.setSuggestionsInsert(nil) }
+        } else {
+            Picker(selection: Binding(get: { model.config.suggestionsInsert }, set: { model.setSuggestionsInsert($0) })) {
+                Text(tr("默认", "Default")).tag(SuggestionsInsert?.none)
+                ForEach(SuggestionsInsert.offered, id: \.self) { insert in Text(insert.label).tag(SuggestionsInsert?.some(insert)) }
+            } label: {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(SettingsSpot.suggestionsInsert.title)
+                    Text(SuggestionsInsert.help).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
+    }
+}
+
+extension SuggestionsInsert {
+    /// What Settings and the input menu offer (Settings v2, 4): with title, with title and link. The source's own is the
+    /// default (none chosen); "ID only" is still honored where a config has it.
+    static let offered: [SuggestionsInsert] = [.title, .titleAndLink]
+
+    /// Under a choice that isn't offered any more, kept in a config.
+    static var notOffered: String {
+        tr("现在不能再选它了；默认用插件或命令自己定的。", "It can't be chosen any more; by default each plugin or command says what goes in.")
+    }
+}
+
+/// "In these apps": each app with its own choice of what a suggestion row inserts (`AppProfile.suggestionsInsert`), its
+/// picker and Remove (the app's other settings untouched), and Add App….
+struct AppInsertsList: View {
+    @ObservedObject var model: SettingsModel
+
+    var body: some View {
+        let apps = model.appsWith { $0.suggestionsInsert != nil }
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(SettingsSpot.appInserts.title)
+                    Text(SettingsSpot.appInserts.note ?? "").font(.callout).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+                AddAppMenu(model: model, has: { $0.suggestionsInsert != nil }) { app in
+                    model.changeProfile(app) { $0.suggestionsInsert = AppInsertsList.added(everywhere: model.config.suggestionsInsert) }
+                }
+            }
+            ForEach(apps, id: \.self) { app in row(app) }
+        }
+        .settingsRow(.appInserts, shown: model.spot)
+    }
+
+    /// What an app added here inserts: the other one of the two offered than everywhere's (what adding it is for).
+    static func added(everywhere: SuggestionsInsert?) -> SuggestionsInsert {
+        everywhere == .titleAndLink ? .title : .titleAndLink
+    }
+
+    private func row(_ app: String) -> some View {
+        let own = model.config.profile(for: app)?.suggestionsInsert
+        return HStack {
+            AppLabel(app: app)
+            Spacer()
+            if let own, !SuggestionsInsert.offered.contains(own) {
+                // "ID only", or the source's own written out: shown as it is, until Restore Default.
+                Text(own.label).foregroundStyle(.secondary).help(SuggestionsInsert.notOffered)
+                Button(tr("恢复默认", "Restore Default")) { model.changeProfile(app) { $0.suggestionsInsert = nil } }
+            } else {
+                Picker("", selection: Binding(get: { own ?? .title }, set: { insert in model.changeProfile(app) { $0.suggestionsInsert = insert } })) {
+                    ForEach(SuggestionsInsert.offered, id: \.self) { insert in Text(insert.label).tag(insert) }
+                }
+                .labelsHidden().fixedSize()
+                Button(tr("移除", "Remove")) { model.changeProfile(app) { $0.suggestionsInsert = nil } }
+            }
+        }
+        .padding(.leading, 4)
     }
 }

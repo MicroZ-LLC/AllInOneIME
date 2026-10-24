@@ -386,7 +386,7 @@ extension SelfTest {
         client.bundleIDOverride = notes
         controller.activateServer(client)
         check(!TranslateModeShared.state.isOn, "…and leaving that app leaves it")
-        check(AppProfileText.summary(AppProfile(translateAlways: true)) == tr("总是边打边译", "Always Translate as You Type"),
-              "Settings → Apps says so: \(AppProfileText.summary(AppProfile(translateAlways: true)))")
+        check(AppProfileText.previous(AppProfile(translateAlways: true)) == tr("总是边打边译", "Always Translate as You Type"),
+              "Settings → General's previous per-app settings say so: \(AppProfileText.previous(AppProfile(translateAlways: true)))")
     }
 }

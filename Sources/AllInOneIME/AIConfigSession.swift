@@ -23,10 +23,10 @@ enum AIConfigSession {
     /// What the checks need, for what the user typed (the self-test gives its own). Built off the main thread where it
     /// reads the keychain items' attributes, the login shell's variables or the apps on disk.
     static var environment: (_ typed: String) async -> AIConfig.Environment = { await liveEnvironment(typed: $0) }
-    /// Settings → AI Provider with `provider`'s key field focused (shown there even when another provider is in use; the
+    /// Settings → AI with `provider`'s key field focused (shown there even when another provider is in use; the
     /// self-test records it).
     static var openKeyField: (Provider) -> Void = { provider in
-        SettingsWindow.shared.show(page: .provider)
+        SettingsWindow.shared.show(page: .ai)
         // Once the page is up.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
             NotificationCenter.default.post(name: .allInOneIMEFocusAPIKey, object: nil, userInfo: ["provider": provider.rawValue])

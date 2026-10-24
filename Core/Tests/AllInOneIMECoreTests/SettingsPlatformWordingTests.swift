@@ -49,7 +49,7 @@ extension SettingsServiceTests {
         }
         let english = try await withInterfaceLanguage("en") { try wordingDocument(.windows, Self.wordingConfig("en")) }
         for text in ["\"Enter\"", "Enter runs a command typed with @", "this PC", "Run in a terminal", "in a terminal window",
-                     "write cmd /c {input}", "and Enter, then again", "Enter inserts it"] {
+                     "write cmd /c {input}", "Enter inserts it"] {
             #expect(english.contains(text), "\(text)")
         }
     }
@@ -92,8 +92,7 @@ extension SettingsServiceTests {
     @Test func theMacsDocumentIsAsItWas() async throws {
         let mac = try await withInterfaceLanguage("en") { try wordingDocument(.mac, Self.wordingConfig("en")) }
         for text in ["⏎ Return", "Return runs a command typed with @", "Programs run on your Mac", "Run in Terminal", "It opens in Terminal",
-                     "write zsh -c {input}", "(bedrock and ⏎, then again)", "⏎ inserts it", "~/.config/allinoneime/extensions",
-                     "@improve, @translate, @question … and ⏎"] {
+                     "write zsh -c {input}", "⏎ inserts it", "~/.config/allinoneime/extensions"] {
             #expect(mac.contains(text), "\(text)")
         }
         #expect(!mac.contains("%USERPROFILE%") && !mac.contains("cmd /c"))

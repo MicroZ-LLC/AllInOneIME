@@ -1,12 +1,15 @@
 import Foundation
 import Testing
 
-/// Autocomplete set to Always for one app sends what is typed there whatever the main switch says: where an app's choice
-/// is made, it says where the text goes, as the main switch does (`AutocompleteSwitch.destination`, the core's
-/// `Autocomplete.Words.destination`): Settings → Apps' Autocomplete, and the input menu's This App. Read from the sources,
+/// Autocomplete sends what is typed to the model it uses: where it is turned on, the switch says where the text goes
+/// (`AutocompleteSwitch.destination`, the core's `Autocomplete.Words.destination`): Settings → General's Autocomplete, as
+/// the input menu's switch. An app's own choice (always, never) is no longer offered (Settings v2): This App has none,
+/// and one set before is listed under General → Previous per-app settings (`PreviousAppSettings`). Read from the sources,
 /// as the views and menus can't be drawn here.
 struct AppAutocompleteDestinationTests {
-    static let source = StringCatalogTests.root.appendingPathComponent("Sources/AllInOneIME/AppProfiles.swift")
+    static func source(_ name: String) throws -> String {
+        try String(contentsOf: StringCatalogTests.root.appendingPathComponent("Sources/AllInOneIME/\(name)"), encoding: .utf8)
+    }
 
     /// The text of `source` from `start` to the first `end` after it.
     static func part(_ source: String, from start: String, to end: String) -> Substring? {
@@ -16,20 +19,17 @@ struct AppAutocompleteDestinationTests {
         return source[from.lowerBound..<to.lowerBound]
     }
 
-    /// Settings → Apps: the Autocomplete choice of an app (as everywhere, Always, Never) says where the text goes.
-    @Test func settingsAppsSaysWhereTheTextGoes() throws {
-        let text = try String(contentsOf: Self.source, encoding: .utf8)
-        let picker = try #require(Self.part(text, from: "get: { profile.autocomplete }", to: "// Suggestions as everywhere"))
-        #expect(picker.contains("AutocompleteSwitch.destination"), "\(picker)")
+    /// Settings → General: Autocomplete's switch says where the text goes, whether it's on or not.
+    @Test func settingsGeneralSaysWhereTheTextGoes() throws {
+        let text = try Self.source("SettingsWindow.swift")
+        let row = try #require(Self.part(text, from: "private var autocompleteSection: some View {", to: ".settingsRow(.autocomplete"))
+        #expect(row.contains("AutocompleteSwitch.destination(model.config)"), "\(row)")
     }
 
-    /// The input menu's This App: under its Autocomplete choices, the line that says where the text goes, as under the
-    /// main switch.
-    @Test func thisAppMenuSaysWhereTheTextGoes() throws {
-        let text = try String(contentsOf: Self.source, encoding: .utf8)
+    /// The input menu's This App offers no autocomplete of its own: Insert and No AI only.
+    @Test func thisAppMenuHasNoAutocompleteChoice() throws {
+        let text = try Self.source("AppProfiles.swift")
         let menu = try #require(Self.part(text, from: "func appMenuItem(", to: "func changeAppProfile("))
-        let choices = try #require(Self.part(String(menu), from: "#selector(setAppAutocomplete(_:)), value: \"off\"",
-                                             to: "menu.addItem(.separator())"))
-        #expect(choices.contains("AutocompleteSwitch.destination"), "\(choices)")
+        #expect(!menu.contains("autocomplete") && menu.contains("toggleAppNoAI") && menu.contains("setAppSuggestionsInsert"), "\(menu)")
     }
 }

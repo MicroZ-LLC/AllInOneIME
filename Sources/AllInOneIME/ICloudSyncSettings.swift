@@ -3,10 +3,11 @@ import AppKit
 import SwiftUI
 
 /// Settings → General → Sync through iCloud (「通过 iCloud 同步」, `ICloudSyncController`): off by default; on only with
-/// iCloud Drive there (else how to turn it on, and a button to that pane). Under it, what syncs (hidden words and recent
-/// questions off until chosen here; API keys and passwords through iCloud Keychain, off until chosen here too, in a
-/// build entitled to it: turning sync on never moves a key), the
-/// status, Sync Now, and "Remove from iCloud…" (asked first). All of it is this Mac's own: never synced.
+/// iCloud Drive there (else how to turn it on, and a button to that pane). One status row, its switch with the last sync
+/// under it and a ⋯ menu (Sync Now, API keys and passwords through iCloud Keychain, Remove from iCloud…); the learned
+/// words' switch; one switch for the hidden words and the recent questions (off until chosen here). What else syncs (the
+/// settings, the jargon list and custom commands) is on unless the config says otherwise, then shown with Restore
+/// Default. All of it is this Mac's own: never synced.
 struct ICloudSyncSection: View {
     @ObservedObject var model: SettingsModel
     @ObservedObject private var sync = ICloudSyncController.shared
@@ -19,13 +20,23 @@ struct ICloudSyncSection: View {
 
     var body: some View {
         Section {
-            Toggle(isOn: Binding(get: { model.config.iCloudSync.enabled }, set: setEnabled)) {
-                titled(tr("通过 iCloud 同步", "Sync through iCloud"), syncsKeys
-                       ? tr("设置、黑话库和自定义命令、拼音学到的词，在你所有的 Mac 上都一样；在下面打开后，API 密钥和密码也经过 iCloud 钥匙串同步。只经过你自己的 iCloud，不经过我们的服务器，也不用另外登录。",
-                            "Your settings, jargon list, custom commands and the words pinyin learned, the same on all your Macs; your API keys and passwords too, through iCloud Keychain, if you turn that on below. Only through your own iCloud: nothing goes to our servers, and there's nothing else to sign in to.")
-                       : tr("设置、黑话库和自定义命令、拼音学到的词，在你所有的 Mac 上都一样。只经过你自己的 iCloud 云盘，不经过我们的服务器，也不用另外登录。",
-                            "Your settings, jargon list, custom commands and the words pinyin learned, the same on all your Macs. Only through your own iCloud Drive: nothing goes to our servers, and there's nothing else to sign in to."))
+            HStack(alignment: .center) {
+                Toggle(isOn: Binding(get: { model.config.iCloudSync.enabled }, set: setEnabled)) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(SettingsSpot.iCloudSync.title)
+                        if model.config.iCloudSync.enabled {
+                            TimelineView(.periodic(from: .now, by: 30)) { context in
+                                Text(statusLine(now: context.date)).font(.callout).foregroundStyle(statusColor)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        } else {
+                            Text(SettingsSpot.iCloudNote).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+                if model.config.iCloudSync.enabled || sync.folderExists { moreMenu }
             }
+            .settingsRow(.iCloudSync, shown: model.spot)
             if driveMissing || (model.config.iCloudSync.enabled && !sync.driveAvailable) {
                 HStack(alignment: .firstTextBaseline) {
                     Label(ICloudSync.turnOnDrive(language: UIText.language), systemImage: "exclamationmark.triangle.fill")
@@ -35,55 +46,39 @@ struct ICloudSyncSection: View {
                 }
             }
             if model.config.iCloudSync.enabled {
-                Toggle(isOn: binding(\.settings)) {
-                    titled(tr("设置", "Settings"), tr("语言、改写风格、执行键、按 App 设置、AI 服务和模型（不含密钥）…",
-                                                     "Languages, rewrite styles, the action key, per-app settings, the AI provider and model (never its key)…"))
-                }
-                Toggle(tr("黑话库和自定义命令", "Jargon and custom commands"), isOn: binding(\.jargon))
                 Toggle(isOn: binding(\.learnedWords)) {
                     titled(tr("学到的词", "Learned words"), tr("拼音从你的选择里学到的词（Rime 的用户词典），和你的英文词",
                                                             "What pinyin learned from your choices (Rime's user dictionary), and your English words"))
                 }
-                Toggle(isOn: binding(\.hiddenWords)) {
-                    titled(tr("隐藏的词", "Hidden words"),
-                           tr("你在隐私里加的词。只有开了「高级数据保护」，iCloud 云盘才是端到端加密的。关掉后已同步的仍留在 iCloud 里，用「从 iCloud 移除…」删掉。",
-                              "The words you hide from the AI. iCloud Drive is end-to-end encrypted only with Advanced Data Protection. Turned off, the ones synced stay in iCloud until you remove them."))
-                }
-                removeRow(.hiddenWords)
-                Toggle(isOn: binding(\.recentQuestions)) {
-                    titled(tr("最近的问题", "Recent questions"),
-                           model.triggered(tr("@question 的问题和答案；只在开了「记住最近的问题」时同步。关掉后已同步的仍留在 iCloud 里，用「从 iCloud 移除…」删掉。",
-                              "@question's questions and answers; only while “Remember recent questions” is on. Turned off, the ones synced stay in iCloud until you remove them.")))
-                }
-                removeRow(.recentQuestions)
-                let keysRow = Self.keysRow(entitled: Self.entitled)
-                Toggle(isOn: keysRow.enabled ? binding(\.keys) : .constant(false)) {
-                    titled(tr("API 密钥和密码", "API keys and passwords"), keysRow.note)
-                }
-                .disabled(!keysRow.enabled)
-                HStack(alignment: .firstTextBaseline) {
-                    TimelineView(.periodic(from: .now, by: 30)) { context in
-                        Text(statusLine(now: context.date)).font(.callout).foregroundStyle(statusColor)
+                Toggle(isOn: Binding(get: { model.config.iCloudSync.hiddenWords || model.config.iCloudSync.recentQuestions },
+                                     set: setPrivate)) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(tr("隐藏的词和最近的问题", "Hidden words and recent questions"))
+                        Text(tr("只有开了「高级数据保护」才端到端加密；关掉后已同步的仍留在 iCloud 里，直到你移除。",
+                                "End-to-end encrypted only with Advanced Data Protection; turned off, what was synced stays in iCloud until you remove it."))
+                            .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                        // One of the two on alone (a config from before they were one switch): which.
+                        if model.config.iCloudSync.hiddenWords != model.config.iCloudSync.recentQuestions {
+                            Text(model.config.iCloudSync.hiddenWords ? tr("现在只同步隐藏的词。", "Only the hidden words sync now.")
+                                 : tr("现在只同步最近的问题。", "Only the recent questions sync now."))
+                                .font(.callout).foregroundStyle(.orange)
+                        }
                     }
-                    Spacer()
-                    Button(tr("立即同步", "Sync Now")) { sync.syncNow() }
-                        .disabled(!sync.driveAvailable)
+                }
+                // What syncs unless the config says otherwise: one set off shows, with Restore Default.
+                if !model.config.iCloudSync.settings {
+                    RestoreDefaultRow(title: tr("设置：不同步", "Settings: not synced"), note: tr("默认会同步。", "Synced by default.")) {
+                        set(\.settings, true)
+                    }
+                }
+                if !model.config.iCloudSync.jargon {
+                    RestoreDefaultRow(title: tr("黑话库和自定义命令：不同步", "Jargon and custom commands: not synced"),
+                                      note: tr("默认会同步。", "Synced by default.")) { set(\.jargon, true) }
                 }
             }
-            if sync.folderExists {
-                HStack {
-                    if let removeError { Text(removeError).font(.callout).foregroundStyle(.red) }
-                    Spacer()
-                    Button(tr("从 iCloud 移除…", "Remove from iCloud…")) { confirmingRemove = true }
-                }
-            }
+            if let removeError { Text(removeError).font(.callout).foregroundStyle(.red) }
         } header: {
             SectionTitle("iCloud", icon: CandidateView.Icon(symbol: "icloud.fill", color: .systemBlue))
-        } footer: {
-            Text(tr("从不同步：AllInOneIME Cloud 的登录、扩展来源、扩展文件夹和插件、不再打错的 App 和最近用过的 App、窗口状态。每台 Mac 自己决定开不开同步、同步哪些。",
-                    "Never synced: the AllInOneIME Cloud sign-in, extension sources, extension folders and plugins, the apps without typos and the recent apps, window state. Each Mac decides for itself whether to sync, and what."))
-                .font(.caption).foregroundStyle(.secondary)
-                .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)  // under the card, from its left
         }
         .disabled(!model.canSave)
         .confirmationDialog(tr("从 iCloud 移除同步的数据？", "Remove the synced data from iCloud?"), isPresented: $confirmingRemove) {
@@ -110,6 +105,47 @@ struct ICloudSyncSection: View {
                  : tr("它们会从 iCloud 云盘删掉，这台 Mac 也不再同步它们；这台 Mac 上的词保留。同步它们的其他 Mac 不会再从 iCloud 收到；还开着的 Mac 会把自己的再放回去。",
                       "They're deleted from iCloud Drive and this Mac stops syncing them; the words on this Mac stay. Other Macs syncing them stop getting them from iCloud; one that still has the switch on puts its own back."))
         }
+    }
+
+    /// The status row's ⋯: Sync Now, API keys and passwords (through iCloud Keychain, off until chosen; a build without
+    /// the provisioning profile can't), and taking things out of iCloud (each asked first).
+    private var moreMenu: some View {
+        Menu {
+            if model.config.iCloudSync.enabled {
+                Button(tr("立即同步", "Sync Now")) { sync.syncNow() }
+                    .disabled(!sync.driveAvailable)
+                Divider()
+                let keysRow = Self.keysRow(entitled: Self.entitled)
+                Toggle(tr("API 密钥和密码（iCloud 钥匙串）", "API Keys and Passwords (iCloud Keychain)"),
+                       isOn: keysRow.enabled ? binding(\.keys) : .constant(false))
+                    .disabled(!keysRow.enabled)
+                    .help(keysRow.note)
+            }
+            if sync.folderExists {
+                Divider()
+                Button(tr("从 iCloud 移除隐藏的词…", "Remove Hidden Words from iCloud…")) { categoryToRemove = .hiddenWords }
+                Button(tr("从 iCloud 移除最近的问题…", "Remove Recent Questions from iCloud…")) { categoryToRemove = .recentQuestions }
+                Button(tr("从 iCloud 移除…", "Remove from iCloud…")) { confirmingRemove = true }
+            }
+        } label: {
+            Image(systemName: "ellipsis.circle")
+        }
+        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+        .accessibilityLabel(tr("更多 iCloud 选项", "More iCloud options"))
+    }
+
+    /// The hidden words and the recent questions, one switch: both on, or both off.
+    private func setPrivate(_ on: Bool) {
+        model.config.iCloudSync.hiddenWords = on
+        model.config.iCloudSync.recentQuestions = on
+        model.save()
+        sync.syncNow()
+    }
+
+    private func set(_ path: WritableKeyPath<ICloudSyncSettings, Bool>, _ on: Bool) {
+        model.config.iCloudSync[keyPath: path] = on
+        model.save()
+        sync.syncNow()
     }
 
     /// Keys sync through iCloud Keychain while sync is on: the build is entitled to it, and "API keys and passwords" is on.
@@ -173,27 +209,15 @@ struct ICloudSyncSection: View {
         }
     }
 
-    /// "Remove from iCloud…" under an opt-in's switch, while the shared folder is there.
-    @ViewBuilder private func removeRow(_ category: ICloudSync.Category) -> some View {
-        if sync.folderExists {
-            HStack {
-                Spacer()
-                Button(tr("从 iCloud 移除…", "Remove from iCloud…")) { categoryToRemove = category }
-                    .controlSize(.small)
-            }
-        }
-    }
-
     private func statusLine(now: Date) -> String {
+        var line = statusText(now: now)
+        if syncsKeys { line += tr("；API 密钥和密码经过 iCloud 钥匙串", "; API keys and passwords through iCloud Keychain") }
         if !sync.refused.isEmpty {
             let count = sync.refused.count
-            return statusText(now: now) + (count == 1
-                ? tr("；iCloud 里有 1 项设置没用在这台 Mac 上（设置 → 助手的「检查问题」说明原因）",
-                     "; 1 setting from iCloud isn't used here (Settings → Assistant → Check for problems says why)")
-                : tr("；iCloud 里有 \(count) 项设置没用在这台 Mac 上（设置 → 助手的「检查问题」说明原因）",
-                     "; \(count) settings from iCloud aren't used here (Settings → Assistant → Check for problems says why)"))
+            line += count == 1 ? tr("；iCloud 里有 1 项设置没用在这台 Mac 上", "; 1 setting from iCloud isn't used here")
+                : tr("；iCloud 里有 \(count) 项设置没用在这台 Mac 上", "; \(count) settings from iCloud aren't used here")
         }
-        return statusText(now: now)
+        return line
     }
 
     private func statusText(now: Date) -> String {

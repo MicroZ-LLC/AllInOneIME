@@ -743,7 +743,7 @@ final class AllInOneIMEInputController: IMKInputController {
                 openAgent(id)  // in Terminal
             case let .openSettings(place):
                 switch place {
-                case .translationLanguages?: openSettings(.writing, .outputLanguages)  // its Add… outlined
+                case .translationLanguages?: openSettings(.general, .outputLanguages)  // its Add… outlined
                 case nil: SettingsWindow.shared.show()
                 }
             case let .copy(text):

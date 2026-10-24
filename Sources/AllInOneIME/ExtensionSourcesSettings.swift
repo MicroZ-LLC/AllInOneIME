@@ -648,7 +648,7 @@ struct ExtensionSourceNotice: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityHint(tr("打开设置里的「自定义命令」", "Opens Settings → Custom Commands"))
+            .accessibilityHint(tr("打开设置里的「命令」", "Opens Settings → Commands"))
         }
     }
 }

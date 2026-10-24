@@ -211,7 +211,7 @@ extension AllInOneIMEInputController {
     /// Nothing to translate into but the languages typed (`Config.hasLanguageToTranslateInto`): where one is added, the
     /// page named as the settings' sidebar names it.
     private var noTargetText: String {
-        let page = SettingsPage.writing.title
+        let page = SettingsPage.general.title
         return tr("没有要翻译成的语言：在设置 →「\(page)」里加一种", "No language to translate into: add one in Settings → \(page)")
     }
 

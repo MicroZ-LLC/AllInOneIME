@@ -1,10 +1,10 @@
 import AllInOneIMECore
 import SwiftUI
 
-/// Code in Settings → Input (decision 22): an input after the languages, a kind of its own, never among them. Its row in
-/// the list (`CodeInputRow`): the coding language, picked from the library's (one whose pack isn't installed downloads it
-/// first, as adding an input language downloads its pack), and Remove; the coding packs installed, each removable, and
-/// those the library offers, fetched only when asked (`CodingPacksSections`).
+/// Code in Settings → General (decision 22): an input after the languages, a kind of its own, its chip after theirs. Its
+/// chip opens its options (`CodeOptions`): the coding language, picked from the library's (one whose pack isn't installed
+/// downloads it first, as adding an input language downloads its pack); the coding packs installed, each removable, and
+/// those the library offers, fetched only when asked (`CodingPacksSections`). Its ⊗ removes it.
 @MainActor
 enum CodeInputSettings {
     /// Code's mark, as the menu bar icon has it.
@@ -35,43 +35,24 @@ enum CodeInputSettings {
     }
 }
 
-/// Settings → Input's Code row, after the input languages: its coding language and Remove (once Code is added, with + or
-/// from the input menu); the pack of a language picked for it while it downloads (with Cancel), or why it didn't (with
-/// Retry).
+/// Settings → General, under the input chips: Code's pack while it isn't installed, suggestions off (Code then shows
+/// nothing), and the pack of a language picked for Code while it downloads (with Cancel), or why it didn't (with Retry).
 struct CodeInputRow: View {
     @ObservedObject var model: SettingsModel
     @ObservedObject private var packs = CodingPackManager.shared
 
     var body: some View {
         if let language = model.config.codingLanguage {
-            LabeledContent {
-                HStack(spacing: 8) {
-                    Picker("", selection: Binding(get: { language }, set: { CodeInputSettings.pick($0, model: model) })) {
-                        ForEach(CodeInputSettings.languages(model.config, installed: packs.installed), id: \.language) { offered in
-                            Text(offered.title + (packs.installed.contains { $0.language == offered.language }
-                                                  ? "" : tr("（下载语言包）", " (downloads a language pack)")))
-                                .tag(offered.language)
-                        }
-                    }
-                    .pickerStyle(.menu).labelsHidden().fixedSize()
-                    Button(tr("移除", "Remove"), role: .destructive) { model.config.codingLanguage = nil }
-                }
-            } label: {
-                VStack(alignment: .leading, spacing: 2) {
-                    Label(tr("代码", "Code"), systemImage: "curlybraces")
-                    Text(CodeInputSettings.summary).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                    if !packs.installed.contains(where: { $0.language == language }), !packs.isDownloading(language) {
-                        Label(tr("\(CodingLanguagePack.title(of: language)) 的语言包还没安装：装好以后才能切到代码。",
-                                 "The \(CodingLanguagePack.title(of: language)) pack isn't installed: Code can be typed once it is."),
-                              systemImage: "arrow.down.circle")
-                            .font(.caption).foregroundStyle(.orange)
-                    }
-                    if model.config.suggestions == false {
-                        Label(tr("建议关着，代码输入不会列出什么：在「通用」里打开。", "Suggestions are off, so Code shows no rows: turn them on in General."),
-                              systemImage: "exclamationmark.triangle")
-                            .font(.caption).foregroundStyle(.orange)
-                    }
-                }
+            if !packs.installed.contains(where: { $0.language == language }), !packs.isDownloading(language) {
+                Label(tr("\(CodingLanguagePack.title(of: language)) 的语言包还没安装：装好以后才能切到代码。",
+                         "The \(CodingLanguagePack.title(of: language)) pack isn't installed: Code can be typed once it is."),
+                      systemImage: "arrow.down.circle")
+                    .font(.caption).foregroundStyle(.orange)
+            }
+            if model.config.suggestions == false {
+                Label(tr("建议关着，代码输入不会列出什么。", "Suggestions are off, so Code shows no rows."),
+                      systemImage: "exclamationmark.triangle")
+                    .font(.caption).foregroundStyle(.orange)
             }
         }
         if let picked = packs.picked { pickedPack(picked) }
@@ -112,8 +93,40 @@ struct CodeInputRow: View {
     }
 }
 
-/// Settings → Input's coding packs (spec suggestions v1, 3; decision 22): those installed, each with its version and
-/// what it holds, and Delete… (the pack of Code's language takes Code with it); and those the language library offers,
+/// Code's chip opened (Settings → General → Input languages, decision 22): its coding language, picked from the
+/// library's (one whose pack isn't installed downloads it first, as adding an input language downloads its pack), then
+/// the coding packs.
+struct CodeOptions: View {
+    @ObservedObject var model: SettingsModel
+    @ObservedObject private var packs = CodingPackManager.shared
+
+    var body: some View {
+        if let language = model.config.codingLanguage {
+            Section {
+                Picker(selection: Binding(get: { language }, set: { CodeInputSettings.pick($0, model: model) })) {
+                    ForEach(CodeInputSettings.languages(model.config, installed: packs.installed), id: \.language) { offered in
+                        Text(offered.title + (packs.installed.contains { $0.language == offered.language }
+                                              ? "" : tr("（下载语言包）", " (downloads a language pack)")))
+                            .tag(offered.language)
+                    }
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(tr("编程语言", "Coding language"))
+                        Text(CodeInputSettings.summary).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .pickerStyle(.menu)
+            } header: {
+                SectionTitle(tr("代码", "Code"), icon: CodeInputSettings.icon)
+            }
+            .disabled(!model.canSave)
+        }
+        CodingPacksSections(model: model)
+    }
+}
+
+/// Code's coding packs (spec suggestions v1, 3; decision 22), in its chip: those installed, each with its version and
+/// what it holds, and Remove… (the pack of Code's language takes Code with it); and those the language library offers,
 /// fetched only when asked (no network before), each with Download, its progress and Cancel, Update, or Installed.
 struct CodingPacksSections: View {
     @ObservedObject var model: SettingsModel
@@ -128,16 +141,16 @@ struct CodingPacksSections: View {
         librarySection
     }
 
-    /// The packs installed: each with its version and what it holds, and Delete….
+    /// The packs installed: each with its version and what it holds, and Remove….
     @ViewBuilder private var installedSection: some View {
         Section {
-            Text(tr("代码输入只用上面选的那种编程语言的包；其他的留着，换成它们时就能用。",
-                    "Code uses the pack of the language picked for it above; the others stay installed for when you pick theirs."))
+            Text(tr("代码输入只用它的编程语言的包；其他的留着，换成它们时就能用。",
+                    "Code uses the pack of its coding language; the others stay installed for when you pick theirs."))
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 // On a row that is always there (a Form section's own dialog is not shown).
-                .confirmationDialog(packToDelete.map { tr("删除 \($0.title) 编程语言包？", "Delete the \($0.title) coding pack?") } ?? "",
+                .confirmationDialog(packToDelete.map { tr("移除 \($0.title) 编程语言包？", "Remove the \($0.title) coding pack?") } ?? "",
                                     isPresented: Binding(get: { packToDelete != nil }, set: { if !$0 { packToDelete = nil } })) {
-                    Button(tr("删除", "Delete"), role: .destructive) {
+                    Button(tr("移除", "Remove"), role: .destructive) {
                         if let pack = packToDelete { delete(pack) }
                         packToDelete = nil
                     }
@@ -159,7 +172,7 @@ struct CodingPacksSections: View {
                                 "\(pack.version) · \(pack.keywords.count) keywords · \(pack.snippets.count) snippets"))
                             .font(.caption).foregroundStyle(.secondary)
                         Spacer()
-                        Button(tr("删除…", "Delete…")) { packToDelete = pack }
+                        Button(tr("移除…", "Remove…")) { packToDelete = pack }
                     }
                     if case let .failed(message) = packs.states[pack.language] {
                         Label(message, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange)
@@ -178,7 +191,7 @@ struct CodingPacksSections: View {
         .disabled(!model.canSave)
     }
 
-    /// Deletes `pack`; Code goes with the pack of its language (as an input language goes with its pack).
+    /// Removes `pack`; Code goes with the pack of its language (as an input language goes with its pack).
     private func delete(_ pack: CodingLanguagePack) {
         if model.config.codingLanguage == pack.language { model.config.codingLanguage = nil }
         packs.remove(pack.language)

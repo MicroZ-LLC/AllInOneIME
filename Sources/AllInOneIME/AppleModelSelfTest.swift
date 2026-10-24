@@ -85,7 +85,7 @@ extension SelfTest {
             } else {
                 check(false, "Test Connection with Apple Intelligence failed: \(preview.testStatus)")
             }
-            SettingsImage.render(preview, page: .provider,
+            SettingsImage.render(preview, page: .ai,
                                  to: snapshotDirectory.appendingPathComponent(chinese ? "apple-settings.png" : "apple-settings-en.png")) { seconds in
                 _ = pump(timeout: seconds) { false }
             }

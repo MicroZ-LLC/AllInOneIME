@@ -6491,8 +6491,56 @@
         }
       }
     },
+    "A command's result is typed in character by character, like a person typing; Esc stops it, any other key types the rest at once." : {
+      "comment" : "命令的结果像人打字一样一个字一个字打进去；按 Esc 停下，按别的键把剩下的一次打完。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Ergebnis eines Befehls wird Zeichen für Zeichen eingetippt, wie von einem Menschen; Esc stoppt, jede andere Taste tippt den Rest auf einmal."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El resultado de un comando se escribe carácter a carácter, como lo haría una persona; Esc lo detiene y cualquier otra tecla escribe el resto de golpe."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le résultat d’une commande est tapé caractère par caractère, comme par un humain ; Esc l’arrête, toute autre touche tape le reste d’un coup."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コマンドの結果を、人がタイプするように1文字ずつ入力します。Escで停止し、ほかのキーを押すと残りを一度に入力します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "명령 결과를 사람이 입력하듯 한 글자씩 입력합니다. Esc를 누르면 멈추고, 다른 키를 누르면 나머지를 한 번에 입력합니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O resultado de um comando é digitado caractere por caractere, como uma pessoa digitando; Esc interrompe, qualquer outra tecla digita o restante de uma vez."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "指令的結果會像真人打字一樣逐字打進去；按 Esc 停下，按其他鍵會把剩下的一次打完。"
+          }
+        }
+      }
+    },
     "A command's result is typed in character by character, like a person typing; pinyin picks still go in at once. Esc stops it; any other key types the rest at once." : {
       "comment" : "命令的结果（翻译、润色、回答…）像人打字一样一个字一个字打进去；打拼音选词还是马上上屏。按 Esc 停下，按别的键把剩下的一次打完。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -7098,6 +7146,100 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "整數"
+          }
+        }
+      }
+    },
+    "A word put in as typed twice while typing pinyin comes up among the candidates; never in password fields, terminals or apps without AI." : {
+      "comment" : "打拼音时原样上屏两次的字母，以后会出现在候选里；密码框、终端和不用 AI 的应用里不学。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein Wort, das du beim Pinyin-Tippen zweimal so eingibst, wie du es getippt hast, erscheint unter den Kandidaten; nie in Passwortfeldern, Terminals oder Apps ohne KI."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una palabra introducida dos veces tal cual al escribir pinyin aparece entre los candidatos; nunca en campos de contraseña, terminales ni apps sin IA."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un mot inséré deux fois tel que tapé en pinyin apparaît parmi les candidats ; jamais dans les champs de mot de passe, les terminaux ni les apps sans IA."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ピンイン入力中にそのまま2回確定した単語が候補に出ます。パスワード欄、ターミナル、AIを使わないアプリでは学習しません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "병음을 입력하다가 입력한 그대로 두 번 넣은 단어가 후보에 나타납니다. 암호 필드, 터미널, AI를 사용하지 않는 앱에서는 학습하지 않습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uma palavra inserida duas vezes como digitada ao digitar pinyin aparece entre os candidatos; nunca em campos de senha, terminais ou apps sem IA."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打拼音時照原樣送出兩次的字母，以後會出現在候選裡；密碼欄位、終端機和不使用 AI 的應用程式裡不學。"
+          }
+        }
+      }
+    },
+    "A word put in as typed twice while typing pinyin, or typed twice in English mode, comes up among pinyin's candidates; never in password fields, terminals or apps without AI." : {
+      "comment" : "打拼音时原样上屏两次的字母，或英文模式下打了两次的词，以后会出现在拼音的候选里；密码框、终端和不用 AI 的 App 里不学。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein Wort, das du beim Pinyin-Tippen zweimal so eingibst, wie du es getippt hast, oder im Englisch-Modus zweimal tippst, erscheint unter den Pinyin-Kandidaten; nie in Passwortfeldern, Terminals oder Apps ohne KI."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una palabra introducida dos veces tal cual al escribir pinyin, o escrita dos veces en modo inglés, aparece entre los candidatos del pinyin; nunca en campos de contraseña, terminales ni apps sin IA."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un mot inséré deux fois tel que tapé en pinyin, ou tapé deux fois en mode anglais, apparaît parmi les candidats du pinyin ; jamais dans les champs de mot de passe, les terminaux ni les apps sans IA."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ピンイン入力中にそのまま2回確定した単語や、英語モードで2回入力した単語が、ピンインの候補に出ます。パスワード欄、ターミナル、AIを使わないAppでは学習しません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "병음을 입력하다가 입력한 그대로 두 번 넣거나 영어 모드에서 두 번 입력한 단어가 병음 후보에 나타납니다. 암호 필드, 터미널, AI를 사용하지 않는 앱에서는 학습하지 않습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uma palavra inserida duas vezes como digitada ao digitar pinyin, ou digitada duas vezes no modo inglês, aparece entre os candidatos do pinyin; nunca em campos de senha, terminais ou apps sem IA."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打拼音時照原樣送出兩次的字母，或英文模式下打了兩次的詞，以後會出現在拼音的候選裡；密碼欄位、終端機和不使用 AI 的 App 裡不學。"
           }
         }
       }
@@ -8001,6 +8143,53 @@
         }
       }
     },
+    "AI is off in this app: nothing was sent (Settings → Privacy)" : {
+      "comment" : "这个 App 里关了 AI，没有发给 AI（设置 → 隐私） — Sources/AllInOneIMECore/Session/InputSession.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KI ist in dieser App aus: nichts wurde gesendet (Einstellungen → Datenschutz)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La IA está desactivada en esta app: no se envió nada (Ajustes → Privacidad)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’IA est désactivée dans cette app : rien n’a été envoyé (Réglages → Confidentialité)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このAppではAIがオフです：何も送信しませんでした（設定 → プライバシー）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 앱에서는 AI가 꺼져 있음: 아무것도 보내지 않았습니다 (설정 → 개인정보 보호)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A IA está desativada neste app: nada foi enviado (Ajustes → Privacidade)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個 App 中已關閉 AI：未傳送任何內容（設定 → 隱私權）"
+          }
+        }
+      }
+    },
     "AI provider" : {
       "comment" : "AI 服务 — Sources/AllInOneIMECore/AIConfigText.swift",
       "localizations" : {
@@ -8760,8 +8949,55 @@
         }
       }
     },
+    "Always autocomplete" : {
+      "comment" : "总是续写 — Sources/AllInOneIMECore/PreviousAppSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Immer autovervollständigen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autocompletar siempre"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Complétion automatique toujours"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "常にオートコンプリート"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "항상 자동 완성"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sempre autocompletar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一律續寫"
+          }
+        }
+      }
+    },
     "Always Translate as You Type" : {
-      "comment" : "总是边打边译 — Sources/AllInOneIMECore/Settings/SettingsSchema+Apps.swift",
+      "comment" : "总是边打边译 — Sources/AllInOneIMECore/PreviousAppSettings.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -13186,6 +13422,53 @@
         }
       }
     },
+    "Claude Code runs in the background and notifies me" : {
+      "comment" : "Claude Code 在后台运行，做完通知我 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code läuft im Hintergrund und benachrichtigt mich"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code se ejecuta en segundo plano y me avisa"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code s’exécute en arrière-plan et m’avertit"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Codeをバックグラウンドで実行して通知"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code를 백그라운드에서 실행하고 완료되면 알림"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Executar o Claude Code em segundo plano e me notificar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code 在背景執行，完成後通知我"
+          }
+        }
+      }
+    },
     "Code" : {
       "comment" : "代码 — Sources/AllInOneIMECore/Composer.swift",
       "localizations" : {
@@ -13656,6 +13939,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "指令"
+          }
+        }
+      }
+    },
+    "Commands typed with text selected work on it, and the result you pick replaces it; turn it off if it misbehaves in an app." : {
+      "comment" : "选中文字后打命令就处理选中的文字，选好的结果替换它；哪个 App 里不正常就关掉。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Befehle, die du bei ausgewähltem Text tippst, wirken auf ihn, und das gewählte Ergebnis ersetzt ihn; schalte es aus, wenn es in einer App nicht richtig funktioniert."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los comandos que escribes con texto seleccionado actúan sobre él, y el resultado que eliges lo sustituye; desactívalo si falla en alguna app."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les commandes tapées avec du texte sélectionné s’appliquent à celui-ci, et le résultat choisi le remplace ; désactivez l’option si elle pose problème dans une app."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "テキストを選択した状態でコマンドを入力すると、そのテキストを処理し、選んだ結果で置き換えます。うまく動かないAppがあればオフにしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "텍스트를 선택한 채 명령을 입력하면 선택한 텍스트를 처리하고, 고른 결과로 바꿉니다. 어떤 앱에서 제대로 작동하지 않으면 끄세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comandos digitados com texto selecionado atuam sobre ele, e o resultado que você escolhe o substitui; desative se não funcionar bem em algum app."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選取文字後打指令就會處理選取的文字，選好的結果會取代它；哪個 App 裡不正常就關掉。"
           }
         }
       }
@@ -17766,6 +18096,7 @@
     },
     "For picking words (pinyin, Hindi): one under the other; ↑↓ choose, - = turn the page. The @ list and results are always vertical. From the next text field." : {
       "comment" : "选词（拼音、印地语）的候选一个一个往下排：↑↓ 选词，- = 翻页。@ 命令列表和结果总是竖排。在下一个输入框生效。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -17813,6 +18144,7 @@
     },
     "For picking words (pinyin, Hindi): side by side (the default), like the system's own input methods; ← → choose, ↑↓ or - = turn the page. The @ list and results stay vertical. From the next text field." : {
       "comment" : "选词（拼音、印地语）的候选并排（默认），像系统自带的输入法：← → 选词，↑↓ 或 - = 翻页。@ 命令列表和结果还是竖排。在下一个输入框生效。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -18329,7 +18661,7 @@
       }
     },
     "General" : {
-      "comment" : "通用 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "comment" : "通用 — Sources/AllInOneIMECore/Session/InputSession.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -19365,6 +19697,7 @@
     },
     "In any case" : {
       "comment" : "不分大小写 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -20869,6 +21202,7 @@
     },
     "Languages" : {
       "comment" : "翻译语言 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -21008,8 +21342,56 @@
         }
       }
     },
+    "Learn English words" : {
+      "comment" : "学习英文词 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Englische Wörter lernen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aprender palabras en inglés"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apprendre les mots anglais"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "英単語を学習"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "영어 단어 학습"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aprender palavras em inglês"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "學習英文詞"
+          }
+        }
+      }
+    },
     "Learn the English words you type" : {
       "comment" : "学习打出的英文词 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -22659,6 +23041,53 @@
         }
       }
     },
+    "Names, codenames and other words to hide as well, in any case." : {
+      "comment" : "也要隐藏的名字、代号等词，不分大小写。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Namen, Codenamen und andere Wörter, die ebenfalls verborgen werden sollen, unabhängig von Groß-/Kleinschreibung."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nombres, nombres en clave y otras palabras que ocultar también, sin distinguir mayúsculas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noms, noms de code et autres mots à masquer aussi, sans tenir compte de la casse."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ほかにも隠したい名前やコードネームなどの単語。大文字と小文字は区別しません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "함께 숨길 이름, 코드명 등의 단어입니다. 대소문자는 구분하지 않습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nomes, codinomes e outras palavras a ocultar também, sem diferenciar maiúsculas e minúsculas."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "也要隱藏的名字、代號等詞，不分大小寫。"
+          }
+        }
+      }
+    },
     "Needs a newer AllInOneIME (protocol %@; this one speaks %@)" : {
       "comment" : "要更新版的 AllInOneIME（协议版本 %@，这一版支持 %@） — Sources/AllInOneIMECore/UIText+Names.swift",
       "localizations" : {
@@ -23407,6 +23836,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "還沒有 API 金鑰"
+          }
+        }
+      }
+    },
+    "No autocomplete" : {
+      "comment" : "不续写 — Sources/AllInOneIMECore/PreviousAppSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kein Autovervollständigen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sin autocompletar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pas de complétion automatique"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オートコンプリートなし"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자동 완성 안 함"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sem autocompletar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不續寫"
           }
         }
       }
@@ -24541,7 +25017,7 @@
       }
     },
     "No suggestions" : {
-      "comment" : "不显示建议 — Sources/AllInOneIMECore/Settings/SettingsSchema+Apps.swift",
+      "comment" : "不显示建议 — Sources/AllInOneIMECore/PreviousAppSettings.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -25905,7 +26381,7 @@
       }
     },
     "Not typed out" : {
-      "comment" : "不逐字上屏 — Sources/AllInOneIMECore/Settings/SettingsSchema+Apps.swift",
+      "comment" : "不逐字上屏 — Sources/AllInOneIMECore/PreviousAppSettings.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -26515,8 +26991,56 @@
         }
       }
     },
+    "Now and then a neighboring key or a doubled letter, fixed at once and never in a terminal: the text ends up exactly the result." : {
+      "comment" : "偶尔按到旁边的键或多打一个字母，马上改回来，终端里不打错；打完的文字一字不差。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ab und zu eine Nachbartaste oder ein doppelter Buchstabe, sofort korrigiert und nie im Terminal: Am Ende entspricht der Text genau dem Ergebnis."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De vez en cuando, una tecla vecina o una letra duplicada, que se corrigen al instante y nunca en un terminal: al final, el texto es exactamente el resultado."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De temps en temps une touche voisine ou une lettre doublée, corrigées aussitôt et jamais dans un terminal : le texte final est exactement le résultat."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ときどき隣のキーを押したり文字を重ねたりして、すぐに修正します。ターミナルではタイプミスしません。最終的なテキストは結果と完全に一致します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "가끔 옆 키를 누르거나 글자를 두 번 입력하고는 곧바로 고칩니다. 터미널에서는 오타를 내지 않으며, 최종 텍스트는 결과와 정확히 같습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De vez em quando, uma tecla vizinha ou uma letra repetida, corrigidas na hora e nunca em um terminal: no fim, o texto é exatamente o resultado."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "偶爾按到旁邊的鍵或多打一個字母，馬上改回來，在終端機中不打錯；打完的文字一字不差。"
+          }
+        }
+      }
+    },
     "Now and then a neighboring key, a doubled letter or space, or a word typed again, fixed on the way: typed to the end, the text is exactly the result. In code, addresses and numbers fixed at once; never in a terminal." : {
       "comment" : "偶尔按到旁边的键、多打一个字母或空格，或者一个词打了又删掉重打，马上就改回来，打完的文字一字不差。代码、网址和数字里打错马上就改；终端里不打错。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -29062,6 +29586,7 @@
     },
     "Plugins' completions (#12 lists GitHub issues, say; turn each plugin's on in Plugins) and Code's keywords and snippets (see Input): a few rows under the caret, Tab inserts. An app can turn them off in Apps." : {
       "comment" : "插件的补全（比如打 #12 列出 GitHub issue；每个插件的补全在「插件」里打开）和代码输入的关键字、代码片段（在「输入」里）：光标下面列出几行，按 Tab 插入。某个应用里不要可以在「按 App 设置」里关掉。 — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -29109,6 +29634,7 @@
     },
     "Plugins' completions (#12 lists GitHub issues, say; turn each plugin's on in Plugins) and Code's keywords and snippets (see Input): a few rows under the caret, Tab inserts. The same switch as Suggestions in the input menu; an app can turn them off in Apps." : {
       "comment" : "插件的补全（比如打 #12 列出 GitHub issue；每个插件的补全在「插件」里打开）和代码输入的关键字、代码片段（在「输入」里）：光标下面列出几行，按 Tab 插入。和输入法菜单里的「建议」是同一个开关；某个 App 里不要可以在「按 App 设置」里关掉。 — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -29294,6 +29820,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "外掛的補全（比如 # 後面的 GitHub issue）和編碼模式的行，在候選框裡顯示，按 Tab 插入。每個外掛的補全要先在「外掛」裡打開。"
+          }
+        }
+      }
+    },
+    "Plugins' completions and Code's keywords and snippets, a few rows under the caret; Tab inserts." : {
+      "comment" : "插件的补全和代码输入的关键字、代码片段：光标下面列出几行，按 Tab 插入。 — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vervollständigungen von Plug-ins und Schlüsselwörter und Snippets der Eingabe Code, ein paar Zeilen unter der Einfügemarke; Tab fügt ein."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sugerencias de plugins y palabras clave y fragmentos de la entrada Código, en unas filas bajo el cursor; Tab inserta."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Complétions des plug-ins et mots-clés et extraits de la saisie Code, sur quelques lignes sous le curseur ; Tab insère."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プラグインの補完とコード入力のキーワード・スニペットを、カーソルの下に数行表示します。Tabで挿入します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "플러그인 자동 완성과 코드 입력의 키워드·스니펫을 커서 아래에 몇 줄 표시합니다. Tab으로 삽입합니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sugestões de plug-ins e palavras-chave e trechos da entrada Código, em algumas linhas abaixo do cursor; Tab insere."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "外掛的補全和程式碼輸入的關鍵字、程式碼片段：游標下方列出幾行，按 Tab 插入。"
           }
         }
       }
@@ -30288,6 +30861,7 @@
     },
     "Put the same letters in as typed twice while typing pinyin (bedrock and ⏎, then again), or type the same word twice in English mode, and it comes up among pinyin's candidates from then on (English mode itself shows nothing). Never in password fields, terminals, remote desktops and virtual machines, or apps with AI off, nor anything that looks like a key or a number, nor a word typed in English mode with a capital first." : {
       "comment" : "打拼音时把同样的字母原样上屏两次（比如打 bedrock 按 ⏎，再来一次），或者在英文模式下把同一个词打两次，这个词以后就出现在拼音的候选里（英文模式下照常打字，什么都不显示）。密码框、终端、远程桌面和虚拟机、关了 AI 的 App 里不学，像密钥、号码的不学，英文模式下大写字母开头的词也不学。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -30335,6 +30909,7 @@
     },
     "Put the same letters in as typed twice while typing pinyin (bedrock and Enter, then again) and the word comes up among the candidates from then on. Never in password fields, terminals, remote desktops and virtual machines, or apps with AI off, nor anything that looks like a key or a number." : {
       "comment" : "打拼音时把同样的字母原样上屏两次（比如打 bedrock 按 Enter，再来一次），这个词以后就出现在候选里。密码框、终端、远程桌面和虚拟机、关了 AI 的应用里不学，像密钥、号码的也不学。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -32449,7 +33024,7 @@
       }
     },
     "Rewrites: " : {
-      "comment" : "改写： — Sources/AllInOneIMECore/Settings/SettingsSchema+Apps.swift",
+      "comment" : "改写： — Sources/AllInOneIMECore/PreviousAppSettings.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -33907,6 +34482,7 @@
     },
     "Runs in the background and notifies me" : {
       "comment" : "在后台运行，做完通知我 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -35599,6 +36175,7 @@
     },
     "Select some text, then type @improve, @translate, @question … and ⏎: the command works on the selection (it stays selected and as it is while you type), and the result you pick replaces it; Esc changes nothing. Turn it off if it misbehaves in an app." : {
       "comment" : "先选中一段文字，再打 @improve、@translate、@question 等命令按 ⏎：命令处理选中的文字（打字时它一直选中、不变），选好的结果替换它；Esc 什么都不改。哪个 App 里不正常就关掉。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -35646,6 +36223,7 @@
     },
     "Select some text, then type @improve, @translate, @question … and Enter: the command works on the selection (it stays selected and as it is while you type), and the result you pick replaces it; Esc changes nothing. Turn it off if it misbehaves in an app." : {
       "comment" : "先选中一段文字，再打 @improve、@translate、@question 等命令按 Enter：命令处理选中的文字（打字时它一直选中、不变），选好的结果替换它；Esc 什么都不改。哪个应用里不正常就关掉。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -38043,7 +38621,7 @@
       }
     },
     "Starts in %@" : {
-      "comment" : "用%@开始 — Sources/AllInOneIMECore/Settings/SettingsSchema+Apps.swift",
+      "comment" : "用%@开始 — Sources/AllInOneIMECore/PreviousAppSettings.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -38597,6 +39175,7 @@
     },
     "Styles" : {
       "comment" : "风格 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -39775,6 +40354,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "單按 ⌥"
+          }
+        }
+      }
+    },
+    "Tap Shift to switch; new text fields start in the first." : {
+      "comment" : "单按 Shift 切换；新的输入框从第一个开始。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zum Wechseln Umschalttaste antippen; neue Textfelder starten mit der ersten."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pulsa Mayúsculas para cambiar; los campos de texto nuevos empiezan en el primero."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appuyez brièvement sur Maj pour changer ; les nouveaux champs de texte commencent dans la première."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shift単押しで切り替え。新しいテキストフィールドは最初の言語で開始します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shift를 짧게 눌러 전환하며, 새 입력란은 첫 번째 언어로 시작합니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pressione Shift para alternar; novos campos de texto começam no primeiro."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "單按 Shift 切換；新的文字欄位從第一個開始。"
           }
         }
       }
@@ -41514,6 +42140,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "輸入法未註冊"
+          }
+        }
+      }
+    },
+    "The Jargon style's terms: a text file, one term per line, optionally with its meaning." : {
+      "comment" : "「黑话」风格用的词表：文本文件，每行一个词，可以加解释。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Begriffe für den Stil „Jargon“: eine Textdatei, ein Begriff pro Zeile, optional mit Bedeutung."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los términos del estilo Jerga: un archivo de texto, un término por línea, opcionalmente con su significado."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les termes du style Jargon : un fichier texte, un terme par ligne, éventuellement avec sa signification."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「業界用語」スタイルで使う用語：1行に1語のテキストファイル（意味の追記も可）。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“업계 용어” 스타일에 쓰는 용어: 한 줄에 용어 하나씩, 원하면 뜻도 함께 적은 텍스트 파일입니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Os termos do estilo Jargão: um arquivo de texto, um termo por linha, opcionalmente com o significado."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「行話」風格用的詞庫：文字檔，每行一個詞，可以附上解釋。"
           }
         }
       }
@@ -44907,6 +45580,53 @@
         }
       }
     },
+    "Translate to" : {
+      "comment" : "翻译成 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Übersetzen in"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Traducir a"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Traduire en"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "翻訳先"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "번역 언어"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Traduzir para"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "翻譯成"
+          }
+        }
+      }
+    },
     "translate to %@" : {
       "comment" : "翻译成%@ — Sources/AllInOneIMECore/UIText+Names.swift",
       "localizations" : {
@@ -45760,7 +46480,7 @@
       }
     },
     "Typed out" : {
-      "comment" : "逐字上屏 — Sources/AllInOneIMECore/Settings/SettingsSchema+Apps.swift",
+      "comment" : "逐字上屏 — Sources/AllInOneIMECore/PreviousAppSettings.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -46464,6 +47184,59 @@
         }
       }
     },
+    "useSelection.help.windows" : {
+      "comment" : "选中文字后打命令就处理选中的文字，选好的结果替换它；哪个应用里不正常就关掉。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Befehle, die du bei ausgewähltem Text tippst, wirken auf ihn, und das gewählte Ergebnis ersetzt ihn; schalte es aus, wenn es in einer App nicht richtig funktioniert."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Commands typed with text selected work on it, and the result you pick replaces it; turn it off if it misbehaves in an app."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los comandos que escribes con texto seleccionado actúan sobre él, y el resultado que eliges lo sustituye; desactívalo si falla en alguna app."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les commandes tapées avec du texte sélectionné s’appliquent à celui-ci, et le résultat choisi le remplace ; désactivez l’option si elle pose problème dans une app."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "テキストを選択した状態でコマンドを入力すると、そのテキストを処理し、選んだ結果で置き換えます。うまく動かないアプリがあればオフにしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "텍스트를 선택한 채 명령을 입력하면 선택한 텍스트를 처리하고, 고른 결과로 바꿉니다. 어떤 앱에서 제대로 작동하지 않으면 끄세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comandos digitados com texto selecionado atuam sobre ele, e o resultado que você escolhe o substitui; desative se não funcionar bem em algum app."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選取文字後打指令就會處理選取的文字，選好的結果會取代它；哪個應用程式裡不正常就關掉。"
+          }
+        }
+      }
+    },
     "Vertical" : {
       "comment" : "竖排 — Sources/AllInOneIMECore/AIConfigText.swift",
       "localizations" : {
@@ -46838,6 +47611,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "建議的行插入什麼（外掛的補全和建議類的自訂指令，不含程式碼輸入）：比如 GitHub issue，只有 ID 是「#1234」，帶標題是「#1234 Fix login」，帶標題和連結是「#1234 Fix login https://github.com/…/issues/1234」；來源的預設是外掛或指令自己定的。某個 App 可以在設定 →「各 App 設定」裡單獨選。"
+          }
+        }
+      }
+    },
+    "What a suggestion row puts in: by default what its plugin or command says; for a GitHub issue, with title is \"#1234 Fix login\", and with title and link adds its link." : {
+      "comment" : "建议的行插入什么：默认按插件或命令自己定的；比如 GitHub issue，带标题是「#1234 Fix login」，带标题和链接再加上它的链接。 — Sources/AllInOneIMECore/Suggestions/SuggestionsInsert.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Was eine Vorschlagszeile einfügt: standardmäßig, was ihr Plug-in oder Befehl vorgibt; bei einem GitHub-Issue ist „Mit Titel“ „#1234 Fix login“, und „Mit Titel und Link“ hängt seinen Link an."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lo que inserta una fila de sugerencias: de forma predeterminada, lo que diga su plugin o comando; para un issue de GitHub, «Con título» es «#1234 Fix login», y «Con título y enlace» añade su enlace."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce qu’insère une ligne de suggestion : par défaut, ce que dit son plug-in ou sa commande ; pour un ticket GitHub, « Avec le titre » donne « #1234 Fix login », et « Avec le titre et le lien » ajoute son lien."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "候補の行が挿入する内容：デフォルトではプラグインやコマンドが決めたものです。GitHub の Issue なら、タイトル付きは「#1234 Fix login」、タイトルとリンク付きはさらにリンクを加えます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "제안 행이 삽입하는 내용: 기본적으로 플러그인이나 명령이 정한 것입니다. GitHub 이슈라면 제목 포함은 \"#1234 Fix login\"이고, 제목과 링크 포함은 링크를 덧붙입니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O que uma linha de sugestão insere: por padrão, o que o plug-in ou o comando define; para um issue do GitHub, Com título é \"#1234 Fix login\", e Com título e link acrescenta o link."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建議的行插入什麼：預設依外掛或指令自己定的；比如 GitHub issue，帶標題是「#1234 Fix login」，帶標題和連結再加上它的連結。"
           }
         }
       }
@@ -47359,6 +48179,100 @@
         }
       }
     },
+    "Word candidates (pinyin, Hindi) one under the other: ↑↓ choose, - = turn the page." : {
+      "comment" : "选词（拼音、印地语）的候选一个一个往下排：↑↓ 选词，- = 翻页。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wortkandidaten (Pinyin, Hindi) untereinander: ↑↓ auswählen, - = blättern."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Candidatos de palabras (pinyin, hindi) uno debajo de otro: ↑↓ elegir, - = pasar página."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Candidats de mots (pinyin, hindi) les uns sous les autres : ↑↓ pour choisir, - = pour changer de page."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "語の候補（ピンイン、ヒンディー語）を縦に並べます：↑↓で選択、- =でページ送り。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "단어 후보(병음, 힌디어)를 위아래로 배열: ↑↓ 이동, - = 페이지 넘기기."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Candidatos de palavras (pinyin, hindi) um embaixo do outro: ↑↓ selecionam, - = mudam de página."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選字（拼音、印地語）的候選字由上往下排：↑↓ 選字，- = 翻頁。"
+          }
+        }
+      }
+    },
+    "Word candidates (pinyin, Hindi) side by side, like the system's own input methods: ← → choose, ↑↓ or - = turn the page." : {
+      "comment" : "选词（拼音、印地语）的候选并排，像系统自带的输入法：← → 选词，↑↓ 或 - = 翻页。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wortkandidaten (Pinyin, Hindi) nebeneinander, wie bei den Eingabemethoden des Systems: ← → auswählen, ↑↓ oder - = blättern."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Candidatos de palabras (pinyin, hindi) uno al lado de otro, como en los métodos de entrada del sistema: ← → elegir, ↑↓ o - = pasar página."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Candidats de mots (pinyin, hindi) côte à côte, comme les méthodes de saisie du système : ← → pour choisir, ↑↓ ou - = pour changer de page."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "語の候補（ピンイン、ヒンディー語）を、システム標準の入力メソッドと同じく横に並べます：← →で選択、↑↓または- =でページ送り。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "단어 후보(병음, 힌디어)를 시스템 입력기처럼 나란히 배열: ← → 이동, ↑↓ 또는 - = 페이지 넘기기."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Candidatos de palavras (pinyin, hindi) lado a lado, como nos métodos de entrada do sistema: ← → selecionam, ↑↓ ou - = mudam de página."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選字（拼音、印地語）的候選字並排，和系統內建的輸入法一樣：← → 選字，↑↓ 或 - = 翻頁。"
+          }
+        }
+      }
+    },
     "Words in this field" : {
       "comment" : "这个字段里的词 — Sources/AllInOneIMECore/Suggestions/SuggestionRows.swift",
       "localizations" : {
@@ -47402,6 +48316,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這個欄位裡的詞"
+          }
+        }
+      }
+    },
+    "Words to hide" : {
+      "comment" : "要隐藏的词 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zu verbergende Wörter"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Palabras que ocultar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mots à masquer"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隠す単語"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "숨길 단어"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Palavras a ocultar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要隱藏的詞"
           }
         }
       }
@@ -48443,6 +49404,7 @@
     },
     "Your team's own terms" : {
       "comment" : "你团队自己的说法 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {

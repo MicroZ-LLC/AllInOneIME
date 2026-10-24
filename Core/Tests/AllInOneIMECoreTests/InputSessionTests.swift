@@ -731,7 +731,9 @@ struct InputSessionTests {
             pick("tr", in: host)
             host.type("hello there")
             host.press(FakeHost.enter)
-            let notice = "No language to translate into yet: \(Platform.current.terms.enter) opens Settings → Translate & Rewrite to add one"
+            // The page as the platform's settings name it: the Mac's General (Settings v2), Windows' Translate & Rewrite.
+            let page = Platform.current.terms.device == .mac ? "General" : "Translate & Rewrite"
+            let notice = "No language to translate into yet: \(Platform.current.terms.enter) opens Settings → \(page) to add one"
             #expect(host.settingsOpened.isEmpty, "\(host.settingsOpened)")
             #expect(host.composer.phase == .failed(notice) && host.composer.failureFixedIn == .translationLanguages,
                     "\(host.composer.phase)")

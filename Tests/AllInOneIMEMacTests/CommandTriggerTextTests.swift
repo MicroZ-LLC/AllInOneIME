@@ -176,7 +176,7 @@ struct CommandTriggerTextTests {
         }
         #expect(fixed.isEmpty, "named with a fixed @ (wrap in model.triggered or UIText.triggered):\n\(fixed.joined(separator: "\n"))")
         #expect(uneven.isEmpty, "the Chinese and the English name a different number of commands:\n\(uneven.joined(separator: "\n"))")
-        #expect(named >= 35, "texts naming commands found: \(named)")
+        #expect(named >= 30, "texts naming commands found: \(named)")  // 34 since Settings v2 (fewer pages, shorter rows)
     }
 
     /// The reading of the sources finds what it looks for: a text wrapped, a text swapped after, one left fixed.

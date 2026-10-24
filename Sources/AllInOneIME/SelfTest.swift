@@ -478,9 +478,10 @@ enum SelfTest {
         check(model.triggered(agent) == "~agent and ~reply take the Chrome page along"
               && model.triggered(tr("自定义 @ 命令", "Custom @ Commands")) == "Custom ~ Commands",
               "…and with ~ once the trigger is ~: \(model.triggered(agent))")
-        check(SettingsPage.agent.matches("~agent", trigger: "~") && SettingsPage.agent.matches("@agent", trigger: "~")
-              && !SettingsPage.general.matches("~agent", trigger: "~") && !SettingsPage.agent.matches("~agent"),
-              "the search finds ~agent's page with ~ the trigger")
+        let tilde = SettingsSpot.search("~agent", trigger: "~", config: model.config)
+        check(tilde.first == .agent && SettingsSpot.search("@agent", trigger: "~", config: model.config).first == .agent
+              && !SettingsPage.general.matches("~agent", trigger: "~") && !SettingsPage.commands.matches("~agent"),
+              "the search finds ~agent's row (Commands) with ~ the trigger (\(tilde.map(\.rawValue)))")
         // The action key's note with the trigger picked in the menu, the process's still the one before (~ → #).
         let triggerBefore = UIText.commandTrigger
         defer { UIText.commandTrigger = triggerBefore }
@@ -491,7 +492,7 @@ enum SelfTest {
               "the action key's note names the trigger the menu has: \(note)")
     }
 
-    /// The candidate layout's picker (Input page) saves as soon as it changes, like the other settings: the input
+    /// The candidate layout's picker (Advanced) saves as soon as it changes, like the other settings: the input
     /// method reads it from the file when a text field becomes active. On a copy of the config, in `directory`.
     static func testCandidateLayoutSaves(in directory: URL) {
         let url = directory.appendingPathComponent("layout-config.json")
@@ -500,7 +501,7 @@ enum SelfTest {
         config.candidateLayout = .vertical
         try? config.write(to: url)
         let model = SettingsModel(configURL: url)
-        let host = NSHostingView(rootView: SettingsView(model: model, page: .input))
+        let host = NSHostingView(rootView: SettingsView(model: model, page: .advanced))
         let window = NSWindow(contentRect: NSRect(x: -20000, y: -20000, width: 880, height: 900),
                               styleMask: [.titled], backing: .buffered, defer: false)
         window.alphaValue = 0
@@ -570,7 +571,7 @@ enum SelfTest {
 
     /// Each interface language besides Simplified Chinese and English, picked in the settings: its text from its
     /// `.lproj` (Traditional Chinese's too, never the Simplified Chinese of the code), the core's through the same
-    /// lookup, and Settings → General and Translate & Rewrite drawn in it, to build/l10n-shots/<code>/ (next to the app)
+    /// lookup, and Settings → General and Privacy drawn in it, to build/l10n-shots/<code>/ (next to the app)
     /// to look at: labels that don't fit, text left in English.
     static func testInterfaceLanguages() {
         let shots = Bundle.main.bundleURL.deletingLastPathComponent().appendingPathComponent("l10n-shots")
@@ -592,7 +593,7 @@ enum SelfTest {
             }
             let folder = shots.appendingPathComponent(language.code)
             try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            for page in [SettingsPage.general, .writing] {
+            for page in [SettingsPage.general, .privacy] {
                 let preview = SettingsModel(configURL: Config.defaultURL, persists: false)
                 preview.profileShownAs = "default"  // never the user's own profile name in a picture
                 SettingsImage.render(preview, page: page, to: folder.appendingPathComponent("\(page.rawValue).png")) { seconds in
@@ -612,12 +613,14 @@ enum SelfTest {
 
     static func testLanguageDrag() {
         var config = (try? Config.load()) ?? .default
-        // The translate languages are dragged into order (the input languages are a segmented bar now).
+        // The translate languages are dragged into order (General: under the input languages' chips).
         let japanese = OutputLanguage("ja")
         config.setOrder([OutputLanguage.english, japanese])
         let model = SettingsModel(configURL: Config.defaultURL, persists: false)
         model.config = config
-        let host = NSHostingView(rootView: SettingsView(model: model, page: .writing))  // its chips' page
+        config.setOrder([Language.english])  // one input chip above them
+        model.config = config
+        let host = NSHostingView(rootView: SettingsView(model: model, page: .general))  // its chips' page
         let window = NSWindow(contentRect: NSRect(x: -20000, y: -20000, width: 880, height: 900),
                               styleMask: [.titled], backing: .buffered, defer: false)
         window.alphaValue = 0
@@ -628,10 +631,12 @@ enum SelfTest {
         func handles(in view: NSView) -> [NSView] {
             (String(describing: Swift.type(of: view)).contains("HandleView") ? [view] : []) + view.subviews.flatMap(handles)
         }
-        // The translate languages' row is the top one: its two handles, left to right.
+        // The translate languages' row is the first from the top with two handles (the input languages' one chip is
+        // above it): its two handles, left to right.
         let all = handles(in: host).map { ($0, $0.convert($0.bounds, to: nil)) }
-        guard let top = all.map(\.1.midY).max() else { return check(false, "language chips have drag handles") }
-        let row = all.filter { abs($0.1.midY - top) < 4 }.sorted { $0.1.minX < $1.1.minX }
+        let rows = Dictionary(grouping: all) { Int(($0.1.midY / 4).rounded()) }.sorted { $0.key > $1.key }.map(\.value)
+        guard !rows.isEmpty else { return check(false, "language chips have drag handles") }
+        let row = (rows.first { $0.count == 2 } ?? []).sorted { $0.1.minX < $1.1.minX }
         guard row.count == 2 else { return check(false, "two translate language chips (\(row.count))") }
         let (second, frame) = row[1]
         let start = NSPoint(x: frame.midX, y: frame.midY)
@@ -754,8 +759,8 @@ enum SelfTest {
             }
             preview.runTest()
             _ = pump(timeout: 20) { preview.testStatus != .running }
-            // The AI provider page, with the connection test's result: what the README's setup shows.
-            SettingsImage.render(preview, page: .provider, to: snapshotDirectory.appendingPathComponent("\(name).png")) { seconds in
+            // The AI page, with the connection test's result: what the README's setup shows.
+            SettingsImage.render(preview, page: .ai, to: snapshotDirectory.appendingPathComponent("\(name).png")) { seconds in
                 _ = pump(timeout: seconds) { false }
             }
         }
@@ -1953,13 +1958,14 @@ enum SelfTest {
             PanelModel.Row(label: "\($0.offset + 1)", text: $0.element, kind: .candidate)
         }, highlighted: 1, footer: "空格 选词 · 开头打 @ 用命令", horizontal: true), anchor: client.caretRect)
         snapshot("1c-pinyin-horizontal-long", in: snapshotDirectory)
-        // The setting is on the Input page (with the input languages), and the search finds it there.
-        check(SettingsPage.input.matches("candidate layout") && SettingsPage.input.matches("横排") && !SettingsPage.general.matches("横排"),
-              "searching for the candidate layout finds the Input page, not General")
-        // @agent's settings are on a page of their own.
-        check(SettingsPage.agent.matches("kiro") && SettingsPage.agent.matches("后台 通知") && SettingsPage.agent.matches("claude tasks")
-              && !SettingsPage.general.matches("kiro") && !SettingsPage.general.matches("后台"),
-              "searching for the agents or Claude Code's background finds the Agent page, not General")
+        // The setting is in Advanced, and the search finds it there.
+        let layout = ["candidate layout", "横排"].map { SettingsSpot.search($0, trigger: "@", config: .default).first }
+        check(layout.allSatisfy { $0 == .candidateLayout } && SettingsSpot.candidateLayout.page == .advanced && !SettingsPage.general.matches("横排"),
+              "searching for the candidate layout finds its row in Advanced, not General (\(layout))")
+        // @agent's settings are with the command, in Commands.
+        let agents = ["kiro", "后台 通知", "claude tasks"].map { SettingsSpot.search($0, trigger: "@", config: .default).first }
+        check(agents.allSatisfy { $0 == .agent } && SettingsSpot.agent.page == .commands && !SettingsPage.general.matches("kiro"),
+              "searching for the agents or Claude Code's background finds @agent's row in Commands (\(agents))")
     }
 
     /// Height of the content of the outermost scroll view in `view` (what a SwiftUI form scrolls).
@@ -2570,7 +2576,7 @@ enum SelfTest {
             Mirror(reflecting: Composer.Messages.english).children.compactMap { $0.value as? String }),
         uniquingKeysWith: { first, _ in first })
 
-    static func run(snapshotDirectory: URL, typingLagOnly: Bool = false, autocompleteOnly: Bool = false) -> Int32 {
+    static func run(snapshotDirectory: URL, typingLagOnly: Bool = false, autocompleteOnly: Bool = false, settingsOnly: Bool = false) -> Int32 {
         waitForOtherSelfTests()
         _ = NSApplication.shared
         // The recent @questions in a file of the self-test's own: the user's are neither listed nor changed.
@@ -2686,6 +2692,29 @@ enum SelfTest {
             controller.ensureEngine()
             controller.applySettings()
             testAutocomplete(controller, client, snapshotDirectory: snapshotDirectory)
+            controller.deactivateServer(client)
+            check((try? Data(contentsOf: Config.userURL)) == userConfig, "the user's config was left unchanged")
+            return summary()
+        }
+        if settingsOnly {
+            // The settings window's checks that ask no AI (stand-ins, canned answers, no connection to a provider): its
+            // pages, the search and its Change, the banners and Troubleshoot, what it writes, the per-app settings and
+            // the input menu's This App, the chips; and their images.
+            controller.services.loadSettings = { SelfTest.settings }
+            CandidatePanel.shared.alphaValue = 0
+            CandidatePanel.shared.ignoresMouseEvents = true
+            controller.ensureEngine()
+            controller.applySettings()
+            testSettingsPages(snapshotDirectory: snapshotDirectory)
+            testAIConfig(snapshotDirectory: snapshotDirectory)
+            testDoctor(snapshotDirectory: snapshotDirectory)
+            section("settings window: chips, layout, trigger, per-app")
+            testLanguageDrag()
+            testLanguageSwitchRedraws(in: snapshotDirectory)
+            testCandidateLayoutSaves(in: snapshotDirectory)
+            testCommandTriggerText()
+            testThisAppMenu(controller, client, app: "com.example.chat")
+            testPerAppImages(snapshotDirectory: snapshotDirectory)
             controller.deactivateServer(client)
             check((try? Data(contentsOf: Config.userURL)) == userConfig, "the user's config was left unchanged")
             return summary()
@@ -3179,7 +3208,7 @@ enum SelfTest {
         testAssistantOnDevice(snapshotDirectory: snapshotDirectory)
         testAssistantAutocompleteOnDevice(snapshotDirectory: snapshotDirectory)
         testDoctor(snapshotDirectory: snapshotDirectory)
-        testAssistantPage(snapshotDirectory: snapshotDirectory)
+        testSettingsPages(snapshotDirectory: snapshotDirectory)
         testAWSCredentials(snapshotDirectory: snapshotDirectory)
         testSnippetEditorAndReview(snapshotDirectory: snapshotDirectory)
 

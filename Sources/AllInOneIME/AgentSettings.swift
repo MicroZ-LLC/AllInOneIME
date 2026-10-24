@@ -2,9 +2,9 @@ import AllInOneIMECore
 import AllInOneIMEMac
 import SwiftUI
 
-/// Settings → Agent: the coding agent `@agent` hands the text to (`Config.agent`, `AgentKind`), then a section for each
-/// kind of agent: whether it's on this Mac, how it starts in Terminal, and its own settings (Claude Code's background
-/// tasks, the custom agent's command). An agent's further settings go in its own section.
+/// Settings → Commands → `@agent`: the coding agent it hands the text to (`Config.agent`, `AgentKind`), whether that one
+/// is on this Mac and how it starts in Terminal, and its own settings (Claude Code's background tasks, the custom agent's
+/// command). Another agent's own settings show too while one is set otherwise than its default.
 struct AgentSettingsPage: View {
     @ObservedObject var model: SettingsModel
     /// The custom agent's command as typed (`Config.agentCommand` follows it, split into words).
@@ -21,34 +21,14 @@ struct AgentSettingsPage: View {
                 titled(model.triggered(tr("@agent 交给", "@agent hands it to")),
                        tr("在终端打开它，你打的字是第一句话。", "It opens in Terminal with what you typed as its first message."))
             }
-            // `@agent` (and `@reply` with nothing selected or pasted) in Chrome takes the page along (`PageContext`), with
-            // Accessibility allowed. The key stays `agentPageContext`.
-            Toggle(isOn: $model.config.agentPageContext) {
-                titled(model.triggered(tr("@agent 和 @reply 带上 Chrome 里的网页", "@agent and @reply take the Chrome page along")),
-                       model.triggered(tr("在 Chrome 里打 @agent 时，把网址、你所在的输入框和它所在的表单或区块、选中的文字、屏幕上看得到的内容一起交给 agent（不读密码框，不发整页）；@reply 没有选中或粘贴消息时，把这些发给你选的 AI 服务商来写回复。需要「辅助功能」权限。",
-                          "In Chrome, @agent hands the agent the address, the field you're in with its form or section, the selection and what's visible on screen too (never a password field, never the whole page); @reply, with no message selected or pasted, sends the same to your AI provider to write its replies. Needs Accessibility.")))
-            }
+            .settingsRow(.agent, shown: model.spot)
+            status(model.config.agent)
+            if model.config.agent == .claude || !model.config.claudeInBackground { claudeSettings }
+            if model.config.agent == .custom || !model.config.agentCommand.isEmpty { customSettings }
         } header: {
-            SectionTitle(tr("Agent", "Agent"), icon: CommandIcons.agent)
-        } footer: {
-            note(model.triggered(tr("@question 的对话也能接着在这里装了的每个 agent 里聊（通用 →「对话接着在哪里聊」）。",
-                    "An @question conversation can go on in each agent installed here too (General → “Continue a conversation in”).")))
+            SectionTitle(model.triggered(tr("Agent（@agent）", "Agent (@agent)")), icon: CommandIcons.agent)
         }
         .disabled(!model.canSave)
-        ForEach(AgentKind.allCases, id: \.self) { kind in
-            Section {
-                status(kind)
-                switch kind {
-                case .claude: claudeSettings
-                case .custom: customSettings
-                case .gemini, .kiro: EmptyView()
-                }
-            } header: {
-                SectionTitle(title(kind) + (kind == model.config.agent ? model.triggered(tr(" · @agent 用它", " · used by @agent")) : ""),
-                             icon: CommandIcons.agent)
-            }
-            .disabled(!model.canSave)
-        }
     }
 
     /// Whether the agent is on this Mac, and what runs in Terminal (the text typed is its last argument).
@@ -72,13 +52,10 @@ struct AgentSettingsPage: View {
     /// Claude Code's own: its background tasks (`claude --bg`), which `@tasks` and the menu bar panel list.
     @ViewBuilder private var claudeSettings: some View {
         Toggle(isOn: $model.config.claudeInBackground) {
-            titled(tr("在后台运行，做完通知我", "Runs in the background and notifies me"),
-                   model.triggered(tr("@agent 交给 Claude Code 时，它在后台做，做完弹通知，点通知在终端里接着聊。关掉就直接在终端打开。",
-                      "When @agent hands it to Claude Code, it works in the background and notifies you when it's done; click the notification to go on in Terminal. Off: it opens in Terminal.")))
+            titled(tr("Claude Code 在后台运行，做完通知我", "Claude Code runs in the background and notifies me"),
+                   model.triggered(tr("做完弹通知，点通知在终端里接着聊；@tasks 和菜单栏面板列出这些任务。",
+                      "A notification says when it's done and opens it in Terminal; @tasks and the menu bar panel list these tasks.")))
         }
-        titled(tr("Claude 任务", "Claude Tasks"),
-               model.triggered(tr("@tasks 列出后台任务的进度和最后的回复，⏎ 在终端里打开；菜单栏面板里也有（通用 →「在菜单栏显示图标」）。",
-                  "@tasks lists the background tasks with their progress and last replies, ⏎ opens one in Terminal; the menu bar panel shows them too (General → “Show in Menu Bar”).")))
     }
 
     /// The custom agent's command: words as a custom terminal command's, the text typed added as the last argument.
@@ -117,13 +94,9 @@ struct AgentSettingsPage: View {
         }
     }
 
-    private func note(_ text: String) -> some View {
-        Text(text).font(.caption).foregroundStyle(.secondary)
-            .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)  // under the card, from its left
-    }
 }
 
-/// Whether an agent's program is on this Mac, for the Agent page and the `@question` hand-off: each program looked up
+/// Whether an agent's program is on this Mac, for `@agent`'s settings and the `@question` hand-off: each program looked up
 /// once (the first lookup asks the login shell for its PATH), again once the settings window opens. Main thread only.
 enum AgentAvailability {
     private static var found: [String: Bool] = [:]

@@ -169,7 +169,7 @@ struct PluginCompletionsView: View {
                 } else if on {
                     // On, but every suggestion is off (General, or the input menu): nothing of it shows.
                     if model.config.suggestions == false {
-                        Label(tr("建议关着，这些补全不会出现：在「通用」里打开。", "Suggestions are off, so these completions don't show: turn them on in General."),
+                        Label(tr("建议关着，这些补全不会出现。", "Suggestions are off, so these completions don't show."),
                               systemImage: "exclamationmark.triangle")
                             .foregroundStyle(.orange)
                     }

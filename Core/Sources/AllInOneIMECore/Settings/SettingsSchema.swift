@@ -221,8 +221,8 @@ struct SettingsSchema {
             store.config.commandTrigger = trigger
         }
         add(toggle("typeOut", tr("逐字上屏", "Type results out"),
-                   tr("命令的结果（翻译、润色、回答…）像人打字一样一个字一个字打进去；打拼音选词还是马上上屏。按 Esc 停下，按别的键把剩下的一次打完。",
-                      "A command's result is typed in character by character, like a person typing; pinyin picks still go in at once. Esc stops it; any other key types the rest at once."),
+                   tr("命令的结果像人打字一样一个字一个字打进去；按 Esc 停下，按别的键把剩下的一次打完。",
+                      "A command's result is typed in character by character, like a person typing; Esc stops it, any other key types the rest at once."),
                    config.typeOut), to: &fields) { store.config.typeOut = Self.bool($0) }
         if config.typeOut {
             var rate = Field(id: "typeOutRate", kind: .number, label: tr("打字速度", "Typing speed"), value: .number(config.typeOutRate))
@@ -232,16 +232,17 @@ struct SettingsSchema {
             add(toggle("typeOutVaries", tr("忽快忽慢（像真人打字）", "Speed up and slow down (like a person)"), nil, config.typeOutVaries),
                 to: &fields) { store.config.typeOutVaries = Self.bool($0) }
             add(toggle("typeOutMistakes", tr("偶尔打错再改", "Make occasional typos and fix them"),
-                       tr("偶尔按到旁边的键、多打一个字母或空格，或者一个词打了又删掉重打，马上就改回来，打完的文字一字不差。代码、网址和数字里打错马上就改；终端里不打错。",
-                          "Now and then a neighboring key, a doubled letter or space, or a word typed again, fixed on the way: typed to the end, the text is exactly the result. In code, addresses and numbers fixed at once; never in a terminal."),
+                       tr("偶尔按到旁边的键或多打一个字母，马上改回来，终端里不打错；打完的文字一字不差。",
+                          "Now and then a neighboring key or a doubled letter, fixed at once and never in a terminal: the text ends up exactly the result."),
                        config.typeOutMistakes), to: &fields) { store.config.typeOutMistakes = Self.bool($0) }
         }
         add(toggle("useSelection", tr("使用选中的文字", "Use the selected text"),
-                   UIText.triggered(terms.keyStyle == .symbols
-                       ? tr("先选中一段文字，再打 @improve、@translate、@question 等命令按 ⏎：命令处理选中的文字（打字时它一直选中、不变），选好的结果替换它；Esc 什么都不改。哪个 App 里不正常就关掉。",
-                            "Select some text, then type @improve, @translate, @question … and ⏎: the command works on the selection (it stays selected and as it is while you type), and the result you pick replaces it; Esc changes nothing. Turn it off if it misbehaves in an app.")
-                       : tr("先选中一段文字，再打 @improve、@translate、@question 等命令按 Enter：命令处理选中的文字（打字时它一直选中、不变），选好的结果替换它；Esc 什么都不改。哪个应用里不正常就关掉。",
-                            "Select some text, then type @improve, @translate, @question … and Enter: the command works on the selection (it stays selected and as it is while you type), and the result you pick replaces it; Esc changes nothing. Turn it off if it misbehaves in an app.")),
+                   terms.device == .mac
+                       ? tr("选中文字后打命令就处理选中的文字，选好的结果替换它；哪个 App 里不正常就关掉。",
+                            "Commands typed with text selected work on it, and the result you pick replaces it; turn it off if it misbehaves in an app.")
+                       : tr("选中文字后打命令就处理选中的文字，选好的结果替换它；哪个应用里不正常就关掉。",
+                            "Commands typed with text selected work on it, and the result you pick replaces it; turn it off if it misbehaves in an app.",
+                            key: "useSelection.help.windows"),
                    config.useSelection), to: &fields) { store.config.useSelection = Self.bool($0) }
         add(toggle("rememberQuestions", tr("记住最近的问题", "Remember recent questions"), nil, config.rememberQuestions),
             to: &fields) { store.setRememberQuestions(Self.bool($0)) }
@@ -276,7 +277,8 @@ struct SettingsSchema {
         var fields: [Field] = []
         let store = store
         var languages = Field(id: "inputLanguages", kind: .choices, label: tr("输入语言", "Input languages"),
-                              help: config.inputLanguages.count > 1 ? nil : tr("只有一种时 Shift 不切换", "With one, Shift doesn't switch"),
+                              help: config.inputLanguages.count > 1 ? tr("单按 Shift 切换；新的输入框从第一个开始。", "Tap Shift to switch; new text fields start in the first.")
+                                  : tr("只有一种时 Shift 不切换", "With one, Shift doesn't switch"),
                               value: .array(config.inputLanguages.map { .string($0.rawValue) }))
         languages.choices = Language.allCases.map { Choice($0.rawValue, SessionText.inputName($0, language: UIText.language)) }
         (languages.ordered, languages.minCount, languages.maxCount) = (true, 1, Config.maxInputLanguages)
@@ -286,11 +288,11 @@ struct SettingsSchema {
         // Code, after the languages and apart from them (decision 22).
         code(&fields)
         add(choice("candidateLayout", tr("候选排列", "Candidate layout"),
-                   UIText.triggered(config.candidateLayout == .horizontal
-                       ? tr("选词（拼音、印地语）的候选并排（默认），像系统自带的输入法：← → 选词，↑↓ 或 - = 翻页。@ 命令列表和结果还是竖排。在下一个输入框生效。",
-                            "For picking words (pinyin, Hindi): side by side (the default), like the system's own input methods; ← → choose, ↑↓ or - = turn the page. The @ list and results stay vertical. From the next text field.")
-                       : tr("选词（拼音、印地语）的候选一个一个往下排：↑↓ 选词，- = 翻页。@ 命令列表和结果总是竖排。在下一个输入框生效。",
-                            "For picking words (pinyin, Hindi): one under the other; ↑↓ choose, - = turn the page. The @ list and results are always vertical. From the next text field.")),
+                   config.candidateLayout == .horizontal
+                       ? tr("选词（拼音、印地语）的候选并排，像系统自带的输入法：← → 选词，↑↓ 或 - = 翻页。",
+                            "Word candidates (pinyin, Hindi) side by side, like the system's own input methods: ← → choose, ↑↓ or - = turn the page.")
+                       : tr("选词（拼音、印地语）的候选一个一个往下排：↑↓ 选词，- = 翻页。",
+                            "Word candidates (pinyin, Hindi) one under the other: ↑↓ choose, - = turn the page."),
                    value: .string(config.candidateLayout.rawValue),
                    choices: [(Choice("vertical", tr("竖排", "Vertical")), nil), (Choice("horizontal", tr("横排", "Horizontal")), nil)]),
             to: &fields) { value in
@@ -318,12 +320,12 @@ struct SettingsSchema {
     /// removed, learned or added (`EnglishWords.edit`).
     mutating func englishWords(_ fields: inout [Field]) {
         let store = store
-        add(toggle("learnsEnglishWords", tr("学习打出的英文词", "Learn the English words you type"),
-                   terms.keyStyle == .symbols
-                       ? tr("打拼音时把同样的字母原样上屏两次（比如打 bedrock 按 ⏎，再来一次），或者在英文模式下把同一个词打两次，这个词以后就出现在拼音的候选里（英文模式下照常打字，什么都不显示）。密码框、终端、远程桌面和虚拟机、关了 AI 的 App 里不学，像密钥、号码的不学，英文模式下大写字母开头的词也不学。",
-                            "Put the same letters in as typed twice while typing pinyin (bedrock and ⏎, then again), or type the same word twice in English mode, and it comes up among pinyin's candidates from then on (English mode itself shows nothing). Never in password fields, terminals, remote desktops and virtual machines, or apps with AI off, nor anything that looks like a key or a number, nor a word typed in English mode with a capital first.")
-                       : tr("打拼音时把同样的字母原样上屏两次（比如打 bedrock 按 Enter，再来一次），这个词以后就出现在候选里。密码框、终端、远程桌面和虚拟机、关了 AI 的应用里不学，像密钥、号码的也不学。",
-                            "Put the same letters in as typed twice while typing pinyin (bedrock and Enter, then again) and the word comes up among the candidates from then on. Never in password fields, terminals, remote desktops and virtual machines, or apps with AI off, nor anything that looks like a key or a number."),
+        add(toggle("learnsEnglishWords", tr("学习英文词", "Learn English words"),
+                   terms.device == .mac
+                       ? tr("打拼音时原样上屏两次的字母，或英文模式下打了两次的词，以后会出现在拼音的候选里；密码框、终端和不用 AI 的 App 里不学。",
+                            "A word put in as typed twice while typing pinyin, or typed twice in English mode, comes up among pinyin's candidates; never in password fields, terminals or apps without AI.")
+                       : tr("打拼音时原样上屏两次的字母，以后会出现在候选里；密码框、终端和不用 AI 的应用里不学。",
+                            "A word put in as typed twice while typing pinyin comes up among the candidates; never in password fields, terminals or apps without AI."),
                    config.learnsEnglishWords), to: &fields) { store.config.learnsEnglishWords = Self.bool($0) }
         let shown = Array(config.englishWords.reversed())
         var words = Field(id: "englishWords", kind: .words, label: tr("你的英文词", "Your English words"),
@@ -358,7 +360,7 @@ struct SettingsSchema {
         // A language the file names that the catalog doesn't (added by hand): kept, under its own name.
         let codes = config.outputLanguages.map(\.code)
         let inCatalog = { (code: String) in OutputLanguage.catalog.contains { $0.code == code } }
-        var languages = Field(id: "outputLanguages", kind: .choices, label: tr("翻译语言", "Languages"),
+        var languages = Field(id: "outputLanguages", kind: .choices, label: tr("翻译成", "Translate to"),
                               help: tr("每种一行，拖动排序", "A line in each; drag to reorder"),
                               value: .array(codes.map(JSON.string)))
         languages.choices = OutputLanguage.catalog.map { Choice($0.code, UIText.name($0)) }
@@ -371,7 +373,7 @@ struct SettingsSchema {
         // The styles on, in their order: a name this version doesn't know (a later version's style) too, as it is.
         var seen = Set<String>()
         let on = config.rewriteStyles.map { RewriteStyle.named($0)?.name ?? $0 }.filter { seen.insert($0).inserted }
-        var styles = Field(id: "rewriteStyles", kind: .choices, label: tr("风格", "Styles"),
+        var styles = Field(id: "rewriteStyles", kind: .choices, label: tr("改写风格", "Rewrite styles"),
                            help: config.rewriteStyles.isEmpty ? tr("没有风格时只出 1–3 行", "With none, lines 1–3 only")
                                : tr("用你写的语言改写，拖动排序", "In the language you wrote; drag to reorder"),
                            value: .array(on.map(JSON.string)))
@@ -382,7 +384,9 @@ struct SettingsSchema {
         }
         add(toggle("improveTranslates", UIText.triggered(tr("@improve 同时翻译", "@improve also translates")), nil, config.improveTranslates),
             to: &fields) { store.config.improveTranslates = Self.bool($0) }
-        var jargon = text("jargonFile", tr("黑话库", "Jargon list"), tr("你团队自己的说法", "Your team's own terms"),
+        var jargon = text("jargonFile", tr("黑话库", "Jargon list"),
+                          tr("「黑话」风格用的词表：文本文件，每行一个词，可以加解释。",
+                             "The Jargon style's terms: a text file, one term per line, optionally with its meaning."),
                           value: config.jargonFile, placeholder: defaultJargonFile)
         jargon.picker = .file
         add(jargon, to: &fields) { value in
@@ -498,8 +502,9 @@ struct SettingsSchema {
         for (id, label, path) in kinds {
             add(toggle("redaction." + id, label, nil, redaction[keyPath: path]), to: &fields) { store.config.redaction[keyPath: path] = Self.bool($0) }
         }
-        var words = Field(id: "redaction.customWords", kind: .words, label: tr("也隐藏这些词", "Also hide these words"),
-                          help: tr("不分大小写", "In any case"), value: .array(redaction.customWords.map(JSON.string)))
+        var words = Field(id: "redaction.customWords", kind: .words, label: tr("要隐藏的词", "Words to hide"),
+                          help: tr("也要隐藏的名字、代号等词，不分大小写。", "Names, codenames and other words to hide as well, in any case."),
+                          value: .array(redaction.customWords.map(JSON.string)))
         words.placeholder = tr("项目代号、名字…，用逗号分开", "A codename, a name…, separated by commas")
         words.text = redaction.customWords.joined(separator: ", ")
         add(words, to: &fields) { value in
@@ -545,7 +550,7 @@ struct SettingsSchema {
             }
         }
         if config.agent == .claude {
-            add(toggle("claudeInBackground", tr("在后台运行，做完通知我", "Runs in the background and notifies me"), nil,
+            add(toggle("claudeInBackground", tr("Claude Code 在后台运行，做完通知我", "Claude Code runs in the background and notifies me"), nil,
                        config.claudeInBackground), to: &fields) { store.config.claudeInBackground = Self.bool($0) }
         }
         add(toggle("agentPageContext", UIText.triggered(tr("@agent 和 @reply 带上 Chrome 里的网页", "@agent and @reply take the Chrome page along")), nil,

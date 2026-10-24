@@ -782,16 +782,19 @@ public final class InputSession {
         return Self.aiRefusal
     }
 
-    /// The notice of an AI command refused in an app with no AI.
+    /// The notice of an AI command refused in an app with no AI, with where the apps without AI are listed: the Mac's
+    /// Privacy (Settings v2), Windows' Apps.
     public static var aiRefusal: String {
-        tr("这个 App 里关了 AI，没有发给 AI（设置 → 按 App 设置）", "AI is off in this app: nothing was sent (Settings → Apps)")
+        Platform.current.terms.device == .mac
+            ? tr("这个 App 里关了 AI，没有发给 AI（设置 → 隐私）", "AI is off in this app: nothing was sent (Settings → Privacy)")
+            : tr("这个 App 里关了 AI，没有发给 AI（设置 → 按 App 设置）", "AI is off in this app: nothing was sent (Settings → Apps)")
     }
 
     /// The notice of `@translate` with no language to translate into: ⏎ on it opens the settings where they're added
     /// (`Composer.failureFixedIn`, `SessionOutput.openSettings`), the key as this platform names it and the page as the
-    /// settings name it.
+    /// settings name it (the Mac's General since Settings v2, Windows' Translate & Rewrite).
     var noTranslationTargetText: String {
-        let (enter, page) = (terms.enter, tr("翻译与改写", "Translate & Rewrite"))
+        let (enter, page) = (terms.enter, terms.device == .mac ? tr("通用", "General") : tr("翻译与改写", "Translate & Rewrite"))
         return tr("还没有要翻译成的语言：按 \(enter) 打开设置 →「\(page)」加一种", "No language to translate into yet: \(enter) opens Settings → \(page) to add one")
     }
 
