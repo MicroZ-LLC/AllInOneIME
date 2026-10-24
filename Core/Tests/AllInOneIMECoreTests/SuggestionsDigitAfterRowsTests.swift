@@ -70,3 +70,36 @@ struct SuggestionsDigitAfterRowsTests {
         }
     }
 }
+
+extension SuggestionsDigitAfterRowsTests {
+    /// The owner's "#17" (0.6.7): "#1" typed, the "1" key down handed over to the input method a second time (the same
+    /// event; the field got it once), then "7". Through the shell's guard (`KeyEchoes`, as `KeyFeed` hands keys over)
+    /// the copy is answered as the first was (the app's) and the session never sees it: its token stays "#17", not
+    /// "#117", and #17's row shows. In English and in Code, in Notes and in Chrome, the copy right after the key or after
+    /// the rows came.
+    @Test(arguments: [false, true].flatMap { code in
+        ["com.apple.Notes", SuggestionsApps.chrome].flatMap { app in [false, true].map { (code, app, $0) } }
+    })
+    func aKeyDownHandedOverTwiceIsTypedOnce(_ code: Bool, _ app: String, _ late: Bool) async throws {
+        try await inEnglish {
+            let world = SuggestionsWorld()
+            try world.github(items: Self.list(with17: true))
+            world.runtime.query("1", items: [SuggestionsItems.issue(1, "Issue 1")])
+            world.runtime.query("17", items: [SuggestionsItems.issue(17, "Issue 17")])
+            world.addCode("python", packs: [try SuggestionsCodingPacksTests.shipped("python")])
+            let field = code ? world.codeField(app: app) : world.field(app: app)
+            field.host.readsWhatIsWanted = true
+            let keys = KeyFeed(field)
+            let label = "\(code ? "Code" : "English") in \(app)\(late ? ", the copy after the rows" : "")"
+            keys.type("#1")
+            if !late { #expect(keys.again() == false, "\(label): the copy answered as the first (the app's)") }
+            #expect(field.settle { field.issuesShown.count == 5 && field.issuesShown.allSatisfy { $0.hasPrefix("#1") } },
+                    "\(label): \(field.issuesShown)")
+            if late { #expect(keys.again(after: 0.3) == false, "\(label): the copy answered as the first (the app's)") }
+            keys.type("7")
+            #expect(field.document == "#17" && keys.reached == 3, "\(label): \(field.document.debugDescription), \(keys.reached) keys")
+            #expect(field.settle { field.issuesShown == ["#17"] }, "\(label): \(field.issuesShown), queries \(world.runtime.queries)")
+            #expect(!world.runtime.queries.contains { $0.hasPrefix("11") }, "\(label): queries \(world.runtime.queries)")
+        }
+    }
+}
