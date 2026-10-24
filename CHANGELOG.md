@@ -26,6 +26,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ### Fixed
 
+- ⌘V, ⌘C, ⌘X, ⌘A and ⌘Z work in Settings' text fields (an API key, a token, a command); before, pasting took the context menu.
 - Candidates appear and disappear without window animations, including notices and the Translate as You Type chip. Committing a word hides the panel immediately; continuous typing reuses its window, which closes after 400 ms of idle time. This avoids repeated window transitions while typing in apps such as Slack and Notes. An unchanged panel frame no longer triggers another resize or shadow update.
 - The input menu reuses the cached config instead of parsing `config.json` for every request. A broken file still shows an error and disables choices that would overwrite it; repairing the file refreshes the menu.
 - A choice in the input menu (a rewrite style, the translation language, the default input, Code's language, @improve's translating, Autocomplete, Suggestions, This App's settings) writes only what it changes into `config.json`, as Settings does. It used to write the whole file again, which dropped the keys and per-app fields a later version (or you) had added, and filled in this version's defaults; those now stay as they are, and so do custom commands this version can't read.
