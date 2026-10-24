@@ -158,6 +158,20 @@ extension SelfTest {
         return facts
     }
 
+    /// The made-up setup with nothing wrong: in use, a key for the provider, the apps it controls allowed, every pack in.
+    static func fineFacts(_ url: URL) -> Doctor.Facts {
+        var facts = Doctor.Facts()
+        facts.configData = try? Data(contentsOf: url)
+        facts.config = try? Config.load(from: url)
+        facts.inputMethod.selected = true
+        facts.keySaved = [.anthropic: true]
+        facts.apple = .available
+        facts.accessibility = .granted
+        facts.automation = ["Notes": .granted, "Reminders": .granted, "Terminal": .granted]
+        facts.packs = [.chinese: .installed, .korean: .installed]
+        return facts
+    }
+
     /// Settings → Assistant's first section, "Change settings in a sentence", on a config file of the self-test's own with
     /// a canned answer: the request → the preview (old → new, a refused part with its reason) → Apply writes the file →
     /// Undo puts it back; a request it can't do is one line; a key typed into the request is never sent (the key field
@@ -388,9 +402,15 @@ extension SelfTest {
     }
 
     /// Settings → Assistant as its images show it, in the interface language: the canned answer's preview over the
-    /// made-up findings (`troubledFacts`), all from `rig`'s stand-ins and config file.
-    static func sampleAssistant(_ rig: AssistantRig) -> AssistantModel {
-        rig.facts = troubledFacts
+    /// made-up findings (`troubledFacts`; `fine`: `fineFacts`, the typing speed in range), all from `rig`'s stand-ins and
+    /// config file.
+    static func sampleAssistant(_ rig: AssistantRig, fine: Bool = false) -> AssistantModel {
+        rig.facts = fine ? fineFacts : troubledFacts
+        if fine {
+            var config = (try? Config.load(from: rig.url)) ?? assistantSampleConfig
+            config.typeOutRate = TypeOut.defaultRate
+            try? config.write(to: rig.url)
+        }
         let shown = AssistantModel()
         if UIText.chinese {
             rig.model.answer = assistantChanges
@@ -527,24 +547,21 @@ extension SelfTest {
             check(false, "an expired SSO sign-in's finding offers its command to copy (\(assistant.findings.map { $0.text(chinese: false) }))")
         }
 
-        // Everything fine: one line, the rows behind the disclosure.
-        rig.facts = { url in
-            var facts = Doctor.Facts()
-            facts.configData = try? Data(contentsOf: url)
-            facts.config = try? Config.load(from: url)
-            facts.keySaved = [.anthropic: true]
-            facts.apple = .available
-            facts.accessibility = .granted
-            facts.microphone = .granted
-            facts.packs = [.chinese: .installed, .korean: .installed]
-            return facts
-        }
+        // The summary over the rows: how many problems; everything fine, says so.
+        let problems = assistant.findings.filter { $0.status == .problem }.count
+        check(problems > 0 && assistant.summary?.hasPrefix("\(problems) 个问题，") == true,
+              "the summary counts the problems (\(assistant.summary ?? "-"))")
+        rig.facts = fineFacts
         var fine = start
         fine.typeOutRate = TypeOut.defaultRate
         try? fine.write(to: rig.url)
         assistant.probe(now: true)
         probed()
-        check(assistant.allFine && !assistant.findings.isEmpty, "everything fine folds into one line (\(assistant.findings.map { $0.status }))")
+        check(assistant.allFine && !assistant.findings.isEmpty && assistant.summary == "一切正常",
+              "everything fine: the summary says so (\(assistant.findings.map { $0.status }))")
+        let updates = assistant.findings.first { $0.area == .updates }
+        check(updates?.title == "更新：自动检查" && updates?.detail == "当前版本 \(AppVersion.string)",
+              "the updates row is named by what it checks, not the version again (\(updates?.text(chinese: true) ?? "-"))")
         assistant.reset()
     }
 

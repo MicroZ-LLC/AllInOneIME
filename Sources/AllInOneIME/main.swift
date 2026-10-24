@@ -489,8 +489,10 @@ case "--settings-image":
         let update = arguments.first { $0.hasPrefix("update=") }.map { String($0.dropFirst("update=".count)) }
         // `agent=gemini|kiro|custom:<command>`: the agent `@agent` hands the text to.
         let agent = arguments.first { $0.hasPrefix("agent=") }.map { String($0.dropFirst("agent=".count)) }
+        // `doctor=fine`: Settings → Assistant's checks with nothing wrong (else made-up problems).
+        let doctor = arguments.first { $0.hasPrefix("doctor=") }.map { String($0.dropFirst("doctor=".count)) }
         SettingsPageImages.run(output: directory, chinese: arguments.contains("zh"), dark: arguments.contains("dark"),
-                               extensions: extensions, update: update, agent: agent)
+                               extensions: extensions, update: update, agent: agent, doctor: doctor)
     }
 case "--page-context":
     // `--page-context [request]`: what `@agent` would take along from the Chrome page in front, printed (nothing is

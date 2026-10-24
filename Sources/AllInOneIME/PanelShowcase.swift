@@ -208,7 +208,7 @@ enum PanelShowcase {
 @MainActor
 enum SettingsPageImages {
     static func run(output: URL, chinese: Bool, dark: Bool, extensions: String? = nil, update: String? = nil,
-                    agent: String? = nil) -> Never {
+                    agent: String? = nil, doctor: String? = nil) -> Never {
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
         try? FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
@@ -268,12 +268,12 @@ enum SettingsPageImages {
             default: updates.state = .upToDate
             }
         }
-        // Assistant: a sample request and made-up findings, from stand-ins and a config file of its own (no probe of
-        // this Mac, no AI, nothing of the user's).
+        // Assistant: a sample request and made-up findings (`doctor=fine`: nothing wrong), from stand-ins and a config
+        // file of its own (no probe of this Mac, no AI, nothing of the user's).
         let samples = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-assistant-\(UUID().uuidString)")
         try? FileManager.default.createDirectory(at: samples, withIntermediateDirectories: true)
         let rig = SelfTest.AssistantRig(samples, name: "config.json", config: SelfTest.assistantSampleConfig)
-        let assistant = SelfTest.sampleAssistant(rig)
+        let assistant = SelfTest.sampleAssistant(rig, fine: doctor == "fine")
         for page in SettingsPage.allCases where page.isShown {
             SettingsImage.render(model, page: page, assistant: page == .assistant ? assistant : nil,
                                  to: output.appendingPathComponent("settings-\(page.rawValue).png"),
