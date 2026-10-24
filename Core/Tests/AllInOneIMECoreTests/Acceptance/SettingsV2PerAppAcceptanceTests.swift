@@ -188,7 +188,8 @@ struct SettingsV2PerAppAcceptanceTests {
         let document = service.document()
         func field(_ app: String) -> SettingsDocument.Field? { document.field("apps.\(app).suggestionsInsert") }
         for app in [Apps.slack, Apps.terminal, Apps.mail] {
-            #expect(offered(field(app)) == Self.theTwo, "\(app): \(field(app)?.choices ?? [])")
+            // An app's own also offers Off, no rows there (the owner, 0.6.7: AppProfile.suggestions false).
+            #expect(offered(field(app)) == Self.theTwo + [.string("off")], "\(app): \(field(app)?.choices ?? [])")
         }
         let slack = field(Apps.slack)?.choices?.first { $0.value == .string("id") }
         #expect(field(Apps.slack)?.value == .string("id") && slack?.label == "ID only" && slack?.disabled == true)
