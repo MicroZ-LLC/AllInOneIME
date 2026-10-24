@@ -863,7 +863,8 @@ They take the place of [autocomplete](#autocomplete-beta-new)'s gray text while 
   login` in documents and the link too in chat apps; a custom command's Insert), unless you choose otherwise in Settings
   → General → **Insert**, under the Suggestions switch, for every source: **ID only** (`#1234`), **With title** (`#1234
   Fix login`) or **With title and link** (`#1234 Fix login https://github.com/…/issues/1234`), the same in every app,
-  terminals too; an item without a title or a link goes in with what it has. An app can have its own in Settings → Apps
+  terminals and code editors too, where it's what a row you click puts in (Tab there still completes only what the rows'
+  matches share); an item without a title or a link goes in with what it has. An app can have its own in Settings → Apps
   (or the input menu's This App), over the one everywhere: links in Slack, the number alone in Terminal, titles in Mail.
   Code's rows never change with it, and only what you haven't typed goes in, as always. In the config:
   `suggestionsInsert` (`"id"`, `"title"`, `"titleAndLink"`; absent: the source's), and `suggestionsInsert` in an app's

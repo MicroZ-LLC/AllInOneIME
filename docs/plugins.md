@@ -182,7 +182,7 @@ It declares its sources in `completions` (optional; `api` 1 stays valid) and its
 | `refresh` | `1h` | `5m` … `7d`: how often the list is loaded again while the source is used (not after a week unused) |
 | `query` | `false` | the script exports `query(text, ctx)`, a live lookup; only with a `prefix` (without one, every number typed anywhere would be sent) |
 | `queryMinChars` | 3 | characters after the prefix before `query` is first called (at least 1) |
-| `insert` | `{"default": "{arg}"}` | what a row inserts per app class: `default`, `chat` (chat apps and browsers), `terminal` (terminals and code editors: anything but `null` is `{match}` there); a template or a list tried in turn (the first whose variables all exist), `null` for no rows in that class; the default the user may change (below) |
+| `insert` | `{"default": "{arg}"}` | what a row inserts per app class: `default`, `chat` (chat apps and browsers), `terminal` (terminals and code editors: anything but `null` is `{match}` there, unless the user chooses otherwise, below); a template or a list tried in turn (the first whose variables all exist), `null` for no rows in that class; the default the user may change (below) |
 
 An entry that breaks these rules (or any entry of a `prompt` or `link` plugin, or of one with `timeoutSeconds` over 20) is
 refused on its own, its reason shown under the plugin in Settings; the plugin and its command still load. A preference is
