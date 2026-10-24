@@ -97,9 +97,10 @@ extension SelfTest {
     }
 
     /// The input menu's "This App" for `app` (by its bundle id: the app isn't installed): the app's two settings only (Settings
-    /// v2, 4), No AI and, with a suggestion source, Insert (With title, With title and link; "ID only" kept in a config shown
-    /// checked, not chosen anew); none of what no setting sets any more (typing out, autocomplete, where it starts). With a
-    /// starting input the app learned (Settings v2, 3.1), "Starts in English (learned)" first, and Forget, which forgets it.
+    /// v2, 4), No AI and, with a suggestion source, Insert (With title, With title and link, Off; "ID only" kept in a config
+    /// shown checked, not chosen anew); none of what no setting sets any more (typing out, autocomplete, where it starts).
+    /// With a starting input the app learned (Settings v2, 3.1), "Starts in English (learned)" first, and Forget, which
+    /// forgets it. Off there writes what General's "In these apps" does (`AppProfile.insertChoice`).
     static func testThisAppMenu(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, app: String) {
         // The menu reads the config file (the self-test's own, `useOwnConfig`): the app's profile and a suggestion source
         // written there, and the file put back after.
@@ -119,7 +120,7 @@ extension SelfTest {
             controller.menu()?.items.first { $0.title.hasPrefix(tr("这个 App：", "This App: ")) }?.submenu?.items ?? []
         }
         let titles = items().map(\.title).filter { !$0.isEmpty }
-        let offered = SuggestionsInsert.offered.map(\.label)
+        let offered = AppInsertChoice.offered.map(\.label)
         check(titles.contains(tr("不用 AI", "No AI")) && offered.allSatisfy(titles.contains)
               && !titles.contains(tr("逐字上屏", "Type Results Out")) && !titles.contains(tr("续写（Beta）：", "Autocomplete (Beta):"))
               && !titles.contains(tr("开始的输入语言：", "Starts In:")) && !titles.contains(tr("按 App 设置…", "Per-App Settings…")),
@@ -146,6 +147,27 @@ extension SelfTest {
               "Forget there forgets it: This App shows it no more (\(learner.startingInput(in: app)?.rawValue ?? "none"))")
         let profileKept = (try? Config.load())?.profile(for: app)?.startingInput
         check(profileKept == .language(.english), "…and the app's own starting input in the config file is as it was")
+
+        // Off: checked once chosen, the app's suggestions off and its insert ("ID only") kept, no longer shown; With title
+        // turns them back on with it; Same as everywhere clears both, No AI kept.
+        func choose(_ title: String) {
+            guard let item = items().first(where: { $0.title == title }), let action = item.action else { return }
+            _ = (item.target as? NSObject)?.perform(action, with: item)
+        }
+        func profile() -> AppProfile? { (try? Config.load())?.profile(for: app) }
+        let off = AppInsertChoice.off.label
+        check(items().first { $0.title == off }.map { $0.state == .off && $0.isEnabled } == true, "This App ▸ Insert offers Off, unchecked")
+        choose(off)
+        check(profile()?.suggestions == false && profile()?.suggestionsInsert == .id && items().first { $0.title == off }?.state == .on
+              && !items().contains { $0.title == SuggestionsInsert.id.label },
+              "Off there: the app's suggestions off, its ID only kept and no longer shown, Off checked (\(items().map(\.title)))")
+        choose(SuggestionsInsert.title.label)
+        check(profile()?.suggestions == nil && profile()?.suggestionsInsert == .title && items().first { $0.title == off }?.state == .off,
+              "With title there: its suggestions back on, with title (\(profile().map { "\($0)" } ?? "none"))")
+        choose(off)
+        choose(AppProfileText.insertEverywhere((try? Config.load()) ?? .default))
+        check(profile()?.suggestions == nil && profile()?.suggestionsInsert == nil && profile()?.noAI == true,
+              "Same as everywhere there clears both, No AI kept (\(profile().map { "\($0)" } ?? "none"))")
     }
 
     /// Settings' per-app settings in both languages, with sample apps (nothing saved): General's Insert in these apps and

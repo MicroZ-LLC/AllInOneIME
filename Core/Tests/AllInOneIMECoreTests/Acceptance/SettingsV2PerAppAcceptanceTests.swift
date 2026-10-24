@@ -37,7 +37,7 @@ extension SuggestionsInsert {
 extension AppProfile {
     /// The fields no Settings UI sets any more (Settings v2 §2), still honored while set, in the order a row lists them.
     public enum PreviousField: String, CaseIterable, Sendable {
-        case startingInput, translateAlways, autocomplete, suggestions, typeOut, rewriteStyles
+        case startingInput, translateAlways, autocomplete, typeOut, rewriteStyles
     }
 }
 
@@ -55,8 +55,8 @@ extension Config {
     /// General → "Previous per-app settings": a row for each app whose profile sets any `PreviousField` (none: the
     /// section isn't shown), apps named by `appName` (else by their id).
     public func previousAppSettings(appName: (String) -> String?) -> [PreviousAppSettings]
-    /// Remove: `app`'s `PreviousField`s cleared, its id in any case; its `noAI` and `suggestionsInsert` as they are. A
-    /// profile left setting nothing goes.
+    /// Remove: `app`'s `PreviousField`s cleared, its id in any case; its `noAI`, `suggestions` and `suggestionsInsert` as
+    /// they are. A profile left setting nothing goes.
     public mutating func removePreviousAppSettings(for app: String)
 }
 
@@ -337,8 +337,9 @@ struct SettingsV2PerAppAcceptanceTests {
         #expect(rows.map(\.app) == [Apps.mail] && rows.first?.fields == [.typeOut], "\(rows)")
     }
 
-    /// The fields "above": `startingInput`, `translateAlways`, `autocomplete`, `suggestions`, `typeOut`, `rewriteStyles`,
-    /// each with any value it can have; a row lists each that is set, and only those.
+    /// The fields "above": `startingInput`, `translateAlways`, `autocomplete`, `typeOut`, `rewriteStyles`, each with any
+    /// value it can have; a row lists each that is set, and only those. `suggestions` is no longer one of them (the
+    /// owner's decision of 2026-10-24: Off in "In these apps" sets it): an app that only turns them off makes no row.
     @Test func eachPreviousFieldMakesARow() {
         var code = AppProfile()
         code.startingInput = .code
@@ -351,7 +352,6 @@ struct SettingsV2PerAppAcceptanceTests {
             ("com.example.translate", AppProfile(translateAlways: true), [.translateAlways]),
             ("com.example.always", AppProfile(autocomplete: true), [.autocomplete]),
             ("com.example.never", AppProfile(autocomplete: false), [.autocomplete]),
-            ("com.example.nosuggestions", AppProfile(suggestions: false), [.suggestions]),
             ("com.example.typed", AppProfile(typeOut: true), [.typeOut]),
             ("com.example.nottyped", AppProfile(typeOut: false), [.typeOut]),
             ("com.example.nostyles", AppProfile(rewriteStyles: []), [.rewriteStyles]),
@@ -361,6 +361,7 @@ struct SettingsV2PerAppAcceptanceTests {
         var config = Config.default
         for (app, profile, _) in cases { config.appProfiles[app] = profile }
         config.appProfiles[Self.bank] = AppProfile(noAI: true, suggestionsInsert: .titleAndLink)
+        config.appProfiles["com.example.nosuggestions"] = AppProfile(suggestions: false)
         let rows = config.previousAppSettings(appName: { _ in nil })
         #expect(Set(rows.map(\.app)) == Set(cases.map(\.0)), "\(rows.map(\.app))")
         for (app, _, fields) in cases {
@@ -385,9 +386,9 @@ struct SettingsV2PerAppAcceptanceTests {
         }
     }
 
-    /// ""Remove", which clears those fields of that app (the two kept settings untouched)": its No AI and Insert stay,
-    /// the other apps are as they were, its id in any case; an app left with nothing set has no profile any more, and the
-    /// last Remove leaves no row.
+    /// ""Remove", which clears those fields of that app (the two kept settings untouched)": its No AI and Insert stay
+    /// (its suggestions off too, Off in "In these apps"), the other apps are as they were, its id in any case; an app left
+    /// with nothing set has no profile any more, and the last Remove leaves no row.
     @Test func removeClearsThoseFieldsOfThatAppAlone() {
         var config = Config.default
         config.appProfiles = [
@@ -397,7 +398,7 @@ struct SettingsV2PerAppAcceptanceTests {
             Self.bank: AppProfile(noAI: true),
         ]
         config.removePreviousAppSettings(for: Apps.slack)
-        #expect(config.profile(for: Apps.slack) == AppProfile(noAI: true, suggestionsInsert: .title))
+        #expect(config.profile(for: Apps.slack) == AppProfile(noAI: true, suggestions: false, suggestionsInsert: .title))
         #expect(config.profile(for: Apps.mail) == AppProfile(typeOut: false) && config.profile(for: Self.bank) == AppProfile(noAI: true))
         #expect(config.previousAppSettings(appName: Apps.name).map(\.app) == ["com.apple.Mail"])
         config.removePreviousAppSettings(for: Apps.mail)  // "com.apple.Mail" as written by hand
@@ -429,8 +430,9 @@ struct SettingsV2PerAppAcceptanceTests {
     }
 
     /// "`startingInput`: still honored as the app's starting input until the user removes it or the app learns another
-    /// (§3). `translateAlways`, `autocomplete`, `suggestions`, `typeOut`, `rewriteStyles`: still honored while they are
-    /// set; no UI sets them any more." And once removed, the app follows the settings for every app.
+    /// (§3). `translateAlways`, `autocomplete`, `typeOut`, `rewriteStyles`: still honored while they are set; no UI sets
+    /// them any more." And once removed, the app follows the settings for every app. Its suggestions off (Off in "In these
+    /// apps", no longer one of them) stay.
     @Test func thePreviousFieldsAreHonoredUntilRemoved() {
         var config = Config.default
         config.setOrder([Language.chinese, .english])
@@ -459,6 +461,6 @@ struct SettingsV2PerAppAcceptanceTests {
         #expect(!translatesAlways(Apps.slack))
         #expect(!config.applying(app: Apps.mail).typeOut && config.applying(app: Apps.mail).rewriteStyles == ["润色"])
         #expect(!Autocomplete.isOn(in: Apps.xcode, config: config, stopped: false))
-        #expect(config.suggestionsSettings().apps.isEmpty)
+        #expect(config.suggestionsSettings().apps.first { $0.key.caseInsensitiveCompare(Apps.xcode) == .orderedSame }?.value == false)
     }
 }

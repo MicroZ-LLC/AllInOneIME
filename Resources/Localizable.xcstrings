@@ -5941,8 +5941,56 @@
         }
       }
     },
+    "An app here inserts its own choice; with Off it shows no suggestions." : {
+      "comment" : "这里的 App 用它自己的选择；选「关闭」，那个 App 里就不显示建议。 — Sources/AllInOneIME/SettingsSearch.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine App hier fügt nach ihrer eigenen Wahl ein; mit „Aus“ zeigt sie keine Vorschläge."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las apps de aquí insertan según su propia elección; con “Desactivado” no muestran sugerencias."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une app de cette liste insère selon son propre choix ; avec « Désactivé », elle n’affiche aucune suggestion."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ここにあるAppは、それぞれの設定で挿入します。「オフ」にすると、そのAppでは候補を表示しません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "여기에 있는 앱은 각자 고른 대로 삽입합니다. \"끔\"으로 하면 그 앱에서는 제안을 표시하지 않습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Um app daqui insere conforme a própria escolha; com “Desativado”, não mostra sugestões."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這裡的 App 用它自己的選擇；選「關閉」，那個 App 裡就不顯示建議。"
+          }
+        }
+      }
+    },
     "An app here inserts its own choice." : {
       "comment" : "这里的 App 用它自己的选择。 — Sources/AllInOneIME/SettingsSearch.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {

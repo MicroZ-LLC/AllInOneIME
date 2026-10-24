@@ -326,6 +326,7 @@ extension SelfTest {
         testAgentCommandFollowsOutsideWrites(snapshotDirectory: snapshotDirectory)
         testSettingsSavesOnlyItsChanges(snapshotDirectory: snapshotDirectory)
         testPreviousAppSettings(snapshotDirectory: snapshotDirectory)
+        testAppInsertOff(snapshotDirectory: snapshotDirectory)
     }
 
     /// The line over the preview that says the request went to the user's own provider (too long for the on-device

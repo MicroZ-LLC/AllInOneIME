@@ -354,8 +354,8 @@ struct SuggestionsInsertChoiceTests {
     /// Windows' Settings (and the Mac's document): the choice everywhere in General under the Suggestions switch (not in
     /// Plugins), unset and the two Settings offers (Settings v2 §4: With title, With title and link), its help with
     /// GitHub's example, set into the config; an app's own in its item in Apps, "Same as everywhere" naming the choice
-    /// everywhere, the two among its values, and in its summary. An app's ID only from an older version stays honored:
-    /// its value, shown under its name, never picked anew.
+    /// everywhere, the two and Off among its values (`theSettingsDocumentHasAnAppsOff`), and in its summary. An app's ID
+    /// only from an older version stays honored: its value, shown under its name, never picked anew.
     @Test(arguments: [SettingsPlatform.windows, .mac])
     func theSettingsDocumentHasBothFields(_ platform: SettingsPlatform) async throws {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("insert-settings-\(UUID().uuidString)", isDirectory: true)
@@ -386,8 +386,8 @@ struct SuggestionsInsertChoiceTests {
 
             let own = try #require(service.document().field("apps.com.apple.Terminal.suggestionsInsert"))
             #expect(own.kind == .choice && own.label == "Insert" && own.value == nil, "\(own)")
-            #expect(own.choices?.map(\.value) == [.null, .string("title"), .string("titleAndLink")])
-            #expect(own.choices?.map(\.label) == ["Same as everywhere (With title)", "With title", "With title and link"])
+            #expect(own.choices?.map(\.value) == [.null, .string("title"), .string("titleAndLink"), .string("off")])
+            #expect(own.choices?.map(\.label) == ["Same as everywhere (With title)", "With title", "With title and link", "Off"])
             #expect((try? service.set("apps.com.apple.Terminal.suggestionsInsert", to: .string("titleAndLink")).get()) != nil)
             #expect(try Config.load(from: url).profile(for: "com.apple.Terminal") == AppProfile(noAI: true, suggestionsInsert: .titleAndLink))
             let item = service.document().field("apps.profiles")?.items?.first { $0.id == "com.apple.Terminal" }
@@ -406,6 +406,45 @@ struct SuggestionsInsertChoiceTests {
 
             #expect((try? service.set("suggestionsInsert", to: .null).get()) != nil)
             #expect(try Config.load(from: url).suggestionsInsert == nil)
+        }
+    }
+
+    /// An app's Off in the settings document (the owner's decision of 2026-10-24), on both platforms: the field's value
+    /// while the app's suggestions are off, whatever its insert (an old one too); picked, its suggestions go off and its
+    /// insert stays, the app's Suggestions field says Off and its summary says no suggestions, not what would go in; an
+    /// insert picked turns them back on with it; null clears both. Everywhere's Insert has no Off.
+    @Test(arguments: [SettingsPlatform.windows, .mac])
+    func theSettingsDocumentHasAnAppsOff(_ platform: SettingsPlatform) async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("insert-off-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let url = folder.appendingPathComponent("config.json")
+        try Data((#"{"appProfiles": {"com.apple.Terminal": {"noAI": true, "suggestionsInsert": "titleAndLink"}, "#
+            + #""com.apple.mail": {"suggestions": false, "suggestionsInsert": "id"}}}"#).utf8).write(to: url)
+        let service = SettingsService(store: SettingsStore(configURL: url), platform: platform,
+                                      library: PluginLibrary(directory: folder.appendingPathComponent("plugins", isDirectory: true)),
+                                      secrets: .inMemory())
+        let terminal = "apps.com.apple.Terminal."
+        try await withInterfaceLanguage("en") {
+            #expect(service.document().field("suggestionsInsert")?.choices?.contains { $0.value == .string("off") } == false)
+            // An old insert under Off: Off is the value, the old one isn't shown.
+            let mail = try #require(service.document().field("apps.com.apple.mail.suggestionsInsert"))
+            #expect(mail.value == .string("off") && mail.choices?.contains { $0.value == .string("id") } == false, "\(mail.choices ?? [])")
+
+            #expect((try? service.set(terminal + "suggestionsInsert", to: .string("off")).get()) != nil)
+            #expect(try Config.load(from: url).profile(for: "com.apple.Terminal")
+                    == AppProfile(noAI: true, suggestions: false, suggestionsInsert: .titleAndLink))
+            #expect(service.document().field(terminal + "suggestionsInsert")?.value == .string("off"))
+            #expect(service.document().field(terminal + "suggestions")?.value == .bool(false))
+            let item = service.document().field("apps.profiles")?.items?.first { $0.id == "com.apple.Terminal" }
+            #expect(item?.detail == "No AI · No suggestions", "\(item?.detail ?? "-")")
+
+            #expect((try? service.set(terminal + "suggestionsInsert", to: .string("title")).get()) != nil)
+            #expect(try Config.load(from: url).profile(for: "com.apple.Terminal") == AppProfile(noAI: true, suggestionsInsert: .title))
+            #expect(service.document().field(terminal + "suggestions")?.value == nil)
+            #expect((try? service.set(terminal + "suggestionsInsert", to: .string("off")).get()) != nil)
+            #expect((try? service.set(terminal + "suggestionsInsert", to: .null).get()) != nil)
+            #expect(try Config.load(from: url).profile(for: "com.apple.Terminal") == AppProfile(noAI: true))
         }
     }
 }

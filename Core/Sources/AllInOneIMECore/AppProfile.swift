@@ -29,12 +29,14 @@ public struct AppProfile: Codable, Equatable, Sendable {
     /// learned there (Settings → Apps: 「续写」); nil: as everywhere. This Mac's own, as the switch is: never synced
     /// (`ICloudSync.thisMacsOwnAppFields`).
     public var autocomplete: Bool?
-    /// Suggestions (plugin completions, Code's rows) in the app (Settings → Apps: 「建议」): off (false), or as
-    /// everywhere (nil, or true). This Mac's own, as the switch is: never synced (`ICloudSync.thisMacsOwnAppFields`).
+    /// Suggestions (plugin completions, Code's rows) in the app: off (false: Settings → General → Suggestions → "In these
+    /// apps": Off, `insertChoice`), or as everywhere (nil, or true). This Mac's own, as the switch is: never synced
+    /// (`ICloudSync.thisMacsOwnAppFields`).
     public var suggestions: Bool?
-    /// What a suggestion row inserts in the app (Settings → Apps: 「插入」, decision 28): the source's own, ID only, with
-    /// title, with title and link; nil: as everywhere (`Config.suggestionsInsert`). Synced as the app's other fields are
-    /// (what goes in there is the same on every Mac), unlike its Suggestions switch.
+    /// What a suggestion row inserts in the app (Settings → General → Suggestions → "In these apps", decision 28,
+    /// `insertChoice`): the source's own, ID only, with title, with title and link; nil: as everywhere
+    /// (`Config.suggestionsInsert`). Synced as the app's other fields are (what goes in there is the same on every Mac),
+    /// unlike its Suggestions switch.
     public var suggestionsInsert: SuggestionsInsert?
 
     public init(inputLanguage: Language? = nil, rewriteStyles: [String]? = nil, typeOut: Bool? = nil, noAI: Bool? = nil,
@@ -205,9 +207,10 @@ extension Command {
 
 extension AppProfile {
     /// The fields no Settings UI sets any more (Settings v2 §2), still honored while set, in the order a row lists them.
-    /// The two per-app settings that stay are `noAI` and `suggestionsInsert`.
+    /// The per-app settings that stay are `noAI` and Insert ("In these apps": `suggestionsInsert`, or Off, `suggestions`
+    /// false; the owner's decision of 2026-10-24).
     public enum PreviousField: String, CaseIterable, Sendable {
-        case startingInput, translateAlways, autocomplete, suggestions, typeOut, rewriteStyles
+        case startingInput, translateAlways, autocomplete, typeOut, rewriteStyles
     }
 
     /// The previous fields it sets, in `PreviousField`'s order: `translateAlways` when on, as `isEmpty` counts it.
@@ -217,16 +220,15 @@ extension AppProfile {
             case .startingInput: return startingInput != nil
             case .translateAlways: return translateAlways == true
             case .autocomplete: return autocomplete != nil
-            case .suggestions: return suggestions != nil
             case .typeOut: return typeOut != nil
             case .rewriteStyles: return rewriteStyles != nil
             }
         }
     }
 
-    /// It without the previous fields: its `noAI` and `suggestionsInsert` as they are.
+    /// It without the previous fields: its `noAI`, `suggestions` and `suggestionsInsert` as they are.
     public var withoutPreviousFields: AppProfile {
-        AppProfile(noAI: noAI, suggestionsInsert: suggestionsInsert)
+        AppProfile(noAI: noAI, suggestions: suggestions, suggestionsInsert: suggestionsInsert)
     }
 }
 
@@ -261,8 +263,8 @@ extension Config {
         .sorted { name($0.app).localizedCaseInsensitiveCompare(name($1.app)) == .orderedAscending }
     }
 
-    /// Remove: `app`'s `PreviousField`s cleared, its id in any case; its `noAI` and `suggestionsInsert` as they are. A
-    /// profile left setting nothing goes. An app that sets none of them is left as it is.
+    /// Remove: `app`'s `PreviousField`s cleared, its id in any case; its `noAI`, `suggestions` and `suggestionsInsert` as
+    /// they are. A profile left setting nothing goes. An app that sets none of them is left as it is.
     public mutating func removePreviousAppSettings(for app: String) {
         guard profile(for: app)?.previousFields.isEmpty == false else { return }
         changeProfile(for: app, dropsEmpty: true) { $0 = $0.withoutPreviousFields }
@@ -279,8 +281,6 @@ extension Config {
             return tr("总是边打边译", "Always Translate as You Type")
         case .autocomplete:
             return profile.autocomplete == true ? tr("总是续写", "Autocomplete always on") : tr("从不续写", "Autocomplete always off")
-        case .suggestions:
-            return profile.suggestions == false ? tr("不显示建议", "no suggestions") : tr("显示建议", "suggestions on")
         case .typeOut:
             return profile.typeOut == true ? tr("逐字上屏", "results typed out") : tr("不逐字上屏", "results not typed out")
         case .rewriteStyles:

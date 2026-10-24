@@ -70,13 +70,13 @@ extension SuggestionsInsert {
     }
 }
 
-/// "In these apps": each app with its own choice of what a suggestion row inserts (`AppProfile.suggestionsInsert`), its
-/// picker and Remove (the app's other settings untouched), and Add App….
+/// "In these apps": each app with its own choice (`AppProfile.insertChoice`), what a suggestion row inserts there or Off
+/// (no suggestions there), its picker and Remove (the app's other settings untouched), and Add App….
 struct AppInsertsList: View {
     @ObservedObject var model: SettingsModel
 
     var body: some View {
-        let apps = model.appsWith { $0.suggestionsInsert != nil }
+        let apps = model.appInsertApps
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
@@ -85,8 +85,8 @@ struct AppInsertsList: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer()
-                AddAppMenu(model: model, has: { $0.suggestionsInsert != nil }) { app in
-                    model.changeProfile(app) { $0.suggestionsInsert = AppInsertsList.added(everywhere: model.config.suggestionsInsert) }
+                AddAppMenu(model: model, has: { $0.insertChoice != nil }) { app in
+                    model.setInsertChoice(.insert(AppInsertsList.added(everywhere: model.config.suggestionsInsert)), for: app)
                 }
             }
             ForEach(apps, id: \.self) { app in row(app) }
@@ -100,22 +100,34 @@ struct AppInsertsList: View {
     }
 
     private func row(_ app: String) -> some View {
-        let own = model.config.profile(for: app)?.suggestionsInsert
+        let own = model.config.profile(for: app)?.insertChoice
         return HStack {
             AppLabel(app: app)
             Spacer()
-            if let own, !SuggestionsInsert.offered.contains(own) {
+            if let own, !AppInsertChoice.offered.contains(own) {
                 // "ID only", or the source's own written out: shown as it is, until Restore Default.
                 Text(own.label).foregroundStyle(.secondary).help(SuggestionsInsert.notOffered)
-                Button(tr("恢复默认", "Restore Default")) { model.changeProfile(app) { $0.suggestionsInsert = nil } }
+                Button(tr("恢复默认", "Restore Default")) { model.setInsertChoice(nil, for: app) }
             } else {
-                Picker("", selection: Binding(get: { own ?? .title }, set: { insert in model.changeProfile(app) { $0.suggestionsInsert = insert } })) {
-                    ForEach(SuggestionsInsert.offered, id: \.self) { insert in Text(insert.label).tag(insert) }
+                Picker("", selection: Binding(get: { own ?? .insert(.title) }, set: { model.setInsertChoice($0, for: app) })) {
+                    ForEach(AppInsertChoice.offered, id: \.self) { choice in Text(choice.label).tag(choice) }
                 }
                 .labelsHidden().fixedSize()
-                Button(tr("移除", "Remove")) { model.changeProfile(app) { $0.suggestionsInsert = nil } }
+                Button(tr("移除", "Remove")) { model.setInsertChoice(nil, for: app) }
             }
         }
         .padding(.leading, 4)
+    }
+}
+
+extension SettingsModel {
+    /// "In these apps": the apps with a choice of their own (`AppProfile.insertChoice`: an insert, or Off with none), by
+    /// name.
+    var appInsertApps: [String] { appsWith { $0.insertChoice != nil } }
+
+    /// An app's choice in "In these apps", saved: an insert (its suggestions as everywhere), Off (what its rows insert
+    /// kept), nil (Remove, Restore Default: both cleared). Its other settings untouched.
+    func setInsertChoice(_ choice: AppInsertChoice?, for app: String) {
+        changeProfile(app) { $0.insertChoice = choice }
     }
 }

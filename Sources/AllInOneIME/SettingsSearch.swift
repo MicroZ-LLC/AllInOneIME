@@ -119,7 +119,8 @@ enum SettingsSpot: String, CaseIterable {
             return tr("插件的补全和代码输入的关键字、代码片段：光标下面列出几行，按 Tab 插入。",
                       "Plugins' completions and Code's keywords and snippets, a few rows under the caret; Tab inserts.")
         case .suggestionsInsert: return SuggestionsInsert.help
-        case .appInserts: return tr("这里的 App 用它自己的选择。", "An app here inserts its own choice.")
+        case .appInserts:
+            return tr("这里的 App 用它自己的选择；选「关闭」，那个 App 里就不显示建议。", "An app here inserts its own choice; with Off it shows no suggestions.")
         case .magicKey: return tr("打在句首打开命令列表。", "Typed at the start of a sentence, it opens the commands.")
         case .menuBarIcon: return tr("笔记、提醒和后台的 Claude 任务，点一下就下拉出来", "Your notes, reminders and Claude tasks, a click away")
         case .iCloudSync: return Self.iCloudNote
@@ -162,7 +163,7 @@ enum SettingsSpot: String, CaseIterable {
         case .autocomplete: return "autocomplete continue ghost gray tab 续写 灰字"
         case .suggestions: return "suggestions completions plugins # issues github code snippets 建议 补全 插件"
         case .suggestionsInsert: return "insert id title link 插入 标题 链接"
-        case .appInserts: return "apps per-app insert 每个 应用 插入"
+        case .appInserts: return "apps per-app insert off 每个 应用 插入 关闭"
         case .magicKey: return "trigger @ ~ symbol commands 触发 符号 命令"
         case .actionKey: return "action key return enter run 执行键 回车"
         case .menuBarIcon: return "menu bar panel 菜单栏 面板"

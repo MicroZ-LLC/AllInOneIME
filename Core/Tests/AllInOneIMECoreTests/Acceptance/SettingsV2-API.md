@@ -104,7 +104,7 @@ anew (`badValue`).
 extension AppProfile {
     /// The fields no Settings UI sets any more (Settings v2 §2), still honored while set, in the order a row lists them.
     public enum PreviousField: String, CaseIterable, Sendable {
-        case startingInput, translateAlways, autocomplete, suggestions, typeOut, rewriteStyles
+        case startingInput, translateAlways, autocomplete, typeOut, rewriteStyles
     }
 }
 
@@ -122,8 +122,8 @@ extension Config {
     /// General → "Previous per-app settings": a row for each app whose profile sets any `PreviousField` (none: the
     /// section isn't shown), apps named by `appName` (else by their id).
     public func previousAppSettings(appName: (String) -> String?) -> [PreviousAppSettings]
-    /// Remove: `app`'s `PreviousField`s cleared, its id in any case; its `noAI` and `suggestionsInsert` as they are. A
-    /// profile left setting nothing goes.
+    /// Remove: `app`'s `PreviousField`s cleared, its id in any case; its `noAI`, `suggestions` and `suggestionsInsert` as
+    /// they are. A profile left setting nothing goes.
     public mutating func removePreviousAppSettings(for app: String)
 }
 ```

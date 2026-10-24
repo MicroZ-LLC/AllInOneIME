@@ -98,7 +98,7 @@ extension SettingsModel {
     /// any more (`Config.previousAppSettings`), apps by name.
     var previousAppSettings: [PreviousAppSettings] { config.previousAppSettings(appName: AppNames.name) }
 
-    /// "Previous per-app settings" → Remove: those of `app` cleared, its Insert and No AI kept
+    /// "Previous per-app settings" → Remove: those of `app` cleared, its Insert (an insert, or Off) and No AI kept
     /// (`Config.removePreviousAppSettings`).
     func removePreviousSettings(_ app: String) {
         config.removePreviousAppSettings(for: app)
@@ -225,8 +225,8 @@ struct PreviousAppSettingsSection: View {
 extension AllInOneIMEInputController {
     /// "This App: Slack", for the app being typed in: the input it learned to start in (Settings v2, 3.1), with Forget;
     /// then its two settings (Settings v2, 4, `AppProfile`): No AI, and, where there is a suggestion source (a plugin's
-    /// turned on, a custom command), what a suggestion row inserts there (decision 28). Nothing sets where it starts.
-    /// Nil without an app.
+    /// turned on, a custom command), what a suggestion row inserts there (decision 28), or Off, no suggestions there
+    /// (`AppProfile.insertChoice`, as General's "In these apps"). Nothing sets where it starts. Nil without an app.
     @MainActor
     func appMenuItem(config: Config?, app: String?) -> NSMenuItem? {
         guard let app, AppProfile.isBundleID(app) else { return nil }
@@ -260,12 +260,13 @@ extension AllInOneIMEInputController {
             let inserts = NSMenuItem(title: tr("建议插入：", "Suggestions Insert:"), action: nil, keyEquivalent: "")
             inserts.isEnabled = false
             menu.addItem(inserts)
-            add(AppProfileText.insertEverywhere(current), #selector(setAppSuggestionsInsert(_:)), on: profile.suggestionsInsert == nil)
-            for insert in SuggestionsInsert.offered {
-                add(insert.label, #selector(setAppSuggestionsInsert(_:)), value: insert.rawValue, on: profile.suggestionsInsert == insert)
+            let own = profile.insertChoice
+            add(AppProfileText.insertEverywhere(current), #selector(setAppSuggestionsInsert(_:)), on: own == nil)
+            for choice in AppInsertChoice.offered {
+                add(choice.label, #selector(setAppSuggestionsInsert(_:)), value: choice.rawValue, on: own == choice)
             }
             // One that can't be chosen any more ("ID only"), kept in the config: shown checked, Same as Everywhere undoes it.
-            if let own = profile.suggestionsInsert, !SuggestionsInsert.offered.contains(own) {
+            if let own, !AppInsertChoice.offered.contains(own) {
                 add(own.label, nil, on: true)
             }
         }
@@ -313,10 +314,11 @@ extension AllInOneIMEInputController {
         }
     }
 
-    /// What a suggestion row inserts in the app: its own choice, or as everywhere (none).
+    /// What a suggestion row inserts in the app: its own choice, Off (no suggestions there), or as everywhere (none:
+    /// both cleared), as "In these apps" sets it (`AppProfile.insertChoice`).
     @objc func setAppSuggestionsInsert(_ sender: Any?) {
         MainActor.assumeIsolated {
-            changeAppProfile(sender, "suggestions insert") { profile, value in profile.suggestionsInsert = SuggestionsInsert(rawValue: value) }
+            changeAppProfile(sender, "suggestions insert") { profile, value in profile.insertChoice = AppInsertChoice(rawValue: value) }
         }
     }
 }

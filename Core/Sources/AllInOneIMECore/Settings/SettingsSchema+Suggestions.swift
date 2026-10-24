@@ -24,14 +24,16 @@ extension SettingsSchema {
     func suggestionsInsert() -> Field {
         choice("suggestionsInsert", tr("插入", "Insert"), SuggestionsInsert.help,
                value: config.suggestionsInsert.map { .string($0.rawValue) } ?? .null,
-               choices: Self.insertChoices(unset: tr("默认（各来源自己的）", "Default (each source's own)"), now: config.suggestionsInsert))
+               choices: Self.insertChoices(unset: tr("默认（各来源自己的）", "Default (each source's own)"),
+                                           now: config.suggestionsInsert.map(AppInsertChoice.insert)))
     }
 
-    /// Insert's choices (everywhere's, an app's): unset as `unset` says, those Settings offers, and `now` where it is an
-    /// old value, `disabled`: kept, never picked anew.
-    static func insertChoices(unset: String, now: SuggestionsInsert?) -> [(Choice, [SettingsPlatform]?)] {
-        var choices = [(Choice(nil, unset), nil)] + SuggestionsInsert.offered.map { (Choice($0.rawValue, $0.label), [SettingsPlatform]?.none) }
-        if let now, !SuggestionsInsert.offered.contains(now) {
+    /// Insert's choices (everywhere's, an app's): unset as `unset` says, those Settings offers, then Off where `off` (an
+    /// app's: `AppInsertChoice.offered`), and `now` where it is an old value, `disabled`: kept, never picked anew.
+    static func insertChoices(unset: String, now: AppInsertChoice?, off: Bool = false) -> [(Choice, [SettingsPlatform]?)] {
+        let offered = off ? AppInsertChoice.offered : SuggestionsInsert.offered.map(AppInsertChoice.insert)
+        var choices = [(Choice(nil, unset), nil)] + offered.map { (Choice($0.rawValue, $0.label), [SettingsPlatform]?.none) }
+        if let now, !offered.contains(now) {
             choices.append((Choice(value: .string(now.rawValue), label: now.label, disabled: true), nil))
         }
         return choices

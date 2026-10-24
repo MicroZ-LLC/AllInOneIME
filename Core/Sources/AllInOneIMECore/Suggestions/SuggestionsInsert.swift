@@ -55,6 +55,63 @@ public enum SuggestionsInsert: String, CaseIterable, Codable, Sendable {
     }
 }
 
+/// An app's own choice in Settings → General → Suggestions → "In these apps" and in the input menu's This App ▸ Insert
+/// (the owner's decision of 2026-10-24): what a suggestion row inserts there, or Off, no suggestion rows there at all.
+/// It has no key of its own: it is the app's `suggestions` and `suggestionsInsert` (`AppProfile.insertChoice`). Written
+/// in the settings document as its raw value: the insert's, or "off".
+public enum AppInsertChoice: Hashable, Sendable, RawRepresentable {
+    /// What a row inserts there (`AppProfile.suggestionsInsert`).
+    case insert(SuggestionsInsert)
+    /// No suggestions there (`AppProfile.suggestions` false): no plugin's or command's rows, no Code's.
+    case off
+
+    public init?(rawValue: String) {
+        if rawValue == "off" {
+            self = .off
+        } else if let insert = SuggestionsInsert(rawValue: rawValue) {
+            self = .insert(insert)
+        } else {
+            return nil
+        }
+    }
+
+    public var rawValue: String {
+        switch self {
+        case let .insert(insert): return insert.rawValue
+        case .off: return "off"
+        }
+    }
+
+    /// What Settings and the input menu offer an app, in this order: With title, With title and link
+    /// (`SuggestionsInsert.offered`), Off. An old insert a config has (ID only, the source's own) is still honored.
+    public static var offered: [AppInsertChoice] { SuggestionsInsert.offered.map(AppInsertChoice.insert) + [.off] }
+
+    /// As Settings names it.
+    public var label: String {
+        switch self {
+        case let .insert(insert): return insert.label
+        case .off: return tr("关闭", "Off", key: "suggestionsInsert.off")
+        }
+    }
+}
+
+extension AppProfile {
+    /// Its choice in "In these apps" (`AppInsertChoice`): Off while its suggestions are off, else what its rows insert;
+    /// nil: none of its own, as everywhere. Set to Off, its suggestions go off and what its rows insert stays (for when
+    /// they're back; it syncs, the switch is this Mac's own); to an insert, they're back (as everywhere) with it; to nil
+    /// (Remove, Restore Default, Same as everywhere), both are cleared.
+    public var insertChoice: AppInsertChoice? {
+        get { suggestions == false ? .off : suggestionsInsert.map(AppInsertChoice.insert) }
+        set {
+            switch newValue {
+            case .off?: suggestions = false
+            case let .insert(insert)?: (suggestions, suggestionsInsert) = (nil, insert)
+            case nil: (suggestions, suggestionsInsert) = (nil, nil)
+            }
+        }
+    }
+}
+
 extension SuggestionsSettings {
     /// What a row inserts in `app` (its id, in any case): its own choice, else the one everywhere, else the source's own.
     public func insert(for app: String?) -> SuggestionsInsert {

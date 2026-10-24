@@ -228,31 +228,75 @@ extension SelfTest {
 
     /// General → Previous per-app settings → Remove clears what an app's profile still sets of the settings no longer
     /// offered (where it starts, Translate as You Type always on, autocomplete always, typing out, rewrite styles), its
-    /// Insert and No AI kept; another app's are as they were; an app left with nothing goes from the file. The section is
-    /// there only while an app has one.
+    /// Insert (its Off among it: suggestions off, never listed here) and No AI kept; another app's are as they were; an
+    /// app left with nothing goes from the file. The section is there only while an app has one.
     static func testPreviousAppSettings(snapshotDirectory: URL) {
         let url = snapshotDirectory.appendingPathComponent("previous-config.json")
         defer { try? FileManager.default.removeItem(at: url) }
         let (slack, mail, notes) = ("com.tinyspeck.slackmacgap", "com.apple.mail", "com.apple.Notes")
         var config = Config.default
-        config.appProfiles = [slack: AppProfile(inputLanguage: .english, translateAlways: true, autocomplete: true, suggestionsInsert: .titleAndLink),
-                              mail: AppProfile(rewriteStyles: ["正式"], typeOut: true), notes: AppProfile(noAI: true)]
+        config.appProfiles = [slack: AppProfile(inputLanguage: .english, translateAlways: true, autocomplete: true, suggestions: false,
+                                                suggestionsInsert: .titleAndLink),
+                              mail: AppProfile(rewriteStyles: ["正式"], typeOut: true), notes: AppProfile(noAI: true, suggestions: false)]
         try? config.write(to: url)
         let model = SettingsModel(configURL: url)
         check(Set(model.previousAppSettings.map(\.app)) == [mail, slack],
-              "the previous per-app settings list Slack and Mail, not Notes (No AI only): \(model.previousAppSettings.map(\.app))")
+              "the previous per-app settings list Slack and Mail, not Notes (No AI and Off only): \(model.previousAppSettings.map(\.app))")
         let row = model.previousAppSettings.first { $0.app == slack }?.text ?? ""
         let name = AppNames.name(for: slack)
         check(row == tr("\(name)：用英文开始、总是边打边译、总是续写", "\(name): starts in English, Always Translate as You Type, Autocomplete always on"),
               "Slack's row says what it sets: \(row)")
         model.removePreviousSettings(slack)
         var file = (try? Config.load(from: url)) ?? .default
-        check(file.appProfiles[slack] == AppProfile(suggestionsInsert: .titleAndLink) && file.appProfiles[mail] == config.appProfiles[mail]
-              && file.appProfiles[notes] == AppProfile(noAI: true),
-              "Remove clears Slack's, its Insert kept, Mail's and Notes' as they were (\(file.appProfiles))")
+        check(file.appProfiles[slack] == AppProfile(suggestions: false, suggestionsInsert: .titleAndLink)
+              && file.appProfiles[mail] == config.appProfiles[mail] && file.appProfiles[notes] == AppProfile(noAI: true, suggestions: false),
+              "Remove clears Slack's, its Insert and Off kept, Mail's and Notes' as they were (\(file.appProfiles))")
         model.removePreviousSettings(mail)
         file = (try? Config.load(from: url)) ?? .default
         check(file.appProfiles[mail] == nil && model.previousAppSettings.isEmpty,
               "Mail, left with nothing, goes from the file; the section is gone (\(file.appProfiles))")
+    }
+
+    /// General → Suggestions → "In these apps" with Off (the owner's decision of 2026-10-24), as its picker and Remove
+    /// write it (`SettingsModel.setInsertChoice`): an app with only its suggestions off is listed, at Off; Off chosen for
+    /// an app that inserts with title and link turns its suggestions off and keeps that; With title turns them back on
+    /// with it; Remove clears both, its No AI kept; an app with neither isn't listed, its settings untouched. The page is
+    /// drawn with an app at Off, in both languages.
+    static func testAppInsertOff(snapshotDirectory: URL) {
+        let url = snapshotDirectory.appendingPathComponent("insert-off-config.json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let (mail, terminal, notes) = ("com.apple.mail", "com.apple.Terminal", "com.apple.Notes")
+        var config = Config.default
+        config.appProfiles = [mail: AppProfile(noAI: true, suggestionsInsert: .titleAndLink), terminal: AppProfile(suggestions: false),
+                              notes: AppProfile(inputLanguage: .english)]
+        try? config.write(to: url)
+        let model = SettingsModel(configURL: url)
+        func own(_ app: String) -> AppProfile? { ((try? Config.load(from: url)) ?? .default).appProfiles[app] }
+        check(Set(model.appInsertApps) == [mail, terminal] && model.config.profile(for: terminal)?.insertChoice == .off,
+              "In these apps lists Mail and Terminal (Off, nothing to insert of its own), not Notes: \(model.appInsertApps)")
+        model.setInsertChoice(.off, for: mail)
+        check(own(mail) == AppProfile(noAI: true, suggestions: false, suggestionsInsert: .titleAndLink)
+              && model.config.profile(for: mail)?.insertChoice == .off,
+              "Off for Mail: its suggestions off, With title and link kept for when they're back (\(own(mail).map { "\($0)" } ?? "none"))")
+        model.setInsertChoice(.insert(.title), for: mail)
+        check(own(mail) == AppProfile(noAI: true, suggestionsInsert: .title),
+              "With title for Mail: its suggestions back on, with title (\(own(mail).map { "\($0)" } ?? "none"))")
+        model.setInsertChoice(.off, for: mail)
+        model.setInsertChoice(nil, for: mail)
+        model.setInsertChoice(nil, for: terminal)
+        check(own(mail) == AppProfile(noAI: true) && own(terminal) == nil && own(notes) == config.appProfiles[notes] && model.appInsertApps.isEmpty,
+              "Remove clears both, Mail's No AI kept, Terminal gone, Notes as it was (\(((try? Config.load(from: url)) ?? .default).appProfiles))")
+
+        let chosen = UIText.choice
+        defer { UIText.choice = chosen }
+        for (name, language) in [("settings-insert-off", "zh"), ("settings-insert-off-en", "en")] {
+            UIText.choice = language
+            let preview = SettingsModel(configURL: url, persists: false)
+            preview.config.appProfiles = [mail: AppProfile(suggestionsInsert: .titleAndLink), terminal: AppProfile(suggestions: false)]
+            let image = snapshotDirectory.appendingPathComponent("\(name).png")
+            SettingsImage.render(preview, page: .general, to: image) { seconds in _ = pump(timeout: seconds) { false } }
+            check(FileManager.default.fileExists(atPath: image.path) && AppInsertChoice.off.label == tr("关闭", "Off"),
+                  "General drawn with Terminal at Off in these apps (\(language))")
+        }
     }
 }

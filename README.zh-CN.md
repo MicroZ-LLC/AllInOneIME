@@ -420,11 +420,12 @@ Raycast 的 mode 对应关系：`fullOutput` → `show`，`compact` 和 `silent`
 
 | 设置 | 在哪里 | 配置里 |
 | --- | --- | --- |
-| 建议的行在那里插入什么：带标题，或带标题和链接 | 设置 →「通用」→「建议」→「在这些 App 里」 | `suggestionsInsert`（随设置同步） |
+| 建议的行在那里插入什么：带标题，或带标题和链接；或者「关闭」，那里不出建议 | 设置 →「通用」→「建议」→「在这些 App 里」 | `suggestionsInsert`（随设置同步）；「关闭」是 `"suggestions": false`（只属于这台 Mac，不同步） |
 | 不用 AI：`@improve`、`@translate`、`@question`、`@agent` 和你的提示词命令在那里不发给 AI，并提示一下；打字和别的命令照常 | 设置 →「隐私」→「不用 AI 的 App」 | `noAI` |
 
-「添加 App…」列出最近打过字的 App，也可以在「应用程序」文件夹里选；「移除」把 App 从这个列表里拿掉（另一项设置不动）。输入法菜单里的
-「这个 App：<名字>」对正在打字的 App 也是这两项：「不用 AI」，有建议来源时还有建议插入什么。配置里在 `appProfiles` 下，按 bundle ID 写：
+「添加 App…」列出最近打过字的 App，也可以在「应用程序」文件夹里选；「移除」把 App 从这个列表里拿掉（另一项设置不动）。「在这些 App 里」
+选了「关闭」，那个 App 原来插入什么还记着，以后再选回来时用。输入法菜单里的「这个 App：<名字>」对正在打字的 App 也是这两项：「不用 AI」，
+有建议来源时还有建议插入什么，或「关闭」。配置里在 `appProfiles` 下，按 bundle ID 写：
 `"appProfiles": {"com.tinyspeck.slackmacgap": {"suggestionsInsert": "titleAndLink"}, "com.apple.Terminal": {"noAI": true}}`。
 bundle ID 不分大小写（手写的 `com.apple.Mail` 就是「邮件」的 `com.apple.mail`）。`@reportissue` 只写有几个 App 设了东西，
 不写是哪些 App。
@@ -434,9 +435,10 @@ bundle ID 不分大小写（手写的 `com.apple.Mail` 就是「邮件」的 `co
   想换成别的，照样切到另一种输入就行；输入法菜单的「这个 App」里有「用英文开始（学到的）」，可以忘掉，「隐私」→「学到的内容…」里也能忘掉。
   学到的只留在这台 Mac 上（见[隐私](#隐私)）。
 - **以前的按 App 设置。** 以前的版本给某个 App 设过、现在设置里不再设的，设着就照样生效：开始的输入语言（`inputLanguage`；App 学到的优先）、
-  总是边打边译（`translateAlways`）、总是续写或不续写（`autocomplete`）、不显示建议（`suggestions`）、逐字上屏或不（`typeOut`）和它的改写风格
-  （`rewriteStyles`）。设置 →「通用」→「以前的按 App 设置」只在有 App 设了这些时出现，每个 App 一行，「移除」清掉那个 App 的这些设置
-  （它的插入和不用 AI 不动）。0.6.7 不改名也不删除 `config.json` 里的任何东西，这些值照以前那样同步。
+  总是边打边译（`translateAlways`）、总是续写或不续写（`autocomplete`）、逐字上屏或不（`typeOut`）和它的改写风格（`rewriteStyles`）。
+  设置 →「通用」→「以前的按 App 设置」只在有 App 设了这些时出现，每个 App 一行，「移除」清掉那个 App 的这些设置（它的插入，包括「关闭」，
+  和不用 AI 不动）。以前的版本给某个 App 关了建议的（`"suggestions": false`），在「在这些 App 里」显示为「关闭」。0.6.7 不改名也不删除
+  `config.json` 里的任何东西，这些值照以前那样同步。
 - 设了「不用 AI」，AI 命令还在命令列表里；执行时提示一下，打的字留着。自定义的终端命令（`"type": "terminal"`）运行的是程序，不是 AI，
   在那里照常能用。
 
@@ -746,16 +748,17 @@ two-way door：可以随时撤回的决定
   里打开，各有一个开关（显示上次更新、条数、上次的错误和「立即更新」；它的偏好设置也在这里，
   密码存在钥匙串）。插件更新后改了要访问的主机、前缀、边打边查（查不查、从第几个字开始查）、比较方式（`compare`）
   或脚本，就会关掉，要你再打开一次（设置里它下面会写明）。输入法菜单的 **建议** 一次全部开关；
-  以前的版本给某个 App 关了建议的，照样关着（见[按 App 设置](#按-app-设置新)）。设了「不用 AI」的 App 里照样出行：这里不用 AI（插件的边打边查照样发到它的
+  「在这些 App 里」选了「关闭」的 App 里不出行（见[按 App 设置](#按-app-设置新)）。设了「不用 AI」的 App 里照样出行：这里不用 AI（插件的边打边查照样发到它的
   主机）。魔法键改成 `#` 时，`#` 开头的补全用不了（设置里会说明）。
 - **插入什么**：按来源自己定的（插件的 `insert`，分 App 类别：`@github` 在文档里插入 `#1234 Fix login`，聊天 App 里还带上链接；
   自定义命令的「插入」），除非你在设置 →「通用」→「**插入**」（在「建议」开关下面）里另选，对所有来源都生效：
   **默认**（按各来源自己的）、**带标题**（`#1234 Fix login`）或 **带标题和链接**（`#1234 Fix login https://github.com/…/issues/1234`），
   在所有 App 里都一样，终端和代码编辑器也是；条目没有标题或链接时，有什么插什么。某个 App 可以在「在这些 App 里」（「添加 App…」「移除」）
-  或输入法菜单的「这个 App」里单独选，优先于全局的：比如 Slack 里带链接，邮件里带标题。「只有 ID」（`#1234`）不能再选了：配置里
+  或输入法菜单的「这个 App」里单独选，优先于全局的：比如 Slack 里带链接，邮件里带标题；也可以选「**关闭**」，那个 App 里完全不出建议的行
+  （插件的、建议命令的和代码输入的都不出）。「只有 ID」（`#1234`）不能再选了：配置里
   已经设了的（全局或某个 App），照样保留，设置里显示出来并带「恢复默认」。代码输入的行不受它影响；和以前一样只补你还没打的部分。配置里：
   `suggestionsInsert`（`"title"`、`"titleAndLink"`，或以前的 `"id"`；不写就是来源的默认），以及 App 设置里的 `suggestionsInsert`（还可以是
-  `"source"`）；两者都随设置同步，和「建议」的开关不同。
+  `"source"`）；两者都随设置同步，和「建议」的开关不同（某个 App 的「关闭」是它设置里的 `"suggestions": false`，只属于这台 Mac）。
 - **代码输入**：一种输入，排在输入语言后面、和它们分开。在设置 →「输入」里用「**添加…**」→「代码」添加（它的小标签排在输入语言后面，「代码 · Python」），选它的编程
   语言：Python、Java、Go、TypeScript、JavaScript、C 或 C++。还没装语言包的，先从语言库下载、按签过名的清单核对，和添加输入语言时
   下载语言包一样（进度和出错都显示在页面上）；装好的语言包（可以移除）和语言库在代码那一节里（小标签下面）。单按 Shift 依次切过你的输入：各种
@@ -915,7 +918,7 @@ Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系�
 - 它能认出有固定格式的内容；认不出人名和地址，这些请加到自己的词里。`@agent`、从网站取数据（`@stock`）或打开网站（`@x`）的插件和脚本扩展照原样发送文字。详见「隐私」。
 - 配置文件里是 `"redaction": {"enabled": true, "customWords": ["Project Atlas"]}`。
 
-所有设置都存在 `~/.config/allinoneime/config.json`，改完后，下一次翻译就会用上新设置，不用重启。0.6.7 没有改名或删除其中任何一项。有些项设置里不再显示，除非设成了非默认值：`maxTokens`、`temperature`、`timeoutSeconds` 和各服务的 `effort`（思考），`redaction` 的各类，`iCloudSync` 的 `settings` 和 `jargon`，以及 `suggestionsInsert` 的 `"id"`；这时那一行会显示出来，带「恢复默认」。App 设置里 `noAI` 和 `suggestionsInsert` 以外的项显示在「以前的按 App 设置」里，带「移除」。显不显示都照样生效。新加的几项：
+所有设置都存在 `~/.config/allinoneime/config.json`，改完后，下一次翻译就会用上新设置，不用重启。0.6.7 没有改名或删除其中任何一项。有些项设置里不再显示，除非设成了非默认值：`maxTokens`、`temperature`、`timeoutSeconds` 和各服务的 `effort`（思考），`redaction` 的各类，`iCloudSync` 的 `settings` 和 `jargon`，以及 `suggestionsInsert` 的 `"id"`；这时那一行会显示出来，带「恢复默认」。App 设置里 `noAI`、`suggestionsInsert` 和 `suggestions`（「在这些 App 里」的「关闭」）以外的项显示在「以前的按 App 设置」里，带「移除」。显不显示都照样生效。新加的几项：
 
 | 键 | 作用 | 默认 |
 |---|---|---|
@@ -944,7 +947,7 @@ Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系�
 | `rememberQuestions` | 在这台 Mac 上记住最近 5 个 `@question` 问题和答案，列在 `@question` 下面（见「最近的问题」） | `true` |
 | `questionRounds` | `@question` 对话在候选框里聊几轮后建议换个地方接着聊，2–10 | `5` |
 | `questionContinueIn` | `@question` 对话可以接着在哪里聊，按顺序，第一个是默认：`agent`（`@agent` 交给的那个，代替它自己那一项）、`claudeCode`、`geminiCLI`、`kiroCLI`、`customAgent`（各个 agent，装了才有）、`claudeWeb`、`chatgpt`、`gemini`、`copy` | `agent`、别的装了的 agent、Claude、ChatGPT、复制 |
-| `appProfiles` | 单个 App 的设置，按 bundle ID，每一项都可以不写：`noAI` 和 `suggestionsInsert`（同下，或者 `"source"`；同步），设置里显示这两项；以前的版本留下、照样生效的：`inputLanguage`（语言代码，代码输入是 `"code"`）、`rewriteStyles`、`typeOut`、`translateAlways`、`autocomplete`（只属于这台 Mac，不同步）、`suggestions`（`false`：那里不出建议的行；只属于这台 Mac，不同步）（见「按 App 设置」） | `{}` |
+| `appProfiles` | 单个 App 的设置，按 bundle ID，每一项都可以不写：`noAI`、`suggestionsInsert`（同下，或者 `"source"`；同步）和 `suggestions`（`false`：那里不出建议的行，即「在这些 App 里」的「关闭」；只属于这台 Mac，不同步），设置里显示这几项；以前的版本留下、照样生效的：`inputLanguage`（语言代码，代码输入是 `"code"`）、`rewriteStyles`、`typeOut`、`translateAlways`、`autocomplete`（只属于这台 Mac，不同步）（见「按 App 设置」） | `{}` |
 | `autocomplete` | 续写：光标后出灰字，按 Tab 上屏；问的是你的 AI 服务（见「续写」）；不同步 | `false` |
 | `suggestions` | 建议（设置 →「通用」、输入法菜单）：`false` 关掉所有建议的行，插件的、建议命令的和代码输入的；只属于这台 Mac，不同步（见「建议和代码输入」） | 不写（开） |
 | `suggestionsInsert` | 没有单独设置的 App 里，建议的行插入什么（设置 →「通用」→「插入」）：`"title"` 或 `"titleAndLink"`；`"id"` 照样有效，但不能再选；不写：按来源定的；随设置同步 | 不写 |

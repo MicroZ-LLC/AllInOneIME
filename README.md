@@ -499,12 +499,13 @@ An app has two settings of its own; everything else is the same in every app:
 
 | Setting | Where | In the config |
 | --- | --- | --- |
-| What a suggestion row inserts there: with title, or with title and link | Settings → General → Suggestions → "In these apps" | `suggestionsInsert` (synced with the settings) |
+| What a suggestion row inserts there: with title, or with title and link; or Off, no suggestions there | Settings → General → Suggestions → "In these apps" | `suggestionsInsert` (synced with the settings); Off is `"suggestions": false` (this Mac's own: not synced) |
 | No AI: `@improve`, `@translate`, `@question`, `@agent` and your prompt commands send nothing there and say so; typing and the other commands work | Settings → Privacy → "Apps without AI" | `noAI` |
 
 "Add App…" lists the apps you typed in lately, or picks one in /Applications; Remove takes an app off that list (its
-other setting stays). The input menu's "This App: <name>" has the same two for the app you're typing in: No AI and, with
-a suggestion source, what a row inserts there. In the config they're under `appProfiles`, by bundle ID:
+other setting stays). Off in "In these apps" keeps what the app's rows inserted, for when you pick one again. The input
+menu's "This App: <name>" has the same two for the app you're typing in: No AI and, with a suggestion source, what a row
+inserts there, or Off. In the config they're under `appProfiles`, by bundle ID:
 `"appProfiles": {"com.tinyspeck.slackmacgap": {"suggestionsInsert": "titleAndLink"}, "com.apple.Terminal": {"noAI": true}}`.
 Bundle IDs match ignoring case (`com.apple.Mail` is Mail's `com.apple.mail`). `@reportissue` counts the apps that set
 something, never naming them.
@@ -517,9 +518,10 @@ something, never naming them.
   Privacy → Learned…. What is learned stays on this Mac (see [Privacy](#privacy)).
 - **Previous per-app settings.** What an earlier version set for an app, and Settings doesn't set any more, still works
   while it's set: the input it starts in (`inputLanguage`; one the app learned comes first), Always Translate as You
-  Type (`translateAlways`), autocomplete always or never (`autocomplete`), no suggestions (`suggestions`), typing out or
-  not (`typeOut`) and its rewrite styles (`rewriteStyles`). Settings → General → "Previous per-app settings", there only
-  while an app has one, lists them, a row per app, and Remove clears them for that app (its Insert and No AI stay).
+  Type (`translateAlways`), autocomplete always or never (`autocomplete`), typing out or not (`typeOut`) and its rewrite
+  styles (`rewriteStyles`). Settings → General → "Previous per-app settings", there only while an app has one, lists
+  them, a row per app, and Remove clears them for that app (its Insert, Off too, and No AI stay). An app set to no
+  suggestions in an earlier version (`"suggestions": false`) is under "In these apps", at Off.
   Nothing in `config.json` is renamed or removed by 0.6.7, and these values sync as they did.
 - With No AI, the AI commands stay in the command list; running one shows the notice and keeps what you wrote. Your own
   terminal commands (`"type": "terminal"`) run programs, not the AI, so they still work there.
@@ -921,7 +923,7 @@ They take the place of [autocomplete](#autocomplete-beta-new)'s gray text while 
   now; its preferences, passwords in the keychain). A plugin update that changes the hosts it reaches, its
   prefix, whether it looks up what you type and from which character on, how it compares (`compare`) or its script turns
   them off until you turn them on again (Settings says so under it). **Suggestions** in the input menu turns them all off
-  or on; an app set to no suggestions in an earlier version stays so (see [Per-app settings](#per-app-settings-new)). An app with No AI still has them: no AI is involved (a plugin's lookup still goes to
+  or on; an app at Off under "In these apps" has none (see [Per-app settings](#per-app-settings-new)). An app with No AI still has them: no AI is involved (a plugin's lookup still goes to
   its hosts there). With `#` as the magic key, a source after `#` can't work (Settings says so).
 - **What a row inserts:** what its source says (a plugin's `insert`, per class of app: `@github` puts in `#1234 Fix
   login` in documents and the link too in chat apps; a custom command's Insert), unless you choose otherwise in Settings
@@ -929,11 +931,12 @@ They take the place of [autocomplete](#autocomplete-beta-new)'s gray text while 
   (`#1234 Fix login`) or **With title and link** (`#1234 Fix login https://github.com/…/issues/1234`), the same in every
   app, terminals and code editors too; an item without a title or a link goes in with what it has. An app can have its
   own under "In these apps" (Add App…, Remove) or in the input menu's This App, over the one everywhere: links in Slack,
-  titles in Mail. "ID only" (`#1234`) is no longer offered: a config that has it, everywhere or for an app, keeps it,
+  titles in Mail; or **Off**, no suggestion rows in that app at all (plugins', Suggestions commands' and Code's). "ID
+  only" (`#1234`) is no longer offered: a config that has it, everywhere or for an app, keeps it,
   and Settings shows it with Restore Default. Code's rows never change with it, and only what you haven't typed goes in,
   as always. In the config: `suggestionsInsert` (`"title"`, `"titleAndLink"`, or `"id"` from before; absent: the
   source's), and `suggestionsInsert` in an app's profile (`"source"` too); both sync with your settings, unlike the
-  Suggestions switches.
+  Suggestions switches (an app's Off is `"suggestions": false` in its profile, this Mac's own).
 - **Code:** an input, after your input languages and apart from them. Add it in Settings → Input with **Add…** →
   Code (its chip comes after the languages, "Code · Python") and pick its coding language: Python, Java, Go, TypeScript, JavaScript, C or C++. A language
   whose pack isn't installed downloads it first, from the language library, checked against its signed list, as an input
@@ -1121,7 +1124,7 @@ shows it with Restore Default:
   under Privacy.
 - In the config: `"redaction": {"enabled": true, "customWords": ["Project Atlas"]}`.
 
-All settings are stored in `~/.config/allinoneime/config.json`; after a change, the next translation uses the new settings, with no restart. 0.6.7 renamed and removed none of them. Settings no longer shows some unless they're set to something other than their default: `maxTokens`, `temperature`, `timeoutSeconds` and a provider's `effort` (Thinking), the `redaction` kinds, `iCloudSync`'s `settings` and `jargon`, and `suggestionsInsert` `"id"`; then their row shows, with Restore Default. An app's settings other than `noAI` and `suggestionsInsert` show under Previous per-app settings, with Remove. They work either way. The newer keys:
+All settings are stored in `~/.config/allinoneime/config.json`; after a change, the next translation uses the new settings, with no restart. 0.6.7 renamed and removed none of them. Settings no longer shows some unless they're set to something other than their default: `maxTokens`, `temperature`, `timeoutSeconds` and a provider's `effort` (Thinking), the `redaction` kinds, `iCloudSync`'s `settings` and `jargon`, and `suggestionsInsert` `"id"`; then their row shows, with Restore Default. An app's settings other than `noAI`, `suggestionsInsert` and `suggestions` (Off in "In these apps") show under Previous per-app settings, with Remove. They work either way. The newer keys:
 
 | Key | What it does | Default |
 |---|---|---|
@@ -1150,7 +1153,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 | `rememberQuestions` | Keep your last 5 `@question`s and their answers on this Mac, listed under `@question` (see Recent questions) | `true` |
 | `questionRounds` | Rounds of an `@question` conversation in the panel before it suggests continuing elsewhere, 2–10 | `5` |
 | `questionContinueIn` | Where an `@question` conversation can continue, in order, the first the default: `agent` (whatever `@agent` hands to, in place of that agent's own entry), `claudeCode`, `geminiCLI`, `kiroCLI`, `customAgent` (the agents, each only if installed), `claudeWeb`, `chatgpt`, `gemini`, `copy` | `agent`, the other agents installed, Claude, ChatGPT, copy |
-| `appProfiles` | Settings of one app, by bundle ID, each optional: `noAI` and `suggestionsInsert` (as below, or `"source"`; synced), which Settings shows; and from earlier versions, still used: `inputLanguage` (a language's code, or `"code"` for Code), `rewriteStyles`, `typeOut`, `translateAlways`, `autocomplete` (this Mac's own: not synced), `suggestions` (`false`: no suggestion rows there; this Mac's own: not synced) (see Per-app settings) | `{}` |
+| `appProfiles` | Settings of one app, by bundle ID, each optional: `noAI`, `suggestionsInsert` (as below, or `"source"`; synced) and `suggestions` (`false`: no suggestion rows there, Off in "In these apps"; this Mac's own: not synced), which Settings shows; and from earlier versions, still used: `inputLanguage` (a language's code, or `"code"` for Code), `rewriteStyles`, `typeOut`, `translateAlways`, `autocomplete` (this Mac's own: not synced) (see Per-app settings) | `{}` |
 | `autocomplete` | Autocomplete: the rest of the sentence in gray after the caret, Tab puts it in; it asks your AI provider (see Autocomplete); never synced | `false` |
 | `suggestions` | Suggestions (Settings → General, the input menu): `false` turns off every suggestion row, plugins', Suggestions commands' and Code's; this Mac's own, never synced (see Suggestions and Code) | absent (on) |
 | `suggestionsInsert` | What a suggestion row inserts in every app without a choice of its own (Settings → General → Insert): `"title"` or `"titleAndLink"`; `"id"` still works but is no longer offered; absent: what its source says; syncs with the settings | absent |
