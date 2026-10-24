@@ -954,7 +954,7 @@ final class AllInOneIMEInputController: IMKInputController {
         var told = toldAnchor(client)
         let screens = NSScreen.screens.map(\.frame)
         if !PanelAnchor.trusted(told, screens: screens, window: panelAnchor.window, page: panelAnchor.page),
-           let marked = Self.markedRect(client),
+           let marked = Self.markedAnchor(client),
            PanelAnchor.trusted(marked, screens: screens, window: panelAnchor.window, page: panelAnchor.page) {
             told = marked  // the line's rect not one to trust, the marked text's own is
         }
@@ -1031,6 +1031,15 @@ final class AllInOneIMEInputController: IMKInputController {
         return rect
     }
 
+    /// Where the panel goes by the marked text's own rect (`markedRect`): a line under it, as the line's rect
+    /// (`attributes(forCharacterIndex:lineHeightRectangle:)`) is placed, the owner's log showing it one character's height
+    /// under the character's rect. Asked of the field every time (`firstRect` isn't kept by InputMethodKit).
+    @MainActor
+    private static func markedAnchor(_ client: IMKTextInput) -> NSRect? {
+        guard let marked = markedRect(client), marked.height > 1 else { return nil }
+        return NSRect(x: marked.minX, y: marked.minY - marked.height, width: 1, height: marked.height)
+    }
+
     /// The rect `client` tells for its marked text's first character: where its line's rect isn't one to trust, the field
     /// may still tell this one right (and the log says it, to see what else Chromium tells).
     @MainActor
@@ -1060,7 +1069,10 @@ final class AllInOneIMEInputController: IMKInputController {
                 guard let self, token == self.anchorToken else { return }
                 let panel = CandidatePanel.shared
                 guard panel.isShowing, panel.owner === self else { return }
-                let told = self.toldAnchor(client)
+                // The marked text's rect, which the field is really asked for each time: InputMethodKit keeps the first
+                // `attributes(forCharacterIndex: 0, …)` answer for the whole composition (caretresearch, 0.6.7), so
+                // asking that again would only ever get the page's corner back.
+                let told = Self.markedAnchor(client) ?? self.toldAnchor(client)
                 guard let rect = self.panelAnchor.reasked(told, screens: NSScreen.screens.map(\.frame)) else {
                     if index == PanelAnchor.reaskDelays.count - 1 {
                         log.debug("panel anchor: still not trusted \(Int(delay * 1000)) ms later, told \(Self.describe(told), privacy: .public)")
