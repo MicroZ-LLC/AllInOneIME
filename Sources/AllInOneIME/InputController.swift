@@ -483,11 +483,35 @@ final class AllInOneIMEInputController: IMKInputController {
 
     // MARK: - Keys
 
+    /// The key downs answered lately, whatever the text field (a copy may reach another one).
+    @MainActor private static var keyEchoes = KeyEchoes()
+
     @MainActor
     func handleKeyDown(_ event: NSEvent, client: IMKTextInput?) -> Bool {
+        if TerminalPaste.isOurs(event) { return false }  // a line break being pasted into a terminal
+        // The same key down handed over a second time (the owner's "#17" had the session's token one "1" longer than
+        // the field): answered as the first was, before anything sees it (the session, typing out, Translate as You
+        // Type's long press).
+        let key = KeyEchoes.Key(keyCode: event.keyCode, characters: event.characters ?? "", modifiers: event.modifierFlags.rawValue,
+                                isRepeat: event.isARepeat, timestamp: event.timestamp)
+        let now = ProcessInfo.processInfo.systemUptime
+        if let handled = Self.keyEchoes.copy(of: key, now: now) {
+            // `log stream --level debug --predicate 'subsystem == "com.aipinyin.inputmethod.AIPinyin" AND eventMessage
+            // BEGINSWITH "a keyDown came twice"'`: how long after the event's time the copy came, never the key.
+            let late = (now - event.timestamp) * 1000
+            log.debug("a keyDown came twice; the copy was dropped (\(late, format: .fixed(precision: 1), privacy: .public) ms after its time)")
+            return handled
+        }
+        let handled = handleNewKeyDown(event, client: client)
+        Self.keyEchoes.answered(key, now: now, handled: handled)
+        return handled
+    }
+
+    /// A key down handed over for the first time.
+    @MainActor
+    private func handleNewKeyDown(_ event: NSEvent, client: IMKTextInput?) -> Bool {
         // A result still being typed out: Esc stops it there; any other key types the rest at once,
         // then goes on as usual.
-        if TerminalPaste.isOurs(event) { return false }  // a line break being pasted into a terminal
         translateModeKeyDown()
         if typingTask != nil {
             if event.keyCode == VirtualKey.escape {

@@ -111,8 +111,13 @@ extension SelfTest {
         controller.composer.setInputMode(.english)
         client.inserted.removeAll()
 
-        // "#1": the list's rows; no query yet (one character after "#").
-        type("#1", controller, client)
+        // "#1": the list's rows; no query yet (one character after "#"). The "1" key down handed over a second time, the
+        // same event (the owner's "#17" had the session's token a "1" longer than the field): answered as the first,
+        // nothing else done with it.
+        type("#", controller, client)
+        let one = event("1", code: keyCodes["1"] ?? 0)
+        let first = controller.handle(one, client: client)
+        let again = controller.handle(one, client: client)
         let listed = pump(timeout: 5) { controller.session.panelModel().rows.contains { $0.text.hasPrefix("#1234") } }
         let rows = controller.session.panelModel().rows.map(\.text)
         check(listed && !standIn.requests.contains { $0.hasSuffix("/issues/1") },
@@ -124,6 +129,8 @@ extension SelfTest {
         check(queried && model.rows.map(\.text).prefix(3) == ["#1234 Fix login on the settings page", "#1201 Panel flickers on a second screen", "#12 Candidate panel position"]
               && (model.footer + " " + (model.detail ?? "")).contains("GitHub"),
               "\"#12\": its rows (\(model.rows.map(\.text))), the query asked once 2 characters follow #, the footer naming the source")
+        check(again == first && !standIn.requests.contains { $0.hasSuffix("/issues/112") },
+              "\"1\" handed over twice (the same key down): the copy answered as the first (\(again)) and dropped, the token \"#12\" (\(standIn.requests.count) request(s))")
         snapshot("suggestions-rows", in: snapshotDirectory)
         check(CandidatePanel.shared.isShowing && CandidatePanel.shared.view.model.rows.count == model.rows.count,
               "…drawn in the candidate panel")
