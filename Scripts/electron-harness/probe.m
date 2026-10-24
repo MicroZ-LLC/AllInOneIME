@@ -7,9 +7,10 @@
 // interpretKeyEvents:), a modifier change through TSMProcessRawKeyEvent, which -[NSApplication sendEvent:] calls for it
 // (unless the first responder's input context is asynchronous: WebKit's). Chromium sends a key event the page didn't
 // handle through -[NSApplication sendEvent:] again (-[CommandDispatcher redispatchKeyEvent:], its window key), so the
-// input method gets every modifier change twice.
+// input method gets every modifier change twice. Whether a key down can come twice too (the owner's "#17", 0.6.7): the
+// hash-digits script types "#17", and a key down through TSMProcessRawKeyEvent is recorded as well ("rawKeyDown").
 //
-// Environment: HARNESS_SCRIPT (shift-hold, shift-tap, shift-letter, option-tap), HARNESS_DELAY (seconds before it starts,
+// Environment: HARNESS_SCRIPT (shift-hold, shift-tap, shift-letter, option-tap, hash-digits), HARNESS_DELAY (seconds before it starts,
 // the page loaded), HARNESS_FAKE_KEY (the window says it's key, as it is while someone types in it: on a locked screen, or with
 // another app in front, no app becomes active; it's what Chromium looks at before it sends an event again). Prints
 // "REC <seconds into the script> <what> …" lines on stdout for the self-test (ElectronSelfTest.swift), and what it sees
@@ -60,9 +61,10 @@ static NSString *describe(NSEvent *e) {
             (unsigned long)e.modifierFlags, chars, e.timestamp];
 }
 
-/// "<type> <keyCode> <flags> <timestamp, seconds into the script>[ <characters, percent-encoded>]".
-static NSString *recorded(NSEvent *e) {
-    NSString *line = [NSString stringWithFormat:@"%@ %u 0x%lx %.4f", typeName(e), e.keyCode, (unsigned long)e.modifierFlags,
+/// "<type> <keyCode> <flags> <timestamp, seconds into the script>[ <characters, percent-encoded>]"; `name` in place of
+/// the type if given.
+static NSString *recorded(NSEvent *e, NSString *name) {
+    NSString *line = [NSString stringWithFormat:@"%@ %u 0x%lx %.4f", name ?: typeName(e), e.keyCode, (unsigned long)e.modifierFlags,
                       e.timestamp - scriptStart];
     if (e.type == NSEventTypeFlagsChanged) return line;
     NSString *chars = [e.characters stringByAddingPercentEncodingWithAllowedCharacters:NSCharacterSet.alphanumericCharacterSet];
@@ -106,7 +108,9 @@ static void swizzle(Class cls, SEL sel, IMP replacement, IMP *original) {
 static OSStatus probeTSMProcessRawKeyEvent(EventRef event) {
     NSEvent *e = [NSEvent eventWithEventRef:event];
     say(@"TSMProcessRawKeyEvent %@ < %@", describe(e), caller(4));
-    if (e.type == NSEventTypeFlagsChanged) record(recorded(e));
+    if (e.type == NSEventTypeFlagsChanged) record(recorded(e, nil));
+    // A key down this way too would be another way to the input method than the text input context's.
+    if (e.type == NSEventTypeKeyDown) record(recorded(e, @"rawKeyDown"));
     return TSMProcessRawKeyEvent(event);
 }
 __attribute__((used, section("__DATA,__interpose"))) static struct {
@@ -119,7 +123,7 @@ static BOOL probeHandleEvent(NSTextInputContext *self, SEL _cmd, NSEvent *e) {
     say(@"-[NSTextInputContext handleEvent:] %@ < %@", describe(e), caller(3));
     // A key down reaches the input method here. With the context not active (no app is, the screen locked) it goes
     // no further: recorded as the input method would get it.
-    if (e.type == NSEventTypeKeyDown) record(recorded(e));
+    if (e.type == NSEventTypeKeyDown) record(recorded(e, nil));
     return ((BOOL (*)(id, SEL, NSEvent *))originalHandleEvent)(self, _cmd, e);
 }
 
@@ -194,6 +198,20 @@ static NSArray *steps(NSString *name) {
     if ([name isEqualToString:@"shift-letter"]) {
         return @[@[@0, shiftDown], @[@0.2, ^{ post(keyEvent(NSEventTypeKeyDown, leftShift, 0, @"A")); }],
                  @[@0.05, ^{ post(keyEvent(NSEventTypeKeyUp, leftShift, 0, @"A")); }], @[@1.0, shiftUp]];
+    }
+    // "#17" typed as the owner did (⇧3, then 1 and 7), a little quicker; then a second for what comes late (a busy page
+    // takes HARNESS_BUSY ms over each key down, and sends one it let go by through again only after that).
+    if ([name isEqualToString:@"hash-digits"]) {
+        void (^key)(NSEventType, unsigned short, NSString *, NSEventModifierFlags) =
+            ^(NSEventType type, unsigned short code, NSString *characters, NSEventModifierFlags flags) {
+                post(keyEvent(type, flags, code, characters));
+            };
+        return @[@[@0, shiftDown], @[@0.05, ^{ key(NSEventTypeKeyDown, 20, @"#", leftShift); }],
+                 @[@0.05, ^{ key(NSEventTypeKeyUp, 20, @"#", leftShift); }], @[@0.03, shiftUp],
+                 @[@0.07, ^{ key(NSEventTypeKeyDown, 18, @"1", noModifier); }],
+                 @[@0.05, ^{ key(NSEventTypeKeyUp, 18, @"1", noModifier); }],
+                 @[@0.3, ^{ key(NSEventTypeKeyDown, 26, @"7", noModifier); }],
+                 @[@0.05, ^{ key(NSEventTypeKeyUp, 26, @"7", noModifier); }], @[@1.0, ^{}]];
     }
     if ([name isEqualToString:@"option-tap"]) {
         return @[@[@0, ^{ post(keyEvent(NSEventTypeFlagsChanged, leftOption, 58, @"")); }],

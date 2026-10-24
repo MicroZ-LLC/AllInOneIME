@@ -17,7 +17,8 @@ extension SelfTest {
     /// One thing that reached the input method, `at` seconds into the recording.
     struct Reached: Equatable {
         enum Kind: Equatable {
-            case flagsChanged, keyDown, activate, deactivate
+            /// `rawKeyDown`: a key down through TSMProcessRawKeyEvent, not the text input context (only recorded).
+            case flagsChanged, keyDown, rawKeyDown, activate, deactivate
             case appActivated(String?)
         }
 
@@ -31,8 +32,8 @@ extension SelfTest {
     }
 
     /// The probe's lines ("REC <at> flagsChanged <keyCode> <flags, hex> <timestamp>", "REC <at> keyDown … <characters,
-    /// percent-encoded>", "REC <at> activate", "REC <at> appActivated <bundle id>"); the others ("posted", "script",
-    /// "end") say what the probe did, not what the input method got.
+    /// percent-encoded>", "REC <at> rawKeyDown …" the same, "REC <at> activate", "REC <at> appActivated <bundle id>"); the
+    /// others ("posted", "script", "end") say what the probe did, not what the input method got.
     static func reached(in recording: String) -> [Reached] {
         recording.split(whereSeparator: \.isNewline).compactMap { line in
             let parts = line.split(separator: " ").map(String.init)
@@ -43,9 +44,10 @@ extension SelfTest {
                 return text.hasPrefix("0x") ? UInt(text.dropFirst(2), radix: 16) : UInt(text)
             }
             switch parts[2] {
-            case "flagsChanged", "keyDown":
+            case "flagsChanged", "keyDown", "rawKeyDown":
                 guard let code = number(3), let flags = number(4), parts.count >= 6, let time = TimeInterval(parts[5]) else { return nil }
-                return Reached(at: at, kind: parts[2] == "keyDown" ? .keyDown : .flagsChanged, keyCode: UInt16(code), flags: flags,
+                let kind: Reached.Kind = parts[2] == "keyDown" ? .keyDown : parts[2] == "rawKeyDown" ? .rawKeyDown : .flagsChanged
+                return Reached(at: at, kind: kind, keyCode: UInt16(code), flags: flags,
                                timestamp: time, characters: parts.count > 6 ? parts[6].removingPercentEncoding ?? "" : "")
             case "activate": return Reached(at: at, kind: .activate)
             case "deactivate": return Reached(at: at, kind: .deactivate)
@@ -71,6 +73,7 @@ extension SelfTest {
                     charactersIgnoringModifiers: reached.characters.lowercased(), isARepeat: false, keyCode: reached.keyCode)
                 else { continue }
                 _ = controller.handle(event, client: client)
+            case .rawKeyDown: break
             case .activate: controller.activateServer(client)
             case .deactivate: controller.deactivateServer(client)
             case let .appActivated(app): AllInOneIMEInputController.otherAppActivated(app)
@@ -327,7 +330,8 @@ extension SelfTest {
     /// The Electron harness itself, when `ALLINONEIME_ELECTRON_HARNESS` names its folder (`make electron-harness`: its
     /// Electron, downloaded by npm, and its probe): each script run in its window, Slack's composer then the textarea
     /// (about 2 s each, the window shown without taking the focus; the tap of Shift a second time with the page busy),
-    /// and what reached the input method played into the fake field. Skipped, and said so, without it.
+    /// and what reached the input method played into the fake field; "#17" typed, the page idle and busy, for how often
+    /// each key down reaches the input method (`checkKeyDowns`, about 4 s each). Skipped, and said so, without it.
     static func testElectronHarness(_ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
         guard let folder = ProcessInfo.processInfo.environment["ALLINONEIME_ELECTRON_HARNESS"], !folder.isEmpty else {
             print("  the Electron harness: not run (make electron-harness, then make selftest ELECTRON_HARNESS=build/electron-harness)")
@@ -353,10 +357,40 @@ extension SelfTest {
             checkElectronRecordings(hold: recordings["shift-hold"] ?? [], tap: recordings["shift-tap"] ?? [], busyTap: busyTap,
                                     letter: recordings["shift-letter"] ?? [], optionTap: recordings["option-tap"] ?? [],
                                     from: "Electron harness, \(field)", controller, client)
+            checkKeyDowns(run("hash-digits"), from: "Electron harness, \(field)")
+            checkKeyDowns(run("hash-digits", busy: 250), from: "Electron harness, \(field), the page busy")
         }
         let kept = (try? FileManager.default.contentsOfDirectory(atPath: userData.path)) ?? []
         check(!kept.isEmpty, "the Electron harness kept its data in a temporary folder (\(kept.count) items: "
               + "\(kept.sorted().prefix(3).joined(separator: ", "))…), removed after")
+    }
+
+    /// What the harness's "#17" (its hash-digits script: ⇧3, 1, 7) shows of key downs, `from` where it ran: each of the
+    /// three reaching the input method, and how many times (a key down handed over again has the first one's time), and
+    /// what the controller's guard (`KeyEchoes`, on the recording's clock) leaves of them: "#17", each key once. Passes
+    /// either way; what it says is the finding. Expected, not yet seen busy: each key down once, the page busy or not, in
+    /// both fields, none through TSMProcessRawKeyEvent. Chromium sends a key event the page let go by through
+    /// -[NSApplication sendEvent:] again, and the input method gets a modifier change twice because sendEvent: itself
+    /// hands it over; a key down reaches the input method only from the view (interpretKeyEvents:), which Chromium's
+    /// window keeps an event sent again from. The recorded capital, the page idle (`electronShiftLetter`), came once.
+    static func checkKeyDowns(_ recording: [Reached], from: String) {
+        let downs = recording.filter { $0.kind == .keyDown }
+        var times: [String: Int] = [:]
+        for down in downs { times["\(down.keyCode) \(down.timestamp)", default: 0] += 1 }
+        var echoes = KeyEchoes()
+        var taken = ""
+        for down in downs {
+            // A second on, the recording's times are the clock's (one of 0 would be none).
+            let key = KeyEchoes.Key(keyCode: down.keyCode, characters: down.characters, modifiers: down.flags, timestamp: down.timestamp + 1)
+            guard echoes.copy(of: key, now: down.at + 1) == nil else { continue }
+            echoes.answered(key, now: down.at + 1, handled: false)
+            taken += down.characters
+        }
+        let again = downs.count - times.count, raw = recording.filter { $0.kind == .rawKeyDown }.count
+        let each = downs.map { "\($0.characters) \(String(format: "%.3f", $0.at))" }.joined(separator: ", ")
+        check(times.count == 3 && taken == "#17",
+              "\(from): \"#17\" typed, its key downs reached the input method \(again == 0 ? "once each" : "with \(again) handed over again")"
+                  + " (\(each)), \(raw) through TSMProcessRawKeyEvent; the controller takes \"\(taken)\"")
     }
 
     /// The harness's Electron, as npm installs it.
