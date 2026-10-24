@@ -852,8 +852,9 @@ They take the place of [autocomplete](#autocomplete-beta-new)'s gray text while 
   is taken, with the plugin's chat form (`#1234 https://github.com/…`): ⏎ always sends. In terminals and code editors
   (Xcode, VS Code, JetBrains…) Tab completes only what the rows share. Digits never pick a row: they go on typing (`#7`
   then `1` is `#71`). No rows in launchers, remote desktops, virtual machines and SSH clients.
-- **Turning them on:** **Suggestions** in Settings → General, on unless you turn it off, covers plugins' and Code's
-  rows. Each plugin's completions in Settings → Plugins (a switch each: last refresh, items, last error, Refresh
+- **Turning them on:** **Suggestions** in Settings → General, on unless you turn it off, covers plugins', Suggestions
+  commands' and Code's rows; they show once there is a source (a plugin's completions turned on, a Suggestions command,
+  or Code). Each plugin's completions in Settings → Plugins (a switch each: last refresh, items, last error, Refresh
   now; its preferences, passwords in the keychain). A plugin update that changes the hosts it reaches, its
   prefix, whether it looks up what you type and from which character on, how it compares (`compare`) or its script turns
   them off until you turn them on again (Settings says so under it). **Suggestions** in the input menu turns them all off
