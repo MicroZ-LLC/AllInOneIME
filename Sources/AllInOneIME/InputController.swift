@@ -138,6 +138,8 @@ final class AllInOneIMEInputController: IMKInputController {
     /// that ends the field's being asked again for one (`reaskAnchor`): a key, the panel placed anew, the field left.
     private(set) var panelAnchor = PanelAnchor.Memory()
     private var anchorToken = 0
+    /// Each app's last panel rect to trust, whatever its field (`anchor`: the fallback where a field has none yet).
+    @MainActor private static var lastAnchorByApp: [String: NSRect] = [:]
     /// What the log said last of a panel's anchor not trusted (`anchor`).
     private var anchorSaid: String?
 
@@ -943,8 +945,8 @@ final class AllInOneIMEInputController: IMKInputController {
     @MainActor
     func anchor(_ client: IMKTextInput) -> NSRect {
         anchorToken += 1
-        panelAnchor.enter(PanelAnchor.Field(client: ObjectIdentifier(client as AnyObject), app: client.bundleIdentifier(),
-                                            session: fieldSession))
+        // The field by this controller and its focus session: the client object handed over may be another proxy each time.
+        panelAnchor.enter(PanelAnchor.Field(client: ObjectIdentifier(self), app: client.bundleIdentifier(), session: fieldSession))
         // The window's frame once in the field (a rect on its left edge near its top is the page's corner, `PanelAnchor`).
         if clientOverride == nil, !session.secureInputActive(), let app = client.bundleIdentifier() {
             panelAnchor.learnWindow { FocusedField.windowFrame(in: app) }
@@ -957,15 +959,30 @@ final class AllInOneIMEInputController: IMKInputController {
             told = marked  // the line's rect not one to trust, the marked text's own is
         }
         var asked = "Accessibility not asked"
-        let placement = panelAnchor.place(told, screens: screens) {
+        var placement = panelAnchor.place(told, screens: screens) {
             let start = ProcessInfo.processInfo.systemUptime
             let read = caretByAccessibility(client)
             asked = String(format: "Accessibility %.1f ms", (ProcessInfo.processInfo.systemUptime - start) * 1000)
                 + (read?.timedOut == true ? ", timed out" : read?.caret == nil ? ", no caret" : "")
             return read
         }
+        // Nothing better in this field yet (its first panel since the app came back, the field telling the page's corner):
+        // the app's last rect to trust, from another field or focus session of it, where it was typed in last.
+        let app = client.bundleIdentifier() ?? ""
+        if placement.source == .field {
+            Self.lastAnchorByApp[app] = placement.rect
+        } else if placement.source == .told, let previous = Self.lastAnchorByApp[app] {
+            placement = PanelAnchor.Placement(rect: previous, source: .last)
+        }
         guard placement.reasks else {
             anchorSaid = nil
+            // Every placement, numbers only, while the owner's Google Docs case is looked into (`log stream --predicate
+            // 'subsystem == "com.aipinyin.inputmethod.AIPinyin" AND eventMessage BEGINSWITH "panel anchor"'`).
+            log.notice("""
+                panel anchor trusted: told \(Self.describe(told), privacy: .public), line \(Self.describe(self.toldAnchor(client)), privacy: .public), \
+                marked \(Self.describe(Self.markedRect(client)), privacy: .public), window \(Self.describe(self.panelAnchor.window), privacy: .public), \
+                page \(Self.describe(self.panelAnchor.page), privacy: .public), screen \(Self.describe(NSScreen.screens.first?.frame), privacy: .public)
+                """)
             return placement.rect
         }
         // Once while the field tells the same (an app that never tells a rect to trust would have it said at every key).

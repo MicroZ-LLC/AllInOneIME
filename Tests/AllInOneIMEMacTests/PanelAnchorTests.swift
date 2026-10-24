@@ -90,6 +90,23 @@ struct PanelAnchorTests {
         #expect(asked == 2 && memory.window == nil && memory.accessibilityGivenUp)
     }
 
+    /// The owner's Google Docs in a window filling the screen (log, 0.6.7): the caret told right at x 397, then, on a new
+    /// line, x 0 y 817 h 18 on a screen 956 high. Not trusted, no window known: the last rect to trust is used.
+    @Test func aRectOnTheScreensLeftEdgeIsNotTrusted() {
+        let screen = [CGRect(x: 0, y: 0, width: 1470, height: 956)]
+        let right = CGRect(x: 397, y: 325, width: 1, height: 17), corner = CGRect(x: 0, y: 817, width: 1, height: 18)
+        #expect(PanelAnchor.trusted(right, screens: screen))
+        #expect(!PanelAnchor.trusted(corner, screens: screen))
+        // A second screen to the left: its own left edge, not the main one's.
+        let two = [CGRect(x: -1920, y: 0, width: 1920, height: 1080)] + screen
+        #expect(!PanelAnchor.trusted(CGRect(x: -1920, y: 900, width: 1, height: 18), screens: two))
+
+        var memory = PanelAnchor.Memory()
+        memory.enter(field(client))
+        memory.place(right, screens: screen) { nil }
+        #expect(memory.place(corner, screens: screen) { nil } == PanelAnchor.Placement(rect: right, source: .last))
+    }
+
     @Test func aRectOffEveryScreenIsNotTrusted() {
         let off = CGRect(x: 5000, y: 3000, width: 0, height: 18)
         #expect(!PanelAnchor.trusted(off, screens: screens))

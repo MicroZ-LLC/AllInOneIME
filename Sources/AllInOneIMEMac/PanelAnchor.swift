@@ -75,6 +75,11 @@ public enum PanelAnchor {
         guard rect.minX.isFinite, rect.minY.isFinite, rect.width.isFinite, rect.height.isFinite,
               rect.height > 1, rect.origin != .zero else { return false }
         if !screens.isEmpty, !screens.contains(where: { $0.intersects(rect.insetBy(dx: -2, dy: -2)) }) { return false }
+        // On a screen's very left edge: the page's corner of a window that fills the screen (the owner's Google Docs told
+        // x 0 y 817 h 18 on a screen 956 high), never a caret, whatever Accessibility told or not.
+        if screens.contains(where: { abs(rect.minX - $0.minX) <= 2 && $0.insetBy(dx: -2, dy: -2).contains(CGPoint(x: rect.minX, y: rect.midY)) }) {
+            return false
+        }
         if let window, atLeftEdgeNearTop(rect, of: window) { return false }
         return ![window, page].contains { $0.map { atTopLeft(rect, of: $0) } == true }
     }
