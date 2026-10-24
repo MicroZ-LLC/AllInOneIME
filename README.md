@@ -22,7 +22,7 @@ No copying into a chat window, no switching apps. Your own AI provider, your own
 
 **[Download](https://allinoneime.com/download)** · **[Website](https://allinoneime.com)** · **[Docs](https://github.com/MicroZ-LLC/AllInOneIME/wiki)** · **[Extensions](docs/extensions.md)**
 
-[How to use](#how-to-use) · [Commands](#-commands-beta) · [Your own commands](#your-own-commands) · [Languages](#input-and-translation) · [Installation](#installation) · [Privacy](#privacy)
+[How to use](#how-to-use) · [Commands](#-commands) · [Your own commands](#your-own-commands) · [Languages](#input-and-translation) · [Installation](#installation) · [Privacy](#privacy)
 
 <br>
 
@@ -71,7 +71,10 @@ A new install writes English; to type Chinese (pinyin), French, Korean or Hindi 
 | Click a row | In the candidate panel: picks it, as its digit would (a word, a command in the list, a result, an `@open` file, a recipient, an extension's row); the row under the pointer is highlighted. The text field keeps the focus |
 | Tap Shift | With more than one input language: the next one, in their order (English → Chinese → French → …, then back to the first) |
 
-## @ commands (beta)
+## @ commands
+
+`@` is the magic key by default; with another one picked in Settings → General → Magic key, the commands below start
+with it (`~improve`), and so does the app's own text that names them ("~ commands").
 
 | Command | What it does |
 |---|---|
