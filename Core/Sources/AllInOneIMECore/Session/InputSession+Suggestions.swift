@@ -503,6 +503,25 @@ extension InputSession {
         }
     }
 
+    /// Whether `typed`, the letters pinyin holds and the key after them, finishes the prefix of a source whose rows may
+    /// show here, after what this token has so far ("cr-" for "CR-", in any case): the composer then puts them in as
+    /// typed, and the token goes on from them (`Composer.finishesSuggestionPrefix`). The same rules as the rows'
+    /// (`suggestionsRows`): a source active with its templates for this app's class, the switches on, no secure input,
+    /// a field known to be no password field.
+    func suggestionsPrefixFinished(by typed: String) -> Bool {
+        let appClass = SuggestionsAppClass(app: app, terminal: terminal)
+        let settings = services.suggestions.settings()
+        guard !suggesting.dead, appClass != .none, passwordField == false, !secureInputActive(),
+              !settings.enabled.isEmpty || !settings.commands.isEmpty, suggestionsOn(settings) else { return false }
+        let start = SuggestionsToken.normalized(suggesting.token + typed).lowercased()
+        let insert = settings.insert(for: app)
+        return activeSources(settings).contains { active in
+            guard let prefix = active.source.prefix, PluginRows.templates(active.source, appClass, insert: insert) != nil
+            else { return false }
+            return SuggestionsToken.normalized(prefix).lowercased().hasPrefix(start)
+        }
+    }
+
     /// The token ends (spec 1.3: a space, other punctuation, Return, a click, another field, a paste, the caret moved).
     func suggestionsBoundary() {
         if suggesting.showedRows {

@@ -591,6 +591,10 @@ public final class Composer {
     /// what it typed into the field (a terminal tells nothing); a composer on its own knows none. Right after a word
     /// (`continuesWord`) the "@" is just text: no command list.
     public var characterBeforeCaret: () -> Character? = { nil }
+    /// Whether `typed`, the letters pinyin holds and the key typed after them ("cr-"), finishes the prefix of a suggestion
+    /// source that may show rows here ("CR-"): the composition then goes in as typed and the token starts
+    /// (`endForSuggestionPrefix`). Set by the session; a composer on its own has no sources.
+    public var finishesSuggestionPrefix: (String) -> Bool = { _ in false }
     /// Whether the field's app still acts on a key the input method lets through after inserting text during it, as
     /// text views do: "@" then → inserts the "@" and the caret moves on. Not in terminals (set by the controller):
     /// Ghostty sends what is inserted during a key in the key's place (an arrow then goes out without the "@", a
@@ -1937,6 +1941,7 @@ public final class Composer {
         let composing = engine.snapshot().isComposing
         let modifiers = event.modifiers.subtracting(.capsLock)
         if let response = handleModeKey(event) { return response }
+        if composing, let response = endForSuggestionPrefix(event, engine) { return response }
         if !composing, let response = handlePaletteKey(event) { return response }
         // Return runs a command draft ("@question …"), like the action key; text keeps Return = as typed.
         if event.key == .enter || event.key == .keypadEnter, modifiers.isEmpty,
@@ -2008,6 +2013,19 @@ public final class Composer {
         if !consumed && !committedDirectly { return .passThrough }
         effects += [.updateMarkedText, wantsPanel ? .showPanel : .hidePanel]
         return Response(effects: effects, handled: consumed)
+    }
+
+    /// "-" (or "_", ".") after the letters pinyin holds, finishing a suggestion source's prefix ("cr" then "-" for "CR-",
+    /// any case: `finishesSuggestionPrefix`): the letters and the key go in as typed, not converted, and the token starts
+    /// there, as "#" ends a composition (suggestions spec 1.3). Digits after it are typed then, so the rows come as in
+    /// English. Only with nothing but those letters composed, on the candidates' first page (where librime's "-" turns
+    /// no page back). Nil: the key goes to the engine as before.
+    private func endForSuggestionPrefix(_ event: KeyEvent, _ engine: PinyinEngine) -> Response? {
+        guard draft.isEmpty, !isLevelTwo, voice == .off, engine.language == .chinese, engineState.pageNumber == 0,
+              event.modifiers.subtracting([.capsLock, .shift]).subtracting(.sides).isEmpty,
+              let text = event.printableText, ["-", "_", "."].contains(text),
+              finishesSuggestionPrefix(engine.rawInput + text) else { return nil }
+        return .consumed(finishAsTyped(engine.rawInput + text) + [.updateMarkedText])
     }
 
     private enum HorizontalKey {
