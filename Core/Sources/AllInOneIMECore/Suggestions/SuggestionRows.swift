@@ -456,10 +456,10 @@ enum CodingRows {
     }
 
     /// The rows for `identifier` (what is typed of it): `pack`'s snippets whose trigger it starts (the whole trigger too)
-    /// and whose body starts with it, its keywords it starts (not one typed in full), and `words`; in an app of
-    /// `appClass` (terminals and code editors: a snippet completes as its trigger). A snippet's later lines get `indent`
-    /// (the caret's line's); two that put in the same are one row (spec 6.19). The comment says what a row is, not its
-    /// language: Code has one (decision 22).
+    /// and whose body starts with it, its keywords and built-ins it starts (not one typed in full), and `words`; in an
+    /// app of `appClass` (terminals and code editors: a snippet completes as its trigger). A snippet's later lines get
+    /// `indent` (the caret's line's); two that put in the same are one row (spec 6.19). The comment says what a row is,
+    /// not its language: Code has one (decision 22).
     static func rows(_ identifier: String, pack: CodingLanguagePack?, words: [String], indent: String = "",
                      appClass: SuggestionsAppClass, in t: InterfaceWords) -> [SuggestionRow] {
         guard identifier.count >= minChars else { return [] }
@@ -495,12 +495,15 @@ enum CodingRows {
         }
         var keywords = Set<String>()
         if let pack {
-            let keywordWord = t.tr("关键字", "keyword")
-            for keyword in pack.keywords where keyword.hasPrefix(identifier) && keyword != identifier {
-                guard keywords.insert(keyword).inserted else { continue }
-                rows.append(SuggestionRow(text: keyword, comment: keywordWord, insertion: keyword, completion: keyword, typed: identifier,
-                                          pick: SuggestionPick(plugin: "", source: pack.language, match: keyword), source: pack.title,
-                                          coding: true))
+            // Its keywords, then its built-ins (functions, types, library names), each saying which it is.
+            let lists = [(pack.keywords, t.tr("关键字", "keyword")), (pack.builtins ?? [], t.tr("内置", "built-in"))]
+            for (list, comment) in lists {
+                for keyword in list where keyword.hasPrefix(identifier) && keyword != identifier {
+                    guard keywords.insert(keyword).inserted else { continue }
+                    rows.append(SuggestionRow(text: keyword, comment: comment, insertion: keyword, completion: keyword, typed: identifier,
+                                              pick: SuggestionPick(plugin: "", source: pack.language, match: keyword), source: pack.title,
+                                              coding: true))
+                }
             }
         }
         let fieldWords = t.tr("这个字段里的词", "Words in this field")

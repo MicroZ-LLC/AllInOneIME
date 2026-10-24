@@ -432,10 +432,10 @@ public protocol CommandCompletionRuntime: Sendable {
 
 // MARK: - Coding languages (spec 2)
 
-/// A coding language pack (JSON), downloaded and verified like a language pack: its keywords and snippets are the Code
-/// input's rows while its language is Code's (`Config.codingLanguage`). A snippet's `body` is inserted as text, its line
-/// breaks kept: `${n:text}` as its text, `$n` as nothing, the caret at its first tab stop (where the field reports ranges;
-/// else at the end: `CodingRows.expand`).
+/// A coding language pack (JSON), downloaded and verified like a language pack: its keywords, built-ins and snippets
+/// are the Code input's rows while its language is Code's (`Config.codingLanguage`). A snippet's `body` is inserted as
+/// text, its line breaks kept: `${n:text}` as its text, `$n` as nothing, the caret at its first tab stop (where the field
+/// reports ranges; else at the end: `CodingRows.expand`).
 public struct CodingLanguagePack: Codable, Equatable, Sendable {
     public struct Snippet: Codable, Equatable, Sendable {
         public var trigger: String
@@ -453,14 +453,19 @@ public struct CodingLanguagePack: Codable, Equatable, Sendable {
     public var language: String
     public var title: String
     public var version: String
+    /// The language's keywords; its built-in functions, types and library names apart (optional: a pack before 0.6.7's
+    /// format has none), which rows call built-ins.
     public var keywords: [String]
+    public var builtins: [String]?
     public var snippets: [Snippet]
 
-    public init(language: String, title: String, version: String, keywords: [String], snippets: [Snippet]) {
+    public init(language: String, title: String, version: String, keywords: [String], builtins: [String]? = nil,
+                snippets: [Snippet]) {
         self.language = language
         self.title = title
         self.version = version
         self.keywords = keywords
+        self.builtins = builtins
         self.snippets = snippets
     }
 }

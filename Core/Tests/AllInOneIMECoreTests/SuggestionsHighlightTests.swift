@@ -29,7 +29,7 @@ struct SuggestionsHighlightTests {
             field.host.fieldReadsWait = true
             field.host.document = "for_each = 1\n"
             field.type("for")
-            #expect(field.rows.map(\.comment) == ["for … in", "for … in range", "for … in enumerate", "keyword"], "\(field)")
+            #expect(field.rows.map(\.comment) == ["for … in", "for … in range", "for … in enumerate", "built-in"], "\(field)")
             // The pause: its read asked for, not back yet.
             field.pause(InputSession.wordsPause + 0.05)
             #expect(field.host.fieldReads == 1, "\(field.host.fieldReads)")
@@ -39,7 +39,7 @@ struct SuggestionsHighlightTests {
             #expect(field.rows.contains { $0.text == "for_each" }, "the field's word came: \(field)")
             #expect(Self.highlighted(field) == "for · for … in enumerate" && field.host.panel?.highlightChosen == true, "\(field)")
             #expect(field.press(SuggestionKeys.down))
-            #expect(Self.highlighted(field) == "format · keyword", "\(field)")
+            #expect(Self.highlighted(field) == "format · built-in", "\(field)")
         }
     }
 

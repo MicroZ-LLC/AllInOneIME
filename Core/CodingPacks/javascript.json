@@ -1,7 +1,7 @@
 {
  "language": "javascript",
  "title": "JavaScript",
- "version": "1.0.1",
+ "version": "1.0.2",
  "keywords": [
   "async",
   "await",
@@ -38,11 +38,13 @@
   "false",
   "try",
   "typeof",
-  "undefined",
   "var",
   "void",
   "while",
-  "yield",
+  "yield"
+ ],
+ "builtins": [
+  "undefined",
   "console",
   "document",
   "window",

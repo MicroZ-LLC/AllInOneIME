@@ -61,13 +61,15 @@ extension CodingLanguagePack {
     static let maxSnippets = 500
 
     /// Why `self` isn't a pack to keep (nil: it is): its language ([a-z0-9+#-], 1–32), a title and a version, at most
-    /// `maxKeywords` keywords of 1–64 characters and `maxSnippets` snippets each with a trigger of identifier characters
-    /// and a body of 4,000 characters at most.
+    /// `maxKeywords` keywords, and as many built-ins, of 1–64 characters and `maxSnippets` snippets each with a trigger of
+    /// identifier characters and a body of 4,000 characters at most.
     public var problem: String? {
         guard Self.isLanguage(language) else { return "the language must be 1–32 small letters, digits, +, # or -" }
         guard !title.trimmingCharacters(in: .whitespaces).isEmpty, !version.isEmpty else { return "no title or version" }
-        guard keywords.count <= Self.maxKeywords, keywords.allSatisfy({ (1...64).contains($0.count) && !$0.contains(where: \.isWhitespace) })
-        else { return "keywords must be words of 1–64 characters (\(Self.maxKeywords) at most)" }
+        for words in [keywords, builtins ?? []] {
+            guard words.count <= Self.maxKeywords, words.allSatisfy({ (1...64).contains($0.count) && !$0.contains(where: \.isWhitespace) })
+            else { return "keywords and built-ins must be words of 1–64 characters (\(Self.maxKeywords) of each at most)" }
+        }
         guard snippets.count <= Self.maxSnippets,
               snippets.allSatisfy({ (1...64).contains($0.trigger.count) && $0.trigger.allSatisfy(SuggestionsToken.isIdentifierCharacter)
                                       && !$0.body.isEmpty && $0.body.count <= 4000 }) else {
