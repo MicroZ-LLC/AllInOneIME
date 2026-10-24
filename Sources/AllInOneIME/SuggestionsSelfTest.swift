@@ -186,6 +186,15 @@ extension SelfTest {
             check(english && controller.composer.input == .code && controller.composer.inputLanguage == .english
                   && controller.notice == code && MenuBarIcon.shared.code == code,
                   "a tap of Shift: 中 → English → Code, said (\(controller.notice ?? "-")), Code's mark on the menu bar icon")
+            // "de" while that's said: its rows take the candidate panel, the notice on its footer's right, and no other
+            // window of ours is where they are (a notice, autocomplete's gray text, Translate as You Type's chip).
+            type("de", controller, client)
+            let rowsShown = pump(timeout: 2) { !controller.session.panelModel().rows.isEmpty && CandidatePanel.shared.isShowing }
+            let others = CandidatePanel.shared.overlapping
+            check(rowsShown && others.isEmpty && CandidatePanel.shared.view.model.detail == code,
+                  "Code: \"de\"'s rows in the candidate panel, the notice on its footer (\(CandidatePanel.shared.view.model.detail ?? "-")), "
+                      + "no other window of ours where they are (\(others.map { "\(Swift.type(of: $0)) \(NSStringFromRect($0.frame))" }))")
+            _ = space(controller, client)  // the token ends
             client.inserted.removeAll()
             type("pr", controller, client)
             let coded = pump(timeout: 2) { controller.session.panelModel().rows.contains { $0.text == "print" } }

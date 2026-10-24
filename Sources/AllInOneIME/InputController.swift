@@ -928,6 +928,11 @@ final class AllInOneIMEInputController: IMKInputController {
         panel.onScroll = { [weak self] steps in self?.received(.scroll(steps)) }
         panel.onChip = { [weak self] part in self?.translateChipClicked(part) }
         panel.show(model, anchor: anchor(client))
+        // Rows hold the caret (spec 0): autocomplete's gray text, still up where they are now (its placing waits a
+        // moment), goes, as the session ends it. Never a window of ours behind the rows.
+        if !model.rows.isEmpty, GhostOverlay.shared.isVisible, GhostOverlay.shared.frame.intersects(panel.frame) {
+            GhostOverlay.shared.hide()
+        }
     }
 
     /// The panel as the composer has it now, in `client`.

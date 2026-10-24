@@ -100,6 +100,12 @@ final class CandidatePanel: NSPanel {
         }
     }
 
+    /// Our other windows on screen where the panel is: none while it shows rows (spec 0: one thing at the caret at a
+    /// time; a notice is the panel's own, on its footer then), which the self-test checks.
+    var overlapping: [NSWindow] {
+        NSApp.windows.filter { $0 !== self && $0.isVisible && $0.frame.intersects(frame) }
+    }
+
     /// Whether `show(model, anchor:)` would change nothing: up already, with this model, where `anchor` puts it.
     func shows(_ model: PanelModel, anchor: NSRect) -> Bool {
         guard isShowing, view.model == model else { return false }

@@ -144,6 +144,12 @@ public final class FakeHost: @unchecked Sendable {
         apply(session.handle(.modifiers(change, context)).outputs)
     }
 
+    /// The shell says `text` in the field (`InputSession.showNotice`), as the Mac says what it tells there (Autocomplete
+    /// turned on in the input menu, a save's outcome).
+    public func showNotice(_ text: String) {
+        apply(session.showNotice(text))
+    }
+
     /// Hands `event` to the session, as the shell does what isn't a key.
     public func send(_ event: SessionEvent) {
         apply(session.handle(event).outputs)
