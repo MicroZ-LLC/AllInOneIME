@@ -637,15 +637,15 @@ given and sends back what the user did. It opens no sessions.
 
 | Section | Fields |
 |---|---|
-| `general` | `actionKey`, `typeOut`, `typeOutRate`, `typeOutVaries`, `typeOutMistakes`, `useSelection`, `rememberQuestions`, `uiLanguage`; the Mac's: `menuBarIcon`, `iCloudSync`, `checkForUpdates` |
-| `input` | `inputLanguages`, `candidateLayout`, `fuzzyPinyin`, `learnsEnglishWords`, `englishWords`; the Mac's: `voiceInput` (while voice input is on) |
+| `general` | `actionKey`, `commandTrigger` (the magic key), `typeOut`, `typeOutRate`, `typeOutVaries`, `typeOutMistakes`, `useSelection`, `rememberQuestions`, `suggestions`, `suggestionsInsert` (what a suggestion row inserts, under the Suggestions switch), `uiLanguage`; the Mac's: `menuBarIcon`, `iCloudSync`, `checkForUpdates` |
+| `input` | `inputLanguages`, `codingLanguage` (Code), `code.installed`, `code.library` (the coding packs), `candidateLayout`, `fuzzyPinyin`, `learnsEnglishWords`, `englishWords`; the Mac's: `voiceInput` (while voice input is on) |
 | `writing` | `outputLanguages`, `rewriteStyles`, `improveTranslates`, `jargonFile` |
 | `provider` | `provider`; `<p>.model`, `<p>.key`, `<p>.baseURL`, `<p>.effort` for `anthropic`, `gemini`, `openai`; `bedrock.modelId`, `bedrock.awsProfile`, `bedrock.region`; `provider.test` |
 | `request` | `maxTokens`, `temperature` (Bedrock), `timeoutSeconds` |
 | `privacy` | `redaction.enabled`, `redaction.emails`, `.phones`, `.cards`, `.keys`, `.ips`, `redaction.customWords` |
 | `agent` | `agent`, `agentCommand` (a custom agent), `claudeInBackground` (Claude Code); the Mac's: `agentPageContext` |
-| `apps` | `apps.profiles`: an item per app with settings of its own (`win:notepad.exe`), its fields `apps.<app>.inputLanguage`, `.ownStyles`, `.rewriteStyles` (with its own styles), `.noAI`; the Mac's: `.typeOut`, `.translateAlways` |
-| `plugins` | `plugins.installed`, `plugins.library` |
+| `apps` | `apps.profiles`: an item per app with settings of its own (`win:notepad.exe`), its fields `apps.<app>.inputLanguage`, `.ownStyles`, `.rewriteStyles` (with its own styles), `.noAI`, `.suggestions`, `.suggestionsInsert`; the Mac's: `.typeOut`, `.translateAlways` |
+| `plugins` | `plugins.installed`: an item per plugin, its fields `plugins.completion.<plugin>.<source>` (a completion source's switch), `plugins.refused.<plugin>` (its completions not used, and why) and `plugins.preference.<plugin>.<name>` (a password is a `secret`); `plugins.suggestionsInsert` (where what a row inserts is chosen: General), `plugins.library` |
 | `extensions` | `extensions.folders` (an item per folder), `extensions.installed`: an item per bundle (`bundle:<name>`) or script, its fields `extensions.on.<id>` (its switch; a bundle's commands' too, `<bundle>/<command>`) and a bundle's preferences `extensions.preference.<bundle>.<name>` (a password is a `secret`) |
 | `search` | `search.key` |
 | `notes` | `notes.destination`, `notes.folder`, `notes.notionToken`, `notes.notion` |
