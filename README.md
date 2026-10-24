@@ -781,9 +781,10 @@ off (`autocomplete` in the config).
   only takes it down, and means "not this one": it doesn't come back for that text in that app; the other keys do what
   they always do). ⌘Z right after Tab (the next key, within a few seconds) takes it back, and the suggestion counts as
   not taken.
-- **When:** after a pause that follows how you type: half as long again as your usual time between keys, at least 350 ms
-  with the model on this Mac (500 ms with a cloud provider), longer in an app where you keep waving suggestions away; so
-  nothing is asked while you type, only when you stop. Only at the end of a line that has a word to go on from (not one
+- **When:** after a pause that follows how you type: half as long again as your usual time between keys (once it has
+  seen a few), at least 350 ms with the model on this Mac (500 ms with a cloud provider) and at most 1.2 s; in an app
+  where you wave suggestions away one after another (Esc, or typing past them), a tenth longer for each, up to twice as
+  long after ten in a row. So nothing is asked while you type, only when you stop. Only at the end of a line that has a word to go on from (not one
   or two letters alone), never while pinyin or an @ command is being written (in Chinese it waits until the words are
   in; if they're the start of the suggestion, its rest comes back), never with text selected. Each key stops the request
   still running. Up to about 12 words or 25 Chinese characters, to the end of the sentence. The last 20 suggestions are
