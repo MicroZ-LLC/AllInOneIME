@@ -1,7 +1,7 @@
 import Foundation
 
 /// What a suggestion row inserts, as the user chooses it (spec Suggestions v1, decision 28): everywhere (Settings →
-/// Plugins, `Config.suggestionsInsert`) and per app (Settings → Apps, `AppProfile.suggestionsInsert`), an app's own over
+/// General, `Config.suggestionsInsert`) and per app (Settings → Apps, `AppProfile.suggestionsInsert`), an app's own over
 /// the one everywhere. Every suggestion source follows it, a plugin's and a custom command's; Code's packs never do. A
 /// class of app the source has no rows in (`null` in its `insert`) still has none: this is what a row puts in, not where
 /// rows show. Written in the config as its raw value; the source's own is none everywhere, `"source"` for an app whose
@@ -39,8 +39,13 @@ public enum SuggestionsInsert: String, CaseIterable, Codable, Sendable {
 
     /// What Settings says of it, with GitHub's issues for an example.
     public static var help: String {
-        tr("建议的行插入什么（插件的补全和建议类的自定义命令，不管代码输入）：比如 GitHub issue，只有 ID 是「#1234」，带标题是「#1234 Fix login」，带标题和链接是「#1234 Fix login https://github.com/…/issues/1234」；来源的默认是插件或命令自己定的。某个 App 可以在「按 App 设置」里单独选。",
-           "What a suggestion row inserts (plugins' completions and Suggestions commands, not Code): for a GitHub issue, ID only is \"#1234\", with title \"#1234 Fix login\", with title and link \"#1234 Fix login https://github.com/…/issues/1234\"; the source's default is what the plugin or the command says. An app can have its own in Apps.")
+        tr("建议的行插入什么（插件的补全和建议类的自定义命令，不管代码输入）：比如 GitHub issue，只有 ID 是「#1234」，带标题是「#1234 Fix login」，带标题和链接是「#1234 Fix login https://github.com/…/issues/1234」；来源的默认是插件或命令自己定的。某个 App 可以在设置 →「按 App 设置」里单独选。",
+           "What a suggestion row inserts (plugins' completions and Suggestions commands, not Code): for a GitHub issue, ID only is \"#1234\", with title \"#1234 Fix login\", with title and link \"#1234 Fix login https://github.com/…/issues/1234\"; the source's default is what the plugin or the command says. An app can have its own in Settings → Apps.")
+    }
+
+    /// Where it is chosen, for Settings → Plugins, where a plugin's completions are turned on.
+    public static var chosenIn: String {
+        tr("建议的行插入什么：设置 →「通用」", "What a row inserts: Settings → General")
     }
 }
 

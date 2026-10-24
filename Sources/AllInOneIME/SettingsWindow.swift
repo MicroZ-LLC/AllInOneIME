@@ -1461,8 +1461,10 @@ struct SettingsView: View {
                         .replacingOccurrences(of: "@", with: model.config.commandTrigger))
                     .font(.caption).foregroundStyle(.secondary)
             }
-            // What a suggestion row inserts, for every source (decision 28).
-            SuggestionsInsertPicker(model: model)
+            // What a suggestion row inserts is chosen in General (decision 28): said here while a plugin has completions.
+            if model.plugins.contains(where: { !$0.manifest.completions.isEmpty }) {
+                Text(SuggestionsInsert.chosenIn).font(.caption).foregroundStyle(.secondary)
+            }
             HStack {
                 Button(tr("打开插件文件夹", "Open Plugins Folder")) { model.openPluginsFolder() }
                 Button(tr("刷新", "Refresh")) { model.refreshPlugins() }
@@ -3122,7 +3124,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
     private var keywords: String {
         switch self {
         case .assistant: return "assistant config change settings describe sentence doctor check problems fix diagnose 助手 设置 改设置 描述 一句话 检查 问题 修复 诊断"
-        case .general: return "action key return 执行键 回车 type out typing speed typos mistakes forget 逐字上屏 打字速度 打错 忘掉 menu bar panel 菜单栏 面板 interface language 界面语言 中文 english recent questions history @question clear 最近的问题 提问 记录 历史 清除 continue conversation claude code chatgpt gemini copy 接着聊 对话 追问 复制 icloud drive sync macs learned words hidden words remove 同步 云盘 多台 学到的词 隐藏的词 移除 suggestions plugins completions picked rows 建议 插件 补全 选过的行"
+        case .general: return "action key return 执行键 回车 type out typing speed typos mistakes forget 逐字上屏 打字速度 打错 忘掉 menu bar panel 菜单栏 面板 interface language 界面语言 中文 english recent questions history @question clear 最近的问题 提问 记录 历史 清除 continue conversation claude code chatgpt gemini copy 接着聊 对话 追问 复制 icloud drive sync macs learned words hidden words remove 同步 云盘 多台 学到的词 隐藏的词 移除 suggestions plugins completions picked rows insert id title link 建议 插件 补全 选过的行 插入 标题 链接"
         case .input: return "input languages pinyin english chinese shift 输入语言 拼音 中文 英文 fuzzy 模糊音 zh ch sh candidate layout horizontal vertical 候选 排列 横排 竖排 english words dictionary learn bedrock personal import dict yaml 个人 自定义 导入 英文词 词典 词库 学习 code coding languages programming packs python java go typescript javascript c++ keywords snippets download library 代码 编程语言 语言包 关键字 代码片段 下载 语言库"
         case .writing: return "translate languages 翻译 语言 rewrite styles polish concise formal casual tactful jargon 改写 润色 简洁 正式 口语 委婉 黑话 jargon list 黑话库 improve"
         case .commands: return "custom commands 自定义 命令 prompt program terminal link 程序 终端 网页 raycast script commands scripts extensions bundles preferences 脚本 扩展 扩展包 偏好 文件夹 folder spotlight 聚焦 extension sources git repository link clone update pin ssh 扩展来源 仓库 链接 从链接添加 克隆 更新 固定"

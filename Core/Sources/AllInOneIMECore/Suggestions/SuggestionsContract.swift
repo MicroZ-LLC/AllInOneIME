@@ -333,7 +333,7 @@ public struct SuggestionsSettings: Equatable, Sendable {
     /// among them until it is, `Config.awaitsConfirmation`); one removed: its cached list is deleted. A command of
     /// another type, or one refused (`CustomCommand.suggestionSource`), is none.
     public var commands: [CustomCommand]
-    /// What a row inserts (decision 28): the choice everywhere (Settings → Plugins; nil: the source's own), and the apps'
+    /// What a row inserts (decision 28): the choice everywhere (Settings → General; nil: the source's own), and the apps'
     /// own (Settings → Apps), by app id (`insert(for:)`).
     public var insert: SuggestionsInsert?
     public var appInserts: [String: SuggestionsInsert]

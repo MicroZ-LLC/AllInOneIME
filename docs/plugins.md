@@ -207,7 +207,7 @@ plugin.json still lists them (the hosts approved come on standard input too):
   (`{arg} {title}`), or with a link too (`{arg} {title} {url}`). The example inserts `#1234 Fix login` in documents and
   mail, `#1234 Fix login https://github.com/…/issues/1234` in chat apps, and `#1234` in terminals; a template whose
   variables an item lacks is skipped for the next in its list.
-- The plugin's `insert` is the default: the user may choose otherwise, everywhere (Settings → Plugins → Insert) or per
+- The plugin's `insert` is the default: the user may choose otherwise, everywhere (Settings → General → Insert) or per
   app (Settings → Apps), and then every class of app gets the choice: ID only (`{arg}`), with title (`{arg} {title}`,
   else `{arg}`), or with title and link (`{arg} {title} {url}`, else `{arg} {title}`, else `{arg}`). So give an item
   the variables `title` (the title alone, without the number: the row's `title` isn't `{title}`) and `url` where it has

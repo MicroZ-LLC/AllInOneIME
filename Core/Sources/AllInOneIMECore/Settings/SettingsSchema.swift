@@ -246,6 +246,9 @@ struct SettingsSchema {
         add(toggle("rememberQuestions", tr("记住最近的问题", "Remember recent questions"), nil, config.rememberQuestions),
             to: &fields) { store.setRememberQuestions(Self.bool($0)) }
         add(suggestionsSwitch(), to: &fields) { store.config.suggestions = Self.bool($0) ? nil : false }
+        add(suggestionsInsert(), to: &fields) { value in
+            store.config.suggestionsInsert = value.string.flatMap(SuggestionsInsert.init(rawValue:)).flatMap { $0 == .source ? nil : $0 }
+        }
         add(toggle("menuBarIcon", tr("在菜单栏显示图标", "Show in Menu Bar"),
                    tr("笔记、提醒和后台的 Claude 任务，点一下就下拉出来", "Your notes, reminders and Claude tasks, a click away"),
                    config.menuBarIcon, platforms: [.mac]), to: &fields) { store.setMenuBarIcon(Self.bool($0)) }
@@ -554,7 +557,6 @@ struct SettingsSchema {
 
     mutating func plugins() -> [Field] {
         var fields: [Field] = []
-        let store = store
         let installed = PluginStore.load(from: library.directory).plugins
         var list = Field(id: "plugins.installed", kind: .items, label: tr("插件", "Plugins"))
         var items: [SettingsDocument.Item] = []
@@ -572,8 +574,9 @@ struct SettingsSchema {
                            "No plugins yet. Plugins are ready-made @ commands, like @stock for stock quotes; once installed they work like any command."))
         }
         add(list, to: &fields)
-        add(suggestionsInsert(), to: &fields) { value in
-            store.config.suggestionsInsert = value.string.flatMap(SuggestionsInsert.init(rawValue:)).flatMap { $0 == .source ? nil : $0 }
+        // What a row inserts is chosen in General: said here too while a plugin has completions.
+        if installed.contains(where: { !$0.manifest.completions.isEmpty }) {
+            add(Field(id: "plugins.suggestionsInsert", kind: .info, label: "", value: .string(SuggestionsInsert.chosenIn)), to: &fields)
         }
         var browse = Field(id: "plugins.library", kind: .items, label: tr("插件库", "Plugin Library"))
         browse.help = tr("插件库里的插件都经过审核和签名；打开时才会联网（\(library.host)）。",

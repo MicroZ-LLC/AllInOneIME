@@ -1,9 +1,10 @@
 import Foundation
 
-/// Suggestions in the settings document (spec 3): their switch, in General (plugins' completions and Code's rows alike);
-/// a plugin's completion sources (a switch each, saying what it does and sends where, why it is inactive, needs enabling
-/// again or shows nothing; the entries refused, with their reasons) and its preferences (texts, passwords in the secret
-/// store); the Code input, in Input (decision 22): its coding language, the packs installed and the library's.
+/// Suggestions in the settings document (spec 3): their switch and what a row inserts, in General (plugins' completions
+/// and Code's rows alike); a plugin's completion sources (a switch each, saying what it does and sends where, why it is
+/// inactive, needs enabling again or shows nothing; the entries refused, with their reasons) and its preferences (texts,
+/// passwords in the secret store); the Code input, in Input (decision 22): its coding language, the packs installed and
+/// the library's.
 extension SettingsSchema {
     // MARK: Suggestions' switch
 
@@ -19,8 +20,8 @@ extension SettingsSchema {
                config.suggestions != false)
     }
 
-    /// What a suggestion row inserts everywhere (`Config.suggestionsInsert`, decision 28), Plugins': the source's own
-    /// (none), ID only, with title, with title and link; for every source, plugins' and custom commands'.
+    /// What a suggestion row inserts everywhere (`Config.suggestionsInsert`, decision 28), General's, under the switch: the
+    /// source's own (none), ID only, with title, with title and link; for every source, plugins' and custom commands'.
     func suggestionsInsert() -> Field {
         let own = config.suggestionsInsert.flatMap { $0 == .source ? nil : $0 }
         return choice("suggestionsInsert", tr("插入", "Insert"), SuggestionsInsert.help, value: own.map { .string($0.rawValue) } ?? .null,

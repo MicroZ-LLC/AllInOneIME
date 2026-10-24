@@ -84,24 +84,6 @@ extension SettingsModel {
     }
 }
 
-/// What a suggestion row inserts everywhere (decision 28), in Settings → Plugins: the source's own (a plugin's `insert`, a
-/// custom command's Insert), ID only, with title, with title and link; for every source, plugins' and custom commands',
-/// never Code's. An app's own is in Apps.
-struct SuggestionsInsertPicker: View {
-    @ObservedObject var model: SettingsModel
-
-    var body: some View {
-        Picker(selection: Binding(get: { model.config.suggestionsInsert ?? .source }, set: { model.setSuggestionsInsert($0) })) {
-            ForEach(SuggestionsInsert.allCases, id: \.self) { insert in Text(insert.label).tag(insert) }
-        } label: {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(tr("插入", "Insert"))
-                Text(SuggestionsInsert.help).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            }
-        }
-    }
-}
-
 /// A plugin's suggestions and preferences, under its row in Settings → Plugins: each completion source with its switch
 /// (off until turned on here), what it does and, for one that queries, what it sends where; how it is doing (its items,
 /// when its list was loaded, its last error) and Refresh Now; one turned on before an update that changed its hosts,

@@ -249,7 +249,7 @@ public struct Config: Codable, Equatable, Sendable {
     /// Plugins' preferences that aren't passwords (those are in the keychain): plugin name → name → value. Never synced.
     public var pluginPreferences: [String: [String: String]] = [:]
     /// What a suggestion row inserts in every app without a choice of its own (`AppProfile.suggestionsInsert`; Settings →
-    /// Plugins, decision 28): ID only, with title, with title and link; nil: the source's own (a plugin's `insert`, a
+    /// General, decision 28): ID only, with title, with title and link; nil: the source's own (a plugin's `insert`, a
     /// custom command's Insert). Synced as the other settings are: what goes in is the same on every Mac.
     public var suggestionsInsert: SuggestionsInsert?
 

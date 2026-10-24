@@ -857,13 +857,13 @@ They take the place of [autocomplete](#autocomplete-beta-new)'s gray text while 
   or on; Settings → Apps per app. With `#` as the magic key, a source after `#` can't work (Settings says so).
 - **What a row inserts:** what its source says (a plugin's `insert`, per class of app: `@github` puts in `#1234 Fix
   login` in documents and the link too in chat apps; a custom command's Insert), unless you choose otherwise in Settings
-  → Plugins → **Insert**, for every source: **ID only** (`#1234`), **With title** (`#1234 Fix login`) or **With title
-  and link** (`#1234 Fix login https://github.com/…/issues/1234`), the same in every app, terminals too; an item without
-  a title or a link goes in with what it has. An app can have its own in Settings → Apps (or the input menu's This App),
-  over the one everywhere: links in Slack, the number alone in Terminal, titles in Mail. Code's rows never change with
-  it, and only what you haven't typed goes in, as always. In the config: `suggestionsInsert` (`"id"`, `"title"`,
-  `"titleAndLink"`; absent: the source's), and `suggestionsInsert` in an app's profile (`"source"` too); both sync with
-  your settings, unlike the Suggestions switches.
+  → General → **Insert**, under the Suggestions switch, for every source: **ID only** (`#1234`), **With title** (`#1234
+  Fix login`) or **With title and link** (`#1234 Fix login https://github.com/…/issues/1234`), the same in every app,
+  terminals too; an item without a title or a link goes in with what it has. An app can have its own in Settings → Apps
+  (or the input menu's This App), over the one everywhere: links in Slack, the number alone in Terminal, titles in Mail.
+  Code's rows never change with it, and only what you haven't typed goes in, as always. In the config:
+  `suggestionsInsert` (`"id"`, `"title"`, `"titleAndLink"`; absent: the source's), and `suggestionsInsert` in an app's
+  profile (`"source"` too); both sync with your settings, unlike the Suggestions switches.
 - **Code:** an input, after your input languages and apart from them. Add it in Settings → **Input** with + (under
   its own heading, Code) and pick its coding language: Python, Java, Go, TypeScript, JavaScript, C or C++. A language
   whose pack isn't installed downloads it first, from the language library, checked against its signed list, as an input

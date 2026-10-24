@@ -5,7 +5,7 @@ import AllInOneIMETestSupport
 
 /// What a suggestion row inserts is the user's choice (spec Suggestions v1, decision 28): the source's own templates (a
 /// plugin's `insert`, a custom command's Insert), ID only, with title, with title and link; everywhere (Settings →
-/// Plugins, `Config.suggestionsInsert`) and per app (Settings → Apps, `AppProfile.suggestionsInsert`), an app's own over
+/// General, `Config.suggestionsInsert`) and per app (Settings → Apps, `AppProfile.suggestionsInsert`), an app's own over
 /// the one everywhere. Every suggestion source follows it, plugins' and custom commands', never Code's packs; only what
 /// wasn't typed goes in. Rows are put in by a click here, which inserts the row in every class of app whatever its keys
 /// do. The rig is the acceptance tests' (Acceptance/SuggestionsAcceptanceTests.swift).
@@ -351,9 +351,10 @@ struct SuggestionsInsertChoiceTests {
 
     // MARK: - The settings document
 
-    /// Windows' Settings (and the Mac's document): the choice everywhere in Plugins, its four values and its help with
-    /// GitHub's example, set into the config (the source's own written as none); an app's own in its item in Apps, "Same
-    /// as everywhere" naming the choice everywhere, the source's own among its values, and in its summary.
+    /// Windows' Settings (and the Mac's document): the choice everywhere in General under the Suggestions switch (not in
+    /// Plugins), its four values and its help with GitHub's example, set into the config (the source's own written as
+    /// none); an app's own in its item in Apps, "Same as everywhere" naming the choice everywhere, the source's own among
+    /// its values, and in its summary.
     @Test(arguments: [SettingsPlatform.windows, .mac])
     func theSettingsDocumentHasBothFields(_ platform: SettingsPlatform) async throws {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("insert-settings-\(UUID().uuidString)", isDirectory: true)
@@ -365,8 +366,11 @@ struct SuggestionsInsertChoiceTests {
                                       library: PluginLibrary(directory: folder.appendingPathComponent("plugins", isDirectory: true)),
                                       secrets: .inMemory())
         try await withInterfaceLanguage("en") {
-            let plugins = service.document().sections.first { $0.id == "plugins" }?.fields.map(\.id) ?? []
-            #expect(plugins.contains("suggestionsInsert"), "\(plugins)")
+            func section(_ id: String) -> [String] { service.document().sections.first { $0.id == id }?.fields.map(\.id) ?? [] }
+            let general = section("general")
+            #expect(general.firstIndex(of: "suggestions").flatMap { general.dropFirst($0 + 1).first } == "suggestionsInsert",
+                    "\(general)")
+            #expect(!section("plugins").contains("suggestionsInsert"), "\(section("plugins"))")
             let everywhere = try #require(service.document().field("suggestionsInsert"))
             #expect(everywhere.kind == .choice && everywhere.label == "Insert" && everywhere.value == nil, "\(everywhere)")
             #expect(everywhere.choices?.map(\.value) == [.null, .string("id"), .string("title"), .string("titleAndLink")])
