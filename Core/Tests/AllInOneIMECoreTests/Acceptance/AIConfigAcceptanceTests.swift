@@ -427,7 +427,7 @@ struct AIConfigAcceptanceTests {
         let changes: [(String, Any)] = [
             ("outputLanguages", [k]), ("inputLanguages", [k]), ("defaultInput", k), ("rewriteStyles", [k]),
             ("awsProfile", k), ("region", k), ("anthropic.model", k), ("openai.baseURL", "https://\(k)@example.com"),
-            ("appProfiles.\(k).typeOut", true), ("appProfiles.WeChat.rewriteStyles", [k]),
+            ("appProfiles.\(k).noAI", true), ("appProfiles.WeChat.suggestionsInsert", k),
         ]
         for chinese in [false, true] {
             let env = AIC.env(chinese: chinese)
@@ -522,14 +522,14 @@ struct AIConfigAcceptanceTests {
         #expect(config.profile(for: "com.tencent.xinWeChat")?.noAI == true)
 
         for name in ["Frobnicator", "Notes"] {
-            let proposal = try AIConfig.parse(AIC.answer([("appProfiles.\(name).typeOut", true), ("typeOut", true)]))
+            let proposal = try AIConfig.parse(AIC.answer([("appProfiles.\(name).noAI", true), ("typeOut", true)]))
             let preview = try AIConfig.preview(proposal, config: AIC.base, environment: AIC.env()).get()
             let row = try #require(preview.rows.first { $0.key.hasPrefix("appProfiles.") })
             #expect(row.isRefused, "\(name)")
             #expect(preview.edits == [.flag(.typeOut, true)])
         }
-        // An app's input language must be one of the input languages, as in Settings → Apps.
-        #expect(try AIC.preview([("appProfiles.WeChat.inputLanguage", "fr")]) == .failure(.notAllowed))
+        // An app's Insert is one Settings offers (Settings v2 §4): "ID only" can't be chosen anew.
+        #expect(try AIC.preview([("appProfiles.WeChat.suggestionsInsert", "id")]) == .failure(.notAllowed))
     }
 
 
