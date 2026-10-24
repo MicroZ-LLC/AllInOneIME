@@ -1122,8 +1122,8 @@ struct SettingsView: View {
     }
 
     /// The input languages as chips, in their order (the first is the default: new text fields start in it; with two,
-    /// Shift switches), Code after them with its coding language; a click on a chip opens its options (`inputOptions`), ⊗
-    /// removes it, dragging reorders the languages, and "Add…" adds one. The packs on their way under them.
+    /// Shift switches), Code after them with its coding language; ⊗ removes one, dragging reorders the languages, and
+    /// "Add…" adds one. The packs on their way under them; each input's options follow in sections of their own.
     @ViewBuilder private var inputSection: some View {
         Section {
             VStack(alignment: .leading, spacing: 8) {
@@ -1140,9 +1140,6 @@ struct SettingsView: View {
                                   firstNote: tr("默认", "default"),
                                   keepsOne: !(model.config.inputLanguages.count == 1 && model.config.inputLanguages.first != .english),
                                   reorder: { model.config.setOrder($0) }, remove: removeInputLanguage,
-                                  selected: (openChip ?? chipShown).flatMap(\.language), select: { openChip = .language($0) },
-                                  options: { language in AnyView(inputPopover(.language(language))) },
-                                  open: Binding(get: { openChip.flatMap(\.language) }, set: { openChip = $0.map(Input.language) }),
                                   move: { language, step in model.store.moveInputLanguage(language, by: step) })
                     if let coding = model.config.codingLanguage { codeChip(coding) }
                     addInputMenu
@@ -1153,6 +1150,8 @@ struct SettingsView: View {
             CodeInputRow(model: model)
             if Features.voiceInput { voiceRows }  // off for now: the setting kept as it is
 
+        } header: {
+            SectionTitle(tr("输入语言", "Input Languages"), icon: CommandIcons.input)
         }
         .disabled(!model.canSave)
         // Pointed at something in a chip (the search found fuzzy pinyin): that chip opened.
@@ -1196,8 +1195,7 @@ struct SettingsView: View {
         let open = openChip == .code
         let name = tr("代码", "Code") + " · " + CodingLanguagePack.title(of: coding, installed: codingPacks.installed)
         return HStack(spacing: 2) {
-            Button { openChip = .code } label: { Text(name).foregroundStyle(open ? .primary : .secondary) }
-                .buttonStyle(.plain)
+            Text(name).foregroundStyle(open ? .primary : .secondary)
             Button { model.config.codingLanguage = nil } label: { Image(systemName: "xmark.circle.fill") }
                 .buttonStyle(.borderless)
                 .help(tr("移除\(name)", "Remove \(name)")).accessibilityLabel(tr("移除\(name)", "Remove \(name)"))
@@ -1205,9 +1203,6 @@ struct SettingsView: View {
         .padding(.horizontal, 6).padding(.vertical, 2)
         .background(open ? Color.accentColor.opacity(0.2) : Color.secondary.opacity(0.1), in: Capsule())
         .overlay(Capsule().strokeBorder(open ? Color.accentColor.opacity(0.7) : .clear, lineWidth: 1))
-        .popover(isPresented: Binding(get: { openChip == .code }, set: { if !$0 { openChip = nil } }), arrowEdge: .bottom) {
-            inputPopover(.code)
-        }
     }
 
     /// "Add…": the languages not added (one whose pack isn't here says it downloads first), then Code with each
@@ -1245,15 +1240,6 @@ struct SettingsView: View {
         .disabled(full && codeAdded)
         .help(full ? tr("最多 \(Config.maxInputLanguages) 种输入语言", "Up to \(Config.maxInputLanguages) input languages")
                    : tr("添加输入语言", "Add an input language"))
-    }
-
-    /// An input's chip opened: its options in a popover of their own.
-    private func inputPopover(_ input: Input) -> some View {
-        Form { inputOptions(input) }
-            .formStyle(.grouped)
-            .frame(width: 520)
-            .frame(minHeight: 160, maxHeight: 560)
-            .fixedSize(horizontal: false, vertical: true)
     }
 
     /// What @translate writes in, and what @improve offers: the languages, in order (a line in each); the rewrite styles,
@@ -2239,7 +2225,8 @@ struct SettingsView: View {
                     switch page {
                     case .general:
                         inputSection
-                        if let chipShown, model.config.inputs.contains(chipShown) { inputOptions(chipShown) }
+                        // Each input's options right under the chips, each under its name (owner, 0.6.7: not in a popover).
+                        ForEach(model.config.inputs, id: \.self) { input in inputOptions(input) }
                         writingSection
                         autocompleteSection
                         SuggestionsSection(model: model)
