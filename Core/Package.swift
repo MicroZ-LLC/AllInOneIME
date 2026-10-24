@@ -112,8 +112,10 @@ let package = Package(
         // 2026-10.) A shell on Apple platforms that depends on the AllInOneIMEQuickJS product needs it before the core
         // the same way.
         .testTarget(name: "AllInOneIMECoreTests", dependencies: ["AllInOneIMEQuickJS", "AllInOneIMECore", "AllInOneIMETestSupport"],
-                    // Specs for the macOS shell's self-test, and the API Settings v2's acceptance tests were written against.
-                    exclude: ["Acceptance/ICloudSyncAppLevelCases.md", "Acceptance/SettingsV2-API.md"],
+                    // Specs for the macOS shell's self-test, and the API Settings v2's and extension completions' acceptance
+                    // tests were written against.
+                    exclude: ["Acceptance/ICloudSyncAppLevelCases.md", "Acceptance/SettingsV2-API.md",
+                              "Acceptance/ExtensionCompletions-API.md"],
                     resources: [.copy("Fixtures")]),
         // The wire protocol's goldens (WireGoldens/*.jsonl), replayed against the server with a scripted provider.
         .testTarget(name: "AllInOneIMEWireTests", dependencies: ["AllInOneIMEWire", "AllInOneIMECore"],
@@ -147,7 +149,8 @@ if let tests = package.targets.first(where: { $0.name == "AllInOneIMECoreTests" 
     // lstat, opendir): those that use them are left out, and with them the ones that run bash scripts or use
     // ExtensionComposerTests' helpers. (ScriptFolder itself builds there: the tests that only load what it writes run.)
     tests.exclude += ["ExtensionTests.swift", "ExtensionRobustnessTests.swift", "ExtensionComposerTests.swift",
-                      "ClickPickTests.swift", "ExtensionExamplesTests.swift", "Acceptance/QuestionHistoryAcceptanceTests.swift"]
+                      "ClickPickTests.swift", "ExtensionExamplesTests.swift", "Acceptance/QuestionHistoryAcceptanceTests.swift",
+                      "Acceptance/ExtensionCompletionsAcceptanceTests.swift"]
     #endif
 }
 #endif
