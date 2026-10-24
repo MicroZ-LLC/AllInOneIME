@@ -949,7 +949,7 @@ final class AllInOneIMEInputController: IMKInputController {
         panelAnchor.enter(PanelAnchor.Field(client: ObjectIdentifier(self), app: client.bundleIdentifier(), session: fieldSession))
         // The window's frame once in the field (a rect on its left edge near its top is the page's corner, `PanelAnchor`).
         if clientOverride == nil, !session.secureInputActive(), let app = client.bundleIdentifier() {
-            panelAnchor.learnWindow { FocusedField.windowFrame(in: app) }
+            panelAnchor.learnWindow { FocusedField.listedWindowFrame(in: app).map { ($0, false) } ?? FocusedField.windowFrame(in: app) }
         }
         var told = toldAnchor(client)
         let screens = NSScreen.screens.map(\.frame)
@@ -959,9 +959,11 @@ final class AllInOneIMEInputController: IMKInputController {
             told = marked  // the line's rect not one to trust, the marked text's own is
         }
         var asked = "Accessibility not asked"
+        // Read before `place`, which has `panelAnchor` borrowed while it asks Accessibility (reading it in there crashed).
+        let needsPage = panelAnchor.page == nil
         var placement = panelAnchor.place(told, screens: screens) {
             let start = ProcessInfo.processInfo.systemUptime
-            let read = caretByAccessibility(client)
+            let read = caretByAccessibility(client, page: needsPage)
             asked = String(format: "Accessibility %.1f ms", (ProcessInfo.processInfo.systemUptime - start) * 1000)
                 + (read?.timedOut == true ? ", timed out" : read?.caret == nil ? ", no caret" : "")
             return read
@@ -973,6 +975,10 @@ final class AllInOneIMEInputController: IMKInputController {
             Self.lastAnchorByApp[app] = placement.rect
         } else if placement.source == .told, let previous = Self.lastAnchorByApp[app] {
             placement = PanelAnchor.Placement(rect: previous, source: .last)
+        } else if placement.source == .told, let pointer = Self.pointerAnchor(in: panelAnchor.window, screens: screens) {
+            // Nothing known of the caret at all (Google Docs telling only its page's corner): by the pointer, where the
+            // field was clicked last, as a line under it; a pointer outside the window or over its toolbar isn't.
+            placement = PanelAnchor.Placement(rect: pointer, source: .last)
         }
         guard placement.reasks else {
             anchorSaid = nil
@@ -992,7 +998,8 @@ final class AllInOneIMEInputController: IMKInputController {
             log.notice("""
                 panel anchor not trusted in \(client.bundleIdentifier() ?? "", privacy: .private): told \(Self.describe(told), privacy: .public), \
                 marked \(Self.describe(Self.markedRect(client)), privacy: .public), window \(Self.describe(self.panelAnchor.window), privacy: .public); \
-                \(placement.source.rawValue, privacy: .public) used, \(Self.describe(placement.rect), privacy: .public) (\(asked, privacy: .public))
+                \(placement.source.rawValue, privacy: .public) used, \(Self.describe(placement.rect), privacy: .public) (\(asked, privacy: .public)), \
+                pointer \(Self.describe(NSRect(origin: NSEvent.mouseLocation, size: .zero)), privacy: .public)
                 """)
         }
         reaskAnchor(client)
@@ -1012,6 +1019,18 @@ final class AllInOneIMEInputController: IMKInputController {
         return lineRect
     }
 
+    /// A line's rect at the pointer (`anchor`'s last resort), where it is inside `window` below its toolbar band and isn't
+    /// itself a rect not to trust. Nil: no window known, the pointer outside it.
+    @MainActor
+    private static func pointerAnchor(in window: CGRect?, screens: [CGRect]) -> NSRect? {
+        guard let window else { return nil }
+        let pointer = NSEvent.mouseLocation
+        let rect = NSRect(x: pointer.x, y: pointer.y - 9, width: 1, height: 18)
+        guard window.insetBy(dx: 8, dy: 8).contains(pointer), pointer.y < window.maxY - 120,
+              PanelAnchor.trusted(rect, screens: screens, window: window) else { return nil }
+        return rect
+    }
+
     /// The rect `client` tells for its marked text's first character: where its line's rect isn't one to trust, the field
     /// may still tell this one right (and the log says it, to see what else Chromium tells).
     @MainActor
@@ -1026,9 +1045,9 @@ final class AllInOneIMEInputController: IMKInputController {
     /// never during secure input or in a password field, never for the self-test's fields (it would read the user's own
     /// frontmost app).
     @MainActor
-    private func caretByAccessibility(_ client: IMKTextInput) -> PanelAnchor.Accessibility? {
+    private func caretByAccessibility(_ client: IMKTextInput, page: Bool) -> PanelAnchor.Accessibility? {
         guard clientOverride == nil, !session.secureInputActive(), let app = client.bundleIdentifier() else { return nil }
-        return FocusedField.caret(in: app, page: panelAnchor.page == nil)
+        return FocusedField.caret(in: app, page: page)
     }
 
     /// The field asked again for the panel's rect (`PanelAnchor.reaskDelays`) after it told none to trust: the panel

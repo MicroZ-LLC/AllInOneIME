@@ -42,6 +42,22 @@ enum FocusedField {
 
     // MARK: The caret, for a panel
 
+    /// The frame of `app`'s frontmost window as the window server lists it (no Accessibility: Chrome's can take longer
+    /// than a key may wait), in AppKit's coordinates: its first ordinary window (layer 0) from the front. Nil: `app` not
+    /// the one in front, no window listed.
+    static func listedWindowFrame(in app: String) -> CGRect? {
+        guard let pid = PageContextReader.runningPID(app),
+              let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
+                as? [[String: Any]] else { return nil }
+        for window in windows where (window[kCGWindowOwnerPID as String] as? pid_t) == pid
+            && (window[kCGWindowLayer as String] as? Int) == 0 {
+            guard let bounds = window[kCGWindowBounds as String] as? NSDictionary,
+                  let rect = CGRect(dictionaryRepresentation: bounds), rect.width > 100, rect.height > 100 else { continue }
+            return PanelAnchor.appKit(rect, top: NSScreen.screens.first?.frame.maxY ?? 0)
+        }
+        return nil
+    }
+
     /// The frame of `app`'s focused window, in AppKit's coordinates (`PanelAnchor.Memory.learnWindow`): two calls, each
     /// waiting `timeout` at most. Nil: Accessibility not allowed (never asked for here), `app` not running, no window told.
     static func windowFrame(in app: String, timeout: Float = 0.05) -> (frame: CGRect?, timedOut: Bool)? {
