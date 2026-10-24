@@ -855,7 +855,8 @@ They take the place of [autocomplete](#autocomplete-beta-new)'s gray text while 
 - **Turning them on:** **Suggestions** in Settings → General, on unless you turn it off, covers plugins' and Code's
   rows. Each plugin's completions in Settings → Plugins (a switch each: last refresh, items, last error, Refresh
   now; its preferences, passwords in the keychain). A plugin update that changes the hosts it reaches, its
-  lookup or its script turns them off until you turn them on again. **Suggestions** in the input menu turns them all off
+  prefix, whether it looks up what you type and from which character on, how it compares (`compare`) or its script turns
+  them off until you turn them on again (Settings says so under it). **Suggestions** in the input menu turns them all off
   or on; Settings → Apps per app. With `#` as the magic key, a source after `#` can't work (Settings says so).
 - **What a row inserts:** what its source says (a plugin's `insert`, per class of app: `@github` puts in `#1234 Fix
   login` in documents and the link too in chat apps; a custom command's Insert), unless you choose otherwise in Settings
