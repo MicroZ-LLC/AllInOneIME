@@ -182,7 +182,7 @@ It declares its sources in `completions` (optional; `api` 1 stays valid) and its
 | `refresh` | `1h` | `5m` … `7d`: how often the list is loaded again while the source is used (not after a week unused) |
 | `query` | `false` | the script exports `query(text, ctx)`, a live lookup; only with a `prefix` (without one, every number typed anywhere would be sent) |
 | `queryMinChars` | 3 | characters after the prefix before `query` is first called (at least 1) |
-| `insert` | `{"default": "{arg}"}` | what a row inserts per app class: `default`, `chat` (chat apps and browsers), `terminal` (terminals and code editors: anything but `null` is `{match}` there); a template or a list tried in turn (the first whose variables all exist), `null` for no rows in that class |
+| `insert` | `{"default": "{arg}"}` | what a row inserts per app class: `default`, `chat` (chat apps and browsers), `terminal` (terminals and code editors: anything but `null` is `{match}` there); a template or a list tried in turn (the first whose variables all exist), `null` for no rows in that class; the default the user may change (below) |
 
 An entry that breaks these rules (or any entry of a `prompt` or `link` plugin, or of one with `timeoutSeconds` over 20) is
 refused on its own, its reason shown under the plugin in Settings; the plugin and its command still load. A preference is
@@ -207,6 +207,11 @@ plugin.json still lists them (the hosts approved come on standard input too):
   (`{arg} {title}`), or with a link too (`{arg} {title} {url}`). The example inserts `#1234 Fix login` in documents and
   mail, `#1234 Fix login https://github.com/…/issues/1234` in chat apps, and `#1234` in terminals; a template whose
   variables an item lacks is skipped for the next in its list.
+- The plugin's `insert` is the default: the user may choose otherwise, everywhere (Settings → Plugins → Insert) or per
+  app (Settings → Apps), and then every class of app gets the choice: ID only (`{arg}`), with title (`{arg} {title}`,
+  else `{arg}`), or with title and link (`{arg} {title} {url}`, else `{arg} {title}`, else `{arg}`). So give an item
+  the variables `title` (the title alone, without the number: the row's `title` isn't `{title}`) and `url` where it has
+  them. A class whose `insert` is `null` still has no rows, whatever the user chose.
 - `ctx` is `{ source, preferences, language }` (`"zh"` or `"en"`): nothing about the app, the field or the text around
   the caret.
 - An output that isn't an object with an `items` array, too large, a throw or a timeout keeps the old list; failures

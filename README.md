@@ -501,9 +501,11 @@ Settings → Apps gives an app settings of its own, each optional; what an app d
 | No AI in this app | `@improve`, `@translate`, `@question`, `@agent` and your prompt commands send nothing there and say so; typing and the other commands work | `noAI` |
 | Always Translate as You Type | WeChat always in Translate as You Type (see [Translate as You Type](#translate-as-you-type)) | `translateAlways` |
 | Autocomplete: always, never, or as everywhere | always in Mail (even with the switch off, and it never stops there for want of use), never in a chat app; code editors are off unless set to always; this Mac's own, never synced (see [Autocomplete](#autocomplete-beta-new)) | `autocomplete` |
+| What a suggestion row inserts: the source's default, ID only, with title, with title and link, or as everywhere | the link in Slack, the number alone in Terminal (see [Suggestions and Code](#suggestions-and-code-new)) | `suggestionsInsert` |
 
 "Add App…" lists the apps you typed in lately, or picks one in /Applications. The input menu's "This App: <name>" has
-quick switches for the app you're typing in (No AI, Type Results Out, Autocomplete, the language it starts in). In the config they're
+quick switches for the app you're typing in (No AI, Type Results Out, Autocomplete, the language it starts in, and with a
+suggestion source what a row inserts). In the config they're
 under `appProfiles`, by bundle ID:
 `"appProfiles": {"com.tinyspeck.slackmacgap": {"inputLanguage": "en", "rewriteStyles": ["casual"], "noAI": false}}`.
 Bundle IDs match ignoring case (`com.apple.Mail` is Mail's `com.apple.mail`). `@reportissue` counts the apps that set
@@ -853,6 +855,15 @@ They take the place of [autocomplete](#autocomplete-beta-new)'s gray text while 
   now; its preferences, passwords in the keychain). A plugin update that changes the hosts it reaches, its
   lookup or its script turns them off until you turn them on again. **Suggestions** in the input menu turns them all off
   or on; Settings → Apps per app. With `#` as the magic key, a source after `#` can't work (Settings says so).
+- **What a row inserts:** what its source says (a plugin's `insert`, per class of app: `@github` puts in `#1234 Fix
+  login` in documents and the link too in chat apps; a custom command's Insert), unless you choose otherwise in Settings
+  → Plugins → **Insert**, for every source: **ID only** (`#1234`), **With title** (`#1234 Fix login`) or **With title
+  and link** (`#1234 Fix login https://github.com/…/issues/1234`), the same in every app, terminals too; an item without
+  a title or a link goes in with what it has. An app can have its own in Settings → Apps (or the input menu's This App),
+  over the one everywhere: links in Slack, the number alone in Terminal, titles in Mail. Code's rows never change with
+  it, and only what you haven't typed goes in, as always. In the config: `suggestionsInsert` (`"id"`, `"title"`,
+  `"titleAndLink"`; absent: the source's), and `suggestionsInsert` in an app's profile (`"source"` too); both sync with
+  your settings, unlike the Suggestions switches.
 - **Code:** an input, after your input languages and apart from them. Add it in Settings → **Input** with + (under
   its own heading, Code) and pick its coding language: Python, Java, Go, TypeScript, JavaScript, C or C++. A language
   whose pack isn't installed downloads it first, from the language library, checked against its signed list, as an input
