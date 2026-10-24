@@ -442,7 +442,7 @@ with the date of the rate (rates by ExchangeRate-API). `@calculator` is a calcul
 "Tue, Oct 27 · in 10 days". Writing one: [docs/plugins.md](docs/plugins.md).
 
 Plugins can also complete what you type (new): `@github`'s issues come up as rows as soon as you type `#12`, and Tab
-inserts `#1234`. Each plugin's completions are off until you turn them on under it in Settings → Plugins, which says
+inserts `#1234 Fix login`. Each plugin's completions are off until you turn them on under it in Settings → Plugins, which says
 what they do and, for one that looks things up as you type, where what you type after `#` goes. See
 [Suggestions and Code](#suggestions-and-code-new).
 
@@ -846,10 +846,10 @@ They take the place of [autocomplete](#autocomplete-beta-new)'s gray text while 
   footer names the source, and the list's age when it's older than 10 minutes. It works in English and in pinyin: `#`
   typed while pinyin is composed puts the words in and starts the token; a prefix of letters and a dash (`PROJ-`) typed
   in pinyin goes in as typed once its dash is typed (its letters aren't made Chinese), and the digits after it are
-  typed. What you typed stays as typed; only the rest goes in (`#12` and the row `#1234` add `34`).
+  typed. What you typed stays as typed; only the rest goes in (`#12` and the row `#1234 Fix login` add `34 Fix login`).
 - **Keys:** in most apps Tab inserts the highlighted row (the first), ↓ ↑ move the highlight and ⏎ then inserts it, Esc
   hides the rows until what you type changes. In chat apps and browsers (Slack, WeChat, Teams, Chrome, Edge…) only Tab
-  is taken, with the plugin's chat form (`#1234 https://github.com/…`): ⏎ always sends. In terminals and code editors
+  is taken, with the plugin's chat form (`#1234 Fix login https://github.com/…`): ⏎ always sends. In terminals and code editors
   (Xcode, VS Code, JetBrains…) Tab completes only what the rows share. Digits never pick a row: they go on typing (`#7`
   then `1` is `#71`). No rows in launchers, remote desktops, virtual machines and SSH clients.
 - **Turning them on:** **Suggestions** in Settings → General, on unless you turn it off, covers plugins', Suggestions

@@ -1,7 +1,7 @@
 # Plugins
 
 Plugins kept with the app's source. They are **not installed with the app**: the plugin library
-(Settings → Plugins, coming in 0.5.0) publishes them, signed, from its own repository.
+(Settings → Plugins → Browse Library…) publishes them, signed, from its own repository.
 They're under the MIT license there and here, like the rest of [AllInOneIME-plugins](https://github.com/MicroZ-LLC/AllInOneIME-plugins).
 
 | Plugin | Type | What it does |
@@ -65,8 +65,10 @@ To remove it, use Remove in Settings → Plugins or delete the folder.
 
 GitHub issues and pull requests as suggestions (completions, 0.6.7): after `#`, the 100 most recently updated of each
 repository in its `repos` preference (owner/repo, comma-separated; `MicroZ-LLC/AllInOneIME` by default), refreshed every
-15 minutes while it's used, and an issue looked up by its number from 2 digits on. Tab inserts `#1234`; in chat apps
-`#1234 https://github.com/…/issues/1234`; in terminals and code editors `#1234`. A token (optional, its `token`
+15 minutes while it's used, and an issue looked up by its number from 2 digits on. Tab inserts the number and its title, `#1234 Fix login`;
+in chat apps the address too, `#1234 Fix login https://github.com/…/issues/1234`; in terminals and code editors
+`#1234` (Tab completes what the rows share there). Only what wasn't typed goes in. Settings → General → Insert (or an
+app's own, in Settings → Apps) can choose ID only, with title, or with title and link instead. A token (optional, its `token`
 preference, kept in the keychain) reads private repositories. Only `api.github.com` is reached, and only once its
 completions are turned on in Settings → Plugins (the lookup sends what follows `#`). `@github <words>` lists the
 matching issues and PRs with their addresses.
