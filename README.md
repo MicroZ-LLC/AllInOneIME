@@ -501,7 +501,8 @@ Settings → Apps gives an app settings of its own, each optional; what an app d
 | No AI in this app | `@improve`, `@translate`, `@question`, `@agent` and your prompt commands send nothing there and say so; typing and the other commands work | `noAI` |
 | Always Translate as You Type | WeChat always in Translate as You Type (see [Translate as You Type](#translate-as-you-type)) | `translateAlways` |
 | Autocomplete: always, never, or as everywhere | always in Mail (even with the switch off, and it never stops there for want of use), never in a chat app; code editors are off unless set to always; this Mac's own, never synced (see [Autocomplete](#autocomplete-beta-new)) | `autocomplete` |
-| What a suggestion row inserts: the source's default, ID only, with title, with title and link, or as everywhere | the link in Slack, the number alone in Terminal (see [Suggestions and Code](#suggestions-and-code-new)) | `suggestionsInsert` |
+| Suggestions: off, or as everywhere | none in Notes; this Mac's own, never synced (see [Suggestions and Code](#suggestions-and-code-new)) | `suggestions` (`false`) |
+| What a suggestion row inserts: the source's default, ID only, with title, with title and link, or as everywhere | the link in Slack, the number alone in Terminal; synced with the settings | `suggestionsInsert` |
 
 "Add App…" lists the apps you typed in lately, or picks one in /Applications. The input menu's "This App: <name>" has
 quick switches for the app you're typing in (No AI, Type Results Out, Autocomplete, the language it starts in, and with a
@@ -629,8 +630,10 @@ the input method starts, every 30 minutes (after a pause in typing) and on Sync 
   sync them: the row says so.
 - Never synced: the AllInOneIME Cloud sign-in, AWS credentials (in `~/.aws`), extension sources (they run code: each Mac decides),
   extension folders and plugins (paths on each Mac), the apps without typos and the recent apps, window state, Autocomplete
-  (its switch and each app's choice: each Mac's own), and the sync switches
-  themselves (each Mac's own).
+  (its switch and each app's choice: each Mac's own), Suggestions' switches (General's and each app's), the plugins'
+  completions turned on and their preferences (`completionSources`, `pluginPreferences`), the custom commands from
+  another Mac still awaiting Allow (`unconfirmedCommands`), and the sync switches themselves (each Mac's own). What a
+  suggestion row inserts and Code's language do sync, with the settings.
 - Turning it off stops syncing and leaves everything as it is, on this Mac and in iCloud; **Remove from iCloud…** (asked
   first) moves the folder to the Trash and turns sync off on this Mac.
 - Settings → Assistant ("sync through iCloud") turns it on or off; hidden words and recent questions are only chosen in
@@ -1054,7 +1057,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 | Key | What it does | Default |
 |---|---|---|
 | `inputLanguages` | Input languages, one to five, the first is the default: `"en"` English, `"zh"` Chinese (pinyin), `"fr"` French, `"ko"` Korean, `"hi"` Hindi, e.g. `["en", "zh"]`, `["fr", "en", "ko"]`. Chinese, Korean and Hindi work once their pack is installed | `["en"]` (a new install) |
-| `codingLanguage` | The Code input and its coding language (`"python"`, `"java"`, `"go"`, `"typescript"`, `"javascript"`, `"c"`, `"cpp"`), after the input languages; it works once its pack is installed. Absent: no Code | absent |
+| `codingLanguage` | The Code input and its coding language (`"python"`, `"java"`, `"go"`, `"typescript"`, `"javascript"`, `"c"`, `"cpp"`), after the input languages; it works once its pack is installed; syncs with the settings (each Mac downloads its pack). Absent: no Code | absent |
 | `keyboardLayouts` | The keyboard layout an input language types with, by its code (only French so far): `{"fr": "com.apple.keylayout.French-PC"}` | French: `com.apple.keylayout.French` (AZERTY) |
 | `outputLanguages` | What `@translate` translates into, in order: `["es", "fr", "de"]`, … | `["en"]` |
 | `improveTranslates` | `@improve` also translates (as `@translate @improve`) | `false` |
@@ -1078,8 +1081,13 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 | `rememberQuestions` | Keep your last 5 `@question`s and their answers on this Mac, listed under `@question` (see Recent questions) | `true` |
 | `questionRounds` | Rounds of an `@question` conversation in the panel before it suggests continuing elsewhere, 2–10 | `5` |
 | `questionContinueIn` | Where an `@question` conversation can continue, in order, the first the default: `agent` (whatever `@agent` hands to, in place of that agent's own entry), `claudeCode`, `geminiCLI`, `kiroCLI`, `customAgent` (the agents, each only if installed), `claudeWeb`, `chatgpt`, `gemini`, `copy` | `agent`, the other agents installed, Claude, ChatGPT, copy |
-| `appProfiles` | Settings of one app, by bundle ID, each optional: `inputLanguage` (a language's code, or `"code"` for Code), `rewriteStyles`, `typeOut`, `noAI`, `translateAlways`, `autocomplete` (this Mac's own: not synced) (see Per-app settings) | `{}` |
+| `appProfiles` | Settings of one app, by bundle ID, each optional: `inputLanguage` (a language's code, or `"code"` for Code), `rewriteStyles`, `typeOut`, `noAI`, `translateAlways`, `autocomplete` (this Mac's own: not synced), `suggestions` (`false`: no suggestion rows there; this Mac's own: not synced), `suggestionsInsert` (as below, or `"source"`; synced) (see Per-app settings) | `{}` |
 | `autocomplete` | Autocomplete: the rest of the sentence in gray after the caret, Tab puts it in; it asks your AI provider (see Autocomplete); never synced | `false` |
+| `suggestions` | Suggestions (Settings → General, the input menu): `false` turns off every suggestion row, plugins', Suggestions commands' and Code's; this Mac's own, never synced (see Suggestions and Code) | absent (on) |
+| `suggestionsInsert` | What a suggestion row inserts in every app without a choice of its own (Settings → General → Insert): `"id"`, `"title"` or `"titleAndLink"`; absent: what its source says; syncs with the settings | absent |
+| `completionSources` | The plugins' completion sources turned on in Settings → Plugins, each by `plugin` and `source` with what was approved: `hosts`, `query`, `scriptSHA256` (its script's) and `terms` (its `prefix`, `queryMinChars`, `compare`); `"lapsed": true` once an update changed one of them, off until turned on again. Written by Settings; this Mac's own, never synced | `[]` |
+| `pluginPreferences` | Plugins' preferences other than passwords, by plugin and name: `{"github": {"repos": "octo-org/octo-repo"}}`; never synced through iCloud Drive (a password preference is in the keychain, and goes through iCloud Keychain only with "API keys and passwords" on) | `{}` |
+| `unconfirmedCommands` | The `suggestions` custom commands that came from another Mac through iCloud and still await Allow on this one, each by its `name` and the `argv` it came with: none of them runs here. Allow (or editing or deleting it here) takes it off the list; its program changed on another Mac puts it back. Written by sync and Settings; this Mac's own, never synced | `[]` |
 | `notes` | Where `@note` saves (Settings → Plugins → Notes): `{"destination": "folder", "folder": "~/Vault/Inbox"}`, or `"notion"` with the page or database Test found; never synced through iCloud Drive (the token is in the keychain, and goes through iCloud Keychain only with "API keys and passwords" on) | `destination: "notes"` |
 | `redaction` | Hide sensitive information from the AI (see Privacy): `{"enabled": true, "phones": false, "customWords": ["Phoenix"]}`; each detector (`emails`, `phones`, `cards`, `keys`, `ips`) is on unless set to `false` | `enabled: false` |
 

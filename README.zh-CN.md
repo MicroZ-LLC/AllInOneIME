@@ -422,7 +422,8 @@ Raycast 的 mode 对应关系：`fullOutput` → `show`，`compact` 和 `silent`
 | 这个 App 里不用 AI | `@improve`、`@translate`、`@question`、`@agent` 和你的提示词命令在那里不发给 AI，并提示一下；打字和别的命令照常 | `noAI` |
 | 总是边打边译 | 微信里一直开着边打边译（见[边打边译](#边打边译)） | `translateAlways` |
 | 续写：总是、从不，或跟全局一样 | 邮件里总是续写（全局开关关着也续写，也不会因为没用上而停下），聊天 App 里不续写；代码编辑器默认不续写，设成总是才续写；只属于这台 Mac，不同步（见[续写](#续写beta新)） | `autocomplete` |
-| 建议的行插入什么：来源的默认、只有 ID、带标题、带标题和链接，或跟全局一样 | Slack 里带链接，终端里只要编号（见[建议和代码输入](#建议和代码输入新)） | `suggestionsInsert` |
+| 建议：关，或跟全局一样 | 备忘录里不出；只属于这台 Mac，不同步（见[建议和代码输入](#建议和代码输入新)） | `suggestions`（`false`） |
+| 建议的行插入什么：来源的默认、只有 ID、带标题、带标题和链接，或跟全局一样 | Slack 里带链接，终端里只要编号；随设置同步 | `suggestionsInsert` |
 
 「添加 App…」列出最近打过字的 App，也可以在「应用程序」文件夹里选。输入法菜单里的「这个 App：<名字>」可以直接切换正在打字的
 App 的「不用 AI」「逐字上屏」「续写」、开始的输入语言，有建议来源时还有建议插入什么。配置里在 `appProfiles` 下，按 bundle ID 写：
@@ -514,8 +515,9 @@ iCloud 云盘：不用另外登录，也不经过我们的服务器。需要打�
   每个密钥仍然只发给它保存时对应的主机。同步密钥时，`allinoneime-cli` 和 0.6.5 以前的版本读不到钥匙串里的这些密钥。没有描述文件的版本（开发版）把密钥留在登录钥匙串里，
   不能同步：那一行会写明。
 - 从不同步：AllInOneIME Cloud 的登录，AWS 凭证（在 `~/.aws` 里），扩展来源（会运行代码：每台 Mac 自己决定），扩展文件夹和插件（每台 Mac 上的路径），
-  不再打错的 App 和最近用过的 App，窗口状态，续写（开关和每个 App 的设置：每台 Mac 自己的），还有同步开关
-  本身（每台 Mac 自己的）。
+  不再打错的 App 和最近用过的 App，窗口状态，续写（开关和每个 App 的设置：每台 Mac 自己的），建议的开关（「通用」里的和每个 App 的），
+  打开了的插件补全和插件的偏好设置（`completionSources`、`pluginPreferences`），从另一台 Mac 来、还在等你允许的自定义命令
+  （`unconfirmedCommands`），还有同步开关本身（每台 Mac 自己的）。建议的行插入什么、代码输入的语言会随设置同步。
 - 关掉同步就不再同步，这台 Mac 和 iCloud 里的东西都原样保留；「**从 iCloud 移除…**」（先确认）把那个文件夹移到废纸篓，并关掉这台 Mac 的同步。
 - 在设置 → 助手里写「通过 iCloud 同步」可以打开或关掉同步；隐藏的词和最近的问题只能在设置 → 通用里选。配置里是 `iCloudSync`（`enabled`、`settings`、
   `jargon`、`learnedWords`、`hiddenWords`、`recentQuestions`、`keys`）。
@@ -873,7 +875,7 @@ Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系�
 | 键 | 作用 | 默认 |
 |---|---|---|
 | `inputLanguages` | 输入语言，一到五种，第一个是默认：`"en"` 英文、`"zh"` 中文（拼音）、`"fr"` 法语、`"ko"` 韩语、`"hi"` 印地语，比如 `["zh", "en"]`、`["fr", "en", "ko"]`。中文、韩语、印地语要装好语言包才能用 | `["en"]`（新装） |
-| `codingLanguage` | 代码输入和它的编程语言（`"python"`、`"java"`、`"go"`、`"typescript"`、`"javascript"`、`"c"`、`"cpp"`），排在输入语言后面；装好语言包才能用。不写：没有代码输入 | 不写 |
+| `codingLanguage` | 代码输入和它的编程语言（`"python"`、`"java"`、`"go"`、`"typescript"`、`"javascript"`、`"c"`、`"cpp"`），排在输入语言后面；装好语言包才能用；随设置同步（每台 Mac 各自下载语言包）。不写：没有代码输入 | 不写 |
 | `keyboardLayouts` | 各输入语言用的键盘布局，按语言代码（目前只有法语）：`{"fr": "com.apple.keylayout.French-PC"}` | 法语：`com.apple.keylayout.French`（AZERTY） |
 | `outputLanguages` | `@translate` 翻译成的语言，按顺序：`["en", "ja"]` 等 | `["en"]` |
 | `improveTranslates` | `@improve` 同时翻译（等于 `@translate @improve`） | `false` |
@@ -897,8 +899,13 @@ Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系�
 | `rememberQuestions` | 在这台 Mac 上记住最近 5 个 `@question` 问题和答案，列在 `@question` 下面（见「最近的问题」） | `true` |
 | `questionRounds` | `@question` 对话在候选框里聊几轮后建议换个地方接着聊，2–10 | `5` |
 | `questionContinueIn` | `@question` 对话可以接着在哪里聊，按顺序，第一个是默认：`agent`（`@agent` 交给的那个，代替它自己那一项）、`claudeCode`、`geminiCLI`、`kiroCLI`、`customAgent`（各个 agent，装了才有）、`claudeWeb`、`chatgpt`、`gemini`、`copy` | `agent`、别的装了的 agent、Claude、ChatGPT、复制 |
-| `appProfiles` | 单个 App 的设置，按 bundle ID，每一项都可以不写：`inputLanguage`（语言代码，代码输入是 `"code"`）、`rewriteStyles`、`typeOut`、`noAI`、`translateAlways`、`autocomplete`（只属于这台 Mac，不同步）（见「按 App 设置」） | `{}` |
+| `appProfiles` | 单个 App 的设置，按 bundle ID，每一项都可以不写：`inputLanguage`（语言代码，代码输入是 `"code"`）、`rewriteStyles`、`typeOut`、`noAI`、`translateAlways`、`autocomplete`（只属于这台 Mac，不同步）、`suggestions`（`false`：那里不出建议的行；只属于这台 Mac，不同步）、`suggestionsInsert`（同下，或者 `"source"`；同步）（见「按 App 设置」） | `{}` |
 | `autocomplete` | 续写：光标后出灰字，按 Tab 上屏；问的是你的 AI 服务（见「续写」）；不同步 | `false` |
+| `suggestions` | 建议（设置 →「通用」、输入法菜单）：`false` 关掉所有建议的行，插件的、建议命令的和代码输入的；只属于这台 Mac，不同步（见「建议和代码输入」） | 不写（开） |
+| `suggestionsInsert` | 没有单独设置的 App 里，建议的行插入什么（设置 →「通用」→「插入」）：`"id"`、`"title"` 或 `"titleAndLink"`；不写：按来源定的；随设置同步 | 不写 |
+| `completionSources` | 在设置 →「插件」里打开了的插件补全来源，每个按 `plugin` 和 `source` 记下你同意时的样子：`hosts`、`query`、`scriptSHA256`（它脚本的）和 `terms`（它的 `prefix`、`queryMinChars`、`compare`）；插件更新改了其中一项就记 `"lapsed": true`，关着直到你再打开。由设置写；只属于这台 Mac，不同步 | `[]` |
+| `pluginPreferences` | 插件的偏好设置（密码除外），按插件和名字：`{"github": {"repos": "octo-org/octo-repo"}}`；不通过 iCloud 云盘同步（密码类的偏好在钥匙串里，只有打开「API 密钥和密码」时才经过 iCloud 钥匙串） | `{}` |
+| `unconfirmedCommands` | 经 iCloud 从另一台 Mac 来、还在等这台 Mac「允许」的 `suggestions` 类自定义命令，每个记它的 `name` 和带来的 `argv`：它们在这里什么都不运行。允许（或在这里编辑、删除）就从列表里去掉；另一台 Mac 改了它的程序，又会回到列表里。由同步和设置写；只属于这台 Mac，不同步 | `[]` |
 | `notes` | `@note` 存到哪里（设置 → 插件 → 笔记）：`{"destination": "folder", "folder": "~/Vault/Inbox"}`，或者 `"notion"` 加上「测试」找到的页面或数据库；不通过 iCloud 云盘同步（令牌在钥匙串里，只有打开「API 密钥和密码」时才经过 iCloud 钥匙串） | `destination: "notes"` |
 | `redaction` | 发送前对 AI 隐藏敏感信息（见「隐私」）：`{"enabled": true, "phones": false, "customWords": ["Phoenix"]}`；各类识别（`emails`、`phones`、`cards`、`keys`、`ips`）不设成 `false` 就开着 | `enabled: false` |
 
