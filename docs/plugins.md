@@ -153,7 +153,10 @@ In the app (`PluginLibrary`, Settings → Plugins → "Browse Library…"):
 
 ## Completions (suggestions)
 
-A `script` plugin may also complete what is typed (Suggestions, 0.6.7): rows in the candidate panel, Tab inserts one.
+A `script` plugin may also complete what is typed (Suggestions, 0.6.7): rows in the candidate panel, with the same keys
+in every app (terminals too): the first row that puts something in is chosen from the start, ↓ ↑ move, ⏎ or Tab
+inserts the chosen row, → or Esc hides the rows (then the keys are the app's until the token changes); digits are
+typed.
 It declares its sources in `completions` (optional; `api` 1 stays valid) and its settings in `preferences`:
 
 ```json

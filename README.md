@@ -840,7 +840,8 @@ off (`autocomplete` in the config).
 
 ## Suggestions and Code (new)
 
-Rows in the candidate panel as you type, from plugins and, in Code, from the language you code in; **Tab** puts one in.
+Rows in the candidate panel as you type, from plugins and, in Code, from the language you code in; **⏎** or **Tab** puts
+one in.
 They take the place of [autocomplete](#autocomplete-beta-new)'s gray text while they show.
 
 - **Your own program:** a custom command of type `suggestions` is a source too, its prefix and its items yours: a program
@@ -853,15 +854,13 @@ They take the place of [autocomplete](#autocomplete-beta-new)'s gray text while 
   typed while pinyin is composed puts the words in and starts the token; a prefix of letters and a dash (`PROJ-`) typed
   in pinyin goes in as typed once its dash is typed (its letters aren't made Chinese), and the digits after it are
   typed. What you typed stays as typed; only the rest goes in (`#12` and the row `#1234 Fix login` add `34 Fix login`).
-- **Keys:** in most apps Tab inserts the highlighted row (the first), ↓ ↑ move the highlight and ⏎ then inserts it, Esc
-  hides the rows until what you type changes. Until ↓ or ↑ is pressed the first row is only outlined, not chosen (Tab
-  takes it; ⏎ is still the app's): the first ↓ chooses the first row (the next one when the first would put nothing in,
-  what you typed being all of it), the first ↑ the last, and then they move; Code's rows are chosen from the start, so
-  ↓ ↑ move at once. In chat apps and browsers (Slack, WeChat, Teams, Chrome, Edge…) only Tab
-  is taken, with the plugin's chat form (`#1234 Fix login https://github.com/…`): ⏎ always sends. In terminals and code editors
-  (Xcode, VS Code, JetBrains…) Tab completes only what the rows share; where that adds nothing to what you typed,
-  Tab is the app's (its own completion). Digits never pick a row: they go on typing (`#7`
-  then `1` is `#71`). No rows in launchers, remote desktops, virtual machines and SSH clients.
+- **Keys:** the same for every kind of row, in every app (chat apps, browsers, code editors and terminals too) and every
+  input (English, pinyin when nothing is being composed, Code), as in the command list: while the rows show, the keys
+  are AllInOneIME's first. The first row that puts something in is chosen from the start, drawn selected; ↓ ↑ move it;
+  ⏎ or Tab inserts it. → or Esc hides the rows (nothing else happens), and keys are the app's again until what you type
+  changes: in Slack, `#12` then ⏎ inserts the issue, and `#12` → ⏎ sends `#12` as typed. Digits never pick a row: they
+  go on typing (`#7` then `1` is `#71`). Pinyin's own candidates while it composes are as always (⏎ puts in the
+  letters, Space picks). No rows in launchers, remote desktops, virtual machines and SSH clients.
 - **Turning them on:** **Suggestions** in Settings → General, on unless you turn it off, covers plugins', Suggestions
   commands' and Code's rows; they show once there is a source (a plugin's completions turned on, a Suggestions command,
   or Code). Each plugin's completions in Settings → Plugins (a switch each: last refresh, items, last error, Refresh
@@ -874,8 +873,7 @@ They take the place of [autocomplete](#autocomplete-beta-new)'s gray text while 
   login` in documents and the link too in chat apps; a custom command's Insert), unless you choose otherwise in Settings
   → General → **Insert**, under the Suggestions switch, for every source: **ID only** (`#1234`), **With title** (`#1234
   Fix login`) or **With title and link** (`#1234 Fix login https://github.com/…/issues/1234`), the same in every app,
-  terminals and code editors too, where it's what a row you click puts in (Tab there still completes only what the rows'
-  matches share); an item without a title or a link goes in with what it has. An app can have its own in Settings → Apps
+  terminals and code editors too; an item without a title or a link goes in with what it has. An app can have its own in Settings → Apps
   (or the input menu's This App), over the one everywhere: links in Slack, the number alone in Terminal, titles in Mail.
   Code's rows never change with it, and only what you haven't typed goes in, as always. In the config:
   `suggestionsInsert` (`"id"`, `"title"`, `"titleAndLink"`; absent: the source's), and `suggestionsInsert` in an app's
@@ -889,8 +887,8 @@ They take the place of [autocomplete](#autocomplete-beta-new)'s gray text while 
   bar icon shows `{}` while it's the input. In Code you type letters as in English, but nothing you type is learned as
   an English word and there's no autocomplete; from two letters on the rows offer that one language's keywords,
   built-ins and snippets and the words already in the field (`de` → `def`, `define_task`), each saying what it is
-  (`function`, `keyword`, `built-in`). ⏎ inserts the highlighted row at once, as in an IDE (no ↓ first; in code
-  editors the first row; in chat apps and terminals ⏎ stays the app's). A snippet goes in with its line breaks, its
+  (`function`, `keyword`, `built-in`). ⏎ inserts the chosen row at once, as in an IDE, in every app (the keys above);
+  in code editors and terminals a snippet puts in its name only. Elsewhere a snippet goes in with its line breaks, its
   later lines indented as the line you're on, the caret at the first place to type: its first placeholder, left empty
   for you to type (`def ():`, the caret after `def `), or its body where that comes first (`try:`). No AI writes code.
   Translate as You Type doesn't run in Code.

@@ -94,9 +94,10 @@ into the field since a boundary (what went in with each key: the app's typing of
 space, a mark, ⏎, an arrow, a click, another field end it), the rows its sources have for it (plugins' lists and live
 queries; in Code, the input after the languages (`Composer.coding`, `Config.codingLanguage`), its language's pack and
 the field's own words, `FieldContext.text` read once typing pauses), drawn as the candidate panel's rows (`panel`, the
-session's own while nothing is composed), the keys they take per app class (`SuggestionsAppClass`: Tab, ↓ ↑, ⏎ once
-moved, or at once on Code's rows, Esc in ordinary apps; Tab only in chat apps; the rows' common start in terminals and
-code editors), what a row puts in (its source's templates, or the user's choice: `SuggestionsSettings.insert(for:)`), a
+session's own while nothing is composed, the chosen row its `highlighted`), the keys they take, one set in every app
+and input (decision 31, `suggestionsBeforeKey`: the first row that puts something in chosen from the start, ↓ ↑ move
+it, ⏎ or Tab puts it in, → or Esc hide the rows for the token; never a digit), what a row puts in (its source's
+templates for the app's class, `SuggestionsAppClass`, or the user's choice: `SuggestionsSettings.insert(for:)`), a
 source's prefix of letters and a dash typed in pinyin, which ends the composition as typed at its dash
 (`Composer.finishesSuggestionPrefix`, `suggestionsPrefixFinished(by:)`), and the long press of Shift that turns Translate as You Type on or off (`TranslateMode.ShiftHold` on the
 session's clock; the mode is the shell's: `SuggestionsServices.setTranslateAsYouType`; in Code it says it can't run
