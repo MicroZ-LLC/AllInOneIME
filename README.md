@@ -490,9 +490,8 @@ Typos are never made in terminals, nor in apps that don't tell the input method 
 first typo is a plain one (a wrong letter, corrected in one go), until the field has shown it takes a typo back; while a
 typo shows, the input method checks before every key that the field holds what it typed. A field that ignores where
 to replace text can't take a typo back: there that first typo stays, so the text ends up one character off (also
-after Esc or another key), and the app gets no typos again. Settings → Advanced lists those apps under the typos
-switch; "Forget apps where typos couldn't be fixed" lets them try again. They're kept on this Mac only, with the rest
-of what it learns (see Privacy).
+after Esc or another key), and the app gets no typos again. Settings → Privacy → Learned… lists those apps; Forget
+lets one try again. They're kept on this Mac only, with the rest of what it learns (see Privacy).
 
 ### Per-app settings (new)
 
@@ -514,7 +513,8 @@ something, never naming them.
   in two fields of an app in a row, and that app's text fields start in it from then on; it says so once ("Slack starts
   in English from now on"). Only such switches count, never one in the middle of typing; Code counts like a language.
   Learning never changes the default input (the first chip). To change what an app learned, do the same with another
-  input. What is learned stays on this Mac (see [Privacy](#privacy)).
+  input; to forget it, the input menu's This App shows "Starts in English (learned)" with Forget, as does Settings →
+  Privacy → Learned…. What is learned stays on this Mac (see [Privacy](#privacy)).
 - **Previous per-app settings.** What an earlier version set for an app, and Settings doesn't set any more, still works
   while it's set: the input it starts in (`inputLanguage`; one the app learned comes first), Always Translate as You
   Type (`translateAlways`), autocomplete always or never (`autocomplete`), no suggestions (`suggestions`), typing out or

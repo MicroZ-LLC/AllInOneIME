@@ -28,7 +28,7 @@ MODEL = "claude-opus-5-5"
 PAGES = {
     "Home": "首页",
     "Installation-and-Troubleshooting": "安装与排查",
-    "Commands": "@命令",
+    "Commands": "命令",
     "Settings-and-Configuration": "设置与配置",
     "Voice-Input": "语音输入",
     "Rewrite-Styles-and-Jargon": "改写风格与黑话库",
