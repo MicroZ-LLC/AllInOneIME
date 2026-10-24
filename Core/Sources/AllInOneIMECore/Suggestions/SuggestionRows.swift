@@ -28,6 +28,13 @@ struct SuggestionRow: Equatable {
     /// What goes in for it where the field reports ranges (`ranges`), or not: what wasn't typed yet (the typed part, its
     /// case, stays).
     func rest(ranges: Bool) -> String { String((ranges ? insertion : plainInsertion ?? insertion).dropFirst(typed.count)) }
+
+    /// Whether `other` is this row made again for the same token: the same item, keyword or snippet (its pick), else the
+    /// same word from the same source. What it puts in, and what its comment says, may differ (the caret's line's
+    /// indentation read since, an item's title as a query tells it).
+    func isSame(as other: SuggestionRow) -> Bool {
+        pick == other.pick && source == other.source && text == other.text && completion == other.completion
+    }
 }
 
 /// A list's or a query's items with what finding a token's among them needs, made once (off the session's thread, as

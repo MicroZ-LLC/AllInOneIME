@@ -603,14 +603,18 @@ extension InputSession {
 
     /// The rows for the token now, shown (or hidden): the highlight and Esc's hiding kept while the token stays; rows
     /// shown, autocomplete's gray text goes (spec 0). `askAgain`: the pause before a query is asked again is over.
+    /// Made again for the same token (Code's words read once typing pauses, a list or a query come back), the highlighted
+    /// row stays highlighted wherever it is now (`SuggestionRow.isSame`), and ↓/↑ having moved (Return's rule) stays.
     func suggestionsUpdate(askAgain: Bool = false) {
         let (rows, appClass) = suggestionsRows(askAgain: askAgain)
         let sameToken = suggesting.rowsToken == suggesting.token
+        let wasHighlighted = suggesting.rows.indices.contains(suggesting.highlighted) ? suggesting.rows[suggesting.highlighted] : nil
         suggesting.rows = rows
         suggesting.appClass = appClass
         suggesting.rowsToken = suggesting.token
         if sameToken {
-            suggesting.highlighted = min(suggesting.highlighted, max(rows.count - 1, 0))
+            suggesting.highlighted = wasHighlighted.flatMap { row in rows.firstIndex { $0.isSame(as: row) } }
+                ?? min(suggesting.highlighted, max(rows.count - 1, 0))
         } else {
             (suggesting.highlighted, suggesting.moved) = (0, false)
         }

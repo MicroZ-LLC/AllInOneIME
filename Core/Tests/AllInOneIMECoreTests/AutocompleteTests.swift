@@ -704,6 +704,31 @@ struct AutocompleteTests {
                 && chinese.destination(config) == "用的是 Apple Intelligence；设置自己的 AI 服务，灰字来得更快")
     }
 
+    /// The input menu is made again after every key in some apps (Notes): its model's name asks whether the on-device
+    /// model is available only where that is the model asked, and the shell asks that at most once in a while
+    /// (`RecentAvailability`): asking makes the model's bundle each time.
+    @Test func theModelsNameAsksForTheOnDeviceModelOnlyWhereItIsAsked() {
+        let words = Autocomplete.Words(language: "en")
+        var asked = 0
+        func available() -> Bool {
+            asked += 1
+            return false
+        }
+        var config = Config.default
+        config.provider = .anthropic
+        #expect(words.model(config, onDeviceAvailable: available()).hasPrefix("Claude API") && asked == 0, "\(asked)")
+        config.provider = .apple
+        #expect(words.model(config, onDeviceAvailable: available()) == "Apple Intelligence on this Mac, not available" && asked == 1)
+
+        var recent = RecentAvailability(lifetime: 10)
+        var calls = 0
+        func ask(_ value: AppleModelAvailability) -> () -> AppleModelAvailability { { calls += 1; return value } }
+        #expect(recent.availability(now: 100, ask: ask(.modelNotReady)) == .modelNotReady && calls == 1)
+        #expect(recent.availability(now: 109, ask: ask(.available)) == .modelNotReady && calls == 1, "kept a while")
+        #expect(recent.availability(now: 110, ask: ask(.available)) == .available && calls == 2, "then asked again")
+        #expect(recent.availability(now: 50, ask: ask(.deviceNotEligible)) == .deviceNotEligible && calls == 3, "a clock gone back asks")
+    }
+
     /// Sentences that turn Autocomplete on, and off, in the interface's languages, with the usual words for it.
     static let turnedOn = ["我要把 auto complete 打开", "打开续写", "开启自动补全", "启用自动联想", "把续写开了", "turn on autocomplete",
                            "I want auto complete on", "enable auto-complete", "打開續寫", "オートコンプリートをオンにして", "자동 완성 켜 줘",

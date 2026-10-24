@@ -74,10 +74,10 @@ public enum Autocomplete {
 
         /// The model it asks with `config`: the provider and its model ("Claude API · claude-haiku-5-5"; the provider
         /// alone where no model is set), or Apple Intelligence on this Mac (and that it isn't available, where
-        /// `onDeviceAvailable` says so).
-        public func model(_ config: Config, onDeviceAvailable: Bool = true) -> String {
+        /// `onDeviceAvailable` says so: asked only then, asking makes the model's bundle).
+        public func model(_ config: Config, onDeviceAvailable: @autoclosure () -> Bool = true) -> String {
             guard case let .cloud(provider) = route(config) else {
-                return words.tr("本机 Apple Intelligence", "Apple Intelligence on this Mac") + (onDeviceAvailable ? "" : words.tr("，不可用", ", not available"))
+                return words.tr("本机 Apple Intelligence", "Apple Intelligence on this Mac") + (onDeviceAvailable() ? "" : words.tr("，不可用", ", not available"))
             }
             let model = (provider == .bedrock ? config.modelId : config.settings(for: provider).model ?? "")
                 .trimmingCharacters(in: .whitespaces)

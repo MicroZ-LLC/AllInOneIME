@@ -205,10 +205,15 @@ enum AutocompleteSwitch {
     }
 
     /// The model it uses with `config` (`Autocomplete.Words.model`), for the input menu and the menu bar panel: the
-    /// provider and its model, or Apple Intelligence on this Mac (and that it isn't available, where it isn't).
+    /// provider and its model, or Apple Intelligence on this Mac (and that it isn't available, where it isn't: asked only
+    /// then, and at most every few seconds, `recentAvailability`). Notes asks for the input menu after every key.
     static func modelName(_ config: Config) -> String {
-        Autocomplete.Words(language: UIText.language).model(config, onDeviceAvailable: AppleModel.system.availability == .available)
+        Autocomplete.Words(language: UIText.language).model(config, onDeviceAvailable: recentAvailability.availability(
+            now: ProcessInfo.processInfo.systemUptime, ask: { AppleModel.system.availability }) == .available)
     }
+
+    /// The on-device model's availability as the input menu last asked it.
+    static var recentAvailability = RecentAvailability()
 
     /// Where the text goes with `config` (`Autocomplete.Words.destination`): to the provider, what each pause sends; with
     /// AllInOneIME Cloud picked, that it uses Apple Intelligence. Nil with Apple Intelligence picked.
