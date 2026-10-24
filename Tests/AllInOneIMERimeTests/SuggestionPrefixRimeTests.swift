@@ -9,10 +9,10 @@ extension RimeEngineTests {
     @Test func aSuggestionPrefixFinishedInPinyinGoesInAsTypedWithRealRime() throws {
         let dash = KeyEvent(keyCode: 0x1B, characters: "-")
         let one = KeyEvent(keyCode: 0x12, characters: "1")
-        for (letters, shifted) in [("cr", false), ("CR", true)] {
+        for (letters, shifted) in [("xm", false), ("XM", true)] {
             let composer = Composer(engine: try RimeFixture.session())
             defer { composer.engine?.clearComposition() }
-            composer.finishesSuggestionPrefix = { $0.lowercased() == "cr-" }
+            composer.finishesSuggestionPrefix = { $0.lowercased() == "xm-" }
             for letter in letters {
                 _ = composer.handleKeyDown(key(letter, modifiers: shifted ? .shift : []))
             }
@@ -25,7 +25,7 @@ extension RimeEngineTests {
 
         let plain = Composer(engine: try RimeFixture.session())
         defer { plain.engine?.clearComposition() }
-        for letter in "cr" { _ = plain.handleKeyDown(key(letter)) }
+        for letter in "xm" { _ = plain.handleKeyDown(key(letter)) }
         #expect(plain.handleKeyDown(dash).handled && plain.isComposing, "no source: Rime's \"-\"")
         let picked = plain.handleKeyDown(one)
         #expect(picked.effects.contains { if case let .commit(text) = $0 { text.containsHan } else { false } }, "\(picked)")
