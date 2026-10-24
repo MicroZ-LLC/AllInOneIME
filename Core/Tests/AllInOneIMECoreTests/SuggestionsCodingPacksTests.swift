@@ -28,8 +28,8 @@ struct SuggestionsCodingPacksTests {
     /// The texts of the rows, each with its comment.
     static func texts(_ field: SuggestionsField) -> [String] { field.rows.map { $0.text + " " + $0.comment } }
 
-    /// Picks Code's row at `index` in an ordinary app: Tab the first, else ↓ `index` times and Return. Code's first row
-    /// is chosen from the start, so ↓ moves at once (decision 29), unlike a plugin's (`SuggestionsField.pick(at:)`).
+    /// Picks Code's row at `index` in an ordinary app: Tab the first, else ↓ `index` times and Return. The first row is
+    /// chosen from the start, so ↓ moves at once (decision 31), as `SuggestionsField.pick(at:)` has it for every row.
     static func pick(_ field: SuggestionsField, at index: Int) -> Bool {
         if index == 0 { return field.press(SuggestionKeys.tab) }
         var handled = true

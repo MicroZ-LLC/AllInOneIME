@@ -8,8 +8,8 @@ import AllInOneIMETestSupport
 /// JSON as the spec writes it, its program is a real sh script in a temporary folder of the test's own (the fixtures below
 /// are written there), and everything is observed through a text field's `InputSession` as a shell drives it (the rig:
 /// SuggestionsAcceptanceTests.swift). What it shares with plugin sources (spec 1–6) is checked as it applies to a
-/// command: the rows, the keys per app class, what goes in, frecency, the cache on disk, the back-off and the pause, the
-/// switches.
+/// command: the rows, the keys (one set in every class of app: decision 31), what goes in, frecency, the cache on disk,
+/// the back-off and the pause, the switches.
 ///
 /// Decision 24, bullet by bullet:
 /// - the config's shape, what is refused and why, the rest still loading: `theSpecsCommandIsReadFromConfigJSON`,
@@ -657,11 +657,10 @@ struct SuggestionsCustomCommandsAcceptanceTests {
         case ordinary, chat, terminal, noRows
     }
 
-    /// The keys while its rows show are a plugin source's, per class of app (spec 1.4, 6.10–6.12): in ordinary apps Tab
-    /// inserts the first row, ↓ moves the highlight and Return then inserts it, Return before it moved is the app's, Esc
-    /// hides the rows; in chat apps Tab inserts the first row, the arrows, Return and Esc are the app's; in terminals Tab
-    /// completes the rows' common part only, then is the terminal's, the other keys the terminal's; remote desktops: no
-    /// rows.
+    /// The keys while its rows show are a plugin source's, the same in every class of app with rows (spec decision 31;
+    /// it replaces 1.4's keys per class): the first row chosen from the start, Tab or Return inserts the chosen row, ↓↑
+    /// move it, → or Esc hide the rows and the keys are the app's then; in ordinary apps, chat apps and terminals alike
+    /// (a terminal gets the match only); remote desktops: no rows.
     @Test(arguments: AppClass.allCases)
     func theKeysAreAPluginSourcesInEachClassOfApp(_ kind: AppClass) async throws {
         try await inEnglish {
@@ -688,42 +687,28 @@ struct SuggestionsCustomCommandsAcceptanceTests {
             }
 
             switch kind {
-            case .ordinary:
+            case .ordinary, .chat, .terminal:
+                // Decision 31: one set of keys in every class (a command without an Insert of its own puts in the match
+                // in each).
                 let tab = typed()
+                #expect(tab.host.panel?.highlighted == 0, "\(kind): the first row chosen from the start")
                 #expect(tab.press(SuggestionKeys.tab))
-                #expect(tab.document == "JIRA-4011" && tab.rows.isEmpty, "\(tab.document)")
-                let early = typed()
-                #expect(!early.press(SuggestionKeys.enter), "Return before ↓: the app's")
-                #expect(early.document == "JIRA-4", "\(early.document)")
+                #expect(tab.document == "JIRA-4011" && tab.rows.isEmpty, "\(kind): \(tab.document)")
+                let enter = typed()
+                #expect(enter.press(SuggestionKeys.enter), "\(kind): Return inserts the chosen row at once")
+                #expect(enter.document == "JIRA-4011" && enter.rows.isEmpty, "\(kind): \(enter.document)")
                 let moved = typed()
-                // The first ↓ chooses the first row (spec decision 29), then ↓ and ↑ move.
-                #expect(moved.press(SuggestionKeys.down) && moved.press(SuggestionKeys.down) && moved.press(SuggestionKeys.down)
-                        && moved.press(SuggestionKeys.up))
-                #expect(moved.host.panel?.highlighted == 1, "\(String(describing: moved.host.panel?.highlighted))")
+                #expect(moved.press(SuggestionKeys.down) && moved.press(SuggestionKeys.down) && moved.press(SuggestionKeys.up))
+                #expect(moved.host.panel?.highlighted == 1, "\(kind): \(String(describing: moved.host.panel?.highlighted))")
                 #expect(moved.press(SuggestionKeys.enter))
-                #expect(moved.document == "JIRA-4012", "\(moved.document)")
-                let escaped = typed()
-                #expect(escaped.press(SuggestionKeys.escape))
-                #expect(escaped.rows.isEmpty && escaped.document == "JIRA-4")
-                #expect(!escaped.press(SuggestionKeys.tab), "hidden: the app's Tab")
-            case .chat:
-                let tab = typed()
-                #expect(tab.press(SuggestionKeys.tab))
-                #expect(tab.document == "JIRA-4011", "\(tab.document)")
-                for key in [SuggestionKeys.down, SuggestionKeys.up, SuggestionKeys.enter, SuggestionKeys.escape] {
-                    let field = typed()
-                    #expect(!field.press(key), "\(key.characters.debugDescription) is the chat app's")
-                    #expect(field.document == "JIRA-4", "nothing inserted: \(field.document)")
-                }
-            case .terminal:
-                let field = typed("JIRA-40", rows: ["JIRA-4011", "JIRA-4012"])
-                #expect(field.press(SuggestionKeys.tab))
-                #expect(field.document == "JIRA-401", "the rows' common part: \(field.document)")
-                #expect(!field.press(SuggestionKeys.tab), "nothing more in common: the terminal's Tab")
-                for key in [SuggestionKeys.down, SuggestionKeys.enter, SuggestionKeys.escape] {
-                    let other = typed()
-                    #expect(!other.press(key), "\(key.characters.debugDescription) is the terminal's")
-                    #expect(other.document == "JIRA-4", "\(other.document)")
+                #expect(moved.document == "JIRA-4012", "\(kind): \(moved.document)")
+                for key in [SuggestionKeys.right, SuggestionKeys.escape] {
+                    let hidden = typed()
+                    #expect(hidden.press(key), "\(kind): \(key.key) hides the rows")
+                    #expect(hidden.rows.isEmpty && hidden.document == "JIRA-4", "\(kind): \(hidden.document)")
+                    #expect(!hidden.press(SuggestionKeys.enter), "\(kind): hidden, the app's Return")
+                    #expect(!hidden.press(SuggestionKeys.tab), "\(kind): hidden, the app's Tab")
+                    #expect(hidden.document == "JIRA-4", "\(kind): nothing inserted (\(hidden.document))")
                 }
             case .noRows:
                 let field = typed()

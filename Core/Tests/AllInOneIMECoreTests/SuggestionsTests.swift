@@ -180,7 +180,7 @@ struct SuggestionsTests {
     func codeEditorsAreOneListForAutocompleteAndSuggestions(_ app: String) {
         #expect(CodeEditors.contains(app))
         #expect(Autocomplete.isCodeEditor(app), "autocomplete: off there")
-        #expect(SuggestionsAppClass(app: app, terminal: false) == .codeEditor, "suggestions: Tab completes the shared start")
+        #expect(SuggestionsAppClass(app: app, terminal: false) == .codeEditor, "suggestions: a row puts in its match")
     }
 
     @Test func otherAppsAreNoCodeEditors() {
@@ -513,17 +513,6 @@ struct SuggestionsTests {
         #expect(changed.0 == .failure("Plugin tracker: its script changed since it was approved") && !changed.ran, "\(changed)")
         let none = try load(nil)
         #expect(none.0 == .failure("Plugin tracker: its script changed since it was approved") && !none.ran, "\(none)")
-    }
-
-    /// What texts share at their start, in any case, the first's case kept: byte by byte where it is ASCII, character
-    /// by character elsewhere (a mark joins the letter before it).
-    @Test func commonPrefixIsInAnyCase() {
-        #expect(commonPrefix(["#PROJ-12", "#proj-13", "#Proj-1"]) == "#PROJ-1")
-        #expect(commonPrefix(["abc", "ABCD"]) == "abc" && commonPrefix(["ABCD", "abc"]) == "ABC")
-        #expect(commonPrefix(["Straße", "STRASSE"]) == "Stra")
-        #expect(commonPrefix(["café", "CAFÉ!"]) == "café")
-        #expect(commonPrefix(["cafe\u{301}x", "cafex"]) == "caf" && commonPrefix(["cafe", "cafe\u{301}"]) == "caf")
-        #expect(commonPrefix(["x", ""]) == "" && commonPrefix([]) == "" && commonPrefix(["only"]) == "only")
     }
 
     // MARK: - The list cached on disk

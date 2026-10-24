@@ -8,9 +8,10 @@ import AllInOneIMETestSupport
 /// the inputs (中 → EN → Code), Code only once its coding language's pack is installed; an app may start in Code; the
 /// long press of Shift toggles Translate as You Type at once, as in 0.6.6 (no chooser, ever), and in Code says it isn't
 /// available there. In Code: that coding language's pack alone (its keywords and snippets; what is offered: spec 6.13)
-/// and the field's own words (none where it tells none: 6.16), Return picking a row as in an IDE except in chat apps and
-/// terminals (6.20, 6.23), no Translate as You Type, no English words learned. The keys and insertion of spec 1.4 (rows
-/// picked with Tab, or ↓ and Return, never a digit: 6.1; code editors as terminals: 6.10, 6.11), a snippet's line breaks,
+/// and the field's own words (none where it tells none: 6.16), Return picking a row as in an IDE in every app (decision
+/// 31), no Translate as You Type, no English words learned. The keys of decision 31 (the first row chosen from the start,
+/// picked with Tab or Return, ↓↑ moving, never a digit: 6.1) and the insertion of spec 1.4 (a snippet as its trigger in
+/// code editors and terminals: 6.10, 6.11), a snippet's line breaks,
 /// its later lines indented as the caret's line (6.19), and its caret: at its first tab stop in reading order, `$0` or a
 /// numbered one left empty with its mirrors, where the field reports ranges, else every stop's text in and the caret at
 /// the end (6.21, 6.23). The rig: SuggestionsAcceptanceTests.swift.
@@ -509,9 +510,10 @@ struct SuggestionsCodingAcceptanceTests {
         }
     }
 
-    /// Return picks Code's rows as in an IDE (6.20), without ↓ first, in ordinary apps and code editors; in chat apps
-    /// Return is the app's (it sends), and in terminals (it runs the command: 6.23).
-    @Test func returnPicksCodesRowsAsInAnIDEButNotInChatAppsOrTerminals() async throws {
+    /// Return picks Code's rows as in an IDE, without ↓ first, in every app: ordinary apps, code editors, and chat apps,
+    /// browsers and terminals too (spec decision 31; it replaces 6.20's "Return the app's in chat apps" and 6.23's "in
+    /// terminals"), the chosen row as the app's class puts it in (a terminal: the snippet's trigger).
+    @Test func returnPicksCodesRowsInEveryApp() async throws {
         try await inEnglish {
             let world = try Self.coding()
             let editor = world.codeField()
@@ -526,12 +528,16 @@ struct SuggestionsCodingAcceptanceTests {
             #expect(vsCode.press(SuggestionKeys.enter), "a code editor: taken")
             #expect(vsCode.document.hasPrefix("print"), "\(vsCode.document.debugDescription)")
 
-            for (app, terminal) in [(SuggestionsApps.slack, false), (SuggestionsApps.chrome, false), ("com.apple.Terminal", true)] {
+            // Decision 31: Return is ours while rows show in chat apps, browsers and terminals too; the first row chosen
+            // and drawn selected from the start.
+            for (app, terminal, inserted) in [(SuggestionsApps.slack, false, "print()"), (SuggestionsApps.chrome, false, "print()"),
+                                              ("com.apple.Terminal", true, "print")] {
                 let field = world.codeField(app: app, terminal: terminal)
                 field.type("pr")
-                #expect(field.settle { !field.rows.isEmpty }, "\(app): \(Self.texts(field))")
-                #expect(!field.press(SuggestionKeys.enter), "\(app): the app's")
-                #expect(field.document == "pr", "\(app): \(field.document.debugDescription)")
+                #expect(field.settle { field.shown(["print"]).first == "print" }, "\(app): \(Self.texts(field))")
+                #expect(field.host.panel?.highlighted == 0, "\(app): the first row chosen")
+                #expect(field.press(SuggestionKeys.enter), "\(app): taken")
+                #expect(field.document == inserted, "\(app): \(field.document.debugDescription)")
             }
         }
     }
@@ -807,22 +813,25 @@ struct SuggestionsCodingAcceptanceTests {
                                                 keywords: ["compute_total", "compute_average"],
                                                 snippets: [.init(trigger: "compute_sum", body: "compute_sum($0)", title: "sum")])
 
-    /// Terminals and code editors (VS Code, spec 6.11) are one class: Tab completes the rows' common prefix only (a
-    /// snippet isn't expanded); once that adds nothing, Tab is the app's (spec 6.10).
+    /// Terminals and code editors (VS Code, spec 6.11) are one class: a snippet isn't expanded there, it goes in as its
+    /// trigger. Tab inserts the chosen row, the first from the start (spec decision 31; it replaces "Tab completes the
+    /// rows' common prefix"); with the rows gone, Tab is the app's.
     @Test(arguments: [("com.apple.Terminal", true), (SuggestionsApps.vsCode, false)])
-    func inTerminalsAndCodeEditorsTabCompletesTheCommonPrefixOnly(_ app: String, _ terminal: Bool) async {
+    func inTerminalsAndCodeEditorsTabInsertsTheChosenRowASnippetAsItsTrigger(_ app: String, _ terminal: Bool) async {
         await inEnglish {
             let world = Self.coding(Self.computePack)
             let field = world.codeField(app: app, terminal: terminal)
             field.type("co")
             #expect(field.settle { field.shown(["compute_total", "compute_average", "compute_sum"]).filter { $0 != "?" }.count == 3 },
                     "\(app): \(Self.texts(field))")
+            // Decision 31: the first row (the snippet) chosen from the start; Tab inserts it, its trigger only.
+            #expect(field.shown(["compute_total", "compute_average", "compute_sum"]).first == "compute_sum", "\(app): \(Self.texts(field))")
+            #expect(field.host.panel?.highlighted == 0, "\(app): the first row chosen")
             #expect(field.press(SuggestionKeys.tab))
-            #expect(field.document == "compute_", "\(app): \(field.document)")
-            #expect(field.settle { field.shown(["compute_total", "compute_average", "compute_sum"]).filter { $0 != "?" }.count == 3 },
-                    "\(app): \(Self.texts(field))")
-            #expect(!field.press(SuggestionKeys.tab), "\(app): nothing more in common, its Tab")
-            #expect(field.document == "compute_", "\(app): \(field.document)")
+            #expect(field.document == "compute_sum", "\(app): its trigger, not expanded (\(field.document))")
+            #expect(field.rows.isEmpty, "\(app): the rows go (\(Self.texts(field)))")
+            #expect(!field.press(SuggestionKeys.tab), "\(app): no rows, its Tab")
+            #expect(field.document == "compute_sum", "\(app): \(field.document)")
         }
     }
 

@@ -560,14 +560,14 @@ struct SuggestionsField {
         return handled
     }
 
-    /// Picks the row at `index` as the keys do in an ordinary app (digits never do): Tab the first, else ↓ until that row
-    /// is the one chosen (where none is chosen yet the first ↓ chooses the first row, spec decision 29; Code's rows are
-    /// chosen from the start) and Return. Whether the session took every key.
+    /// Picks the row at `index` as the keys do in every app (digits never do): ↓ until that row is the one chosen, then
+    /// Return. The first row that puts something in is chosen from the start (spec decision 31), so the first row is
+    /// most often Return alone. Whether the session took every key.
     @discardableResult
     func pick(at index: Int) -> Bool {
-        if index == 0 { return press(SuggestionKeys.tab) }
         var handled = true
-        for _ in 0...(index + 1) where !(host.panel?.highlighted == index && host.panel?.highlightChosen == true) {
+        // Decision 31: the first row (that puts something in) is chosen and drawn selected from the start; ↓ moves on.
+        for _ in 0..<max(rows.count, 1) where host.panel?.highlighted != index {
             handled = press(SuggestionKeys.down) && handled
         }
         return press(SuggestionKeys.enter) && handled

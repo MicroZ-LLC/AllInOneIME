@@ -4,10 +4,10 @@ import Testing
 import AllInOneIMETestSupport
 
 /// Suggestions v1, spec 1.4: up to 5 rows, in the list's order with the rows picked before first (the one picked last
-/// first: spec 6.17); the keys while rows show, per app class (ordinary, chat, terminal and code editor, none: spec 6.11),
-/// digits never picking a row (6.1), Esc hiding them for the token (6.12), Tab in terminals and code editors (6.10);
-/// which rows are offered (6.13); what goes in: only what wasn't typed, the template of the app's class. The rig:
-/// SuggestionsAcceptanceTests.swift.
+/// first: spec 6.17); the keys while rows show, one set in every class of app that has rows (ordinary, chat, terminal and
+/// code editor; none in the last class: spec 6.11, decision 31), digits never picking a row (6.1), → or Esc hiding them
+/// for the token (6.12, decision 31); which rows are offered (6.13); what goes in: only what wasn't typed, the template
+/// of the app's class. The rig: SuggestionsAcceptanceTests.swift.
 @Suite(.serialized, SuggestionsOneAtATime())
 struct SuggestionsRowsAcceptanceTests {
     func inEnglish(_ body: () throws -> Void) async rethrows { try await withInterfaceLanguage("en", body) }
@@ -118,15 +118,16 @@ struct SuggestionsRowsAcceptanceTests {
         }
     }
 
-    /// ↓ and ↑ move the highlight; Return then inserts the highlighted row. Nothing is chosen at first: the first ↓
-    /// chooses the first row (spec decision 29).
+    /// ↓ and ↑ move the highlight; Return then inserts the highlighted row. The first row is chosen from the start (spec
+    /// decision 31): the first ↓ moves to the second.
     @Test func arrowsMoveTheHighlightAndReturnInsertsIt() async throws {
         try await inEnglish {
             let field = try typedHash7()
             #expect(field.waitForIssues(Self.allRows))
+            // Decision 31: the first row chosen (drawn selected) from the start, the first ↓ moves on from it.
+            #expect(field.host.panel?.highlighted == 0, "the first row, chosen from the start")
             #expect(field.press(SuggestionKeys.down))
-            #expect(field.host.panel?.highlighted == 0, "the first ↓: the first row")
-            #expect(field.press(SuggestionKeys.down))
+            #expect(field.host.panel?.highlighted == 1, "the first ↓: the second row")
             #expect(field.press(SuggestionKeys.down))
             #expect(field.press(SuggestionKeys.up))
             #expect(field.host.panel?.highlighted == 1, "the second row: \(String(describing: field.host.panel?.highlighted))")
@@ -136,13 +137,16 @@ struct SuggestionsRowsAcceptanceTests {
         }
     }
 
-    /// Return before the highlight moved is the app's: nothing is inserted (the token ends there).
-    @Test func returnIsTheAppsUntilTheHighlightMoved() async throws {
+    /// Return inserts the chosen row at once, the first, chosen and drawn selected from the start: no ↓ first (spec
+    /// decision 31; it replaces "Return only once ↓/↑ moved").
+    @Test func returnInsertsTheChosenRowAtOnce() async throws {
         try await inEnglish {
             let field = try typedHash7()
             #expect(field.waitForIssues(Self.allRows))
-            #expect(!field.press(SuggestionKeys.enter))
-            #expect(field.document == "#7", "\(field.document)")
+            // Decision 31: chosen from the start, and Return is ours.
+            #expect(field.host.panel?.highlighted == 0, "the first row chosen: \(String(describing: field.host.panel?.highlighted))")
+            #expect(field.press(SuggestionKeys.enter))
+            #expect(field.document == "#7001", "\(field.document)")
             #expect(field.issuesShown.isEmpty)
         }
     }
@@ -183,6 +187,64 @@ struct SuggestionsRowsAcceptanceTests {
         }
     }
 
+    /// → hides the rows for the token as Esc does (spec decision 31): the key is ours (the caret stays), nothing is
+    /// inserted, and the keys are the app's then: Return and Tab, and the next →, which moves the caret and ends the token.
+    @Test func rightHidesTheRowsAndTheKeysAreTheAppsThen() async throws {
+        try await inEnglish {
+            let field = try typedHash7()
+            #expect(field.waitForIssues(Self.allRows))
+            #expect(field.press(SuggestionKeys.right), "→ is ours while rows show")
+            #expect(field.issuesShown.isEmpty && field.document == "#7", "\(field.issuesShown) \(field.document)")
+            field.idle()
+            #expect(field.issuesShown.isEmpty, "hidden for the token: \(field.issuesShown)")
+            #expect(!field.press(SuggestionKeys.tab), "hidden: the app's Tab")
+            let enter = try typedHash7()
+            #expect(enter.waitForIssues(Self.allRows))
+            #expect(enter.press(SuggestionKeys.right))
+            #expect(!enter.press(SuggestionKeys.enter), "hidden: the app's Return")
+            #expect(enter.document == "#7", "\(enter.document)")
+            let again = try typedHash7()
+            #expect(again.waitForIssues(Self.allRows))
+            #expect(again.press(SuggestionKeys.right) && !again.press(SuggestionKeys.right), "the next → is the app's")
+        }
+    }
+
+    /// The first row that puts something in is the one chosen from the start (spec decision 31): "#70" typed, its first
+    /// row the issue #70 (what was typed is all of it), the next one is chosen, and Return inserts it.
+    @Test func theFirstRowThatPutsSomethingInIsChosen() async throws {
+        try await inEnglish {
+            let items = [SuggestionsItems.issue(70, "Seventy"), SuggestionsItems.issue(7050, "Fifty"), SuggestionsItems.issue(7000, "Zero")]
+            let field = try typedHash7(items: items)
+            field.type("0")
+            #expect(field.settle { field.issuesShown == ["#70", "#7050", "#7000"] }, "\(field.issuesShown)")
+            #expect(field.host.panel?.highlighted == 1, "#7050 chosen: \(String(describing: field.host.panel?.highlighted))")
+            #expect(field.press(SuggestionKeys.enter))
+            #expect(field.document == "#7050", "\(field.document)")
+        }
+    }
+
+    /// The owner's example (spec decision 31): in Slack, "#12" then Return inserts the issue; → then Return sends "#12" as
+    /// typed (the rows hidden, Return is Slack's).
+    @Test func inSlackReturnInsertsTheIssueAndRightThenReturnSendsWhatWasTyped() async throws {
+        try await inEnglish {
+            let items = [SuggestionsItems.issue(12, "Candidate panel position"), SuggestionsItems.issue(1234, "Fix login")]
+            let world = SuggestionsWorld()
+            try world.github(items: items)
+            let inserts = world.field(app: SuggestionsApps.slack)
+            inserts.type("#12")
+            #expect(inserts.settle { inserts.issuesShown == ["#12", "#1234"] }, "\(inserts.issuesShown)")
+            #expect(inserts.press(SuggestionKeys.enter), "Return inserts the issue")
+            #expect(inserts.document == "#12 https://github.com/octo-org/octo-repo/issues/12", "\(inserts.document)")
+
+            let sends = world.field(app: SuggestionsApps.slack)
+            sends.type("#12")
+            #expect(sends.settle { sends.issuesShown.count == 2 }, "\(sends.issuesShown)")
+            #expect(sends.press(SuggestionKeys.right), "→ hides the rows")
+            #expect(!sends.press(SuggestionKeys.enter), "Return is Slack's: it sends")
+            #expect(sends.document == "#12", "sent as typed: \(sends.document)")
+        }
+    }
+
     /// A click on a row inserts it.
     @Test func aClickOnARowInsertsIt() async throws {
         try await inEnglish {
@@ -209,19 +271,39 @@ struct SuggestionsRowsAcceptanceTests {
         }
     }
 
-    /// In chat apps the digits, the arrows, Return and Esc stay the app's: Return never sends a row.
+    /// In chat apps and browsers the keys are the same as everywhere (spec decision 31; it replaces "only Tab" there):
+    /// the first row chosen from the start, ↓↑ move it, Return inserts the chosen row (with the `chat` template), → or Esc
+    /// hide the rows and Return is the app's again (it sends "#7" as typed); digits are typed.
     @Test(arguments: chatApps)
-    func digitsArrowsReturnAndEscAreTheAppsInChatApps(_ app: String) async throws {
+    func theKeysAreTheSameInChatApps(_ app: String) async throws {
         try await inEnglish {
             let digit = try typedHash7(app: app)
             #expect(digit.waitForIssues(Self.allRows))
             #expect(!digit.press(SuggestionKeys.digit(2)), "\(app): 2")
             #expect(digit.document == "#72", "\(app): typed, not a row (\(digit.document))")
 
-            for key in [SuggestionKeys.down, SuggestionKeys.up, SuggestionKeys.enter, SuggestionKeys.escape] {
+            // Decision 31: Return inserts the chosen row, the first, chosen and drawn selected from the start.
+            let enter = try typedHash7(app: app)
+            #expect(enter.waitForIssues(Self.allRows))
+            #expect(enter.host.panel?.highlighted == 0, "\(app): the first row chosen (\(String(describing: enter.host.panel?.highlighted)))")
+            #expect(enter.press(SuggestionKeys.enter), "\(app): Return is ours while rows show")
+            #expect(enter.document == "#7001 https://github.com/octo-org/octo-repo/issues/7001", "\(app): \(enter.document)")
+
+            // Decision 31: ↓↑ move our highlight; Return then inserts the row they moved to.
+            let arrows = try typedHash7(app: app)
+            #expect(arrows.waitForIssues(Self.allRows))
+            #expect(arrows.press(SuggestionKeys.down) && arrows.press(SuggestionKeys.down) && arrows.press(SuggestionKeys.up))
+            #expect(arrows.host.panel?.highlighted == 1, "\(app): \(String(describing: arrows.host.panel?.highlighted))")
+            #expect(arrows.press(SuggestionKeys.enter))
+            #expect(arrows.document == "#7002 https://github.com/octo-org/octo-repo/issues/7002", "\(app): \(arrows.document)")
+
+            // Decision 31: → or Esc hides the rows (the key is ours), then Return is the app's: it sends "#7" as typed.
+            for key in [SuggestionKeys.right, SuggestionKeys.escape] {
                 let field = try typedHash7(app: app)
                 #expect(field.waitForIssues(Self.allRows))
-                #expect(!field.press(key), "\(app): \(key.key) is the app's")
+                #expect(field.press(key), "\(app): \(key.key) hides the rows")
+                #expect(field.issuesShown.isEmpty && field.document == "#7", "\(app): \(field.issuesShown) \(field.document)")
+                #expect(!field.press(SuggestionKeys.enter), "\(app): hidden, Return is the app's")
                 #expect(field.document == "#7", "\(app): nothing inserted (\(field.document))")
             }
         }
@@ -253,18 +335,20 @@ struct SuggestionsRowsAcceptanceTests {
 
     // MARK: - Terminals
 
-    /// Terminals: Tab completes the rows' common prefix only; when that adds nothing to what was typed, Tab is the
-    /// terminal's (spec 6.10); a single row's `match` (never a template's text).
-    @Test func tabCompletesTheCommonPrefixInTerminals() async throws {
+    /// Terminals: Tab inserts the chosen row, the first from the start (spec decision 31; it replaces "Tab completes the
+    /// rows' common prefix"), its `match` (never a template's text: spec 6.10); with the rows gone Tab is the terminal's.
+    @Test func tabInsertsTheChosenRowsMatchInTerminals() async throws {
         try await inEnglish {
             let items = [SuggestionsItems.issue(7781, "One"), SuggestionsItems.issue(7782, "Two"), SuggestionsItems.issue(8001, "Other")]
             let field = try typedHash7(app: "com.apple.Terminal", terminal: true, items: items)
             #expect(field.settle { field.shown(items.map(\.match)) == ["#7781", "#7782"] }, "\(field.rows.map(\.text))")
+            // Decision 31: the chosen row, not the rows' common prefix.
+            #expect(field.host.panel?.highlighted == 0, "the first row chosen: \(String(describing: field.host.panel?.highlighted))")
             #expect(field.press(SuggestionKeys.tab))
-            #expect(field.document == "#778", "the common prefix: \(field.document)")
-            #expect(field.settle { field.shown(items.map(\.match)) == ["#7781", "#7782"] }, "\(field.rows.map(\.text))")
-            #expect(!field.press(SuggestionKeys.tab), "nothing more in common: the terminal's Tab")
-            #expect(field.document == "#778", "\(field.document)")
+            #expect(field.document == "#7781", "the chosen row: \(field.document)")
+            #expect(field.rows.isEmpty, "the rows go: \(field.rows.map(\.text))")
+            #expect(!field.press(SuggestionKeys.tab), "no rows: the terminal's Tab")
+            #expect(field.document == "#7781", "\(field.document)")
 
             let single = try typedHash7(app: "com.apple.Terminal", terminal: true,
                                         items: [CompletionItem(match: "#7781", title: "One", arg: "#7781 (one)",
@@ -276,14 +360,40 @@ struct SuggestionsRowsAcceptanceTests {
         }
     }
 
-    /// In terminals the digits, the arrows, Return and Esc stay the app's.
-    @Test func digitsArrowsReturnAndEscAreTheAppsInTerminals() async throws {
+    /// Terminals too have the same keys as everywhere (spec decision 31; it replaces "every key the terminal's"): the
+    /// first row chosen from the start, ↓↑ move it, Return inserts the chosen row's `match` (it doesn't run the command
+    /// while rows show), → or Esc hide the rows and Return is the terminal's again; digits are typed.
+    @Test func theKeysAreTheSameInTerminals() async throws {
         try await inEnglish {
-            for key in [SuggestionKeys.digit(1), SuggestionKeys.down, SuggestionKeys.up, SuggestionKeys.enter, SuggestionKeys.escape] {
-                let field = try typedHash7(app: "com.apple.Terminal", terminal: true)
+            let terminal = "com.apple.Terminal"
+            let digit = try typedHash7(app: terminal, terminal: true)
+            #expect(digit.waitForIssues(Self.allRows))
+            #expect(!digit.press(SuggestionKeys.digit(1)), "1 is typed")
+            #expect(digit.document == "#71", "typed, not a row (\(digit.document))")
+
+            // Decision 31: Return inserts the chosen row, the first, chosen and drawn selected from the start.
+            let enter = try typedHash7(app: terminal, terminal: true)
+            #expect(enter.waitForIssues(Self.allRows))
+            #expect(enter.host.panel?.highlighted == 0, "the first row chosen (\(String(describing: enter.host.panel?.highlighted)))")
+            #expect(enter.press(SuggestionKeys.enter), "Return is ours while rows show")
+            #expect(enter.document == "#7001", "\(enter.document)")
+
+            // Decision 31: ↓↑ move our highlight (not the shell's history); Return inserts the row they moved to.
+            let arrows = try typedHash7(app: terminal, terminal: true)
+            #expect(arrows.waitForIssues(Self.allRows))
+            #expect(arrows.press(SuggestionKeys.down) && arrows.press(SuggestionKeys.down) && arrows.press(SuggestionKeys.up))
+            #expect(arrows.host.panel?.highlighted == 1, "\(String(describing: arrows.host.panel?.highlighted))")
+            #expect(arrows.press(SuggestionKeys.enter))
+            #expect(arrows.document == "#7002", "\(arrows.document)")
+
+            // Decision 31: → or Esc hides the rows (the key is ours), then Return is the terminal's: it runs "#7" as typed.
+            for key in [SuggestionKeys.right, SuggestionKeys.escape] {
+                let field = try typedHash7(app: terminal, terminal: true)
                 #expect(field.waitForIssues(Self.allRows))
-                #expect(!field.press(key), "\(key.key) \(key.characters) is the terminal's")
-                #expect(field.document.count <= 3, "no row inserted (\(field.document))")
+                #expect(field.press(key), "\(key.key) hides the rows")
+                #expect(field.issuesShown.isEmpty && field.document == "#7", "\(field.issuesShown) \(field.document)")
+                #expect(!field.press(SuggestionKeys.enter), "hidden: the terminal's Return")
+                #expect(field.document == "#7", "no row inserted (\(field.document))")
             }
         }
     }
@@ -337,9 +447,9 @@ struct SuggestionsRowsAcceptanceTests {
         + ["com.apple.Terminal", "com.googlecode.iterm2"].map { ClassedApp(app: $0, terminal: true, kind: .codeEditor) }
         + SuggestionsApps.noRows.map { ClassedApp(app: $0, kind: .noRows) }
 
-    /// The app classes of spec 6.11, by what the keys do with "#7"'s rows: ordinary, ↓ moves the highlight; chat, Tab
-    /// inserts the first row with the chat template; terminal or code editor, Tab is the app's (the rows' common prefix
-    /// adds nothing to "#7"); no rows, none.
+    /// The app classes of spec 6.11, by what the keys do with "#7"'s rows (the keys themselves the same in each: decision
+    /// 31): ordinary, the first row chosen from the start and ↓ moving on; chat, Tab inserts the chosen row with the chat
+    /// template; terminal or code editor, Tab inserts the chosen row's match; no rows, none.
     @Test(arguments: classedApps)
     func eachAppHasItsClass(_ classed: ClassedApp) async throws {
         try await inEnglish {
@@ -354,7 +464,9 @@ struct SuggestionsRowsAcceptanceTests {
                 #expect(ordinary.waitForIssues(Self.allRows), "the same source in an ordinary app: \(ordinary.issuesShown)")
             case .ordinary:
                 #expect(field.waitForIssues(Self.allRows), "\(field.issuesShown)")
-                #expect(field.press(SuggestionKeys.down) && field.press(SuggestionKeys.down), "↓ chooses the first row, ↓ moves on")
+                // Decision 31: the first row chosen from the start; the first ↓ moves on to the second.
+                #expect(field.host.panel?.highlighted == 0, "\(String(describing: field.host.panel?.highlighted))")
+                #expect(field.press(SuggestionKeys.down), "↓ moves on")
                 #expect(field.host.panel?.highlighted == 1, "\(String(describing: field.host.panel?.highlighted))")
             case .chat:
                 #expect(field.waitForIssues(Self.allRows), "\(field.issuesShown)")
@@ -362,8 +474,9 @@ struct SuggestionsRowsAcceptanceTests {
                 #expect(field.document == "#7001 https://github.com/octo-org/octo-repo/issues/7001", "\(field.document)")
             case .codeEditor:
                 #expect(field.waitForIssues(Self.allRows), "\(field.issuesShown)")
-                #expect(!field.press(SuggestionKeys.tab), "the common prefix adds nothing: its Tab")
-                #expect(field.document == "#7", "\(field.document)")
+                // Decision 31: Tab inserts the chosen row (its match), not the rows' common prefix.
+                #expect(field.press(SuggestionKeys.tab), "Tab inserts the chosen row")
+                #expect(field.document == "#7001", "\(field.document)")
             }
         }
     }

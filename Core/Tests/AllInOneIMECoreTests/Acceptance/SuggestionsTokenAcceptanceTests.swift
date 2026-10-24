@@ -116,7 +116,8 @@ struct SuggestionsTokenAcceptanceTests {
     }
 
     /// Each boundary ends the token: the rows go, and a digit typed after it is a token of its own (none of the issues'
-    /// rows). Space, other punctuation, Return, a click, another field, a paste, a caret moved by the arrows, Home or End.
+    /// rows). Space, other punctuation, Return, a click, another field, a paste, a caret moved by the arrows (→ while rows
+    /// show hides them first: decision 31), Home or End.
     @Test(arguments: Boundary.allCases)
     func aBoundaryEndsTheToken(_ boundary: Boundary) async throws {
         try await inEnglish {
@@ -139,7 +140,11 @@ struct SuggestionsTokenAcceptanceTests {
                 field.host.focus()
             case .paste: field.press(SuggestionKeys.commandV)
             case .left: field.press(SuggestionKeys.left)
-            case .right: field.press(SuggestionKeys.right)
+            case .right:
+                // Decision 31: while rows show → is ours and hides them (the caret stays); the next → is the app's and
+                // moves the caret, the boundary.
+                #expect(field.press(SuggestionKeys.right), "→ hides the rows")
+                #expect(!field.press(SuggestionKeys.right), "the next → moves the caret")
             case .home: field.press(SuggestionKeys.home)
             case .end: field.press(SuggestionKeys.end)
             }

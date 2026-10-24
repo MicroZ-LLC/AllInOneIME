@@ -306,7 +306,7 @@ struct CommandSuggestionsSessionTests {
     enum Preset: String, CaseIterable, Sendable { case match, title, titleAndLink }
 
     /// The insert presets, per class of app: the match alone; with its title; in chat apps with its link too. Only what
-    /// wasn't typed goes in; a terminal completes what the rows share.
+    /// wasn't typed goes in; a terminal gets the chosen row's match (decision 31).
     @Test(arguments: Preset.allCases)
     func theInsertPresets(_ preset: Preset) async throws {
         try await inEnglish {
@@ -333,22 +333,22 @@ struct CommandSuggestionsSessionTests {
             let untitled = world.field()
             untitled.type("JIRA-17")
             #expect(untitled.settle(timeout: Self.wait) { untitled.rows.map(\.text) == ["JIRA-17"] } || preset != .match, "\(untitled.rows.map(\.text))")
-            // A terminal: Tab completes what the rows' matches share (from the prefix on, `minChars` 0), whatever the
-            // preset; nothing more when they share only what was typed.
+            // A terminal: Tab puts in the chosen row's match (from the prefix on, `minChars` 0), whatever the preset; the
+            // rows gone, Tab is the terminal's.
             let terminal = world.field(app: "com.apple.Terminal", terminal: true)
             terminal.type("JIRA-")
             #expect(terminal.settle(timeout: Self.wait) { terminal.rows.count == 3 }, "\(terminal.rows.map(\.text))")
             #expect(terminal.press(SuggestionKeys.tab))
-            #expect(terminal.document == "JIRA-1", "\(preset) in a terminal: what they share (\(terminal.document))")
-            #expect(!terminal.press(SuggestionKeys.tab), "nothing more shared: Tab is the terminal's")
+            #expect(terminal.document == "JIRA-12", "\(preset) in a terminal: the chosen row's match (\(terminal.document))")
+            #expect(!terminal.press(SuggestionKeys.tab), "no rows: Tab is the terminal's")
         }
     }
 
     // MARK: - In Code
 
-    /// In Code (decision 22) its rows come as a plugin's do there, before the pack's, under a plugin's rules
-    /// (`SuggestionsReturnTests.aPluginsRowsStillWaitForTheArrows`): Return is the app's until ↓ or ↑ moved, Tab puts the
-    /// first row in. Nothing of the field but the token after the prefix goes to the program.
+    /// In Code (decision 22) its rows come as a plugin's do there, before the pack's, with the same keys as every row
+    /// (decision 31): the first row that puts something in chosen from the start, Return or Tab puts it in, ↓ moves on.
+    /// Nothing of the field but the token after the prefix goes to the program.
     @Test func inCodeItsRowsAreAPluginsRows() async throws {
         try await inEnglish {
             let program = try Program(Self.tickets)
@@ -362,16 +362,18 @@ struct CommandSuggestionsSessionTests {
             #expect(field.host.composer.coding, "Code")
             field.type("JIRA-1")
             #expect(field.settle(timeout: Self.wait) { field.rows.map(\.text) == ["JIRA-12", "JIRA-123", "JIRA-17"] }, "\(field.rows.map(\.text))")
-            #expect(field.host.panel?.highlightChosen == false, "the first row only outlined: Return isn't its yet")
-            #expect(!field.press(SuggestionKeys.enter), "Return is the app's")
-            #expect(field.document == "JIRA-1", "\(field.document.debugDescription)")
+            #expect(field.host.panel?.highlighted == 0, "the first row chosen")
+            #expect(field.press(SuggestionKeys.enter), "Return picks it")
+            #expect(field.document == "JIRA-12", "\(field.document.debugDescription)")
 
-            let tab = world.codeField(app: "com.apple.Notes")
-            tab.type("JIRA-12")
-            #expect(tab.settle(timeout: Self.wait) { tab.rows.map(\.text) == ["JIRA-12", "JIRA-123", "JIRA-129"] }, "\(tab.rows.map(\.text))")
-            #expect(tab.press(SuggestionKeys.down) && tab.host.panel?.highlightChosen == true, "moved: chosen")
-            #expect(tab.press(SuggestionKeys.enter), "moved: Return picks the row")
-            #expect(tab.document == "JIRA-123", "\(tab.document.debugDescription)")
+            let moved = world.codeField(app: "com.apple.Notes")
+            moved.type("JIRA-12")
+            #expect(moved.settle(timeout: Self.wait) { moved.rows.map(\.text) == ["JIRA-12", "JIRA-123", "JIRA-129"] }, "\(moved.rows.map(\.text))")
+            // JIRA-12 typed in full puts nothing in: JIRA-123 is the one chosen; ↓ moves on.
+            #expect(moved.host.panel?.highlighted == 1, "\(String(describing: moved.host.panel?.highlighted))")
+            #expect(moved.press(SuggestionKeys.down) && moved.host.panel?.highlighted == 2, "↓ moves on")
+            #expect(moved.press(SuggestionKeys.enter), "Return picks the row")
+            #expect(moved.document == "JIRA-129", "\(moved.document.debugDescription)")
             #expect(program.calls.allSatisfy { $0.isEmpty || $0 == ["12"] } && program.calls.contains(["12"]), "\(program.calls)")
         }
     }
