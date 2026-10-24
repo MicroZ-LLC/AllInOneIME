@@ -32,6 +32,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 - Settings → Assistant says "Already set that way" only when what is already so is what you asked for. An answer that turns a switch the other way than your sentence says ("turn on typing out" answered with it off, as it is), or only keeps settings your sentence isn't about as they are, now says what wasn't understood: "Couldn't tell whether to turn Type results out on or off", "Couldn't tell which setting that is about".
 - A custom command with a value of the wrong kind in the config (`"minChars": "two"`, `"argv": "ls"`) no longer keeps the whole config from loading: that command alone is refused, Settings → Custom Commands lists it with the reason ("This command isn't used: “minChars” should be a whole number") and Delete, and the rest of the config loads.
 - A key press that reaches the input method twice (the same key event handed over again) is typed once on the Mac: the copy gets the first one's answer and nothing else sees it. After "#1" showed GitHub rows, "7" could leave none, the field showing "#17" while the input method had taken "#117".
+- The candidate panel no longer jumps to the top-left corner of the page in Google Docs and other Chrome pages; it stays under the caret.
 
 ## 0.6.6 (2026-10-20)
 

@@ -134,6 +134,12 @@ final class AllInOneIMEInputController: IMKInputController {
     /// known); the self-test's own (`fieldFrame`: its harness field isn't the one focused), else Accessibility's.
     var ghostField: NSRect??
     var fieldFrame: (@MainActor () -> NSRect?)?
+    /// What a panel's anchor goes by in this field (`PanelAnchor.Memory`: the last rect to trust it told), and a count
+    /// that ends the field's being asked again for one (`reaskAnchor`): a key, the panel placed anew, the field left.
+    private(set) var panelAnchor = PanelAnchor.Memory()
+    private var anchorToken = 0
+    /// What the log said last of a panel's anchor not trusted (`anchor`).
+    private var anchorSaid: String?
 
     static let notFound = NSRange(location: NSNotFound, length: NSNotFound)
 
@@ -428,6 +434,8 @@ final class AllInOneIMEInputController: IMKInputController {
             stopTyping(insertingRest: false)  // another field has the focus now: the rest isn't typed anywhere
             apply(session.handle(.blur).outputs, client: sender as? IMKTextInput)
             fieldSession += 1
+            panelAnchor.forget()  // the last rect to trust was this field's
+            (anchorToken, anchorSaid) = (anchorToken + 1, nil)
             if Self.activeController === self { Self.activeController = nil }
             hideTranslateChip()  // Translate as You Type's chip is for the field being typed in
         }
@@ -523,6 +531,7 @@ final class AllInOneIMEInputController: IMKInputController {
             stopTyping(insertingRest: true)
             if pastesRest { return true }
         }
+        anchorToken += 1  // the field isn't asked again for the panel's rect: this key places the panel anew, if it's up
         if !receivedKeys {
             receivedKeys = true
             log.notice("receiving keys (engine ready: \(RimeService.shared.isReady))")
@@ -927,9 +936,45 @@ final class AllInOneIMEInputController: IMKInputController {
 
     // MARK: - Candidate panel
 
+    /// Where a panel of ours goes in `client` (`PanelAnchor`): the rect it tells (`toldAnchor`) where it is one to trust;
+    /// else the caret Accessibility tells, the last rect to trust in this field, or the rect as told, and then the field
+    /// is asked again a moment later (`reaskAnchor`). Said in the log, numbers only (`log stream --predicate 'subsystem
+    /// == "com.aipinyin.inputmethod.AIPinyin" AND eventMessage BEGINSWITH "panel anchor"'`).
     @MainActor
     func anchor(_ client: IMKTextInput) -> NSRect {
-        // A command on the selection: under the selection's last line (nothing is marked to go by).
+        anchorToken += 1
+        panelAnchor.enter(PanelAnchor.Field(client: ObjectIdentifier(client as AnyObject), app: client.bundleIdentifier(),
+                                            session: fieldSession))
+        let told = toldAnchor(client)
+        var asked = "Accessibility not asked"
+        let placement = panelAnchor.place(told, screens: NSScreen.screens.map(\.frame)) {
+            let start = ProcessInfo.processInfo.systemUptime
+            let read = caretByAccessibility(client)
+            asked = String(format: "Accessibility %.1f ms", (ProcessInfo.processInfo.systemUptime - start) * 1000)
+                + (read?.timedOut == true ? ", timed out" : read?.caret == nil ? ", no caret" : "")
+            return read
+        }
+        guard placement.reasks else {
+            anchorSaid = nil
+            return placement.rect
+        }
+        // Once while the field tells the same (an app that never tells a rect to trust would have it said at every key).
+        let said = "\(Self.describe(told)) \(placement.source.rawValue) \(Self.describe(placement.rect))"
+        if said != anchorSaid {
+            anchorSaid = said
+            log.notice("""
+                panel anchor not trusted in \(client.bundleIdentifier() ?? "", privacy: .private): told \(Self.describe(told), privacy: .public); \
+                \(placement.source.rawValue, privacy: .public) used, \(Self.describe(placement.rect), privacy: .public) (\(asked, privacy: .public))
+                """)
+        }
+        reaskAnchor(client)
+        return placement.rect
+    }
+
+    /// The rect `client` tells for a panel: its marked text's line; for a command on the selection, the selection's last
+    /// character (nothing is marked to go by).
+    @MainActor
+    private func toldAnchor(_ client: IMKTextInput) -> NSRect {
         if let range = composer.selection?.range, !range.isEmpty {
             let rect = client.firstRect(forCharacterRange: NSRange(location: range.upperBound - 1, length: 1), actualRange: nil)
             if rect != .zero { return rect }
@@ -937,6 +982,42 @@ final class AllInOneIMEInputController: IMKInputController {
         var lineRect = NSRect.zero
         _ = client.attributes(forCharacterIndex: 0, lineHeightRectangle: &lineRect)
         return lineRect
+    }
+
+    /// What Accessibility tells of the caret in `client`'s app (`FocusedField.caret`; the page's frame till it is known):
+    /// never during secure input or in a password field, never for the self-test's fields (it would read the user's own
+    /// frontmost app).
+    @MainActor
+    private func caretByAccessibility(_ client: IMKTextInput) -> PanelAnchor.Accessibility? {
+        guard clientOverride == nil, !session.secureInputActive(), let app = client.bundleIdentifier() else { return nil }
+        return FocusedField.caret(in: app, page: panelAnchor.page == nil)
+    }
+
+    /// The field asked again for the panel's rect (`PanelAnchor.reaskDelays`) after it told none to trust: the panel
+    /// moves there once it tells one. Not after a key, the panel placed anew or hidden, the field left.
+    @MainActor
+    private func reaskAnchor(_ client: IMKTextInput) {
+        let token = anchorToken
+        for (index, delay) in PanelAnchor.reaskDelays.enumerated() {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                guard let self, token == self.anchorToken else { return }
+                let panel = CandidatePanel.shared
+                guard panel.isShowing, panel.owner === self else { return }
+                let told = self.toldAnchor(client)
+                guard let rect = self.panelAnchor.reasked(told, screens: NSScreen.screens.map(\.frame)) else {
+                    if index == PanelAnchor.reaskDelays.count - 1 {
+                        log.debug("panel anchor: still not trusted \(Int(delay * 1000)) ms later, told \(Self.describe(told), privacy: .public)")
+                    }
+                    return
+                }
+                self.anchorToken += 1  // found: not asked again
+                self.anchorSaid = nil
+                log.notice("panel anchor: trusted \(Int(delay * 1000)) ms later, \(Self.describe(rect), privacy: .public); the panel moved there")
+                let model = panel.view.model
+                if !panel.shows(model, anchor: rect) { panel.show(model, anchor: rect) }
+                self.hideGhostBehindRows()
+            }
+        }
     }
 
     @MainActor
@@ -952,9 +1033,15 @@ final class AllInOneIMEInputController: IMKInputController {
         panel.onScroll = { [weak self] steps in self?.received(.scroll(steps)) }
         panel.onChip = { [weak self] part in self?.translateChipClicked(part) }
         panel.show(model, anchor: anchor(client))
-        // Rows hold the caret (spec 0): autocomplete's gray text, still up where they are now (its placing waits a
-        // moment), goes, as the session ends it. Never a window of ours behind the rows.
-        if !model.rows.isEmpty, GhostOverlay.shared.isVisible, GhostOverlay.shared.frame.intersects(panel.frame) {
+        hideGhostBehindRows()
+    }
+
+    /// Rows hold the caret (spec 0): autocomplete's gray text, still up where they are now (its placing waits a moment),
+    /// goes, as the session ends it. Never a window of ours behind the rows.
+    @MainActor
+    private func hideGhostBehindRows() {
+        let panel = CandidatePanel.shared
+        if !panel.view.model.rows.isEmpty, GhostOverlay.shared.isVisible, GhostOverlay.shared.frame.intersects(panel.frame) {
             GhostOverlay.shared.hide()
         }
     }

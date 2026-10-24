@@ -1,0 +1,146 @@
+import CoreGraphics
+
+/// Where a panel of ours at the caret goes (the candidate panel, a notice, Translate as You Type's chip): under the rect
+/// the field tells for its marked text (`attributes(forCharacterIndex:lineHeightRectangle:)`; the selection's last
+/// character for a command on it), where that is a rect to trust (`trusted`). Chromium answers from bounds the page sends
+/// it later: before they come, or from a hidden input element the page hasn't moved to the caret yet (Google Docs types
+/// into one), it tells a rect at the page's top-left corner, which put the panel there, far from the caret. (The Electron
+/// harness, with a hidden input of no size at the page's top-left: the caret's rect empty at that corner, the marked
+/// text's a line high under it.)
+///
+/// A rect not to trust, the panel goes by the caret Accessibility tells for the focused element (on a screen, in the
+/// focused window), else by the last rect to trust the field told (`Memory`), else by the rect as told, where it always
+/// went. Then the field is asked again a moment later (`reaskDelays`), and the panel moves once it tells a rect to trust.
+/// Accessibility is asked only for a rect not to trust: never on every key in an app that tells its caret right.
+public enum PanelAnchor {
+    /// When the field is asked again, in seconds after a panel placed by anything but a rect it told to trust:
+    /// Chromium's bounds usually come within a frame or two.
+    public static let reaskDelays: [Double] = [0.04, 0.15]
+
+    /// The field a panel is for: its client object and app, in one focus session (an activation of it).
+    public struct Field: Equatable, Sendable {
+        public var client: ObjectIdentifier
+        public var app: String?
+        public var session: Int
+
+        public init(client: ObjectIdentifier, app: String?, session: Int) {
+            (self.client, self.app, self.session) = (client, app, session)
+        }
+    }
+
+    /// What Accessibility told of the focused element, in AppKit's coordinates (nil: not told): the caret's bounds, the
+    /// focused window's frame and the frame of the page it is on (the outermost web area); `timedOut`: a call got no
+    /// answer in time.
+    public struct Accessibility: Equatable, Sendable {
+        public var caret: CGRect?
+        public var window: CGRect?
+        public var page: CGRect?
+        public var timedOut = false
+
+        public init(caret: CGRect? = nil, window: CGRect? = nil, page: CGRect? = nil, timedOut: Bool = false) {
+            (self.caret, self.window, self.page, self.timedOut) = (caret, window, page, timedOut)
+        }
+    }
+
+    /// What a panel's anchor went by (the log says which).
+    public enum Source: String, Sendable {
+        /// The rect the field told, one to trust.
+        case field
+        /// The caret Accessibility told.
+        case accessibility
+        /// The last rect to trust the field told.
+        case last
+        /// The rect the field told, not one to trust: as before, nothing better known.
+        case told
+    }
+
+    /// Where the panel goes and what that went by; anything but the field's own rect to trust has the field asked again
+    /// (`reaskDelays`).
+    public struct Placement: Equatable, Sendable {
+        public var rect: CGRect
+        public var source: Source
+        public var reasks: Bool { source != .field }
+
+        public init(rect: CGRect, source: Source) {
+            (self.rect, self.source) = (rect, source)
+        }
+    }
+
+    /// Whether `rect`, on the screen in AppKit's coordinates, is one to trust: it has a height (more than a point: an
+    /// empty rect, zero wide and high, has none), isn't at the screen's origin, is on one of `screens` (their frames; none
+    /// known: not checked), and isn't at the top-left corner of the focused window or its page (`window`, `page`, where
+    /// Accessibility told them), where Chromium's rect goes before it has the page's bounds.
+    public static func trusted(_ rect: CGRect, screens: [CGRect], window: CGRect? = nil, page: CGRect? = nil) -> Bool {
+        guard rect.minX.isFinite, rect.minY.isFinite, rect.width.isFinite, rect.height.isFinite,
+              rect.height > 1, rect.origin != .zero else { return false }
+        if !screens.isEmpty, !screens.contains(where: { $0.intersects(rect.insetBy(dx: -2, dy: -2)) }) { return false }
+        return ![window, page].contains { $0.map { atTopLeft(rect, of: $0) } == true }
+    }
+
+    /// Whether `rect`'s top-left corner is `frame`'s (two points either way).
+    static func atTopLeft(_ rect: CGRect, of frame: CGRect) -> Bool {
+        abs(rect.minX - frame.minX) <= 2 && abs(rect.maxY - frame.maxY) <= 2
+    }
+
+    /// `rect` as Accessibility tells it (from the main screen's top-left, y down) in AppKit's coordinates (from its
+    /// bottom-left, y up); `top`: the main screen's height.
+    public static func appKit(_ rect: CGRect, top: CGFloat) -> CGRect {
+        CGRect(x: rect.minX, y: top - rect.minY - rect.height, width: rect.width, height: rect.height)
+    }
+
+    /// What a field's panel goes by, for one field at a time: the last rect to trust it told, the frames Accessibility
+    /// told there (a rect at their top-left corner isn't one to trust either), and whether Accessibility is still asked
+    /// there. Another field forgets all of it.
+    public struct Memory: Sendable {
+        public private(set) var field: Field?
+        public private(set) var last: CGRect?
+        public private(set) var window: CGRect?
+        public private(set) var page: CGRect?
+        /// Accessibility got no answer in time in this field: not asked there again (an app that hangs would hold up
+        /// every key).
+        public private(set) var accessibilityGivenUp = false
+
+        public init() {}
+
+        /// The panel is for `field` now: another field than before (another client, app or focus session) forgets the
+        /// last one's.
+        public mutating func enter(_ field: Field) {
+            guard field != self.field else { return }
+            self = Memory()
+            self.field = field
+        }
+
+        /// The field is left.
+        public mutating func forget() { self = Memory() }
+
+        /// Where the panel goes for `told`, the rect the field tells now: there, if it is one to trust (remembered);
+        /// else the caret `accessibility` tells (asked only then, and not once it timed out in this field) where it is
+        /// one to trust inside the focused window; else the last rect to trust; else `told`, as before.
+        @discardableResult
+        public mutating func place(_ told: CGRect, screens: [CGRect], accessibility: () -> Accessibility?) -> Placement {
+            if trusted(told, screens: screens, window: window, page: page) {
+                last = told
+                return Placement(rect: told, source: .field)
+            }
+            if !accessibilityGivenUp, let read = accessibility() {
+                window = read.window ?? window
+                page = read.page ?? page
+                accessibilityGivenUp = read.timedOut
+                if let caret = read.caret, let window, trusted(caret, screens: screens, window: window, page: page),
+                   window.insetBy(dx: -2, dy: -2).contains(CGPoint(x: caret.midX, y: caret.midY)) {
+                    return Placement(rect: caret, source: .accessibility)
+                }
+            }
+            if let last { return Placement(rect: last, source: .last) }
+            return Placement(rect: told, source: .told)
+        }
+
+        /// The field asked again (`reaskDelays`) and telling `told` now: the rect the panel moves to, if it is one to trust
+        /// (remembered); nil, the panel stays where it is.
+        public mutating func reasked(_ told: CGRect, screens: [CGRect]) -> CGRect? {
+            guard trusted(told, screens: screens, window: window, page: page) else { return nil }
+            last = told
+            return told
+        }
+    }
+}
