@@ -25,7 +25,8 @@ enum SettingsSpot: String, CaseIterable {
     /// The page it's on.
     var page: SettingsPage {
         switch self {
-        case .inputLanguages, .fuzzyPinyin, .personalDictionaries, .englishWords, .codingLanguage, .outputLanguages, .rewriteStyles,
+        case .inputLanguages, .fuzzyPinyin, .personalDictionaries, .englishWords, .codingLanguage: return .input
+        case .outputLanguages, .rewriteStyles,
              .improveTranslates, .jargonList, .autocomplete, .suggestions, .suggestionsInsert, .appInserts, .magicKey, .actionKey,
              .menuBarIcon, .interfaceLanguage, .iCloudSync, .previousAppSettings:
             return .general

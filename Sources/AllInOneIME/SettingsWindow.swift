@@ -2224,9 +2224,6 @@ struct SettingsView: View {
                     ChangeCard(assistant: assistant)
                     switch page {
                     case .general:
-                        inputSection
-                        // Each input's options right under the chips, each under its name (owner, 0.6.7: not in a popover).
-                        ForEach(model.config.inputs, id: \.self) { input in inputOptions(input) }
                         writingSection
                         autocompleteSection
                         SuggestionsSection(model: model)
@@ -2234,6 +2231,11 @@ struct SettingsView: View {
                         appearanceSection
                         ICloudSyncSection(model: model)
                         PreviousAppSettingsSection(model: model)
+                    case .input:
+                        // The input languages, then each one's options under its name (owner, 0.6.7: a page of its own,
+                        // as before, not a popover on General).
+                        inputSection
+                        ForEach(model.config.inputs, id: \.self) { input in inputOptions(input) }
                     case .ai:
                         providerSection
                         requestSection
@@ -3373,13 +3375,14 @@ struct SectionTitle: View {
 
 /// The settings window's pages, in the sidebar's order.
 enum SettingsPage: String, CaseIterable, Identifiable {
-    case general, ai, privacy, commands, advanced, about
+    case general, input, ai, privacy, commands, advanced, about
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .general: return tr("通用", "General")
+        case .input: return tr("输入", "Input")
         case .ai: return tr("AI", "AI")
         case .privacy: return tr("隐私", "Privacy")
         case .commands: return tr("命令", "Commands")
@@ -3391,6 +3394,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
     var icon: CandidateView.Icon {
         switch self {
         case .general: return CandidateView.Icon(symbol: "gearshape.fill", color: .systemGray)
+        case .input: return CandidateView.Icon(symbol: "keyboard.fill", color: .systemBlue)
         case .ai: return CommandIcons.provider
         case .privacy: return CandidateView.Icon(symbol: "hand.raised.fill", color: .systemBlue)
         case .commands: return CommandIcons.commands
@@ -3414,7 +3418,8 @@ enum SettingsPage: String, CaseIterable, Identifiable {
     /// page of its own (secure input, the logs' errors) is About's, with Troubleshoot.
     static func of(_ area: Doctor.Area) -> SettingsPage {
         switch area {
-        case .inputMethod, .languagePacks, .iCloudSync: return .general
+        case .inputMethod, .iCloudSync: return .general
+        case .languagePacks: return .input
         case .provider, .connection, .appleIntelligence: return .ai
         case .permissions: return .privacy
         case .extensions: return .commands

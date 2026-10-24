@@ -172,7 +172,7 @@ extension SelfTest {
             preview.config.setOrder([Language.chinese, .english])
             preview.config.englishWords = ["Bedrock", "frobnicate", "LangGraph", "Kiro", "OpenRouter Chat"]
             let image = snapshotDirectory.appendingPathComponent("\(name).png")
-            SettingsImage.render(preview, page: .general, inputTab: .language(.english), to: image) { seconds in _ = pump(timeout: seconds) { false } }
+            SettingsImage.render(preview, page: .input, inputTab: .language(.english), to: image) { seconds in _ = pump(timeout: seconds) { false } }
             check(FileManager.default.fileExists(atPath: image.path), "Settings → General → English's chip, its words drawn (\(language))")
         }
     }

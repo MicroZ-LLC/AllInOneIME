@@ -598,10 +598,10 @@ extension SelfTest {
         let rig = AssistantRig(snapshotDirectory, name: "assistant-page.json", config: start)
         rig.facts = troubledFacts
         defer { rig.restore() }
-        let pages: [SettingsPage] = [.general, .ai, .privacy, .commands, .advanced, .about]
+        let pages: [SettingsPage] = [.general, .input, .ai, .privacy, .commands, .advanced, .about]
         check(SettingsPage.allCases == pages && SettingsView.firstPage == .general
               && SettingsPage(rawValue: "assistant") == nil && SettingsPage(rawValue: "apps") == nil,
-              "six pages in order, General first, no Assistant or Apps page (\(SettingsPage.allCases.map(\.rawValue)))")
+              "seven pages in order, General first, no Assistant or Apps page (\(SettingsPage.allCases.map(\.rawValue)))")
         check(SettingsSpot.search("doctor", trigger: "@", config: start).first == .troubleshoot
               && SettingsSpot.search("诊断", trigger: "@", config: start).first == .troubleshoot,
               "searching for doctor or 诊断 finds About → Troubleshoot")
@@ -656,20 +656,24 @@ extension SelfTest {
         let order = titles.compactMap { title in rows.firstIndex { $0.hasPrefix(title) } }
         check(order.count == pages.count && order == order.sorted() && !rows.contains(tr("助手", "Assistant"))
               && !rows.contains(tr("按 App 设置", "Apps")),
-              "the sidebar has the six pages in order, no Assistant or Apps (\(rows))")
-        check(shown.contains(SettingsSpot.inputLanguages.title) && shown.contains(SettingsSpot.outputLanguages.title),
-              "Settings opens on General: its input languages and Translate to")
+              "the sidebar has the seven pages in order, no Assistant or Apps (\(rows))")
+        check(!shown.contains(SettingsSpot.inputLanguages.title) && shown.contains(SettingsSpot.outputLanguages.title)
+              && SettingsSpot.inputLanguages.page == .input && SettingsSpot.fuzzyPinyin.page == .input,
+              "Settings opens on General: Translate to there; the input languages and their options on Input")
         check(rig.probed >= 1 && !assistant.findings.isEmpty && rig.tested == 0 && assistant.connectionTests == 0,
               "its probes ran as it opened (\(rig.probed)), never the connection test")
-        // The made-up problems: General's (the input method, Korean's pack) on its banner; AI's (no key) only a dot here.
+        // The made-up problems: General's (the input method, if any) on its banner; Input's (Korean's pack) and AI's (no
+        // key) only a dot on their rows here.
         let general = assistant.issues.filter { SettingsPage.of($0.element.area) == .general }.map(\.element)
-        check(!general.isEmpty && general.allSatisfy { shown.contains($0.title) }
-              && rows.contains(SettingsPage.general.title + tr("：", ": ") + tr("有问题", "Has a problem"))
+        check(general.allSatisfy { shown.contains($0.title) }
+              && rows.contains(SettingsPage.input.title + tr("：", ": ") + tr("有问题", "Has a problem"))
               && !shown.contains(tr("修复", "Fix")),
-              "General's problems on its banner, a dot on the rows with one, no button just \"Fix\" (\(general.map(\.title)); "
+              "General's problems on its banner, a dot on Input's row (Korean's pack), no button just \"Fix\" (\(general.map(\.title)); "
                   + "banner \(general.allSatisfy { shown.contains($0.title) }), rows \(rows), Fix \(shown.contains(tr("修复", "Fix"))))")
-        let download = general.first { if case .downloadPack = $0.fix { return true } else { return false } }
-        check(download.map { shown.contains(FindingRow.title($0.fix!)) } == true, "the pack's button says Download")
+        // A pack's problem is Input's (its banner there, a dot on its row); its button says Download.
+        let download = assistant.issues.map(\.element).first { if case .downloadPack = $0.fix { return true } else { return false } }
+        check(download.map { SettingsPage.of($0.area) == .input && FindingRow.title($0.fix!) == tr("下载", "Download") } == true,
+              "the pack's problem on Input, its button says Download")
         close(window)
 
         // AI: the provider's problem on its banner, its button Add Key…; a setting no longer shown, set otherwise than its

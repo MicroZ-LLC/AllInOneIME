@@ -326,9 +326,9 @@ enum SettingsPageImages {
         model.config.provider = provider
         // Bedrock with a role, an SSO profile, and an SSO sign-in that expired.
         AWSProfileSamples.render(model, to: output, appearance: dark ? .darkAqua : .aqua)
-        // General with each input's chip opened (its options drawn under the chips: a popover isn't in a page's image).
+        // Input with its options under the chips (each input's options under its name).
         for input in model.config.inputs {
-            SettingsImage.render(model, page: .general, inputTab: input,
+            SettingsImage.render(model, page: .input, inputTab: input,
                                  to: output.appendingPathComponent("settings-input-\(input.rawValue).png"),
                                  appearance: dark ? .darkAqua : .aqua) { RunLoop.main.run(until: Date().addingTimeInterval($0)) }
         }
