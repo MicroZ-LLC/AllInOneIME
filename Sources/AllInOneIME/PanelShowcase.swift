@@ -227,6 +227,9 @@ enum SettingsPageImages {
         model.config.appProfiles = AppProfileSamples.profiles
         // Hiding sensitive information shown on, with its switches and sample words, never the user's own.
         model.config.redaction = RedactionSettings(enabled: true, customWords: ["Project Atlas", "Phoenix"])
+        // What is learned (Privacy → Learned…): samples, in memory, never the user's.
+        let learnedSamples = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-learned-\(UUID().uuidString)")
+        LearnedShared.store = LearnedSamples.store(in: learnedSamples)
         // Extension sources: samples, never the user's (their statuses only shown, never saved).
         model.config.extensionSources = ExtensionSourceSamples.sources
         for source in model.config.extensionSources { ExtensionSources.enable(source, in: &model.config) }
@@ -302,6 +305,14 @@ enum SettingsPageImages {
         render(.ai, "problem", assistant: troubled)
         render(.about, "troubleshoot", assistant: troubled, troubleshoot: true)
         rig.restore()
+        // Privacy → Learned…: the list with the samples, then empty (all forgotten, in memory).
+        SettingsImage.render(model, page: .privacy, assistant: fine, learned: true, to: output.appendingPathComponent("settings-learned.png"),
+                             appearance: dark ? .darkAqua : .aqua) { RunLoop.main.run(until: Date().addingTimeInterval($0)) }
+        model.forgetAllLearned()
+        SettingsImage.render(model, page: .privacy, assistant: fine, learned: true,
+                             to: output.appendingPathComponent("settings-learned-empty.png"),
+                             appearance: dark ? .darkAqua : .aqua) { RunLoop.main.run(until: Date().addingTimeInterval($0)) }
+        try? FileManager.default.removeItem(at: learnedSamples)
         try? FileManager.default.removeItem(at: samples)
         // AI Provider's key row with a key saved (its last 4 shown) and without one, and the key sheet for another
         // provider: sample states, no keychain asked.

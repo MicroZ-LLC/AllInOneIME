@@ -14,7 +14,7 @@ enum SettingsSpot: String, CaseIterable {
     // AI
     case provider, model, apiKey, awsProfile, baseURL, testConnection
     // Privacy
-    case hideSensitive, wordsToHide, appsWithoutAI, pageContext, rememberQuestions, learnEnglishWords
+    case hideSensitive, wordsToHide, appsWithoutAI, pageContext, rememberQuestions, learnEnglishWords, learned
     // Commands
     case customCommands, agent, questionContinueIn, notes, webSearch, plugins, scriptExtensions, extensionSources
     // Advanced
@@ -30,7 +30,8 @@ enum SettingsSpot: String, CaseIterable {
              .menuBarIcon, .interfaceLanguage, .iCloudSync, .previousAppSettings:
             return .general
         case .provider, .model, .apiKey, .awsProfile, .baseURL, .testConnection: return .ai
-        case .hideSensitive, .wordsToHide, .appsWithoutAI, .pageContext, .rememberQuestions, .learnEnglishWords: return .privacy
+        case .hideSensitive, .wordsToHide, .appsWithoutAI, .pageContext, .rememberQuestions, .learnEnglishWords, .learned:
+            return .privacy
         case .customCommands, .agent, .questionContinueIn, .notes, .webSearch, .plugins, .scriptExtensions, .extensionSources:
             return .commands
         case .typeOut, .candidateLayout, .useSelection, .configFile, .rimeFolder: return .advanced
@@ -87,6 +88,7 @@ enum SettingsSpot: String, CaseIterable {
         case .pageContext: return UIText.triggered(tr("@agent 和 @reply 带上 Chrome 里的网页", "@agent and @reply take the Chrome page along"))
         case .rememberQuestions: return tr("记住最近的问题", "Remember recent questions")
         case .learnEnglishWords: return tr("学习英文词", "Learn English words")
+        case .learned: return tr("学到的内容", "Learned")
         case .customCommands: return tr("你的命令", "Your Commands")
         case .agent: return UIText.triggered(tr("@agent 交给", "@agent hands it to"))
         case .questionContinueIn: return tr("对话接着在哪里聊", "Continue a conversation in")
@@ -130,6 +132,9 @@ enum SettingsSpot: String, CaseIterable {
                                        "@improve, @translate, @question, @agent and the like send nothing to the AI; typing and the other commands work."))
         case .pageContext: return Self.pageContextNote
         case .learnEnglishWords: return Self.learnEnglishWordsNote
+        case .learned:
+            return tr("从你的用法里学到的，比如 App 用哪种输入开始、你选过的建议行，只存在这台 Mac 上。",
+                      "What was learned from how you type, such as the input an app starts in or the rows you picked, kept on this Mac only.")
         case .typeOut: return Self.typeOutNote
         case .useSelection: return Self.useSelectionNote
         case .rimeFolder: return tr("学到的词和你自己的 Rime 设置", "Learned words and your own Rime settings")
@@ -152,7 +157,7 @@ enum SettingsSpot: String, CaseIterable {
         case .improveTranslates: return "improve translate 润色 翻译"
         case .jargonList: return "jargon terms team 黑话 术语 团队"
         case .autocomplete: return "autocomplete continue ghost gray tab 续写 灰字"
-        case .suggestions: return "suggestions completions plugins # issues github code snippets picked rows forget 建议 补全 插件 选过的行 忘掉"
+        case .suggestions: return "suggestions completions plugins # issues github code snippets 建议 补全 插件"
         case .suggestionsInsert: return "insert id title link 插入 标题 链接"
         case .appInserts: return "apps per-app insert 每个 应用 插入"
         case .magicKey: return "trigger @ ~ symbol commands 触发 符号 命令"
@@ -173,6 +178,7 @@ enum SettingsSpot: String, CaseIterable {
         case .pageContext: return "@agent @reply chrome page context accessibility 网页 辅助功能"
         case .rememberQuestions: return "@question recent questions history forget 最近的问题 提问 记录 历史 忘掉"
         case .learnEnglishWords: return "learn english words 学习 英文词"
+        case .learned: return "learned forget starts in starting input autocomplete stopped typos picked rows suggestions temperature models 学到的内容 忘掉 开始 输入 续写 停下 打错 选过的行 建议 模型"
         case .customCommands: return "custom commands prompt program terminal link snippet 自定义 命令 程序 终端 网页"
         case .agent: return "@agent coding agent claude code gemini cli kiro custom command terminal installed background notify tasks @tasks claude tasks 编程 交给 终端 已安装 后台 通知 任务"
         case .questionContinueIn: return "@question continue conversation claude code chatgpt gemini copy 接着聊 对话 追问 复制"
@@ -181,7 +187,7 @@ enum SettingsSpot: String, CaseIterable {
         case .plugins: return "plugins library stock xe completions preferences password 插件 插件库 补全 偏好 密码"
         case .scriptExtensions: return "raycast script commands scripts extensions bundles preferences folder spotlight 脚本 扩展 扩展包 偏好 文件夹 聚焦"
         case .extensionSources: return "extension sources git repository link clone update pin ssh 扩展来源 仓库 链接 克隆 更新 固定"
-        case .typeOut: return "type out typing speed typos mistakes forget 打字速度 打错 忘掉"
+        case .typeOut: return "type out typing speed typos mistakes 打字速度 打错"
         case .candidateLayout: return "candidate layout horizontal vertical 候选 排列 横排 竖排"
         case .useSelection: return "selection selected text 选中 文字"
         case .configFile: return "config file json 配置文件"
@@ -233,7 +239,7 @@ enum SettingsSpot: String, CaseIterable {
         case .awsProfile: return config.provider == .bedrock
         case .model: return config.provider != .hosted && config.provider != .apple
         case .jargonList: return SettingsView.showsJargon(config)
-        case .previousAppSettings: return !PreviousAppSettings.apps(in: config).isEmpty
+        case .previousAppSettings: return config.appProfiles.values.contains { !$0.previousFields.isEmpty }
         case .fuzzyPinyin, .personalDictionaries: return config.inputLanguages.contains(.chinese)
         case .webSearch: return Command.webSearchOffered
         default: return true

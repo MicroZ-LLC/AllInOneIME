@@ -40,10 +40,8 @@ sections[general].fields[suggestions].id = "suggestions"
 sections[general].fields[suggestions].kind = "toggle"
 sections[general].fields[suggestions].label = "Suggestions"
 sections[general].fields[suggestions].value = true
-sections[general].fields[suggestionsInsert].choices[0].label = "Source's default"
+sections[general].fields[suggestionsInsert].choices[0].label = "Default (each source's own)"
 sections[general].fields[suggestionsInsert].choices[0].value = null
-sections[general].fields[suggestionsInsert].choices[=id].label = "ID only"
-sections[general].fields[suggestionsInsert].choices[=id].value = "id"
 sections[general].fields[suggestionsInsert].choices[=title].label = "With title"
 sections[general].fields[suggestionsInsert].choices[=title].value = "title"
 sections[general].fields[suggestionsInsert].choices[=titleAndLink].label = "With title and link"
@@ -711,10 +709,8 @@ sections[general].fields[suggestions].id = "suggestions"
 sections[general].fields[suggestions].kind = "toggle"
 sections[general].fields[suggestions].label = "建议"
 sections[general].fields[suggestions].value = true
-sections[general].fields[suggestionsInsert].choices[0].label = "来源的默认"
+sections[general].fields[suggestionsInsert].choices[0].label = "默认（各来源自己的）"
 sections[general].fields[suggestionsInsert].choices[0].value = null
-sections[general].fields[suggestionsInsert].choices[=id].label = "只有 ID"
-sections[general].fields[suggestionsInsert].choices[=id].value = "id"
 sections[general].fields[suggestionsInsert].choices[=title].label = "带标题"
 sections[general].fields[suggestionsInsert].choices[=title].value = "title"
 sections[general].fields[suggestionsInsert].choices[=titleAndLink].label = "带标题和链接"

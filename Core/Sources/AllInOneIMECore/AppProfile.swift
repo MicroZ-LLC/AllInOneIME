@@ -236,7 +236,8 @@ public struct PreviousAppSettings: Equatable, Sendable {
     public var app: String
     /// What its profile sets of them, in `PreviousField`'s order.
     public var fields: [AppProfile.PreviousField]
-    /// The row, in the interface language: "Slack: starts in English, Translate as You Type always on".
+    /// The row, in the interface language: "Slack: starts in English, Always Translate as You Type" (each switch by the
+    /// name the settings document's per-app fields give it).
     public var text: String
 
     public init(app: String, fields: [AppProfile.PreviousField], text: String) {
@@ -267,7 +268,7 @@ extension Config {
         changeProfile(for: app, dropsEmpty: true) { $0 = $0.withoutPreviousFields }
     }
 
-    /// What `field` of `profile` says, in the interface language: "starts in English", "Translate as You Type always on".
+    /// What `field` of `profile` says, in the interface language: "starts in English", "Always Translate as You Type".
     private func previousText(_ field: AppProfile.PreviousField, of profile: AppProfile) -> String {
         switch field {
         case .startingInput:
@@ -275,7 +276,7 @@ extension Config {
             let name = SessionText.inputName(input, language: UIText.language, coding: codingLanguage.map { CodingLanguagePack.title(of: $0) })
             return tr("用\(name)开始", "starts in \(name)")
         case .translateAlways:
-            return tr("总是边打边译", "Translate as You Type always on")
+            return tr("总是边打边译", "Always Translate as You Type")
         case .autocomplete:
             return profile.autocomplete == true ? tr("总是续写", "Autocomplete always on") : tr("从不续写", "Autocomplete always off")
         case .suggestions:

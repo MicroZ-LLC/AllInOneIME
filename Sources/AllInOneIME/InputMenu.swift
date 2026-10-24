@@ -103,7 +103,7 @@ extension AllInOneIMEInputController {
         improveTranslates.state = current.improveTranslates ? .on : .off
         improveTranslates.isEnabled = config != nil
         menu.addItem(improveTranslates)
-        // The app being typed in: no AI, typing out, the language it starts in (`AppProfile`).
+        // The app being typed in: the input it learned to start in, No AI, what a suggestion row inserts there.
         if let appItem = appMenuItem(config: config, app: activeApp ?? appID) { menu.addItem(appItem) }
         menu.addItem(.separator())
         let rimeDir = NSMenuItem(title: tr("打开 Rime 用户目录", "Open Rime User Folder"), action: #selector(openRimeDirectory(_:)),
@@ -285,7 +285,7 @@ extension AllInOneIMEInputController {
             }
             let packs = CodingPackManager.shared
             if !packs.installed.contains(where: { $0.language == language }) {
-                // Its progress and any failure in Settings → Input, as an input language's.
+                // Its progress and any failure in Settings → General (Code's chip), as an input language's.
                 let title = CodingLanguagePack.title(of: language)
                 showNotice(tr("正在下载 \(title) 编程语言包，好了就切到代码（\(title)）", "Downloading the \(title) coding pack: Code is in \(title) once it's in"),
                            client: nil)

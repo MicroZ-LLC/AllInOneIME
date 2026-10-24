@@ -2876,6 +2876,53 @@
         }
       }
     },
+    "%@ things learned" : {
+      "comment" : "学到了 %@ 项 — Sources/AllInOneIME/LearnedSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ Dinge gelernt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ cosas aprendidas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ éléments appris"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@件を学習"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@개 학습함"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ itens aprendidos"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "學到了 %@ 項"
+          }
+        }
+      }
+    },
     "%@ things to look at" : {
       "comment" : "有 %@ 项要看一下 — Sources/AllInOneIME/AssistantPage.swift",
       "localizations" : {
@@ -3436,6 +3483,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已儲存 1 個問題。"
+          }
+        }
+      }
+    },
+    "1 thing learned" : {
+      "comment" : "学到了 1 项 — Sources/AllInOneIME/LearnedSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 Sache gelernt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 cosa aprendida"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 élément appris"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1件を学習"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1개 학습함"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 item aprendido"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "學到了 1 項"
           }
         }
       }
@@ -12895,6 +12989,7 @@
     },
     "Every app can make typos and fix them." : {
       "comment" : "每个 App 都能打错再改。 — Sources/AllInOneIME/SettingsWindow.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -13465,7 +13560,7 @@
       }
     },
     "Forget" : {
-      "comment" : "忘掉 — Sources/AllInOneIME/SettingsWindow.swift",
+      "comment" : "忘掉 — Sources/AllInOneIME/AppProfiles.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -13558,8 +13653,56 @@
         }
       }
     },
+    "Forget All" : {
+      "comment" : "全部忘掉 — Sources/AllInOneIME/LearnedSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alles vergessen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Olvidar todo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tout oublier"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべて忘れる"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "모두 잊기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esquecer Tudo"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部忘掉"
+          }
+        }
+      }
+    },
     "Forget apps where typos couldn't be fixed (%@)" : {
       "comment" : "忘掉改不回来的 App（%@） — Sources/AllInOneIME/SettingsWindow.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -13607,6 +13750,7 @@
     },
     "Forget Picked Rows (%@)" : {
       "comment" : "忘掉选过的行（%@） — Sources/AllInOneIME/SuggestionsSettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -13654,6 +13798,7 @@
     },
     "Forgotten, they get it again; one that still refuses it is remembered again." : {
       "comment" : "忘掉后会重新发给它们；仍不接受的会再记住。 — Sources/AllInOneIME/SettingsWindow.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -15780,6 +15925,53 @@
         }
       }
     },
+    "Kept on this Mac only, never synced, and never what you type: only apps, inputs, counts and models. What you forget can be learned again." : {
+      "comment" : "只存在这台 Mac 上，不同步，也不存你打的字：只有 App、输入、次数和模型。忘掉的以后还会再学。 — Sources/AllInOneIME/LearnedSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nur auf diesem Mac gespeichert, nie synchronisiert und nie, was du tippst: nur Apps, Eingaben, Zählungen und Modelle. Was du vergisst, kann wieder gelernt werden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se guarda solo en este Mac, nunca se sincroniza y nunca guarda lo que escribes: solo apps, entradas, recuentos y modelos. Lo que olvides puede volver a aprenderse."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conservé sur ce Mac uniquement, jamais synchronisé, et jamais ce que vous tapez : seulement des apps, des saisies, des décomptes et des modèles. Ce que vous oubliez peut être appris à nouveau."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このMacだけに保存され、同期されず、入力した文字も保存しません：保存するのはApp、入力、回数、モデルだけです。忘れたものはまた学習されることがあります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Mac에만 보관되고 동기화되지 않으며, 입력한 내용은 저장하지 않습니다. 앱, 입력, 횟수, 모델만 저장합니다. 잊은 내용은 다시 학습될 수 있습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fica só neste Mac, nunca é sincronizado e nunca guarda o que você digita: só apps, entradas, contagens e modelos. O que você esquecer pode ser aprendido de novo."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只存在這台 Mac 上，不同步，也不存你打的字：只有 App、輸入、次數和模型。忘掉的以後還會再學。"
+          }
+        }
+      }
+    },
     "Keyboard layout" : {
       "comment" : "键盘布局 — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
@@ -16163,6 +16355,53 @@
         }
       }
     },
+    "Learned" : {
+      "comment" : "学到的内容 — Sources/AllInOneIME/SettingsSearch.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gelerntes"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aprendido"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appris"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "学習した内容"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "학습한 내용"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aprendido"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "學到的內容"
+          }
+        }
+      }
+    },
     "Learned words" : {
       "comment" : "学到的词 — Sources/AllInOneIME/ICloudSyncSettings.swift",
       "localizations" : {
@@ -16253,6 +16492,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "學到的詞和你自己的 Rime 設定"
+          }
+        }
+      }
+    },
+    "Learned…" : {
+      "comment" : "学到的内容… — Sources/AllInOneIME/LearnedSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gelerntes …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aprendido…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appris…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "学習した内容…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "학습한 내용…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aprendido…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "學到的內容⋯"
           }
         }
       }
@@ -16872,6 +17158,7 @@
     },
     "Models that get no temperature: %@ (they refused it)" : {
       "comment" : "不发 temperature 的模型：%@ 个（它们不接受） — Sources/AllInOneIME/SettingsWindow.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -18430,6 +18717,7 @@
     },
     "No typos in: " : {
       "comment" : "这些 App 里不再打错： — Sources/AllInOneIME/SettingsWindow.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -19458,6 +19746,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "用 @note 儲存的備忘錄會顯示在這裡"
+          }
+        }
+      }
+    },
+    "Nothing learned yet" : {
+      "comment" : "还没有学到什么 — Sources/AllInOneIME/LearnedSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noch nichts gelernt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aún no se ha aprendido nada"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rien d’appris pour l’instant"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "まだ何も学習していません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "아직 학습한 내용 없음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nada aprendido ainda"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒有學到什麼"
           }
         }
       }
@@ -25851,6 +26186,7 @@
     },
     "Rows you pick come first next time; they're kept on this Mac only." : {
       "comment" : "选过的行下次排在前面，只存在这台 Mac 上。 — Sources/AllInOneIME/SuggestionsSettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -27782,6 +28118,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "從範例開始"
+          }
+        }
+      }
+    },
+    "Starts in %@ (learned)" : {
+      "comment" : "用%@开始（学到的） — Sources/AllInOneIME/AppProfiles.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Startet mit %@ (gelernt)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Empieza en %@ (aprendido)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Démarre en %@ (appris)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@で開始（学習済み）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@(으)로 시작 (학습됨)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Começa em %@ (aprendido)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用%@開始（學到的）"
           }
         }
       }
@@ -33643,6 +34026,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要更改什麼"
+          }
+        }
+      }
+    },
+    "What was learned from how you type, such as the input an app starts in or the rows you picked, kept on this Mac only." : {
+      "comment" : "从你的用法里学到的，比如 App 用哪种输入开始、你选过的建议行，只存在这台 Mac 上。 — Sources/AllInOneIME/SettingsSearch.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Was aus deiner Art zu tippen gelernt wurde, etwa die Eingabe, mit der eine App startet, oder die Zeilen, die du gewählt hast; nur auf diesem Mac gespeichert."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lo aprendido de cómo escribes, como la entrada con la que empieza una app o las filas que elegiste, guardado solo en este Mac."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce qui a été appris de votre façon de taper, comme la saisie avec laquelle une app démarre ou les lignes que vous avez choisies, conservé sur ce Mac uniquement."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "入力のしかたから学習した内容（Appが最初に使う入力や、選んだ候補行など）。このMacだけに保存されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "입력하는 방식에서 학습한 내용(앱이 처음 쓰는 입력, 선택한 제안 행 등)으로, 이 Mac에만 보관됩니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O que foi aprendido com o seu jeito de digitar, como a entrada com que um app começa ou as linhas que você escolheu, guardado só neste Mac."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "從你的用法裡學到的，例如 App 用哪種輸入開始、你選過的建議行，只存在這台 Mac 上。"
           }
         }
       }

@@ -2,8 +2,8 @@ import AllInOneIMECore
 import SwiftUI
 
 /// Settings → Privacy: sensitive values hidden from the AI before a request is sent (`Redaction`: one switch, and the
-/// user's own words), the apps without AI, what `@agent` takes from Chrome, the recent questions kept, and the English
-/// words learned.
+/// user's own words), the apps without AI, what `@agent` takes from Chrome, the recent questions kept, the English
+/// words learned, and what else this Mac learned (Learned…).
 struct PrivacySection: View {
     @ObservedObject var model: SettingsModel
     /// The words field as typed; saved on Return and when the page goes (`RedactionSettings.words`), only if it was edited
@@ -87,9 +87,10 @@ struct PrivacySection: View {
                 titled(SettingsSpot.learnEnglishWords.title, SettingsSpot.learnEnglishWordsNote)
             }
             .settingsRow(.learnEnglishWords, shown: model.spot)
-            // ── "Learned…" (Settings v2, 3.2) goes here, after Learn English words: the learned state (apps' starting
-            // inputs, where autocomplete stopped, where typos couldn't be fixed, the rows picked, the models that refuse a
-            // temperature), a row each with Forget, and Forget All. Until then their Forget buttons stay where they are.
+            // What this Mac learned (Settings v2, 3.2: apps' starting inputs, where autocomplete stopped, where typos
+            // couldn't be fixed, the rows picked, the models that refuse a temperature), in a sheet: a row each with
+            // Forget, and Forget All.
+            LearnedRow(model: model)
         } header: {
             SectionTitle(tr("记住和学习", "Remembered and Learned"), icon: SettingsPage.privacy.icon)
         }

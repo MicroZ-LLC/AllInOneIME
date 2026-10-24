@@ -850,6 +850,53 @@
         }
       }
     },
+    " (saved questions are kept; Settings → Privacy → “Forget” deletes them)" : {
+      "comment" : "（已存的问题保留；要删除，在设置 → 隐私里点「忘掉」） — Sources/AllInOneIMECore/AIConfigText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (gesicherte Fragen bleiben erhalten; Einstellungen → Datenschutz → „Vergessen“ entfernt sie)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (las preguntas guardadas se conservan; Ajustes → Privacidad → “Olvidar” las elimina)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (les questions enregistrées sont conservées ; Réglages → Confidentialité → « Oublier » les supprime)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "（保存済みの質問は残ります。削除するには設定 → プライバシーの「忘れる」をクリック）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (저장된 질문은 유지되며, 설정 → 개인정보 보호 → “잊기”로 삭제할 수 있음)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (as perguntas salvas são mantidas; Ajustes → Privacidade → “Esquecer” as apaga)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "（已儲存的問題會保留；要刪除，請按設定 → 隱私權 →「忘掉」）"
+          }
+        }
+      }
+    },
     " (signed in until %@)" : {
       "comment" : "（登录有效至 %@） — Sources/AllInOneIMECore/AWSCredentialResolver.swift",
       "localizations" : {
@@ -1181,6 +1228,7 @@
     },
     "; requests on this page go to your AI provider" : {
       "comment" : "；这一页的请求会发给你选的 AI 服务 — Sources/AllInOneIMECore/Doctor.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -1222,6 +1270,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "；這一頁的要求會傳送到你選的 AI 服務"
+          }
+        }
+      }
+    },
+    "; Settings' “Change:” and Troubleshoot go to your AI provider" : {
+      "comment" : "；设置里的「修改：」和「排查问题」会发给你选的 AI 服务 — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "; „Ändern:“ und „Probleme beheben“ in den Einstellungen gehen an deinen KI-Anbieter"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "; “Cambiar:” y Solucionar problemas de Ajustes van a tu proveedor de IA"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " ; « Modifier : » et Résoudre les problèmes des Réglages sont envoyés à votre fournisseur d’IA"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "。設定の「変更：」とトラブルシューティングはAIプロバイダに送信されます"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "; 설정의 ‘변경:’과 문제 해결은 선택한 AI 서비스로 전송됨"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "; “Alterar:” e Solucionar Problemas dos Ajustes vão para o seu provedor de IA"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "；設定裡的「更改：」和「疑難排解」會傳送到你選的 AI 服務"
           }
         }
       }
@@ -2914,6 +3009,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ 天前"
+          }
+        }
+      }
+    },
+    "%@ didn't accept the API key: check it in Settings → Commands" : {
+      "comment" : "%@ 不接受这个 API key：在设置 → 命令里检查一下 — Sources/AllInOneIMECore/UIText+Errors.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ hat den API-Schlüssel nicht akzeptiert: in Einstellungen → Befehle prüfen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ no aceptó la clave de API: revísala en Ajustes → Comandos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ n’a pas accepté la clé API : vérifiez-la dans Réglages → Commandes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@がAPIキーを受け付けませんでした：設定 → コマンドで確認してください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@에서 API 키를 거부함: 설정 → 명령에서 확인하세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ não aceitou a chave de API: verifique em Ajustes → Comandos"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 不接受這個 API 金鑰：請在設定 → 指令中檢查"
           }
         }
       }
@@ -6774,6 +6916,53 @@
         }
       }
     },
+    "A model setting is out of range" : {
+      "comment" : "模型参数超出范围 — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine Modelleinstellung liegt außerhalb des gültigen Bereichs"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un ajuste del modelo está fuera de rango"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un réglage du modèle est hors limites"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "モデル設定の値が範囲外です"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "모델 설정 값이 범위를 벗어남"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Um ajuste do modelo está fora do intervalo"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有模型設定的值超出範圍"
+          }
+        }
+      }
+    },
     "a number" : {
       "comment" : "数字 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
       "localizations" : {
@@ -8951,6 +9140,7 @@
     },
     "Always autocomplete" : {
       "comment" : "总是续写 — Sources/AllInOneIMECore/PreviousAppSettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -8997,7 +9187,7 @@
       }
     },
     "Always Translate as You Type" : {
-      "comment" : "总是边打边译 — Sources/AllInOneIMECore/PreviousAppSettings.swift",
+      "comment" : "总是边打边译 — Sources/AllInOneIMECore/AppProfile.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -10697,6 +10887,7 @@
     },
     "Autocomplete wasn't used in %@, so it stopped there (Settings → Apps can keep it on)" : {
       "comment" : "续写在「%@」里没用上，已在这个 App 里停下（设置 → 按 App 设置 可以让它一直续写） — Sources/AllInOneIMECore/Session/InputSession+Autocomplete.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -10738,6 +10929,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "續寫在「%@」中沒用上，已在這個 App 中停下（設定 → 各 App 設定 可讓它一直續寫）"
+          }
+        }
+      }
+    },
+    "Autocomplete wasn't used in %@, so it stopped there (Settings → Privacy → Learned… can undo it)" : {
+      "comment" : "续写在「%@」里没用上，已在这个 App 里停下（可以在设置 → 隐私 →「学到的内容…」里撤销） — Sources/AllInOneIMECore/Session/InputSession+Autocomplete.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autovervollständigen wurde in %@ nicht genutzt und ist dort jetzt aus (Einstellungen → Datenschutz → Gelerntes … kann das rückgängig machen)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autocompletar no se usó en %@, así que se detuvo ahí (Ajustes → Privacidad → Aprendido… puede deshacerlo)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La complétion automatique n’a pas servi dans %@ : elle s’y est arrêtée (Réglages → Confidentialité → Appris… peut l’annuler)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ではオートコンプリートが使われなかったため、このAppでは止めました（設定 → プライバシー →「学習した内容…」で元に戻せます）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@에서 자동 완성을 쓰지 않아 이 앱에서는 멈췄습니다 (설정 → 개인정보 보호 → ‘학습한 내용…’에서 되돌릴 수 있음)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autocompletar não foi usado em %@, então parou lá (Ajustes → Privacidade → Aprendido… pode desfazer isso)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "續寫在「%@」中沒用上，已在這個 App 中停下（可以在設定 → 隱私權 →「學到的內容⋯」裡復原）"
           }
         }
       }
@@ -12853,6 +13091,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "檢查更新即可安裝"
+          }
+        }
+      }
+    },
+    "check the AWS profile in Settings → AI" : {
+      "comment" : "在设置 → AI 里看 AWS profile — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AWS-Profil in Einstellungen → KI prüfen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "revisa el perfil de AWS en Ajustes → IA"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "vérifiez le profil AWS dans Réglages → IA"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定 → AIでAWSプロファイルを確認してください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "설정 → AI에서 AWS 프로필을 확인하세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "verifique o perfil da AWS em Ajustes → IA"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請在設定 → AI 中檢查 AWS profile"
           }
         }
       }
@@ -23276,6 +23561,53 @@
         }
       }
     },
+    "needs the %@ language pack (download it in Settings → General)" : {
+      "comment" : "需要%@语言包（在设置 → 通用里下载） — Sources/AllInOneIMECore/AIConfigText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "erfordert das Sprachpaket für %@ (in Einstellungen → Allgemein herunterladen)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "requiere el paquete de idioma %@ (descárgalo en Ajustes → General)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "nécessite le pack de langue %@ (téléchargez-le dans Réglages → Général)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@の言語パックが必要です（設定 → 一般でダウンロード）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 언어 팩 필요 (설정 → 일반에서 다운로드)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "requer o pacote de idioma %@ (baixe em Ajustes → Geral)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要%@語言套件（請在設定 → 一般中下載）"
+          }
+        }
+      }
+    },
     "needs the %@ language pack (download it in Settings → Input)" : {
       "comment" : "需要%@语言包（在设置 → 输入里下载） — Sources/AllInOneIMECore/AIConfigText.swift",
       "localizations" : {
@@ -23746,6 +24078,53 @@
         }
       }
     },
+    "No API key for web search: add one in Settings → Commands (or set %@ in your shell)" : {
+      "comment" : "网页搜索还没有 API key：在设置 → 命令里添上（或在 shell 里设置 %@） — Sources/AllInOneIMECore/UIText+Errors.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kein API-Schlüssel für die Websuche: in Einstellungen → Befehle hinzufügen (oder %@ in deiner Shell setzen)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No hay clave de API para la búsqueda web: añade una en Ajustes → Comandos (o define %@ en tu shell)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucune clé API pour la recherche web : ajoutez-en une dans Réglages → Commandes (ou définissez %@ dans votre shell)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Web検索のAPIキーがありません：設定 → コマンドで追加してください（またはシェルで%@を設定）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "웹 검색용 API 키 없음: 설정 → 명령에서 추가하세요 (또는 셸에서 %@ 설정)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nenhuma chave de API para a pesquisa na web: adicione uma em Ajustes → Comandos (ou defina %@ no seu shell)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "網頁搜尋沒有 API 金鑰：請在設定 → 指令中加入（或在你的 shell 中設定 %@）"
+          }
+        }
+      }
+    },
     "No API key for web search: add one in Settings → Web Search (or set %@ in your shell)" : {
       "comment" : "网页搜索还没有 API key：在设置 → 网页搜索里添上（或在 shell 里设置 %@） — Sources/AllInOneIMECore/UIText+Errors.swift",
       "localizations" : {
@@ -23842,6 +24221,7 @@
     },
     "No autocomplete" : {
       "comment" : "不续写 — Sources/AllInOneIMECore/PreviousAppSettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -24546,8 +24926,56 @@
         }
       }
     },
+    "No requests left today: subscribe or add your own API key in the settings, or switch to Apple Intelligence in Settings → AI" : {
+      "comment" : "今天的免费次数用完了：可以在设置里订阅、填自己的 API key，或者在设置 → AI 里改用 Apple 智能 — Sources/AllInOneIMECore/UIText+Errors.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Heute keine Anfragen mehr übrig: Schließ ein Abo ab oder füge in den Einstellungen deinen eigenen API-Schlüssel hinzu, oder wechsle in Einstellungen → KI zu Apple Intelligence"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No te quedan solicitudes hoy: suscríbete o añade tu propia clave de API en los ajustes, o cambia a Apple Intelligence en Ajustes → IA"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plus de requêtes aujourd’hui : abonnez-vous ou ajoutez votre propre clé API dans les réglages, ou passez à Apple Intelligence dans Réglages → IA"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今日のリクエストは残っていません：設定でサブスクリプションに登録するか自分のAPIキーを追加するか、設定 → AIでApple Intelligenceに切り替えてください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "오늘 남은 요청 없음: 설정에서 구독하거나 자신의 API 키를 추가하세요. 또는 설정 → AI에서 Apple Intelligence로 전환하세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Acabaram as solicitações de hoje: assine ou adicione sua própria chave de API nos Ajustes, ou mude para a Apple Intelligence em Ajustes → IA"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今天的要求次數已用完：請在設定中訂閱或加入你自己的 API 金鑰，或在設定 → AI 中改用 Apple Intelligence"
+          }
+        }
+      }
+    },
     "No requests left today: subscribe or add your own API key in the settings, or switch to Apple Intelligence in Settings → Assistant" : {
       "comment" : "今天的免费次数用完了：可以在设置里订阅、填自己的 API key，或者在设置 → 助手里改用 Apple 智能 — Sources/AllInOneIMECore/UIText+Errors.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -25017,7 +25445,7 @@
       }
     },
     "No suggestions" : {
-      "comment" : "不显示建议 — Sources/AllInOneIMECore/PreviousAppSettings.swift",
+      "comment" : "不显示建议 — Sources/AllInOneIMECore/Settings/SettingsSchema+Apps.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -26381,7 +26809,7 @@
       }
     },
     "Not typed out" : {
-      "comment" : "不逐字上屏 — Sources/AllInOneIMECore/PreviousAppSettings.swift",
+      "comment" : "不逐字上屏 — Sources/AllInOneIMECore/Settings/SettingsSchema+Apps.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -26944,8 +27372,56 @@
         }
       }
     },
+    "Notion refused the note: open Settings → Commands → Notes and press Test" : {
+      "comment" : "Notion 没有接受这条笔记：打开设置 → 命令 → 笔记，按「测试」 — Sources/AllInOneIMECore/NoteDestination.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion hat die Notiz abgelehnt: Öffne Einstellungen → Befehle → Notizen und klicke auf „Testen“"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion rechazó la nota: abre Ajustes → Comandos → Notas y pulsa “Probar”"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion a refusé la note : ouvrez Réglages → Commandes → Notes et cliquez sur « Tester »"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notionがメモを受け付けませんでした：設定 → コマンド → メモを開いて「テスト」をクリックしてください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion에서 메모를 거부함: 설정 → 명령 → 메모를 열고 테스트를 누르세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O Notion recusou a nota: abra Ajustes → Comandos → Notas e clique em Testar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion 拒絕了這則筆記：請打開設定 → 指令 → 筆記，按「測試」"
+          }
+        }
+      }
+    },
     "Notion refused the note: open Settings → Plugins → Notes and press Test" : {
       "comment" : "Notion 没有接受这条笔记：打开设置 → 插件 → 笔记，按「测试」 — Sources/AllInOneIMECore/NoteDestination.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -32555,6 +33031,7 @@
     },
     "Requests on this page are handled on this Mac" : {
       "comment" : "这一页的请求在本机处理 — Sources/AllInOneIMECore/Doctor.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -32596,6 +33073,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這一頁的要求在這台 Mac 上處理"
+          }
+        }
+      }
+    },
+    "restore its default in Settings → AI (output tokens, timeout, temperature)" : {
+      "comment" : "在设置 → AI 里恢复默认（最多输出 tokens、超时、temperature） — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "in Einstellungen → KI den Standard wiederherstellen (Ausgabe-Tokens, Zeitlimit, Temperatur)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "restaura su valor predeterminado en Ajustes → IA (tokens de salida, tiempo de espera, temperatura)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rétablissez sa valeur par défaut dans Réglages → IA (tokens de sortie, délai d’expiration, température)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定 → AIでデフォルトに戻してください（出力トークン、タイムアウト、temperature）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "설정 → AI에서 기본값으로 복원 (출력 토큰, 시간 제한, temperature)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "restaure o padrão em Ajustes → IA (tokens de saída, tempo limite, temperatura)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請在設定 → AI 中恢復預設（輸出 token 上限、逾時、temperature）"
           }
         }
       }
@@ -33024,7 +33548,7 @@
       }
     },
     "Rewrites: " : {
-      "comment" : "改写： — Sources/AllInOneIMECore/PreviousAppSettings.swift",
+      "comment" : "改写： — Sources/AllInOneIMECore/Settings/SettingsSchema+Apps.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -36928,6 +37452,53 @@
         }
       }
     },
+    "Settings' “Change:” and Troubleshoot are handled on this Mac" : {
+      "comment" : "设置里的「修改：」和「排查问题」在本机处理 — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„Ändern:“ und „Probleme beheben“ in den Einstellungen werden auf diesem Mac verarbeitet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“Cambiar:” y Solucionar problemas de Ajustes se procesan en este Mac"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "« Modifier : » et Résoudre les problèmes des Réglages sont traités sur ce Mac"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定の「変更：」とトラブルシューティングはこのMacで処理されます"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "설정의 ‘변경:’과 문제 해결은 이 Mac에서 처리됨"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“Alterar:” e Solucionar Problemas dos Ajustes são processados neste Mac"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定裡的「更改：」和「疑難排解」在這台 Mac 上處理"
+          }
+        }
+      }
+    },
     "several match: " : {
       "comment" : "有好几个： — Sources/AllInOneIMECore/AIConfigText.swift",
       "localizations" : {
@@ -37398,8 +37969,56 @@
         }
       }
     },
+    "Sign in to AllInOneIME Cloud in the settings, or switch to Apple Intelligence in Settings → AI" : {
+      "comment" : "请先在设置里登录 AllInOneIME 云，或者在设置 → AI 里改用 Apple 智能 — Sources/AllInOneIMECore/UIText+Errors.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Melde dich in den Einstellungen bei AllInOneIME Cloud an oder wechsle in Einstellungen → KI zu Apple Intelligence"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inicia sesión en AllInOneIME Cloud en los ajustes o cambia a Apple Intelligence en Ajustes → IA"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connectez-vous à AllInOneIME Cloud dans les réglages, ou passez à Apple Intelligence dans Réglages → IA"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定でAllInOneIME Cloudにサインインするか、設定 → AIでApple Intelligenceに切り替えてください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "설정에서 AllInOneIME Cloud에 로그인하거나, 설정 → AI에서 Apple Intelligence로 전환하세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inicie sessão no AllInOneIME Cloud nos Ajustes ou mude para a Apple Intelligence em Ajustes → IA"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請在設定中登入 AllInOneIME Cloud，或在設定 → AI 中改用 Apple Intelligence"
+          }
+        }
+      }
+    },
     "Sign in to AllInOneIME Cloud in the settings, or switch to Apple Intelligence in Settings → Assistant" : {
       "comment" : "请先在设置里登录 AllInOneIME 云，或者在设置 → 助手里改用 Apple 智能 — Sources/AllInOneIMECore/UIText+Errors.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -38621,7 +39240,7 @@
       }
     },
     "Starts in %@" : {
-      "comment" : "用%@开始 — Sources/AllInOneIMECore/PreviousAppSettings.swift",
+      "comment" : "用%@开始 — Sources/AllInOneIMECore/Settings/SettingsSchema+Apps.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -45156,8 +45775,56 @@
         }
       }
     },
+    "Too long for Apple Intelligence on this Mac, and %@ isn't set up: try a shorter request, or set up %@ in Settings → AI" : {
+      "comment" : "这句话对本机的 Apple Intelligence 来说太长了，%@ 也还没设置好：请说得短一些，或者在设置 → AI 里设置好 %@ — Sources/AllInOneIMECore/AIConfigText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zu lang für Apple Intelligence auf diesem Mac, und %@ ist nicht eingerichtet: Formuliere die Anfrage kürzer oder richte %@ in Einstellungen → KI ein"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Demasiado largo para Apple Intelligence en este Mac, y %@ no está configurado: prueba con una solicitud más corta o configura %@ en Ajustes → IA"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trop long pour Apple Intelligence sur ce Mac, et %@ n’est pas configuré : essayez une requête plus courte, ou configurez %@ dans Réglages → IA"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このMacのApple Intelligenceには長すぎます。また、%@はまだ設定されていません。短くするか、設定 → AIで%@を設定してください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Mac의 Apple Intelligence가 처리하기에는 너무 길고, %@도 아직 설정되지 않았습니다. 더 짧게 요청하거나 설정 → AI에서 %@을(를) 설정하세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Longo demais para a Apple Intelligence neste Mac, e %@ não está configurado: tente uma solicitação mais curta ou configure %@ em Ajustes → IA"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這句話對本機的 Apple Intelligence 來說太長了，%@ 也還沒設定好：請說得短一些，或在設定 → AI 裡設定好 %@"
+          }
+        }
+      }
+    },
     "Too long for Apple Intelligence on this Mac, and %@ isn't set up: try a shorter request, or set up %@ in Settings → AI Provider" : {
       "comment" : "这句话对本机的 Apple Intelligence 来说太长了，%@ 也还没设置好：请说得短一些，或者在设置 → AI 服务里设置好 %@ — Sources/AllInOneIMECore/AIConfigText.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -45250,8 +45917,56 @@
         }
       }
     },
+    "Too long for Apple Intelligence on this Mac: try a shorter request, or choose another AI provider in Settings → AI" : {
+      "comment" : "这句话对本机的 Apple Intelligence 来说太长了：请说得短一些，或者在设置 → AI 里换一个 AI 服务 — Sources/AllInOneIMECore/AIConfigText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zu lang für Apple Intelligence auf diesem Mac: Formuliere die Anfrage kürzer oder wähle einen anderen KI-Anbieter in Einstellungen → KI"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Demasiado largo para Apple Intelligence en este Mac: prueba con una solicitud más corta o elige otro proveedor de IA en Ajustes → IA"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trop long pour Apple Intelligence sur ce Mac : essayez une requête plus courte, ou choisissez un autre fournisseur d’IA dans Réglages → IA"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このMacのApple Intelligenceには長すぎます。短くするか、設定 → AIで別のAIプロバイダを選んでください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Mac의 Apple Intelligence가 처리하기에는 너무 깁니다. 더 짧게 요청하거나 설정 → AI에서 다른 AI 서비스를 선택하세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Longo demais para a Apple Intelligence neste Mac: tente uma solicitação mais curta ou escolha outro provedor de IA em Ajustes → IA"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這句話對本機的 Apple Intelligence 來說太長了：請說得短一些，或在設定 → AI 裡換一個 AI 服務"
+          }
+        }
+      }
+    },
     "Too long for Apple Intelligence on this Mac: try a shorter request, or choose another AI provider in Settings → AI Provider" : {
       "comment" : "这句话对本机的 Apple Intelligence 来说太长了：请说得短一些，或者在设置 → AI 服务里换一个 AI 服务 — Sources/AllInOneIMECore/AIConfigText.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -45441,6 +46156,7 @@
     },
     "Translate as You Type always on" : {
       "comment" : "总是边打边译 — Sources/AllInOneIMECore/AppProfile.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -46480,7 +47196,7 @@
       }
     },
     "Typed out" : {
-      "comment" : "逐字上屏 — Sources/AllInOneIMECore/PreviousAppSettings.swift",
+      "comment" : "逐字上屏 — Sources/AllInOneIMECore/Settings/SettingsSchema+Apps.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -47615,6 +48331,54 @@
         }
       }
     },
+    "What a suggestion row inserts (plugins' completions and Suggestions commands, not Code): for GitHub issue #1234, with title is \"#1234 Fix login\", with title and link \"#1234 Fix login https://github.com/…/issues/1234\", and unset, what the plugin or the command says." : {
+      "comment" : "建议的行插入什么（插件的补全和建议类的自定义命令，不管代码输入）：比如 GitHub issue #1234，带标题是「#1234 Fix login」，带标题和链接是「#1234 Fix login https://github.com/…/issues/1234」，不设就用插件或命令自己定的。 — Sources/AllInOneIMECore/Suggestions/SuggestionsInsert.swift",
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Was eine Vorschlagszeile einfügt (Vervollständigungen von Plug-ins und Vorschlags-Befehle, nicht Code): bei GitHub-Issue #1234 ist „Mit Titel“ „#1234 Fix login“, „Mit Titel und Link“ „#1234 Fix login https://github.com/…/issues/1234“, und ohne Wahl das, was das Plug-in oder der Befehl vorgibt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lo que inserta una fila de sugerencias (completados de plugins y comandos de sugerencias, no Código): para el issue #1234 de GitHub, «Con título» es «#1234 Fix login», «Con título y enlace» «#1234 Fix login https://github.com/…/issues/1234», y sin elegir, lo que diga el plugin o el comando."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce qu’insère une ligne de suggestion (complétions des plug-ins et commandes de suggestions, pas Code) : pour le ticket GitHub #1234, « Avec le titre » donne « #1234 Fix login », « Avec le titre et le lien » « #1234 Fix login https://github.com/…/issues/1234 », et sans choix, ce que dit le plug-in ou la commande."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "候補の行が挿入する内容（プラグインの補完と候補用のカスタムコマンド。コードは対象外）：GitHub の Issue #1234 なら、タイトル付きは「#1234 Fix login」、タイトルとリンク付きは「#1234 Fix login https://github.com/…/issues/1234」、未設定ならプラグインやコマンドが決めたものです。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "제안 행이 삽입하는 내용(플러그인의 자동 완성과 제안 명령, 코드는 제외): GitHub 이슈 #1234라면 제목 포함은 \"#1234 Fix login\", 제목과 링크 포함은 \"#1234 Fix login https://github.com/…/issues/1234\"이고, 설정하지 않으면 플러그인이나 명령이 정한 것입니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O que uma linha de sugestão insere (completações de plug-ins e comandos de sugestões, não Código): para o issue #1234 do GitHub, Com título é \"#1234 Fix login\", Com título e link \"#1234 Fix login https://github.com/…/issues/1234\", e sem escolha, o que o plug-in ou o comando define."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建議的行插入什麼（外掛的補全和建議類的自訂指令，不含程式碼輸入）：比如 GitHub issue #1234，帶標題是「#1234 Fix login」，帶標題和連結是「#1234 Fix login https://github.com/…/issues/1234」，不設就用外掛或指令自己定的。"
+          }
+        }
+      }
+    },
     "What a suggestion row puts in: by default what its plugin or command says; for a GitHub issue, with title is \"#1234 Fix login\", and with title and link adds its link." : {
       "comment" : "建议的行插入什么：默认按插件或命令自己定的；比如 GitHub issue，带标题是「#1234 Fix login」，带标题和链接再加上它的链接。 — Sources/AllInOneIMECore/Suggestions/SuggestionsInsert.swift",
       "localizations" : {
@@ -47658,53 +48422,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "建議的行插入什麼：預設依外掛或指令自己定的；比如 GitHub issue，帶標題是「#1234 Fix login」，帶標題和連結再加上它的連結。"
-          }
-        }
-      }
-    },
-    "What a suggestion row inserts (plugins' completions and Suggestions commands, not Code): for GitHub issue #1234, with title is \"#1234 Fix login\", with title and link \"#1234 Fix login https://github.com/…/issues/1234\", and unset, what the plugin or the command says." : {
-      "comment" : "建议的行插入什么（插件的补全和建议类的自定义命令，不管代码输入）：比如 GitHub issue #1234，带标题是「#1234 Fix login」，带标题和链接是「#1234 Fix login https://github.com/…/issues/1234」，不设就用插件或命令自己定的。 — Sources/AllInOneIMECore/Suggestions/SuggestionsInsert.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Was eine Vorschlagszeile einfügt (Vervollständigungen von Plug-ins und Vorschlags-Befehle, nicht Code): bei GitHub-Issue #1234 ist „Mit Titel“ „#1234 Fix login“, „Mit Titel und Link“ „#1234 Fix login https://github.com/…/issues/1234“, und ohne Wahl das, was das Plug-in oder der Befehl vorgibt."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lo que inserta una fila de sugerencias (completados de plugins y comandos de sugerencias, no Código): para el issue #1234 de GitHub, «Con título» es «#1234 Fix login», «Con título y enlace» «#1234 Fix login https://github.com/…/issues/1234», y sin elegir, lo que diga el plugin o el comando."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ce qu’insère une ligne de suggestion (complétions des plug-ins et commandes de suggestions, pas Code) : pour le ticket GitHub #1234, « Avec le titre » donne « #1234 Fix login », « Avec le titre et le lien » « #1234 Fix login https://github.com/…/issues/1234 », et sans choix, ce que dit le plug-in ou la commande."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "候補の行が挿入する内容（プラグインの補完と候補用のカスタムコマンド。コードは対象外）：GitHub の Issue #1234 なら、タイトル付きは「#1234 Fix login」、タイトルとリンク付きは「#1234 Fix login https://github.com/…/issues/1234」、未設定ならプラグインやコマンドが決めたものです。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "제안 행이 삽입하는 내용(플러그인의 자동 완성과 제안 명령, 코드는 제외): GitHub 이슈 #1234라면 제목 포함은 \"#1234 Fix login\", 제목과 링크 포함은 \"#1234 Fix login https://github.com/…/issues/1234\"이고, 설정하지 않으면 플러그인이나 명령이 정한 것입니다."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "O que uma linha de sugestão insere (completações de plug-ins e comandos de sugestões, não Código): para o issue #1234 do GitHub, Com título é \"#1234 Fix login\", Com título e link \"#1234 Fix login https://github.com/…/issues/1234\", e sem escolha, o que o plug-in ou o comando define."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "建議的行插入什麼（外掛的補全和建議類的自訂指令，不含程式碼輸入）：比如 GitHub issue #1234，帶標題是「#1234 Fix login」，帶標題和連結是「#1234 Fix login https://github.com/…/issues/1234」，不設就用外掛或指令自己定的。"
           }
         }
       }

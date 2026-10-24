@@ -71,12 +71,6 @@ enum AppProfileText {
         SessionText.inputName(input, language: UIText.language, coding: config.codingLanguage.map { CodingLanguagePack.title(of: $0) })
     }
 
-    /// "Starts in English · Always Translate as You Type": what an app's previous per-app settings set
-    /// (`PreviousAppSettings`).
-    static func previous(_ profile: AppProfile, config: Config = LiveConfig.current) -> String {
-        PreviousAppSettings.parts(profile, config: config).joined(separator: " · ")
-    }
-
     /// 「跟全局一样（带标题）」: what a suggestion row inserts in an app without its own choice (decision 28).
     static func insertEverywhere(_ config: Config) -> String {
         let label = config.suggestionsInsert.map(\.label) ?? tr("默认", "Default")
@@ -100,9 +94,14 @@ extension SettingsModel {
         store.changeProfile(app, change)
     }
 
-    /// "Previous per-app settings" → Remove: those of `app` cleared, its Insert and No AI kept (`PreviousAppSettings`).
+    /// General → "Previous per-app settings": a row for each app whose profile still sets one of what no setting sets
+    /// any more (`Config.previousAppSettings`), apps by name.
+    var previousAppSettings: [PreviousAppSettings] { config.previousAppSettings(appName: AppNames.name) }
+
+    /// "Previous per-app settings" → Remove: those of `app` cleared, its Insert and No AI kept
+    /// (`Config.removePreviousAppSettings`).
     func removePreviousSettings(_ app: String) {
-        config.removePreviousSettings(for: app)
+        config.removePreviousAppSettings(for: app)
         save()
     }
 }
@@ -190,26 +189,23 @@ struct AppsWithoutAISection: View {
 }
 
 /// General → "Previous per-app settings" (Settings v2, 2): only while an app's profile sets one of what no setting sets
-/// any more (`PreviousAppSettings`), a row per app with what it sets, and Remove, which clears those of that app (its
-/// Insert and No AI untouched). Each is honored until then: an "always autocomplete" sends text from the app even with
-/// autocomplete off, so it is listed here, never kept out of sight.
+/// any more (`Config.previousAppSettings`), a row per app saying what it sets ("Slack: starts in English, Always
+/// Translate as You Type"), and Remove, which clears those of that app (its Insert and No AI untouched). Each is honored
+/// until then: an "always autocomplete" sends text from the app even with autocomplete off, so it is listed here, never
+/// kept out of sight.
 struct PreviousAppSettingsSection: View {
     @ObservedObject var model: SettingsModel
 
     var body: some View {
-        let apps = model.appsWith(PreviousAppSettings.any)
-        if !apps.isEmpty {
+        let rows = model.previousAppSettings
+        if !rows.isEmpty {
             Section {
-                ForEach(apps, id: \.self) { app in
+                ForEach(rows, id: \.app) { row in
                     HStack(alignment: .firstTextBaseline) {
-                        Image(nsImage: AppNames.icon(for: app, size: 20)).accessibilityHidden(true)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(AppNames.name(for: app))
-                            Text(AppProfileText.previous(model.config.profile(for: app) ?? AppProfile(), config: model.config))
-                                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                        }
+                        Image(nsImage: AppNames.icon(for: row.app, size: 20)).accessibilityHidden(true)
+                        Text(row.text).fixedSize(horizontal: false, vertical: true)
                         Spacer()
-                        Button(tr("移除", "Remove")) { model.removePreviousSettings(app) }
+                        Button(tr("移除", "Remove")) { model.removePreviousSettings(row.app) }
                     }
                 }
             } header: {
@@ -227,9 +223,10 @@ struct PreviousAppSettingsSection: View {
 // MARK: - The input menu
 
 extension AllInOneIMEInputController {
-    /// "This App: Slack": the app's two settings (Settings v2, 4), for the app being typed in (`AppProfile`): No AI, and,
-    /// where there is a suggestion source (a plugin's turned on, a custom command), what a suggestion row inserts there
-    /// (decision 28). Nil without an app.
+    /// "This App: Slack", for the app being typed in: the input it learned to start in (Settings v2, 3.1), with Forget;
+    /// then its two settings (Settings v2, 4, `AppProfile`): No AI, and, where there is a suggestion source (a plugin's
+    /// turned on, a custom command), what a suggestion row inserts there (decision 28). Nothing sets where it starts.
+    /// Nil without an app.
     @MainActor
     func appMenuItem(config: Config?, app: String?) -> NSMenuItem? {
         guard let app, AppProfile.isBundleID(app) else { return nil }
@@ -237,6 +234,18 @@ extension AllInOneIMEInputController {
         let profile = current.profile(for: app) ?? AppProfile()
         let item = NSMenuItem(title: tr("这个 App：", "This App: ") + AppNames.name(for: app), action: nil, keyEquivalent: "")
         let menu = NSMenu()
+        // Learned on this Mac, not a setting (`LearnedShared`): Forget is Privacy → Learned…'s, for this app.
+        if let learned = LearnedShared.store.startingInput(in: app) {
+            let name = AppProfileText.inputName(learned, current)
+            let starts = NSMenuItem(title: tr("用\(name)开始（学到的）", "Starts in \(name) (learned)"), action: nil, keyEquivalent: "")
+            starts.isEnabled = false
+            menu.addItem(starts)
+            let forget = NSMenuItem(title: tr("忘掉", "Forget"), action: #selector(forgetAppStartingInput(_:)), keyEquivalent: "")
+            forget.target = self
+            forget.representedObject = ["app": app, "value": learned.rawValue]
+            menu.addItem(forget)
+            menu.addItem(.separator())
+        }
         func add(_ title: String, _ action: Selector?, value: String = "", on: Bool) {
             let entry = NSMenuItem(title: title, action: action, keyEquivalent: "")
             entry.target = self
@@ -281,6 +290,20 @@ extension AllInOneIMEInputController {
             applySettings()
         } catch {
             log.error("could not update the app's settings: \(String(describing: error), privacy: .public)")
+        }
+    }
+
+    /// Forgets the input the menu item's app learned to start in (with its streak): its next fields start in its own
+    /// starting input, else the default one, until it learns one again. The field being typed in stays as it is.
+    @objc func forgetAppStartingInput(_ sender: Any?) {
+        MainActor.assumeIsolated {
+            guard let info = Self.menuItem(from: sender)?.representedObject as? [String: String], let app = info["app"],
+                  let input = info["value"].flatMap(Input.init(rawValue:)) else {
+                log.error("app menu action without an app's learned starting input")
+                return
+            }
+            LearnedShared.store.forget(LearnedItem(kind: .startingInput(app: app, input: input)))
+            log.notice("an app's learned starting input forgotten")
         }
     }
 

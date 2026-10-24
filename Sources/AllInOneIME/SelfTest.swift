@@ -2699,7 +2699,7 @@ enum SelfTest {
         if settingsOnly {
             // The settings window's checks that ask no AI (stand-ins, canned answers, no connection to a provider): its
             // pages, the search and its Change, the banners and Troubleshoot, what it writes, the per-app settings and
-            // the input menu's This App, the chips; and their images.
+            // the input menu's This App, the chips, Privacy → Learned…; and their images.
             controller.services.loadSettings = { SelfTest.settings }
             CandidatePanel.shared.alphaValue = 0
             CandidatePanel.shared.ignoresMouseEvents = true
@@ -2715,6 +2715,7 @@ enum SelfTest {
             testCommandTriggerText()
             testThisAppMenu(controller, client, app: "com.example.chat")
             testPerAppImages(snapshotDirectory: snapshotDirectory)
+            testLearnedList(snapshotDirectory: snapshotDirectory)
             controller.deactivateServer(client)
             check((try? Data(contentsOf: Config.userURL)) == userConfig, "the user's config was left unchanged")
             return summary()
@@ -3209,6 +3210,7 @@ enum SelfTest {
         testAssistantAutocompleteOnDevice(snapshotDirectory: snapshotDirectory)
         testDoctor(snapshotDirectory: snapshotDirectory)
         testSettingsPages(snapshotDirectory: snapshotDirectory)
+        testLearnedList(snapshotDirectory: snapshotDirectory)
         testAWSCredentials(snapshotDirectory: snapshotDirectory)
         testSnippetEditorAndReview(snapshotDirectory: snapshotDirectory)
 

@@ -95,7 +95,7 @@ struct AIConfigTests {
         #expect(try reason(#"{"changes": [{"key": "outputLanguages", "value": "en"}]}"#) == "not a valid value")
         // A language whose pack isn't installed: refused, pointing to Settings, where it downloads.
         #expect(try reason(#"{"changes": [{"key": "inputLanguages", "value": ["zh", "en", "ko"]}]}"#)
-                == "needs the Korean language pack (download it in Settings → Input)")
+                == "needs the Korean language pack (download it in Settings → General)")
         #expect(try reason(#"{"changes": [{"key": "defaultInput", "value": "fr"}]}"#) == "French isn't one of your input languages")
         // French needs no pack; added, it can be the default in the same answer.
         let rows = try self.rows(#"{"changes": [{"key": "defaultInput", "value": "fr"}, {"key": "inputLanguages", "value": ["zh", "en", "fr"]}]}"#)
@@ -131,9 +131,9 @@ struct AIConfigTests {
     @Test func rememberQuestionsOffSaysTheSavedOnesAreKept() throws {
         let off = #"{"changes": [{"key": "rememberQuestions", "value": false}]}"#
         #expect(try rows(off).map { $0.text(chinese: false) }
-                == ["Remember recent questions: on → off (saved questions are kept; Settings → General → “Clear” deletes them)"])
+                == ["Remember recent questions: on → off (saved questions are kept; Settings → Privacy → “Forget” deletes them)"])
         #expect(try rows(off, env: env(chinese: true)).map { $0.text(chinese: true) }
-                == ["记住最近的问题：开 → 关（已存的问题保留；要删除，在设置 → 通用里点「清除」）"])
+                == ["记住最近的问题：开 → 关（已存的问题保留；要删除，在设置 → 隐私里点「忘掉」）"])
         #expect(try rows(off).first?.edit == .flag(.rememberQuestions, false))
         var forgetting = config
         forgetting.rememberQuestions = false

@@ -33,12 +33,25 @@ final class SettingsModel: ObservableObject {
     @Published private(set) var keySources: [Provider: APIKeys.Source] = [:]
     @Published private(set) var keyEndings: [Provider: String] = [:]
     @Published private(set) var keyError: String?
-    /// The apps that get no typos (`LearnedShared`), as when the window opened or they were forgotten.
-    @Published private(set) var typoApps: [String] = LearnedShared.store.typosOffApps
+    /// What this Mac learned (`LearnedShared`: Privacy → Learned…), its apps by name, as when the Privacy page or the list
+    /// was last shown or something was forgotten.
+    @Published private(set) var learned: [LearnedItem] = []
 
-    func forgetTypoApps() {
-        for app in LearnedShared.store.typosOffApps { LearnedShared.store.forget(LearnedItem(kind: .typosOff(app: app))) }
-        typoApps = LearnedShared.store.typosOffApps
+    func refreshLearned() {
+        learned = LearnedShared.store.items(appName: { AppNames.name(for: $0) })
+    }
+
+    /// Forget: `item` forgotten where it is kept (an app's starting input with its streak, autocomplete's learning in an
+    /// app, a model's temperature …).
+    func forget(_ item: LearnedItem) {
+        LearnedShared.store.forget(item)
+        refreshLearned()
+    }
+
+    /// Forget All: everything learned on this Mac.
+    func forgetAllLearned() {
+        LearnedShared.store.forgetAll()
+        refreshLearned()
     }
 
     /// How many recent `@question`s are kept (`QuestionHistoryStore`), as when the window opened or they were cleared.
@@ -871,9 +884,6 @@ struct SettingsView: View {
     /// The search's row chosen (↑↓ move it; the last one is "Change: …").
     @State private var chosen = 0
     @FocusState private var searchFocused: Bool
-    /// The models remembered as refusing a temperature (`TemperatureSupport.shared`), read as the AI page shows: Forget
-    /// forgets them.
-    @State private var refusedTemperatures: [String] = []
     /// The input whose chip's popover is open.
     @State private var openChip: Input?
     /// The README images: the options of this input drawn under the chips (a popover isn't in a page's image).
@@ -903,14 +913,17 @@ struct SettingsView: View {
     private let keySheetShown: Provider?
     /// The README images: Troubleshoot drawn over the page (About's sheet).
     private let troubleshootShown: Bool
+    /// The README images: the Learned list drawn over the page (Privacy's sheet).
+    private let learnedShown: Bool
 
     /// `page`: the one shown first; nil: General (the last one isn't remembered). `query`: the search typed (images).
     @MainActor
     init(model: SettingsModel, page: SettingsPage? = nil, inputTab: Input? = nil, keySheetShown: Provider? = nil,
-         assistant: AssistantModel? = nil, query: String = "", troubleshootShown: Bool = false) {
+         assistant: AssistantModel? = nil, query: String = "", troubleshootShown: Bool = false, learnedShown: Bool = false) {
         self.model = model
         self.keySheetShown = keySheetShown
         self.troubleshootShown = troubleshootShown
+        self.learnedShown = learnedShown
         _assistant = ObservedObject(wrappedValue: assistant ?? .shared)
         chipShown = inputTab
         _page = State(initialValue: page ?? Self.firstPage)
@@ -973,8 +986,8 @@ struct SettingsView: View {
         .disabled(!model.canSave)
     }
 
-    /// Advanced → typing results out, as a person types: its speed, its ups and downs, its typos (and the apps where they
-    /// couldn't be fixed, forgotten here).
+    /// Advanced → typing results out, as a person types: its speed, its ups and downs, its typos (the apps where they
+    /// couldn't be fixed are in Privacy → Learned…).
     @ViewBuilder private var typeOutSection: some View {
         Section {
             // Results typed in character by character, like a person typing.
@@ -998,17 +1011,6 @@ struct SettingsView: View {
                 // Typos fixed at once (`TypeOut.plan`): the text still ends up exactly the result.
                 Toggle(isOn: $model.config.typeOutMistakes) {
                     titled(tr("偶尔打错再改", "Make occasional typos and fix them"), Self.typoNote)
-                }
-                // Apps whose fields didn't take a typo back get none again; forgotten, they're tried once more.
-                HStack {
-                    Text(model.typoApps.isEmpty ? tr("每个 App 都能打错再改。", "Every app can make typos and fix them.")
-                         : tr("这些 App 里不再打错：", "No typos in: ") + model.typoApps.joined(separator: ", "))
-                        .font(.caption).foregroundStyle(.secondary).lineLimit(2)
-                    Spacer()
-                    Button(tr("忘掉改不回来的 App（\(model.typoApps.count)）", "Forget apps where typos couldn't be fixed (\(model.typoApps.count))")) {
-                        model.forgetTypoApps()
-                    }
-                    .disabled(model.typoApps.isEmpty)
                 }
             }
         }
@@ -1653,8 +1655,6 @@ struct SettingsView: View {
             .settingsRow(.testConnection, shown: model.spot)
         }
         .disabled(!model.canSave)
-        // A preview (the README images) shows none of the user's.
-        .onAppear { refusedTemperatures = model.store.persists ? TemperatureSupport.shared.models : [] }
     }
 
     @ViewBuilder private var webSearchSection: some View {
@@ -1773,7 +1773,8 @@ struct SettingsView: View {
 
     /// How each request is made: output tokens, temperature (Bedrock, Apple's model), timeout, a provider's Thinking. Not
     /// shown, still read from the config: one set to something else than its default (by hand, an earlier version, the
-    /// Assistant) shows its row with Restore Default. Then the models remembered as refusing a temperature, and Forget.
+    /// search's Change) shows its row with Restore Default. The models remembered as refusing a temperature are in Privacy
+    /// → Learned….
     @ViewBuilder private var requestSection: some View {
         let defaults = Config.default
         let usesTemperature = model.config.provider == .bedrock || model.config.provider == .apple
@@ -1781,7 +1782,6 @@ struct SettingsView: View {
         let defaultEffort = ProviderSettings.defaults(for: model.config.provider).effort
         let shows = model.config.maxTokens != defaults.maxTokens || model.config.timeoutSeconds != defaults.timeoutSeconds
             || (usesTemperature && model.config.temperature != defaults.temperature) || (effort != nil && effort != defaultEffort)
-            || !refusedTemperatures.isEmpty
         if shows {
             Section {
                 if model.config.maxTokens != defaults.maxTokens {
@@ -1806,21 +1806,6 @@ struct SettingsView: View {
                                       note: RestoreDefaultRow.defaultIs(defaultEffort.map { $0.isEmpty ? tr("未设置", "Not set") : $0 } ?? tr("未设置", "Not set"))) {
                         model.store.setProviderField(model.config.provider, \.effort, to: "", empty: nil)
                     }
-                }
-                // The models remembered as refusing it (any provider's): how many, and Forget, which sends it to them again.
-                if !refusedTemperatures.isEmpty {
-                    LabeledContent {
-                        Button(tr("忘掉", "Forget")) {
-                            TemperatureSupport.shared.forget()
-                            refusedTemperatures = TemperatureSupport.shared.models
-                            log.notice("the models that refused a temperature forgotten")
-                        }
-                    } label: {
-                        titled(tr("不发 temperature 的模型：\(refusedTemperatures.count) 个（它们不接受）",
-                                  "Models that get no temperature: \(refusedTemperatures.count) (they refused it)"),
-                               tr("忘掉后会重新发给它们；仍不接受的会再记住。", "Forgotten, they get it again; one that still refuses it is remembered again."))
-                    }
-                    .help(refusedTemperatures.joined(separator: "\n"))
                 }
             } header: {
                 SectionTitle(tr("模型参数", "Model Settings"), icon: CommandIcons.provider)
@@ -2227,6 +2212,14 @@ struct SettingsView: View {
                         .background(Color(nsColor: .windowBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
                         .shadow(color: .black.opacity(0.25), radius: 18, y: 6)
                         .padding(.top, 50)
+                }
+            } else if learnedShown {
+                ZStack(alignment: .top) {
+                    Color.black.opacity(0.18).ignoresSafeArea()
+                    LearnedSheet(model: model) {}
+                        .background(Color(nsColor: .windowBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
+                        .shadow(color: .black.opacity(0.25), radius: 18, y: 6)
+                        .padding(.top, 70)
                 }
             }
         }
@@ -3417,10 +3410,11 @@ enum SettingsPage: String, CaseIterable, Identifiable {
 enum SettingsImage {
     @MainActor
     static func render(_ model: SettingsModel, page: SettingsPage, inputTab: Input? = nil, keySheet: Provider? = nil,
-                       assistant: AssistantModel? = nil, query: String = "", troubleshoot: Bool = false, to url: URL,
-                       appearance: NSAppearance.Name = .aqua, settle: (TimeInterval) -> Void) {
+                       assistant: AssistantModel? = nil, query: String = "", troubleshoot: Bool = false, learned: Bool = false,
+                       to url: URL, appearance: NSAppearance.Name = .aqua, settle: (TimeInterval) -> Void) {
         let host = NSHostingView(rootView: SettingsView(model: model, page: page, inputTab: inputTab, keySheetShown: keySheet,
-                                                        assistant: assistant, query: query, troubleshootShown: troubleshoot))
+                                                        assistant: assistant, query: query, troubleshootShown: troubleshoot,
+                                                        learnedShown: learned))
         // Taller than any page; the empty space below it is cut off after drawing (a form's scroll view
         // doesn't tell how tall its content is).
         let size = NSSize(width: 880, height: 2600)

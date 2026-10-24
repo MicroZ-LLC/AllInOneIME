@@ -107,14 +107,17 @@ public enum WebSearch {
         case tooLarge(service: String)
         case noResults
 
+        /// Where the key is added: the Mac's Commands (Settings v2), Windows' Web Search.
+        private var keyPage: String { Platform.current.terms.device == .mac ? "Commands" : "Web Search" }
+
         public var errorDescription: String? {
             switch self {
             case let .missingKey(variable):
-                return "No API key for web search: add one in Settings → Web Search (or set \(variable) in your shell)"
+                return "No API key for web search: add one in Settings → \(keyPage) (or set \(variable) in your shell)"
             case .emptyQuery: return "Type what to search for after @search"
             case .queryTooLong:
                 return "The search is too long: \(WebSearch.maxQueryLength) characters and \(WebSearch.maxQueryWords) words at most"
-            case let .rejectedKey(service): return "\(service) didn't accept the API key: check it in Settings → Web Search"
+            case let .rejectedKey(service): return "\(service) didn't accept the API key: check it in Settings → \(keyPage)"
             case let .rateLimited(service): return "Too many searches at once for \(service): try again in a moment"
             case let .quotaExceeded(service): return "No \(service) credit left: see the usage and limits in its dashboard"
             case let .notInPlan(service): return "Your \(service) plan doesn't include this search"

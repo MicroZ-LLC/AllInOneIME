@@ -698,9 +698,9 @@ struct AIConfigContextTests {
         } catch let error as AIConfigService.TooLong {
             #expect(error.provider == nil && error.providerNotSetUp)
             #expect(error.line(language: "en", describe: { _ in "" })
-                == "Too long for Apple Intelligence on this Mac: try a shorter request, or choose another AI provider in Settings → AI Provider")
+                == "Too long for Apple Intelligence on this Mac: try a shorter request, or choose another AI provider in Settings → AI")
             #expect(error.line(language: "zh-Hans", describe: { _ in "" })
-                == "这句话对本机的 Apple Intelligence 来说太长了：请说得短一些，或者在设置 → AI 服务里换一个 AI 服务")
+                == "这句话对本机的 Apple Intelligence 来说太长了：请说得短一些，或者在设置 → AI 里换一个 AI 服务")
         }
     }
 
@@ -713,7 +713,7 @@ struct AIConfigContextTests {
         } catch let error as AIConfigService.TooLong {
             #expect(error.provider == .anthropic && error.providerError as? ProviderError == .missingKey(.anthropic) && error.providerNotSetUp)
             #expect(error.line(language: "en", describe: { _ in "unused" })
-                == "Too long for Apple Intelligence on this Mac, and Claude API isn't set up: try a shorter request, or set up Claude API in Settings → AI Provider")
+                == "Too long for Apple Intelligence on this Mac, and Claude API isn't set up: try a shorter request, or set up Claude API in Settings → AI")
         }
         let failed = AIConfigService.TooLong(provider: .gemini, providerError: URLError(.notConnectedToInternet))
         #expect(!failed.providerNotSetUp)

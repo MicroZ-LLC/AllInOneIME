@@ -256,18 +256,19 @@ public enum Doctor {
         case let .failed(line):
             out.append(Finding(area: .connection, status: .problem, title: t.tr("连接失败", "The connection failed"), detail: line))
         }
-        // Settings → Assistant uses the on-device model whatever the provider: say whether it can.
+        // Settings' own requests (the search's "Change:", Troubleshoot's question) use the on-device model whatever the
+        // provider: say whether they can.
         if config.provider != .apple, facts.apple != .unsupportedSystem {
             if facts.apple == .available {
                 out.append(Finding(area: .appleIntelligence, status: .ok,
                                    title: t.tr("Apple 智能可以用", "Apple Intelligence is ready"),
-                                   detail: t.tr("这一页的请求在本机处理", "Requests on this page are handled on this Mac")))
+                                   detail: t.tr("设置里的「修改：」和「排查问题」在本机处理", "Settings' “Change:” and Troubleshoot are handled on this Mac")))
             } else {
                 let fixable = facts.apple == .appleIntelligenceNotEnabled
                 out.append(Finding(area: .appleIntelligence, status: .warning,
                                    title: t.tr("Apple 智能不能用", "Apple Intelligence isn't available"),
-                                   detail: t.appleReason(facts.apple) + t.tr("；这一页的请求会发给你选的 AI 服务",
-                                                                            "; requests on this page go to your AI provider"),
+                                   detail: t.appleReason(facts.apple) + t.tr("；设置里的「修改：」和「排查问题」会发给你选的 AI 服务",
+                                                                            "; Settings' “Change:” and Troubleshoot go to your AI provider"),
                                    fix: fixable ? .openAppleIntelligenceSettings : nil))
             }
         }
@@ -467,10 +468,16 @@ public enum Doctor {
                                             "\(rate) characters a second (should be between \(slowest) and \(fastest))"),
                                fix: .repairConfig([.init(key: .setting(.typeOutRate), value: .number(TypeOut.defaultRate))])))
         }
+        // The Mac shows them under AI (Settings v2: each set otherwise than its default with Restore Default).
         if config.maxTokens < 1 || config.timeoutSeconds <= 0 || (config.temperature.map { $0 < 0 || $0 > 2 } ?? false) {
-            out.append(Finding(area: .config, status: .problem, title: t.tr("高级设置里的值超出范围", "An Advanced setting is out of range"),
-                               detail: t.tr("在设置 → 高级里改（最多输出 tokens、超时、temperature）",
-                                            "change it in Settings → Advanced (output tokens, timeout, temperature)")))
+            let mac = Platform.current.terms.device == .mac
+            out.append(Finding(area: .config, status: .problem,
+                               title: mac ? t.tr("模型参数超出范围", "A model setting is out of range")
+                                   : t.tr("高级设置里的值超出范围", "An Advanced setting is out of range"),
+                               detail: mac ? t.tr("在设置 → AI 里恢复默认（最多输出 tokens、超时、temperature）",
+                                                  "restore its default in Settings → AI (output tokens, timeout, temperature)")
+                                   : t.tr("在设置 → 高级里改（最多输出 tokens、超时、temperature）",
+                                          "change it in Settings → Advanced (output tokens, timeout, temperature)")))
         }
         if config.outputLanguages.count > AIConfig.maxOutputLanguages {
             let kept = config.outputLanguages.prefix(AIConfig.maxOutputLanguages).map { AIConfig.JSONValue.string($0.code) }
@@ -795,7 +802,9 @@ extension Doctor {
                 // The row a request's preview shows for a provider without a key (it is the one in use here: nothing to choose).
                 rows.append(provider == .bedrock
                     ? AIConfig.Row(key: "\(provider.rawValue).apiKey", label: text.keyLabel(provider),
-                                   new: t.tr("在设置 → AI 服务里看 AWS profile", "check the AWS profile in Settings → AI Provider"),
+                                   new: Platform.current.terms.device == .mac
+                                       ? t.tr("在设置 → AI 里看 AWS profile", "check the AWS profile in Settings → AI")
+                                       : t.tr("在设置 → AI 服务里看 AWS profile", "check the AWS profile in Settings → AI Provider"),
                                    status: .needsKey(provider))
                     : AIConfig.Row(key: "\(provider.rawValue).apiKey", label: text.needsKey(provider),
                                    new: text.addKey(provider, choose: false), status: .needsKey(provider)))

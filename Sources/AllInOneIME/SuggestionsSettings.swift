@@ -3,11 +3,9 @@ import SwiftUI
 
 /// Settings → General → Suggestions (spec suggestions v1, 3): their switch, the input menu's, for plugins' completions
 /// and Code's rows alike; what a row inserts (decision 28; Settings v2, 4): everywhere, then in the apps with their own
-/// choice; and forgetting the rows picked.
+/// choice. The rows picked (picked before, they come first) are in Privacy → Learned….
 struct SuggestionsSection: View {
     @ObservedObject var model: SettingsModel
-    /// How many rows picked are kept (rows picked before come first).
-    @State private var picked = 0
 
     var body: some View {
         Section {
@@ -19,22 +17,10 @@ struct SuggestionsSection: View {
             SuggestionsInsertPicker(model: model)
                 .settingsRow(.suggestionsInsert, shown: model.spot)
             AppInsertsList(model: model)
-            HStack {
-                Text(tr("选过的行下次排在前面，只存在这台 Mac 上。", "Rows you pick come first next time; they're kept on this Mac only."))
-                    .font(.caption).foregroundStyle(.secondary)
-                Spacer()
-                Button(tr("忘掉选过的行（\(picked)）", "Forget Picked Rows (\(picked))")) {
-                    guard model.store.persists else { return }
-                    LearnedShared.store.forget(LearnedItem(kind: .pickedRows(count: picked)))
-                    picked = 0
-                }
-                .disabled(picked == 0)
-            }
         } header: {
             SectionTitle(tr("建议", "Suggestions"), icon: SettingsPage.general.icon)
         }
         .disabled(!model.canSave)
-        .onAppear { picked = LearnedShared.store.picks.count }
     }
 
     /// A row's title with a short explanation under it, as the other pages show them.

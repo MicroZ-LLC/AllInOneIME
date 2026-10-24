@@ -239,11 +239,12 @@ extension SelfTest {
                               mail: AppProfile(rewriteStyles: ["正式"], typeOut: true), notes: AppProfile(noAI: true)]
         try? config.write(to: url)
         let model = SettingsModel(configURL: url)
-        check(Set(model.appsWith(PreviousAppSettings.any)) == [mail, slack],
-              "the previous per-app settings list Slack and Mail, not Notes (No AI only): \(model.appsWith(PreviousAppSettings.any))")
-        check(AppProfileText.previous(config.appProfiles[slack]!) == tr("用英文开始 · 总是边打边译 · 总是续写",
-                                                                          "Starts in English · Always Translate as You Type · Always autocomplete"),
-              "Slack's row says what it sets: \(AppProfileText.previous(config.appProfiles[slack]!))")
+        check(Set(model.previousAppSettings.map(\.app)) == [mail, slack],
+              "the previous per-app settings list Slack and Mail, not Notes (No AI only): \(model.previousAppSettings.map(\.app))")
+        let row = model.previousAppSettings.first { $0.app == slack }?.text ?? ""
+        let name = AppNames.name(for: slack)
+        check(row == tr("\(name)：用英文开始、总是边打边译、总是续写", "\(name): starts in English, Always Translate as You Type, Autocomplete always on"),
+              "Slack's row says what it sets: \(row)")
         model.removePreviousSettings(slack)
         var file = (try? Config.load(from: url)) ?? .default
         check(file.appProfiles[slack] == AppProfile(suggestionsInsert: .titleAndLink) && file.appProfiles[mail] == config.appProfiles[mail]
@@ -251,7 +252,7 @@ extension SelfTest {
               "Remove clears Slack's, its Insert kept, Mail's and Notes' as they were (\(file.appProfiles))")
         model.removePreviousSettings(mail)
         file = (try? Config.load(from: url)) ?? .default
-        check(file.appProfiles[mail] == nil && model.appsWith(PreviousAppSettings.any).isEmpty,
+        check(file.appProfiles[mail] == nil && model.previousAppSettings.isEmpty,
               "Mail, left with nothing, goes from the file; the section is gone (\(file.appProfiles))")
     }
 }

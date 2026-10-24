@@ -106,8 +106,8 @@ public enum NoteError: Error, LocalizedError, Equatable, Sendable {
         case let .notionRefused(code):
             return t.tr("Notion 没有接受这条笔记（\(code)）", "Notion refused the note (\(code))")
         case .notionDatabaseRefused:
-            return t.tr("Notion 没有接受这条笔记：打开设置 → 插件 → 笔记，按「测试」",
-                        "Notion refused the note: open Settings → Plugins → Notes and press Test")
+            return t.tr("Notion 没有接受这条笔记：打开设置 → 命令 → 笔记，按「测试」",
+                        "Notion refused the note: open Settings → Commands → Notes and press Test")
         case let .notionTrouble(status):
             return t.tr("Notion 出了问题（HTTP \(status)）", "Notion is having trouble (HTTP \(status))")
         case .offline:

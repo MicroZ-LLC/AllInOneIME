@@ -2,70 +2,53 @@ import Foundation
 import Testing
 @testable import AllInOneIMECore
 
-/// The per-app settings no setting sets any more (`PreviousAppSettings`, Settings v2): which apps have any, what their row
-/// says, and Remove, which clears those of one app and nothing else.
+/// The per-app settings no setting sets any more (`Config.previousAppSettings`, Settings v2 §2): which apps have any, what
+/// their row says word for word, their order, and Remove, which changes nothing of an app without them.
 struct PreviousAppSettingsTests {
     let slack = "com.tinyspeck.slackmacgap"
     let mail = "com.apple.mail"
     let notes = "com.apple.Notes"
 
     @Test func onlyWhatChangesSomethingCounts() {
-        #expect(!PreviousAppSettings.any(AppProfile()))
-        #expect(!PreviousAppSettings.any(AppProfile(noAI: true, suggestionsInsert: .title)), "the two settings kept aren't listed")
-        #expect(!PreviousAppSettings.any(AppProfile(translateAlways: false, suggestions: true)), "values that change nothing")
-        for profile in [AppProfile(inputLanguage: .english), AppProfile(rewriteStyles: []), AppProfile(typeOut: false),
-                        AppProfile(translateAlways: true), AppProfile(autocomplete: false), AppProfile(suggestions: false)] {
-            #expect(PreviousAppSettings.any(profile), "\(profile)")
-        }
+        #expect(AppProfile().previousFields.isEmpty)
+        #expect(AppProfile(noAI: true, suggestionsInsert: .title).previousFields.isEmpty, "the two settings kept aren't listed")
+        #expect(AppProfile(translateAlways: false).previousFields.isEmpty, "Translate as You Type off is no setting")
         var code = AppProfile()
         code.startingInput = .code
-        #expect(PreviousAppSettings.any(code), "an app that starts in Code")
-    }
-
-    @Test func listsTheAppsWithAny() {
-        var config = Config.default
-        config.appProfiles = [slack: AppProfile(inputLanguage: .english), mail: AppProfile(typeOut: true), notes: AppProfile(noAI: true)]
-        #expect(PreviousAppSettings.apps(in: config) == [mail, slack])
-        #expect(PreviousAppSettings.apps(in: .default).isEmpty)
+        #expect(code.previousFields == [.startingInput], "an app that starts in Code")
     }
 
     @Test func saysWhatIsSet() async {
         await withInterfaceLanguage("en") {
             var config = Config.default
             config.codingLanguage = "python"
-            let profile = AppProfile(inputLanguage: .english, rewriteStyles: ["正式"], typeOut: false, translateAlways: true,
-                                     autocomplete: true, suggestions: false)
-            #expect(PreviousAppSettings.parts(profile, config: config)
-                    == ["Starts in English", "Always Translate as You Type", "Always autocomplete", "No suggestions", "Not typed out",
-                        "Rewrites: Formal"])
+            config.appProfiles = [slack: AppProfile(inputLanguage: .english, rewriteStyles: ["正式"], typeOut: false, translateAlways: true,
+                                                    autocomplete: true, suggestions: false)]
+            #expect(config.previousAppSettings(appName: { _ in "Slack" }).map(\.text)
+                    == ["Slack: starts in English, Always Translate as You Type, Autocomplete always on, no suggestions, "
+                        + "results not typed out, rewrites: Formal"])
             var code = AppProfile()
             code.startingInput = .code
-            #expect(PreviousAppSettings.parts(code, config: config).first?.hasPrefix("Starts in Code") == true)
+            config.appProfiles = [slack: code]
+            #expect(config.previousAppSettings(appName: { _ in nil }).map(\.text) == ["\(slack): starts in Code (Python)"],
+                    "an app without a name goes by its id")
         }
     }
 
-    @Test func removeClearsThemOfThatAppOnly() {
+    @Test func rowsAreInTheOrderOfTheAppsNames() {
         var config = Config.default
-        config.appProfiles = [slack: AppProfile(inputLanguage: .english, translateAlways: true, autocomplete: true, suggestionsInsert: .titleAndLink),
-                              mail: AppProfile(rewriteStyles: ["正式"], typeOut: true), notes: AppProfile(noAI: true)]
-        // Under another spelling of the id: the app's one entry.
-        config.removePreviousSettings(for: "com.tinyspeck.SlackMacGap")
-        #expect(config.appProfiles[slack] == AppProfile(suggestionsInsert: .titleAndLink), "Insert kept")
-        #expect(config.appProfiles[mail] == AppProfile(rewriteStyles: ["正式"], typeOut: true), "another app's as they were")
-        #expect(config.appProfiles[notes] == AppProfile(noAI: true))
-        // An app left with nothing goes; one without a profile changes nothing.
-        config.removePreviousSettings(for: mail)
-        #expect(config.appProfiles[mail] == nil && config.appProfiles.count == 2)
-        let before = config
-        config.removePreviousSettings(for: "com.example.none")
-        #expect(config == before)
+        config.appProfiles = [slack: AppProfile(inputLanguage: .english), mail: AppProfile(typeOut: true), notes: AppProfile(noAI: true)]
+        let names = [slack: "Slack", mail: "Mail", notes: "Notes"]
+        #expect(config.previousAppSettings(appName: { names[$0] }).map(\.app) == [mail, slack])
+        #expect(Config.default.previousAppSettings(appName: { names[$0] }).isEmpty)
     }
 
-    @Test func nothingElseRewritesThem() throws {
-        // Read and written again as they are: the settings no setting sets stay in the file until Remove.
-        let json = #"{"appProfiles": {"com.tinyspeck.slackmacgap": {"inputLanguage": "en", "translateAlways": true, "autocomplete": true}}}"#
-        let config = try JSONDecoder().decode(Config.self, from: Data(json.utf8))
-        let again = try JSONDecoder().decode(Config.self, from: JSONEncoder().encode(config))
-        #expect(again.appProfiles[slack] == AppProfile(inputLanguage: .english, translateAlways: true, autocomplete: true))
+    @Test func removeChangesNothingOfAnAppWithoutThem() {
+        var config = Config.default
+        config.appProfiles = [notes: AppProfile(noAI: true), mail: AppProfile(typeOut: true)]
+        let before = config
+        config.removePreviousAppSettings(for: notes)
+        config.removePreviousAppSettings(for: "com.example.none")
+        #expect(config == before)
     }
 }

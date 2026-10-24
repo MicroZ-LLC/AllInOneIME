@@ -79,9 +79,12 @@ extension AIConfig {
         public func onOff(_ on: Bool) -> String { on ? tr("开", "on") : tr("关", "off") }
 
         /// After "Remember recent questions: on → off": turned off here, the saved questions stay (so undo is exact);
-        /// Settings' "Clear" deletes them, as its switch does.
+        /// Settings' Forget (Windows' Clear) deletes them, as its switch does: on the Mac's Privacy (Settings v2), Windows'
+        /// General.
         var questionsKept: String {
-            tr("（已存的问题保留；要删除，在设置 → 通用里点「清除」）", " (saved questions are kept; Settings → General → “Clear” deletes them)")
+            Platform.current.terms.device == .mac
+                ? tr("（已存的问题保留；要删除，在设置 → 隐私里点「忘掉」）", " (saved questions are kept; Settings → Privacy → “Forget” deletes them)")
+                : tr("（已存的问题保留；要删除，在设置 → 通用里点「清除」）", " (saved questions are kept; Settings → General → “Clear” deletes them)")
         }
 
         public func outputs(_ languages: [OutputLanguage]) -> String {
@@ -166,9 +169,13 @@ extension AIConfig {
         func unknownLanguage(_ code: String) -> String { tr("不认识的语言「\(code)」", "unknown language “\(code)”") }
         var atLeastOne: String { tr("至少要有一种", "at least one is needed") }
         func tooMany(_ limit: Int) -> String { tr("最多 \(limit) 种", "at most \(limit)") }
+        /// Where the packs are downloaded: the Mac's General (its input language chips, Settings v2), Windows' Input.
         func needsPack(_ language: Language) -> String {
-            tr("需要\(language.displayName)语言包（在设置 → 输入里下载）",
-               "needs the \(language.englishName) language pack (download it in Settings → Input)")
+            Platform.current.terms.device == .mac
+                ? tr("需要\(language.displayName)语言包（在设置 → 通用里下载）",
+                     "needs the \(language.englishName) language pack (download it in Settings → General)")
+                : tr("需要\(language.displayName)语言包（在设置 → 输入里下载）",
+                     "needs the \(language.englishName) language pack (download it in Settings → Input)")
         }
         func notAnInputLanguage(_ language: Language) -> String {
             tr("\(language.displayName)还不是输入语言", "\(language.englishName) isn't one of your input languages")
@@ -223,15 +230,15 @@ extension AIConfig {
         /// The request was too long for the on-device model's context, and there is no other provider to ask (it is the one
         /// chosen): `AIConfigService.TooLong`.
         public var tooLongNoProvider: String {
-            tr("这句话对本机的 Apple Intelligence 来说太长了：请说得短一些，或者在设置 → AI 服务里换一个 AI 服务",
-               "Too long for Apple Intelligence on this Mac: try a shorter request, or choose another AI provider in Settings → AI Provider")
+            tr("这句话对本机的 Apple Intelligence 来说太长了：请说得短一些，或者在设置 → AI 里换一个 AI 服务",
+               "Too long for Apple Intelligence on this Mac: try a shorter request, or choose another AI provider in Settings → AI")
         }
 
         /// Too long for the on-device model, and the user's own provider isn't set up (no key, no sign-in, no AWS profile).
         public func tooLong(notSetUp provider: Provider) -> String {
             let name = self.provider(provider)
-            return tr("这句话对本机的 Apple Intelligence 来说太长了，\(name) 也还没设置好：请说得短一些，或者在设置 → AI 服务里设置好 \(name)",
-                      "Too long for Apple Intelligence on this Mac, and \(name) isn't set up: try a shorter request, or set up \(name) in Settings → AI Provider")
+            return tr("这句话对本机的 Apple Intelligence 来说太长了，\(name) 也还没设置好：请说得短一些，或者在设置 → AI 里设置好 \(name)",
+                      "Too long for Apple Intelligence on this Mac, and \(name) isn't set up: try a shorter request, or set up \(name) in Settings → AI")
         }
 
         /// Too long for the on-device model, and the user's own provider failed too: what it said (`detail`).

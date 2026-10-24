@@ -98,7 +98,8 @@ extension SelfTest {
 
     /// The input menu's "This App" for `app` (by its bundle id: the app isn't installed): the app's two settings only (Settings
     /// v2, 4), No AI and, with a suggestion source, Insert (With title, With title and link; "ID only" kept in a config shown
-    /// checked, not chosen anew); none of what no setting sets any more (typing out, autocomplete, where it starts).
+    /// checked, not chosen anew); none of what no setting sets any more (typing out, autocomplete, where it starts). With a
+    /// starting input the app learned (Settings v2, 3.1), "Starts in English (learned)" first, and Forget, which forgets it.
     static func testThisAppMenu(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, app: String) {
         // The menu reads the config file (the self-test's own, `useOwnConfig`): the app's profile and a suggestion source
         // written there, and the file put back after.
@@ -126,6 +127,25 @@ extension SelfTest {
         let kept = items().first { $0.title == SuggestionsInsert.id.label }
         check(kept?.state == .on && kept?.isEnabled == false && items().first { $0.title == tr("不用 AI", "No AI") }?.state == .on,
               "an app's \"ID only\" shows checked, not choosable; No AI checked")
+        let starts = tr("用英文开始（学到的）", "Starts in English (learned)")
+        check(!titles.contains(starts) && !titles.contains(tr("忘掉", "Forget")), "nothing learned: no learned starting input in This App")
+
+        // The app learns English (two fields of it corrected so, in the self-test's own store), then Forget forgets it.
+        let learner = LearnedShared.store
+        let learns = learner.learnsStartingInputs
+        learner.learnsStartingInputs = true
+        for _ in 0..<2 { learner.corrected(app, to: .language(.english)) }
+        learner.learnsStartingInputs = learns
+        let learned = items()
+        let forget = learned.first { $0.title == tr("忘掉", "Forget") }
+        check(learned.first?.title == starts && learned.first?.isEnabled == false && forget?.isEnabled == true
+              && learned.firstIndex { $0.title == tr("不用 AI", "No AI") }.map { $0 > 1 } == true,
+              "a learned starting input comes first in This App, with Forget (\(learned.map(\.title)))")
+        if let forget, let action = forget.action { _ = (forget.target as? NSObject)?.perform(action, with: forget) }
+        check(learner.startingInput(in: app) == nil && !items().map(\.title).contains(starts),
+              "Forget there forgets it: This App shows it no more (\(learner.startingInput(in: app)?.rawValue ?? "none"))")
+        let profileKept = (try? Config.load())?.profile(for: app)?.startingInput
+        check(profileKept == .language(.english), "…and the app's own starting input in the config file is as it was")
     }
 
     /// Settings' per-app settings in both languages, with sample apps (nothing saved): General's Insert in these apps and
