@@ -134,8 +134,10 @@ struct SuggestionsCodingAcceptanceTests {
                 #expect(!Self.chooser(field), "\(input): \(Self.texts(field))")
                 if input == .code {
                     #expect(Self.said(field, since: before).contains { $0.contains("Code") }, "\(Self.said(field, since: before))")
+                    let start = field.document
                     field.type("pr")
-                    #expect(field.host.marked.isEmpty && field.document == "pr", "straight in: \(field.host.marked)")
+                    // Held as marked text, as after the magic key, until it ends (decision 33).
+                    #expect(field.host.marked == "pr" && field.document == start, "held: \(field.host.marked)")
                     #expect(field.settle { field.shown(["print"]) == ["print"] }, "Code's rows: \(Self.texts(field))")
                     field.press(SuggestionKeys.space)
                 }
@@ -210,7 +212,7 @@ struct SuggestionsCodingAcceptanceTests {
             code.holdShift()
             #expect(code.host.composer.input == .code, "still Code")
             code.type("pr")
-            #expect(code.host.marked.isEmpty && code.document == "pr", "\(code.host.marked)")
+            #expect(code.host.marked == "pr" && code.document.isEmpty, "Code holds its word (decision 33): \(code.host.marked)")
         }
     }
 
@@ -263,7 +265,8 @@ struct SuggestionsCodingAcceptanceTests {
             Self.translateAsYouTypeOn(code)
             #expect(code.host.composer.input == .code && code.host.composer.translateModeChip() == nil)
             code.type("print")
-            #expect(code.host.marked.isEmpty && code.document == "print", "nothing to translate: \(code.host.marked)")
+            // Code's own held word (decision 33), never a draft to translate.
+            #expect(code.host.marked == "print" && code.document.isEmpty, "nothing to translate: \(code.host.marked)")
         }
     }
 
@@ -338,7 +341,7 @@ struct SuggestionsCodingAcceptanceTests {
             let field = world.field(app: mail)
             #expect(field.host.composer.input == .code, "\(field.host.composer.input)")
             field.type("pr")
-            #expect(field.host.marked.isEmpty && field.document == "pr", "\(field.host.marked)")
+            #expect(field.host.marked == "pr" && field.document.isEmpty, "Code holds its word (decision 33): \(field.host.marked)")
             #expect(field.settle { field.shown(["print"]) == ["print"] }, "Code's rows: \(Self.texts(field))")
             field.press(SuggestionKeys.space)
             let notes = world.field(app: "com.apple.Notes")
@@ -589,7 +592,8 @@ struct SuggestionsCodingAcceptanceTests {
             let before = field.host.outputs.count
             field.host.send(.key(SuggestionKeys.tab, context))
             let outputs = Array(field.host.outputs.dropFirst(before))
-            #expect(outputs.contains { if case .commit("int()") = $0 { true } else if case .commitAfterKey("int()") = $0 { true } else { false } },
+            // The held "pr" is replaced by the whole row (decision 33).
+            #expect(outputs.contains { if case .commit("print()") = $0 { true } else if case .commitAfterKey("print()") = $0 { true } else { false } },
                     "\(outputs)")
             #expect(!outputs.contains { if case let .moveCaret(back, _) = $0 { back > 0 } else { false } }, "\(outputs)")
         }
@@ -651,7 +655,8 @@ struct SuggestionsCodingAcceptanceTests {
             let (def, defOutputs) = Self.tabWithoutRanges(after: "def", in: field) {
                 field.rows.contains { ($0.text + $0.comment).contains("function") }
             }
-            #expect("def" + def == "def name():\n    ", "\(def.debugDescription)")
+            // What goes in replaces the held word, so it is the whole snippet (decision 33).
+            #expect(def == "def name():\n    ", "\(def.debugDescription)")
             #expect(!defOutputs.contains { if case let .moveCaret(back, _) = $0 { back > 0 } else { false } }, "\(defOutputs)")
 
             let sorting = Self.coding(Self.sortPack)
@@ -659,7 +664,7 @@ struct SuggestionsCodingAcceptanceTests {
             let (sort, sortOutputs) = Self.tabWithoutRanges(after: "sort", in: other) {
                 other.rows.contains { ($0.text + $0.comment).contains("sort a range") }
             }
-            #expect("sort" + sort == "sort(v.begin(), v.end(), less);", "\(sort.debugDescription)")
+            #expect(sort == "sort(v.begin(), v.end(), less);", "\(sort.debugDescription)")
             #expect(!sortOutputs.contains { if case let .moveCaret(back, _) = $0 { back > 0 } else { false } }, "\(sortOutputs)")
         }
     }
@@ -693,7 +698,7 @@ struct SuggestionsCodingAcceptanceTests {
         }
     }
 
-    /// A digit never picks a row (spec 6.1): "pr" and 1 is "pr1", typed.
+    /// A digit never picks a row (spec 6.1): "pr" and 1 is "pr1", typed (held with the word, decision 33).
     @Test func aDigitIsTypedNotAPick() async throws {
         try await inEnglish {
             let world = try Self.coding()
@@ -701,7 +706,7 @@ struct SuggestionsCodingAcceptanceTests {
             field.type("pr")
             #expect(field.settle { field.shown(["print"]) == ["print"] }, "\(Self.texts(field))")
             field.press(SuggestionKeys.digit(1))
-            #expect(field.document == "pr1", "\(field.document)")
+            #expect(field.host.marked == "pr1" && field.document.isEmpty, "\(field.host.marked) \(field.document)")
         }
     }
 
