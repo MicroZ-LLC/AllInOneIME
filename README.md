@@ -528,10 +528,10 @@ something, never naming them.
 
 Settings has seven pages, in this order in the sidebar, and opens on General:
 
-- **General**: Translate to, the rewrite styles, "@improve also translates" and the jargon list (shown with the Jargon
-  style, or once a list is set); Autocomplete (Beta); Suggestions, with Insert and "In these apps"; the magic key, the
-  action key, Show in Menu Bar and the interface language; Sync through iCloud; and Previous per-app settings, only
-  while an app has one.
+- **General**, from the top: the magic key and the action key; Show in Menu Bar and the interface language; Translate
+  to, the rewrite styles, "@improve also translates" and the jargon list (shown with the Jargon style, or once a list
+  is set); Autocomplete (Beta); Suggestions, with Insert and "In these apps"; Sync through iCloud; and Previous per-app
+  settings, only while an app has one.
 - **Input**: the input languages as chips at the top: drag to reorder, ⊗ removes one, Add… adds one; the first is the
   default, and Code comes after them ("Code · Python"). Under the chips, each input has its options in a section under
   its name, always shown, with nothing to click. English has its position and English words; Chinese (pinyin) its
