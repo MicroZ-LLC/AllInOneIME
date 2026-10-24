@@ -356,8 +356,9 @@ extension SelfTest {
         check(!harnessKey(controller, harness, "\t", code: VirtualKey.tab) && ghost(nil) && harness.text == "Let me know\t",
               "a Tab right as it appears goes to the app (\(harness.text.debugDescription))")
 
-        // A field whose rect for the empty range at the caret is off its line (Notes's has been above it): on the line
-        // the candidate panel goes by, after the character before the caret; more than a line off, the panel's line.
+        // A field whose rect for the empty range at the caret is off its line (Notes's is a line above it): on the line the
+        // candidate panel goes by, which is as narrow as a caret here and so the caret itself (GhostPlacement.line), however
+        // far off the empty range's rect is. With no line told at all, the panel's line (above: "no caret rect").
         let arrow = { _ = harnessKey(controller, harness, "\u{F703}", code: 0x7C) }
         harness.text = "Hello wo"
         harness.emptyRangeOffset = 12
@@ -370,9 +371,9 @@ extension SelfTest {
         harness.text = "Hello wo"
         harness.emptyRangeOffset = 60
         harnessType("r", controller, harness)
-        let panelLine = pump(timeout: 3) { CandidatePanel.shared.view.model.rows.first?.label == "Tab" }
-        check(panelLine && CandidatePanel.shared.view.model.rows.first?.text == "ld, how are you?" && GhostOverlay.shared.text == nil,
-              "60 pt above, more than a line: a line of the candidate panel instead (\(CandidatePanel.shared.view.model.rows.map(\.text)))")
+        check(ghost("ld, how are you?") && abs(GhostOverlay.shared.frame.minY - caretLine.minY) < 1
+              && abs(GhostOverlay.shared.frame.minX - caretLine.maxX - 1) < 1,
+              "60 pt above, more than a line: still on the caret-narrow line (line \(caretLine), text \(GhostOverlay.shared.frame))")
         arrow()
         harness.emptyRangeOffset = 0
 
@@ -588,8 +589,9 @@ extension SelfTest {
         controller.services.converter = AutocompleteSelfTestEndpoint.converter(settings)
         controller.activateServer(harness)
         let sent = AutocompleteSelfTestEndpoint.sent.count
-        harness.text = "Let me kno"
-        harnessType("w", controller, harness)
+        // Text not asked about before in this run: a suggestion cached for its text would come without a request.
+        harness.text = "Let me chec"
+        harnessType("k", controller, harness)
         check(ghost(" when you are free.") && AutocompleteSelfTestEndpoint.sent.count == sent + 1,
               "the next pause asks the Claude API (the local endpoint): its suggestion (\(GhostOverlay.shared.text ?? "none"))")
         harnessKey(controller, harness, "\u{1B}", code: VirtualKey.escape)

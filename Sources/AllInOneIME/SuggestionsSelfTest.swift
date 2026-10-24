@@ -129,13 +129,13 @@ extension SelfTest {
               "…drawn in the candidate panel")
         check(model.highlighted == 0 && !model.highlightChosen,
               "…the first row outlined, not selected: ⏎ is the app's until ↓ or ↑ moves (\(String(describing: model.highlighted)))")
-        // Tab: what wasn't typed of the first row.
-        check(press(controller, client, "\t", code: VirtualKey.tab) && client.inserted.last == "34",
-              "Tab inserts what wasn't typed of the first row: \"\(client.inserted.last ?? "")\"")
+        // Tab: what wasn't typed of the first row, as the plugin's default template has it here ("{arg} {title}").
+        check(press(controller, client, "\t", code: VirtualKey.tab) && client.inserted.last == "34 Fix login on the settings page",
+              "Tab inserts what wasn't typed of the first row, with its title: \"\(client.inserted.last ?? "")\"")
         check(controller.session.panelModel().rows.isEmpty, "…and the rows go")
         check(!press(controller, client, "\t", code: VirtualKey.tab), "…no rows: Tab is the app's")
 
-        // Slack (a chat app): Tab inserts the issue with its address (the chat template).
+        // Slack (a chat app): Tab inserts the issue with its title and address (the plugin's chat template).
         controller.commitComposition(client)
         client.bundleIDOverride = "com.tinyspeck.slackmacgap"
         controller.activateServer(client)
@@ -143,8 +143,8 @@ extension SelfTest {
         type("#12", controller, client)
         let slackRows = pump(timeout: 5) { !controller.session.panelModel().rows.isEmpty }
         check(slackRows && press(controller, client, "\t", code: VirtualKey.tab)
-              && client.inserted.last == "34 https://github.com/\(GitHubStandIn.repository)/issues/1234",
-              "Slack: Tab inserts \"{arg} {url}\": \"\(client.inserted.last ?? "")\"")
+              && client.inserted.last == "34 Fix login on the settings page https://github.com/\(GitHubStandIn.repository)/issues/1234",
+              "Slack: Tab inserts \"{arg} {title} {url}\": \"\(client.inserted.last ?? "")\"")
         check(!press(controller, client, "\r", code: VirtualKey.returnKey), "…and Return stays Slack's")
 
         // The child process a completion script runs in: a plugin with its own list (no host to reach), loaded there.
