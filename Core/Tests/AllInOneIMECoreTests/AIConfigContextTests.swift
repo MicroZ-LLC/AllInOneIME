@@ -122,7 +122,7 @@ final class LoopingToolsModel: AppleGuidedBackend, @unchecked Sendable {
             let output = await tool.call(["name": "WeChat"])
             lock.withLock { _returned.append(output) }
         }
-        return #"{"changes": [{"key": "appProfiles.*.inputLanguage", "app": "WeChat", "value": "zh"}]}"#
+        return #"{"changes": [{"key": "appProfiles.*.noAI", "app": "WeChat", "value": true}]}"#
     }
 }
 
@@ -186,9 +186,10 @@ struct AIConfigContextTests {
         let known = ["com.tencent.xinWeChat", "com.tinyspeck.slackmacgap", "com.apple.mail", "com.apple.Notes", "com.microsoft.VSCode"]
         for index in 0..<apps {
             let id = index < known.count ? known[index] : "com.example.someapp\(index)"
+            // What an earlier version set too (where it starts, its styles, typing out): kept, never shown.
             config.appProfiles[id] = AppProfile(inputLanguage: Language.allCases[index % Language.allCases.count],
                                                 rewriteStyles: Array(styles.prefix(1 + index % 3)), typeOut: index % 2 == 0,
-                                                noAI: index % 7 == 0 ? true : nil)
+                                                noAI: index % 7 == 0 ? true : nil, suggestionsInsert: index % 2 == 0 ? .title : .titleAndLink)
         }
         config.customCommands = (0..<30).map { CustomCommand(name: "cmd\($0)", type: .prompt, summary: "Command \($0)", prompt: "Rewrite the text.") }
         config.redaction = RedactionSettings(enabled: true, customWords: (0..<50).map { "Secret\($0)" })
@@ -247,25 +248,27 @@ struct AIConfigContextTests {
         let sent = try #require(model.sent.last)
         #expect(sent.request.instructions == AIConfigPrompt.system(context, compact: true, refining: false))
         #expect(sent.schema == AIConfigPrompt.schema(context) && sent.tools == ["findApps", "awsProfiles", "languagePacks"])
-        #expect(sent.request.maximumResponseTokens == 1000)
+        #expect(sent.request.maximumResponseTokens == 2000)
     }
 
     /// Where it doesn't, the settings the sentence is about go first, with the apps it names (their current values) and the
     /// tools they need; the rest only while there is room.
     @Test func theSettingsTheSentenceIsAboutFirst() async throws {
-        let model = ContextLimitedModel(contextSize: 4096, answer: #"{"changes": [{"key": "appProfiles.*.inputLanguage", "app": "微信", "value": "zh"}]}"#)
+        let model = ContextLimitedModel(contextSize: 4096, answer: #"{"changes": [{"key": "appProfiles.*.suggestionsInsert", "app": "微信", "value": "titleAndLink"}]}"#)
         var config = Self.bigConfig(apps: 80)
-        config.appProfiles["com.tencent.xinWeChat"] = AppProfile(inputLanguage: .english)
-        let answer = try await Self.service(model).ask("微信里用中文", context: Self.context(config), tools: Self.tools)
-        #expect(try AIConfig.parse(answer.text).changes == [.init(key: .app("微信", .inputLanguage), value: .string("zh"))])
+        config.appProfiles["com.tencent.xinWeChat"] = AppProfile(inputLanguage: .english, suggestionsInsert: .title)
+        let answer = try await Self.service(model).ask("微信里插入带标题和链接", context: Self.context(config), tools: Self.tools)
+        #expect(try AIConfig.parse(answer.text).changes == [.init(key: .app("微信", .suggestionsInsert), value: .string("titleAndLink"))])
         let sent = try #require(model.sent.last)
         #expect(sent.tokens + sent.request.maximumResponseTokens <= 4096)
         let choices = Self.choices(sent.schema)
-        #expect(choices.contains("AppInput") && choices.contains("InputLanguages") && !choices.contains("Region"), "\(choices)")
+        #expect(choices.contains("AppInsert") && choices.contains("AppNoAI") && !choices.contains("Region"), "\(choices)")
         #expect(sent.tools.contains("findApps") && !sent.tools.contains("awsProfiles"))
-        // WeChat's current values are shown; most of the other 79 apps' aren't, and the model is told so.
-        let apps = try #require(sent.request.instructions.split(separator: "\n").first { $0.hasPrefix("- appProfiles.<app>.inputLanguage") })
-        #expect(apps.contains(#""com.tencent.xinWeChat":{"inputLanguage":"en"}"#) && apps.contains("other apps, not shown"), "\(apps)")
+        // WeChat's current values are shown (only what can be set here); most of the other 79 apps' aren't, and the model
+        // is told so.
+        let apps = try #require(sent.request.instructions.split(separator: "\n").first { $0.hasPrefix("- appProfiles.<app>.noAI") })
+        #expect(apps.contains(#""com.tencent.xinWeChat":{"suggestionsInsert":"title"}"#) && apps.contains("other apps, not shown"), "\(apps)")
+        #expect(!sent.request.instructions.contains("inputLanguage\""), "\(apps)")
     }
 
     /// "use Bedrock" chooses the provider as much as Bedrock's own settings: on a 4096-token model (macOS 26) the schema
@@ -314,7 +317,7 @@ struct AIConfigContextTests {
         config.provider = .anthropic
         // The same app, again and again.
         let again = LoopingToolsModel(calls: Array(repeating: "findApps", count: 20))
-        let answer = try await Self.service(again).ask("微信里用中文", context: Self.context(config), tools: tools)
+        let answer = try await Self.service(again).ask("微信里不用 AI", context: Self.context(config), tools: tools)
         #expect(answer.onDevice && looked.withLock { $0 } == ["findApps": 3])
         #expect(again.returned.count == 20 && again.returned.prefix(3).allSatisfy { $0 == "WeChat: com.tencent.xinWeChat" }
                 && again.returned.dropFirst(3).allSatisfy { $0 == GuidedTool.enough }, "\(again.returned)")
@@ -322,11 +325,11 @@ struct AIConfigContextTests {
         // Each of them: six in all, the seventh call told to answer whichever tool it is.
         looked.withLock { $0 = [:] }
         let all = LoopingToolsModel(calls: ["findApps", "awsProfiles"].flatMap { Array(repeating: $0, count: 4) } + ["languagePacks"])
-        _ = try await Self.service(all).ask("微信里用中文", context: Self.context(config), tools: tools)
+        _ = try await Self.service(all).ask("微信里不用 AI", context: Self.context(config), tools: tools)
         #expect(looked.withLock { $0 } == ["findApps": 3, "awsProfiles": 3] && all.returned.last == GuidedTool.enough)
         // The next request: its own.
         looked.withLock { $0 = [:] }
-        _ = try await Self.service(again).ask("Slack 里用英文", context: Self.context(config), tools: tools)
+        _ = try await Self.service(again).ask("Slack 里不用 AI", context: Self.context(config), tools: tools)
         #expect(looked.withLock { $0 } == ["findApps": 3])
     }
 
@@ -334,16 +337,16 @@ struct AIConfigContextTests {
     /// older ones while there is room, the oldest left out first.
     @Test func olderTurnsGoFirst() async throws {
         let model = ContextLimitedModel(contextSize: 4096)
-        let long = #"{"changes": ["# + (0..<12).map { #"{"key": "appProfiles.com.example.someapp\#($0).typeOut", "value": true}"# }.joined(separator: ", ") + "]}"
+        let long = #"{"changes": ["# + (0..<12).map { #"{"key": "appProfiles.com.example.someapp\#($0).noAI", "value": true}"# }.joined(separator: ", ") + "]}"
         let turns = (1...8).map { Refinement.Turn(answer: ConversionResult(versions: [CandidateLine(long)]), instruction: "change number \($0)") }
-        _ = try await Self.service(model).ask("type out in every app", turns: turns, context: Self.context(Self.bigConfig()), tools: Self.tools)
+        _ = try await Self.service(model).ask("no AI in any app", turns: turns, context: Self.context(Self.bigConfig()), tools: Self.tools)
         let sent = try #require(model.sent.last)
         #expect(sent.tokens + sent.request.maximumResponseTokens <= 4096)
         #expect(sent.request.prompt == "<refine>change number 8</refine>")
         let kept = sent.request.examples.count
         #expect(kept >= 1 && kept < 9, "\(kept) turns kept")
         // The sentence first, then the latest instructions (the older ones went).
-        #expect(sent.request.examples.first?.prompt == "type out in every app")
+        #expect(sent.request.examples.first?.prompt == "no AI in any app")
         #expect(sent.request.examples.dropFirst().map(\.prompt) == (9 - kept..<8).map { "<refine>change number \($0)</refine>" })
     }
 
@@ -413,7 +416,7 @@ struct AIConfigContextTests {
             ("empty", request("", prompt: ""), .object(name: "A", properties: []), []),
             ("a sentence", request("", prompt: "candidates in a column"), .object(name: "A", properties: []), []),
         ]
-        let long = #"{"changes": ["# + (0..<12).map { #"{"key": "appProfiles.com.example.someapp\#($0).typeOut", "value": true}"# }.joined(separator: ", ") + "]}"
+        let long = #"{"changes": ["# + (0..<12).map { #"{"key": "appProfiles.com.example.someapp\#($0).noAI", "value": true}"# }.joined(separator: ", ") + "]}"
         let turns = (1...8).map { Refinement.Turn(answer: ConversionResult(versions: [CandidateLine(long)]), instruction: "change number \($0)") }
         for apps in [0, 250] {
             let context = Self.context(Self.bigConfig(apps: apps))
@@ -698,9 +701,9 @@ struct AIConfigContextTests {
         } catch let error as AIConfigService.TooLong {
             #expect(error.provider == nil && error.providerNotSetUp)
             #expect(error.line(language: "en", describe: { _ in "" })
-                == "Too long for Apple Intelligence on this Mac: try a shorter request, or choose another AI provider in Settings → AI Provider")
+                == "Too long for Apple Intelligence on this Mac: try a shorter request, or choose another AI provider in Settings → AI")
             #expect(error.line(language: "zh-Hans", describe: { _ in "" })
-                == "这句话对本机的 Apple Intelligence 来说太长了：请说得短一些，或者在设置 → AI 服务里换一个 AI 服务")
+                == "这句话对本机的 Apple Intelligence 来说太长了：请说得短一些，或者在设置 → AI 里换一个 AI 服务")
         }
     }
 
@@ -713,7 +716,7 @@ struct AIConfigContextTests {
         } catch let error as AIConfigService.TooLong {
             #expect(error.provider == .anthropic && error.providerError as? ProviderError == .missingKey(.anthropic) && error.providerNotSetUp)
             #expect(error.line(language: "en", describe: { _ in "unused" })
-                == "Too long for Apple Intelligence on this Mac, and Claude API isn't set up: try a shorter request, or set up Claude API in Settings → AI Provider")
+                == "Too long for Apple Intelligence on this Mac, and Claude API isn't set up: try a shorter request, or set up Claude API in Settings → AI")
         }
         let failed = AIConfigService.TooLong(provider: .gemini, providerError: URLError(.notConnectedToInternet))
         #expect(!failed.providerNotSetUp)
@@ -774,7 +777,7 @@ struct AIConfigContextTests {
         let wechat = AIConfigFit.relevance(["微信里用中文"], context: context)
         #expect(wechat.parts.contains(.apps) && wechat.apps == ["com.tencent.xinWeChat"])
         #expect(AIConfigFit.relevance(["com.apple.mail too"], context: context).apps == ["com.apple.mail"])
-        #expect(parts("and French", answers: [#"{"changes": [{"key": "appProfiles.*.typeOut", "app": "Slack", "value": true}]}"#])
+        #expect(parts("and French", answers: [#"{"changes": [{"key": "appProfiles.*.noAI", "app": "Slack", "value": true}]}"#])
             .contains(.apps))
     }
 

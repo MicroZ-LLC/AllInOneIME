@@ -61,7 +61,7 @@ extension SelfTest {
             opened.removeAll()
             let before = (client.inserted, model.requests.count)
             translate("good morning")
-            let page = SettingsPage.writing.title
+            let page = SettingsPage.general.title
             _ = pump(timeout: 2.5) { !opened.isEmpty }  // the notice up a while: nothing opens meanwhile
             let shown = controller.panelModel()
             let line = "\(shown.status)"
@@ -71,7 +71,7 @@ extension SelfTest {
                   && shown.footer.hasPrefix(tr("空格 / ⏎ 打开设置", "Space / ⏎ open the settings")),
                   "[\(ui)] …the notice, still up, names the page and offers ⏎ (\(line) | \(shown.footer))")
             if key == "⏎" { _ = enter(controller, client) } else { _ = space(controller, client) }
-            check(opened == ["writing/outputLanguages"] && client.inserted.last == "good morning" && client.marked.isEmpty
+            check(opened == ["general/outputLanguages"] && client.inserted.last == "good morning" && client.marked.isEmpty
                   && controller.composer.phase == .idle,
                   "[\(ui)] \(key) on it opens Settings on \(page) at the languages; the sentence goes in as typed (\(opened), \(client.inserted.last ?? "-"))")
         }
@@ -102,10 +102,11 @@ extension SelfTest {
         defer { front.close() }
         func settingsWindow() -> NSWindow? { NSApp.windows.first { $0.title == SettingsWindow.title && $0.isVisible } }
         func popups(_ view: NSView) -> [NSPopUpButton] { ((view as? NSPopUpButton).map { [$0] } ?? []) + view.subviews.flatMap(popups) }
-        /// The page's first Add… (Translate & Rewrite's languages there).
+        /// General's second Add… from the top: Translate to's (the input languages' is above it).
         func firstAdd() -> NSPopUpButton? {
             let all = settingsWindow()?.contentView.map(popups) ?? []
-            return all.filter { $0.title == tr("添加…", "Add…") }.max { $0.convert($0.bounds, to: nil).maxY < $1.convert($1.bounds, to: nil).maxY }
+            let adds = all.filter { $0.title == tr("添加…", "Add…") }.sorted { $0.convert($0.bounds, to: nil).maxY > $1.convert($1.bounds, to: nil).maxY }
+            return adds.count > 1 ? adds[1] : nil
         }
         /// What the page's first Add… lists, opened as a click opens it (read while it shows); `pick` chosen from it.
         func addMenu(picking pick: String? = nil) -> [String] {
@@ -159,7 +160,7 @@ extension SelfTest {
             _ = pump(timeout: 1.5) { firstAdd() != nil && settingsWindow().map(inFront) == true }
             let window = settingsWindow()
             check(window.map(inFront) == true && window.flatMap { NSApp.orderedWindows.firstIndex(of: $0) } == 0 && !early
-                  && opened == ["writing/outputLanguages"],
+                  && opened == ["general/outputLanguages"],
                   "settings \(start): only ⏎ on the notice shows them, in front of every window on screen (key: "
                       + "\(window?.isKeyWindow ?? false), active: \(NSApp.isActive))")
             let spot = SettingsWindow.shared.spot
@@ -220,7 +221,7 @@ extension SelfTest {
         }
         controller.toggleTranslateMode()
         let notice = controller.notice ?? "-"
-        check(!TranslateModeShared.state.isOn && controller.composer.translateMode == nil && notice.contains(SettingsPage.writing.title),
+        check(!TranslateModeShared.state.isOn && controller.composer.translateMode == nil && notice.contains(SettingsPage.general.title),
               "Translate as You Type with English alone stays off, and says where to add one (\(notice))")
         // French added after English, as the notice says: on at once, into French, not "on: English" with everything typed
         // going in as typed until French is picked on the chip.
@@ -240,7 +241,7 @@ extension SelfTest {
         controller.applySettings()
         let gone = controller.notice ?? "-"
         let off = !TranslateModeShared.state.isOn && controller.composer.translateMode == nil && !MenuBarIcon.shared.translating
-        check(off && gone.contains(tr("没有要翻译成的语言", "No language to translate into")) && gone.contains(SettingsPage.writing.title),
+        check(off && gone.contains(tr("没有要翻译成的语言", "No language to translate into")) && gone.contains(SettingsPage.general.title),
               "…French removed while it's on, it goes off and says where to add one (\(gone))")
     }
 }

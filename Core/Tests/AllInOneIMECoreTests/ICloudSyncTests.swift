@@ -752,10 +752,10 @@ struct ICloudSyncJoinTests {
             #expect(lost.outgoing["menuBarIcon"] == mine, "\(mode)")
         }
         // A value set here before it joined goes back up as a change, over a fresh Mac's.
-        let set = ICloudSync.plan(local: ["maxTokens": .number(2000)], known: ["maxTokens": .init(value: .number(2000), stamp: .joining("A"))],
-                                  remote: ["maxTokens": .init(value: .number(1000), stamp: .joining("C"))],
+        let set = ICloudSync.plan(local: ["maxTokens": .number(3000)], known: ["maxTokens": .init(value: .number(3000), stamp: .joining("A"))],
+                                  remote: ["maxTokens": .init(value: .number(2000), stamp: .joining("C"))],
                                   categories: [.settings], mac: "A", now: t(5))
-        #expect(set.outgoing["maxTokens"] == ICloudSync.Entry(value: .number(2000), stamp: .init(modified: t(5), by: "A")))
+        #expect(set.outgoing["maxTokens"] == ICloudSync.Entry(value: .number(3000), stamp: .init(modified: t(5), by: "A")))
     }
 
     // MARK: Lost settings.json
@@ -763,24 +763,24 @@ struct ICloudSyncJoinTests {
     @Test(arguments: [false, true])
     func lostSettingsComeBackFromSyncedMacsWithRealStamps(corrupt: Bool) throws {
         let rig = try SyncRig()
-        let (a, b) = try pair(rig) { $0.maxTokens = 2000 }
+        let (a, b) = try pair(rig) { $0.maxTokens = 3000 }
         let url = rig.folder.url.appendingPathComponent(ICloudSync.settingsFile)
         if corrupt { try Data("{ lost".utf8).write(to: url) } else { try FileManager.default.removeItem(at: url) }
         // A synced Mac puts what it knows back up, with real stamps (its joining ones became "now").
         let report = a.sync(at: t(10))
         #expect(report.uploaded.contains("maxTokens"))
         let up = try #require(try entry(rig, "maxTokens"))
-        #expect(!up.stamp.isJoining && up.value == .number(2000))
+        #expect(!up.stamp.isJoining && up.value == .number(3000))
         // A fresh Mac joining now takes them; its defaults never go over them.
         let c = try rig.mac("C")
         c.sync(at: t(20))
         b.sync(at: t(21))
-        #expect(try c.config().maxTokens == 2000 && b.config().maxTokens == 2000)
+        #expect(try c.config().maxTokens == 3000 && b.config().maxTokens == 3000)
     }
 
     @Test func twoJoiningStampsNeverOverwriteWhatASyncedMacHolds() throws {
         let rig = try SyncRig()
-        let (a, _) = try pair(rig) { $0.maxTokens = 2000 }
+        let (a, _) = try pair(rig) { $0.maxTokens = 3000 }
         // settings.json lost; a fresh Mac gets there first, its defaults stamped as joining.
         try FileManager.default.removeItem(at: rig.folder.url.appendingPathComponent(ICloudSync.settingsFile))
         let c = try rig.mac("C")
@@ -789,9 +789,9 @@ struct ICloudSyncJoinTests {
         // A's own (also joining-stamped when it was first sent) isn't overwritten: it goes back up, real.
         let report = a.sync(at: t(11))
         #expect(report.applied.isEmpty && report.uploaded.contains("maxTokens"))
-        #expect(try a.config().maxTokens == 2000)
+        #expect(try a.config().maxTokens == 3000)
         c.sync(at: t(12))
-        #expect(try c.config().maxTokens == 2000)
+        #expect(try c.config().maxTokens == 3000)
     }
 
     @Test func aJoiningMacsRefusedValueNeverGoesOverICloudsLater() throws {
@@ -852,7 +852,7 @@ struct ICloudSyncJoinTests {
         let rig = try SyncRig()
         let a = try rig.mac("A") { config in
             config.iCloudSync = ICloudSyncSettings(enabled: true, hiddenWords: true)
-            config.maxTokens = 2000
+            config.maxTokens = 2500
             config.redaction.customWords = ["Falcon"]
             config.customCommands = [CustomCommand(name: "alpha", type: .prompt, prompt: "A's")]
         }
@@ -870,7 +870,7 @@ struct ICloudSyncJoinTests {
         a.sync(at: t(2))
         for mac in [a, b] {
             let config = try mac.config()
-            #expect(config.maxTokens == 2000, "scalars: iCloud's")
+            #expect(config.maxTokens == 2500, "scalars: iCloud's")
             #expect(config.redaction.customWords == ["Falcon", "Nightjar"])
             #expect(config.customCommands.map(\.name) == ["alpha", "gamma"] && config.customCommands[0].prompt == "A's")
             #expect(try String(contentsOf: mac.jargonURL, encoding: .utf8) == "A line\nB line\n")

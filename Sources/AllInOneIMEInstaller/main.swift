@@ -215,9 +215,11 @@ final class InstallerDelegate: NSObject, NSApplicationDelegate {
             return
         }
         finish(tr("AllInOneIME \(newVersion) 装好了", "AllInOneIME \(newVersion) is installed"),
-               // A new install starts on AllInOneIME Cloud (`Config.fresh`); Apple Intelligence needs no account.
-               tr("按 Ctrl+空格 切换到它，然后在任意输入框里打 @improve。第一次用时登录 AllInOneIME 云（每天 20 次免费）；在支持 Apple 智能的 Mac 上也可以用它，不用账号。",
-                  "Press Ctrl+Space to switch to it, then type @improve in any text field. The first time, sign in to AllInOneIME Cloud (20 free requests a day); or, on a Mac with Apple Intelligence, use it with no account."),
+               // A new install starts on AllInOneIME Cloud (`Config.fresh`); Apple Intelligence needs no account. An update
+               // names the command with the trigger the settings have.
+               UIText.triggered(tr("按 Ctrl+空格 切换到它，然后在任意输入框里打 @improve。第一次用时登录 AllInOneIME 云（每天 20 次免费）；在支持 Apple 智能的 Mac 上也可以用它，不用账号。",
+                                   "Press Ctrl+Space to switch to it, then type @improve in any text field. The first time, sign in to AllInOneIME Cloud (20 free requests a day); or, on a Mac with Apple Intelligence, use it with no account."),
+                                trigger: (try? Config.load())?.commandTrigger ?? "@"),
                button: tr("打开 AllInOneIME 设置", "Open AllInOneIME Settings")) {
             NSWorkspace.shared.openApplication(at: Installer.settingsApp, configuration: .init()) { _, _ in
                 DispatchQueue.main.async { NSApp.terminate(nil) }

@@ -14,6 +14,8 @@ public struct TaskID: Hashable, Sendable {
         case recipients
         /// The script extension of the request in level two, run by the shell (`SessionServices.startScript`).
         case script
+        /// Autocomplete's request (`Autocomplete`): every key stops it.
+        case autocomplete
     }
 
     public let slot: Slot?
@@ -59,6 +61,10 @@ public enum TaskUpdate: Sendable {
     case noteFolderNamed(String, settings: NoteSettings)
     /// A command's status line ended (`SessionServices.refreshStatuses`): the list shows it.
     case statusEnded
+    /// Autocomplete's request `request` answered (`Converter.autocomplete`), or failed.
+    case suggested(Result<Autocomplete.Answer, any Error>, request: Int)
+    /// A completion source's load or query came back: its result is in the store (`SuggestionsStore`), to be taken in.
+    case completionsAnswered
 }
 
 /// How a save to notes or Reminders went (`TaskUpdate.saved`): told where the user is when it comes back, even if the
@@ -235,14 +241,17 @@ public final class SessionTasks {
         public var pastesInTerminal: Bool
         /// `Config.improveTranslates`.
         public var improveTranslates: Bool
+        public var commandTrigger: String
         /// The language script plugins are told (`UIText.pluginLanguage`).
         public var pluginLanguage: Language
 
-        public init(app: String?, terminal: Bool, pastesInTerminal: Bool, improveTranslates: Bool, pluginLanguage: Language) {
+        public init(app: String?, terminal: Bool, pastesInTerminal: Bool, improveTranslates: Bool,
+                    pluginLanguage: Language, commandTrigger: String = "@") {
             self.app = app
             self.terminal = terminal
             self.pastesInTerminal = pastesInTerminal
             self.improveTranslates = improveTranslates
+            self.commandTrigger = commandTrigger
             self.pluginLanguage = pluginLanguage
         }
     }
@@ -258,7 +267,8 @@ public final class SessionTasks {
         -> AsyncThrowingStream<ConversionUpdate, Error> {
         let (runPlugin, runProgram, converter, loadSearchKey) = (services.runPlugin, services.runProgram, services.converter,
                                                                  services.loadSearchKey)
-        let (app, fresh, improveTranslates, pluginLanguage) = (place.app, request.fresh, place.improveTranslates, place.pluginLanguage)
+        let (app, fresh, improveTranslates, pluginLanguage, commandTrigger) = (place.app, request.fresh,
+            place.improveTranslates, place.pluginLanguage, place.commandTrigger)
         let searchList: WebSearch.Output = place.terminal ? .line : .list
         let streamFor: @Sendable (Command?, String) -> AsyncThrowingStream<ConversionUpdate, Error> = { command, input in
             if command == .read { return WebReader.stream(input) }
@@ -272,7 +282,7 @@ public final class SessionTasks {
             if let command, command.kind == .run, let custom = command.custom { return runProgram(custom, input) }
             // @improve, @translate, or both written together: one request (`WritingMode`).
             if command == nil || command?.kind == .convert {
-                let (mode, text) = WritingMode.parse(command, input, improveTranslates: improveTranslates)
+                let (mode, text) = WritingMode.parse(command, input, improveTranslates: improveTranslates, trigger: commandTrigger)
                 return converter.convert(text, mode: mode, app: app)
             }
             return command.map { converter.generate($0, input: input, app: app, fresh: fresh) } ?? converter.convert(input, app: app)
@@ -312,7 +322,8 @@ public final class SessionTasks {
         var generates = false
         switch refinement.request {
         case let .writing(command, input):
-            let (mode, text) = WritingMode.parse(command?.kind == .convert ? command : nil, input, improveTranslates: place.improveTranslates)
+            let (mode, text) = WritingMode.parse(command?.kind == .convert ? command : nil, input,
+                                                 improveTranslates: place.improveTranslates, trigger: place.commandTrigger)
             stream = converter.convert(text, mode: mode, app: place.app, turns: refinement.turns)
         case let .command(command, input):
             stream = converter.generate(command, input: sent ?? input, app: place.app, fresh: refinement.fresh, turns: refinement.turns)
@@ -328,6 +339,20 @@ public final class SessionTasks {
     public func translate(_ input: String, session: TranslateMode.Session, id: Int, in place: Place, converter: Converter) {
         let stream = converter.translateMode(input, target: session.target, app: place.app)
         consume(place.terminal ? Self.oneLine(stream) : stream, id: id)
+    }
+
+    /// Autocomplete's request `id` for `context` (`Converter.autocomplete`), in the autocomplete slot (a newer one, or any
+    /// key, stops it): what it answers as `TaskUpdate.suggested`.
+    public func autocomplete(_ context: Autocomplete.Context, app: String?, id: Int, converter: Converter) {
+        start(.autocomplete) { post in
+            do {
+                let answer = try await converter.autocomplete(context, app: app)
+                post(.suggested(.success(answer), request: id))
+            } catch {
+                guard !Task.isCancelled, !(error is CancellationError) else { return }
+                post(.suggested(.failure(error), request: id))
+            }
+        }
     }
 
     /// Hands `stream`'s updates for request `id` on, and its error if it fails.

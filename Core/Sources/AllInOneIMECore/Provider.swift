@@ -170,11 +170,15 @@ public struct ChatClient: Sendable {
     public let bedrock: BedrockClient
     /// The on-device model (`Provider.apple`).
     public let apple: any AppleModelBackend
+    /// What the on-device model's timeout is measured on (`AppleModel.stream`): a test's moves by hand.
+    public let appleClock: any Clock<Duration>
     public var session: URLSession { bedrock.session }
 
-    public init(bedrock: BedrockClient = BedrockClient(), apple: any AppleModelBackend = AppleModel.system) {
+    public init(bedrock: BedrockClient = BedrockClient(), apple: any AppleModelBackend = AppleModel.system,
+                appleClock: any Clock<Duration> = ContinuousClock()) {
         self.bedrock = bedrock
         self.apple = apple
+        self.appleClock = appleClock
     }
 
     /// The profile's credentials (`AWSCredentialResolver.shared` by default): fetched when the profile's kind needs it.
@@ -195,13 +199,25 @@ public struct ChatClient: Sendable {
                 guard let key = try loadKey(provider, host)?.trimmingCharacters(in: .whitespacesAndNewlines), !key.isEmpty else {
                     throw provider == .hosted ? ProviderError.signedOut : ProviderError.missingKey(provider)
                 }
+                let maxTokens = body.inferenceConfig.maxTokens ?? config.maxTokens
                 let request = try HTTPProviders.makeRequest(body, provider: provider, settings: settings, key: key,
-                                                            maxTokens: body.inferenceConfig.maxTokens ?? config.maxTokens,
-                                                            timeout: config.timeoutSeconds)
-                return SSEStream.events(request, provider: provider, session: session)
+                                                            maxTokens: maxTokens, timeout: config.timeoutSeconds)
+                // The Claude API and OpenAI-compatible services: without the temperature for a model that refuses one
+                // (`TemperatureSupport`). Gemini and the hosted service send theirs as they are.
+                guard provider == .anthropic || provider == .openai, settings.temperature != nil else {
+                    return SSEStream.events(request, provider: provider, session: session)
+                }
+                var without = settings
+                without.temperature = nil
+                let retry = try HTTPProviders.makeRequest(body, provider: provider, settings: without, key: key,
+                                                          maxTokens: maxTokens, timeout: config.timeoutSeconds)
+                let session = session
+                return bedrock.temperatureSupport.adapting(provider, model: settings.model ?? "") { withoutTemperature in
+                    SSEStream.events(withoutTemperature ? retry : request, provider: provider, session: session)
+                }
             case .apple:
                 return AppleModel.stream(body, backend: apple, maxTokens: body.inferenceConfig.maxTokens ?? config.maxTokens,
-                                         timeout: config.timeoutSeconds)
+                                         timeout: config.timeoutSeconds, clock: appleClock)
             }
         } catch {
             return AsyncThrowingStream { $0.finish(throwing: error) }

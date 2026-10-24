@@ -55,14 +55,23 @@ extension AIConfig {
             }
         }
 
-        /// "按 App · 微信 · 开始的输入语言" / "Apps · WeChat · Starts in".
+        /// "按 App · 微信 · 这个 App 里不用 AI" / "Apps · WeChat · No AI in this app".
         public func appLabel(_ app: String, _ field: AppField) -> String {
+            let name: String
+            switch field {
+            case .noAI: name = tr("这个 App 里不用 AI", "No AI in this app")
+            case .suggestionsInsert: name = tr("插入", "Insert")
+            }
+            return tr("按 App · ", "Apps · ") + app + " · " + name
+        }
+
+        /// "按 App · 微信 · 开始的输入语言" / "Apps · WeChat · Starts in": an app's field that can't be set here any more.
+        public func appLabel(_ app: String, _ field: RemovedAppField) -> String {
             let name: String
             switch field {
             case .inputLanguage: name = tr("开始的输入语言", "Starts in")
             case .rewriteStyles: name = tr("改写风格", "Rewrite styles")
             case .typeOut: name = tr("逐字上屏", "Type results out")
-            case .noAI: name = tr("这个 App 里不用 AI", "No AI in this app")
             }
             return tr("按 App · ", "Apps · ") + app + " · " + name
         }
@@ -79,9 +88,12 @@ extension AIConfig {
         public func onOff(_ on: Bool) -> String { on ? tr("开", "on") : tr("关", "off") }
 
         /// After "Remember recent questions: on → off": turned off here, the saved questions stay (so undo is exact);
-        /// Settings' "Clear" deletes them, as its switch does.
+        /// Settings' Forget (Windows' Clear) deletes them, as its switch does: on the Mac's Privacy (Settings v2), Windows'
+        /// General.
         var questionsKept: String {
-            tr("（已存的问题保留；要删除，在设置 → 通用里点「清除」）", " (saved questions are kept; Settings → General → “Clear” deletes them)")
+            Platform.current.terms.device == .mac
+                ? tr("（已存的问题保留；要删除，在设置 → 隐私里点「忘掉」）", " (saved questions are kept; Settings → Privacy → “Forget” deletes them)")
+                : tr("（已存的问题保留；要删除，在设置 → 通用里点「清除」）", " (saved questions are kept; Settings → General → “Clear” deletes them)")
         }
 
         public func outputs(_ languages: [OutputLanguage]) -> String {
@@ -126,9 +138,16 @@ extension AIConfig {
         var byDefault: String { tr("默认", "default") }
         var profileRegion: String { tr("profile 的区域", "the profile's region") }
 
-        func appInput(_ language: Language?) -> String { language.map(input) ?? everywhere }
-        func appStyles(_ names: [String]?) -> String { names.map(styles) ?? everywhere }
-        func appFlag(_ on: Bool?) -> String { on.map(onOff) ?? everywhere }
+        /// What a suggestion row inserts in an app, as Settings names it (`SuggestionsInsert.label`); nil: as everywhere.
+        func appInsert(_ insert: SuggestionsInsert?) -> String {
+            switch insert {
+            case nil: return everywhere
+            case .source?: return tr("来源的默认", "Source's default")
+            case .id?: return tr("只有 ID", "ID only")
+            case .title?: return tr("带标题", "With title")
+            case .titleAndLink?: return tr("带标题和链接", "With title and link")
+            }
+        }
 
         /// A style's name in English ("Concise"), as the model is told it and may write it.
         static func englishStyle(_ style: RewriteStyle) -> String { style.name(in: "en") }
@@ -166,9 +185,13 @@ extension AIConfig {
         func unknownLanguage(_ code: String) -> String { tr("不认识的语言「\(code)」", "unknown language “\(code)”") }
         var atLeastOne: String { tr("至少要有一种", "at least one is needed") }
         func tooMany(_ limit: Int) -> String { tr("最多 \(limit) 种", "at most \(limit)") }
+        /// Where the packs are downloaded: the Mac's General (its input language chips, Settings v2), Windows' Input.
         func needsPack(_ language: Language) -> String {
-            tr("需要\(language.displayName)语言包（在设置 → 输入里下载）",
-               "needs the \(language.englishName) language pack (download it in Settings → Input)")
+            Platform.current.terms.device == .mac
+                ? tr("需要\(language.displayName)语言包（在设置 → 通用里下载）",
+                     "needs the \(language.englishName) language pack (download it in Settings → General)")
+                : tr("需要\(language.displayName)语言包（在设置 → 输入里下载）",
+                     "needs the \(language.englishName) language pack (download it in Settings → Input)")
         }
         func notAnInputLanguage(_ language: Language) -> String {
             tr("\(language.displayName)还不是输入语言", "\(language.englishName) isn't one of your input languages")
@@ -190,6 +213,17 @@ extension AIConfig {
                "\(count) more not added: at most \(AIConfig.maxWordsAdded) at a time, each one line of at most \(AIConfig.maxWordLength) characters")
         }
         var unknownApp: String { tr("找不到这个 App", "no such app found") }
+        /// Why an app's field that can't be set here any more is refused: where it starts is learned (Shift before typing,
+        /// in two of its fields in a row: `LearnedStore.corrected`); rewrite styles and typing out are set for every app.
+        func notPerApp(_ field: RemovedAppField) -> String {
+            switch field {
+            case .inputLanguage:
+                return tr("这是学出来的：在这个 App 里打字前用 Shift 切换，连续两次就记住",
+                          "it's learned: in this app, switch with Shift before typing, twice in a row")
+            case .rewriteStyles, .typeOut:
+                return tr("现在对所有 App 一起设置，不再按 App 设", "it's set for every app now, not per app")
+            }
+        }
         func ambiguousApp(_ names: [String]) -> String {
             tr("有好几个：", "several match: ") + names.prefix(3).joined(separator: separator)
         }
@@ -202,21 +236,36 @@ extension AIConfig {
             case .notUnderstood: return tr("没能把这句话变成设置", "Couldn't turn that into a setting")
             case .notAllowed: return tr("这些请到设置里对应的那一页改", "Change those on their own pages in Settings")
             case .alreadySet: return tr("已经是这样设置的了", "Already set that way")
+            case let .unclearSwitch(key):
+                let name = switchLabel(key)
+                return tr("没看懂要打开还是关闭「\(name)」", "Couldn't tell whether to turn \(name) on or off")
+            case .unclearSetting: return tr("没看懂这句话要改哪项设置", "Couldn't tell which setting that is about")
+            }
+        }
+
+        /// The label of a switch (`Failure.unclearSwitch`).
+        func switchLabel(_ key: Key) -> String {
+            switch key {
+            case let .setting(setting): return label(setting)
+            case .iCloudSync: return iCloudSyncLabel
+            case .autocomplete: return autocompleteLabel
+            case let .app(app, field): return appLabel(app, field)
+            case let .forbidden(path, _): return path
             }
         }
 
         /// The request was too long for the on-device model's context, and there is no other provider to ask (it is the one
         /// chosen): `AIConfigService.TooLong`.
         public var tooLongNoProvider: String {
-            tr("这句话对本机的 Apple Intelligence 来说太长了：请说得短一些，或者在设置 → AI 服务里换一个 AI 服务",
-               "Too long for Apple Intelligence on this Mac: try a shorter request, or choose another AI provider in Settings → AI Provider")
+            tr("这句话对本机的 Apple Intelligence 来说太长了：请说得短一些，或者在设置 → AI 里换一个 AI 服务",
+               "Too long for Apple Intelligence on this Mac: try a shorter request, or choose another AI provider in Settings → AI")
         }
 
         /// Too long for the on-device model, and the user's own provider isn't set up (no key, no sign-in, no AWS profile).
         public func tooLong(notSetUp provider: Provider) -> String {
             let name = self.provider(provider)
-            return tr("这句话对本机的 Apple Intelligence 来说太长了，\(name) 也还没设置好：请说得短一些，或者在设置 → AI 服务里设置好 \(name)",
-                      "Too long for Apple Intelligence on this Mac, and \(name) isn't set up: try a shorter request, or set up \(name) in Settings → AI Provider")
+            return tr("这句话对本机的 Apple Intelligence 来说太长了，\(name) 也还没设置好：请说得短一些，或者在设置 → AI 里设置好 \(name)",
+                      "Too long for Apple Intelligence on this Mac, and \(name) isn't set up: try a shorter request, or set up \(name) in Settings → AI")
         }
 
         /// Too long for the on-device model, and the user's own provider failed too: what it said (`detail`).
@@ -270,10 +319,8 @@ extension AIConfig {
             case let .app(app, value):
                 let field: AppField
                 switch value {
-                case .inputLanguage: field = .inputLanguage
-                case .rewriteStyles: field = .rewriteStyles
-                case .typeOut: field = .typeOut
                 case .noAI: field = .noAI
+                case .suggestionsInsert: field = .suggestionsInsert
                 }
                 return appLabel(app, field)
             case .provider: return label(.provider)
@@ -282,6 +329,7 @@ extension AIConfig {
             case let .model(provider, _): return Setting.model(of: provider).map(label) ?? label(.provider)
             case .baseURL: return label(.openaiBaseURL)
             case .iCloudSync: return iCloudSyncLabel
+            case .autocomplete: return autocompleteLabel
             }
         }
         public var nothingToUndo: String { tr("10 分钟内没有可以撤销的设置修改", "Nothing to undo from the last 10 minutes") }

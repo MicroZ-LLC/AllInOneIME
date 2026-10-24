@@ -22,7 +22,7 @@ The Windows shell of AllInOneIME, on the core in `../Core` (the same Swift packa
 Scripts/build-rime-data.sh                    # in Git Bash: librime and rime-ice's data, in ThirdParty (once)
 swift build                                   # Swift 6.4 for Windows, with Visual Studio's MSVC and Windows SDK
 swift run allinoneime-cli --help
-swift test                                    # the pipe's security (2), the Rime tests (30), the engine's (102)
+swift test                                    # the pipe's (4), the Rime tests (36), the engine's (111)
 ```
 
 The engine and the command line link librime (`rime.lib`, `Scripts/fetch-librime.sh`); the engine finds `rime.dll`
@@ -47,14 +47,18 @@ In every app that loads TSF text services (the classic Win32 ones, and WinUI one
   between English and 中文 (the "中" / "英" notice shows it). Pinyin is librime with rime-ice's data, as on the Mac: the
   pinyin is the app's composition, the candidates are in the engine's window; Space or a digit picks, `-` / `=` and Page
   Up / Page Down turn the page. The data comes with the installer (`rime-data`); what librime learns is the user's, in
-  `%APPDATA%\AllInOneIME\rime`. librime deploys as the engine starts (under a second usually, several the first time in
-  a user folder): until then a field types Latin letters, and gets pinyin once it is ready.
+  `%APPDATA%\AllInOneIME\rime`, and it learns nothing typed in a password or a private field (`IS_PASSWORD`, the PINs',
+  `IS_PRIVATE`: a browser's private window): there librime never commits a composition with a word picked (it learns as
+  it commits), the engine puts the text in (`RimeSession.learns`). librime deploys as the engine starts (under a second
+  usually, several the first time in a user folder): until then a field types Latin letters, and gets pinyin once it is
+  ready.
 - **English words among pinyin's candidates (0.6.6).** As on the Mac (the core's `EnglishWordsEngine` on each field's
   librime session): the settings' words (`englishWords`, which AllInOneIME Settings edits), the jargon list's Latin
   terms and the product words rime-ice lacks come up among librime's candidates as their letters are typed, unless
   rime-ice's own English dictionary (read from the rime-data) has them. Letters put in as typed while typing pinyin
   (Return) are learned the second time, in any field, into `config.json`, by the Mac's rule (`EnglishWords.learns`;
-  `learnsEnglishWords` turns it off): never in a password or PIN field nor a private one (the input scopes
+  `learnsEnglishWords` turns it off; written under the settings service's lock, so a save of AllInOneIME Settings' and
+  a word learned never write over each other, and the window shows the word at once): never in a password or PIN field nor a private one (the input scopes
   `IS_PASSWORD`, the PINs', `IS_PRIVATE`), in a terminal (the consoles, Windows Terminal, PowerShell ISE, mintty and
   the others the engine knows, Visual Studio's terminal by its window's class), in a remote desktop, a virtual
   machine's window or an SSH client (Remote Desktop Connection, the Remote Desktop app, Windows App, Hyper-V, VMware,
@@ -164,13 +168,15 @@ mode the goldens bring their own (`#! settings`); `settings.jsonl` replays over 
 - **In AllInOneIME Settings:** the sign-in to AllInOneIME Cloud, the language packs (Korean, Hindi: their input isn't
   offered), the Git extension sources.
 - **What only macOS has:** Apple Notes (`@note`'s default destination: the text goes on the clipboard instead, and a
-  notice says so; a folder or Notion works), Reminders (`@reminder`), Messages (`@imessage`), dictation (the right
-  Alt key), reading a screenshot's text (`@reply` with an image), Claude Code background tasks (`@tasks`, `@agent` in
+  notice says so; a folder or Notion works), Reminders (`@reminder`), Messages (`@imessage`), reading a
+  screenshot's text (`@reply` with an image), Claude Code background tasks (`@tasks`, `@agent` in
   the background). Each says "Windows 版还不支持" / "Not available on Windows yet" in the panel or a notice.
 - **Not done yet on Windows:** results typed out step by step (they go in at once), the keyboard layout of an input
   language (French's AZERTY), Translate as You Type's chip, the command usage order and the recent questions kept
   between runs, `@open`'s search (a plain walk of a few folders, not an index), UI-less mode (`ITfUIElement`) for
-  full-screen games.
+  full-screen games; personal pinyin dictionaries (0.6.7, the Mac's Settings → General → Chinese chip: the core's
+  `PersonalDictionaryStore` would write librime's files here as it is, but the settings document has no field for
+  them and the Settings app no file to pick yet). The magic key (0.6.7, `commandTrigger`) works as on the Mac.
 
 ## Installing (M4)
 
@@ -217,14 +223,15 @@ What the MSI does:
   program (an agent, a terminal command) is left to run and which deletes its prompt's file once it ends (its files go
   at the next restart, as a DLL in use does), and any whose command line can't be read (it may be one),
   `DllUnregisterServer`, the files, the folder and the registry values gone. An upgrade keeps the keyboard in the list.
+  `%APPDATA%\AllInOneIME`, the user's data (`config.json`, librime's learned words in `rime\`), is never touched, nor
+  the keys in the Credential Manager.
 - **A console window open during an upgrade:** its process holds `AllInOneIMEEngine.exe` and the runtime DLLs it
   loaded. An upgrade to another version installs into that version's own folder, so nothing mixes; but a package of
   the same version (a reinstall, an integration build that kept the version) replaces those files only at the next
   restart (`msiexec` then returns 3010, a restart required), while the others (AllInOneIME Settings, `rime-data`, the
   DLL that apps load from now on) are the new package's at once: until the restart the user's engine, started again
   from the same path, is the old one, with the new Settings app and data. Close the console windows (the agent's, a
-  terminal command's) before such an upgrade to have it all at once. `%APPDATA%\AllInOneIME`, the user's data (`config.json`, librime's learned
-  words in `rime\`), is never touched, nor the keys in the Credential Manager.
+  terminal command's) before such an upgrade to have it all at once.
 - **A DLL in use:** an installed input method's DLL is loaded, as a module or for its icon, by Explorer and every app
   that showed it (in the test: Explorer, Discord, Notepad...). Restart Manager is off (`MSIRESTARTMANAGERCONTROL`), so
   the installer never closes the user's apps: Windows Installer moves the file to `Config.Msi` and deletes it at the
@@ -284,6 +291,21 @@ in the settings, a settings window's 1 MiB frames, the review's lows), the Engli
 failed, 0 warnings**, and the package is installed; `tip/test/run-e2e.sh --installed` after it: PASS, the session's
 input method (the user's own, AllInOneIME) the same before and after. The English words' capture shows "frobnicate"
 second among the candidates of "frobn", after librime's first.
+
+Run on 2026-10-22 with 0.6.7's package (the 0.6.7 core, the third round's fixes, the command trigger on Windows):
+**64 passed, 0 failed, 0 warnings**, and the package is installed; `tip/test/run-e2e.sh --installed` after it: PASS,
+the session's input method (AllInOneIME) the same before and after. Two runs before it failed one check each: the
+candidate window still up 400 ms after the commit in the driver's console (the switch's "中" notice, 1.5 s, outlived
+the candidates, as it should: the driver now lets it go first; 4 of 4 runs in the console after that), and the
+session's input method after the e2e runs (Windows brought back the user's own, AllInOneIME, which that run's record,
+made after the repair below, didn't have as theirs). The user's own setup had changed since 2026-10-20: AllInOneIME was
+their only Chinese input method. The test's first step, taking out the copy installed before for a clean record, took
+Chinese (Simplified) out of the language list with it (`remove-keyboard`'s `InstallLayoutOrTip(ILOT_UNINSTALL)` drops
+a language left without an input method), and TSF's sort order kept AllInOneIME's entry for it, so the test stopped
+there ("something of AllInOneIME's is here already") with the list changed. It was put back by hand: Chinese with
+Microsoft Pinyin, as recorded on 2026-10-20, for the test's runs, then AllInOneIME alone again once 0.6.7 was
+installed. Not fixed yet: an uninstall that takes the user's only Chinese input method takes the language with it (it
+should leave Windows' own there), and the test's first step should keep the list it found before it uninstalls.
 
 - **Install and upgrade:** the files (librime, rime-data, the command line, which runs on the runtime beside it), the
   20 runtime DLLs, the COM server at the installed path, both profiles and the
@@ -402,7 +424,7 @@ second among the candidates of "frobn", after librime's first.
 ## Replaying the goldens over the pipe
 
 ```
-allinoneime-cli wire-replay [--launch ENGINE.exe] [--cold-starts N] [--repeat N] <file.jsonl>...
+allinoneime-cli wire-replay [--launch ENGINE.exe] [--pipe NAME] [--cold-starts N] [--repeat N] <file.jsonl>...
 ```
 
 Against an engine in test mode, either one already running or one started with `--launch`, it does what a DLL does:
@@ -414,7 +436,8 @@ Against an engine in test mode, either one already running or one started with `
 
 It prints each file and the key round trips: from writing a `keyDown` or `keyUp` to reading its `result`, timed
 with `QueryPerformanceCounter`. With `--cold-starts N`, it first launches the engine N times and times each launch
-until `welcome`.
+until `welcome`. With `--pipe NAME`, the engine's pipe is one of its own (the engine's `--pipe`, given to the engine
+`--launch` starts too): a replay beside the engine the user runs, which has the user's pipe.
 
 ```
 swift build -c release
@@ -531,10 +554,11 @@ Composer with the real engine (the action keys, @ commands, English mode, Caps L
 (n ↔ l) and its rules in rime-ice's schema, and the learned words' sync through a shared folder. Added here: paging
 (Page Down / Page Up and rime-ice's `=` / `-`), picking a candidate (by its place, its number key, on the second page),
 learning (a word picked from the second page comes up front the next time), and `installation.yaml` as librime writes
-it on Windows. Before `Scripts/fetch-librime.sh` they don't link (no `rime.lib`; `swift build` without the tests needs
-none); with librime but before `Scripts/build-rime-data.sh` the engine tests fail, naming the folder, and the schema's
-is skipped unless `ALLINONEIME_REQUIRE_RIME_DATA=1`. librime's warnings (glog) go to stderr and fail nothing:
-`circular dependencies detected in melt_eng.schema`, `lua/lunar.db` not in the user folder.
+it on Windows. Before `Scripts/fetch-librime.sh` they don't link, nor do the engine and the command line (no
+`rime.lib`: `swift build` needs it too, and so does CI's Windows job); with librime but before
+`Scripts/build-rime-data.sh` the engine tests fail, naming the folder, and the schema's is skipped unless
+`ALLINONEIME_REQUIRE_RIME_DATA=1`. librime's warnings (glog) go to stderr and fail nothing: `circular dependencies
+detected in melt_eng.schema` (`lua/lunar.db` is copied into the user folder as librime starts, since 0.6.7).
 
 ## What differs from macOS
 

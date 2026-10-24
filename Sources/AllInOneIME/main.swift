@@ -13,10 +13,13 @@ let usage = """
       --disable         disable, and remove it from your input sources
       --status          show registration, process and configuration status
       --settings        run as the input method and open the settings window
-      --selftest [DIR] [--rime-data DATA]
+      --selftest [DIR] [--rime-data DATA] [--typing-lag-only | --autocomplete-only | --settings-only]
                         drive the input controller (real Rime engine on DATA, else the installed
                         Chinese pack; live Bedrock call) with a fake text field; writes panel snapshots
-                        to DIR (default /tmp/allinoneime-selftest)
+                        to DIR (default /tmp/allinoneime-selftest); --typing-lag-only runs just the
+                        offline window lifecycle, menu cache and rapid pinyin checks; --autocomplete-only
+                        just autocomplete's (a harness window, stand-in models, no AI requests);
+                        --settings-only just the settings window's (stand-ins, no AI requests)
       --install-pack ID [--library URL] [--key BASE64] [--packs-dir DIR]
                         download and install a language pack (zh-pinyin) as Settings does; plain http
                         is allowed to this Mac only, for a test server
@@ -141,6 +144,8 @@ func runServer(showSettings: Bool = false) -> Never {
     // A custom command a built-in now has the name of (a custom @reply): renamed in the config, said once in the next
     // text field (`BuiltinRenames`).
     BuiltinRenames.apply()
+    // What 0.6.6 and earlier learned outside the one local store of what is learned (Settings v2 §3.2), moved into it.
+    MainActor.assumeIsolated { LearnedShared.moveInWhatWasLearnedBefore() }
     // Older versions kept their sentence mode switch here (first as aiEnabled); nothing reads it now.
     for key in ["sentenceMode", "aiEnabled"] { UserDefaults.standard.removeObject(forKey: key) }
     // Background @agent tasks: notifications, and tasks from before a restart watched again.
@@ -418,7 +423,11 @@ let arguments = Array(CommandLine.arguments.dropFirst())
 // A script plugin's own process (started by the input method): nothing else runs, nothing else is printed.
 if arguments.first == "--run-plugin" {
     guard let invocation = PluginHost.invocation(Array(arguments.dropFirst())) else { exit(2) }
-    exit(PluginHost.run(directory: invocation.directory, language: invocation.language))
+    // A completion script's load or query (suggestions), its ctx on standard input.
+    if let function = PluginHost.completionFunction(Array(arguments.dropFirst())) {
+        exit(PluginHost.runCompletion(directory: invocation.directory, function: function))
+    }
+    exit(PluginHost.run(directory: invocation.directory, language: invocation.language, preferences: invocation.preferences))
 }
 // The same for `@js` code (`InlineCode`): the code on standard input, what it prints on standard output.
 if arguments.first == InlineCode.javaScriptHostOption {
@@ -466,7 +475,10 @@ case "--selftest":
         RimeDirectories.override = URL(fileURLWithPath: arguments[index + 1])
     }
     let directory = URL(fileURLWithPath: arguments.count > 1 && !arguments[1].hasPrefix("--") ? arguments[1] : "/tmp/allinoneime-selftest")
-    exit(MainActor.assumeIsolated { SelfTest.run(snapshotDirectory: directory) })
+    exit(MainActor.assumeIsolated {
+        SelfTest.run(snapshotDirectory: directory, typingLagOnly: arguments.contains("--typing-lag-only"),
+                     autocompleteOnly: arguments.contains("--autocomplete-only"), settingsOnly: arguments.contains("--settings-only"))
+    })
 case "--showcase":
     let directory = URL(fileURLWithPath: arguments.count > 1 ? arguments[1] : "/tmp/allinoneime-showcase")
     MainActor.assumeIsolated { PanelShowcase.run(output: directory, dark: arguments.contains("dark"), chinese: arguments.contains("zh")) }
@@ -480,8 +492,11 @@ case "--settings-image":
         let update = arguments.first { $0.hasPrefix("update=") }.map { String($0.dropFirst("update=".count)) }
         // `agent=gemini|kiro|custom:<command>`: the agent `@agent` hands the text to.
         let agent = arguments.first { $0.hasPrefix("agent=") }.map { String($0.dropFirst("agent=".count)) }
+        // `doctor=fine`: About → Troubleshoot's checks with nothing wrong (else made-up problems); `doctor=open` or
+        // `doctor=fine,open`: what is fine opened (else folded).
+        let doctor = arguments.first { $0.hasPrefix("doctor=") }.map { String($0.dropFirst("doctor=".count)) }
         SettingsPageImages.run(output: directory, chinese: arguments.contains("zh"), dark: arguments.contains("dark"),
-                               extensions: extensions, update: update, agent: agent)
+                               extensions: extensions, update: update, agent: agent, doctor: doctor)
     }
 case "--page-context":
     // `--page-context [request]`: what `@agent` would take along from the Chrome page in front, printed (nothing is

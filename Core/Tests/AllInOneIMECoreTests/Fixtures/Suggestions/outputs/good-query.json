@@ -1,0 +1,7 @@
+{
+  "items": [
+    { "match": "#6066", "title": "Filed a minute ago", "variables": { "url": "https://github.com/octo-org/octo-repo/issues/6066" } },
+    { "match": "#6001", "title": "Crash when the panel opens at the screen's edge (from the query)",
+      "variables": { "url": "https://github.com/octo-org/octo-repo/issues/6001" } }
+  ]
+}

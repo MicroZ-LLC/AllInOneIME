@@ -1,11 +1,12 @@
 import AllInOneIMECore
 import SwiftUI
 
-/// Settings → Input → Chinese → English Words (「英文词」, `EnglishWords`): the English words of the user's that pinyin offers
-/// among its candidates (`Config.englishWords`), the newest first, each removed with its ✕; more added in the field (several
-/// separated by commas), saved on the list as the file has it then (`SettingsModel.addEnglishWords`; a key, a card or phone
-/// number, an address refused, and said); and the switch that learns them from letters put in as typed. The jargon list's
-/// English terms and the built-in list come up too, and aren't listed here.
+/// Settings → General → the English chip (Chinese's, without English among the inputs) → English Words (「英文词」,
+/// `EnglishWords`): the English words of the user's that pinyin offers among its candidates (`Config.englishWords`), the
+/// newest first, each removed with its ✕; more added in the field (several separated by commas), saved on the list as the
+/// file has it then (`SettingsModel.addEnglishWords`; a key, a card or phone number, an address refused, and said). The
+/// switch that learns them from letters put in as typed, and from words typed in English mode, is in Privacy. The jargon
+/// list's English terms and the built-in list come up too, and aren't listed here.
 struct EnglishWordsSection: View {
     @ObservedObject var model: SettingsModel
     @State private var adding = ""
@@ -16,11 +17,6 @@ struct EnglishWordsSection: View {
 
     var body: some View {
         Section {
-            Toggle(isOn: $model.config.learnsEnglishWords) {
-                titled(tr("学习打出的英文词", "Learn the English words you type"),
-                       tr("打拼音时把同样的字母原样上屏两次（比如打 bedrock 按 ⏎，再来一次），这个词以后就出现在候选里。密码框、终端、远程桌面和虚拟机、关了 AI 的 App 里不学，像密钥、号码的也不学。",
-                          "Put the same letters in as typed twice while typing pinyin (bedrock and ⏎, then again) and the word comes up among the candidates from then on. Never in password fields, terminals, remote desktops and virtual machines, or apps with AI off, nor anything that looks like a key or a number."))
-            }
             LabeledContent {
                 HStack(spacing: 8) {
                     TextField("", text: Binding(get: { adding }, set: { adding = $0; notAdded = false; refused = false }),
@@ -70,7 +66,6 @@ struct EnglishWordsSection: View {
                 .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)  // under the card, from its left
         }
         .disabled(!model.canSave)
-        .onChange(of: model.config.learnsEnglishWords) { model.save() }
     }
 
     private func chip(_ word: String) -> some View {

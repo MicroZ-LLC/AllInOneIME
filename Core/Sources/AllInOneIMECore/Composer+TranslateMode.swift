@@ -13,9 +13,9 @@ import Foundation
 extension Composer {
     /// Translate as You Type takes what would go into the field now into its draft instead: it's on, nothing else is being
     /// written (an @ command, a command's selection, results), the language typed isn't the one it translates into,
-    /// and secure input is off.
+    /// the input isn't Code (where it can't run) and secure input is off.
     var modeCollects: Bool {
-        guard let session = translateMode, draft.isEmpty, selection == nil, !isLevelTwo else { return false }
+        guard let session = translateMode, draft.isEmpty, selection == nil, !isLevelTwo, !coding else { return false }
         return !inputLanguage.matches(session.target) && !secureInputActive()
     }
 
@@ -36,14 +36,14 @@ extension Composer {
         guard translateMode != nil, selection == nil else { return false }
         if modeTranslating { return true }
         guard !isLevelTwo else { return false }
-        if !draft.isEmpty { return !draft.hasPrefix("@") }
+        if !draft.isEmpty { return !draft.hasPrefix(commandTrigger) && codeWord == nil }
         return modeCollects && (engineState.isComposing || !hangul.isEmpty || pendingAccent != nil)
     }
 
     /// Translate as You Type's chip here (「中 → 英」, `TranslateMode.Chip`): the language typed and the one it translates
-    /// into, with `choices` listed under it. Nil while it's off here.
+    /// into, with `choices` listed under it. Nil while it's off here, and in Code (it doesn't run there).
     public func translateModeChip(choices: [OutputLanguage]? = nil) -> TranslateMode.Chip? {
-        guard let session = translateMode else { return nil }
+        guard let session = translateMode, !coding else { return nil }
         return TranslateMode.Chip(source: inputLanguage, target: session.target, choices: choices)
     }
 
@@ -51,7 +51,7 @@ extension Composer {
     /// translating, saying so. Which languages is the chip's to show (「中 → 英」), not the field's.
     var modeShownDraft: String? {
         guard inModeComposition, translateMode != nil else { return nil }
-        let text = draft.replacingOccurrences(of: "@", with: "＠").replacingOccurrences(of: "\n", with: Self.lineBreak)
+        let text = draft.replacingOccurrences(of: commandTrigger, with: hiddenTrigger).replacingOccurrences(of: "\n", with: Self.lineBreak)
         return text + (modeTranslating ? " · " + translateModeMessages.translating : "")
     }
 

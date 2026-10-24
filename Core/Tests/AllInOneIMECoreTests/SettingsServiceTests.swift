@@ -30,13 +30,19 @@ struct SettingsServiceTests {
     // MARK: The document
 
     /// What only the Mac has is left out of Windows' document, and in the Mac's: iCloud sync, the menu bar icon, Chrome's
-    /// page, voice; a choice only the Mac has (Apple Notes) too, unless it is the value now (then shown, not to be picked).
+    /// page, voice (while voice input is on, `Features.voiceInput`; off for now: `VoiceOffTests`); a choice only the Mac
+    /// has (Apple Notes) too, unless it is the value now (then shown, not to be picked).
     @Test func macOnlyFieldsStayOnTheMac() throws {
         let windows = try service(#"{"provider": "anthropic"}"#).0.document()
         let mac = try service(#"{"provider": "anthropic"}"#, platform: .mac).0.document()
-        let macOnly: Set = ["iCloudSync", "menuBarIcon", "agentPageContext", "voiceInput", "checkForUpdates"]
+        let macOnly: Set = ["iCloudSync", "menuBarIcon", "agentPageContext", "checkForUpdates"]
         #expect(ids(windows).isDisjoint(with: macOnly))
         #expect(macOnly.isSubset(of: ids(mac)))
+        try Features.$voiceInputInTests.withValue(true) {
+            let windows = try service(#"{"provider": "anthropic"}"#).0.document()
+            let mac = try service(#"{"provider": "anthropic"}"#, platform: .mac).0.document()
+            #expect(!ids(windows).contains("voiceInput") && ids(mac).contains("voiceInput"))
+        }
         #expect(windows.platform == .windows && mac.platform == .mac)
         // Notes by default: Apple Notes is the value, shown on Windows but not to be picked.
         let destination = try #require(windows.field("notes.destination"))
@@ -144,6 +150,7 @@ struct SettingsServiceTests {
     /// change of something else doesn't write it; and a change that saves nothing after it isn't refused for it. A rule
     /// that saves on its own (the style order) and fails is refused too.
     @Test func aSaveThatFails() throws {
+        // The default before 0.6.7: read as today's (2000).
         let (service, url) = try service(#"{"maxTokens": 1000}"#)
         let folder = url.deletingLastPathComponent()
         var result: Result<Void, SettingsProblem> = .success(())
@@ -151,15 +158,15 @@ struct SettingsServiceTests {
         guard case let .failure(problem) = result else { Issue.record("a change not saved was taken"); return }
         var document = service.document()
         #expect(problem.code == .failed && problem.message == document.saveError)
-        #expect(document.field("maxTokens")?.value == .number(1000))
+        #expect(document.field("maxTokens")?.value == .number(2000))
         // Writable again: another change, saved alone.
         #expect((try? service.set("typeOut", to: .bool(true)).get()) != nil)
         let config = try Config.load(from: url)
-        #expect(config.typeOut && config.maxTokens == 1000 && service.document().saveError == nil)
+        #expect(config.typeOut && config.maxTokens == 2000 && service.document().saveError == nil)
         // Failed; then a change to what it is: taken, nothing left to show.
-        _ = try whileReadOnly(folder) { _ = service.set("maxTokens", to: .number(2000)) }
+        _ = try whileReadOnly(folder) { _ = service.set("maxTokens", to: .number(3000)) }
         #expect(service.document().saveError != nil)
-        #expect((try? service.set("maxTokens", to: .number(1000)).get()) != nil)
+        #expect((try? service.set("maxTokens", to: .number(2000)).get()) != nil)
         #expect(service.document().saveError == nil)
         // The style order saves itself.
         let styles = try #require(service.document().field("rewriteStyles")?.value)
@@ -363,8 +370,8 @@ struct SettingsServiceTests {
 
     /// The interface language changed: applied at once (the next document is in it, the process's language switched as
     /// the Mac's window does) and saved. A document is in the language its settings say, whatever the process's is.
-    @Test func theInterfaceLanguageAtOnce() throws {
-        try withInterfaceLanguage("en") { () throws in
+    @Test func theInterfaceLanguageAtOnce() async throws {
+        try await withInterfaceLanguage("en") { () throws in
             let (service, url) = try service(#"{"uiLanguage": "en"}"#)
             var document = service.document()
             #expect(document.language == "en" && document.sections.first?.title == "General")
@@ -384,6 +391,15 @@ struct SettingsServiceTests {
                 Issue.record("a value out of bounds was taken")
             }
         }
+    }
+
+    /// Bedrock's temperature: a model that refuses it gets none (`TemperatureSupport`), so the switch no longer says to turn
+    /// it off when requests fail.
+    @Test func theTemperatureIsLeftOutForModelsThatRefuseIt() throws {
+        let (english, _) = try service(#"{"provider": "bedrock", "uiLanguage": "en"}"#)
+        #expect(english.document().field("temperature")?.label == "Send temperature (left out for models that refuse it)")
+        let (chinese, _) = try service(#"{"provider": "bedrock", "uiLanguage": "zh"}"#)
+        #expect(chinese.document().field("temperature")?.label == "发送 temperature（不接受的模型会自动不发）")
     }
 
     /// A file that can't be read: shown read-only, saying why, and left as it is.
@@ -411,10 +427,10 @@ struct SettingsServiceTests {
         let before = service.revision
         service.checkForChanges()
         #expect(service.revision == before)
-        try Data(#"{"maxTokens": 2000}"#.utf8).write(to: url)
+        try Data(#"{"maxTokens": 3000}"#.utf8).write(to: url)
         try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(60)], ofItemAtPath: url.path)
         service.checkForChanges()
-        #expect(service.revision > before && service.document().field("maxTokens")?.value == .number(2000))
+        #expect(service.revision > before && service.document().field("maxTokens")?.value == .number(3000))
     }
 
     // MARK: Commands
@@ -459,12 +475,18 @@ struct SettingsServiceTests {
         let (service, url) = try service(#"{"notes": {"destination": "notion"}}"#)
         var document = service.document()
         let schema = try #require(document.field("commands.custom")?.schema)
-        #expect(schema.map(\.id) == ["name", "type", "summary", "prompt", "text", "url", "argv", "stdin", "timeoutSeconds", "ascii", "programs"])
+        #expect(schema.map(\.id) == ["name", "type", "summary", "prompt", "text", "url", "prefix", "argv", "stdin", "timeoutSeconds",
+                                     "ascii", "programs", "query", "queryMinChars", "refresh", "insert", "suggestionsProgram"])
         let byID = Dictionary(uniqueKeysWithValues: schema.map { ($0.id, $0) })
-        #expect(byID["type"]?.choices?.map(\.value) == ["prompt", "run", "terminal", "link", "snippet"].map(AIConfig.JSONValue.string))
+        #expect(byID["type"]?.choices?.map(\.value) == ["prompt", "run", "terminal", "link", "snippet", "suggestions"].map(AIConfig.JSONValue.string))
         #expect(byID["type"]?.value == .string("prompt") && byID["name"]?.when == nil)
         #expect(byID["argv"]?.kind == .words && byID["argv"]?.ordered == true
-                && byID["argv"]?.when == ["type": [.string("run"), .string("terminal")]])
+                && byID["argv"]?.when == ["type": [.string("run"), .string("terminal"), .string("suggestions")]])
+        // A suggestion source's own (decision 24): only for its type; Insert's presets as config.json writes them.
+        for id in ["prefix", "query", "queryMinChars", "refresh", "insert", "suggestionsProgram"] {
+            #expect(byID[id]?.when == ["type": [.string("suggestions")]], "\(id)")
+        }
+        #expect(byID["insert"]?.choices?.map(\.value) == CustomCommand.InsertPreset.allCases.map { $0.insert ?? .object(["default": .string("{arg}")]) })
         #expect(byID["prompt"]?.multiline == true && byID["timeoutSeconds"]?.kind == .number && byID["timeoutSeconds"]?.max == 120)
         // Every key the schema names is a key of a command's definition.
         let definition: [String: AIConfig.JSONValue] = [

@@ -19,8 +19,11 @@ public final class SettingsService: @unchecked Sendable {
     private var revisionValue: UInt64 = 1
     /// The Test buttons' last outcomes, by field.
     private var tests: [String: SettingsStore.TestStatus] = [:]
-    /// What the plugin library offers, once browsed (`browse`).
+    /// What the plugin library offers, once browsed (`browse`); and the coding language library.
     private var libraryEntries: [PluginIndex.Entry]?
+    private var codingEntries: [CodingPackIndex.Entry]?
+    /// Where coding packs come from and are kept (Settings → Input, under Code).
+    public let codingLibrary: CodingPackLibrary
     /// The actions that take a while running now, by field and item (an install's plugin): shown `running`, with
     /// `cancel` among the actions.
     private var runs: [Run: Running] = [:]
@@ -103,6 +106,11 @@ public final class SettingsService: @unchecked Sendable {
         get { hooks.withLock { $0.keySource } }
         set { hooks.withLock { $0.keySource = newValue } }
     }
+    /// How the completion sources are doing, where the shell runs them (none: not known here).
+    public var suggestionStatuses: @Sendable () -> [CompletionSourceStatus] {
+        get { hooks.withLock { $0.suggestionStatuses } }
+        set { hooks.withLock { $0.suggestionStatuses = newValue } }
+    }
     /// After a plugin is installed or removed: the shell's command lists pick it up.
     public var pluginsChanged: @Sendable () -> Void {
         get { hooks.withLock { $0.pluginsChanged } }
@@ -136,6 +144,7 @@ public final class SettingsService: @unchecked Sendable {
         var changed: @Sendable (UInt64) -> Void = { _ in }
         var keySource: @Sendable (Provider) -> APIKeys.Source = { APIKeys.source($0) }
         var pluginsChanged: @Sendable () -> Void = {}
+        var suggestionStatuses: @Sendable () -> [CompletionSourceStatus] = { [] }
         var recentApps: @Sendable () -> [String] = { [] }
         var loadCredentials: Converter.CredentialLoader = { try await AWSCredentialResolver.shared.resolve(profile: $0, forceRefresh: true) }
         var notionSession: URLSession = NotionAPI.session
@@ -149,11 +158,16 @@ public final class SettingsService: @unchecked Sendable {
     /// Held while `changed` is called: one call at a time, in the order of the revisions.
     private let notifying = NSLock()
 
+    /// `codingLibrary` nil: the language library's, its packs kept in the app's data folder; or, for plugins kept in a
+    /// folder of their own (a test's), beside it.
     public init(store: SettingsStore, platform: SettingsPlatform, library: PluginLibrary = PluginLibrary(),
-                secrets: APIKeys.Keychain? = nil) {
+                secrets: APIKeys.Keychain? = nil, codingLibrary: CodingPackLibrary? = nil) {
         self.store = store
         self.platform = platform
         self.library = library
+        self.codingLibrary = codingLibrary ?? CodingPackLibrary(store: CodingPackStore(
+            directory: library.directory == PluginStore.directory ? CodingPackStore.defaultDirectory
+                : library.directory.deletingLastPathComponent().appendingPathComponent("CodingPacks", isDirectory: true)))
         self.secrets = secrets
         // Any change: the config, a key, the file turned unreadable or a save that failed (the document says so).
         observation = store.observe { [unowned self] _ in revisionValue += 1 }
@@ -177,6 +191,18 @@ public final class SettingsService: @unchecked Sendable {
     /// Reads the file again if something else changed it (another process, an editor): `changed` says so.
     public func checkForChanges() {
         changing { store.reloadIfChanged() }
+    }
+
+    /// `write`, another writer's change of the config file in this process (the Windows engine's English words, learned
+    /// on a queue of their own), under the lock every change here is made under: never between a save's reading of the
+    /// file and its writing (`AIConfig.patchingFile`), nor between a list's reading and its edit (`SettingsStore.refresh`),
+    /// so that neither puts back what the file had before the other's change. The file is read again after it: the
+    /// windows hear of it at once (`changed`).
+    public func writingFile<T>(_ write: () throws -> T) throws -> T {
+        try changing { () -> Result<T, Error> in
+            defer { store.reloadIfChanged() }
+            return Result(catching: write)
+        }.get()
     }
 
     /// Changes one setting (`Field.id`) to `value`, checked against what the field takes, and saves it.
@@ -295,6 +321,7 @@ public final class SettingsService: @unchecked Sendable {
     }
 
     private func longAction(_ action: SettingsAction) async -> Result<SettingsActionOutcome, SettingsProblem> {
+        if action.field == SettingsSchema.codingLibraryField { return await codingPacks(action) }
         switch action.name {
         case SettingsAction.test: return await test(action)
         case SettingsAction.browse: return await browse(action)
@@ -318,7 +345,7 @@ public final class SettingsService: @unchecked Sendable {
         // the service's are, and, but for a password, nothing changed while the file can't be read.
         if let done = changing({ () -> Result<SettingsActionOutcome, SettingsProblem>? in
             guard let handler = build().handlers[action.field] else { return nil }
-            if let error = store.loadError, ![SettingsAction.setKey, SettingsAction.removeKey].contains(action.name) {
+            if let error = loadError, ![SettingsAction.setKey, SettingsAction.removeKey].contains(action.name) {
                 return .failure(Self.broken(error, action.field))
             }
             var outcome = SettingsActionOutcome()
@@ -483,6 +510,27 @@ public final class SettingsService: @unchecked Sendable {
         }
     }
 
+    /// The coding language library opened (`browse`: what it offers this version), or a pack of it installed.
+    private func codingPacks(_ action: SettingsAction) async -> Result<SettingsActionOutcome, SettingsProblem> {
+        do {
+            if action.name == SettingsAction.browse {
+                let offered = codingLibrary.offered(in: try await codingLibrary.fetchIndex())
+                guard !Task.isCancelled else { return .failure(Self.cancelled(action.field)) }
+                locked { codingEntries = offered }
+                return .success(SettingsActionOutcome())
+            }
+            guard let entry = locked({ codingEntries?.first { $0.language == action.item } }) else {
+                return .failure(SettingsProblem(.badValue, field: action.field, message: Self.badValue))
+            }
+            try await codingLibrary.install(entry)
+            if Task.isCancelled { changing { revisionValue += 1 } }
+            return .success(SettingsActionOutcome())
+        } catch {
+            return .failure(Task.isCancelled ? Self.cancelled(action.field)
+                                             : SettingsProblem(.failed, field: action.field, message: UIText.describe(error)))
+        }
+    }
+
     /// A library plugin installed or updated.
     private func install(_ action: SettingsAction) async -> Result<SettingsActionOutcome, SettingsProblem> {
         guard store.persists else { return .success(SettingsActionOutcome()) }
@@ -510,9 +558,19 @@ public final class SettingsService: @unchecked Sendable {
     }
 
     /// A custom command saved (`value`: its definition; `item`: the name it had, none for a new one) or deleted
-    /// (`item`), by name, with the editor's rules.
+    /// (`item`), by name, with the editor's rules; one config.json has that can't be read deleted by its item's id.
     private func command(_ action: SettingsAction) -> Result<SettingsActionOutcome, SettingsProblem> {
-        guard store.canSave else { return .failure(Self.broken(store.loadError ?? "", action.field)) }
+        guard store.canSave else { return .failure(Self.broken(loadError ?? "", action.field)) }
+        if action.name == SettingsAction.delete, let item = action.item, item.hasPrefix(CustomCommand.Refused.itemPrefix) {
+            let refused = store.config.refusedCustomCommands
+            guard let index = Int(item.dropFirst(CustomCommand.Refused.itemPrefix.count)), refused.indices.contains(index) else {
+                return .failure(SettingsProblem(.badValue, field: action.field, message: Self.badValue))
+            }
+            return saving(action.field) {
+                store.deleteRefusedCommand(refused[index])
+                return nil
+            }.map { SettingsActionOutcome() }
+        }
         if action.name == SettingsAction.delete {
             guard let name = action.item, store.config.customCommands.contains(where: { $0.name.lowercased() == name.lowercased() }) else {
                 return .failure(SettingsProblem(.badValue, field: action.field, message: Self.badValue))
@@ -537,7 +595,7 @@ public final class SettingsService: @unchecked Sendable {
         }
         let plugins = PluginStore.load(from: library.directory).plugins.map(\.name)
         if let problem = command.problem(among: store.otherCommands(than: action.item), plugins: plugins,
-                                         unread: store.config.unreadCustomCommandNames) {
+                                         unread: store.config.unreadCustomCommandNames, trigger: store.config.commandTrigger) {
             return .failure(SettingsProblem(.badValue, field: action.field, message: UIText.describe(problem)))
         }
         return saving(action.field) {
@@ -681,8 +739,10 @@ public final class SettingsService: @unchecked Sendable {
         builder.recentApps = recentApps()
         builder.addedApps = addedApps
         builder.extensions = ExtensionStore.load(ExtensionStore.folders(store.config, found: []), cache: extensionCache)
-        let sections = builder.sections()
-        var document = SettingsDocument(language: UIText.language, platform: platform, loadError: store.loadError,
+        (builder.suggestionStatuses, builder.codingPacks, builder.codingEntries) = (suggestionStatuses(), codingLibrary.store, codingEntries)
+        // Its text names commands with the trigger its settings have, whatever the process's own is.
+        let sections = UIText.$scopedCommandTrigger.withValue(store.config.commandTrigger) { builder.sections() }
+        var document = SettingsDocument(language: UIText.language, platform: platform, loadError: loadError,
                                         saveError: store.saveError, sections: sections, strings: UIText.settingsWindowStrings)
         // What runs now: `running`, and `cancel` to stop it.
         for s in document.sections.indices {
@@ -705,6 +765,14 @@ public final class SettingsService: @unchecked Sendable {
             }
         }
         return (document, builder.setters, builder.handlers)
+    }
+
+    /// Why the file can't be read (`SettingsStore.loadError`), the path it names as the platform writes it (on Windows
+    /// with backslashes: `SettingsSchema.shown(path:)`).
+    private var loadError: String? {
+        guard platform == .windows else { return store.loadError }
+        let path = store.configURL.path
+        return store.loadError?.replacingOccurrences(of: path, with: CorePaths.windowsWritten(path))
     }
 
     /// A field shown, not changed (the file can't be read), and so are an item's own fields.

@@ -219,8 +219,10 @@ struct WireSettingsTests {
             }
             _ = send(ClientFrame(id: 1, .hello(Hello(client: "settings/\(window)", capabilities: [Hello.settings]))))
             for change in 0..<changes {
-                // A value of its own each: 200, 300 … 3300.
-                let tokens = 200 + 100 * Double(window * changes + change)
+                // A value of its own each: 200 … 900, 1100 … 3400. Not 1000: a file's 1000 (the default before 0.6.7)
+                // reads as today's default, so the engine's check would find it changed.
+                let n = window * changes + change
+                let tokens = 200 + 100 * Double(n < 8 ? n : n + 1)
                 let answer = send(ClientFrame(id: UInt32(2 + 2 * change), .settingsSet(field: "maxTokens", value: .number(tokens))))
                 answers.withLock { $0 += answer }
                 _ = send(ClientFrame(id: UInt32(3 + 2 * change), .settingsGet))
@@ -255,7 +257,7 @@ struct WireSettingsTests {
         let url = URL(fileURLWithPath: try #require(before.document?.field("configFile")?.value.flatMap {
             if case let .string(path) = $0 { return path } else { return nil }
         }))
-        try Data(#"{"provider": "anthropic", "maxTokens": 2000}"#.utf8).write(to: url)
+        try Data(#"{"provider": "anthropic", "maxTokens": 3000}"#.utf8).write(to: url)
         try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(60)], ofItemAtPath: url.path)
         service.checkForChanges()
         engine.runUntilIdle()

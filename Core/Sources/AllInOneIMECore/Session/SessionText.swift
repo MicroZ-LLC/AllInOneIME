@@ -87,7 +87,7 @@ public enum SessionText {
         if let preview = composer.snippetPreview { return "\(how) → “" + selectionPreview(preview, limit: 80) + "”" }
         // On the selection: what the action key does with it; `@improve` / `@translate` with something typed rewrite it as asked.
         if let selected = composer.selectionInUse {
-            if command.kind == .convert, !WritingMode.parse(command, composer.sentText).text.isEmpty {
+            if command.kind == .convert, !WritingMode.parse(command, composer.sentText, trigger: composer.commandTrigger).text.isEmpty {
                 return "\(how) → " + t.tr("按你写的要求改选中的文字", "rewrite the selection as you asked")
             }
             let text = composer.sentText.isEmpty ? selected : composer.sentText
@@ -155,6 +155,7 @@ public enum SessionText {
         }
         if let command = composer.draftCommand, !Composer.usesSelection(command) {
             return t.tr("@\(command.name) 不用选中的文字，它保持原样", "@\(command.name) doesn't use the selection; it stays as it is")
+                .replacingOccurrences(of: "@", with: composer.commandTrigger)
         }
         return t.tr("对选中的文字：“\(selectionPreview(selection))”（\(count) 字）",
                     "On the selection: “\(selectionPreview(selection))” (\(count) characters)")
@@ -205,7 +206,7 @@ public enum SessionText {
         switch destination {
         case .atAgent:
             let name = picked.displayName(custom: custom)
-            return t.tr("@agent 的 agent（\(name)）", "@agent's agent (\(name))")
+            return UIText.triggered(t.tr("@agent 的 agent（\(UIText.verbatim(name))）", "@agent's agent (\(UIText.verbatim(name)))"))
         case .claudeCode, .geminiCLI, .kiroCLI, .customAgent: return destination.agent?.displayName(custom: custom) ?? ""
         case .claudeWeb: return "Claude"
         case .chatgpt: return "ChatGPT"
@@ -220,6 +221,14 @@ public enum SessionText {
     public static func inputName(_ input: Language, language: String) -> String {
         let t = InterfaceWords(language: language)
         return input == .chinese ? t.tr("中文（拼音）", "Chinese (pinyin)") : t.name(input)
+    }
+
+    /// The name of `input` in the interface language `language`: a language's (`inputName(_:language:)`), or Code's with
+    /// its coding language (`coding`, the pack's title: "Code (Python)"; nil: "Code").
+    public static func inputName(_ input: Input, language: String, coding: String?) -> String {
+        guard input == .code else { return input.language.map { inputName($0, language: language) } ?? "" }
+        let t = InterfaceWords(language: language)
+        return coding.map { t.tr("代码（\($0)）", "Code (\($0))") } ?? t.tr("代码", "Code")
     }
 
     /// Turns a preset on or off, keeping the user's order: one turned on goes last.

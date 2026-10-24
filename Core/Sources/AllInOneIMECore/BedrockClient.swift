@@ -24,9 +24,22 @@ public struct ConverseRequest: Encodable, Equatable, Sendable {
         public var temperature: Double?
     }
 
+    /// What the model is asked beyond the Converse API's own fields (Bedrock's `additionalModelRequestFields`; the Claude
+    /// API's request has them at its top level): only autocomplete's request has some, to ask a Claude model not to think
+    /// (`Autocomplete.Thinking`). Nil: none.
+    public struct ModelFields: Encodable, Equatable, Sendable {
+        public struct Thinking: Encodable, Equatable, Sendable {
+            /// "disabled", or "between_tools" (Claude Sonnet 5.5's no thinking).
+            public var type: String
+        }
+
+        public var thinking: Thinking?
+    }
+
     public var system: [Text]
     public var messages: [Message]
     public var inferenceConfig: InferenceConfig
+    public var additionalModelRequestFields: ModelFields?
 }
 
 public enum BedrockStreamEvent: Equatable, Sendable {
@@ -60,9 +73,24 @@ public enum BedrockError: Error, LocalizedError, Equatable {
 /// Minimal client for `POST /model/{modelId}/converse-stream` on bedrock-runtime.
 public struct BedrockClient: Sendable {
     public let session: URLSession
+    /// The models that refused a temperature, here and for the other providers of `ChatClient`.
+    let temperatureSupport: TemperatureSupport
 
-    public init(session: URLSession = BedrockClient.makeSession()) {
+    /// The app's own client: a session of its own (`makeSession`), the models that refuse a temperature kept in the caches
+    /// (`TemperatureSupport.shared`).
+    public init() {
+        self.init(session: Self.makeSession(), temperatureSupport: .shared)
+    }
+
+    /// A client on `session`, one of the caller's own (a stub's: the tests', the self-test's): the models that refuse a
+    /// temperature it keeps for itself, in memory, never in the user's caches.
+    public init(session: URLSession) {
+        self.init(session: session, temperatureSupport: TemperatureSupport(file: nil))
+    }
+
+    init(session: URLSession, temperatureSupport: TemperatureSupport) {
         self.session = session
+        self.temperatureSupport = temperatureSupport
     }
 
     /// One long-lived session so the TLS connection is reused between conversions.
@@ -113,9 +141,28 @@ public struct BedrockClient: Sendable {
         return request
     }
 
+    /// The answer to `body`, without its temperature for a model that refuses one (`TemperatureSupport`).
     public func converseStream(
         _ body: ConverseRequest, modelId: String, region: String,
         credentials: AWSCredentials, timeout: TimeInterval
+    ) -> AsyncThrowingStream<BedrockStreamEvent, Error> {
+        let session = session
+        guard body.inferenceConfig.temperature != nil else {
+            return Self.converseStream(body, modelId: modelId, region: region, credentials: credentials, timeout: timeout,
+                                       session: session)
+        }
+        return temperatureSupport.adapting(.bedrock, model: modelId) { withoutTemperature in
+            var body = body
+            if withoutTemperature { body.inferenceConfig.temperature = nil }
+            return Self.converseStream(body, modelId: modelId, region: region, credentials: credentials, timeout: timeout,
+                                       session: session)
+        }
+    }
+
+    /// One request, `body` as it is.
+    static func converseStream(
+        _ body: ConverseRequest, modelId: String, region: String,
+        credentials: AWSCredentials, timeout: TimeInterval, session: URLSession
     ) -> AsyncThrowingStream<BedrockStreamEvent, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {

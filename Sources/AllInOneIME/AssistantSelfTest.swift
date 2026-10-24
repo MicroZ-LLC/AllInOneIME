@@ -158,6 +158,20 @@ extension SelfTest {
         return facts
     }
 
+    /// The made-up setup with nothing wrong: in use, a key for the provider, the apps it controls allowed, every pack in.
+    static func fineFacts(_ url: URL) -> Doctor.Facts {
+        var facts = Doctor.Facts()
+        facts.configData = try? Data(contentsOf: url)
+        facts.config = try? Config.load(from: url)
+        facts.inputMethod.selected = true
+        facts.keySaved = [.anthropic: true]
+        facts.apple = .available
+        facts.accessibility = .granted
+        facts.automation = ["Notes": .granted, "Reminders": .granted, "Terminal": .granted]
+        facts.packs = [.chinese: .installed, .korean: .installed]
+        return facts
+    }
+
     /// Settings → Assistant's first section, "Change settings in a sentence", on a config file of the self-test's own with
     /// a canned answer: the request → the preview (old → new, a refused part with its reason) → Apply writes the file →
     /// Undo puts it back; a request it can't do is one line; a key typed into the request is never sent (the key field
@@ -191,20 +205,20 @@ extension SelfTest {
         check(!assistant.canPreview && model.requests == 0 && assistant.preview == nil, "an empty request sends nothing")
 
         // The preview: a row per change, old → new, a refused part with its reason; nothing changes yet.
-        ask("candidates in a column, Chinese in WeChat", """
-            {"changes": [{"key": "candidateLayout", "value": "vertical"}, {"key": "appProfiles.*.inputLanguage", "app": "微信", "value": "zh"},
-                         {"key": "customCommands", "value": []}], "note": "竖排候选，微信里用中文。"}
+        ask("candidates in a column, no AI in WeChat", """
+            {"changes": [{"key": "candidateLayout", "value": "vertical"}, {"key": "appProfiles.*.noAI", "app": "微信", "value": true},
+                         {"key": "customCommands", "value": []}], "note": "竖排候选，微信里不用 AI。"}
             """)
-        check(model.requests == 1 && assistant.lines == ["候选排列：横排 → 竖排", "按 App · WeChat · 开始的输入语言：跟全局一样 → 中文",
+        check(model.requests == 1 && assistant.lines == ["候选排列：横排 → 竖排", "按 App · WeChat · 这个 App 里不用 AI：关 → 开",
                                                          "✕ customCommands：请到设置里对应的那一页改"],
               "the request goes to the on-device model; the preview shows each change and the refused part (\(assistant.lines))")
-        check(assistant.preview?.note == "竖排候选，微信里用中文。" && rig.file().candidateLayout == .horizontal,
+        check(assistant.preview?.note == "竖排候选，微信里不用 AI。" && rig.file().candidateLayout == .horizontal,
               "its note shows; nothing changed before Apply")
 
         // Apply: written to the file, "已改 2 项" with Undo.
         assistant.apply()
         let applied = rig.file()
-        check(applied.candidateLayout == .vertical && applied.profile(for: "com.tencent.xinWeChat")?.inputLanguage == .chinese,
+        check(applied.candidateLayout == .vertical && applied.profile(for: "com.tencent.xinWeChat")?.noAI == true,
               "Apply writes the changes to the config file")
         check(assistant.applied == "已改 2 项" && assistant.canUndo && assistant.preview == nil,
               "the section says what changed and offers Undo (\(assistant.applied ?? "-"))")
@@ -249,6 +263,14 @@ extension SelfTest {
         ask("install the weather plugin", #"{"changes": [{"key": "plugins", "value": []}]}"#)
         check(assistant.preview == nil && assistant.message == "✕ plugins：请到设置里对应的那一页改",
               "a refused request is one line (\(assistant.message ?? "-"))")
+        // An app's starting input, as an earlier version set it: refused, saying it is learned; nothing written.
+        ask("微信里用中文", #"{"changes": [{"key": "appProfiles.*.inputLanguage", "app": "微信", "value": "zh"}]}"#)
+        check(assistant.preview == nil && assistant.message == "✕ 按 App · 微信 · 开始的输入语言：这是学出来的：在这个 App 里打字前用 Shift 切换，连续两次就记住"
+              && rig.file().appProfiles.isEmpty, "an app's starting input isn't set here: the line says it's learned (\(assistant.message ?? "-"))")
+        // The model as the rules ask: nothing changed, its note says why.
+        ask("微信里用英文开始", #"{"changes": [], "note": "微信从哪种输入开始是学出来的：在微信里打字前用 Shift 切换，连续两次。"}"#)
+        check(assistant.preview == nil && assistant.message == "微信从哪种输入开始是学出来的：在微信里打字前用 Shift 切换，连续两次。",
+              "an answer that changes nothing says why in one line (\(assistant.message ?? "-"))")
         ask("make it nice", "not json")
         check(assistant.message == "没能把这句话变成设置", "an answer that isn't settings is one line (\(assistant.message ?? "-"))")
 
@@ -278,7 +300,7 @@ extension SelfTest {
         // A provider without a key isn't switched to: its row says so; Apply applies the rest and opens its key field.
         ask("use Gemini, candidates in a column",
             #"{"changes": [{"key": "provider", "value": "gemini"}, {"key": "candidateLayout", "value": "vertical"}]}"#)
-        check(assistant.lines == ["候选排列：横排 → 竖排", "Gemini API 需要 API key：点「应用」后在 AI 服务里填（不会发给 AI）"],
+        check(assistant.lines == ["候选排列：横排 → 竖排", "Gemini API 需要 API key：点「应用」后在「AI」里填（不会发给 AI）"],
               "a provider without a key: the row says it's needed, no switch shown (\(assistant.lines))")
         assistant.apply()
         check(rig.file().provider == .anthropic && rig.file().candidateLayout == .vertical && rig.opened == [.anthropic, .gemini]
@@ -287,9 +309,9 @@ extension SelfTest {
         // In English.
         UIText.choice = .english
         try? start.write(to: rig.url)
-        ask("translate into English and French, Chinese in WeChat, candidates in a column", Self.assistantChanges)
+        ask("translate into English and French, no AI in WeChat, candidates in a column", Self.assistantChanges)
         check(assistant.lines == ["Translation languages: English, Chinese → English, French", "Candidate layout: Horizontal → Vertical",
-                                  "Apps · WeChat · Starts in: Same as everywhere → Chinese"], "the preview in English (\(assistant.lines))")
+                                  "Apps · WeChat · No AI in this app: off → on"], "the preview in English (\(assistant.lines))")
         assistant.apply()
         check(assistant.applied == "Changed 3 settings", "the confirmation in English (\(assistant.applied ?? "-"))")
         assistant.reset()
@@ -303,6 +325,8 @@ extension SelfTest {
         testFieldsFollowOutsideWrites(snapshotDirectory: snapshotDirectory)
         testAgentCommandFollowsOutsideWrites(snapshotDirectory: snapshotDirectory)
         testSettingsSavesOnlyItsChanges(snapshotDirectory: snapshotDirectory)
+        testPreviousAppSettings(snapshotDirectory: snapshotDirectory)
+        testAppInsertOff(snapshotDirectory: snapshotDirectory)
     }
 
     /// The line over the preview that says the request went to the user's own provider (too long for the on-device
@@ -388,13 +412,19 @@ extension SelfTest {
     }
 
     /// Settings → Assistant as its images show it, in the interface language: the canned answer's preview over the
-    /// made-up findings (`troubledFacts`), all from `rig`'s stand-ins and config file.
-    static func sampleAssistant(_ rig: AssistantRig) -> AssistantModel {
-        rig.facts = troubledFacts
+    /// made-up findings (`troubledFacts`; `fine`: `fineFacts`, the typing speed in range), all from `rig`'s stand-ins and
+    /// config file.
+    static func sampleAssistant(_ rig: AssistantRig, fine: Bool = false) -> AssistantModel {
+        rig.facts = fine ? fineFacts : troubledFacts
+        if fine {
+            var config = (try? Config.load(from: rig.url)) ?? assistantSampleConfig
+            config.typeOutRate = TypeOut.defaultRate
+            try? config.write(to: rig.url)
+        }
         let shown = AssistantModel()
         if UIText.chinese {
             rig.model.answer = assistantChanges
-            shown.request = "翻译成英语和法语，微信里用中文，候选竖排"
+            shown.request = "翻译成英语和法语，微信里不用 AI，候选竖排"
         } else {
             // In English, nothing Chinese: translating into German before, Spanish and French after.
             var config = (try? Config.load(from: rig.url)) ?? assistantSampleConfig
@@ -412,7 +442,7 @@ extension SelfTest {
 
     /// The canned answer the page's images show: three changes.
     static let assistantChanges = """
-        {"changes": [{"key": "outputLanguages", "value": ["en", "fr"]}, {"key": "appProfiles.*.inputLanguage", "app": "WeChat", "value": "zh"},
+        {"changes": [{"key": "outputLanguages", "value": ["en", "fr"]}, {"key": "appProfiles.*.noAI", "app": "WeChat", "value": true},
                      {"key": "candidateLayout", "value": "vertical"}]}
         """
 
@@ -426,7 +456,7 @@ extension SelfTest {
     /// own: the quick probes alone (no connection test), problems first; a config fix shows in the first section's preview
     /// and applies and undoes like a request; the other fixes act at once (recorded here, never done), the key's opens the
     /// key field; Check runs the connection test, and with a question the model's explanation (a stand-in on-device
-    /// model); everything fine is one line. The user's config is never touched.
+    /// model); problems and warnings each a row, what is fine folded under one line. The user's config is never touched.
     static func testDoctor(snapshotDirectory: URL) {
         section("Settings → Assistant: check for problems (fake probes)")
         let realBefore = try? Data(contentsOf: Config.userURL)
@@ -527,57 +557,235 @@ extension SelfTest {
             check(false, "an expired SSO sign-in's finding offers its command to copy (\(assistant.findings.map { $0.text(chinese: false) }))")
         }
 
-        // Everything fine: one line, the rows behind the disclosure.
-        rig.facts = { url in
-            var facts = Doctor.Facts()
-            facts.configData = try? Data(contentsOf: url)
-            facts.config = try? Config.load(from: url)
-            facts.keySaved = [.anthropic: true]
-            facts.apple = .available
-            facts.accessibility = .granted
-            facts.microphone = .granted
-            facts.packs = [.chinese: .installed, .korean: .installed]
-            return facts
-        }
+        // Problems and warnings each a row, never folded; what is fine folded under one line, at first; opened, it stays
+        // so while the probes run again.
+        let passed = assistant.findings.filter { $0.status == .ok }
+        check(!assistant.showsFine && !passed.isEmpty && assistant.fold == "另外 \(passed.count) 项正常"
+              && assistant.fine.map(\.element) == passed
+              && assistant.issues.map(\.element) == assistant.findings.filter { $0.status != .ok } && !assistant.issues.isEmpty,
+              "the problems are rows, what is fine folded under one line (\(assistant.fold ?? "-"))")
+        assistant.showsFine = true
+        assistant.probe(now: true)
+        probed()
+        check(assistant.showsFine, "opened, what is fine stays open while the probes run again")
+        assistant.showsFine = false
+        rig.facts = fineFacts
         var fine = start
         fine.typeOutRate = TypeOut.defaultRate
         try? fine.write(to: rig.url)
         assistant.probe(now: true)
         probed()
-        check(assistant.allFine && !assistant.findings.isEmpty, "everything fine folds into one line (\(assistant.findings.map { $0.status }))")
+        check(assistant.allFine && assistant.issues.isEmpty && assistant.fold == "一切正常" && !assistant.showsFine,
+              "everything fine: one line, folded (\(assistant.findings.map { $0.status }))")
+        let updates = assistant.findings.first { $0.area == .updates }
+        check(updates?.title == "更新：自动检查" && updates?.detail == "当前版本 \(AppVersion.string)",
+              "the updates row is named by what it checks, not the version again (\(updates?.text(chinese: true) ?? "-"))")
+        assistant.showsFine = true
         assistant.reset()
+        check(!assistant.showsFine, "reset folds it again")
     }
 
-    /// The page itself: Settings opens on Assistant, the probes run as it appears and never the connection test, the
-    /// request field has the focus; and its images in both languages, light and dark (`assistant*.png`).
-    static func testAssistantPage(snapshotDirectory: URL) {
-        section("Settings → Assistant: the page")
+    /// The settings window (Settings v2): six pages in the sidebar, in order, opened on General, no Assistant or Apps
+    /// page; the probes run as it opens (never the connection test), and what they find wrong is a banner at the top of
+    /// its page, its fix saying what it does (never just "Fix"), and a dot on the page's row; the sidebar's search finds
+    /// rows at once (typing sends nothing), shows the one chosen on its page, and its last row, "Change: …", asks the AI
+    /// as "Change settings in a sentence" did (the preview at the top of the page, Apply); a setting no longer shown, set
+    /// otherwise than its default, shows with Restore Default; Troubleshoot's checks as VoiceOver finds them, what is fine
+    /// folded until a click opens it; and the images in both languages, light and dark (`assistant*.png`: the search's
+    /// Change; `settings-problem*.png`: a banner and its dot).
+    static func testSettingsPages(snapshotDirectory: URL) {
+        section("Settings: the pages, the search, banners, Restore Default")
         let start = assistantSampleConfig
         let rig = AssistantRig(snapshotDirectory, name: "assistant-page.json", config: start)
         rig.facts = troubledFacts
         defer { rig.restore() }
-        check(SettingsView.firstPage == .assistant && SettingsPage.groups.first == [.assistant] && SettingsPage.allCases.first == .assistant,
-              "Assistant is the first page, in a group of its own")
-        check(SettingsPage.assistant.matches("doctor") && SettingsPage.assistant.matches("诊断") && SettingsPage.assistant.matches("config"),
-              "searching for doctor, 诊断 or config finds it")
+        let pages: [SettingsPage] = [.general, .input, .ai, .privacy, .commands, .advanced, .about]
+        check(SettingsPage.allCases == pages && SettingsView.firstPage == .general
+              && SettingsPage(rawValue: "assistant") == nil && SettingsPage(rawValue: "apps") == nil,
+              "seven pages in order, General first, no Assistant or Apps page (\(SettingsPage.allCases.map(\.rawValue)))")
+        check(SettingsSpot.search("doctor", trigger: "@", config: start).first == .troubleshoot
+              && SettingsSpot.search("诊断", trigger: "@", config: start).first == .troubleshoot,
+              "searching for doctor or 诊断 finds About → Troubleshoot")
 
-        // A window opened with no page asked for: Assistant, its probes, no connection test, the request field focused.
+        // VoiceOver's view of a window: SwiftUI builds the views' accessibility for an assistive app only, which says so
+        // with `AXEnhancedUserInterface` on the app: set here on this process's own, by its selector (AppKit has no API
+        // for it), and off again after.
+        func enhanced(_ on: Bool) {
+            _ = NSApp.perform(Selector(("accessibilitySetValue:forAttribute:")), with: on as NSNumber, with: "AXEnhancedUserInterface")
+        }
+        func ax(_ node: NSObject, _ key: String) -> Any? { node.responds(to: NSSelectorFromString(key)) ? node.value(forKey: key) : nil }
+        // A table's rows (the sidebar's pages) are its `accessibilityRows`, besides its children.
+        func nodes(_ node: NSObject) -> [NSObject] {
+            let children = ((ax(node, "accessibilityChildren") as? [NSObject]) ?? []) + ((ax(node, "accessibilityRows") as? [NSObject]) ?? [])
+            return [node] + children.flatMap(nodes)
+        }
+        func texts(_ window: NSWindow) -> [String] {
+            nodes(window).map { (ax($0, "accessibilityValue") as? String) ?? (ax($0, "accessibilityLabel") as? String) ?? "" }
+        }
+        func open(_ view: some View, height: CGFloat = 700) -> NSWindow {
+            let window = NSWindow(contentViewController: NSHostingController(rootView: view))
+            window.setContentSize(NSSize(width: 880, height: height))
+            NSApp.activate()
+            window.makeKeyAndOrderFront(nil)
+            return window
+        }
+        func close(_ window: NSWindow) {
+            window.close()
+            _ = pump(timeout: 0.3) { false }
+        }
+        enhanced(true)
+        defer { enhanced(false) }
+
+        // A window opened with no page asked for: General, its probes, no connection test.
         let assistant = AssistantModel()
-        let host = NSHostingController(rootView: SettingsView(model: SettingsModel(configURL: rig.url, persists: false), assistant: assistant))
-        let window = NSWindow(contentViewController: host)
-        window.setContentSize(NSSize(width: 880, height: 700))
-        NSApp.activate()
-        window.makeKeyAndOrderFront(nil)
+        let model = SettingsModel(configURL: rig.url, persists: false)
+        let window = open(SettingsView(model: model, assistant: assistant))
         _ = pump(timeout: 5) { !assistant.findings.isEmpty && !assistant.checking }
-        _ = pump(timeout: 0.5) { false }
-        check(rig.probed >= 1 && !assistant.findings.isEmpty, "Settings opens on Assistant: its probes ran (\(rig.probed))")
-        check(rig.tested == 0 && assistant.connectionTests == 0, "opening the page doesn't run the connection test")
-        let focused = window.firstResponder is NSText
-        check(focused, "the request field has the focus")
-        window.close()
-        _ = pump(timeout: 0.3) { false }
+        _ = pump(timeout: 0.8) { false }
+        let shown = texts(window)
+        // The sidebar's rows: an outline whose rows don't list their texts as children; each row's view does.
+        func sidebar(_ window: NSWindow) -> [String] {
+            guard let outline = nodes(window).first(where: { $0 is NSOutlineView }) as? NSOutlineView else { return [] }
+            return (0..<outline.numberOfRows).flatMap { row -> [String] in
+                guard let view = outline.rowView(atRow: row, makeIfNecessary: true) else { return [] }
+                return nodes(view).flatMap { [ax($0, "accessibilityLabel") as? String, ax($0, "accessibilityValue") as? String] }
+                    .compactMap { $0 }.filter { !$0.isEmpty }
+            }
+        }
+        let rows = sidebar(window)
+        let titles = pages.map(\.title)
+        let order = titles.compactMap { title in rows.firstIndex { $0.hasPrefix(title) } }
+        check(order.count == pages.count && order == order.sorted() && !rows.contains(tr("助手", "Assistant"))
+              && !rows.contains(tr("按 App 设置", "Apps")),
+              "the sidebar has the seven pages in order, no Assistant or Apps (\(rows))")
+        check(!shown.contains(SettingsSpot.inputLanguages.title) && shown.contains(SettingsSpot.outputLanguages.title)
+              && SettingsSpot.inputLanguages.page == .input && SettingsSpot.fuzzyPinyin.page == .input,
+              "Settings opens on General: Translate to there; the input languages and their options on Input")
+        check(rig.probed >= 1 && !assistant.findings.isEmpty && rig.tested == 0 && assistant.connectionTests == 0,
+              "its probes ran as it opened (\(rig.probed)), never the connection test")
+        // The made-up problems: General's (the input method, if any) on its banner; Input's (Korean's pack) and AI's (no
+        // key) only a dot on their rows here.
+        let general = assistant.issues.filter { SettingsPage.of($0.element.area) == .general }.map(\.element)
+        check(general.allSatisfy { shown.contains($0.title) }
+              && rows.contains(SettingsPage.input.title + tr("：", ": ") + tr("有问题", "Has a problem"))
+              && !shown.contains(tr("修复", "Fix")),
+              "General's problems on its banner, a dot on Input's row (Korean's pack), no button just \"Fix\" (\(general.map(\.title)); "
+                  + "banner \(general.allSatisfy { shown.contains($0.title) }), rows \(rows), Fix \(shown.contains(tr("修复", "Fix"))))")
+        // A pack's problem is Input's (its banner there, a dot on its row); its button says Download.
+        let download = assistant.issues.map(\.element).first { if case .downloadPack = $0.fix { return true } else { return false } }
+        check(download.map { SettingsPage.of($0.area) == .input && FindingRow.title($0.fix!) == tr("下载", "Download") } == true,
+              "the pack's problem on Input, its button says Download")
+        close(window)
 
-        // The images: a preview and the findings, in Chinese and English, light and dark.
+        // AI: the provider's problem on its banner, its button Add Key…; a setting no longer shown, set otherwise than its
+        // default, on its row with Restore Default, which restores it.
+        model.config.maxTokens = 3000
+        let ai = open(SettingsView(model: model, page: .ai, assistant: assistant))
+        _ = pump(timeout: 1) { false }
+        let onAI = texts(ai)
+        let keyFinding = assistant.issues.first { SettingsPage.of($0.element.area) == .ai }?.element
+        check(keyFinding.map { onAI.contains($0.title) } == true && onAI.contains(tr("添加密钥…", "Add Key…")),
+              "AI's problem on its banner, its button Add Key… (\(keyFinding?.title ?? "-"))")
+        check(onAI.contains(tr("最多输出 3000 tokens", "Up to 3000 output tokens")) && onAI.contains(tr("恢复默认", "Restore Default"))
+              && !onAI.contains(tr("超时 15 秒", "Timeout 15 s")),
+              "the output tokens set otherwise show with Restore Default; the timeout at its default doesn't show")
+        let restore = nodes(ai).first {
+            ax($0, "accessibilityRole") as? String == NSAccessibility.Role.button.rawValue
+                && [ax($0, "accessibilityLabel"), ax($0, "accessibilityTitle")].contains { $0 as? String == tr("恢复默认", "Restore Default") }
+        }
+        _ = restore?.perform(NSSelectorFromString("accessibilityPerformPress"))
+        _ = pump(timeout: 1) { model.config.maxTokens == Config.default.maxTokens }
+        check(model.config.maxTokens == Config.default.maxTokens, "Restore Default puts the default back (\(model.config.maxTokens))")
+        close(ai)
+
+        // The search: typed into, it lists rows at once and sends nothing; the row chosen shows on its page; Return on
+        // "Change: …" (the only row when nothing matches) asks the AI, the preview at the top of the page.
+        let search = open(SettingsView(model: model, assistant: assistant))
+        _ = pump(timeout: 0.6) { false }
+        func textFields(_ view: NSView) -> [NSTextField] { ((view as? NSTextField).map { [$0] } ?? []) + view.subviews.flatMap(textFields) }
+        let field = search.contentView.map(textFields)?.first { $0.placeholderString == tr("搜索设置…", "Search settings…") }
+        func type(_ text: String) {
+            guard let field, search.makeFirstResponder(field), let editor = search.firstResponder as? NSTextView else { return }
+            editor.selectAll(nil)
+            editor.insertText(text, replacementRange: editor.selectedRange())
+            _ = pump(timeout: 0.5) { false }
+        }
+        func key(_ characters: String, _ code: UInt16) {
+            for type in [NSEvent.EventType.keyDown, .keyUp] {
+                guard let event = NSEvent.keyEvent(with: type, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                                   windowNumber: search.windowNumber, context: nil, characters: characters,
+                                                   charactersIgnoringModifiers: characters, isARepeat: false, keyCode: code) else { continue }
+                search.sendEvent(event)
+            }
+            _ = pump(timeout: 0.3) { false }
+        }
+        let request = UIText.chinese ? "翻译成英语和法语，微信里不用 AI，候选竖排" : "translate into Spanish and French, sync through iCloud, candidates in a column"
+        rig.model.answer = UIText.chinese ? assistantChanges : assistantChangesInEnglish
+        type("candidate layout")
+        check(model.spot == .candidateLayout && !assistant.working && assistant.preview == nil,
+              "typing finds the candidate layout and shows it, outlined (\(model.spot?.rawValue ?? "-")); nothing is sent")
+        let listed = texts(search)
+        check(listed.contains(SettingsSpot.candidateLayout.title) && listed.contains(tr("修改：candidate layout", "Change: candidate layout")),
+              "the search lists the row, then \"Change: …\" last")
+        type(request)
+        check(!assistant.working && assistant.preview == nil, "typing a sentence sends nothing")
+        key("\r", 0x24)
+        _ = pump(timeout: 5) { assistant.preview != nil }
+        check(assistant.request == request && assistant.lines.count == 3,
+              "Return on \"Change: …\" asks the AI as typed: its preview (\(assistant.lines))")
+        check(texts(search).contains(tr("用一句话改设置", "Change settings in a sentence")) && texts(search).contains(tr("应用", "Apply")),
+              "the preview at the top of the page, with Apply")
+        assistant.dismissPreview()
+        close(search)
+
+        // Troubleshoot's checks: the problems' rows, then what is fine folded under one line, a disclosure, collapsed; a
+        // click on its title opens it (the ✓ rows under it), one on its chevron folds it again.
+        let sheet = open(TroubleshootSheet(assistant: assistant) {}, height: 560)
+        _ = pump(timeout: 2) { !assistant.checking }
+        _ = pump(timeout: 0.5) { false }
+        struct Shown { var texts: [String], fold: Int?, label: String?, expanded: Bool?, frame: NSRect? }
+        func seen() -> Shown {
+            let all = nodes(sheet)
+            let fold = all.firstIndex { ax($0, "accessibilityRole") as? String == NSAccessibility.Role.disclosureTriangle.rawValue }
+            let node = fold.map { all[$0] }
+            return Shown(texts: all.map { (ax($0, "accessibilityValue") as? String) ?? (ax($0, "accessibilityLabel") as? String) ?? "" },
+                         fold: fold, label: node.flatMap { ax($0, "accessibilityLabel") as? String },
+                         expanded: node.flatMap { (ax($0, "accessibilityValue") as? NSNumber)?.boolValue },
+                         frame: node.flatMap { (ax($0, "accessibilityFrame") as? NSValue)?.rectValue })
+        }
+        func click(_ frame: NSRect?, atEnd: Bool) {
+            guard let frame else { return }
+            let point = sheet.convertPoint(fromScreen: NSPoint(x: atEnd ? frame.maxX - 8 : frame.minX + 40, y: frame.midY))
+            for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
+                guard let event = NSEvent.mouseEvent(with: type, location: point, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                                     windowNumber: sheet.windowNumber, context: nil, eventNumber: 0, clickCount: 1,
+                                                     pressure: 1) else { continue }
+                sheet.sendEvent(event)
+            }
+            _ = pump(timeout: 0.5) { false }
+        }
+        let issues = assistant.issues.map(\.element.title)
+        let passed = assistant.fine.map(\.element.title).filter { !issues.contains($0) }
+        /// The problems' rows above the line, which says how many more are fine.
+        func above(_ seen: Shown) -> Bool {
+            !issues.isEmpty && seen.label?.contains(assistant.fold ?? "-") == true
+                && issues.allSatisfy { title in seen.texts.firstIndex(of: title).map { $0 < seen.fold ?? 0 } ?? false }
+        }
+        let folded = seen()
+        check(folded.expanded == false && !assistant.showsFine && above(folded) && !passed.contains(where: folded.texts.contains),
+              "Troubleshoot: the problems are rows above one line, a disclosure, collapsed (\(folded.label ?? "-"))")
+        click(folded.frame, atEnd: false)
+        let opened = seen()
+        check(opened.expanded == true && assistant.showsFine && above(opened) && !passed.isEmpty && passed.allSatisfy(opened.texts.contains),
+              "a click on the line opens it: the ✓ rows under it (\(String(describing: opened.expanded)))")
+        click(opened.frame, atEnd: true)
+        let closed = seen()
+        check(closed.expanded == false && !assistant.showsFine && above(closed) && !passed.contains(where: closed.texts.contains),
+              "a click on its chevron folds it again (\(String(describing: closed.expanded)))")
+        close(sheet)
+
+        // The images: the search's Change with its preview, and a page's banner with its dot, in Chinese and English,
+        // light and dark.
         for (language, suffix) in [("zh", ""), ("en", "-en")] {
             UIText.choice = language
             try? start.write(to: rig.url)
@@ -586,12 +794,17 @@ extension SelfTest {
             for (appearance, dark) in [(NSAppearance.Name.aqua, ""), (.darkAqua, "-dark")] {
                 let name = "assistant\(suffix)\(dark).png"
                 let url = snapshotDirectory.appendingPathComponent(name)
-                SettingsImage.render(preview, page: .assistant, assistant: shown, to: url, appearance: appearance) { seconds in
+                SettingsImage.render(preview, page: .general, assistant: shown, query: shown.request, to: url, appearance: appearance) { seconds in
                     _ = pump(timeout: seconds) { false }
                 }
                 let size = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.size] as? Int ?? 0
                 check(size > 10_000 && shown.lines.count == 3 && shown.findings.count > 3,
-                      "Settings → Assistant renders in \(language == "zh" ? "Chinese" : "English")\(dark.isEmpty ? "" : ", dark") (\(name))")
+                      "the search's Change renders in \(language == "zh" ? "Chinese" : "English")\(dark.isEmpty ? "" : ", dark") (\(name))")
+                let problem = snapshotDirectory.appendingPathComponent("settings-problem\(suffix)\(dark).png")
+                SettingsImage.render(preview, page: .ai, assistant: shown, to: problem, appearance: appearance) { seconds in
+                    _ = pump(timeout: seconds) { false }
+                }
+                check(FileManager.default.fileExists(atPath: problem.path), "AI's banner and its dot render (\(problem.lastPathComponent))")
             }
             shown.reset()
         }
@@ -624,7 +837,7 @@ extension SelfTest {
         let model = SettingsModel(configURL: url)
         var tested = 0
         model.testRunner = { tested += 1 }
-        let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(model: model, page: .provider)))
+        let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(model: model, page: .ai)))
         window.setContentSize(NSSize(width: 880, height: 700))
         NSApp.activate()
         window.makeKeyAndOrderFront(nil)

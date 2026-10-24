@@ -17,7 +17,8 @@ extension SelfTest {
     /// One thing that reached the input method, `at` seconds into the recording.
     struct Reached: Equatable {
         enum Kind: Equatable {
-            case flagsChanged, keyDown, activate, deactivate
+            /// `rawKeyDown`: a key down through TSMProcessRawKeyEvent, not the text input context (only recorded).
+            case flagsChanged, keyDown, rawKeyDown, activate, deactivate
             case appActivated(String?)
         }
 
@@ -31,8 +32,8 @@ extension SelfTest {
     }
 
     /// The probe's lines ("REC <at> flagsChanged <keyCode> <flags, hex> <timestamp>", "REC <at> keyDown … <characters,
-    /// percent-encoded>", "REC <at> activate", "REC <at> appActivated <bundle id>"); the others ("posted", "script",
-    /// "end") say what the probe did, not what the input method got.
+    /// percent-encoded>", "REC <at> rawKeyDown …" the same, "REC <at> activate", "REC <at> appActivated <bundle id>"); the
+    /// others ("posted", "script", "end") say what the probe did, not what the input method got.
     static func reached(in recording: String) -> [Reached] {
         recording.split(whereSeparator: \.isNewline).compactMap { line in
             let parts = line.split(separator: " ").map(String.init)
@@ -43,9 +44,10 @@ extension SelfTest {
                 return text.hasPrefix("0x") ? UInt(text.dropFirst(2), radix: 16) : UInt(text)
             }
             switch parts[2] {
-            case "flagsChanged", "keyDown":
+            case "flagsChanged", "keyDown", "rawKeyDown":
                 guard let code = number(3), let flags = number(4), parts.count >= 6, let time = TimeInterval(parts[5]) else { return nil }
-                return Reached(at: at, kind: parts[2] == "keyDown" ? .keyDown : .flagsChanged, keyCode: UInt16(code), flags: flags,
+                let kind: Reached.Kind = parts[2] == "keyDown" ? .keyDown : parts[2] == "rawKeyDown" ? .rawKeyDown : .flagsChanged
+                return Reached(at: at, kind: kind, keyCode: UInt16(code), flags: flags,
                                timestamp: time, characters: parts.count > 6 ? parts[6].removingPercentEncoding ?? "" : "")
             case "activate": return Reached(at: at, kind: .activate)
             case "deactivate": return Reached(at: at, kind: .deactivate)
@@ -60,22 +62,18 @@ extension SelfTest {
     static func replay(_ events: [Reached], _ controller: AllInOneIMEInputController, _ client: FakeTextClient,
                        after: TimeInterval, watch: () -> Void = {}) {
         let start = ProcessInfo.processInfo.systemUptime
-        var shiftDown = false
-        let saved = (TranslateModeShared.shiftHeld, TranslateModeShared.shiftDown)
-        (TranslateModeShared.shiftHeld, TranslateModeShared.shiftDown) = ({ shiftDown }, { shiftDown })
-        defer { (TranslateModeShared.shiftHeld, TranslateModeShared.shiftDown) = saved }
         for reached in events {
             _ = pump(timeout: start + reached.at - ProcessInfo.processInfo.systemUptime) { watch(); return false }
             switch reached.kind {
             case .flagsChanged, .keyDown:
                 let flags = NSEvent.ModifierFlags(rawValue: reached.flags)
-                if reached.kind == .flagsChanged { shiftDown = flags.contains(.shift) }
                 guard let event = NSEvent.keyEvent(
                     with: reached.kind == .keyDown ? .keyDown : .flagsChanged, location: .zero, modifierFlags: flags,
                     timestamp: start + reached.timestamp, windowNumber: 0, context: nil, characters: reached.characters,
                     charactersIgnoringModifiers: reached.characters.lowercased(), isARepeat: false, keyCode: reached.keyCode)
                 else { continue }
                 _ = controller.handle(event, client: client)
+            case .rawKeyDown: break
             case .activate: controller.activateServer(client)
             case .deactivate: controller.deactivateServer(client)
             case let .appActivated(app): AllInOneIMEInputController.otherAppActivated(app)
@@ -157,30 +155,31 @@ extension SelfTest {
         """
 
     /// Translate as You Type's long press in Slack (an Electron app: every modifier change twice): a long press turns it
-    /// on and, again, off; a tap switches the input language once and toggles nothing, with the page busy too (the
-    /// tap's copies after its release); Shift held with a capital, or with the pointer used (a Shift-click), toggles
-    /// nothing. A tap of ⌥, the action key, acts once. The controller drops a copy before the composer and the long
-    /// press see it, in any text field (`checkCopiesDroppedFirst`). Then the live harness, when there is one.
+    /// on and, again, off, as in 0.6.6 (no chooser); a tap switches the input language once and toggles nothing, with the
+    /// page busy too (the tap's copies after its release); Shift held with a capital, or with the pointer used (a
+    /// Shift-click), toggles nothing. A tap of ⌥, the action key, acts once. The controller drops a copy before the
+    /// composer and the long press see it, in any text field (`checkCopiesDroppedFirst`). Then the live harness, when there
+    /// is one.
     static func testShiftHoldInElectron(_ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
         section("Translate as You Type's long press of Shift in an Electron app (Slack)", needs: .composing)
         let saved = (settings: settings, pointer: TranslateModeShared.pointer, stickyKeys: TranslateModeShared.stickyKeys,
-                     defaults: TranslateModeShared.defaults, pointerUsed: controller.services.pointerUsedWithin)
+                     defaults: TranslateModeShared.defaults, pointerUsed: controller.services.pointerUsedWithin,
+                     shiftHeld: TranslateModeShared.shiftHeld)
         let suite = "com.aipinyin.selftest.translatemode.electron"
         UserDefaults.standard.removePersistentDomain(forName: suite)
         TranslateModeShared.defaults = UserDefaults(suiteName: suite) ?? .standard
-        (TranslateModeShared.pointer, TranslateModeShared.stickyKeys) = ({ .zero }, { false })
+        // The recorded presses' Shift down as the system has it while the timers run.
+        (TranslateModeShared.pointer, TranslateModeShared.stickyKeys, TranslateModeShared.shiftHeld) = ({ .zero }, { false }, { true })
         // Everything as it was found: off, no press timed, no notice, the self-test's own app again.
         defer {
             TranslateModeShared.state = TranslateMode.State()
-            TranslateModeShared.hold.resync(shiftDown: false)
-            TranslateModeShared.holdToken += 1
-            (TranslateModeShared.hint, TranslateModeShared.hintField) = (nil, nil)
             controller.perform(controller.composer.setTranslateMode(nil), client: client)
             controller.commitComposition(client)
             controller.hideTranslateChip()
             MenuBarIcon.shared.setTranslating(false)
             (settings, TranslateModeShared.pointer, TranslateModeShared.stickyKeys) = (saved.settings, saved.pointer, saved.stickyKeys)
             (TranslateModeShared.defaults, controller.services.pointerUsedWithin) = (saved.defaults, saved.pointerUsed)
+            TranslateModeShared.shiftHeld = saved.shiftHeld
             UserDefaults.standard.removePersistentDomain(forName: suite)
             client.bundleIDOverride = nil
             controller.activateServer(client)
@@ -205,14 +204,17 @@ extension SelfTest {
     static func checkElectronRecordings(hold: [Reached], tap: [Reached], busyTap: [Reached], letter: [Reached],
                                         optionTap: [Reached], from: String,
                                         _ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
-        let onHint = tr("继续按住 → 边打边译", "Keep holding → Translate as You Type")
         let shifts = hold.filter { $0.kind == .flagsChanged }
         check(shifts.count == 4 && shifts[0].timestamp == shifts[1].timestamp && shifts[0].flags == shifts[1].flags,
               "\(from): Shift down and up each reach the input method twice, the same event (\(shifts.map { String(format: "%.3f", $0.at) }))")
-        // Held: the hint at 0.5 s, then on at 1.0 s, the hint seen while it's held.
-        var hinted = false
-        replay(hold, controller, client, after: 0.2) { hinted = hinted || controller.notice == onHint }
-        check(hinted && TranslateModeShared.state.isOn && controller.composer.translateMode?.target == .english
+        let onHint = tr("继续按住 → 边打边译", "Keep holding → Translate as You Type")
+        // Held: the hint at 0.5 s, then on at 1.0 s, the hint seen while it's held; no chooser, no rows.
+        var (hinted, rows) = (false, false)
+        replay(hold, controller, client, after: 0.2) {
+            hinted = hinted || controller.notice == onHint
+            rows = rows || !controller.session.panelModel().rows.isEmpty
+        }
+        check(hinted && !rows && TranslateModeShared.state.isOn && controller.composer.translateMode?.target == .english
               && controller.composer.inputLanguage == .chinese,
               "\(from): a long press of Shift in Slack shows the hint, then turns Translate as You Type on (\(controller.notice ?? "-"))")
         replay(hold, controller, client, after: 0.2)
@@ -264,22 +266,19 @@ extension SelfTest {
         client.inserted.removeAll()
     }
 
-    /// The controller drops a copy before anything sees it (`handleFlagsChanged`): before the composer and before the
-    /// long press, in any text field. A tap with the page busy, then a long press with the tap's copies coming while
-    /// Shift is held: one switch, and Translate as You Type on (the copy of the tap's release, reaching the long press,
-    /// would end the press; reaching the composer, the two copies would switch back). Then Shift+Tab with the page busy:
+    /// The controller drops a copy before anything sees it (`handleFlagsChanged`): before the composer and its long
+    /// press, in any text field. A tap with the page busy, then a long press with the tap's copies coming while Shift is
+    /// held: one switch, and Translate as You Type on (the copy of the tap's release, reaching the long press, would end
+    /// the press; reaching the composer, the two copies would switch back). Then Shift+Tab with the page busy:
     /// the focus in the next field before Shift's copies come; there the copy of Shift's down and the release would be a
-    /// tap, but the copy is known in every field (the composer of each field its own).
+    /// tap, but the copy is known in every field (the composer of each field its own). Back in the field it left, Shift's
+    /// down the last change seen there: the first long press turns it on all the same (taken for no copy of it).
     static func checkCopiesDroppedFirst(_ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
-        let onHint = tr("继续按住 → 边打边译", "Keep holding → Translate as You Type")
-        var hinted = false
-        replay(reached(in: electronTapThenHoldBusy), controller, client, after: 0.2) {
-            hinted = hinted || controller.notice == onHint
-        }
-        check(hinted && TranslateModeShared.state.isOn && controller.composer.inputLanguage == .english,
+        replay(reached(in: electronTapThenHoldBusy), controller, client, after: 0.2)
+        check(TranslateModeShared.state.isOn && controller.composer.inputLanguage == .english,
               "a tap with the page busy, then a long press with its copies coming while Shift is held: the input language "
               + "switched once (\(controller.composer.inputLanguage)) and Translate as You Type on (\(controller.notice ?? "-"))")
-        if TranslateModeShared.state.isOn { replay(reached(in: electronShiftHold), controller, client, after: 0.2) }  // off again
+        if TranslateModeShared.state.isOn { controller.toggleTranslateMode() }  // off again
         if let notice = controller.notice { controller.endNotice(notice) }
         if controller.composer.inputLanguage == .english { tapShift(controller, client) }
 
@@ -321,12 +320,18 @@ extension SelfTest {
         other.deactivateServer(otherClient)
         other.inputControllerWillClose()
         controller.activateServer(client)
+        replay(reached(in: electronShiftHold), controller, client, after: 0.2)
+        let reopened = TranslateModeShared.state.isOn
+        if reopened { controller.toggleTranslateMode() }  // off again
+        if let notice = controller.notice { controller.endNotice(notice) }
+        check(reopened, "back in the field Shift+Tab left, Shift's release gone to the next one: the first long press turns it on")
     }
 
     /// The Electron harness itself, when `ALLINONEIME_ELECTRON_HARNESS` names its folder (`make electron-harness`: its
     /// Electron, downloaded by npm, and its probe): each script run in its window, Slack's composer then the textarea
     /// (about 2 s each, the window shown without taking the focus; the tap of Shift a second time with the page busy),
-    /// and what reached the input method played into the fake field. Skipped, and said so, without it.
+    /// and what reached the input method played into the fake field; "#17" typed, the page idle and busy, for how often
+    /// each key down reaches the input method (`checkKeyDowns`, about 4 s each). Skipped, and said so, without it.
     static func testElectronHarness(_ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
         guard let folder = ProcessInfo.processInfo.environment["ALLINONEIME_ELECTRON_HARNESS"], !folder.isEmpty else {
             print("  the Electron harness: not run (make electron-harness, then make selftest ELECTRON_HARNESS=build/electron-harness)")
@@ -352,10 +357,40 @@ extension SelfTest {
             checkElectronRecordings(hold: recordings["shift-hold"] ?? [], tap: recordings["shift-tap"] ?? [], busyTap: busyTap,
                                     letter: recordings["shift-letter"] ?? [], optionTap: recordings["option-tap"] ?? [],
                                     from: "Electron harness, \(field)", controller, client)
+            checkKeyDowns(run("hash-digits"), from: "Electron harness, \(field)")
+            checkKeyDowns(run("hash-digits", busy: 250), from: "Electron harness, \(field), the page busy")
         }
         let kept = (try? FileManager.default.contentsOfDirectory(atPath: userData.path)) ?? []
         check(!kept.isEmpty, "the Electron harness kept its data in a temporary folder (\(kept.count) items: "
               + "\(kept.sorted().prefix(3).joined(separator: ", "))…), removed after")
+    }
+
+    /// What the harness's "#17" (its hash-digits script: ⇧3, 1, 7) shows of key downs, `from` where it ran: each of the
+    /// three reaching the input method, and how many times (a key down handed over again has the first one's time), and
+    /// what the controller's guard (`KeyEchoes`, on the recording's clock) leaves of them: "#17", each key once. Passes
+    /// either way; what it says is the finding. Expected, not yet seen busy: each key down once, the page busy or not, in
+    /// both fields, none through TSMProcessRawKeyEvent. Chromium sends a key event the page let go by through
+    /// -[NSApplication sendEvent:] again, and the input method gets a modifier change twice because sendEvent: itself
+    /// hands it over; a key down reaches the input method only from the view (interpretKeyEvents:), which Chromium's
+    /// window keeps an event sent again from. The recorded capital, the page idle (`electronShiftLetter`), came once.
+    static func checkKeyDowns(_ recording: [Reached], from: String) {
+        let downs = recording.filter { $0.kind == .keyDown }
+        var times: [String: Int] = [:]
+        for down in downs { times["\(down.keyCode) \(down.timestamp)", default: 0] += 1 }
+        var echoes = KeyEchoes()
+        var taken = ""
+        for down in downs {
+            // A second on, the recording's times are the clock's (one of 0 would be none).
+            let key = KeyEchoes.Key(keyCode: down.keyCode, characters: down.characters, modifiers: down.flags, timestamp: down.timestamp + 1)
+            guard echoes.copy(of: key, now: down.at + 1) == nil else { continue }
+            echoes.answered(key, now: down.at + 1, handled: false)
+            taken += down.characters
+        }
+        let again = downs.count - times.count, raw = recording.filter { $0.kind == .rawKeyDown }.count
+        let each = downs.map { "\($0.characters) \(String(format: "%.3f", $0.at))" }.joined(separator: ", ")
+        check(times.count == 3 && taken == "#17",
+              "\(from): \"#17\" typed, its key downs reached the input method \(again == 0 ? "once each" : "with \(again) handed over again")"
+                  + " (\(each)), \(raw) through TSMProcessRawKeyEvent; the controller takes \"\(taken)\"")
     }
 
     /// The harness's Electron, as npm installs it.

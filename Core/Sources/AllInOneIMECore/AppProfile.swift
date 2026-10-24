@@ -3,9 +3,17 @@ import Foundation
 /// Settings for one app, by its bundle id (`Config.appProfiles`, e.g. "com.tinyspeck.slackmacgap"): each is optional,
 /// and where it's unset the app follows the setting for every app.
 public struct AppProfile: Codable, Equatable, Sendable {
-    /// The input language a text field of the app starts in (else `Config.defaultInput`; one that isn't among the
-    /// input languages, or whose pack isn't there, is passed over too).
-    public var inputLanguage: Language?
+    /// The input a text field of the app starts in: an input language, or Code (else `Config.defaultInput`; one that
+    /// isn't among the inputs, or whose pack isn't there, is passed over too), until the app learns another
+    /// (`LearnedStore`, Settings v2 §3.1). Written as `inputLanguage`, Code as "code". No Settings UI sets it any more
+    /// (`PreviousField`).
+    public var startingInput: Input?
+    /// The input language a text field of the app starts in, where that's one (`startingInput`); set, the app starts in
+    /// it (nil: as everywhere).
+    public var inputLanguage: Language? {
+        get { startingInput?.language }
+        set { startingInput = newValue.map(Input.language) }
+    }
     /// The rewrite styles @improve offers in the app (else `Config.rewriteStyles`), names from `RewriteStyle.catalog`;
     /// empty: the main versions only.
     public var rewriteStyles: [String]?
@@ -17,43 +25,67 @@ public struct AppProfile: Codable, Equatable, Sendable {
     /// Translate as You Type (`TranslateMode`) whenever the app is typed in: switching to it turns the mode on, and
     /// doesn't leave it (Settings → Apps: 「总是边打边译」).
     public var translateAlways: Bool?
+    /// Autocomplete (`Autocomplete`) in the app always (true) or never (false), whatever the switch and what was
+    /// learned there (Settings → Apps: 「续写」); nil: as everywhere. This Mac's own, as the switch is: never synced
+    /// (`ICloudSync.thisMacsOwnAppFields`).
+    public var autocomplete: Bool?
+    /// Suggestions (plugin completions, Code's rows) in the app: off (false: Settings → General → Suggestions → "In these
+    /// apps": Off, `insertChoice`), or as everywhere (nil, or true). This Mac's own, as the switch is: never synced
+    /// (`ICloudSync.thisMacsOwnAppFields`).
+    public var suggestions: Bool?
+    /// What a suggestion row inserts in the app (Settings → General → Suggestions → "In these apps", decision 28,
+    /// `insertChoice`): the source's own, ID only, with title, with title and link; nil: as everywhere
+    /// (`Config.suggestionsInsert`). Synced as the app's other fields are (what goes in there is the same on every Mac),
+    /// unlike its Suggestions switch.
+    public var suggestionsInsert: SuggestionsInsert?
 
     public init(inputLanguage: Language? = nil, rewriteStyles: [String]? = nil, typeOut: Bool? = nil, noAI: Bool? = nil,
-                translateAlways: Bool? = nil) {
-        self.inputLanguage = inputLanguage
+                translateAlways: Bool? = nil, autocomplete: Bool? = nil, suggestions: Bool? = nil,
+                suggestionsInsert: SuggestionsInsert? = nil) {
+        self.startingInput = inputLanguage.map(Input.language)
         self.rewriteStyles = rewriteStyles
         self.typeOut = typeOut
         self.noAI = noAI
         self.translateAlways = translateAlways
+        self.autocomplete = autocomplete
+        self.suggestions = suggestions
+        self.suggestionsInsert = suggestionsInsert
     }
 
     /// Sets nothing: the app follows every setting.
     public var isEmpty: Bool {
-        inputLanguage == nil && rewriteStyles == nil && typeOut == nil && noAI != true && translateAlways != true
+        startingInput == nil && rewriteStyles == nil && typeOut == nil && noAI != true && translateAlways != true && autocomplete == nil
+            && suggestions == nil && suggestionsInsert == nil
     }
 
     private enum CodingKeys: String, CodingKey {
-        case inputLanguage, rewriteStyles, typeOut, noAI, translateAlways
+        case inputLanguage, rewriteStyles, typeOut, noAI, translateAlways, autocomplete, suggestions, suggestionsInsert
     }
 
-    /// Each key on its own: one of the wrong type, or a language code this version doesn't know, is left unset;
-    /// other keys are ignored.
+    /// Each key on its own: one of the wrong type, or an input (or a choice of what a row inserts) this version doesn't
+    /// know, is left unset; other keys are ignored.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        inputLanguage = (try? c.decodeIfPresent(String.self, forKey: .inputLanguage)).flatMap { $0 }.flatMap(Language.init(rawValue:))
+        startingInput = (try? c.decodeIfPresent(String.self, forKey: .inputLanguage)).flatMap { $0 }.flatMap(Input.init(rawValue:))
         rewriteStyles = (try? c.decodeIfPresent([String].self, forKey: .rewriteStyles)).flatMap { $0 }
         typeOut = (try? c.decodeIfPresent(Bool.self, forKey: .typeOut)).flatMap { $0 }
         noAI = (try? c.decodeIfPresent(Bool.self, forKey: .noAI)).flatMap { $0 }
         translateAlways = (try? c.decodeIfPresent(Bool.self, forKey: .translateAlways)).flatMap { $0 }
+        autocomplete = (try? c.decodeIfPresent(Bool.self, forKey: .autocomplete)).flatMap { $0 }
+        suggestions = (try? c.decodeIfPresent(Bool.self, forKey: .suggestions)).flatMap { $0 }
+        suggestionsInsert = (try? c.decodeIfPresent(String.self, forKey: .suggestionsInsert)).flatMap { $0 }.flatMap(SuggestionsInsert.init(rawValue:))
     }
 
     public func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
-        try c.encodeIfPresent(inputLanguage, forKey: .inputLanguage)
+        try c.encodeIfPresent(startingInput?.rawValue, forKey: .inputLanguage)
         try c.encodeIfPresent(rewriteStyles, forKey: .rewriteStyles)
         try c.encodeIfPresent(typeOut, forKey: .typeOut)
         try c.encodeIfPresent(noAI, forKey: .noAI)
         try c.encodeIfPresent(translateAlways, forKey: .translateAlways)
+        try c.encodeIfPresent(autocomplete, forKey: .autocomplete)
+        try c.encodeIfPresent(suggestions, forKey: .suggestions)
+        try c.encodeIfPresent(suggestionsInsert?.rawValue, forKey: .suggestionsInsert)
     }
 
     /// `Config.appProfiles` from a config file: an entry that isn't an object, or whose key is no bundle id (empty, or
@@ -153,6 +185,13 @@ extension Config {
         return usable.contains(defaultInput) ? defaultInput : usable.first ?? defaultInput
     }
 
+    /// The input a new text field of `app` starts in: Code where the app's own is Code and Code can be typed now
+    /// (`code`: it is among the inputs, its pack installed), else a language as `startingInput(in:among:)` has it.
+    public func startingInput(in app: String?, among usable: [Language], code: Bool) -> Input {
+        if code, profile(for: app)?.startingInput == .code { return .code }
+        return .language(startingInput(in: app, among: usable))
+    }
+
     /// Whether AI commands may run in `app` (its profile doesn't say "no AI").
     public func allowsAI(in app: String?) -> Bool { profile(for: app)?.noAI != true }
 }
@@ -162,4 +201,91 @@ extension Command {
     /// @agent (a coding agent). Refused in an app with no AI (`AppProfile.noAI`); the others (@open, @note, a program,
     /// a script, a link …) work.
     public var usesAI: Bool { kind == .convert || kind == .generate || self == .agent }
+}
+
+// MARK: - Previous per-app settings (Settings v2 §2)
+
+extension AppProfile {
+    /// The fields no Settings UI sets any more (Settings v2 §2), still honored while set, in the order a row lists them.
+    /// The per-app settings that stay are `noAI` and Insert ("In these apps": `suggestionsInsert`, or Off, `suggestions`
+    /// false; the owner's decision of 2026-10-24).
+    public enum PreviousField: String, CaseIterable, Sendable {
+        case startingInput, translateAlways, autocomplete, typeOut, rewriteStyles
+    }
+
+    /// The previous fields it sets, in `PreviousField`'s order: `translateAlways` when on, as `isEmpty` counts it.
+    public var previousFields: [PreviousField] {
+        PreviousField.allCases.filter { field in
+            switch field {
+            case .startingInput: return startingInput != nil
+            case .translateAlways: return translateAlways == true
+            case .autocomplete: return autocomplete != nil
+            case .typeOut: return typeOut != nil
+            case .rewriteStyles: return rewriteStyles != nil
+            }
+        }
+    }
+
+    /// It without the previous fields: its `noAI`, `suggestions` and `suggestionsInsert` as they are.
+    public var withoutPreviousFields: AppProfile {
+        AppProfile(noAI: noAI, suggestions: suggestions, suggestionsInsert: suggestionsInsert)
+    }
+}
+
+/// One row of General → "Previous per-app settings".
+public struct PreviousAppSettings: Equatable, Sendable {
+    /// The app's key in `Config.appProfiles` (what Remove takes).
+    public var app: String
+    /// What its profile sets of them, in `PreviousField`'s order.
+    public var fields: [AppProfile.PreviousField]
+    /// The row, in the interface language: "Slack: starts in English, Always Translate as You Type" (each switch by the
+    /// name the settings document's per-app fields give it).
+    public var text: String
+
+    public init(app: String, fields: [AppProfile.PreviousField], text: String) {
+        self.app = app
+        self.fields = fields
+        self.text = text
+    }
+}
+
+extension Config {
+    /// General → "Previous per-app settings": a row for each app whose profile sets any `PreviousField` (none: the
+    /// section isn't shown), apps named by `appName` (else by their id), in the order of their names.
+    public func previousAppSettings(appName: (String) -> String?) -> [PreviousAppSettings] {
+        func name(_ app: String) -> String { appName(app) ?? SettingsSchema.appName(app) }
+        return appProfiles.compactMap { app, profile -> PreviousAppSettings? in
+            let fields = profile.previousFields
+            guard !fields.isEmpty else { return nil }
+            let said = fields.map { previousText($0, of: profile) }.joined(separator: tr("、", ", "))
+            return PreviousAppSettings(app: app, fields: fields, text: name(app) + tr("：", ": ") + said)
+        }
+        .sorted { name($0.app).localizedCaseInsensitiveCompare(name($1.app)) == .orderedAscending }
+    }
+
+    /// Remove: `app`'s `PreviousField`s cleared, its id in any case; its `noAI`, `suggestions` and `suggestionsInsert` as
+    /// they are. A profile left setting nothing goes. An app that sets none of them is left as it is.
+    public mutating func removePreviousAppSettings(for app: String) {
+        guard profile(for: app)?.previousFields.isEmpty == false else { return }
+        changeProfile(for: app, dropsEmpty: true) { $0 = $0.withoutPreviousFields }
+    }
+
+    /// What `field` of `profile` says, in the interface language: "starts in English", "Always Translate as You Type".
+    private func previousText(_ field: AppProfile.PreviousField, of profile: AppProfile) -> String {
+        switch field {
+        case .startingInput:
+            guard let input = profile.startingInput else { return "" }
+            let name = SessionText.inputName(input, language: UIText.language, coding: codingLanguage.map { CodingLanguagePack.title(of: $0) })
+            return tr("用\(name)开始", "starts in \(name)")
+        case .translateAlways:
+            return tr("总是边打边译", "Always Translate as You Type")
+        case .autocomplete:
+            return profile.autocomplete == true ? tr("总是续写", "Autocomplete always on") : tr("从不续写", "Autocomplete always off")
+        case .typeOut:
+            return profile.typeOut == true ? tr("逐字上屏", "results typed out") : tr("不逐字上屏", "results not typed out")
+        case .rewriteStyles:
+            let names = RewriteStyle.resolve(profile.rewriteStyles ?? []).map(UIText.name)
+            return tr("改写：", "rewrites: ") + (names.isEmpty ? tr("无", "none") : names.joined(separator: tr("、", ", ")))
+        }
+    }
 }

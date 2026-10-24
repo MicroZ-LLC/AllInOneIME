@@ -112,7 +112,8 @@ let package = Package(
         // 2026-10.) A shell on Apple platforms that depends on the AllInOneIMEQuickJS product needs it before the core
         // the same way.
         .testTarget(name: "AllInOneIMECoreTests", dependencies: ["AllInOneIMEQuickJS", "AllInOneIMECore", "AllInOneIMETestSupport"],
-                    exclude: ["Acceptance/ICloudSyncAppLevelCases.md"],  // specs for the macOS shell's self-test
+                    // Specs for the macOS shell's self-test, and the API Settings v2's acceptance tests were written against.
+                    exclude: ["Acceptance/ICloudSyncAppLevelCases.md", "Acceptance/SettingsV2-API.md"],
                     resources: [.copy("Fixtures")]),
         // The wire protocol's goldens (WireGoldens/*.jsonl), replayed against the server with a scripted provider.
         .testTarget(name: "AllInOneIMEWireTests", dependencies: ["AllInOneIMEWire", "AllInOneIMECore"],

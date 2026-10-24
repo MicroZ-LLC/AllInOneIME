@@ -84,18 +84,6 @@ public enum FuzzyPinyin {
 
     /// Writes (or removes) the patch in `userDir` for `ids`; the caller deploys Rime again unless `.unchanged`.
     public static func apply(_ ids: [String], schema schemaURL: URL, userDir: URL) throws -> Outcome {
-        let file = userDir.appendingPathComponent(fileName)
-        let existing = try? String(contentsOf: file, encoding: .utf8)
-        if let existing, !existing.hasPrefix(marker) { return ids.isEmpty ? .unchanged : .userFile }
-        let schema = (try? String(contentsOf: schemaURL, encoding: .utf8)) ?? ""
-        guard let wanted = patch(ids, schema: schema) else {
-            guard existing != nil else { return .unchanged }
-            try FileManager.default.removeItem(at: file)
-            return .removed
-        }
-        guard wanted != existing else { return .unchanged }
-        try FileManager.default.createDirectory(at: userDir, withIntermediateDirectories: true)
-        try wanted.write(to: file, atomically: true, encoding: .utf8)
-        return .written
+        try PersonalDictionaryStore(userDirectory: userDir, schema: schemaURL).applyFuzzyPinyin(ids)
     }
 }

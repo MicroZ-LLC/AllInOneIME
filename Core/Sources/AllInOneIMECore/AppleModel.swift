@@ -216,6 +216,23 @@ public enum AppleModelAvailability: String, Equatable, Sendable {
     public var isOffered: Bool { self != .unsupportedSystem }
 }
 
+/// The on-device model's availability as asked at most once every `lifetime` seconds, for what is made again often: the
+/// Mac's input menu, which some apps (Notes) ask for after every key, where asking makes the model's bundle each time.
+public struct RecentAvailability: Sendable {
+    public let lifetime: TimeInterval
+    private var asked: (at: TimeInterval, availability: AppleModelAvailability)?
+
+    public init(lifetime: TimeInterval = 10) { self.lifetime = lifetime }
+
+    /// What `ask` said within `lifetime` seconds before `now` (an uptime), else what it says now.
+    public mutating func availability(now: TimeInterval, ask: () -> AppleModelAvailability) -> AppleModelAvailability {
+        if let asked, now >= asked.at, now - asked.at < lifetime { return asked.availability }
+        let availability = ask()
+        asked = (now, availability)
+        return availability
+    }
+}
+
 /// One request to the on-device model.
 public struct AppleModelRequest: Equatable, Sendable {
     /// A few-shot example: the user's text and the answer to it.

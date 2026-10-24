@@ -56,14 +56,17 @@ enum CommandUsageStore {
 /// The config file as of now, re-read only when it changed (checked by modification date).
 /// A file that doesn't parse reads as the defaults here; conversions report the error.
 enum LiveConfig {
-    private static var cached: (date: Date?, config: Config)?
+    private static var cached: (url: URL, date: Date?, config: Config?)?
 
-    static var current: Config {
+    static var current: Config { currentIfValid ?? .default }
+
+    /// The input menu must still report a broken file and disable actions that would overwrite it.
+    static var currentIfValid: Config? {
         let url = Config.defaultURL
         let date = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
-        if let cached, cached.date == date { return cached.config }
-        let config = (try? Config.load(from: url)) ?? .default
-        cached = (date, config)
+        if let cached, cached.url == url, cached.date == date { return cached.config }
+        let config = try? Config.load(from: url)
+        cached = (url, date, config)
         return config
     }
 }

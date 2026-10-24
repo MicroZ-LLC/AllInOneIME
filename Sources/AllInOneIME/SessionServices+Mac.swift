@@ -95,7 +95,11 @@ extension SessionServices {
         services.startAgent = { try await AgentMonitor.shared.start($0) }
         services.listAgents = { try await AgentMonitor.shared.list() }
         services.runProgram = { CommandRunner.run($0, input: $1) }
-        services.runPlugin = { PluginRunner.run($0, input: $1, language: $2) }
+        // The plugin's preferences (`ctx.preferences`, as its completions get them), read once it runs: passwords from the
+        // keychain.
+        services.runPlugin = { plugin, input, language in
+            PluginRunner.run(plugin, input: input, language: language, preferences: { SuggestionsShared.pluginPreferences(plugin) })
+        }
         services.loadExtensions = { config, rescan in
             if rescan { LiveExtensions.discoverIfDue(config) }
             return LiveExtensions.current(config, rescan: rescan)

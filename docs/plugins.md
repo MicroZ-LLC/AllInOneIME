@@ -1,9 +1,9 @@
 # Plugins: plan
 
-@ commands come in three tiers: **built-in** (`@improve`, `@translate`, `@question`, `@agent`, `@open`, `@note`,
+Commands come in three tiers: **built-in** (`@improve`, `@translate`, `@question`, `@agent`, `@open`, `@note`,
 `@reminder`, `@py`, `@js`, `@tasks`, `@settings`, `@imessage`, `@reportissue`;
 `@read` and `@search` are built but not offered yet, their names still taken), **plugins** installed from the plugin
-library (what not everyone wants, like `@stock`), and the user's **custom** commands (Settings → Custom @ Commands).
+library (what not everyone wants, like `@stock`), and the user's **custom** commands (Settings → Commands → Your Commands).
 When names clash: built-in > plugin > custom, so a plugin named like a built-in command never shows up.
 
 ## What a plugin is
@@ -53,7 +53,7 @@ browser. Nothing is inserted; the draft is cleared, as when `@open` opens someth
   `@stock` first and opens the link with its output in the text.
 - Refused during secure input, like every command.
 - Custom commands have the same type (`{"name": "google", "type": "link", "url": "https://www.google.com/search?q={input}"}`,
-  or "Open a web page" in Settings → Custom @ Commands).
+  or "Open a web page" in Settings → Commands → Your Commands).
 
 [Core/Plugins/](../Core/Plugins/) in the repository has `@x`, `@threads`, `@bsky` and `@weibo`, and a script plugin, `@xe`
 (currency conversion, `@xe 100 USD CNY`); the library publishes them.
@@ -95,9 +95,9 @@ fetch([url, …], {headers}) → [{status, ok, text, json()} | {ok: false, error
 - At most 8 requests a run, 1 MB a response, 5 s a request; the run itself ends after `timeoutSeconds` (≤ 20).
 - No file system, processes, environment, timers or clipboard: neither engine has them, as the app makes it.
 - Secure input (password fields) refuses plugins like any command.
-- The text goes to the plugin's hosts as typed: "Hide sensitive information before sending" (Settings → AI Provider →
+- The text goes to the plugin's hosts as typed: "Hide sensitive information before sending" (Settings →
   Privacy) covers requests to the AI, so a `prompt` plugin, but not what a script or link plugin sends. Likewise an
-  app set to "No AI in this app" (Settings → Apps) refuses `prompt` plugins and still runs script and link plugins.
+  app in "Apps without AI" (Settings → Privacy) refuses `prompt` plugins and still runs script and link plugins.
 
 `run(input, context)` gets the text (trimmed) and a plain object, `context`:
 
@@ -105,6 +105,9 @@ fetch([url, …], {headers}) → [{status, ok, text, json()} | {ok: false, error
   (config `uiLanguage`, the settings window's "Interface language", else the system's), so a plugin can answer
   in it. Older apps call `run(input)` alone (and an unknown language leaves `{}`), so don't rely on it: read
   it as `(context && context.language) || "en"`.
+- `context.preferences` (from 0.6.7), for a plugin that declares `preferences` (see Completions below): its settings as
+  `load` and `query` get them, the defaults filled in, passwords too (on standard input, never on a command line:
+  `AllInOneIME --run-plugin <dir> --with-preferences` reads `{ "input", "preferences" }` there).
 - Nothing else: not the app being typed in, the field, or anything about the user.
 
 ## The library (milestone 2, done)
@@ -132,7 +135,7 @@ main branch's files; 0.5.0 reads `raw.githubusercontent.com/…/main/` directly)
   from the keychain. CI runs it with `--validate` on pull requests and `--check` on main (the index matches the
   plugins, the signature is valid); CI can't sign. Only the maintainer merges.
 
-In the app (`PluginLibrary`, Settings → Plugins → "Browse Library…"):
+In the app (`PluginLibrary`, Settings → Commands → Plugins → "Browse Library…"):
 
 - Network only when the user opens or refreshes the library, or installs: no background polling.
 - The signature is verified **before** the index is parsed; an unknown `schema` is refused. Offered is, per plugin,
@@ -147,6 +150,104 @@ In the app (`PluginLibrary`, Settings → Plugins → "Browse Library…"):
   installed plugin); updates are manual. A local plugin (no `install.json`) of the same name is never overwritten:
   the library shows it as local.
 - Installing or removing a plugin rescans the plugins folder, so the command list has it at the next keystroke.
+
+## Completions (suggestions)
+
+A `script` plugin may also complete what is typed (Suggestions, 0.6.7): rows in the candidate panel, with the same keys
+in every app (terminals too): the first row that puts something in is chosen from the start, ↓ ↑ move, ⏎ or Tab
+inserts the chosen row, → or Esc hides the rows (then the keys are the app's until the token changes); digits are
+typed.
+It declares its sources in `completions` (optional; `api` 1 stays valid) and its settings in `preferences`:
+
+```json
+{ "name": "github", "type": "script", "script": "main.js", "hosts": ["api.github.com"],
+  "preferences": [
+    { "name": "repos", "type": "text", "title": {"en": "Repositories", "zh": "仓库"},
+      "placeholder": "owner/repo, owner/other", "default": "MicroZ-LLC/AllInOneIME" },
+    { "name": "token", "type": "password", "title": {"en": "Token (optional, for private repositories)", "zh": "Token（可选，私有仓库用）"} } ],
+  "completions": [
+    { "name": "issues", "title": {"en": "GitHub issues", "zh": "GitHub issue"},
+      "prefix": "#", "minChars": 1, "compare": "prefix",
+      "list": true, "refresh": "15m",
+      "query": true, "queryMinChars": 2,
+      "insert": { "default": ["{arg} {title}", "{arg}"], "chat": ["{arg} {title} {url}", "{arg} {url}", "{arg}"],
+                  "terminal": "{match}" } } ] }
+```
+
+| Key | Default | Meaning |
+|---|---|---|
+| `name` | required | `[a-z0-9]{1,24}`, unique in the plugin |
+| `title` | required | shown in Settings and in the rows' footer |
+| `prefix` | none | the text a token starts with (`#`, `PROJ-`; any case, `＃` counts as `#`); not `@` |
+| `minChars` | 1 with a prefix, 3 without | characters after the prefix before rows show |
+| `compare` | `prefix` | `prefix` (`#12` shows `#1234`) or `exact`; without a prefix only `exact`, and only for tokens of digits (a 12-digit account id) |
+| `list` | `false` | the script exports `load(ctx)`; its last good list is kept |
+| `refresh` | `1h` | `5m` … `7d`: how often the list is loaded again while the source is used (not after a week unused) |
+| `query` | `false` | the script exports `query(text, ctx)`, a live lookup; only with a `prefix` (without one, every number typed anywhere would be sent) |
+| `queryMinChars` | 3 | characters after the prefix before `query` is first called (at least 1) |
+| `insert` | `{"default": "{arg}"}` | what a row inserts per app class: `default`, `chat` (chat apps and browsers), `terminal` (terminals and code editors: anything but `null` is `{match}` there, unless the user chooses otherwise, below); a template or a list tried in turn (the first whose variables all exist), `null` for no rows in that class; the default the user may change (below) |
+
+An entry that breaks these rules (or any entry of a `prompt` or `link` plugin, or of one with `timeoutSeconds` over 20) is
+refused on its own, its reason shown under the plugin in Settings; the plugin and its command still load. A preference is
+`text` (kept in the config) or `password` (kept in the keychain, like extensions' passwords); one of another type is the
+plugin's problem.
+
+The script, in its child process as `run` is (`AllInOneIME --run-plugin <dir> --completion load|query`, `ctx` on standard
+input), with the same `fetch` to its `hosts`: those the user approved when turning the source on, and only while
+plugin.json still lists them (the hosts approved come on standard input too):
+
+- `load(ctx)` returns `{ items: [Item], fetchedAt?: unixSeconds }`, the whole list: at most 20,000 items and 4 MB. It may
+  take the plugin's `timeoutSeconds` (20 at most).
+- `query(text, ctx)` returns `{ items: [Item] }`; `text` is only what follows the prefix (`"12"` for `#12`). 3 seconds at
+  most. It's called once the token has `queryMinChars` after the prefix, then again only when what its answers give for
+  the longer token leaves fewer than 5 rows (after a pause of 150 ms in typing), one call at a time; a newer token
+  cancels the call before.
+- `Item`: `{ match, title?, subtitle?, arg?, variables? }`: `match` (1–64 letters, digits and `. _ - @ #`, the prefix
+  included) is what the token is compared with; `title` and `subtitle` are what the row shows; `arg` (default `match`)
+  and `variables` (texts of the plugin's choosing) fill the templates: `{match}`, `{arg}`, and any of the item's
+  variables by name (`{url}`, `{title}`…). The order is the rank; the rows the user picked before come first.
+- What a row puts in is the plugin's to decide, per app class, in `insert`: the number alone (`{arg}`), with its title
+  (`{arg} {title}`), or with a link too (`{arg} {title} {url}`). The example inserts `#1234 Fix login` in documents and
+  mail, `#1234 Fix login https://github.com/…/issues/1234` in chat apps, and `#1234` in terminals; a template whose
+  variables an item lacks is skipped for the next in its list.
+- The plugin's `insert` is the default: the user may choose otherwise, everywhere (Settings → General → Insert) or per
+  app ("In these apps" there), and then every class of app gets the choice: with title (`{arg} {title}`, else `{arg}`),
+  or with title and link (`{arg} {title} {url}`, else `{arg} {title}`, else `{arg}`); ID only (`{arg}`) is no longer
+  offered, and still used where a config has it. So give an item
+  the variables `title` (the title alone, without the number: the row's `title` isn't `{title}`) and `url` where it has
+  them. A class whose `insert` is `null` still has no rows, whatever the user chose.
+- `ctx` is `{ source, preferences, language }` (`"zh"` or `"en"`): nothing about the app, the field or the text around
+  the caret.
+- An output that isn't an object with an `items` array, too large, a throw or a timeout keeps the old list; failures
+  back off (1 min, 5 min, 30 min, 2 h) and the fifth in a row pauses the source until Refresh now, an update or a day
+  later. Bad items are dropped one by one; control, bidi and zero-width characters are taken out of everything first.
+- Only what wasn't typed goes in: `#12` and the row `#1234` insert `34` and the rest of the template.
+
+The user turns each source on in Settings → Commands → Plugins; the switch says what it does and, for a source with `query`, where
+what is typed after the prefix goes. An update that changes `hosts`, `query`, the script, or the source's `prefix`,
+`queryMinChars` or `compare` needs turning on again.
+[Core/Plugins/github](../Core/Plugins/github/) is the example.
+
+### Without a plugin: a custom command
+
+A custom command of type `suggestions` is a source of the same kind, for a program of your own (a CLI that lists your
+tickets, say): `prefix`, `minChars`, `compare`, `refresh`, `query`, `queryMinChars` and `insert` mean what they mean
+above, with the same limits and defaults; a prefix is required, and the list is always on. Its `argv` runs as a `run`
+command's does, with no input for the list and, with `query`, what follows the prefix as one argument (in place of
+`{input}`, else last); `timeoutSeconds` is 20 at most, a query's 3 seconds. It may print the `{ items }` above, or lines
+`match⇥title⇥url` (a title is also `{title}`). It's the user's own: no approval and no `hosts` (it runs locally), on
+while it exists, but one that came from another Mac through iCloud runs nothing until the user allows it on this Mac
+once (Settings → Commands → Your Commands shows the program it would run; its program changed there asks again); rows, keys,
+picks, the cache, back-off and pause are a plugin source's. An entry that breaks the rules
+isn't a source, and Settings → Commands → Your Commands says why.
+
+```json
+{ "name": "jira", "type": "suggestions", "summary": "Jira issues", "prefix": "PROJ-",
+  "argv": ["/Users/me/bin/jira-list"], "timeoutSeconds": 10, "refresh": "1h",
+  "insert": { "default": ["{arg} {title}", "{arg}"], "chat": ["{arg} {title} {url}", "{arg}"] } }
+```
+
+A 10-line program, and the editor's presets: [README, Suggestions from a program of your own](../README.md#suggestions-from-a-program-of-your-own-new).
 
 ## Milestones
 

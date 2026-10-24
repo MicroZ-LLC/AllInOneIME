@@ -160,8 +160,7 @@ extension OnTheDesktop {
             // Long enough to pass half of any monitor.
             model.rows += model.rows + model.rows + model.rows
             model.highlighted = model.rows.count - 1
-            var work = RECT()
-            SystemParametersInfoW(UINT(SPI_GETWORKAREA), 0, &work, 0)
+            let work = workArea
             window.show(model, owner: owner, caret: CaretRect(x: Int(work.left) + 200, y: Int(work.top) + 100, width: 2, height: 22))
             let state = window.state
             #expect(state.visible == 1 && state.scrolled > 0)
@@ -169,7 +168,10 @@ extension OnTheDesktop {
             #expect(window.rowRect(0) == nil)
             let last = try #require(window.rowRect(model.rows.count - 1))
             let hwnd = try #require(window.window).assumingMemoryBound(to: HWND__.self)
-            SendMessageW(hwnd, UINT(WM_LBUTTONUP), 0, LPARAM(Int32(last.y + last.height / 2) << 16 | Int32(last.x + last.width / 2)))
+            // Sent per-monitor aware: from a thread that isn't, Windows takes the point for logical pixels and scales it.
+            _ = perMonitorAware {
+                SendMessageW(hwnd, UINT(WM_LBUTTONUP), 0, LPARAM(Int32(last.y + last.height / 2) << 16 | Int32(last.x + last.width / 2)))
+            }
             #expect(clicks.all == [model.rows.count - 1])
             window.hide(owner: owner)
         }

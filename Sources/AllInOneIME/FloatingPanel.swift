@@ -107,6 +107,20 @@ struct DashboardSources {
     /// (`Platform.defaults`, UserDefaults on the Mac); memory in the self-test, which leaves the user's alone.
     var defaults: any KeyValueStore
     var now: @MainActor () -> Date
+    /// Autocomplete's switch (`AutocompleteSwitch`): whether it's on, turning it on or off (what it is then), and what
+    /// was counted of it (nil: nothing yet).
+    var autocompleteOn: @MainActor () -> Bool = { AutocompleteSwitch.isOn }
+    var setAutocomplete: @MainActor (_ on: Bool) -> Bool = { on in
+        AutocompleteSwitch.set(on, notify: AllInOneIMEInputController.activeController)
+        return AutocompleteSwitch.isOn
+    }
+    var autocompleteSummary: @MainActor () -> String? = { AutocompleteSwitch.store.metrics.summary(language: UIText.language) }
+    /// The model it asks, and where the text goes, on or off: turning it on is the choice to send it there
+    /// (`AutocompleteSwitch.modelName`, `AutocompleteSwitch.destination`).
+    var autocompleteModel: @MainActor () -> String? = { AutocompleteSwitch.modelName(LiveConfig.current) }
+    var autocompleteDestination: @MainActor () -> String? = { AutocompleteSwitch.destination(LiveConfig.current) }
+    /// The command trigger the settings have (`Config.commandTrigger`): what its text names commands with.
+    var commandTrigger: @MainActor () -> String = { LiveConfig.current.commandTrigger }
 
     @MainActor static var live: DashboardSources {
         DashboardSources(
@@ -224,6 +238,14 @@ final class FloatingPanel: ObservableObject {
     @Published private(set) var now: Date
     /// The interface language it was drawn in: it redraws when that changes.
     @Published private(set) var language = UIText.language
+    /// The command trigger its text names commands with ("用 @note 存的笔记…"), as the settings had it when it opened or
+    /// was refreshed.
+    @Published private(set) var commandTrigger = "@"
+    /// Autocomplete's switch as it is, and what was counted of it, read as it drops down.
+    @Published private(set) var autocomplete = false
+    @Published private(set) var autocompleteSummary: String?
+    @Published private(set) var autocompleteModel: String?
+    @Published private(set) var autocompleteDestination: String?
     /// The lists' height, measured by the view: the window is as tall as they need, up to `maxHeight`.
     @Published var listHeight: CGFloat = 0 {
         didSet { if listHeight != oldValue { resize() } }
@@ -331,7 +353,10 @@ final class FloatingPanel: ObservableObject {
 
     private func open(below anchor: CGRect) {
         language = UIText.language
+        commandTrigger = sources.commandTrigger()
         now = sources.now()
+        (autocomplete, autocompleteSummary, autocompleteModel) = (sources.autocompleteOn(), sources.autocompleteSummary(), sources.autocompleteModel())
+        autocompleteDestination = sources.autocompleteDestination()
         notes = SavedNotesStore.load(sources.defaults).newest(Self.notesShown)
         dropMissingFiles()
         scriptRuns = ScriptTasks.shared.background
@@ -471,6 +496,7 @@ final class FloatingPanel: ObservableObject {
     /// The refresh button: everything, now.
     func refresh() {
         now = sources.now()
+        commandTrigger = sources.commandTrigger()
         notes = SavedNotesStore.load(sources.defaults).newest(Self.notesShown)
         refreshReminders()
         lookAtTasks(force: true)
@@ -542,6 +568,13 @@ final class FloatingPanel: ObservableObject {
             log.notice("menu bar panel: \(saved.notes.count) notes after looking at the files")
             self.notes = saved.newest(Self.notesShown)
         }
+    }
+
+    /// Autocomplete turned on or off here (nothing asks first: the switch says where the text goes).
+    func setAutocomplete(_ on: Bool) {
+        autocomplete = sources.setAutocomplete(on)
+        (autocompleteSummary, autocompleteModel) = (sources.autocompleteSummary(), sources.autocompleteModel())
+        autocompleteDestination = sources.autocompleteDestination()
     }
 
     /// Opens the note where it was saved, by its id's scheme: a note in Notes there (one that's gone is dropped once
@@ -907,6 +940,22 @@ final class FloatingPanel: ObservableObject {
         tr("完成「\(title)」", "Complete \u{201C}\(title)\u{201D}")
     }
 
+    /// A list of the panel's with nothing in it yet.
+    enum EmptyList { case notes, reminders, tasks }
+
+    /// What an empty list says: the command that fills it, named with the command trigger (`trigger`).
+    static func emptyLine(_ list: EmptyList, trigger: String) -> String {
+        switch list {
+        case .notes:
+            return UIText.triggered(tr("用 @note 存的笔记会显示在这里", "Notes saved with @note show up here"), trigger: trigger)
+        case .reminders:
+            return UIText.triggered(tr("用 @reminder 加的提醒会显示在这里", "Reminders added with @reminder show up here"), trigger: trigger)
+        case .tasks:
+            return UIText.triggered(tr("用 @agent 交给 Claude Code 后台的任务会显示在这里",
+                                       "Tasks @agent hands to Claude Code in the background show up here"), trigger: trigger)
+        }
+    }
+
     static func progressName(_ progress: AgentSession.Progress) -> String {
         switch progress {
         case .working: return tr("进行中", "running")
@@ -1076,6 +1125,7 @@ struct FloatingPanelView: View {
                 Text(message).font(.system(size: 11)).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
             }
             if let update = updates.available { updateNotice(update) }
+            autocompleteSwitch
             ExtensionSourceNotice(sources: extensionSources) { panel.click { SettingsWindow.shared.show(page: .commands) } }
             section(tr("笔记", "Notes", key: "panel.notes"), CommandIcons.icon(for: .note)) { notes }
             section(tr("提醒事项", "Reminders"), CommandIcons.icon(for: .reminder)) { reminders }
@@ -1089,10 +1139,31 @@ struct FloatingPanelView: View {
         .padding(.vertical, 10)
     }
 
+    /// Autocomplete's switch, with the model it asks, where the text goes and what was counted of it.
+    private var autocompleteSwitch: some View {
+        Toggle(isOn: Binding(get: { panel.autocomplete }, set: { on in panel.click { panel.setAutocomplete(on) } })) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(tr("续写（Beta）", "Autocomplete (Beta)")).font(.system(size: 13))
+                if let model = panel.autocompleteModel {
+                    Text(tr("模型：\(model)", "Model: \(model)")).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                }
+                if let destination = panel.autocompleteDestination {
+                    Text(destination).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Text(panel.autocompleteSummary ?? tr("停一下，光标后出现灰字，按 Tab 接受", "Pause, and the rest of the sentence shows in gray after the caret; Tab takes it"))
+                    .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(2).fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .toggleStyle(.switch)
+        .controlSize(.mini)
+        .padding(.horizontal, 2)
+    }
+
     @ViewBuilder
     private var notes: some View {
         if panel.notes.isEmpty {
-            line(tr("用 @note 存的笔记会显示在这里", "Notes saved with @note show up here"))
+            line(FloatingPanel.emptyLine(.notes, trigger: panel.commandTrigger))
         }
         ForEach(panel.notes) { note in
             let title = note.title.isEmpty ? tr("（无标题）", "(Untitled)") : note.title
@@ -1132,7 +1203,7 @@ struct FloatingPanelView: View {
         case let .failed(text):
             Text(text).font(.system(size: 11)).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
         case let .list(items) where items.isEmpty:
-            line(tr("用 @reminder 加的提醒会显示在这里", "Reminders added with @reminder show up here"))
+            line(FloatingPanel.emptyLine(.reminders, trigger: panel.commandTrigger))
         case let .list(items):
             ForEach(items.prefix(FloatingPanel.remindersShown), id: \.id) { reminder in reminderRow(reminder) }
             if items.count > FloatingPanel.remindersShown {
@@ -1194,7 +1265,7 @@ struct FloatingPanelView: View {
         case let .failed(text):
             Text(text).font(.system(size: 11)).foregroundStyle(.red).lineLimit(3)
         case let .list(rows) where rows.isEmpty:
-            line(tr("用 @agent 交给 Claude Code 后台的任务会显示在这里", "Tasks @agent hands to Claude Code in the background show up here"))
+            line(FloatingPanel.emptyLine(.tasks, trigger: panel.commandTrigger))
         case let .list(rows):
             // A few at a time: the rest scroll into view, or a search finds them.
             let shown = AgentTaskList.matching(rows, panel.taskQuery)

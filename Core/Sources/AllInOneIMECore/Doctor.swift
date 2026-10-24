@@ -119,6 +119,7 @@ public enum Doctor {
         public var apple: AppleModelAvailability = .unsupportedSystem
         public var connection: Connection = .notRun
         public var accessibility: Permission = .unknown
+        /// Unknown, so not checked, while voice input is off (`Features.voiceInput`): the shell doesn't look.
         public var microphone: Permission = .unknown
         /// The apps the commands control (Notes, Reminders, Terminal, Messages) and whether that's allowed (unknown: not
         /// told without asking).
@@ -167,17 +168,21 @@ public enum Doctor {
         out += updates(facts, t)
         out += iCloudSync(facts, t)
         // Lines no known event matches ("2 other log lines") aren't counted as errors.
-        let errors = facts.recentErrors.filter { !isOtherLogLines($0) }.count
+        let errors = facts.recentErrors.filter { !isOtherLogLines($0) && !isResolvedLogEvent($0) }.count
+        let logDetail = facts.recentErrors.map { localizedLogEvent($0, t) }.joined(separator: t.tr("；", "; "))
         if facts.recentErrors.isEmpty {
             out.append(Finding(area: .recentErrors, status: .ok, title: t.tr("最近的日志里没有错误", "No recent errors in the logs")))
         } else if errors == 0 {
-            out.append(Finding(area: .recentErrors, status: .warning, title: t.tr("日志里有别的记录", "Other lines in the logs"),
-                               detail: facts.recentErrors.joined(separator: t.tr("；", "; "))))
+            // Fine only when all there is is an error resolved since: other lines beside it are still worth a look.
+            let resolvedOnly = facts.recentErrors.allSatisfy(isResolvedLogEvent)
+            out.append(Finding(area: .recentErrors, status: resolvedOnly ? .ok : .warning,
+                               title: resolvedOnly ? t.tr("之前的 Rime 错误已解决", "An earlier Rime error is resolved")
+                                   : t.tr("日志里有别的记录", "Other lines in the logs"), detail: logDetail))
         } else {
             out.append(Finding(area: .recentErrors, status: .warning,
                                title: errors == 1 ? t.tr("最近的日志里有 1 个错误", "1 recent error in the logs")
                                    : t.tr("最近的日志里有 \(errors) 个错误", "\(errors) recent errors in the logs"),
-                               detail: facts.recentErrors.joined(separator: t.tr("；", "; "))))
+                               detail: logDetail))
         }
         // What the probes reported may hold a full path or a key (an error that echoes one): never shown or sent so.
         out = out.map { finding in
@@ -251,18 +256,19 @@ public enum Doctor {
         case let .failed(line):
             out.append(Finding(area: .connection, status: .problem, title: t.tr("连接失败", "The connection failed"), detail: line))
         }
-        // Settings → Assistant uses the on-device model whatever the provider: say whether it can.
+        // Settings' own requests (the search's "Change:", Troubleshoot's question) use the on-device model whatever the
+        // provider: say whether they can.
         if config.provider != .apple, facts.apple != .unsupportedSystem {
             if facts.apple == .available {
                 out.append(Finding(area: .appleIntelligence, status: .ok,
                                    title: t.tr("Apple 智能可以用", "Apple Intelligence is ready"),
-                                   detail: t.tr("这一页的请求在本机处理", "Requests on this page are handled on this Mac")))
+                                   detail: t.tr("设置里的「修改：」和「排查问题」在本机处理", "Settings' “Change:” and Troubleshoot are handled on this Mac")))
             } else {
                 let fixable = facts.apple == .appleIntelligenceNotEnabled
                 out.append(Finding(area: .appleIntelligence, status: .warning,
                                    title: t.tr("Apple 智能不能用", "Apple Intelligence isn't available"),
-                                   detail: t.appleReason(facts.apple) + t.tr("；这一页的请求会发给你选的 AI 服务",
-                                                                            "; requests on this page go to your AI provider"),
+                                   detail: t.appleReason(facts.apple) + t.tr("；设置里的「修改：」和「排查问题」会发给你选的 AI 服务",
+                                                                            "; Settings' “Change:” and Troubleshoot go to your AI provider"),
                                    fix: fixable ? .openAppleIntelligenceSettings : nil))
             }
         }
@@ -310,8 +316,11 @@ public enum Doctor {
         case .granted:
             out.append(Finding(area: .permissions, status: .ok, title: t.tr("辅助功能权限已允许", "Accessibility is allowed")))
         case .denied, .notDetermined:
+            // Not allowed for the build that runs, though System Settings may show the switch on: after an update macOS
+            // can keep it for the previous build's signature.
             out.append(Finding(area: .permissions, status: .warning, title: t.tr("辅助功能权限没有允许", "Accessibility isn't allowed"),
-                               detail: t.tr("有的 App 里读不到选中的文字", "the selection can't be read in some apps"),
+                               detail: t.tr("有的 App 里读不到选中的文字。如果系统设置 → 隐私与安全性 → 辅助功能里 AllInOneIME 已经打开，先关掉再打开（macOS 可能还留着上一个版本的权限）",
+                                            "the selection can't be read in some apps. If AllInOneIME is already on in System Settings → Privacy & Security → Accessibility, turn it off and on again (macOS can keep the permission for the previous version)"),
                                fix: .openPrivacy(.accessibility)))
         case .unknown: break
         }
@@ -394,10 +403,11 @@ public enum Doctor {
                                            "AllInOneIME \(available) is available (you have \(u.version))"),
                                detail: t.tr("可以检查并更新", "check for updates to install it"), fix: .checkForUpdates))
         } else {
-            out.append(Finding(area: .updates, status: .ok, title: t.tr("AllInOneIME \(u.version)", "AllInOneIME \(u.version)"),
-                               detail: u.checkEnabled ? t.tr("自动检查更新", "checks for updates automatically")
-                                   : t.tr("没有自动检查更新", "doesn't check for updates automatically"),
-                               fix: nil))
+            // Named by what is checked: the version is the input method's row's title already.
+            out.append(Finding(area: .updates, status: .ok,
+                               title: u.checkEnabled ? t.tr("更新：自动检查", "Updates: checked automatically")
+                                   : t.tr("更新：不自动检查", "Updates: not checked automatically"),
+                               detail: t.tr("当前版本 \(u.version)", "you have \(u.version)")))
         }
         if let error = u.lastError {
             out.append(Finding(area: .updates, status: .warning, title: t.tr("上次更新没有成功", "The last update didn't work"), detail: error,
@@ -458,10 +468,17 @@ public enum Doctor {
                                             "\(rate) characters a second (should be between \(slowest) and \(fastest))"),
                                fix: .repairConfig([.init(key: .setting(.typeOutRate), value: .number(TypeOut.defaultRate))])))
         }
+        // The Mac shows them under AI (Settings v2: each set otherwise than its default with Restore Default).
         if config.maxTokens < 1 || config.timeoutSeconds <= 0 || (config.temperature.map { $0 < 0 || $0 > 2 } ?? false) {
-            out.append(Finding(area: .config, status: .problem, title: t.tr("高级设置里的值超出范围", "An Advanced setting is out of range"),
-                               detail: t.tr("在设置 → 高级里改（最多输出 tokens、超时、temperature）",
-                                            "change it in Settings → Advanced (output tokens, timeout, temperature)")))
+            let mac = Platform.current.terms.device == .mac
+            // On the Mac its banner is the AI page's, where the row with Restore Default is.
+            out.append(Finding(area: mac ? .provider : .config, status: .problem,
+                               title: mac ? t.tr("模型参数超出范围", "A model setting is out of range")
+                                   : t.tr("高级设置里的值超出范围", "An Advanced setting is out of range"),
+                               detail: mac ? t.tr("在设置 → AI 里恢复默认（最多输出 tokens、超时、temperature）",
+                                                  "restore its default in Settings → AI (output tokens, timeout, temperature)")
+                                   : t.tr("在设置 → 高级里改（最多输出 tokens、超时、temperature）",
+                                          "change it in Settings → Advanced (output tokens, timeout, temperature)")))
         }
         if config.outputLanguages.count > AIConfig.maxOutputLanguages {
             let kept = config.outputLanguages.prefix(AIConfig.maxOutputLanguages).map { AIConfig.JSONValue.string($0.code) }
@@ -488,25 +505,35 @@ public enum Doctor {
 
     // MARK: - Logs
 
-    /// Error lines of the app's own logs, as the checks may show and send them: the newest `limit`, each as a fixed phrase
-    /// for the event it records ("update check failed (network, -1009)", "Rime dictionary failed to load", "plugin
-    /// weather failed to load"), with a reason from a fixed list or an error code or domain. Of the line's own text only
-    /// two things may be kept: a `~/…` path in a Rime dictionary event (which of its files), and a plugin's name when it
-    /// looks like one (letters, digits, - _ .). Lines no known event matches are counted on one last line ("2 other log
-    /// lines").
-    public static func summarizeLogLines(_ lines: [String], home: String = NSHomeDirectory(), limit: Int = 3) -> [String] {
+    /// Error lines of the app's own logs, as the checks may show and send them: each event as a fixed phrase ("update
+    /// check failed (network, -1009)", "Rime dictionary failed to load", "plugin weather failed to load"), with a reason
+    /// from a fixed list or an error code or domain, once, with how many times it came up when more than once ("…, 3
+    /// times"): the newest `limit` events, oldest first. Of the line's own text only two things may be kept: a `~/…` path
+    /// in a Rime dictionary event (which of its files), and a plugin's name when it looks like one (letters, digits, - _ .).
+    /// Lines no known event matches are counted on one last line ("2 other log lines"). `lunarDatabaseAvailable`: the Rime
+    /// user folder has lua/lunar.db now, so the runs that missed it were earlier ones (`providedLunarDatabase`).
+    public static func summarizeLogLines(_ lines: [String], home: String = NSHomeDirectory(), limit: Int = 3,
+                                         lunarDatabaseAvailable: Bool = false) -> [String] {
         let errors = lines.filter { line in
             let lower = line.lowercased()
             return line.hasPrefix("E") && line.count > 1 && line.dropFirst().first?.isNumber == true
                 || lower.contains("error") || lower.contains("failed") || line.hasPrefix("✗")
         }
-        var out: [String] = [], others = 0
-        for line in errors.suffix(limit) {
-            guard let event = logEvent(line, home: home) else {
+        // Each event: how many times, and the line it came on last.
+        var counts: [String: Int] = [:], last: [String: Int] = [:], others = 0
+        for (index, line) in errors.enumerated() {
+            guard var event = logEvent(line, home: home) else {
                 others += 1
                 continue
             }
-            out.append(event.count > 120 ? String(event.prefix(120)) + "…" : event)
+            if lunarDatabaseAvailable, event == missingLunarDatabase { event = providedLunarDatabase }
+            event = event.count > 120 ? String(event.prefix(120)) + "…" : event
+            counts[event, default: 0] += 1
+            last[event] = index
+        }
+        var out = last.sorted { $0.value < $1.value }.suffix(limit).map { event, _ in
+            let count = counts[event] ?? 1
+            return count > 1 ? "\(event), \(count) times" : event
         }
         if others > 0 { out.append(others == 1 ? "1 other log line" : "\(others) other log lines") }
         return out
@@ -515,6 +542,33 @@ public enum Doctor {
     /// The last line of `summarizeLogLines` that counts the lines no known event matched.
     static func isOtherLogLines(_ line: String) -> Bool {
         line.range(of: #"^\d+ other log lines?$"#, options: .regularExpression) != nil
+    }
+
+    /// librime couldn't open rime-ice's lunar date database, lua/lunar.db in the Rime user folder: reported by its
+    /// mapped file and again by the reverse lookup that reads it. Since 0.6.7 the app puts it there as Rime starts
+    /// (`RimeService.prepareLunarDatabase`); when it is there now, those runs were earlier ones, and the event is
+    /// `providedLunarDatabase` instead, not an error.
+    static let missingLunarDatabase = "Rime: a file it needs is missing: lua/lunar.db (the lunar date)"
+    static let providedLunarDatabase = "Earlier Rime run: lua/lunar.db was missing; this version provides it"
+
+    static func isResolvedLogEvent(_ line: String) -> Bool { line.hasPrefix(providedLunarDatabase) }
+
+    /// A line of `summarizeLogLines` as the findings show it: the lunar database's phrases and the count in the
+    /// interface language (the other phrases stay in English, as the logs are).
+    static func localizedLogEvent(_ line: String, _ t: Words) -> String {
+        var event = line, count: Int?
+        if let range = line.range(of: #", \d+ times$"#, options: .regularExpression) {
+            count = Int(line[range].filter(\.isNumber))
+            event = String(line[..<range.lowerBound])
+        }
+        switch event {
+        case missingLunarDatabase:
+            event = t.tr("Rime：缺少所需文件 lua/lunar.db（农历日期）", "Rime: a file it needs is missing: lua/lunar.db (the lunar date)")
+        case providedLunarDatabase:
+            event = t.tr("之前运行 Rime 时缺少 lua/lunar.db；此版本已提供该文件", "Earlier Rime run: lua/lunar.db was missing; this version provides it")
+        default: break
+        }
+        return event + (count.map { t.tr("，\($0) 次", ", \($0) times") } ?? "")
     }
 
     /// The phrase for the event `line` records, or nil when it is none the app knows.
@@ -533,6 +587,13 @@ public enum Doctor {
             let source = text[glog].range(of: #"[A-Za-z_]+(?=\.(cc|cpp|h):\d+\])"#, options: .regularExpression)
                 .map { String(text[glog][$0]) }
             let message = text[glog.upperBound...].lowercased()
+            // The quoted path is gone from `text`: the line itself says which file, matched as a whole, and only the
+            // fixed phrase goes on.
+            if source == "mapped_file" || source == "reverse_lookup_dictionary",
+               line.contains("lua/lunar.db") || line.contains(#"lua\lunar.db"#),
+               line.contains("non-existent file") || line.contains("Error opening reversedb") {
+                return missingLunarDatabase
+            }
             if message.contains("lookup") { return "Rime lookup failed" + reason }
             if message.contains("deploy") || source == "deployer" || source == "deployment_tasks" {
                 return "Rime deployment failed" + reason
@@ -659,7 +720,7 @@ public enum Doctor {
         }.joined(separator: "\n")
     }
 
-    /// "2 problems, 1 warning, 9 fine".
+    /// "2 problems, 1 warning, 9 fine"; a count that is 0 left out ("2 problems, 10 fine").
     public static func summary(_ findings: [Finding], language: String) -> String {
         let t = Words(language: language)
         let problems = findings.filter { $0.status == .problem }.count, warnings = findings.filter { $0.status == .warning }.count
@@ -668,6 +729,8 @@ public enum Doctor {
         let problemCount = problems == 1 ? t.tr("1 个问题", "1 problem") : t.tr("\(problems) 个问题", "\(problems) problems")
         let warningCount = warnings == 1 ? t.tr("1 个提醒", "1 warning") : t.tr("\(warnings) 个提醒", "\(warnings) warnings")
         let fineCount = t.tr("\(fine) 项正常", "\(fine) fine")
+        if problems == 0 { return t.tr("\(warningCount)，\(fineCount)", "\(warningCount), \(fineCount)") }
+        if warnings == 0 { return t.tr("\(problemCount)，\(fineCount)", "\(problemCount), \(fineCount)") }
         return t.tr("\(problemCount)，\(warningCount)，\(fineCount)", "\(problemCount), \(warningCount), \(fineCount)")
     }
 
@@ -740,7 +803,9 @@ extension Doctor {
                 // The row a request's preview shows for a provider without a key (it is the one in use here: nothing to choose).
                 rows.append(provider == .bedrock
                     ? AIConfig.Row(key: "\(provider.rawValue).apiKey", label: text.keyLabel(provider),
-                                   new: t.tr("在设置 → AI 服务里看 AWS profile", "check the AWS profile in Settings → AI Provider"),
+                                   new: Platform.current.terms.device == .mac
+                                       ? t.tr("在设置 → AI 里看 AWS profile", "check the AWS profile in Settings → AI")
+                                       : t.tr("在设置 → AI 服务里看 AWS profile", "check the AWS profile in Settings → AI Provider"),
                                    status: .needsKey(provider))
                     : AIConfig.Row(key: "\(provider.rawValue).apiKey", label: text.needsKey(provider),
                                    new: text.addKey(provider, choose: false), status: .needsKey(provider)))

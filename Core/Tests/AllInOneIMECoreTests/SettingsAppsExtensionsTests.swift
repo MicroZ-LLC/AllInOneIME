@@ -44,9 +44,11 @@ struct SettingsAppsExtensionsTests {
         let item = try #require(list.items?.first)
         #expect(item.id == "win:notepad.exe" && item.title == "notepad.exe" && item.actions == ["remove"])
         #expect(list.choices?.map(\.value) == [.string("win:slack.exe")])
-        // Windows' own fields: where it starts, its styles, AI off; the Mac's (typed out, always translate) left out.
+        // Windows' own fields: where it starts, its styles, AI off, suggestions and what their rows insert; the Mac's (typed
+        // out, always translate) left out.
         let ids = item.fields?.map(\.id) ?? []
-        #expect(ids == ["apps.win:notepad.exe.inputLanguage", "apps.win:notepad.exe.ownStyles", "apps.win:notepad.exe.noAI"])
+        #expect(ids == ["apps.win:notepad.exe.inputLanguage", "apps.win:notepad.exe.ownStyles", "apps.win:notepad.exe.noAI",
+                        "apps.win:notepad.exe.suggestions", "apps.win:notepad.exe.suggestionsInsert"])
 
         #expect((try? service.set("apps.win:notepad.exe.noAI", to: .bool(true)).get()) != nil)
         #expect(try Config.load(from: url).appProfiles["win:notepad.exe"]?.noAI == true)
@@ -176,7 +178,7 @@ struct SettingsAppsExtensionsTests {
         let field = try #require(service.document().field("commands.custom"))
         let schema = try #require(field.schema)
         #expect(schema.map(\.id).starts(with: ["name", "type", "summary", "prompt"]))
-        #expect(schema.first { $0.id == "argv" }?.when == ["type": [.string("run"), .string("terminal")]])
+        #expect(schema.first { $0.id == "argv" }?.when == ["type": [.string("run"), .string("terminal"), .string("suggestions")]])
         let saved = service.performNow(SettingsAction(field: "commands.custom", name: "save", value: .object([
             "name": .string("upper"), "type": .string("run"), "argv": .string(#"python3 -c "print(input().upper())""#),
         ])))

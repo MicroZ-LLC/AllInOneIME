@@ -6,7 +6,7 @@
 // improve.png   @improve: polished, plus rewrites
 // english.png   (Chinese only) English typed directly → English polish; Chinese as the output language
 // voice.png     dictation (hold right ⌥) after a command
-// commands.png  the @ command palette → @question's answer
+// commands.png  the command list (typed @) → @question's answer
 // open.png      @open: Spotlight as you type, and a path listing a folder (only macOS's own apps)
 // candidates-horizontal.png   pinyin candidates side by side (the default layout)
 // refine.png    refining the results: an instruction typed under them → the refined results
@@ -14,8 +14,10 @@
 // selection.png @improve on the selected text, with an email and a phone number hidden from the AI
 // question-chat.png   an @question conversation: two rounds, the next question's line on top (canned answers)
 // question-chat-handoff.png   after the last round: where to go on (the agents installed, Claude, ChatGPT, a copy)
-// panel-dark.png, settings.png, dashboard.png   copies of the renders (dashboard: the floating panel, sample data)
-// settings-assistant.png   Settings → Assistant: a request's preview and the checks (a canned answer, made-up findings)
+// panel-dark.png, settings.png, dashboard.png   copies of the renders (settings: General, where it opens; dashboard: the
+//               floating panel, sample data)
+// settings-search.png   Settings' search typed, its "Change: …" preview on General (a canned answer, made-up findings)
+// settings-problem.png   a problem the checks found: the banner on AI, its dot in the sidebar (made-up findings)
 // translate-as-you-type.png   Translate as You Type on: its chip near the caret over a draft, and its notice
 // reply-screenshot.png   @reply with a screenshot pasted (read on this Mac) → three replies (canned)
 // agent-page.png   @agent's notice when it took the Chrome page along
@@ -42,6 +44,10 @@ func render(_ name: String) -> URL {
 }
 
 func load(_ name: String) -> NSBitmapImageRep { load(url: render(name)) }
+
+/// Whether the self-test rendered `name`: dictation's only while voice input is on (`Features.voiceInput`, off for now),
+/// so voice.png is left as it is until then.
+func rendered(_ name: String) -> Bool { FileManager.default.fileExists(atPath: render(name).path) }
 
 /// One of the English README's own scenes (`en-*.png`), as it is.
 func loadScene(_ name: String) -> NSBitmapImageRep { load(url: source.appendingPathComponent(name + ".png")) }
@@ -150,10 +156,12 @@ if language == "en" {
         Step(caption: "② Press ⏎: polished versions, plus rewrites", marked: "improve › this is a blocker bug your team need fix it asap",
              panel: loadScene("en-improve")),
     ], to: "improve.png")
-    try composite([
-        Step(caption: "Type @improve, then hold right ⌥ to talk", marked: marked("8-voice-english", "improve › This is a blocker"),
-             panel: load("8-voice-english")),
-    ], to: "voice.png")
+    if rendered("8-voice-english") {
+        try composite([
+            Step(caption: "Type @improve, then hold right ⌥ to talk", marked: marked("8-voice-english", "improve › This is a blocker"),
+                 panel: load("8-voice-english")),
+        ], to: "voice.png")
+    }
     try composite([
         Step(caption: "① Type @ first: the command list; letters filter it", marked: "@", panel: loadScene("en-palette")),
         Step(caption: "② @question and a question, press ⏎: the answer", marked: "question › what is quantum computing",
@@ -181,10 +189,12 @@ if language == "en" {
              marked: "improve › 这个项目的进度太慢了", panel: load("7b-chinese-output")),
     ], to: "english.png")
 
-    try composite([
-        Step(caption: tr("先打 @improve，再按住右 ⌥ 说话", "Type @improve, then hold right ⌥ to talk"),
-             marked: "improve › 我今天有", panel: load("8-voice")),
-    ], to: "voice.png")
+    if rendered("8-voice") {
+        try composite([
+            Step(caption: tr("先打 @improve，再按住右 ⌥ 说话", "Type @improve, then hold right ⌥ to talk"),
+                 marked: "improve › 我今天有", panel: load("8-voice")),
+        ], to: "voice.png")
+    }
 
     try composite([
         Step(caption: tr("① 开头打 @：命令列表，打字母筛选", "① Type @ first: the command list; letters filter it"),
@@ -256,10 +266,11 @@ try composite([
 
 let dark = language == "en" ? source.appendingPathComponent("en-improve-dark.png") : render("4-final-dark")
 for (from, to) in [(dark, "panel-dark.png"), (render("6-settings"), "settings.png"), (render("14-dashboard"), "dashboard.png"),
-                   (render("assistant"), "settings-assistant.png"), (render("release-snippet-editor"), "snippet-editor.png")] {
+                   (render("assistant"), "settings-search.png"), (render("settings-problem"), "settings-problem.png"),
+                   (render("release-snippet-editor"), "snippet-editor.png")] {
     try? FileManager.default.removeItem(at: output.appendingPathComponent(to))
     try FileManager.default.copyItem(at: from, to: output.appendingPathComponent(to))
 }
 print("wrote \(output.path)/demo.png, improve.png, english.png, voice.png, commands.png, open.png, panel-dark.png, settings.png, dashboard.png, "
       + "candidates-horizontal.png, refine.png, recent-questions.png, selection.png, question-chat.png, question-chat-handoff.png, "
-      + "settings-assistant.png, translate-as-you-type.png, reply-screenshot.png, agent-page.png, snippet-editor.png")
+      + "settings-search.png, settings-problem.png, translate-as-you-type.png, reply-screenshot.png, agent-page.png, snippet-editor.png")

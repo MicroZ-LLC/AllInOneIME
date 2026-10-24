@@ -8,6 +8,11 @@ final class CandidatePanel: NSPanel {
     /// The input controller currently showing the panel.
     weak var owner: AnyObject?
     let view = CandidateView()
+    private var pendingHide: DispatchWorkItem?
+    private var hiddenPresentation: (alpha: CGFloat, ignoresMouseEvents: Bool)?
+
+    /// Hidden immediately between words, even while its window is kept ordered for the next word.
+    var isShowing: Bool { isVisible && pendingHide == nil }
 
     var onSelect: ((Int) -> Void)? {
         get { view.onSelect }
@@ -37,6 +42,7 @@ final class CandidatePanel: NSPanel {
         isFloatingPanel = true
         becomesKeyOnlyIfNeeded = true
         isReleasedWhenClosed = false
+        animationBehavior = .none
         // Just below the cursor level: stays above full-screen apps and popup menus.
         level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.cursorWindow)) - 100)
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
@@ -75,24 +81,52 @@ final class CandidatePanel: NSPanel {
     override var canBecomeMain: Bool { false }
 
     func show(_ model: PanelModel, anchor: NSRect) {
+        pendingHide?.cancel()
+        pendingHide = nil
         // A conversation grows up to about half the screen it's on, then scrolls (`PanelModel.transcript`).
         view.maxHeight = (Self.screen(for: anchor)?.visibleFrame.height).map { floor($0 / 2) }
         view.model = model
         let size = view.contentSize
-        setFrame(NSRect(origin: Self.origin(for: size, anchor: anchor, textInset: view.textInset), size: size), display: true)
+        let nextFrame = NSRect(origin: Self.origin(for: size, anchor: anchor, textInset: view.textInset), size: size)
+        if frame != nextFrame {
+            setFrame(nextFrame, display: true)
+            invalidateShadow()
+        }
         if !isVisible { orderFrontRegardless() }
-        invalidateShadow()
+        if let presentation = hiddenPresentation {
+            alphaValue = presentation.alpha
+            ignoresMouseEvents = presentation.ignoresMouseEvents
+            hiddenPresentation = nil
+        }
+    }
+
+    /// Our other windows on screen where the panel is: none while it shows rows (spec 0: one thing at the caret at a
+    /// time; a notice is the panel's own, on its footer then), which the self-test checks.
+    var overlapping: [NSWindow] {
+        NSApp.windows.filter { $0 !== self && $0.isVisible && $0.frame.intersects(frame) }
     }
 
     /// Whether `show(model, anchor:)` would change nothing: up already, with this model, where `anchor` puts it.
     func shows(_ model: PanelModel, anchor: NSRect) -> Bool {
-        guard isVisible, view.model == model else { return false }
+        guard isShowing, view.model == model else { return false }
         let size = view.contentSize
         return frame == NSRect(origin: Self.origin(for: size, anchor: anchor, textInset: view.textInset), size: size)
     }
 
     func hide() {
-        if isVisible { orderOut(nil) }
+        guard isShowing else { return }
+        // No stale candidates or invisible hit target. Reuse the ordered window during a burst of typing:
+        // ordering it out on every commit can stall the IME on a WindowServer fence in the client app.
+        hiddenPresentation = (alphaValue, ignoresMouseEvents)
+        alphaValue = 0
+        ignoresMouseEvents = true
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, !self.isShowing else { return }
+            self.orderOut(nil)
+            self.pendingHide = nil
+        }
+        pendingHide = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: work)
     }
 
     /// Places the panel's top-left just below the line rect, flipping above when there is no room,
@@ -280,32 +314,36 @@ final class CandidateView: NSView {
         var widest: CGFloat = 0
         rowLayouts = []
         let horizontal = model.horizontal && !model.rows.isEmpty
+        // Rows one under another: their text starts after the widest label ("Tab", autocomplete's line), a digit's at
+        // least, so a label never runs into its text.
+        let labels = horizontal ? [] : model.rows.map { $0.label.isEmpty ? 0 : ceil(($0.label as NSString).size(withAttributes: [.font: Fonts.label]).width) }
+        let inset = Metrics.textInsetX + max(0, (labels.max() ?? 0) - Metrics.labelWidth)
         chipFrames = nil
         if let chip = model.chip {
             let frames = layoutChip(chip, top: y)
             chipFrames = frames
-            widest = max(widest, frames.whole.maxX - Metrics.textInsetX - Metrics.rowInsetX)
+            widest = max(widest, frames.whole.maxX - inset - Metrics.rowInsetX)
             let alone = model.rows.isEmpty && model.status == .none && model.footer.isEmpty && model.inputText == nil && model.header.isEmpty
             y = frames.whole.maxY + (alone ? 0 : Metrics.chipGap)
         }
         inputFrame = nil
         if let input = inputString() {
             let size = Self.measure(input, minHeight: 0)
-            widest = max(widest, size.width + p + Metrics.rowInsetX - Metrics.textInsetX)
+            widest = max(widest, size.width + p + Metrics.rowInsetX - inset)
             inputFrame = NSRect(x: p + Metrics.rowInsetX, y: y + Metrics.rowInsetY, width: Metrics.maxTextWidth, height: size.height)
             y += size.height + 2 * Metrics.rowInsetY
         }
         headerFrame = nil
         if let header = headerString() {
             let size = Self.measure(header, minHeight: 0)
-            widest = max(widest, size.width + p + Metrics.rowInsetX - Metrics.textInsetX)
+            widest = max(widest, size.width + p + Metrics.rowInsetX - inset)
             headerFrame = NSRect(x: p + Metrics.rowInsetX, y: y + Metrics.rowInsetY, width: Metrics.maxTextWidth, height: size.height)
             y += size.height + 2 * Metrics.rowInsetY
         }
         var cellsWidth: CGFloat = 0
         if horizontal { (y, cellsWidth) = layoutCells(top: y) }
         let rowsTop = y
-        textInset = horizontal ? rowLayouts.first?.textFrame.minX ?? Metrics.textInsetX : Metrics.textInsetX
+        textInset = horizontal ? rowLayouts.first?.textFrame.minX ?? Metrics.textInsetX : inset
         // A column for the icons when any row has one: the text moves right by it.
         let iconColumn = model.rows.contains { $0.icon != nil } ? Metrics.iconSize + Metrics.iconGap : 0
         for row in model.rows where !horizontal {
@@ -319,12 +357,12 @@ final class CandidateView: NSView {
             // One line next to an icon is centered on it.
             let lineHeight = ceil(font.ascender - font.descender + font.leading)
             let textY = y + Metrics.rowInsetY + (iconColumn > 0 && size.height <= Metrics.iconSize ? (Metrics.iconSize - lineHeight) / 2 : 0)
-            let textFrame = NSRect(x: Metrics.textInsetX + iconColumn, y: textY, width: Metrics.maxTextWidth, height: size.height)
+            let textFrame = NSRect(x: inset + iconColumn, y: textY, width: Metrics.maxTextWidth, height: size.height)
             let labelOrigin = NSPoint(
                 x: p + Metrics.rowInsetX,
                 y: textFrame.minY + (font.ascender - Fonts.label.ascender))
             let iconFrame = row.icon.map { _ in
-                NSRect(x: Metrics.textInsetX, y: y + Metrics.rowInsetY, width: Metrics.iconSize, height: Metrics.iconSize)
+                NSRect(x: inset, y: y + Metrics.rowInsetY, width: Metrics.iconSize, height: Metrics.iconSize)
             }
             rowLayouts.append(RowLayout(
                 frame: NSRect(x: p, y: y, width: 0, height: size.height + 2 * Metrics.rowInsetY),
@@ -335,17 +373,17 @@ final class CandidateView: NSView {
 
         statusFrame = nil
         let compact = (model.rows.isEmpty || model.chip != nil) && model.footer.isEmpty
-        let statusX = model.rows.isEmpty ? p + Metrics.rowInsetX : Metrics.textInsetX
+        let statusX = model.rows.isEmpty ? p + Metrics.rowInsetX : inset
         if let status = statusString() {
             let size = Self.measure(status, minHeight: 0)
-            widest = max(widest, size.width + statusX - Metrics.textInsetX)
+            widest = max(widest, size.width + statusX - inset)
             statusFrame = NSRect(x: statusX, y: y + Metrics.rowInsetY, width: Metrics.maxTextWidth, height: size.height)
             y += size.height + 2 * Metrics.rowInsetY
         }
 
         // In a row, as wide as the candidates need (and the status, the footer); in a column, at least `minWidth`.
-        var width = horizontal ? max(cellsWidth, widest > 0 ? Metrics.textInsetX + widest + Metrics.rowInsetX + p : 0)
-            : max(compact ? 0 : Metrics.minWidth, Metrics.textInsetX + widest + Metrics.rowInsetX + p)
+        var width = horizontal ? max(cellsWidth, widest > 0 ? inset + widest + Metrics.rowInsetX + p : 0)
+            : max(compact ? 0 : Metrics.minWidth, inset + widest + Metrics.rowInsetX + p)
         if !model.footer.isEmpty {
             let footer = footerStrings()
             let footerWidth = footer.left.size().width + (footer.right.map { $0.size().width + 16 } ?? 0)
@@ -581,6 +619,7 @@ final class CandidateView: NSView {
         NSGraphicsContext.saveGraphicsState()
         if let rowsClip { NSBezierPath(rect: rowsClip).addClip() }
         for (index, layout) in rowLayouts.enumerated() where index < model.rows.count {
+            // Selected: what the key that picks takes.
             let highlighted = index == model.highlighted
             // In a row, the highlight is a pill around the candidate, as in macOS's own panel.
             let radius = model.horizontal ? layout.frame.height / 2 : Metrics.rowRadius

@@ -7,7 +7,7 @@ import Testing
 /// (`Platform.override`): the user's are never touched.
 struct SettingsStoreTests {
     /// A config file as a person might have left it: keys in their own order, spacing of their own, a key this version
-    /// doesn't know.
+    /// doesn't know. Its `maxTokens` is the default before 0.6.7, which reads as today's (2000).
     static let handWritten = """
         {
           "provider" : "anthropic",
@@ -53,7 +53,7 @@ struct SettingsStoreTests {
     @Test func aSaveWritesOnlyWhatChanged() throws {
         let url = try file(Self.handWritten)
         let store = SettingsStore(configURL: url)
-        #expect(store.canSave && store.config.provider == .anthropic && store.config.maxTokens == 1000)
+        #expect(store.canSave && store.config.provider == .anthropic && store.config.maxTokens == 2000)
         store.save()  // nothing changed: nothing written
         #expect(try text(url) == Self.handWritten)
         store.config.maxTokens = 1500
@@ -175,29 +175,29 @@ struct SettingsStoreTests {
         }
         guard failed else { return }  // a folder nothing keeps from being written (run as root)
         #expect(store.saveError != nil && store.failedSaves == 1)
-        #expect(store.config.maxTokens == 1000 && heard == [.config, .status, .config])
+        #expect(store.config.maxTokens == 2000 && heard == [.config, .status, .config])
         #expect(try text(url) == Self.handWritten)
         // Writable again: the next change is saved, and only it.
         store.config.typeOut = true
         store.save()
         #expect(store.saveError == nil)
         let now = try Config.load(from: url)
-        #expect(now.typeOut && now.maxTokens == 1000)
+        #expect(now.typeOut && now.maxTokens == 2000)
         // Failed again; then nothing left to save: no error.
         _ = try whileReadOnly(url.deletingLastPathComponent()) {
-            store.config.maxTokens = 2000
+            store.config.maxTokens = 3000
             store.save()
         }
         #expect(store.saveError != nil && store.failedSaves == 2)
         store.save()
-        #expect(store.saveError == nil && store.config.maxTokens == 1000)
+        #expect(store.saveError == nil && store.config.maxTokens == 2000)
     }
 
     /// The interface language not saved: back to the one the file has, in the process too.
-    @Test func anInterfaceLanguageNotSaved() throws {
+    @Test func anInterfaceLanguageNotSaved() async throws {
         let url = try file(#"{"uiLanguage": "en"}"#)
         let store = SettingsStore(configURL: url)
-        try withInterfaceLanguage("en") { () throws in
+        try await withInterfaceLanguage("en") { () throws in
             let failed = try whileReadOnly(url.deletingLastPathComponent()) { store.setUILanguage("fr") }
             guard failed else { return }
             #expect(store.saveError != nil && store.config.uiLanguage == "en" && UIText.choice == "en")
@@ -303,11 +303,11 @@ struct SettingsStoreTests {
     }
 
     /// The interface language, switched at once and saved (as "zh" and "en" for those two, as older versions read them).
-    @Test func interfaceLanguage() throws {
+    @Test func interfaceLanguage() async throws {
         let url = try file("{}")
         let store = SettingsStore(configURL: url)
         // The process's language: in turn with the other tests that set it.
-        try withInterfaceLanguage("en") { () throws in
+        try await withInterfaceLanguage("en") { () throws in
             store.setUILanguage("fr")
             #expect(UIText.choice == "fr")
             #expect(try Config.load(from: url).uiLanguage == "fr")

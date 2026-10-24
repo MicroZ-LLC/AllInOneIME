@@ -128,6 +128,17 @@ public struct SessionServices {
     public var issueDiagnostics: (Config, _ plugins: Int, _ extensions: Int) -> IssueReport.Diagnostics
     /// Translate as You Type's chip in this field, when the shell shows one (`TranslateMode.Chip`).
     public var translateChip: () -> TranslateMode.Chip?
+    /// Autocomplete's suggestions kept, what it learned per app and what it counted (`AutocompleteStore`): the shell
+    /// gives one for every field; the default is these services' own, in memory.
+    public var autocomplete: AutocompleteStore
+    /// What is learned on this device: a field starts in what its app learned, and its switches teach it (Settings v2
+    /// §3.1). The shell gives one for every field; the default is these services' own, in memory.
+    public var learned: LearnedStore
+    /// The time now, in seconds from any fixed point (the system's uptime): what autocomplete's Tab and its metrics go by.
+    /// A test sets its own.
+    public var uptime: () -> TimeInterval
+    /// An app's name as the user knows it, from its id (the Mac: its bundle id; nil: none known), for what is said of it.
+    public var appName: (String) -> String?
     /// `@search`'s key.
     public var loadSearchKey: @Sendable () -> String?
     /// The notice of the custom commands renamed for the built-in ones, once (`Config.freeBuiltinNames`).
@@ -145,6 +156,11 @@ public struct SessionServices {
     /// `@imessage`: the address book (nil: no access), and sending.
     public var loadContacts: @Sendable () async -> [Contact]?
     public var messageSender: any MessageSender
+
+    // MARK: Suggestions
+
+    /// Plugin completions, Code's rows and the long press of Shift (`SuggestionsServices`, Suggestions/SuggestionsContract.swift).
+    public var suggestions: SuggestionsServices
 
     public init(converter: Converter = Converter(), loadSettings: @escaping () -> Config = { .default }) {
         self.converter = converter
@@ -172,6 +188,10 @@ public struct SessionServices {
                                     languagePacks: [], plugins: plugins, extensions: extensions)
         }
         translateChip = { nil }
+        autocomplete = AutocompleteStore()
+        learned = LearnedStore(file: nil, autocomplete: autocomplete, temperature: TemperatureSupport(file: nil))
+        uptime = { ProcessInfo.processInfo.systemUptime }
+        appName = { _ in nil }
         noteSaved = { _ in }
         loadCommandUsage = { CommandUsage() }
         saveCommandUsage = { _ in }
@@ -208,6 +228,7 @@ public struct SessionServices {
         addReminder = { _ in throw SessionServicesError.unsupported }
         loadContacts = { nil }
         messageSender = NoMessageSender()
+        suggestions = SuggestionsServices()
     }
 
     /// Where a default can't do what was asked.

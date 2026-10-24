@@ -301,7 +301,7 @@ struct WebSearchTests {
         }
         #expect(SearchStub.requests("nokey.search.test").isEmpty)
         #expect(WebSearch.SearchError.missingKey(variable: "BRAVE_API_KEY").errorDescription
-            == "No API key for web search: add one in Settings → Web Search (or set BRAVE_API_KEY in your shell)")
+            == "No API key for web search: add one in Settings → Commands (or set BRAVE_API_KEY in your shell)")
     }
 
     @Test func httpErrors() async throws {

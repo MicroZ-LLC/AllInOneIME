@@ -137,13 +137,13 @@ extension SelfTest {
                 preview.config.notes = samples[destination] ?? NoteSettings()
                 let url = snapshotDirectory.appendingPathComponent("settings-notes-\(destination.rawValue)-\(language).png")
                 try? fm.removeItem(at: url)
-                SettingsImage.render(preview, page: .plugins, to: url) { seconds in _ = pump(timeout: seconds) { false } }
-                check(fm.fileExists(atPath: url.path), "Settings → Plugins → Notes rendered: \(destination.rawValue), \(language)")
+                SettingsImage.render(preview, page: .commands, to: url) { seconds in _ = pump(timeout: seconds) { false } }
+                check(fm.fileExists(atPath: url.path), "Settings → Commands → Notes rendered: \(destination.rawValue), \(language)")
             }
         }
         UIText.choice = chosen
-        check(SettingsPage.plugins.matches("notion") && SettingsPage.plugins.matches("obsidian") && SettingsPage.plugins.matches("笔记"),
-              "the search finds Settings → Plugins → Notes")
+        check(["notion", "obsidian", "笔记"].allSatisfy { SettingsSpot.search($0, trigger: "@", config: .default).first == .notes },
+              "the search finds Settings → Commands → Notes")
 
         // The folder picker (answered here, nothing made): a folder in the home folder is kept as "~/…"; cancelled, as it was.
         let configURL = root.appendingPathComponent("config.json")

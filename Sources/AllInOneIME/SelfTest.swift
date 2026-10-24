@@ -464,7 +464,35 @@ enum SelfTest {
         }
     }
 
-    /// The candidate layout's picker (Input page) saves as soon as it changes, like the other settings: the input
+    /// The settings window names commands with the trigger its settings have, as soon as it changes (`SettingsModel.
+    /// triggered`), and its search finds a page by a command typed with it. Nothing is saved.
+    static func testCommandTriggerText() {
+        let pickedBefore = UIText.choice
+        defer { UIText.choice = pickedBefore }
+        UIText.choice = "en"
+        let model = SettingsModel(configURL: Config.defaultURL, persists: false)
+        model.config.commandTrigger = "@"
+        let agent = tr("@agent 和 @reply 带上 Chrome 里的网页", "@agent and @reply take the Chrome page along")
+        check(model.triggered(agent) == "@agent and @reply take the Chrome page along", "Settings names commands with @: \(model.triggered(agent))")
+        model.config.commandTrigger = "~"
+        check(model.triggered(agent) == "~agent and ~reply take the Chrome page along"
+              && model.triggered(tr("自定义 @ 命令", "Custom @ Commands")) == "Custom ~ Commands",
+              "…and with ~ once the trigger is ~: \(model.triggered(agent))")
+        let tilde = SettingsSpot.search("~agent", trigger: "~", config: model.config)
+        check(tilde.first == .agent && SettingsSpot.search("@agent", trigger: "~", config: model.config).first == .agent
+              && !SettingsPage.general.matches("~agent", trigger: "~") && !SettingsPage.commands.matches("~agent"),
+              "the search finds ~agent's row (Commands) with ~ the trigger (\(tilde.map(\.rawValue)))")
+        // The action key's note with the trigger picked in the menu, the process's still the one before (~ → #).
+        let triggerBefore = UIText.commandTrigger
+        defer { UIText.commandTrigger = triggerBefore }
+        UIText.commandTrigger = "~"
+        let note = SettingsView.actionKeyNote(.enter, trigger: "#")
+        check(note == "Return runs a command typed with #, also on pinyin not yet picked. Without #, Return is a normal Return."
+              && SettingsView.actionKeyNote(.enter, trigger: "~").contains("Without ~,"),
+              "the action key's note names the trigger the menu has: \(note)")
+    }
+
+    /// The candidate layout's picker (Advanced) saves as soon as it changes, like the other settings: the input
     /// method reads it from the file when a text field becomes active. On a copy of the config, in `directory`.
     static func testCandidateLayoutSaves(in directory: URL) {
         let url = directory.appendingPathComponent("layout-config.json")
@@ -473,7 +501,7 @@ enum SelfTest {
         config.candidateLayout = .vertical
         try? config.write(to: url)
         let model = SettingsModel(configURL: url)
-        let host = NSHostingView(rootView: SettingsView(model: model, page: .input))
+        let host = NSHostingView(rootView: SettingsView(model: model, page: .advanced))
         let window = NSWindow(contentRect: NSRect(x: -20000, y: -20000, width: 880, height: 900),
                               styleMask: [.titled], backing: .buffered, defer: false)
         window.alphaValue = 0
@@ -543,7 +571,7 @@ enum SelfTest {
 
     /// Each interface language besides Simplified Chinese and English, picked in the settings: its text from its
     /// `.lproj` (Traditional Chinese's too, never the Simplified Chinese of the code), the core's through the same
-    /// lookup, and Settings → General and Translate & Rewrite drawn in it, to build/l10n-shots/<code>/ (next to the app)
+    /// lookup, and Settings → General and Privacy drawn in it, to build/l10n-shots/<code>/ (next to the app)
     /// to look at: labels that don't fit, text left in English.
     static func testInterfaceLanguages() {
         let shots = Bundle.main.bundleURL.deletingLastPathComponent().appendingPathComponent("l10n-shots")
@@ -565,7 +593,7 @@ enum SelfTest {
             }
             let folder = shots.appendingPathComponent(language.code)
             try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            for page in [SettingsPage.general, .writing] {
+            for page in [SettingsPage.general, .privacy] {
                 let preview = SettingsModel(configURL: Config.defaultURL, persists: false)
                 preview.profileShownAs = "default"  // never the user's own profile name in a picture
                 SettingsImage.render(preview, page: page, to: folder.appendingPathComponent("\(page.rawValue).png")) { seconds in
@@ -585,12 +613,14 @@ enum SelfTest {
 
     static func testLanguageDrag() {
         var config = (try? Config.load()) ?? .default
-        // The translate languages are dragged into order (the input languages are a segmented bar now).
+        // The translate languages are dragged into order (General: under the input languages' chips).
         let japanese = OutputLanguage("ja")
         config.setOrder([OutputLanguage.english, japanese])
         let model = SettingsModel(configURL: Config.defaultURL, persists: false)
         model.config = config
-        let host = NSHostingView(rootView: SettingsView(model: model, page: .writing))  // its chips' page
+        config.setOrder([Language.english])  // one input chip above them
+        model.config = config
+        let host = NSHostingView(rootView: SettingsView(model: model, page: .general))  // its chips' page
         let window = NSWindow(contentRect: NSRect(x: -20000, y: -20000, width: 880, height: 900),
                               styleMask: [.titled], backing: .buffered, defer: false)
         window.alphaValue = 0
@@ -601,10 +631,12 @@ enum SelfTest {
         func handles(in view: NSView) -> [NSView] {
             (String(describing: Swift.type(of: view)).contains("HandleView") ? [view] : []) + view.subviews.flatMap(handles)
         }
-        // The translate languages' row is the top one: its two handles, left to right.
+        // The translate languages' row is the first from the top with two handles (the input languages' one chip is
+        // above it): its two handles, left to right.
         let all = handles(in: host).map { ($0, $0.convert($0.bounds, to: nil)) }
-        guard let top = all.map(\.1.midY).max() else { return check(false, "language chips have drag handles") }
-        let row = all.filter { abs($0.1.midY - top) < 4 }.sorted { $0.1.minX < $1.1.minX }
+        let rows = Dictionary(grouping: all) { Int(($0.1.midY / 4).rounded()) }.sorted { $0.key > $1.key }.map(\.value)
+        guard !rows.isEmpty else { return check(false, "language chips have drag handles") }
+        let row = (rows.first { $0.count == 2 } ?? []).sorted { $0.1.minX < $1.1.minX }
         guard row.count == 2 else { return check(false, "two translate language chips (\(row.count))") }
         let (second, frame) = row[1]
         let start = NSPoint(x: frame.midX, y: frame.midY)
@@ -687,7 +719,7 @@ enum SelfTest {
         needing([])
 
         // Rendered offscreen (nothing appears on screen) for a visual check and the README: the
-        // self-test's config, read-only, with a live Test Connection (测试连接) result.
+        // self-test's config, read-only, on General.
         let list = dir.appendingPathComponent("jargon.txt")
         try? Data("# 我们组的\nbandwidth：精力\nLP\tLeadership Principles\n抓手 - 着力点\n".utf8).write(to: list)
         model.config.jargonFile = list.path
@@ -719,18 +751,27 @@ enum SelfTest {
             UIText.choice = chinese ? "zh" : "en"
             let preview = SettingsModel(configURL: Config.defaultURL, persists: false)
             preview.profileShownAs = "default"  // README images are public: not the user's own profile name
-            if !chinese {
+            if chinese {
+                // The Chinese README's: pinyin and English, translating into English.
+                preview.config.setOrder([Language.chinese, .english])
+            } else {
                 // The English README's: someone who writes English, translating into Spanish, French and German.
                 preview.config.setOrder([Language.english])
                 preview.config.setOrder(["es", "fr", "de"].map(OutputLanguage.init))
                 preview.config.uiLanguage = "en"
             }
-            preview.runTest()
-            _ = pump(timeout: 20) { preview.testStatus != .running }
-            // The AI provider page, with the connection test's result: what the README's setup shows.
-            SettingsImage.render(preview, page: .provider, to: snapshotDirectory.appendingPathComponent("\(name).png")) { seconds in
+            // The checks behind the banners and the sidebar's dots: stand-ins that find nothing wrong, never this Mac's
+            // own probes, whose findings differ from Mac to Mac.
+            let rig = AssistantRig(snapshotDirectory, name: "\(name)-checks.json", config: assistantSampleConfig)
+            defer { rig.restore() }
+            let fine = sampleAssistant(rig, fine: true)
+            fine.dismissPreview()
+            // General, the page the window opens on: what the README's setup shows. Nothing is asked of the AI.
+            SettingsImage.render(preview, page: .general, assistant: fine,
+                                 to: snapshotDirectory.appendingPathComponent("\(name).png")) { seconds in
                 _ = pump(timeout: seconds) { false }
             }
+            check(fine.allFine, "the README's Settings: no banner or dot (\(name): \(fine.issues.map(\.element.title)))")
         }
         render("6-settings", chinese: true)  // README
         render("6-settings-en", chinese: false)  // README (docs/en)
@@ -740,6 +781,7 @@ enum SelfTest {
         testInterfaceTranslations(in: snapshotDirectory)
         testInterfaceLanguages()
         testCandidateLayoutSaves(in: snapshotDirectory)
+        testCommandTriggerText()
         check(SettingsView.version?.isEmpty == false, "the window ends with the version (AllInOneIME \(SettingsView.version ?? "?"))")
 
         // A config file that doesn't parse is shown as an error and never overwritten.
@@ -933,6 +975,10 @@ enum SelfTest {
     static func testVoice(_ controller: AllInOneIMEInputController, _ client: FakeTextClient,
                           snapshotDirectory: URL) {
         section("voice input (on-device recognition of synthesized speech)", needs: .composing)
+        guard Features.voiceInput else {
+            print("  voice input is off for now (Features.voiceInput); skipped")
+            return
+        }
         guard #available(macOS 26.0, *), VoiceInput.isSupported else {
             print("  SpeechAnalyzer not available on this macOS; skipped")
             return
@@ -1126,7 +1172,8 @@ enum SelfTest {
         settle()
         at()
         let commands = controller.panelModel().rows.map(\.text)
-        check(client.marked == "@" && commands == ["@improve", "@translate", "@question", "@agent", "@open"],
+        // The commands by name alone: the trigger was just typed.
+        check(client.marked == "@" && commands == ["improve", "translate", "question", "agent", "open"],
               "@ opens the command palette (\(commands))")
         readmeSnapshot("10-palette", controller, client, in: snapshotDirectory)
         type("q", controller, client)
@@ -1401,7 +1448,7 @@ enum SelfTest {
         at()
         type("n", controller, client)
         let offered = controller.panelModel().rows.first
-        check(offered?.text == "@note" && offered?.comment == "存一条笔记到备忘录",
+        check(offered?.text == "note" && offered?.comment == "存一条笔记到备忘录",
               "@n offers @note first (\(offered?.text ?? "-") \(offered?.comment ?? ""))")
         tab()
         type("nihao", controller, client)
@@ -1450,10 +1497,10 @@ enum SelfTest {
         type("r", controller, client)
         let both = controller.panelModel().rows.map(\.text)
         // @read is off for now (`Command.off`): @reply, then @reminder.
-        check(both.prefix(2) == ["@reply", "@reminder"] && !both.contains("@read"), "@r offers @reply and @reminder first, not @read (\(both))")
+        check(both.prefix(2) == ["reply", "reminder"] && !both.contains("read"), "@r offers @reply and @reminder first, not @read (\(both))")
         type("em", controller, client)
         let rows = controller.panelModel().rows
-        check(rows.map(\.text) == ["@reminder"] && rows.first?.comment == "加到提醒事项，时间直接写在里面",
+        check(rows.map(\.text) == ["reminder"] && rows.first?.comment == "加到提醒事项，时间直接写在里面",
               "@rem offers @reminder (\(rows.first?.comment ?? "-"))")
         tab()
         controller.readClipboard = { .text("明天下午3点给张三打电话") }
@@ -1712,7 +1759,7 @@ enum SelfTest {
         check(pump(timeout: 2) { notes.count == 7 && CandidatePanel.shared.view.model.status == .hint("已存到备忘录") } && notice() == nil,
               "its field gone, the outcome shows by itself and the progress notice is taken down (\(notice() ?? "none"))")
         controller.activateServer(client)
-        _ = pump(timeout: 3) { !CandidatePanel.shared.isVisible }  // the notice near the pointer goes before the next section
+        _ = pump(timeout: 3) { !CandidatePanel.shared.isShowing }  // the notice near the pointer goes before the next section
         check(posted.count == 0, "the stand-ins post nothing for the menu bar panel (\(posted.count))")
         check(client.inserted == insertedBefore && !controller.composer.isComposing, "@note and @reminder inserted nothing")
         controller.commitComposition(client)
@@ -1890,7 +1937,7 @@ enum SelfTest {
         check(controller.panelModel().horizontal && size.width > size.height && size.height < columnSize.height,
               "the candidates are in a row (\(Int(size.width))×\(Int(size.height)); a column: \(Int(columnSize.width))×\(Int(columnSize.height)))")
         let caretX = client.caretRect.minX, textX = panel.frame.minX + panel.view.textInset
-        check(panel.isVisible && abs(textX - caretX) < 1 && panel.frame.maxY <= client.caretRect.minY,
+        check(panel.isShowing && abs(textX - caretX) < 1 && panel.frame.maxY <= client.caretRect.minY,
               "under the caret, the first candidate's text at the caret (\(Int(textX)) / \(Int(caretX)))")
         readmeSnapshot("1b-pinyin-horizontal", controller, client, in: snapshotDirectory)
         snapshot("1b-pinyin-horizontal-dark", in: snapshotDirectory, appearance: .darkAqua)
@@ -1920,13 +1967,14 @@ enum SelfTest {
             PanelModel.Row(label: "\($0.offset + 1)", text: $0.element, kind: .candidate)
         }, highlighted: 1, footer: "空格 选词 · 开头打 @ 用命令", horizontal: true), anchor: client.caretRect)
         snapshot("1c-pinyin-horizontal-long", in: snapshotDirectory)
-        // The setting is on the Input page (with the input languages), and the search finds it there.
-        check(SettingsPage.input.matches("candidate layout") && SettingsPage.input.matches("横排") && !SettingsPage.general.matches("横排"),
-              "searching for the candidate layout finds the Input page, not General")
-        // @agent's settings are on a page of their own.
-        check(SettingsPage.agent.matches("kiro") && SettingsPage.agent.matches("后台 通知") && SettingsPage.agent.matches("claude tasks")
-              && !SettingsPage.general.matches("kiro") && !SettingsPage.general.matches("后台"),
-              "searching for the agents or Claude Code's background finds the Agent page, not General")
+        // The setting is in Advanced, and the search finds it there.
+        let layout = ["candidate layout", "横排"].map { SettingsSpot.search($0, trigger: "@", config: .default).first }
+        check(layout.allSatisfy { $0 == .candidateLayout } && SettingsSpot.candidateLayout.page == .advanced && !SettingsPage.general.matches("横排"),
+              "searching for the candidate layout finds its row in Advanced, not General (\(layout))")
+        // @agent's settings are with the command, in Commands.
+        let agents = ["kiro", "后台 通知", "claude tasks"].map { SettingsSpot.search($0, trigger: "@", config: .default).first }
+        check(agents.allSatisfy { $0 == .agent } && SettingsSpot.agent.page == .commands && !SettingsPage.general.matches("kiro"),
+              "searching for the agents or Claude Code's background finds @agent's row in Commands (\(agents))")
     }
 
     /// Height of the content of the outermost scroll view in `view` (what a SwiftUI form scrolls).
@@ -2072,18 +2120,15 @@ enum SelfTest {
         let (mistakesBefore, sleepBefore, documentBefore) = (settings.typeOutMistakes, controller.typeOutSleep, client.document)
         settings.typeOutMistakes = true
         controller.applySettings()
-        // The apps remembered for not keeping a fix: the self-test's own (the user's stay as they are).
-        let memoryBefore = TypoMemory.defaults
-        let suite = "com.aipinyin.selftest.typos"
-        UserDefaults.standard.removePersistentDomain(forName: suite)
-        TypoMemory.defaults = UserDefaults(suiteName: suite) ?? .standard
+        // The apps remembered for not keeping a fix: the self-test's own, in memory (the user's stay as they are).
+        let learnedBefore = LearnedShared.store
+        LearnedShared.store = LearnedStore(file: nil, autocomplete: AutocompleteStore(), temperature: TemperatureSupport(file: nil))
         defer {
             settings.typeOutMistakes = mistakesBefore
             controller.applySettings()
             (controller.typeOutSleep, controller.typeOutRandom) = (sleepBefore, nil)
             (client.document, client.selection, client.bundleIDOverride, client.knowsRanges, client.ignoresRanges) = (documentBefore, nil, nil, true, false)
-            TypoMemory.defaults = memoryBefore
-            UserDefaults.standard.removePersistentDomain(forName: suite)
+            LearnedShared.store = learnedBefore
         }
         let text = "Thanks for the quick reply, I will look into it tomorrow morning and get back to you. "
             + "See https://example.com/docs or write to ops@example.com, order 1042. 好的，明天下午三点见！"
@@ -2147,13 +2192,15 @@ enum SelfTest {
         controller.typeOutRandom = seeded(1)
         _ = typeOut(text)
         let firstRun = client.document
-        let remembered = TypoMemory.contains( "com.example.ignores-ranges")
-        check(oneEditApart(firstRun, intended) && remembered && !TypoMemory.remember(""),
+        let remembered = LearnedShared.store.typosOff(in: "com.example.ignores-ranges")
+        check(oneEditApart(firstRun, intended) && remembered && !LearnedShared.store.turnTyposOff(in: ""),
               "a field ignoring replacement ranges: one typo stays at most, its app remembered (\(remembered)): '\(firstRun)'")
         _ = typeOut(text)
         check(client.document == intended, "…the next time, no typos there: the text exact")
-        TypoMemory.forget()
-        check(TypoMemory.apps.isEmpty, "…until forgotten (Settings → General); never an app without a bundle identifier")
+        let typosOff = LearnedShared.store.items(appName: { _ in nil }).filter { if case .typosOff = $0.kind { true } else { false } }
+        typosOff.forEach(LearnedShared.store.forget)
+        check(typosOff.count == 1 && LearnedShared.store.typosOffApps.isEmpty,
+              "…until forgotten (its row in the Learned list); never an app without a bundle identifier")
         (client.bundleIDOverride, client.ignoresRanges) = (nil, false)
 
         // No typos where they couldn't be taken back.
@@ -2538,7 +2585,7 @@ enum SelfTest {
             Mirror(reflecting: Composer.Messages.english).children.compactMap { $0.value as? String }),
         uniquingKeysWith: { first, _ in first })
 
-    static func run(snapshotDirectory: URL) -> Int32 {
+    static func run(snapshotDirectory: URL, typingLagOnly: Bool = false, autocompleteOnly: Bool = false, settingsOnly: Bool = false) -> Int32 {
         waitForOtherSelfTests()
         _ = NSApplication.shared
         // The recent @questions in a file of the self-test's own: the user's are neither listed nor changed.
@@ -2562,6 +2609,17 @@ enum SelfTest {
         // moved between the login keychain and iCloud Keychain when a section turns sync on).
         APIKeys.keychain = .inMemory()
         ICloudSyncController.shared.keys = nil
+        // Suggestions keep nothing where the user's are (the lists' cache, the coding packs).
+        isolateSuggestions(in: snapshotDirectory)
+        // Autocomplete learns and counts in memory, never in the input method's defaults; its suggestion is drawn
+        // invisible, and the user's clicks don't take it down.
+        AutocompleteSwitch.store = AutocompleteStore()
+        // What is learned (Settings v2 §3.2: the rows picked, the apps without typos, the starting inputs) in memory, never
+        // in the user's store; the checks' fields teach no starting input (they switch inputs in field after field, each
+        // expecting the one its field starts in).
+        LearnedShared.store = LearnedStore(file: nil, autocomplete: AutocompleteSwitch.store, temperature: TemperatureSupport(file: nil))
+        LearnedShared.store.learnsStartingInputs = false
+        (GhostOverlay.invisible, GhostOverlay.watchesPointer) = (true, false)
         _ = secureInputGoes()  // held elsewhere just now (a password field): a while for it to go
 
         let className = Bundle.main.object(forInfoDictionaryKey: "InputMethodServerControllerClass") as? String ?? ""
@@ -2629,6 +2687,48 @@ enum SelfTest {
         controller.services.takeRenameNotice = { _ in nil }  // the user's own rename notice left for them (the @reply section has its own)
         controller.warmsUpVision = false  // the real clipboard's types left alone (the @reply section reads its own)
         giveUp = { for _ in 0..<4 where controller.composer.isComposing { _ = escape(controller, client) } }
+        testTypingLag(controller, client)
+        if typingLagOnly {
+            check((try? Data(contentsOf: Config.userURL)) == userConfig, "the user's config was left unchanged")
+            return summary()
+        }
+        if autocompleteOnly {
+            // The self-test's settings, as the sections below have them, and nothing else (no AI requests).
+            controller.services.loadSettings = { SelfTest.settings }
+            controller.services.secureInputActive = { false }
+            CandidatePanel.shared.alphaValue = 0
+            CandidatePanel.shared.ignoresMouseEvents = true
+            controller.ensureEngine()
+            controller.applySettings()
+            testAutocomplete(controller, client, snapshotDirectory: snapshotDirectory)
+            controller.deactivateServer(client)
+            check((try? Data(contentsOf: Config.userURL)) == userConfig, "the user's config was left unchanged")
+            return summary()
+        }
+        if settingsOnly {
+            // The settings window's checks that ask no AI (stand-ins, canned answers, no connection to a provider): its
+            // pages, the search and its Change, the banners and Troubleshoot, what it writes, the per-app settings and
+            // the input menu's This App, the chips, Privacy → Learned…; and their images.
+            controller.services.loadSettings = { SelfTest.settings }
+            CandidatePanel.shared.alphaValue = 0
+            CandidatePanel.shared.ignoresMouseEvents = true
+            controller.ensureEngine()
+            controller.applySettings()
+            testSettingsPages(snapshotDirectory: snapshotDirectory)
+            testAIConfig(snapshotDirectory: snapshotDirectory)
+            testDoctor(snapshotDirectory: snapshotDirectory)
+            section("settings window: chips, layout, trigger, per-app")
+            testLanguageDrag()
+            testLanguageSwitchRedraws(in: snapshotDirectory)
+            testCandidateLayoutSaves(in: snapshotDirectory)
+            testCommandTriggerText()
+            testThisAppMenu(controller, client, app: "com.example.chat")
+            testPerAppImages(snapshotDirectory: snapshotDirectory)
+            testLearnedList(snapshotDirectory: snapshotDirectory)
+            controller.deactivateServer(client)
+            check((try? Data(contentsOf: Config.userURL)) == userConfig, "the user's config was left unchanged")
+            return summary()
+        }
         // @translate: into the output languages but the sentence's own; with @improve, one request. For the
         // README image the live requests translate into English only (three versions).
         // It runs before `settings` is pinned below: its own settings here (the README's Chinese interface,
@@ -2864,7 +2964,7 @@ enum SelfTest {
         let state = controller.composer.engineState
         check(state.candidates.first?.text == "你好", "first candidate for 'nihao' is 你好 (\(state.candidates.prefix(5).map(\.text)))")
         check(client.marked.replacingOccurrences(of: " ", with: "") == "nihao", "pinyin is marked inline (\(client.marked))")
-        check(panel.isVisible, "candidate panel is visible")
+        check(panel.isShowing, "candidate panel is visible")
         snapshot("1-pinyin", in: snapshotDirectory)
         check(escape(controller, client) && client.marked.isEmpty && !controller.composer.isComposing, "Esc cancels the pinyin")
 
@@ -2950,7 +3050,7 @@ enum SelfTest {
         snapshot("2b-sentence-draft", in: snapshotDirectory)
         let started = Date()
         check(act(controller, client), "the action key starts the translation")
-        check(panel.isVisible && client.marked == "improve › " + sentence, "panel visible, the command stays marked")
+        check(panel.isShowing && client.marked == "improve › " + sentence, "panel visible, the command stays marked")
         var streamingSnapshotTaken = false
         let finished = pump(timeout: 20) {
             if !streamingSnapshotTaken, case .translating = controller.composer.phase,
@@ -2979,7 +3079,7 @@ enum SelfTest {
         let second = choices.count > 2 ? choices[2].text : ""
         check(press(controller, client, "2", code: 0x13), "digit 2 consumed")
         check(client.inserted.last == second && !second.isEmpty, "digit 2 commits '\(second)'")
-        check(client.marked.isEmpty && !panel.isVisible, "marked text cleared and panel hidden")
+        check(client.marked.isEmpty && !panel.isShowing, "marked text cleared and panel hidden")
 
         section("cache hit + Space commits", needs: [.composing, .bedrock])
         improve(controller, client)
@@ -3103,7 +3203,10 @@ enum SelfTest {
         testSnippets(controller, client)
         testAppProfiles(controller, client, snapshotDirectory: snapshotDirectory)
         testTranslateMode(controller, client, snapshotDirectory: snapshotDirectory)
+        testAutocomplete(controller, client, snapshotDirectory: snapshotDirectory)
         testShiftHoldInElectron(controller, client)
+        testSuggestions(controller, client, snapshotDirectory: snapshotDirectory)
+        testCustomSuggestions(controller, client, snapshotDirectory: snapshotDirectory)
         testRecentQuestions(controller, client, snapshotDirectory: snapshotDirectory)
         testQuestionChat(controller, client, snapshotDirectory: snapshotDirectory)
         testContinueListKeepsAgentsNotInstalled(snapshotDirectory: snapshotDirectory)
@@ -3113,8 +3216,10 @@ enum SelfTest {
         testReleaseImages(controller, client, snapshotDirectory: snapshotDirectory)
         testAIConfig(snapshotDirectory: snapshotDirectory)
         testAssistantOnDevice(snapshotDirectory: snapshotDirectory)
+        testAssistantAutocompleteOnDevice(snapshotDirectory: snapshotDirectory)
         testDoctor(snapshotDirectory: snapshotDirectory)
-        testAssistantPage(snapshotDirectory: snapshotDirectory)
+        testSettingsPages(snapshotDirectory: snapshotDirectory)
+        testLearnedList(snapshotDirectory: snapshotDirectory)
         testAWSCredentials(snapshotDirectory: snapshotDirectory)
         testSnippetEditorAndReview(snapshotDirectory: snapshotDirectory)
 

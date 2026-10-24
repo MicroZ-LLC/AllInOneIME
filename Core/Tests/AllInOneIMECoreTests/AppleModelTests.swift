@@ -212,7 +212,7 @@ struct AppleModelTests {
     }
 
     @Test func cutOffAtTheLimitDropsTheLastLine() async throws {
-        let stub = StubAppleModel(answer: ["EN: Hello there.\nEN: Hi there.\nEN: Hey th"], outputTokens: 1000)
+        let stub = StubAppleModel(answer: ["EN: Hello there.\nEN: Hi there.\nEN: Hey th"], outputTokens: 2000)
         let update = try #require(try await final(converter(stub).convert("你好")))
         #expect(update.result.versions.map(\.text) == ["Hello there.", "Hi there."])
     }

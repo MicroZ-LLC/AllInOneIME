@@ -330,10 +330,8 @@ struct AIConfigAcceptanceTests {
             ("gemini.model", "gemini-3.8-pro", { $0.gemini.model == "gemini-3.8-pro" }),
             ("openai.model", "gpt-6", { $0.openai.model == "gpt-6" }),
             ("openai.baseURL", "https://api.example.com/v1", { $0.openai.baseURL == "https://api.example.com/v1" }),
-            ("appProfiles.WeChat.inputLanguage", "en", { $0.profile(for: AIC.wechat.bundleID)?.inputLanguage == .english }),
-            ("appProfiles.WeChat.rewriteStyles", ["正式"], { $0.profile(for: AIC.wechat.bundleID)?.rewriteStyles == ["正式"] }),
-            ("appProfiles.WeChat.typeOut", true, { $0.profile(for: AIC.wechat.bundleID)?.typeOut == true }),
             ("appProfiles.WeChat.noAI", true, { $0.profile(for: AIC.wechat.bundleID)?.noAI == true }),
+            ("appProfiles.WeChat.suggestionsInsert", "titleAndLink", { $0.profile(for: AIC.wechat.bundleID)?.suggestionsInsert == .titleAndLink }),
         ]
         // The table covers the whole allowlist.
         let covered = Set(cases.map(\.key))
@@ -349,6 +347,15 @@ struct AIConfigAcceptanceTests {
             AIConfig.apply(preview.edits, to: &config)
             #expect(item.check(config), "\(item.key) not applied")
             #expect(!item.check(AIC.base), "\(item.key): the base already has it")
+        }
+        // Owner's decision (0.6.7): an app's starting input is learned, its rewrite styles and typing out are set for every
+        // app; such a change is refused in its row, with the reason, and never applied.
+        for (key, value) in [("appProfiles.WeChat.inputLanguage", "en"), ("appProfiles.WeChat.rewriteStyles", ["正式"]),
+                             ("appProfiles.WeChat.typeOut", true)] as [(String, Any)] {
+            let rows = AIConfig.check(try AIConfig.parse(AIC.answer([(key, value)])), config: AIC.base, environment: env).rows
+            #expect(rows.count == 1 && rows.allSatisfy { $0.isRefused && $0.edit == nil }, "\(key): \(rows)")
+            if case let .refused(reason)? = rows.first?.status { #expect(!reason.isEmpty) }
+            #expect(try AIC.preview([(key, value)], env: env) == .failure(.notAllowed), "\(key)")
         }
     }
 
@@ -420,7 +427,7 @@ struct AIConfigAcceptanceTests {
         let changes: [(String, Any)] = [
             ("outputLanguages", [k]), ("inputLanguages", [k]), ("defaultInput", k), ("rewriteStyles", [k]),
             ("awsProfile", k), ("region", k), ("anthropic.model", k), ("openai.baseURL", "https://\(k)@example.com"),
-            ("appProfiles.\(k).typeOut", true), ("appProfiles.WeChat.rewriteStyles", [k]),
+            ("appProfiles.\(k).noAI", true), ("appProfiles.WeChat.suggestionsInsert", k),
         ]
         for chinese in [false, true] {
             let env = AIC.env(chinese: chinese)
@@ -506,23 +513,23 @@ struct AIConfigAcceptanceTests {
         #expect(AIC.apps.resolve("Frobnicator") == .none)
         if case .ambiguous = AIC.apps.resolve("Notes") {} else { Issue.record("Notes should be ambiguous") }
 
-        let found = try AIC.preview([("appProfiles.微信.inputLanguage", "zh")]).get()
-        #expect(found.rows.map(\.key) == ["appProfiles.com.tencent.xinWeChat.inputLanguage"])
+        let found = try AIC.preview([("appProfiles.微信.noAI", true)]).get()
+        #expect(found.rows.map(\.key) == ["appProfiles.com.tencent.xinWeChat.noAI"])
         #expect(found.edits.count == 1)
         var config = AIC.base
         AIConfig.apply(found.edits, to: &config)
         #expect(config.appProfiles.keys.sorted() == ["com.tencent.xinWeChat"])
-        #expect(config.profile(for: "com.tencent.xinWeChat")?.inputLanguage == .chinese)
+        #expect(config.profile(for: "com.tencent.xinWeChat")?.noAI == true)
 
         for name in ["Frobnicator", "Notes"] {
-            let proposal = try AIConfig.parse(AIC.answer([("appProfiles.\(name).typeOut", true), ("typeOut", true)]))
+            let proposal = try AIConfig.parse(AIC.answer([("appProfiles.\(name).noAI", true), ("typeOut", true)]))
             let preview = try AIConfig.preview(proposal, config: AIC.base, environment: AIC.env()).get()
             let row = try #require(preview.rows.first { $0.key.hasPrefix("appProfiles.") })
             #expect(row.isRefused, "\(name)")
             #expect(preview.edits == [.flag(.typeOut, true)])
         }
-        // An app's input language must be one of the input languages, as in Settings → Apps.
-        #expect(try AIC.preview([("appProfiles.WeChat.inputLanguage", "fr")]) == .failure(.notAllowed))
+        // An app's Insert is one Settings offers (Settings v2 §4): "ID only" can't be chosen anew.
+        #expect(try AIC.preview([("appProfiles.WeChat.suggestionsInsert", "id")]) == .failure(.notAllowed))
     }
 
 
@@ -833,7 +840,7 @@ struct AIConfigAcceptanceTests {
         config.redaction.customWords = ["Nightingale-Sentinel", "Project Bluebird"]
         config.maxTokens = 4321
         config.timeoutSeconds = 77
-        config.appProfiles = ["com.tencent.xinWeChat": AppProfile(inputLanguage: .chinese)]
+        config.appProfiles = ["com.tencent.xinWeChat": AppProfile(inputLanguage: .chinese, noAI: true)]
         return config
     }
 
@@ -854,6 +861,8 @@ struct AIConfigAcceptanceTests {
             #expect(text.contains(#"["zh","en"]"#), "the input languages now")
             #expect(text.contains("horizontal"))
             #expect(text.contains("com.tencent.xinWeChat"))
+            // Of an app, only what can be set here (owner's decision, 0.6.7): its No AI, not where it starts.
+            #expect(text.contains(#""com.tencent.xinWeChat":{"noAI":true}"#) && !text.contains(#""inputLanguage""#))
             #expect(text.contains("candidates in a column"))
             for setting in AIConfig.Setting.allCases { #expect(text.contains(setting.path), "\(setting.path) not offered") }
         }
@@ -980,14 +989,14 @@ struct AIConfigAcceptanceTests {
     // MARK: The flow
 
     @Test func flow_previewRowsOldToNewInBothLanguages() throws {
-        let changes: [(String, Any)] = [("outputLanguages", ["en", "fr"]), ("appProfiles.WeChat.inputLanguage", "zh")]
+        let changes: [(String, Any)] = [("outputLanguages", ["en", "fr"]), ("appProfiles.WeChat.suggestionsInsert", "titleAndLink")]
         let en = try AIC.preview(changes, env: AIC.env(chinese: false)).get().rows.map { $0.text(chinese: false) }
         #expect(en.count == 2)
         #expect(en[0].contains("English, Japanese, Chinese → English, French"), "\(en[0])")
-        #expect(en[1].contains("WeChat") && en[1].contains("→ Chinese"), "\(en[1])")
+        #expect(en[1].contains("WeChat") && en[1].contains("→ With title and link"), "\(en[1])")
         let zh = try AIC.preview(changes, env: AIC.env(chinese: true)).get().rows.map { $0.text(chinese: true) }
         #expect(zh[0].contains("：") && zh[0].contains("→") && zh[0].contains("法语") && zh[0].contains("日语"), "\(zh[0])")
-        #expect(zh[1].contains("按 App") && zh[1].contains("→ 中文"), "\(zh[1])")
+        #expect(zh[1].contains("按 App") && zh[1].contains("→ 带标题和链接"), "\(zh[1])")
         // The labels are the interface language's.
         #expect(!zh[0].contains("English") && !en[0].contains("英"))
     }
@@ -1005,7 +1014,7 @@ struct AIConfigAcceptanceTests {
     /// Every kind of change undoes exactly: the file comes back byte for byte.
     @Test func flow_undoIsExactForEveryKindOfChange() throws {
         var start = AIC.base
-        start.appProfiles = ["com.apple.mail": AppProfile(rewriteStyles: ["正式"])]
+        start.appProfiles = ["com.apple.mail": AppProfile(rewriteStyles: ["正式"], suggestionsInsert: .title)]
         start.redaction.customWords = ["Alpha"]
         let env = AIC.env(hasKey: Set(Provider.allCases), typed: AIC.typedURL)
         let changes: [(String, Any)] = [
@@ -1015,7 +1024,7 @@ struct AIConfigAcceptanceTests {
             ("redaction.customWords.add", ["Beta", "alpha"]), ("checkForUpdates", false), ("provider", "openai"),
             ("awsProfile", "work"), ("region", "ap-northeast-1"), ("openai.model", "gpt-6"),
             ("openai.baseURL", "https://api.example.com/v1"), ("appProfiles.WeChat.noAI", true),
-            ("appProfiles.Mail.rewriteStyles", NSNull()), ("appProfiles.Microsoft Word.typeOut", false),
+            ("appProfiles.Mail.suggestionsInsert", NSNull()), ("appProfiles.Microsoft Word.suggestionsInsert", "titleAndLink"),
         ]
         let preview = try AIC.preview(changes, config: start, env: env).get()
         #expect(!preview.rows.contains { $0.isRefused }, "\(preview.rows.filter { $0.isRefused })")

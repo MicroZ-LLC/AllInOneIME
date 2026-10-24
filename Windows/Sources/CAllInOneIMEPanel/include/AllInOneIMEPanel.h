@@ -114,6 +114,8 @@ typedef struct AioPanelState {
     int32_t caretX, caretY;
     /// How far a conversation's rows are scrolled (pixels): its first rows out of sight above.
     int32_t scrolled;
+    /// The rows' images kept, those being read too: kMaxImages (64) at most.
+    int32_t images;
 } AioPanelState;
 
 /// Starts the window's thread and creates the window there (hidden). Nil if it couldn't (no desktop, no Direct2D).

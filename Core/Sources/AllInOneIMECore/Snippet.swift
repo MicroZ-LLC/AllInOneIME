@@ -235,11 +235,12 @@ extension SnippetTemplate {
     /// `text` with the snippets written inside it (`@zoom`, `@meet「周五 3点」`) replaced by what they insert, before
     /// the text is sent anywhere: the ones that can be used there (`canBeInner`), as `CommandPlan` finds them; their
     /// `{cursor}` is dropped, and `values.input` is each one's argument. The composer plans a text once, with the other
-    /// commands in it (`CommandPlan.fillingSnippets`).
-    public static func expandInner(_ text: String, commands: [Command], values: SnippetValues) -> String {
+    /// commands in it (`CommandPlan.fillingSnippets`). `trigger`: the command trigger (`Config.commandTrigger`).
+    public static func expandInner(_ text: String, commands: [Command], values: SnippetValues,
+                                   trigger: Character = "@") -> String {
         let snippets = commands.filter { $0.kind == .snippet }
-        guard !snippets.isEmpty, text.contains("@") else { return text }
-        return CommandPlan.make(text, commands: snippets).fillingSnippets(values).plan.input(outputs: [])
+        guard !snippets.isEmpty, text.contains(trigger) else { return text }
+        return CommandPlan.make(text, commands: snippets, trigger: trigger).fillingSnippets(values).plan.input(outputs: [])
     }
 }
 

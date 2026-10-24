@@ -187,6 +187,7 @@ extension IconToken {
         case .terminal: (kind, fallback) = (.terminal, .grayscale(0.25))
         case .link: (kind, fallback) = (.link, .blue)
         case .snippet: (kind, fallback) = (.snippet, .mint)
+        case .suggestions: (kind, fallback) = (.scriptList, .orange)
         }
         return IconToken(custom.icon.map { .symbol($0, fallback: kind) } ?? .builtin(kind), color: Color.named(custom.color) ?? fallback)
     }

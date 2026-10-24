@@ -109,11 +109,11 @@ struct ICloudSyncReviewTests {
     @Test func s1RejoinAgainstFreshMacFillers() {
         let w = ProbeWorld()
         let g = w.drive("s1")
-        let a = ProbeMac("s1-A", in: w, drive: g) { $0.customCommands = [probeCommand("alpha")]; $0.maxTokens = 2000 }
+        let a = ProbeMac("s1-A", in: w, drive: g) { $0.customCommands = [probeCommand("alpha")]; $0.maxTokens = 3000 }
         a.sync(at: pt(1))
         let b = ProbeMac("s1-B", in: w, drive: g)
         b.sync(at: pt(2))
-        expectProbe(b.commands == ["alpha"] && b.config.maxTokens == 2000, "B joined and took A's (\(b.commands), \(b.config.maxTokens))")
+        expectProbe(b.commands == ["alpha"] && b.config.maxTokens == 3000, "B joined and took A's (\(b.commands), \(b.config.maxTokens))")
         a.edit(at: pt(3)) { $0.iCloudSync.enabled = false }
         a.sync(at: pt(3))
         // Remove from iCloud on B: folder gone, B off and forgotten.
@@ -127,7 +127,7 @@ struct ICloudSyncReviewTests {
         a.edit(at: pt(6)) { $0.iCloudSync.enabled = true }
         a.sync(at: pt(6))
         expectProbe(a.commands == ["alpha"], "A keeps its custom commands after rejoining (has \(a.commands))")
-        expectProbe(a.config.maxTokens == 2000, "A keeps maxTokens 2000 after rejoining (has \(a.config.maxTokens))")
+        expectProbe(a.config.maxTokens == 3000, "A keeps maxTokens 3000 after rejoining (has \(a.config.maxTokens))")
     }
 
     // S2: two fresh Macs turn sync on before either's files reached the other (iCloud lag): both join an empty folder.
@@ -620,23 +620,23 @@ struct ICloudSyncReview2Tests {
     @Test func s19StaleSettingsSaveAfterJoin() {
         let w = ProbeWorld()
         let g = w.drive("s19")
-        let a = ProbeMac("s19-A", in: w, drive: g) { $0.customCommands = [probeCommand("alpha")]; $0.maxTokens = 2000 }
+        let a = ProbeMac("s19-A", in: w, drive: g) { $0.customCommands = [probeCommand("alpha")]; $0.maxTokens = 3000 }
         a.sync(at: pt(1))
         let b = ProbeMac("s19-B", in: w, drive: g) { $0.customCommands = [probeCommand("beta")] }
         let stale = b.config  // Settings' model as the window had it when sync was turned on
-        b.sync(at: pt(2))     // the join: B takes maxTokens 2000, merges commands, and puts the merge up
-        expectProbe(b.config.maxTokens == 2000 && Set(b.commands) == ["alpha", "beta"], "B joined (\(b.config.maxTokens), \(b.commands))")
+        b.sync(at: pt(2))     // the join: B takes maxTokens 3000, merges commands, and puts the merge up
+        expectProbe(b.config.maxTokens == 3000 && Set(b.commands) == ["alpha", "beta"], "B joined (\(b.config.maxTokens), \(b.commands))")
         // The user turns on "Hidden words" before Settings re-read the file: whole-file save of the stale model.
         // Settings now writes only the keys the window changed since it last read the file (SettingsModel.save).
         var saved = stale
         saved.iCloudSync.hiddenWords = true
         try! AIConfig.writing(saved, from: stale, keys: AIConfig.changedKeys(stale, saved), at: b.engine.configURL)
         probeTouch(b.engine.configURL, pt(2.01))
-        expectProbe(b.config.maxTokens == 2000 && Set(b.commands) == ["alpha", "beta"] && b.config.iCloudSync.hiddenWords,
+        expectProbe(b.config.maxTokens == 3000 && Set(b.commands) == ["alpha", "beta"] && b.config.iCloudSync.hiddenWords,
                     "Settings' save kept the join's values (\(b.config.maxTokens), \(b.commands))")
         b.sync(at: pt(2.02))
         a.sync(at: pt(3))
-        expectProbe(a.config.maxTokens == 2000 && a.commands.contains("alpha"), "A's settings survive B's stale Settings save")
+        expectProbe(a.config.maxTokens == 3000 && a.commands.contains("alpha"), "A's settings survive B's stale Settings save")
     }
 
     // S20: the record says another machine (Migration Assistant): a new Mac id; nothing lost, nothing storms.

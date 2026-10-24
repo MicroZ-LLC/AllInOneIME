@@ -1603,11 +1603,11 @@ struct ICloudSyncAcceptanceTests {
         #expect(a.config.maxTokens == 1500, "local data went with it")
         // B, still on, puts its settings up again (it never got A's 1500).
         b.sync(at: 300)
-        #expect(ICA.canon(world.value("maxTokens")) == "1000")
+        #expect(ICA.canon(world.value("maxTokens")) == "2000")
         // A turned on again joins as a Mac that never synced: what iCloud has wins.
         a.edit(at: 400) { $0.iCloudSync.enabled = true }
         a.sync(at: 410)
-        #expect(a.config.maxTokens == 1000)
+        #expect(a.config.maxTokens == 2000)
     }
 
     // MARK: @config

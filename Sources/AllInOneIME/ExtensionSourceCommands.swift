@@ -226,6 +226,7 @@ enum ExtensionSourceCommands {
             return fail(error)
         }
         UIText.choice = "en"
+        UIText.commandTrigger = config.commandTrigger  // the reasons below name commands with it
         let plugins = PluginStore.load().0
         // As the input method loads them: an extension source's folder only once it's reviewed, and only as its bundle.
         let statuses = ExtensionSourceStatus.load(from: options.root.appendingPathComponent(ExtensionSources.statusFileName))
@@ -251,7 +252,7 @@ enum ExtensionSourceCommands {
             return sources.first { $0.1 == folder }?.0 ?? ExtensionStore.abbreviated(directory.path)
         }
         for command in index.commands {
-            let shown = names[command.id].map { "@" + $0 } ?? "@" + command.name
+            let shown = config.commandTrigger + (names[command.id] ?? command.name)
             var note = ""
             if !enabled.contains(command) { note = "  [off]" } else if let problem = hidden[command.id] {
                 note = "  [left out: " + UIText.describe(problem, file: command.file) + "]"
@@ -259,7 +260,7 @@ enum ExtensionSourceCommands {
             print("\(shown)\t\(command.output.rawValue)\t\(origin(command.extensionDirectory))\(note)")
         }
         for snippet in index.snippets {
-            let shown = "@" + (snippetNames[snippet.id] ?? snippet.name)
+            let shown = config.commandTrigger + (snippetNames[snippet.id] ?? snippet.name)
             let folder = index.bundles.first { $0.name == snippet.bundle }?.folder
             let manifest = (folder ?? URL(fileURLWithPath: "/")).appendingPathComponent(ExtensionBundle.manifestName)
             var note = ""

@@ -16,11 +16,20 @@
         "value": "space"
        }
       ],
-      "help": "Enter exécute une commande @, même sur un pinyin pas encore choisi. Sans @, Enter fonctionne normalement.",
+      "help": "Enter exécute une commande tapée avec @, même sur un pinyin pas encore choisi. Sans @, Enter fonctionne normalement.",
       "id": "actionKey",
       "kind": "choice",
       "label": "Touche d’action",
       "value": "enter"
+     },
+     {
+      "help": "Saisissez un symbole, comme @ ou ~, en début de phrase pour ouvrir les commandes.",
+      "id": "commandTrigger",
+      "kind": "text",
+      "label": "Touche magique",
+      "optional": true,
+      "placeholder": "@",
+      "value": "@"
      },
      {
       "help": "Le résultat d’une commande est tapé caractère par caractère, comme par un humain ; les mots choisis en pinyin restent insérés d’un coup. Esc l’arrête ; toute autre touche tape le reste d’un coup.",
@@ -518,7 +527,7 @@
      {
       "id": "temperature",
       "kind": "number",
-      "label": "Envoyer la température (certains modèles ne la prennent pas en charge ; désactivez-la si les requêtes échouent)",
+      "label": "Envoyer la température (omise pour les modèles qui la refusent)",
       "max": 1,
       "min": 0,
       "optional": true,
@@ -783,8 +792,8 @@
          "remove"
         ],
         "detail": "ajouté",
-        "id": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-bwv3qyov",
-        "title": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-bwv3qyov"
+        "id": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-v5brge1a",
+        "title": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-v5brge1a"
        }
       ],
       "kind": "items",
@@ -863,13 +872,13 @@
         "fields": [
          {
           "help": "Say hi",
-          "id": "extensions.on.C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-bwv3qyov/hello.sh",
+          "id": "extensions.on.C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-v5brge1a/hello.sh",
           "kind": "toggle",
           "label": "@hello",
           "value": true
          }
         ],
-        "id": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-bwv3qyov/hello.sh",
+        "id": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-v5brge1a/hello.sh",
         "title": "@hello"
        }
       ],
@@ -1113,7 +1122,7 @@
       "id": "configFile",
       "kind": "info",
       "label": "Fichier de configuration",
-      "value": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-ryl0xx2j/config.json"
+      "value": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-g_v90b_o\\config.json"
      }
     ],
     "footer": "Les modifications s’appliquent immédiatement, sans redémarrage.",

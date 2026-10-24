@@ -128,6 +128,7 @@ public struct PanelModel: Equatable, Sendable {
     }
 
     public var rows: [Row]
+    /// The row the key that picks takes (⏎, Space; Tab too on suggestions' rows): drawn selected.
     public var highlighted: Int?
     public var status: Status
     /// The line of input with its caret, first (or after `handoff`).
@@ -148,8 +149,8 @@ public struct PanelModel: Equatable, Sendable {
     /// Translate as You Type's chip on top; with it the panel is only as wide as it needs, unless a footer is there.
     public var chip: Chip?
 
-    public init(rows: [Row] = [], highlighted: Int? = nil, status: Status = .none, input: Input? = nil, handoff: Handoff? = nil,
-                header: [String] = [], footer: String = "", detail: String? = nil, horizontal: Bool = false,
+    public init(rows: [Row] = [], highlighted: Int? = nil, status: Status = .none, input: Input? = nil,
+                handoff: Handoff? = nil, header: [String] = [], footer: String = "", detail: String? = nil, horizontal: Bool = false,
                 transcript: Bool = false, chip: Chip? = nil) {
         self.rows = rows
         self.highlighted = highlighted

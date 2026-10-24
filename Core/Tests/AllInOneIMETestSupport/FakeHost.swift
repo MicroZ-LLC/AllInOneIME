@@ -24,6 +24,19 @@ public final class FakeHost: @unchecked Sendable {
     public var appTakesMarkedText = false
     /// What ⌘V or ⌃V finds on the clipboard.
     public var clipboard = ClipboardContent.none
+    /// A key the session lets through types its text into the document, as the app does (off: the document has only what
+    /// the session put in).
+    public var appTypesKeys = false
+    /// The field tells nothing of its text when it is read (`SessionOutput.readField`): WeChat's.
+    public var tellsNoText = false
+    /// The field is a password field by what the shell tells of it when it is read (the Mac's Accessibility:
+    /// `AXSecureTextField`), though secure input isn't on.
+    public var passwordField = false
+    /// A key reads only what the session wants of the field (`InputSession.fieldWants`), asked until it wants nothing
+    /// more, as the Mac does: its text isn't told with every key, only once a pause asks for it (`SessionOutput.readField`).
+    public var readsWhatIsWanted = false
+    /// The field is read once the test says (`answerFieldReads`), not at once: keys may come before what it says.
+    public var fieldReadsWait = false
 
     // MARK: What the session did
 
@@ -39,8 +52,14 @@ public final class FakeHost: @unchecked Sendable {
     public private(set) var typedOut: [String] = []
     public private(set) var noticesElsewhere: [String] = []
     public private(set) var platformActions: [PlatformAction] = []
-    /// The timers started and not fired yet.
+    /// The timers started and not fired yet, and how long each was to wait.
     public private(set) var timers: [TimerID] = []
+    public private(set) var timerDelays: [TimerID: TimeInterval] = [:]
+    /// Autocomplete's suggestion up after the caret (`SessionOutput.ghost`), and the reads of the field it asked for.
+    public private(set) var ghost: String?
+    public private(set) var fieldReads = 0
+    /// What the reads asked for while `fieldReadsWait` say, not handed to the session yet.
+    private var waitingReads: [SessionEvent] = []
 
     private let inbox = Locked<[SessionEvent]>(initialState: [])
     private let arrived = DispatchSemaphore(value: 0)
@@ -74,6 +93,24 @@ public final class FakeHost: @unchecked Sendable {
                             text: FieldText(before: text.substring(to: caret), after: text.substring(from: end)))
     }
 
+    /// What the field says around the caret as the Mac reads it for `key` (`readsWhatIsWanted`): only the parts the
+    /// session wants, the others unknown.
+    public func context(wantedFor key: KeyEvent) -> FieldContext {
+        let full = context
+        var told = FieldContext()
+        while true {
+            let missing = session.fieldWants(for: key, given: told).subtracting(told.read)
+            if missing.isEmpty { return told }
+            told.read.formUnion(missing)
+            if missing.contains(.secure) { told.secure = full.secure }
+            if missing.contains(.markedText) { told.markedTextTaken = full.markedTextTaken }
+            if missing.contains(.selectedRange) { told.selectedRange = full.selectedRange }
+            if missing.contains(.selection) { told.selection = full.selection }
+            if missing.contains(.beforeCaret) { told.beforeCaret = full.beforeCaret }
+            if missing.contains(.text) { told.text = full.text }
+        }
+    }
+
     // MARK: Events
 
     /// The field takes the focus; a rename to tell is said then (`InputSession.tellBuiltinRenames`).
@@ -85,9 +122,17 @@ public final class FakeHost: @unchecked Sendable {
     /// A key goes down: whether the session took it.
     @discardableResult
     public func press(_ key: KeyEvent) -> Bool {
+        press(key, with: readsWhatIsWanted ? context(wantedFor: key) : context)
+    }
+
+    /// A key goes down with `context` what the field says (a shell's reads of it, made by the test): whether the session
+    /// took it.
+    @discardableResult
+    public func press(_ key: KeyEvent, with context: FieldContext) -> Bool {
         let response = session.handle(.key(key, context))
         appTakesMarkedText = false
         apply(response.outputs)
+        if appTypesKeys, !response.handled, let text = key.printableText { insert(text, replacing: selection) }
         let after = afterKey
         afterKey = []
         after.forEach { $0() }
@@ -106,13 +151,21 @@ public final class FakeHost: @unchecked Sendable {
         apply(session.handle(.modifiers(change, context)).outputs)
     }
 
+    /// The shell says `text` in the field (`InputSession.showNotice`), as the Mac says what it tells there (Autocomplete
+    /// turned on in the input menu, a save's outcome).
+    public func showNotice(_ text: String) {
+        apply(session.showNotice(text))
+    }
+
     /// Hands `event` to the session, as the shell does what isn't a key.
     public func send(_ event: SessionEvent) {
         apply(session.handle(event).outputs)
     }
 
     /// Hands the session its work's answers as they come, on this thread, until `condition` holds (true) or `timeout`
-    /// seconds have gone by (false).
+    /// seconds have gone by (false). This thread is blocked meanwhile, and the work runs on the concurrency pool: never
+    /// wait here holding what other tests wait for blocked (a lock), which would leave the work no thread; a test's turn
+    /// at the process's state is a `TestTurn`, waited for suspended.
     @discardableResult
     public func settle(timeout: TimeInterval = 10, until condition: () -> Bool) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
@@ -129,7 +182,8 @@ public final class FakeHost: @unchecked Sendable {
     }
 
     /// Waits until an answer of the session's work that `matches` has come in, handing nothing to the session (true), or
-    /// `timeout` seconds have gone by (false): the session hears it late, after what the test does meanwhile.
+    /// `timeout` seconds have gone by (false): the session hears it late, after what the test does meanwhile. Blocking,
+    /// as `settle`.
     @discardableResult
     public func waitForAnswer(timeout: TimeInterval = 10, where matches: (SessionEvent) -> Bool) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
@@ -140,10 +194,25 @@ public final class FakeHost: @unchecked Sendable {
         return true
     }
 
+    /// Hands the session what the field said for the reads waiting (`fieldReadsWait`), in order: the field as it was
+    /// when each was asked for.
+    public func answerFieldReads() {
+        let reads = waitingReads
+        waitingReads = []
+        for read in reads { send(read) }
+    }
+
     /// Fires the timers started so far, in order.
     public func fireTimers() {
         let fired = timers
         timers = []
+        for timer in fired { send(.timer(timer)) }
+    }
+
+    /// Fires the timers started so far that `matches`, in order; the others wait.
+    public func fireTimers(where matches: (TimerID) -> Bool) {
+        let fired = timers.filter(matches)
+        timers.removeAll(where: matches)
         for timer in fired { send(.timer(timer)) }
     }
 
@@ -187,8 +256,18 @@ public final class FakeHost: @unchecked Sendable {
                 afterKey.append { [weak self] in self?.send(.clipboard(content, id: id)) }
             case .keyboardLayout:
                 break
-            case let .startTimer(id, _):
+            case let .startTimer(id, seconds):
                 timers.append(id)
+                timerDelays[id] = seconds
+            case let .readField(id):
+                // At once, as the Mac reads it (the field as it is now; nothing of its text where it tells none).
+                fieldReads += 1
+                var read = context
+                if tellsNoText { read.text = nil }
+                if passwordField { read.field = FieldInfo(app: app, terminal: terminal, secure: true) }
+                if fieldReadsWait { waitingReads.append(.field(read, id: id)) } else { send(.field(read, id: id)) }
+            case let .ghost(text):
+                ghost = text
             case let .platform(action):
                 platformActions.append(action)
             }

@@ -52,7 +52,7 @@ public final class InputSession {
     private static let progressLimit = Locked<TimeInterval>(initialState: 20)
 
     static let log = CoreLog(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "ime")
-    private var log: CoreLog { Self.log }
+    var log: CoreLog { Self.log }
 
     /// Level one's engine as `services.levelOne` gave it.
     private var engine: PinyinEngine?
@@ -60,12 +60,29 @@ public final class InputSession {
     private var englishWords: EnglishWordsEngine?
     /// What its words were last made of (the user's, the jargon list's terms): made again only when that changes.
     private var englishWordsMadeOf: [String]?
-    /// The default input mode last applied (applied again when the setting changes).
-    private var appliedDefaultInput: Language?
+    /// The words typed in English mode in this field, learned once they stand (`learnTypedInEnglish`).
+    private var englishModeWords = EnglishModeWords()
+    /// The default input last applied (applied again when the setting changes, or what the app learned).
+    var appliedDefaultInput: Input?
+    /// What a tap of Shift before anything is typed corrects the field's starting input to (InputSession+Learning.swift).
+    var startingCorrection = StartingCorrection()
     /// A dead key typed before the next key.
     private var deadKeys = DeadKeyComposer()
     /// The last character the user typed straight into the field (`characterBeforeCaret`).
-    private var lastTyped = LastTyped()
+    var lastTyped = LastTyped()
+    /// Autocomplete in this field (InputSession+Autocomplete.swift).
+    var autocomplete = AutocompleteField()
+    /// Suggestions in this field: the token, its rows (InputSession+Suggestions.swift), and the long press of Shift that
+    /// turns Translate as You Type on and off, timed on the session's clock.
+    var suggesting = SuggestionsField()
+    /// The field that has the focus is a password field where secure input isn't on, as the shell told it
+    /// (`FieldContext.Parts.passwordField`: the Mac asks Accessibility once a field, and with each read autocomplete's
+    /// pause makes); nil until told. Autocomplete and suggestions both go by it; one told stays one until another field
+    /// takes the focus.
+    var passwordField: Bool?
+    lazy var shiftHold = TranslateMode.ShiftHold(now: { [weak self] in self?.services.uptime() ?? 0 },
+                                                 pointer: { [weak self] in self?.services.suggestions.pointer() ?? .zero },
+                                                 stickyKeys: { [weak self] in self?.services.suggestions.stickyKeys() ?? false })
     /// Shown once each time composing is paused for secure input.
     private var secureNoticeShown = false
     /// The key being handled, and what the field said with it; the field's text as last read (`@reply` after dictation).
@@ -116,6 +133,8 @@ public final class InputSession {
         composer.aiRefusal = { [weak self] in self?.aiRefusal() }
         composer.readFieldText = { [weak self] in self?.readFieldText() }
         composer.pageContextApplies = { [weak self] in self.map { $0.agentPageContext && $0.services.page($0.app) != nil } ?? false }
+        composer.finishesSuggestionPrefix = { [weak self] typed in self?.suggestionsPrefixFinished(by: typed) ?? false }
+        composer.holdsCodeWord = { [weak self] in self?.codeHoldsTheWord() ?? false }
     }
 
     // MARK: - Events
@@ -123,6 +142,10 @@ public final class InputSession {
     public func handle(_ event: SessionEvent) -> SessionResponse {
         var handled = true
         let outputs = collect {
+            defer {
+                // Keys see to autocomplete's suggestion themselves (`autocompleteAfterKey`).
+                if case .key = event {} else { autocompleteSettle() }
+            }
             switch event {
             case let .key(key, context):
                 handled = self.key(key, context)
@@ -132,13 +155,20 @@ public final class InputSession {
             case let .focus(info):
                 focus(info)
             case .blur:
+                autocompleteLeft(.ignored)
+                suggestionsLeft()
                 perform(composer.commitAll())
+                learnTypedInEnglish(englishModeWords.leftField())
                 releasePage()  // `@agent` asked for a page it didn't send
                 fieldSession += 1
                 fieldText = nil
             case .commit:
+                autocompleteLeft(.ignored)  // a click in the field: the caret may be elsewhere
                 perform(composer.commitAll())
+                suggestionsClicked()
             case let .pick(row):
+                // Suggestions' rows put in what a click picks.
+                if suggestionsPick(row) { return }
                 // What a click on the row picks (`PanelModel.Row.choice`): its number's, a conversation's answer by its
                 // round, nothing for a question.
                 let rows = panelModel().rows
@@ -149,6 +179,10 @@ public final class InputSession {
             case let .clipboard(content, id):
                 // Nothing is read during secure input (the shell doesn't read it then either).
                 perform(composer.pasted(secureInputActive() ? .none : content, id: id))
+            case let .field(context, id):
+                takePasswordField(context)
+                // Below 0: Code's read of the field's words; else autocomplete's.
+                if id < 0 { suggestionsFieldRead(context, pause: -id) } else { autocompleteRead(context, id: id) }
             case let .task(id, update):
                 guard tasks.isCurrent(id) else { return }
                 received(update, from: id)
@@ -162,7 +196,13 @@ public final class InputSession {
                 }
             case .configChanged:
                 settings(app: nil)
+                suggestionsSettingsChanged()
+            case let .ghostNotShown(text):
+                autocompleteNotShown(text)
             case .close:
+                autocompleteLeft(.unseen)
+                suggestionsLeft()
+                learnTypedInEnglish(englishModeWords.leftField())
                 tasks.close()  // what runs for the field stops (a save, a message, an agent goes on)
                 noticeToken += 1  // its timer does nothing now
                 composer.engine = nil
@@ -176,10 +216,15 @@ public final class InputSession {
 
     /// The composer's answer to something the shell did to it (Translate as You Type turned on, the menu's commit): what
     /// the shell is to do.
-    public func apply(_ effects: [Composer.Effect]) -> [SessionOutput] { collect { perform(effects) } }
+    public func apply(_ effects: [Composer.Effect]) -> [SessionOutput] {
+        collect {
+            perform(effects)
+            autocompleteSettle()  // Translate as You Type turned on, say: no suggestion with it
+        }
+    }
 
     /// Runs `body`, gathering what it has the shell do: returned by the outermost call.
-    private func collect(_ body: () -> Void) -> [SessionOutput] {
+    func collect(_ body: () -> Void) -> [SessionOutput] {
         depth += 1
         body()
         depth -= 1
@@ -188,30 +233,46 @@ public final class InputSession {
         return outputs
     }
 
-    private func emit(_ output: SessionOutput) { outputs.append(output) }
+    func emit(_ output: SessionOutput) { outputs.append(output) }
 
     /// The app of the key being handled, else the field's.
-    private var app: String? { keyContext?.field?.app ?? field.app }
-    private var terminal: Bool { keyContext?.field?.terminal ?? field.terminal }
+    var app: String? { keyContext?.field?.app ?? field.app }
+    var terminal: Bool { keyContext?.field?.terminal ?? field.terminal }
 
     /// Whether secure input is on (nothing is sent to a model or run then): anywhere (`SessionServices`), or a password
     /// field here.
     public func secureInputActive() -> Bool { field.secure || services.secureInputActive() }
 
+    /// What `context` tells of the field being a password field where secure input isn't on (`passwordField`): one
+    /// (`field`'s `secure`) stays one until another field takes the focus; asked (`.passwordField`) and not, it's none.
+    func takePasswordField(_ context: FieldContext) {
+        guard context.read.contains(.secure), !context.secure else { return }
+        if context.field?.secure == true {
+            passwordField = true
+        } else if context.read.contains(.passwordField), passwordField == nil {
+            passwordField = false
+        }
+    }
+
     // MARK: - Focus
 
     private func focus(_ info: FieldInfo) {
+        learnTypedInEnglish(englishModeWords.leftField())  // the field's before: by what it is
         lastTyped.forget()
         fieldText = nil
         fieldSession += 1
         field = info
+        passwordField = nil
         tasks.reopen()  // focused again after `.close`: its work starts again (the engine is made again below)
         ensureLevelOne()
         settings(app: info.app)  // the app's own starting language, rewrite styles, typing out (`AppProfile`)
+        learningFocused()  // what Shift does before anything is typed may teach the app its starting input
         // Terminals paste on ⌘V whatever the input method does: there ⌘V stays theirs…
         composer.pastesIntoDraft = !info.terminal
         // …and don't act on a key after text inserted during it (`Composer.appTakesKeysAfterInsert`).
         composer.appTakesKeysAfterInsert = composer.pastesIntoDraft
+        autocompleteFocused()
+        suggestionsFocused()
     }
 
     /// A custom command renamed because a built-in has its name now (`Config.freeBuiltinNames`): said once, in the
@@ -272,22 +333,76 @@ public final class InputSession {
         mixed.rawCommitted = { [weak self] in self?.learnEnglishWord($0) }
         englishWords = mixed
         englishWordsMadeOf = nil  // its words are given by `settings`
+        englishModeWords = EnglishModeWords()
         return mixed
     }
 
     /// Letters put in as they were typed while typing pinyin ("bedrock" and ⏎), learned as an English word the second time
     /// when they may be one, as every shell learns them (`EnglishWords.learns`; the first time they are only remembered,
     /// in memory: `SessionServices.englishTypedOnce`): never during secure input, in a terminal, in a remote desktop, a
-    /// virtual machine or an SSH client, in an app with no AI, or with learning off. Offered in this field at once; kept
-    /// for every field (`SessionServices.learnEnglishWord`).
+    /// virtual machine or an SSH client, in a password manager, in an app with no AI, or with learning off. Offered in this
+    /// field at once; kept for every field (`SessionServices.learnEnglishWord`).
     private func learnEnglishWord(_ typed: String) {
         guard let englishWords,
               EnglishWords.learns(typed, in: FieldInfo(app: app, terminal: terminal, secure: field.secure),
                                   secureInput: secureInputActive(), config: services.loadSettings, offered: englishWords.words,
                                   dictionary: englishWords.dictionary, typedOnce: services.englishTypedOnce) else { return }
+        learned(typed, englishWords)
+        log.notice("learned an English word (\(typed.count) letters)")
+    }
+
+    /// Words typed in English mode that stood (`EnglishModeWords`: letters gone straight to the app, a space, a mark or ⏎
+    /// after them, no ⌫ on them), learned as letters put in as typed are, by the same rule and the same second time
+    /// (`EnglishWords.learnsTypedInEnglish`), never one with a capital first. English mode shows nothing of them: they come
+    /// up among pinyin's candidates.
+    private func learnTypedInEnglish(_ words: [String]) {
+        for typed in words {
+            // A token rows showed for isn't learned (Suggestions).
+            if suggestionsKeepFromLearning(typed) { continue }
+            guard let englishWords,
+                  EnglishWords.learnsTypedInEnglish(typed, in: FieldInfo(app: app, terminal: terminal, secure: field.secure),
+                                                    secureInput: secureInputActive(), config: services.loadSettings,
+                                                    offered: englishWords.words, dictionary: englishWords.dictionary,
+                                                    typedOnce: services.englishTypedOnce) else { continue }
+            learned(typed, englishWords)
+            log.notice("learned an English word typed in English mode (\(typed.count) letters)")
+        }
+    }
+
+    /// `typed` offered in this field at once, kept for every field (`SessionServices.learnEnglishWord`).
+    private func learned(_ typed: String, _ englishWords: EnglishWordsEngine) {
         englishWords.words.append(typed)
         services.learnEnglishWord(typed)
-        log.notice("learned an English word (\(typed.count) letters)")
+    }
+
+    /// Whether a key goes straight to the app as English typed (a tap of Shift: English mode), with nothing composed: what
+    /// `EnglishModeWords` follows. Only with English words among pinyin's candidates (`englishWords`); never in Code, whose
+    /// letters are code (no English words are learned there).
+    private var typesEnglishStraightIn: Bool {
+        englishWords != nil && !composer.isComposing && composer.inputLanguage == .english && !composer.coding
+    }
+
+    /// The key went to the app (`passedOn`), else the input method took it (what it put in was told as it went in):
+    /// followed for the words typed in English mode, `english` whether it was typed in English mode.
+    private func followEnglishTyping(_ key: KeyEvent, english: Bool, passedOn: Bool) {
+        guard englishWords != nil else { return }
+        let now = ProcessInfo.processInfo.systemUptime, since = pointerUsedSince(now: now)
+        learnTypedInEnglish(passedOn ? englishModeWords.typed(key, english: english, at: now, pointerUsedSince: since)
+                                     : englishModeWords.inputMethodTook(inserting: nil, at: now, pointerUsedSince: since))
+    }
+
+    /// The input method put `text` in (a commit, a result, a word picked): what `EnglishModeWords` follows.
+    func followEnglishInserted(_ text: String) {
+        guard englishWords != nil else { return }
+        let now = ProcessInfo.processInfo.systemUptime
+        learnTypedInEnglish(englishModeWords.inputMethodTook(inserting: text, at: now, pointerUsedSince: pointerUsedSince(now: now)))
+    }
+
+    /// Whether the mouse or trackpad was used since a time, as of `now` (`ProcessInfo.systemUptime`): a click may have
+    /// moved the caret. Asked once or twice a word, not for each key.
+    private func pointerUsedSince(now: TimeInterval) -> (TimeInterval) -> Bool {
+        let pointer = services.pointerUsedWithin
+        return { pointer(now - $0) }
     }
 
     // MARK: - Settings
@@ -299,9 +414,15 @@ public final class InputSession {
 
     private func settings(app: String?) {
         let config = services.loadSettings()
+        // Autocomplete's switch turned on or off elsewhere (Settings → Assistant, the file): counted, every app over. Whether
+        // it may run in this field now (what a key looks at first).
+        services.autocomplete.saw(switch: config.autocomplete)
+        autocompleteTakeSettings(config)
         let app = app ?? self.app
-        composer.voiceEnabled = config.voiceInput && services.voiceSupported()
+        composer.voiceEnabled = Features.voiceInput && config.voiceInput && services.voiceSupported()  // off for now
         composer.actionKey = config.actionKey
+        composer.commandTrigger = config.commandTrigger
+        UIText.commandTrigger = config.commandTrigger  // the panel's and the notices' text
         composer.typesResults = config.applying(app: app).typeOut
         composer.horizontalCandidates = config.candidateLayout == .horizontal
         if let englishWords {
@@ -329,6 +450,10 @@ public final class InputSession {
         // The interface language (config `uiLanguage`, else the system's) for the panel, notices and menu.
         UIText.choice = config.uiLanguage
         composer.messages = .make(language: UIText.language, terms: terms)
+        composer.messages.startedInBackground = composer.messages.startedInBackground
+            .replacingOccurrences(of: "@", with: config.commandTrigger)
+        composer.messages.codeNotRun = composer.messages.codeNotRun
+            .replacingOccurrences(of: "@", with: config.commandTrigger)
         composer.messages.actionKeyName = UIText.words.name(config.actionKey, terms: terms)
         // Where @note saves (named in the interface language): its name in the command list, and whether the note leaves
         // the device (then it isn't saved during secure input). A folder's name is what is remembered of it (never a walk
@@ -345,15 +470,31 @@ public final class InputSession {
         composer.hangulTables = services.hangulTables()
         composer.hindiTables = services.hindiTables()
         let languages = services.usableLanguages(config.inputLanguages)
-        let defaultInput = config.startingInput(in: app, among: languages)
+        // Code, once its pack is installed (as a language once its pack is), named with its coding language.
+        let code = codePack(config)
+        let leftCode = composer.coding && code == nil
+        if leftCode { perform(composer.endCodeWord()) }  // the word Code held goes in as typed
         composer.inputLanguages = languages
-        // With one input language, a field is always in it (it may have been switched before it was the only one).
-        let onlyOne = languages.count == 1
-        if appliedDefaultInput != defaultInput || onlyOne, composer.engine != nil, !composer.isComposing {
-            composer.setInputMode(defaultInput)
+        composer.hasCode = code != nil
+        composer.messages.codeMode = SessionText.inputName(.code, language: UIText.language,
+                                                           coding: config.codingLanguage.map { CodingLanguagePack.title(of: $0) })
+        // What the app learned (Settings v2 §3.1), else its own, else the default.
+        let defaultInput = config.startingInput(in: app, among: languages, code: code != nil, learned: services.learned.startingInput(in: app))
+        // With one input, a field is always in it (it may have been switched before it was the only one); a field in
+        // Code no longer there is in its default input again.
+        let onlyOne = languages.count == 1 && code == nil
+        if appliedDefaultInput != defaultInput || onlyOne || leftCode, composer.engine != nil, !composer.isComposing {
+            composer.setInput(defaultInput)
             appliedDefaultInput = defaultInput
+            learningApplied()
         }
         emit(.keyboardLayout)
+    }
+
+    /// The Code input's pack (`Config.codingLanguage`), when it is installed: its rows are Code's. Nil: no Code here.
+    func codePack(_ config: Config) -> CodingLanguagePack? {
+        guard let language = config.codingLanguage else { return nil }
+        return services.suggestions.codingPacks().first { $0.language == language }
     }
 
     /// What the keys and places are called here (`Platform.terms`), the keys by the roles the composer acts on
@@ -440,17 +581,19 @@ public final class InputSession {
 
     /// What of the field `key` may need, given what was read of it so far (`context`): what the shell reads before it hands
     /// the key on, asking again until there is nothing more: three reads at most (whether secure input is on; what the key
-    /// may need, with the character before an "@"; the selection, unless that "@" comes right after a word). A shell where
-    /// reading is cheap reads it all.
+    /// may need, with the character before an "@", and once a field where suggestions may show, whether it's a password
+    /// field all the same; the selection, unless that "@" comes right after a word). A shell where reading is cheap reads
+    /// it all.
     public func fieldWants(for key: KeyEvent, given context: FieldContext) -> FieldContext.Parts {
         // First whether anything is composed at all: nothing else is read in a password field.
         var wants: FieldContext.Parts = [.secure]
         guard context.read.contains(.secure), !context.secure, !field.secure else { return wants }
+        if suggestionsWantPasswordField() { wants.insert(.passwordField) }
         if composer.isComposing, !composer.draftInPanel { wants.insert(.markedText) }
         if composer.draftInPanel, selectionReported != nil { wants.insert(.selectedRange) }
         // "@" may start a command where level one would start one (`Composer.handleLevelOne`: an engine, nothing composed
         // in it, no draft): on the selection, unless it comes right after a word ("bob@example.com").
-        if key.printableText == "@", !composer.isLevelTwo, composer.draft.isEmpty, let engine = composer.engine,
+        if key.printableText == services.loadSettings().commandTrigger, !composer.isLevelTwo, composer.draft.isEmpty, let engine = composer.engine,
            !engine.snapshot().isComposing {
             let terminal = (context.field ?? field).terminal
             if lastTyped.character != nil, !terminal { wants.insert(.beforeCaret) }
@@ -466,6 +609,8 @@ public final class InputSession {
            key.key == .enter || key.key == .keypadEnter || key.key == .space || composer.isActionKey(key) {
             wants.insert(.text)
         }
+        // Suggestions: the selection where rows show, the field's words in Code (its word held too).
+        if !composesBesidesCodeWord { wants.formUnion(suggestionsFieldWants(for: key)) }
         return wants
     }
 
@@ -478,9 +623,11 @@ public final class InputSession {
 
     private func key(_ event: KeyEvent, _ context: FieldContext) -> Bool {
         if context.read.contains(.text) { fieldText = context.text }
+        takePasswordField(context)
         // Password fields and prompts turn on secure event input. Never compose (so nothing can be sent to the model) in
         // the app that turned it on; anything already typed goes in as typed.
         if context.secure || field.secure {
+            autocompleteLeft(.unseen)
             if composer.isComposing {
                 let ended = composer.commitAsTyped()
                 perform(ended)
@@ -492,6 +639,8 @@ public final class InputSession {
                 perform([.notice(composer.messages.secureInputPaused)])  // in the session's interface language
             }
             lastTyped.forget()
+            englishModeWords = EnglishModeWords()  // nothing typed here is followed, nor the word before kept
+            suggestionsSecure()
             return false
         }
         secureNoticeShown = false
@@ -504,11 +653,17 @@ public final class InputSession {
             lastTyped.forget()
             return true
         }
+        // Autocomplete's suggestion: Tab puts it in, Esc takes it down; any key ends its pause and stops its request.
+        if let taken = autocompleteBeforeKey(event) { return taken }
+        // Suggestions' rows take their keys (the arrows, Tab, Return, →, Esc: the same in every app).
+        if let taken = suggestionsBeforeKey(event, context) { return taken }
         ensureLevelOne()
         // Commands added to the config apply from the next sentence on (the file is re-read only when it changed).
         if !composer.isComposing {
             // Built again only when what it's made of changed (`CatalogCache`): not for each key.
             let config = services.loadSettings()
+            composer.commandTrigger = config.commandTrigger
+            UIText.commandTrigger = config.commandTrigger
             let (commands, changed) = catalog.catalog(config.customCommands, plugins: services.plugins(false),
                                                       index: services.loadExtensions(config, false), disabled: config.disabledExtensions)
             applyAgent(config)
@@ -535,13 +690,28 @@ public final class InputSession {
             log.notice("the selection changed while a command was written on it: given up")
             perform(composer.selectionMoved())
         }
+        // The field's first key that types: a switch with Shift before it may teach the app its starting input.
+        let learned = learningTyped(event)
         keyContext = context
+        let english = typesEnglishStraightIn
+        let held = composer.codeWord ?? ""
         let response = composer.handleKeyDown(key)
         keyContext = nil
         if composer.pendingAccent == nil { deadKeys.reset() }
         perform(response.effects)
+        followEnglishTyping(key, english: english, passedOn: !response.handled)
         let inserted = response.effects.compactMap { if case let .commit(text) = $0 { text } else { nil } }.last
         lastTyped.answered(key, passedOn: !response.handled, inserted: inserted, at: ProcessInfo.processInfo.systemUptime)
+        // What went into the field with this key: what the input method put in, and the key's own text if the app types it.
+        let put = response.effects.compactMap { effect -> String? in
+            switch effect {
+            case let .commit(text), let .commitAfterKey(text): return text
+            default: return nil
+            }
+        }.joined() + (response.handled ? "" : key.printableText ?? "")
+        suggestionsAfterKey(key, handled: response.handled, inserted: put, held: (held, composer.codeWord ?? ""), context: context)
+        autocompleteAfterKey(key, handled: response.handled, inserted: put)
+        if let learned { say(learned, long: true) }  // once, as it is learned
         return response.handled
     }
 
@@ -550,15 +720,20 @@ public final class InputSession {
         guard !(context.secure || field.secure) else {
             // A password field took over: stop any recording (its release may never arrive here).
             if composer.voice != .off { perform(composer.commitAsTyped()) }
+            suggestionsModifiersMissed(shiftDown: change.modifiers.contains(.shift))  // no long press of Shift either
             return
         }
         ensureLevelOne()
+        suggestionsModifiers(change)  // a long press of Shift turns Translate as You Type on or off
         // The key was held up to the event; the pointer is asked later, so look back that much further.
         let (late, pointerUsedWithin) = (change.late, services.pointerUsedWithin)
         composer.pointerUsedWithin = { pointerUsedWithin($0 + late) }
         keyContext = context
-        perform(composer.handleFlagsChanged(key: change.key, modifiers: change.modifiers, timestamp: change.timestamp))
+        // fn is the long press's only (fn and Shift is none); a tap of Shift with fn held switches as it always did.
+        let before = composer.input
+        perform(composer.handleFlagsChanged(key: change.key, modifiers: change.modifiers.subtracting(.function), timestamp: change.timestamp))
         keyContext = nil
+        learningSwitched(from: before)
     }
 
     // MARK: - What the composer asks of the field
@@ -607,22 +782,26 @@ public final class InputSession {
         return Self.aiRefusal
     }
 
-    /// The notice of an AI command refused in an app with no AI.
+    /// The notice of an AI command refused in an app with no AI, with where the apps without AI are listed: the Mac's
+    /// Privacy (Settings v2), Windows' Apps.
     public static var aiRefusal: String {
-        tr("这个 App 里关了 AI，没有发给 AI（设置 → 按 App 设置）", "AI is off in this app: nothing was sent (Settings → Apps)")
+        Platform.current.terms.device == .mac
+            ? tr("这个 App 里关了 AI，没有发给 AI（设置 → 隐私）", "AI is off in this app: nothing was sent (Settings → Privacy)")
+            : tr("这个 App 里关了 AI，没有发给 AI（设置 → 按 App 设置）", "AI is off in this app: nothing was sent (Settings → Apps)")
     }
 
     /// The notice of `@translate` with no language to translate into: ⏎ on it opens the settings where they're added
     /// (`Composer.failureFixedIn`, `SessionOutput.openSettings`), the key as this platform names it and the page as the
-    /// settings name it.
+    /// settings name it (the Mac's General since Settings v2, Windows' Translate & Rewrite).
     var noTranslationTargetText: String {
-        let (enter, page) = (terms.enter, tr("翻译与改写", "Translate & Rewrite"))
+        let (enter, page) = (terms.enter, terms.device == .mac ? tr("通用", "General") : tr("翻译与改写", "Translate & Rewrite"))
         return tr("还没有要翻译成的语言：按 \(enter) 打开设置 →「\(page)」加一种", "No language to translate into yet: \(enter) opens Settings → \(page) to add one")
     }
 
     // MARK: - Effects
 
-    private func perform(_ effects: [Composer.Effect]) {
+    /// Does what the composer answered (and what autocomplete's Tab puts in, as a commit of the input method's own).
+    func perform(_ effects: [Composer.Effect]) {
         defer {
             wakePageIfAgent()
             if !composer.isComposing { replyWithPage = nil }  // the draft is done: the page's text goes with it
@@ -634,16 +813,25 @@ public final class InputSession {
                 guard !composer.draftInPanel else { break }
                 let text = composer.markedText
                 emit(.marked(text, cursor: String(text.prefix(composer.markedCursor)).utf16.count, converted: composer.isLevelTwo))
-            case .inputLanguageChanged:
+            case let .inputLanguageChanged(language):
                 emit(.keyboardLayout)
+                if language != .english || composer.coding, englishWords != nil {
+                    // Out of English mode (a tap of Shift into Chinese, or into Code): the word typed ends there.
+                    let now = ProcessInfo.processInfo.systemUptime
+                    learnTypedInEnglish(englishModeWords.leftEnglish(at: now, pointerUsedSince: pointerUsedSince(now: now)))
+                }
+                // The rows as the input has them now: Code's go with it (its word went in as typed).
+                if suggesting.shown { suggestionsUpdate() }
             case let .commit(text):
                 emit(.commit(text))
                 lastInserted = text
                 lastTyped.forget()  // a key that typed it says so (`key`)
+                followEnglishInserted(text)
             case let .commitAfterKey(text):
                 // Once this key is done: a terminal would send what is inserted during it in the key's place.
                 emit(.commitAfterKey(text))
                 lastTyped.forget()
+                followEnglishInserted(text)
             case let .replaceSelection(text, selection):
                 if let (rest, end) = SessionText.afterSelection(text, selection).map({ ($0.text, $0.at) }) {
                     emit(.replace(rest, range: end..<end))
@@ -654,10 +842,12 @@ public final class InputSession {
                 }
                 lastInserted = text
                 lastTyped.forget()
+                followEnglishInserted(text)
             case let .typeOut(text):
                 emit(.typeOut(text))
                 lastInserted = nil
                 lastTyped.forget()
+                followEnglishInserted(text)
             case let .moveCaret(back):
                 emit(.moveCaret(back: back, after: lastInserted))
             case let .startConversion(input, id):
@@ -841,6 +1031,10 @@ public final class InputSession {
         case let .voiceHold(token):
             guard token == voiceArmToken else { return }
             perform(composer.voiceHoldElapsed(stillHeld: services.isVoiceKeyHeld()))
+        case let .autocomplete(token):
+            autocompletePaused(token)
+        case let .suggestions(timer):
+            suggestionsTimer(timer)
         }
     }
 
@@ -910,8 +1104,10 @@ public final class InputSession {
     /// then: the Mac may ask for a permission); script plugins get the language this request's own texts are in.
     private func place(generates: Bool) -> SessionTasks.Place {
         let terminal = self.terminal
+        let config = services.loadSettings()
         return SessionTasks.Place(app: app, terminal: terminal, pastesInTerminal: terminal && generates && services.pastesInTerminal(),
-                                  improveTranslates: services.loadSettings().improveTranslates, pluginLanguage: UIText.pluginLanguage)
+                                  improveTranslates: config.improveTranslates, pluginLanguage: UIText.pluginLanguage,
+                                  commandTrigger: config.commandTrigger)
     }
 
     /// Asks again for the results shown, revised as the refinement's last instruction says ("shorter"; `SessionTasks.refine`).
@@ -999,6 +1195,10 @@ public final class InputSession {
         case .statusEnded:
             guard composer.paletteQuery != nil else { return }
             perform([.showPanel])
+        case let .suggested(result, request):
+            autocompleteAnswered(result, request: request)
+        case .completionsAnswered:
+            suggestionsAnswered()
         }
     }
 
@@ -1155,6 +1355,7 @@ public final class InputSession {
 
     deinit {
         wokenPage?.release()  // let go while it asked for a page
+        services.suggestions.store.listen(ObjectIdentifier(self), nil)
     }
 
     /// `prompt` with the page `@agent` (or `@reply`) was typed in (`PageContext`) when that applies (a browser, the
@@ -1251,8 +1452,15 @@ public final class InputSession {
 
     // MARK: - The candidate panel and notices
 
-    /// The candidate panel for the composer as it is now (`PanelPresenter`).
-    public func panelModel() -> PanelModel { panelPresenter().model(for: composer) }
+    /// The candidate panel as it is now: suggestions' rows where they show, else the composer's
+    /// (`PanelPresenter`).
+    public func panelModel() -> PanelModel { suggestionsShownPanel() ?? panelPresenter().model(for: composer) }
+
+    /// Suggestions' panel, where it is the one shown: the rows with nothing composed.
+    private func suggestionsShownPanel() -> PanelModel? {
+        guard suggesting.shown && !composer.wantsPanel else { return nil }
+        return suggestionsPanel()
+    }
 
     /// What the panel is made from besides the composer: the settings now, the interface language (`UIText.language`, set
     /// from them), this field's notice, app and last result.
@@ -1266,7 +1474,7 @@ public final class InputSession {
     }
 
     private func showPanel() {
-        emit(.panel(composer.wantsPanel ? panelModel() : nil))
+        emit(.panel(composer.wantsPanel || suggestionsShownPanel() != nil ? panelModel() : nil))
     }
 
     /// A short status message ("英" English mode, "已复制" copied, …): on the panel's footer when it's shown, else on its
@@ -1276,11 +1484,11 @@ public final class InputSession {
         collect { say(text, long: long, lasting: lasting) }
     }
 
-    private func say(_ text: String, long: Bool = false, lasting: TimeInterval? = nil) {
+    func say(_ text: String, long: Bool = false, lasting: TimeInterval? = nil) {
         notice = text
         noticeToken += 1
         emit(.startTimer(.notice(noticeToken), after: lasting ?? SessionText.noticeDuration(text, long: long)))
-        if composer.wantsPanel {
+        if composer.wantsPanel || suggestionsShownPanel() != nil {
             showPanel()
         } else {
             emit(.notice(text))

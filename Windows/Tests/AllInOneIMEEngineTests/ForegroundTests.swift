@@ -115,7 +115,7 @@ extension OnTheDesktop {
             #expect(Foreground.isInFront(host, foreground: console.window))
             let hwnd = UInt64(UInt(bitPattern: console.window))
             var rect = RECT()
-            GetWindowRect(console.window, &rect)
+            perMonitorAware { _ = GetWindowRect(console.window, &rect) }  // physical pixels, as `caretBounds` gives them
             let bounds = try #require(Foreground.caretBounds(hwnd: hwnd, pid: host, trusted: true))
             #expect(bounds == CaretRect(x: Int(rect.left), y: Int(rect.top), width: Int(rect.right - rect.left),
                                         height: Int(rect.bottom - rect.top)))

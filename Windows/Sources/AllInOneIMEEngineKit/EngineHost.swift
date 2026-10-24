@@ -81,8 +81,16 @@ public final class EngineHost: WireHost, @unchecked Sendable {
     /// The Settings app `@settings` opens, and its arguments (`Options`); set before the engine serves.
     public var settingsApp: String?
     public var settingsAppArguments: [String]
+    /// How a word learned is written into the settings file: through the settings service the Settings app changes the
+    /// file with (`SettingsService.writingFile`, under its lock), so that one never writes over the other's change with
+    /// what it read before; as it is without one (test mode). Set before the engine serves.
+    public var writingSettings: @Sendable (_ write: () throws -> Void) throws -> Void {
+        get { lock.lock(); defer { lock.unlock() }; return settingsWriter }
+        set { lock.lock(); settingsWriter = newValue; lock.unlock() }
+    }
 
     private let lock = NSLock()
+    private var settingsWriter: @Sendable (_ write: () throws -> Void) throws -> Void = { try $0() }
     private var scripted: ScriptedProvider?
     private var language: Language?
     private var states: [ObjectIdentifier: SessionState] = [:]
@@ -254,14 +262,17 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         }
     }
 
-    /// The settings on the Composer, as the Mac's `applySettings`: the action key, the candidates' layout, the
-    /// languages, the commands (custom ones, plugins, script extensions), the interface language; the default input
-    /// mode for a new session (and again when it changed in the settings).
+    /// The settings on the Composer, as the Mac's `applySettings`: the action key, the command trigger, the candidates'
+    /// layout, the languages, the commands (custom ones, plugins, script extensions), the interface language; the default
+    /// input mode for a new session (and again when it changed in the settings).
     func apply(_ config: Config, to session: ComposerSession, state: SessionState) {
         let composer = session.composer
         let app = session.field.app
+        fieldChanged(in: session)
         composer.voiceEnabled = false  // no dictation on Windows yet
         composer.actionKey = config.actionKey
+        composer.commandTrigger = config.commandTrigger
+        UIText.commandTrigger = config.commandTrigger  // the core's text naming commands (`UIText.triggered`)
         composer.typesResults = false  // typed out step by step comes later (ComposerSession commits it in one go)
         composer.horizontalCandidates = config.candidateLayout == .horizontal
         composer.outputLanguages = config.outputLanguages
@@ -275,6 +286,9 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         let language = settings.interfaceLanguage(config)
         var messages = Composer.Messages.make(language: language, terms: Self.terms)
         messages.actionKeyName = InterfaceWords(language: language).name(config.actionKey, terms: Self.terms)
+        // Its notices that name a command (`@tasks`, `@py`) with the trigger the settings have, as the Mac's.
+        messages.startedInBackground = messages.startedInBackground.replacingOccurrences(of: "@", with: config.commandTrigger)
+        messages.codeNotRun = messages.codeNotRun.replacingOccurrences(of: "@", with: config.commandTrigger)
         composer.messages = messages
         // Chinese only with librime; Korean and Hindi need their packs, which Windows doesn't download yet; Latin
         // languages always.
@@ -293,6 +307,12 @@ public final class EngineHost: WireHost, @unchecked Sendable {
             composer.setInputMode(defaultInput)
             state.appliedDefaultInput = defaultInput
         }
+    }
+
+    /// librime learns nothing typed in a password or a private field (`WireField.keepsNothing`), as the English words:
+    /// set as the field takes the focus (`apply`), and as it changes while it has it.
+    public func fieldChanged(in session: ComposerSession) {
+        Self.rimeSession(session.composer.primaryEngine)?.learns = !session.field.keepsNothing
     }
 
     public func sessionClosed(_ session: ComposerSession) {
@@ -583,7 +603,8 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         let executable = self.executable
         let language: Language = InterfaceLanguage.isChinese(settings.interfaceLanguage(config)) ? .chinese : .english
         let terminal = ComposerSession.isTerminal(session.field.process)
-        let improveTranslates = config.improveTranslates
+        let (improveTranslates, trigger) = (config.improveTranslates, config.commandTrigger)
+        let pluginTexts = config.pluginPreferences
         func logged(_ command: Command) -> String { command.custom == nil || command.plugin != nil ? command.name : "custom" }
         log("session \(session.sid): request \(id) (\(input.count) characters\(command.map { ", @\(logged($0))" } ?? "")"
             + (plan.map { ", \($0.inner.count) inside" } ?? "") + ")")
@@ -594,11 +615,14 @@ public final class EngineHost: WireHost, @unchecked Sendable {
             if let command, command.kind == .link { return LinkTemplate.passThrough(input) }
             if command?.kind == .message { return CommandPipeline.unchanged(input) }
             if let command, command.kind == .run, let plugin = command.plugin {
-                return PluginRunner.run(plugin, input: input, language: language, executable: executable)
+                // Its preferences (`ctx.preferences`): the texts as the settings had them, the passwords read once it runs.
+                return PluginRunner.run(plugin, input: input, language: language,
+                                        preferences: { PluginPreference.stored(for: plugin, texts: pluginTexts[plugin.name] ?? [:]) },
+                                        executable: executable)
             }
             if let command, command.kind == .run, let custom = command.custom { return CommandRunner.run(custom, input: input) }
             if command == nil || command?.kind == .convert {
-                let (mode, text) = WritingMode.parse(command, input, improveTranslates: improveTranslates)
+                let (mode, text) = WritingMode.parse(command, input, improveTranslates: improveTranslates, trigger: trigger)
                 return converter.convert(text, mode: mode, app: app)
             }
             return command.map { converter.generate($0, input: input, app: app, fresh: fresh) } ?? converter.convert(input, app: app)
@@ -628,7 +652,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         switch refinement.request {
         case let .writing(command, input):
             let (mode, text) = WritingMode.parse(command?.kind == .convert ? command : nil, input,
-                                                 improveTranslates: config.improveTranslates)
+                                                 improveTranslates: config.improveTranslates, trigger: config.commandTrigger)
             stream = converter.convert(text, mode: mode, app: app, turns: refinement.turns)
         case let .command(command, input):
             stream = converter.generate(command, input: input, app: app, fresh: refinement.fresh, turns: refinement.turns)
@@ -800,11 +824,12 @@ public final class EngineHost: WireHost, @unchecked Sendable {
     /// typing pinyin), learned as an English word as the Mac learns one (`EnglishWords.learns`: the second time, in any
     /// field): never in a password field or a private one (`WireField.keepsNothing`), in a terminal (`runsWhatIsTyped`),
     /// in a remote desktop, a virtual machine or an SSH client (its app, or its program: Windows App's session is
-    /// msrdc.exe), in an app with no AI, or with learning off. Offered in this field at once; written into the settings
-    /// file (`EnglishWords.learn`) off the session's queue, for every field.
+    /// msrdc.exe), in a password manager (the same), in an app with no AI, or with learning off. Offered in this field at
+    /// once; written into the settings file (`EnglishWords.learn`) off the session's queue, for every field, through
+    /// `writingSettings`.
     func learn(_ typed: String, in session: ComposerSession, engine: EnglishWordsEngine) {
         let field = session.field
-        guard !EnglishWords.isRemote("win:" + field.process) else { return }
+        guard !EnglishWords.isRemote("win:" + field.process), !PasswordManagers.contains("win:" + field.process) else { return }
         let info = FieldInfo(app: field.app, terminal: runsWhatIsTyped(session), secure: field.keepsNothing)
         let settings = self.settings
         let learned = learning.withLock {
@@ -815,15 +840,18 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         engine.words.append(typed)
         log("session \(session.sid): learned an English word (\(typed.count) letters)")
         let log = self.log
+        let writing = writingSettings
         learnedWords.async {
             do {
-                // A new user's file is Windows' (Chinese with English), not the Mac's new user's (`Config.fresh`).
-                if !FileManager.default.fileExists(atPath: settings.url.path) {
-                    try FileManager.default.createDirectory(at: settings.url.deletingLastPathComponent(),
-                                                            withIntermediateDirectories: true)
-                    try EngineSettings.fresh.write(to: settings.url)
+                try writing {
+                    // A new user's file is Windows' (Chinese with English), not the Mac's new user's (`Config.fresh`).
+                    if !FileManager.default.fileExists(atPath: settings.url.path) {
+                        try FileManager.default.createDirectory(at: settings.url.deletingLastPathComponent(),
+                                                                withIntermediateDirectories: true)
+                        try EngineSettings.fresh.write(to: settings.url)
+                    }
+                    try EnglishWords.learn(typed, at: settings.url)
                 }
-                try EnglishWords.learn(typed, at: settings.url)
             } catch {
                 log("couldn't keep an English word: \(error)")
             }

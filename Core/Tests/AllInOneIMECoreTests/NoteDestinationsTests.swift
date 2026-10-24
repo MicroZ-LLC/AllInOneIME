@@ -295,7 +295,7 @@ struct NoteDestinationsTests {
             Issue.record("saved")
         } catch {
             #expect(error as? NoteError == .notionDatabaseRefused)
-            #expect((error as? NoteError)?.message(language: "en") == "Notion refused the note: open Settings → Plugins → Notes and press Test")
+            #expect((error as? NoteError)?.message(language: "en") == "Notion refused the note: open Settings → Commands → Notes and press Test")
             #expect((error as? NoteError)?.needsTheUser == true)
         }
         // A page answer's URL elsewhere isn't kept for the panel.

@@ -253,7 +253,7 @@ enum AWSProfileSamples {
         for (name, file) in [("dev", "aws-role"), ("sso-dev", "aws-sso"), ("sso-old", "aws-sso-expired")] {
             model.config.awsProfile = name
             model.aws.load(profile: name)
-            SettingsImage.render(model, page: .provider, to: output.appendingPathComponent("settings-provider-\(file).png"),
+            SettingsImage.render(model, page: .ai, to: output.appendingPathComponent("settings-provider-\(file).png"),
                                  appearance: appearance) { RunLoop.main.run(until: Date().addingTimeInterval($0)) }
         }
         (model.config.provider, model.config.awsProfile, model.profileShownAs) = (provider, profile, shownAs)

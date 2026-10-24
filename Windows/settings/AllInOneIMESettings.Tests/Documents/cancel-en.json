@@ -16,11 +16,20 @@
         "value": "space"
        }
       ],
-      "help": "Enter runs an @ command, also on pinyin not yet picked. Without @, Enter is a normal Enter.",
+      "help": "Enter runs a command typed with @, also on pinyin not yet picked. Without @, Enter is a normal Enter.",
       "id": "actionKey",
       "kind": "choice",
       "label": "Action key",
       "value": "enter"
+     },
+     {
+      "help": "Type one symbol, such as @ or ~, to open commands at the start of a sentence.",
+      "id": "commandTrigger",
+      "kind": "text",
+      "label": "Magic key",
+      "optional": true,
+      "placeholder": "@",
+      "value": "@"
      },
      {
       "help": "A command's result is typed in character by character, like a person typing; pinyin picks still go in at once. Esc stops it; any other key types the rest at once.",
@@ -396,7 +405,7 @@
       "label": "Base URL",
       "optional": true,
       "placeholder": "https://api.anthropic.com",
-      "value": "http://127.0.0.1:53395"
+      "value": "http://127.0.0.1:58137"
      },
      {
       "choices": [
@@ -782,7 +791,7 @@
       "id": "configFile",
       "kind": "info",
       "label": "Config file",
-      "value": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-pfe7i59q/config.json"
+      "value": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-numpuncs\\config.json"
      }
     ],
     "footer": "Changes apply right away, with no restart.",

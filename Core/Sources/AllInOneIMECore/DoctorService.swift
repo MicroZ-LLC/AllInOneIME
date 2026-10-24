@@ -58,6 +58,8 @@ public final class DoctorService: Sendable {
         let question = AIConfig.droppingKeys(question).text
         var redaction = Redaction(config.redaction)
         let sent = redaction?.hide(question) ?? question
+        // At least 600 tokens whatever limit the user set: room for the explanation and its fixes. A floor of this
+        // answer's own, below the default (2000), which goes as it is.
         let request = ConverseRequest(system: [.init(Self.system(findings, tools: onDevice))], messages: [.init(role: "user", text: question)],
                                       inferenceConfig: .init(maxTokens: max(config.maxTokens, 600), temperature: 0))
         let body = redaction?.protect(request, sent: sent) ?? request

@@ -56,12 +56,12 @@ struct PanelPresenterTests {
         let model = en.model(for: c)
         try #require(!model.rows.isEmpty)
         #expect(model.rows.count <= Composer.paletteRows)
-        #expect(model.rows.allSatisfy { $0.text.hasPrefix("@") && $0.icon != nil })
+        #expect(model.rows.allSatisfy { !$0.text.hasPrefix("@") && $0.icon != nil })  // the name alone
         #expect(model.rows.map(\.label) == (1...model.rows.count).map(String.init))
-        let improve = try #require(model.rows.first { $0.text == "@improve" })
+        let improve = try #require(model.rows.first { $0.text == "improve" })
         #expect(improve.icon == IconToken(.improve, color: .purple))
         #expect(improve.comment == "Polish in the same language, plus rewrites")
-        #expect(zh.model(for: c).rows.first { $0.text == "@improve" }?.comment == "润色，再给几种改写（不翻译）")
+        #expect(zh.model(for: c).rows.first { $0.text == "improve" }?.comment == "润色，再给几种改写（不翻译）")
         #expect(model.footer == "⏎ / Tab / Space choose · Esc cancel")
         // More commands than rows: where the list is.
         try #require(c.paletteMatches.count > Composer.paletteRows)
@@ -90,14 +90,15 @@ struct PanelPresenterTests {
     }
 
     /// The panel is in the presenter's language, not the process's: two sessions can show two.
-    @Test func thePresentersLanguageWhateverTheProcesssIs() {
+    @Test func thePresentersLanguageWhateverTheProcesssIs() async {
         let c = composer()
         c.setInputMode(.english)
         improveDraft(c)
         type("hello", c)
-        let (english, chinese) = withInterfaceLanguage("zh") { (en.model(for: c), zh.model(for: c)) }
-        #expect(english == withInterfaceLanguage("en") { en.model(for: c) })
-        #expect(chinese == withInterfaceLanguage("en") { zh.model(for: c) })
+        let (english, chinese) = await withInterfaceLanguage("zh") { (en.model(for: c), zh.model(for: c)) }
+        let (englishInEnglish, chineseInEnglish) = await withInterfaceLanguage("en") { (en.model(for: c), zh.model(for: c)) }
+        #expect(english == englishInEnglish)
+        #expect(chinese == chineseInEnglish)
         #expect(english.footer == "⌃V paste · ⌫ delete · Esc clear" && chinese.footer == "⌃V 粘贴 · ⌫ 删字 · Esc 清除")
         #expect(english.status == .hint("Space twice → polish / rewrite"))
     }

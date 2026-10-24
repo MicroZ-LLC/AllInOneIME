@@ -3,7 +3,8 @@ import Foundation
 
 /// The requests every normal (not refining) command sends, by name: @improve, @translate and both in English and
 /// Chinese output, with the jargon style, and the AI commands. `Fixtures/prompts-release-0.6.3.json` holds them as
-/// release 0.6.3 built them; `RefineTests` checks they are still byte for byte the same.
+/// release 0.6.3 built them, but for the default `maxTokens`, today's (2000 since 0.6.7, 1000 then); `RefineTests`
+/// checks they are still byte for byte the same.
 enum PromptGolden {
     static func requests() -> [String: ConverseRequest] {
         var out: [String: ConverseRequest] = [:]

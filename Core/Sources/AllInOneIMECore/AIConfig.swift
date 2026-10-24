@@ -1,14 +1,16 @@
 import Foundation
 
 /// Settings → Assistant's "Change settings in a sentence": settings changed by describing them ("output languages English
-/// and French", "微信里用中文").
-/// One AI request turns the sentence into changes (`AIConfigPrompt`, `AIConfigService`); the answer is JSON only, a list of
+/// and French", "微信里不用 AI").
+/// One AI request turns the sentence into changes (`AIConfigPrompt`, `AIConfigService`; a sentence that only turns
+/// Autocomplete on or off needs none, `onlyAutocomplete`); the answer is JSON only, a list of
 /// `{ "key": <setting>, "value": <JSON> }` and an optional `"note"`, read strictly (`parse`). Each change is checked with
 /// the rules Settings uses (`preview`) and shown as a row, old → new, or refused with the reason; the user confirms, and
 /// the changes go through the config's save path (`apply`), which hands back what puts them back (`Edit`s, for undo).
 ///
 /// Only the settings on the allowlist (`Setting`, `AppField`) can change. Every other key of the config, and anything that
 /// looks like a secret, is refused (`Key.forbidden`); a key that isn't a setting at all makes the whole answer unreadable.
+/// Of an app's own settings, only those Settings shows per app: an app's other fields (`RemovedAppField`) are refused too.
 public enum AIConfig {
     /// At most this many output (translation) languages.
     public static let maxOutputLanguages = 5
@@ -67,9 +69,28 @@ public enum AIConfig {
         }
     }
 
-    /// A setting of one app's profile (`AppProfile`): `appProfiles.<app>.<field>`, the app by name or bundle id.
+    /// A setting of one app's profile (`AppProfile`): `appProfiles.<app>.<field>`, the app by name or bundle id. The two
+    /// Settings shows per app: No AI, and what a suggestion row inserts there (Insert).
     public enum AppField: String, CaseIterable, Sendable {
-        case inputLanguage, rewriteStyles, typeOut, noAI
+        case noAI, suggestionsInsert
+    }
+
+    /// The fields of an app's profile this set before 0.6.7 and no longer does: where an app starts is learned
+    /// (`LearnedStore.corrected`), rewrite styles and typing out are set for every app. One in an answer is refused like
+    /// any key off the allowlist (`Key.forbidden`), its row saying why (`Text.notPerApp`); it is never written.
+    public enum RemovedAppField: String, CaseIterable, Sendable {
+        case inputLanguage, rewriteStyles, typeOut
+
+        /// The app (as written) and the field `path` names ("appProfiles.WeChat.inputLanguage"), when it is one of these.
+        static func of(_ path: String) -> (app: String, field: RemovedAppField)? {
+            let path = path.trimmingCharacters(in: .whitespaces)
+            guard path.hasPrefix("appProfiles.") else { return nil }
+            let rest = path.dropFirst("appProfiles.".count)
+            guard let dot = rest.lastIndex(of: "."), dot > rest.startIndex,
+                  let field = RemovedAppField(rawValue: String(rest[rest.index(after: dot)...])) else { return nil }
+            let app = String(rest[..<dot])
+            return app.trimmingCharacters(in: .whitespaces).isEmpty ? nil : (app, field)
+        }
     }
 
     /// A key as the answer names it.
@@ -81,10 +102,14 @@ public enum AIConfig {
         case forbidden(String, secret: Bool)
         /// Sync through iCloud on or off (`iCloudSync.enabled`); what syncs is only set in Settings.
         case iCloudSync
+        /// Autocomplete (「续写」) on or off (`Config.autocomplete`): it asks the provider picked (`Autocomplete.route`),
+        /// which the row says (`checkAutocomplete`).
+        case autocomplete
 
         public var path: String {
             switch self {
             case .iCloudSync: return "iCloudSync.enabled"
+            case .autocomplete: return "autocomplete"
             case let .setting(setting): return setting.path
             case let .app(app, field): return "appProfiles.\(app).\(field.rawValue)"
             case let .forbidden(path, _): return path
@@ -98,6 +123,7 @@ public enum AIConfig {
             if looksSecret(path) { return .forbidden(path, secret: true) }
             if let setting = Setting(rawValue: path) { return .setting(setting) }
             if path == Key.iCloudSync.path { return .iCloudSync }
+            if path == Key.autocomplete.path { return .autocomplete }
             if path.hasPrefix("appProfiles.") {
                 let rest = path.dropFirst("appProfiles.".count)
                 guard let dot = rest.lastIndex(of: "."), dot > rest.startIndex else { return .forbidden(path, secret: false) }
@@ -138,7 +164,7 @@ public enum AIConfig {
     // MARK: - The answer
 
     /// A JSON value as the answer has it.
-    public indirect enum JSONValue: Equatable, Sendable {
+    public indirect enum JSONValue: Hashable, Sendable {
         case null
         case bool(Bool)
         case number(Double)
@@ -296,6 +322,8 @@ public enum AIConfig {
         case baseURL(String?)
         /// Sync through iCloud on or off.
         case iCloudSync(Bool)
+        /// Autocomplete on or off.
+        case autocomplete(Bool)
     }
 
     /// What applying a preview does besides the settings: a finding's fixes.
@@ -313,10 +341,8 @@ public enum AIConfig {
 
     /// One field of an app's profile; nil: as everywhere.
     public enum AppValue: Equatable, Sendable {
-        case inputLanguage(Language?)
-        case rewriteStyles([String]?)
-        case typeOut(Bool?)
         case noAI(Bool?)
+        case suggestionsInsert(SuggestionsInsert?)
     }
 
     /// `edits` made to `config`, in order, the way Settings makes them (languages through `setOrder`, a profile left
@@ -356,10 +382,8 @@ public enum AIConfig {
         case let .app(app, value):
             config.changeProfile(for: app, dropsEmpty: true) { profile in
                 switch value {
-                case let .inputLanguage(language): profile.inputLanguage = language
-                case let .rewriteStyles(names): profile.rewriteStyles = names
-                case let .typeOut(on): profile.typeOut = on
                 case let .noAI(on): profile.noAI = on == true ? true : nil
+                case let .suggestionsInsert(insert): profile.suggestionsInsert = insert
                 }
             }
         case let .provider(provider): config.provider = provider
@@ -368,6 +392,7 @@ public enum AIConfig {
         case let .model(provider, model): setModel(model, of: provider, in: &config)
         case let .baseURL(url): config.openai.baseURL = url
         case let .iCloudSync(on): config.iCloudSync.enabled = on
+        case let .autocomplete(on): config.autocomplete = on
         }
     }
 
@@ -385,10 +410,8 @@ public enum AIConfig {
         case let .app(app, value):
             let profile = config.profile(for: app)
             switch value {
-            case .inputLanguage: return .app(app, .inputLanguage(profile?.inputLanguage))
-            case .rewriteStyles: return .app(app, .rewriteStyles(profile?.rewriteStyles))
-            case .typeOut: return .app(app, .typeOut(profile?.typeOut))
             case .noAI: return .app(app, .noAI(profile?.noAI))
+            case .suggestionsInsert: return .app(app, .suggestionsInsert(profile?.suggestionsInsert))
             }
         case .provider: return .provider(config.provider)
         case .awsProfile: return .awsProfile(config.awsProfile)
@@ -396,6 +419,7 @@ public enum AIConfig {
         case let .model(provider, _): return .model(provider, storedModel(of: provider, in: config))
         case .baseURL: return .baseURL(config.openai.baseURL)
         case .iCloudSync: return .iCloudSync(config.iCloudSync.enabled)
+        case .autocomplete: return .autocomplete(config.autocomplete)
         }
     }
 

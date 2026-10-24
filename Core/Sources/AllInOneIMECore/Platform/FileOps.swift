@@ -28,15 +28,21 @@ public protocol FileOps: Sendable {
     /// `ExtensionSources.loadFolders`): one listing of `folder`. Nothing to do where a swap is one step (Apple's
     /// systems, Linux, Android).
     func recoverInterruptedSwaps(in folder: URL)
-    /// Writes `data` to a new file in `url`'s folder that is the user's only from the start, then renames it over `url`
-    /// in one step: the data is never in a file others can read, and a file that was readable by others is replaced,
-    /// not reused.
-    func writePrivate(_ data: Data, to url: URL) throws
+    /// Writes `data` to a new file that is the user's only from the start, then renames it over `url` in one step: the
+    /// data is never in a file others can read, and a file that was readable by others is replaced, not reused. The new
+    /// file is made in `staging` (made if it isn't there; nil: `url`'s folder), which must be on `url`'s volume: a folder
+    /// others list (a cache's) then never shows it.
+    func writePrivate(_ data: Data, to url: URL, stagingIn staging: URL?) throws
     /// When the file at `path` (a link followed) last changed, to the precision the system keeps; nil when there's none.
     func modificationDate(atPath path: String) -> Date?
     /// Moves `url` to the Trash where there is one (the user can put it back; on Windows the Recycle Bin, from a fixed
     /// drive only: on another it throws, as the Mac's does on a volume without a Trash); elsewhere removes it.
     func trash(_ url: URL) throws
+}
+
+extension FileOps {
+    /// `writePrivate(_:to:stagingIn:)` by way of a new file in `url`'s folder.
+    public func writePrivate(_ data: Data, to url: URL) throws { try writePrivate(data, to: url, stagingIn: nil) }
 }
 
 /// What can't be moved, even after a few tries, most likely because another program holds it open (Windows:
@@ -199,8 +205,15 @@ public struct SystemFileOps: FileOps {
         #endif
     }
 
-    public func writePrivate(_ data: Data, to url: URL) throws {
-        let temporary = url.deletingLastPathComponent().appendingPathComponent(".\(url.lastPathComponent).\(UUID().uuidString).tmp")
+    public func writePrivate(_ data: Data, to url: URL, stagingIn staging: URL?) throws {
+        if let staging {
+            #if os(Windows)
+            try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
+            #else
+            try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            #endif
+        }
+        let temporary = (staging ?? url.deletingLastPathComponent()).appendingPathComponent(".\(url.lastPathComponent).\(UUID().uuidString).tmp")
         #if os(Windows)
         // Its access list, set as it is made, has one entry, the user's, and inherits none from the folder: Windows' 0600.
         let handle = try Self.userOnly { security in

@@ -19,6 +19,9 @@ public protocol WireHost: AnyObject, Sendable {
     /// The session took the focus (not a `focus` re-sent while it has it): the Mac's `activateServer`, where the shell
     /// applies its settings to the Composer (and gives it its level-one engine once that is ready).
     func sessionFocused(_ session: ComposerSession)
+    /// The session's field changed while it has the focus (a `focus` with a new field: a password field in the same
+    /// document): what the shell keeps by the field (the Windows engine: whether librime learns).
+    func fieldChanged(in session: ComposerSession)
 }
 
 extension WireHost {
@@ -26,6 +29,7 @@ extension WireHost {
     public func ownsForeground(_ peer: WirePeer) -> Bool { true }
     public func sessionClosed(_ session: ComposerSession) {}
     public func sessionFocused(_ session: ComposerSession) {}
+    public func fieldChanged(in session: ComposerSession) {}
 }
 
 /// Who is at the other end of a connection (§2.1, §8), as the transport found out on connect.
@@ -134,6 +138,7 @@ public final class ComposerSession: @unchecked Sendable {
             applyIdentity()
             // A field that turned into a password field: what is pending goes in as typed, as the Mac does.
             if newField.secure, !wasSecure, isFocused, composer.isComposing { outputs = map(composer.commitAsTyped(), from: .async) }
+            if isFocused { host.fieldChanged(in: self) }
         }
         focusSerial = serial
         if !isFocused {

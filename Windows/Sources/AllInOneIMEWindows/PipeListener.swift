@@ -167,10 +167,11 @@ public final class PipeListener: @unchecked Sendable {
             server.disconnect(id)
             log("connection \(id): closed")
         }
+        // A DLL's frames are 64 KiB at most, a settings window's larger once it has the settings (§2.2).
+        var limit = WireFrame.clientLimit
         while true {
             let answers: [Data]
-            // A DLL's frames are 64 KiB at most, a settings window's larger once it has the settings (§2.2).
-            let limit = server.clientLimit(on: id)
+            limit = server.clientLimit(on: id)
             do {
                 let message = try channel.readMessage(limit: limit + WireFrame.prefixSize)
                 do {
@@ -186,20 +187,25 @@ public final class PipeListener: @unchecked Sendable {
             for answer in answers { write(answer, to: id) }
             if !server.isOpen(id) {
                 // A fatal error (§3): the error is written, then the connection closes. The client is given a moment
-                // to read it and close its end; what it sends meanwhile is ignored.
-                linger(channel, ms: 1000)
+                // to read it and close its end; what it sends meanwhile is ignored, read up to the limit it had.
+                linger(channel, ms: 1000, limit: limit, id: id)
                 return
             }
         }
     }
 
-    /// Reads and drops what the client sends until it closes its end, for at most `ms`.
-    private func linger(_ channel: PipeChannel, ms: Int) {
+    /// Reads and drops what the client sends until it closes its end, for at most `ms`: each frame up to `limit`, the
+    /// connection's last (a DLL's 64 KiB unless it had the settings), a larger one in parts of that size, never into a
+    /// larger buffer.
+    private func linger(_ channel: PipeChannel, ms: Int, limit: Int, id: ConnectionID) {
         let deadline = Date().addingTimeInterval(Double(ms) / 1000)
+        var told = false
         while case let left = deadline.timeIntervalSinceNow, left > 0 {
             do {
-                _ = try channel.readMessage(limit: WireFrame.settingsClientLimit + WireFrame.prefixSize, timeout: DWORD(left * 1000) + 1)
+                _ = try channel.readMessage(limit: limit + WireFrame.prefixSize, timeout: DWORD(left * 1000) + 1)
             } catch PipeChannel.Failure.tooLarge {
+                if !told { log("connection \(id): a frame over its limit (\(limit) bytes) as it closes: dropped") }
+                told = true
                 continue
             } catch {
                 return

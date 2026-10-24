@@ -57,9 +57,13 @@ struct AIConfigTests {
     @Test func keysAreAllowedForbiddenOrSecret() {
         #expect(AIConfig.Key.parse("outputLanguages") == .setting(.outputLanguages))
         #expect(AIConfig.Key.parse("redaction.keys") == .setting(.redactionKeys))
-        #expect(AIConfig.Key.parse("appProfiles.WeChat.inputLanguage") == .app("WeChat", .inputLanguage))
+        #expect(AIConfig.Key.parse("appProfiles.WeChat.suggestionsInsert") == .app("WeChat", .suggestionsInsert))
         #expect(AIConfig.Key.parse("appProfiles.com.tencent.xinWeChat.noAI") == .app("com.tencent.xinWeChat", .noAI))
         #expect(AIConfig.Key.parse("appProfiles.WeChat.fontSize") == .forbidden("appProfiles.WeChat.fontSize", secret: false))
+        // An app's fields set here before 0.6.7: off the allowlist, refused (the answer still readable).
+        for field in ["inputLanguage", "rewriteStyles", "typeOut"] {
+            #expect(AIConfig.Key.parse("appProfiles.WeChat.\(field)") == .forbidden("appProfiles.WeChat.\(field)", secret: false), "\(field)")
+        }
         for key in ["customCommands", "extensionFolders", "plugins", "jargonFile", "maxTokens", "actionKey", "anthropic.effort", "extensionSources"] {
             #expect(AIConfig.Key.parse(key) == .forbidden(key, secret: false), "\(key)")
         }
@@ -95,7 +99,7 @@ struct AIConfigTests {
         #expect(try reason(#"{"changes": [{"key": "outputLanguages", "value": "en"}]}"#) == "not a valid value")
         // A language whose pack isn't installed: refused, pointing to Settings, where it downloads.
         #expect(try reason(#"{"changes": [{"key": "inputLanguages", "value": ["zh", "en", "ko"]}]}"#)
-                == "needs the Korean language pack (download it in Settings → Input)")
+                == "needs the Korean language pack (download it in Settings → General)")
         #expect(try reason(#"{"changes": [{"key": "defaultInput", "value": "fr"}]}"#) == "French isn't one of your input languages")
         // French needs no pack; added, it can be the default in the same answer.
         let rows = try self.rows(#"{"changes": [{"key": "defaultInput", "value": "fr"}, {"key": "inputLanguages", "value": ["zh", "en", "fr"]}]}"#)
@@ -131,9 +135,9 @@ struct AIConfigTests {
     @Test func rememberQuestionsOffSaysTheSavedOnesAreKept() throws {
         let off = #"{"changes": [{"key": "rememberQuestions", "value": false}]}"#
         #expect(try rows(off).map { $0.text(chinese: false) }
-                == ["Remember recent questions: on → off (saved questions are kept; Settings → General → “Clear” deletes them)"])
+                == ["Remember recent questions: on → off (saved questions are kept; Settings → Privacy → “Forget” deletes them)"])
         #expect(try rows(off, env: env(chinese: true)).map { $0.text(chinese: true) }
-                == ["记住最近的问题：开 → 关（已存的问题保留；要删除，在设置 → 通用里点「清除」）"])
+                == ["记住最近的问题：开 → 关（已存的问题保留；要删除，在设置 → 隐私里点「忘掉」）"])
         #expect(try rows(off).first?.edit == .flag(.rememberQuestions, false))
         var forgetting = config
         forgetting.rememberQuestions = false
@@ -180,26 +184,85 @@ struct AIConfigTests {
     }
 
     @Test func anAppsSettingsGoUnderItsBundleID() throws {
-        let rows = try rows(#"{"changes": [{"key": "appProfiles.微信.inputLanguage", "value": "zh"}, {"key": "appProfiles.Mail.rewriteStyles", "value": ["正式"]}]}"#,
+        let rows = try rows(#"{"changes": [{"key": "appProfiles.微信.noAI", "value": true}, {"key": "appProfiles.Mail.suggestionsInsert", "value": "titleAndLink"}]}"#,
                             env: env(chinese: true))
-        #expect(rows.map { $0.text(chinese: true) } == ["按 App · WeChat · 开始的输入语言：跟全局一样 → 中文",
-                                                        "按 App · Mail · 改写风格：跟全局一样 → 正式"])
-        #expect(rows.map(\.edit) == [.app("com.tencent.xinWeChat", .inputLanguage(.chinese)), .app("com.apple.mail", .rewriteStyles(["正式"]))])
+        #expect(rows.map { $0.text(chinese: true) } == ["按 App · WeChat · 这个 App 里不用 AI：关 → 开",
+                                                        "按 App · Mail · 插入：跟全局一样 → 带标题和链接"])
+        #expect(rows.map(\.edit) == [.app("com.tencent.xinWeChat", .noAI(true)), .app("com.apple.mail", .suggestionsInsert(.titleAndLink))])
         // An app it can't tell, or two with that name: refused.
-        let unknown = try self.rows(#"{"changes": [{"key": "appProfiles.Photoshop.typeOut", "value": true}, {"key": "appProfiles.Notes.noAI", "value": true}]}"#)
+        let unknown = try self.rows(#"{"changes": [{"key": "appProfiles.Photoshop.noAI", "value": true}, {"key": "appProfiles.Notes.noAI", "value": true}]}"#)
         #expect(unknown.allSatisfy { $0.isRefused })
-        // Its starting language must be an input language, as in Settings → Apps.
-        #expect(try self.rows(#"{"changes": [{"key": "appProfiles.Mail.inputLanguage", "value": "fr"}]}"#).first?.isRefused == true)
     }
 
-    @Test func anAppWithSettingsKeepsItsKey() throws {
+    /// An app's Insert takes what Settings offers for it: with title, with title and link, or null (as everywhere); "ID
+    /// only" and the source's own can't be chosen any more, as in Settings, though one a profile has is shown as it is.
+    @Test func anAppsInsertTakesWhatSettingsOffers() throws {
+        let english = try rows(#"{"changes": [{"key": "appProfiles.WeChat.suggestionsInsert", "value": "title"}]}"#)
+        #expect(english.map { $0.text(chinese: false) } == ["Apps · WeChat · Insert: Same as everywhere → With title"])
+        for value in [#""id""#, #""source""#, #""full""#, "true", #"["title"]"#] {
+            let row = try rows(#"{"changes": [{"key": "appProfiles.WeChat.suggestionsInsert", "value": \#(value)}]}"#).first
+            #expect(row?.isRefused == true && row?.edit == nil, "\(value)")
+        }
         var config = self.config
-        config.appProfiles["com.Tencent.XinWeChat"] = AppProfile(typeOut: true)
-        let found = try rows(#"{"changes": [{"key": "appProfiles.WeChat.typeOut", "value": null}]}"#, config)
-        let row = try #require(found.first)
-        #expect(row.edit == .app("com.Tencent.XinWeChat", .typeOut(nil)) && row.new == "Same as everywhere")
-        AIConfig.apply([row.edit!], to: &config)
-        #expect(config.appProfiles.isEmpty)  // left setting nothing: removed, as the menu does
+        config.appProfiles["com.apple.mail"] = AppProfile(noAI: true, suggestionsInsert: .id)
+        let back = try rows(#"{"changes": [{"key": "appProfiles.Mail.suggestionsInsert", "value": null}]}"#, config)
+        #expect(back.map { $0.text(chinese: false) } == ["Apps · Mail · Insert: ID only → Same as everywhere"])
+        let undo = AIConfig.apply(back.compactMap(\.edit), to: &config)
+        #expect(config.appProfiles["com.apple.mail"] == AppProfile(noAI: true))
+        AIConfig.apply(undo, to: &config)
+        #expect(config.appProfiles["com.apple.mail"] == AppProfile(noAI: true, suggestionsInsert: .id))
+        // Already so: no row.
+        #expect(try rows(#"{"changes": [{"key": "appProfiles.Mail.noAI", "value": true}]}"#, config).isEmpty)
+    }
+
+    /// An answer that still sets an app's starting language, rewrite styles or typing out (as before 0.6.7) isn't applied:
+    /// its row is refused, saying where that is set now, the rest applies, and nothing of it is written.
+    @Test func anAppsRemovedFieldIsRefusedAndSaysWhy() throws {
+        let json = #"{"changes": [{"key": "appProfiles.微信.inputLanguage", "value": "zh"}, {"key": "appProfiles.Mail.rewriteStyles", "value": ["正式"]}, "#
+            + #"{"key": "appProfiles.WeChat.typeOut", "value": true}, {"key": "candidateLayout", "value": "vertical"}]}"#
+        let preview = try preview(json, env: env(chinese: true)).get()
+        #expect(preview.edits == [.candidateLayout(.vertical)])
+        #expect(preview.rows.map { $0.text(chinese: true) } == [
+            "候选排列：横排 → 竖排",
+            "✕ 按 App · 微信 · 开始的输入语言：这是学出来的：在这个 App 里打字前用 Shift 切换，连续两次就记住",
+            "✕ 按 App · Mail · 改写风格：现在对所有 App 一起设置，不再按 App 设",
+            "✕ 按 App · WeChat · 逐字上屏：现在对所有 App 一起设置，不再按 App 设",
+        ])
+        let english = try rows(json)
+        #expect(english.filter(\.isRefused).map { $0.text(chinese: false) } == [
+            "✕ Apps · 微信 · Starts in: it's learned: in this app, switch with Shift before typing, twice in a row",
+            "✕ Apps · Mail · Rewrite styles: it's set for every app now, not per app",
+            "✕ Apps · WeChat · Type results out: it's set for every app now, not per app",
+        ])
+        // Only that: refused, the one line its row.
+        let only = try AIConfig.parse(#"{"changes": [{"key": "appProfiles.WeChat.inputLanguage", "value": "zh"}]}"#)
+        #expect(AIConfig.preview(only, config: config, environment: env()) == .failure(.notAllowed))
+        #expect(AIConfig.failureLine(.notAllowed, proposal: only, config: config, environment: env())
+                == "✕ Apps · WeChat · Starts in: it's learned: in this app, switch with Shift before typing, twice in a row")
+        // Nothing of it reaches the file.
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("aiconfig-removed-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try config.write(to: url)
+        _ = try AIConfig.applying(preview.edits, at: url)
+        let written = try Config.load(from: url)
+        #expect(written.appProfiles.isEmpty && written.candidateLayout == .vertical)
+    }
+
+    /// An answer that changes nothing and says why, as the rules ask (an app's starting language: it's learned), has its
+    /// note as the one line; one without a note, or with nothing to read in it, says it wasn't understood. Never a key.
+    @Test func anAnswerThatChangesNothingSaysWhy() throws {
+        func line(_ json: String) throws -> String {
+            let proposal = try AIConfig.parse(json)
+            #expect(AIConfig.preview(proposal, config: config, environment: env()) == .failure(.notUnderstood))
+            return AIConfig.failureLine(.notUnderstood, proposal: proposal, config: config, environment: env())
+        }
+        let note = "微信从哪种输入开始是学出来的：在微信里打字前用 Shift 切换，连续两次。"
+        #expect(try line(#"{"changes": [], "note": "\#(note)"}"#) == note)
+        #expect(try line(#"{"changes": [], "note": "your key \#(key) is in Settings"}"#) == "your key ••• is in Settings")
+        for json in [#"{"changes": []}"#, #"{"changes": [], "note": "-"}"#] {
+            #expect(try line(json) == "Couldn't turn that into a setting", "\(json)")
+        }
+        #expect(AIConfig.failureLine(.notUnderstood, proposal: nil, config: config, environment: env()) == "Couldn't turn that into a setting")
     }
 
     // MARK: - Providers
@@ -346,18 +409,18 @@ struct AIConfigTests {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("aiconfig-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: url) }
         var before = config
-        before.appProfiles["com.apple.mail"] = AppProfile(rewriteStyles: ["正式"])
+        before.appProfiles["com.apple.mail"] = AppProfile(suggestionsInsert: .title)
         try before.write(to: url)
         let edits: [AIConfig.Edit] = [.outputLanguages([.english, OutputLanguage("fr")]), .defaultInput(.english), .flag(.typeOut, true),
-                                      .typeOutRate(8), .addWords(["Osprey"]), .app("com.tencent.xinWeChat", .inputLanguage(.chinese)),
-                                      .app("com.apple.mail", .rewriteStyles(nil)), .provider(.anthropic), .model(.anthropic, "claude-sonnet-5-5")]
+                                      .typeOutRate(8), .addWords(["Osprey"]), .app("com.tencent.xinWeChat", .noAI(true)),
+                                      .app("com.apple.mail", .suggestionsInsert(nil)), .provider(.anthropic), .model(.anthropic, "claude-sonnet-5-5")]
         let now = Date()
         let applied = try AIConfig.applying(edits, at: url, now: now)
         let after = try Config.load(from: url)
         #expect(after.outputLanguages == [.english, OutputLanguage("fr")] && after.outputLanguage == .english)
         #expect(after.inputLanguages == [.english, .chinese] && after.defaultInput == .english)
         #expect(after.typeOut && after.typeOutRate == 8 && after.redaction.customWords == ["Falcon", "Osprey"])
-        #expect(after.profile(for: "com.tencent.xinWeChat")?.inputLanguage == .chinese && after.profile(for: "com.apple.mail") == nil)
+        #expect(after.profile(for: "com.tencent.xinWeChat")?.noAI == true && after.profile(for: "com.apple.mail") == nil)
         #expect(after.provider == .anthropic && after.anthropic.model == "claude-sonnet-5-5")
         // Another change meanwhile (not the Assistant's) stays.
         var meanwhile = after
@@ -415,10 +478,43 @@ struct AIConfigTests {
         // Never the hidden words, nor anything off the allowlist.
         #expect(!system.contains("Falcon") && system.contains("1 words (not shown)"))
         #expect(!system.contains("deploy") && !system.contains("jargon.txt") && !system.contains("maxTokens"))
+        // Of an app, only what can be set here: No AI and Insert; never where it starts, its styles or typing out.
+        #expect(system.contains("appProfiles.<app>.noAI:") && system.contains("appProfiles.<app>.suggestionsInsert:"))
+        #expect(system.contains(#""no AI in WeChat" → {"changes": [{"key": "appProfiles.WeChat.noAI", "value": true}]}"#))
         // A refine: the answer and the instruction after it.
         let refine = AIConfigPrompt.request("x", context: .init(config: config),
                                             turns: [.init(answer: ConversionResult(versions: [CandidateLine("{\"changes\": []}")]), instruction: "also German")])
         #expect(refine.messages.map(\.role) == ["user", "assistant", "user"] && refine.messages.last?.content.first?.text == "<refine>also German</refine>")
+    }
+
+    /// The prompt and the on-device schema name no app field that can't be set here any more (where it starts, its rewrite
+    /// styles, typing out), nor show an app's values of them though its profile still has them; the rule says what to
+    /// answer instead.
+    @Test func thePromptHasNoRemovedAppField() {
+        var config = self.config
+        config.appProfiles = ["com.tencent.xinWeChat": AppProfile(inputLanguage: .chinese, rewriteStyles: ["正式"], typeOut: true),
+                              "com.apple.mail": AppProfile(inputLanguage: .english, noAI: true, suggestionsInsert: .titleAndLink)]
+        let context = AIConfigPrompt.Context(config: config, apps: apps)
+        for compact in [false, true] {
+            let system = AIConfigPrompt.request("微信里用中文", context: context, compact: compact).system.map(\.text).joined()
+            for field in AIConfig.RemovedAppField.allCases {
+                #expect(!system.contains("appProfiles.<app>.\(field.rawValue)") && !system.contains(".\(field.rawValue)\"")
+                        && !system.contains("\"\(field.rawValue)\""), "compact \(compact): \(field)")
+            }
+            // Only what can be set: Mail's No AI and Insert; WeChat sets neither, so it isn't listed.
+            #expect(system.contains(#"now {"com.apple.mail":{"noAI":true,"suggestionsInsert":"titleAndLink"}}"#)
+                    && !system.contains("com.tencent.xinWeChat"), "compact \(compact)")
+            #expect(system.contains("that the starting language is learned (switch it with Shift before typing, twice in a row, in that app)"))
+        }
+        guard case let .object(_, properties) = AIConfigPrompt.schema(context), case let .array(.choice(_, choices), _, _)? = properties.first?.schema else {
+            Issue.record("not a list of choices")
+            return
+        }
+        var keys: [String] = []
+        for case let .object(_, fields) in choices {
+            if case let .strings(_, names)? = fields.first?.schema { keys += names }
+        }
+        #expect(keys.filter { $0.hasPrefix("appProfiles.") } == ["appProfiles.*.noAI", "appProfiles.*.suggestionsInsert"])
     }
 
     @Test func theOtherPromptsAreUnchanged() throws {
@@ -444,10 +540,11 @@ struct AIConfigTests {
         }
         // Every key it can write is one the strict reader takes.
         #expect(!keys.isEmpty && keys.allSatisfy { AIConfig.Key.parse($0.replacingOccurrences(of: ".*.", with: ".WeChat.")) != nil })
-        #expect(Set(keys).isSuperset(of: ["outputLanguages", "typeOut", "provider", "awsProfile", "anthropic.model", "appProfiles.*.inputLanguage"]))
+        #expect(Set(keys).isSuperset(of: ["outputLanguages", "typeOut", "provider", "awsProfile", "anthropic.model", "appProfiles.*.noAI",
+                                          "appProfiles.*.suggestionsInsert"]))
         // An app's setting comes back into its key.
-        let canonical = AIConfigPrompt.canonical(#"{"changes": [{"key": "appProfiles.*.inputLanguage", "app": "WeChat", "value": "zh"}]}"#)
-        #expect((try? AIConfig.parse(canonical))?.changes == [.init(key: .app("WeChat", .inputLanguage), value: .string("zh"))])
+        let canonical = AIConfigPrompt.canonical(#"{"changes": [{"key": "appProfiles.*.suggestionsInsert", "app": "WeChat", "value": "title"}]}"#)
+        #expect((try? AIConfig.parse(canonical))?.changes == [.init(key: .app("WeChat", .suggestionsInsert), value: .string("title"))])
     }
 
     /// "In a row" and the other ways to say it are the candidate layout, unmistakably, for the small on-device model too
@@ -509,16 +606,16 @@ struct AIConfigTests {
     }
 
     @Test func onDeviceFirstWhateverTheProvider() async throws {
-        let stub = GuidedStub(answer: #"{"changes": [{"key": "appProfiles.*.typeOut", "app": "WeChat", "value": true}]}"#)
+        let stub = GuidedStub(answer: #"{"changes": [{"key": "appProfiles.*.noAI", "app": "WeChat", "value": true}]}"#)
         let service = AIConfigService(client: ChatClient(apple: stub))
         var config = self.config
         config.provider = .anthropic  // no key anywhere: never asked
         let tools = AIConfigService.Tools(findApps: { _ in "" }, awsProfiles: { "" }, languagePacks: { "" })
-        let answer = try await service.ask("type out in WeChat", context: .init(config: config), tools: tools)
+        let answer = try await service.ask("no AI in WeChat", context: .init(config: config), tools: tools)
         #expect(answer.onDevice && !answer.fromCache && stub.schemas.count == 1 && stub.tools == ["findApps", "awsProfiles", "languagePacks"])
-        #expect(try AIConfig.parse(answer.text).changes == [.init(key: .app("WeChat", .typeOut), value: .bool(true))])
+        #expect(try AIConfig.parse(answer.text).changes == [.init(key: .app("WeChat", .noAI), value: .bool(true))])
         // Asked again: kept, like other conversions.
-        let again = try await service.ask("type out in WeChat", context: .init(config: config), tools: tools)
+        let again = try await service.ask("no AI in WeChat", context: .init(config: config), tools: tools)
         #expect(again.fromCache && stub.schemas.count == 1)
     }
 
@@ -549,7 +646,7 @@ struct AIConfigTests {
     @Test func aValueThatLooksLikeAKeyIsNeverQuoted() throws {
         let json = """
             {"changes": [{"key": "outputLanguages", "value": ["\(key)"]}, {"key": "rewriteStyles", "value": ["\(key)"]},
-                         {"key": "appProfiles.\(key).typeOut", "value": true}, {"key": "openai.baseURL", "value": "https://example.com/v1?k=\(key)"},
+                         {"key": "appProfiles.\(key).noAI", "value": true}, {"key": "openai.baseURL", "value": "https://example.com/v1?k=\(key)"},
                          {"key": "redaction.customWords.add", "value": ["\(key)"]}, {"key": "typeOut", "value": true}],
              "note": "your key \(key) is set"}
             """
@@ -719,19 +816,19 @@ struct AIConfigTests {
         read.appProfiles = ["com.apple.mail": AppProfile(inputLanguage: .english), "com.tencent.xinWeChat": AppProfile(inputLanguage: .chinese)]
         read.redaction = RedactionSettings(enabled: true, customWords: ["Atlas"])
         try read.write(to: url)
-        // The Assistant: Mail typed out, emails no longer hidden.
+        // The Assistant: no AI in Mail, emails no longer hidden.
         var other = read
-        other.appProfiles["com.apple.mail"]?.typeOut = true
+        other.appProfiles["com.apple.mail"]?.noAI = true
         other.redaction.emails = false
         try AIConfig.writing(other, from: read, keys: AIConfig.changedKeys(read, other), at: url)
-        // The window, as it read the file: WeChat in English, phone numbers no longer hidden.
+        // The window, as it read the file: WeChat inserts with title, phone numbers no longer hidden.
         var window = read
-        window.appProfiles["com.tencent.xinWeChat"]?.inputLanguage = .english
+        window.appProfiles["com.tencent.xinWeChat"]?.suggestionsInsert = .title
         window.redaction.phones = false
         try AIConfig.writing(window, from: read, keys: AIConfig.changedKeys(read, window), at: url)
         let file = try Config.load(from: url)
-        #expect(file.appProfiles["com.apple.mail"] == AppProfile(inputLanguage: .english, typeOut: true))
-        #expect(file.appProfiles["com.tencent.xinWeChat"] == AppProfile(inputLanguage: .english))
+        #expect(file.appProfiles["com.apple.mail"] == AppProfile(inputLanguage: .english, noAI: true))
+        #expect(file.appProfiles["com.tencent.xinWeChat"] == AppProfile(inputLanguage: .chinese, suggestionsInsert: .title))
         #expect(!file.redaction.emails && !file.redaction.phones && file.redaction.customWords == ["Atlas"])
         // An app's profile removed by the writer goes; one added by the other stays.
         var removing = file
@@ -763,18 +860,18 @@ struct AIConfigTests {
                           as: UTF8.self)
         let url = try tempFile("{\n  \"futureBig\" : 12345678901234567," + text.dropFirst())
         defer { try? FileManager.default.removeItem(at: url) }
-        _ = try AIConfig.applying([.app("com.apple.mail", .typeOut(true)), .flag(.redactionEmails, false), .baseURL("https://api.deepseek.com/v1")],
+        _ = try AIConfig.applying([.app("com.apple.mail", .noAI(true)), .flag(.redactionEmails, false), .baseURL("https://api.deepseek.com/v1")],
                                   at: url)
         let after = String(decoding: try Data(contentsOf: url), as: UTF8.self)
         let read = try JSONSerialization.jsonObject(with: Data(after.utf8)) as! [String: Any]
         let mailAfter = (read["appProfiles"] as! [String: Any])["com.apple.mail"] as! [String: Any]
-        #expect(mailAfter["futureField"] as? String == "keep" && mailAfter["typeOut"] as? Bool == true)
+        #expect(mailAfter["futureField"] as? String == "keep" && mailAfter["noAI"] as? Bool == true)
         #expect((read["redaction"] as! [String: Any])["futureDetector"] as? Bool == true)
         #expect((read["openai"] as! [String: Any])["futureOption"] as? Int == 7)
         #expect((read["openai"] as! [String: Any])["baseURL"] as? String == "https://api.deepseek.com/v1")
         // A key that didn't change keeps its text: the big integer is as it was written.
         #expect(after.contains("\"futureBig\" : 12345678901234567"))
-        #expect(try Config.load(from: url).profile(for: "com.apple.mail")?.typeOut == true)
+        #expect(try Config.load(from: url).profile(for: "com.apple.mail") == AppProfile(rewriteStyles: ["正式"], noAI: true))
     }
 
     @Test func aRemovedKeyGoesWithItsComma() throws {
@@ -819,7 +916,7 @@ struct AIConfigTests {
         let before = try Data(contentsOf: url)
         // A key added (appProfiles), a list in an object (redaction's words), a list, a switch.
         let applied = try AIConfig.applying([.outputLanguages([.english, OutputLanguage("fr")]), .flag(.typeOut, true),
-                                             .app("com.tencent.xinWeChat", .inputLanguage(.english)), .addWords(["Bluebird"])], at: url)
+                                             .app("com.tencent.xinWeChat", .suggestionsInsert(.titleAndLink)), .addWords(["Bluebird"])], at: url)
         #expect(try Data(contentsOf: url) != before)
         _ = try AIConfig.undo(applied, at: url)
         #expect(try Data(contentsOf: url) == before)

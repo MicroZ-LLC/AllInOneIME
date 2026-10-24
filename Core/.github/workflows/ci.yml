@@ -56,7 +56,8 @@ jobs:
         run: swift build --build-tests
 
   # windows-latest, Swift 6.4.1 from swift.org; the test files that call POSIX directly are left out there
-  # (Package.swift).
+  # (Package.swift). The wire protocol's goldens run there too, on a checkout made with CRLF (core.autocrlf), but for
+  # what .gitattributes keeps LF.
   windows:
     runs-on: windows-latest
     steps:
@@ -76,4 +77,4 @@ jobs:
       - name: Build the tests
         run: swift build --build-tests
       - name: Run the tests of what differs on Windows
-        run: swift test --skip-build --filter 'PathCheckTests|SwapRecoveryTests|RedactionWordListTests'
+        run: swift test --skip-build --filter 'PathCheckTests|SwapRecoveryTests|RedactionWordListTests|ScriptEngineTests|QuickJSEngineTests|OnQuickJSTests|AllInOneIMEWireTests'

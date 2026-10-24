@@ -234,23 +234,44 @@ public final class SettingsStore {
 
     /// A command editor's Save: `command` in place of the one named `original` wherever it is now (of two of that name,
     /// the one the editor opened on, `shown`), else added (it was deleted elsewhere meanwhile). Not saved when another
-    /// command has its name by now: false, and the editor stays open saying so.
+    /// command has its name by now: false, and the editor stays open saying so. Saved here, it's confirmed on this Mac
+    /// (one that came from another Mac no longer awaits confirmation: `Config.unconfirmedCommands`).
     @discardableResult
     public func saveCommand(_ command: CustomCommand, editing original: String?, shown: CustomCommand? = nil) -> Bool {
         refresh()
         guard let list = CustomCommand.saving(command, as: original, in: config.customCommands, shown: shown) else { return false }
         config.customCommands = list
+        config.forgetUnconfirmed(named: [command.name] + (original.map { [$0] } ?? []))
         save()
         return true
     }
 
     /// A Delete dialog's Delete: the command named `name`, wherever it is now; one only (of two of that name, the one the
-    /// dialog was opened on, `shown`).
+    /// dialog was opened on, `shown`). Its mark from another Mac goes with it.
     public func deleteCommand(named name: String, shown: CustomCommand? = nil) {
         refresh()
         let list = CustomCommand.removing(name, from: config.customCommands, shown: shown)
         guard list != config.customCommands else { return }
         config.customCommands = list
+        if !list.contains(where: { $0.name.lowercased() == name.lowercased() }) { config.forgetUnconfirmed(named: [name]) }
+        save()
+    }
+
+    /// Settings → Custom Commands' Allow of a command from another Mac (decision 26): `command` as the page showed it,
+    /// confirmed on this Mac with that program (`Config.confirm`), wherever it is now. A program sync put in since stays
+    /// unconfirmed: the page shows it again.
+    public func allowCommand(_ command: CustomCommand) {
+        refresh()
+        guard config.confirm(command) else { return }
+        save()
+    }
+
+    /// A Delete of a command config.json has that can't be read (`Config.refusedCustomCommands`): `refused`, wherever it
+    /// is now; one only.
+    public func deleteRefusedCommand(_ refused: CustomCommand.Refused) {
+        refresh()
+        guard let index = config.refusedCustomCommands.firstIndex(of: refused) else { return }
+        config.refusedCustomCommands.remove(at: index)
         save()
     }
 
@@ -586,11 +607,16 @@ public final class SettingsStore {
 
     // MARK: Plugins
 
-    /// Removes an installed plugin (its folder). What went wrong (nil: done).
+    /// Removes an installed plugin (its folder), and what was enabled of it (its completion sources: installed again,
+    /// they ask again; their cached lists go as the input method takes the settings in). What went wrong (nil: done).
     public func uninstall(_ plugin: InstalledPlugin) -> String? {
         guard persists else { return nil }
         do {
             try PluginStore.uninstall(plugin)
+            if config.completionSources.contains(where: { $0.plugin == plugin.name }) {
+                config.completionSources.removeAll { $0.plugin == plugin.name }
+                save()
+            }
             return nil
         } catch {
             return tr("无法删除插件：", "Couldn't remove the plugin: ") + error.localizedDescription

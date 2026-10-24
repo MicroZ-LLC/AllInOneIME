@@ -130,6 +130,7 @@ public enum RimeKey {
     public static let releaseMask: Int32 = 1 << 30
 
     public static let shiftL: Int32 = 0xFFE1
+    public static let shiftR: Int32 = 0xFFE2
     public static let space: Int32 = 0x0020
     public static let backSpace: Int32 = 0xFF08
     public static let tab: Int32 = 0xFF09

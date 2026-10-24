@@ -75,15 +75,12 @@ extension SelfTest {
     static func testTranslateMode(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
         section("Translate as You Type (canned translations)", needs: .composing)
         let (notes, chat, mail) = ("com.example.notes", "com.example.chat", "com.example.mail")
-        let saved = (converter: controller.services.converter, settings: settings, shiftHeld: TranslateModeShared.shiftHeld,
-                     shiftDown: TranslateModeShared.shiftDown, defaults: TranslateModeShared.defaults,
+        let saved = (converter: controller.services.converter, settings: settings, defaults: TranslateModeShared.defaults,
                      lastTarget: TranslateModeShared.lastTarget, pointer: TranslateModeShared.pointer,
-                     stickyKeys: TranslateModeShared.stickyKeys)
-        // The mouse left alone and Sticky Keys off, whatever this Mac's are, while Shift is "held"; Shift down as the
-        // fake field's last modifier change left it.
-        var shiftIsDown = false
-        (TranslateModeShared.pointer, TranslateModeShared.stickyKeys) = ({ .zero }, { false })
-        TranslateModeShared.shiftDown = { shiftIsDown }
+                     stickyKeys: TranslateModeShared.stickyKeys, shiftHeld: TranslateModeShared.shiftHeld)
+        // The mouse left alone and Sticky Keys off, whatever this Mac's are, while Shift is "held" (the fake field's
+        // Shift down as the system has it while the timers run).
+        (TranslateModeShared.pointer, TranslateModeShared.stickyKeys, TranslateModeShared.shiftHeld) = ({ .zero }, { false }, { true })
         // The language picked last: in the self-test's own defaults (the user's stay as they are).
         let suite = "com.aipinyin.selftest.translatemode"
         UserDefaults.standard.removePersistentDomain(forName: suite)
@@ -92,19 +89,16 @@ extension SelfTest {
         // chip to go off, no chip, no notice up (its timer cancelled), the language picked last as it was.
         defer {
             TranslateModeShared.state = TranslateMode.State()
-            TranslateModeShared.hold.resync(shiftDown: false)
-            TranslateModeShared.holdToken += 1
             TranslateModeShared.chipToken += 1
-            (TranslateModeShared.hint, TranslateModeShared.hintField) = (nil, nil)
             (TranslateModeShared.listOpen, TranslateModeShared.toldSecureInput) = (false, false)
             controller.perform(controller.composer.setTranslateMode(nil), client: client)
             controller.commitComposition(client)
             MenuBarIcon.shared.setTranslating(false)
-            (controller.services.converter, settings, TranslateModeShared.shiftHeld) = (saved.converter, saved.settings, saved.shiftHeld)
+            (controller.services.converter, settings) = (saved.converter, saved.settings)
             TranslateModeShared.defaults = saved.defaults
             if TranslateModeShared.lastTarget != saved.lastTarget { TranslateModeShared.lastTarget = saved.lastTarget }
             (TranslateModeShared.pointer, TranslateModeShared.stickyKeys) = (saved.pointer, saved.stickyKeys)
-            TranslateModeShared.shiftDown = saved.shiftDown
+            TranslateModeShared.shiftHeld = saved.shiftHeld
             UserDefaults.standard.removePersistentDomain(forName: suite)
             client.bundleIDOverride = nil
             controller.activateServer(client)
@@ -126,7 +120,6 @@ extension SelfTest {
         client.inserted.removeAll()
         let translating = tr("翻译中…", "Translating…", key: "translateMode.translating")
         func shift(_ down: Bool) {
-            shiftIsDown = down
             _ = controller.handle(event("", code: VirtualKey.leftShift, flags: down ? .shift : [], type: .flagsChanged), client: client)
         }
         /// The notice up taken down now, its timer cancelled.
@@ -137,7 +130,8 @@ extension SelfTest {
             type(pinyin, controller, client)
             _ = space(controller, client)
         }
-        /// Shift held on its own until the mode turns on or off: whether the hint was `hint` first.
+        /// Shift held on its own until the mode turns on or off (the session times it, as in 0.6.6: no chooser): whether the
+        /// hint was `hint` first.
         func longPress(hint: String) -> (hinted: Bool, toggled: Bool) {
             let was = TranslateModeShared.state.isOn
             shift(true)
@@ -151,7 +145,6 @@ extension SelfTest {
 
         // Off: no @ command for it; Shift with a letter (a capital) held long toggles nothing.
         check(!controller.composer.commands.contains { $0.name == "mode" || $0.name == "exit" }, "no @mode or @exit")
-        TranslateModeShared.shiftHeld = { true }  // the fake field's Shift "held" while the timers run
         shift(true)
         press(controller, client, "A", code: 0x00, flags: .shift)
         _ = pump(timeout: 1.3) { false }
@@ -176,7 +169,7 @@ extension SelfTest {
         controller.composer.setInputMode(.chinese)
         client.inserted.removeAll()
 
-        // A long press of Shift: the hint, then on.
+        // A long press of Shift: the hint, then on, at once (no chooser: nothing to pick, the panel shows no rows).
         shift(true)
         let hinted = pump(timeout: 0.9) { controller.notice == onHint }
         check(hinted && !TranslateModeShared.state.isOn, "a long press of Shift: \(controller.notice ?? "no hint") at about 0.5 s")
@@ -184,8 +177,9 @@ extension SelfTest {
         shift(false)
         check(on && controller.composer.translateMode?.target == .english
               && controller.notice == tr("边打边译 已开启：中文 → 英文 · 再长按 Shift 关闭", "Translate as You Type on: Chinese → English · hold Shift again to turn off")
-              && controller.composer.inputLanguage == .chinese && MenuBarIcon.shared.translating,
-              "…at 1.0 s it's on (\(controller.notice ?? "-")), the menu bar badge shown, the input language not switched")
+              && controller.composer.inputLanguage == .chinese && MenuBarIcon.shared.translating
+              && controller.session.panelModel().rows.isEmpty,
+              "…at 1.0 s it's on (\(controller.notice ?? "-")), no chooser, the menu bar badge shown, the input language not switched")
         check(pump(timeout: 2.2) { controller.notice == nil }, "…its notice up about 1.5 s")
         // A tap of Shift still switches the input language.
         tapShift(controller, client)
@@ -254,7 +248,7 @@ extension SelfTest {
         let japanese = OutputLanguage("ja")
         settings.setOrder([OutputLanguage.english, japanese, .chinese])
         let panel = CandidatePanel.shared
-        func chip() -> String { panel.isVisible ? panel.view.model.chip.map { "\($0.source) → \($0.target)" } ?? "none" : "hidden" }
+        func chip() -> String { panel.isShowing ? panel.view.model.chip.map { "\($0.source) → \($0.target)" } ?? "none" : "hidden" }
         let (zhEn, enEn, zhJa) = (tr("中 → 英", "ZH → EN"), tr("英 → 英", "EN → EN"), tr("中 → 日", "ZH → JA"))
         /// A click on a part of the chip, through the panel's own mouse handling.
         func click(_ part: CandidateView.ChipPart) {
@@ -348,11 +342,11 @@ extension SelfTest {
         AllInOneIMEInputController.otherAppActivated("com.apple.finder")
         check(holding && !TranslateModeShared.state.isOn && controller.composer.translateMode == nil && client.inserted.last == "你好"
               && client.marked.isEmpty && ["hidden", "none"].contains(chip()) && !MenuBarIcon.shared.translating
-              && controller.notice == nil && TranslateModeShared.hold.held == nil,
+              && controller.notice == nil,
               "Finder active: off, the draft in as typed (\(client.inserted.last ?? "-")), no chip (\(chip())), no badge, no notice (\(controller.notice ?? "none"))")
-        let later = pump(timeout: 0.7) { TranslateModeShared.state.isOn }  // past the toggle's time, Shift still held
+        let later = pump(timeout: 0.7) { TranslateModeShared.state.isOn }  // past the long press's time, Shift still held
         shift(false)
-        check(!later && !TranslateModeShared.state.isOn, "…the press of Shift held then turns nothing on later")
+        check(!later, "…the press of Shift held then turns nothing on later")
         let (own, other) = (ProcessInfo.processInfo.processIdentifier, pid_t(1))
         check(TranslateModeShared.isOtherApp(pid: other, id: "com.apple.finder", frontmost: other)
               && !TranslateModeShared.isOtherApp(pid: own, id: Bundle.main.bundleIdentifier, frontmost: own)
@@ -392,7 +386,10 @@ extension SelfTest {
         client.bundleIDOverride = notes
         controller.activateServer(client)
         check(!TranslateModeShared.state.isOn, "…and leaving that app leaves it")
-        check(AppProfileText.summary(AppProfile(translateAlways: true)) == tr("总是边打边译", "Always Translate as You Type"),
-              "Settings → Apps says so: \(AppProfileText.summary(AppProfile(translateAlways: true)))")
+        var previous = Config.default
+        previous.appProfiles = [mail: AppProfile(translateAlways: true)]
+        let row = previous.previousAppSettings(appName: { _ in "Mail" }).first?.text ?? ""
+        check(row == tr("Mail：总是边打边译", "Mail: Always Translate as You Type"),
+              "Settings → General's previous per-app settings say so: \(row)")
     }
 }

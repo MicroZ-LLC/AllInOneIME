@@ -2,10 +2,11 @@ import AllInOneIMECore
 import AppKit
 import SwiftUI
 
-/// Settings → Assistant, the page Settings opens on: settings changed by describing them (`AIConfig`, through
-/// `AIConfigService` and the environment `AIConfigSession` builds) and the setup checked on this Mac (`Doctor`, with
-/// `DoctorSession`'s probes and `DoctorService` for a question). One model for the process (`shared`): a preview, the
-/// undo of the last changes and the findings stay while other pages are shown, and go when the input method quits.
+/// Settings changed by describing them (`AIConfig`, through `AIConfigService` and the environment `AIConfigSession`
+/// builds: the sidebar search's "Change: …") and the setup checked on this Mac (`Doctor`, with `DoctorSession`'s probes and
+/// `DoctorService` for a question: each page's banners, About → Troubleshoot…). One model for the process (`shared`): a
+/// preview, the undo of the last changes and the findings stay while other pages are shown, and go when the input method
+/// quits.
 @MainActor
 final class AssistantModel: ObservableObject {
     static let shared = AssistantModel()
@@ -52,7 +53,7 @@ final class AssistantModel: ObservableObject {
     @Published private(set) var checkingConnection = false
     /// The finding whose command was just copied ("Copied" for a moment).
     @Published private(set) var copied: Int?
-    /// The ✓ rows shown though everything is fine (the disclosure opened).
+    /// The ✓ rows shown under their line (`fold`, opened): folded each time Settings opens, then as the user leaves it.
     @Published var showsFine = false
 
     /// How many times the probes ran, and the connection test (the self-test counts them).
@@ -175,14 +176,14 @@ final class AssistantModel: ObservableObject {
     static func line(_ row: AIConfig.Row, language: String) -> String {
         guard case let .needsKey(provider) = row.status, provider != .bedrock else { return row.text(language: language) }
         let t = InterfaceWords(language: language)
-        let text = provider == .hosted ? t.tr("点「应用」后在 AI 服务里登录", "Apply opens AI Provider to sign in")
-            : t.tr("点「应用」后在 AI 服务里填（不会发给 AI）", "Apply opens AI Provider to add it (never sent to the AI)")
+        let text = provider == .hosted ? t.tr("点「应用」后在「AI」里登录", "Apply opens AI to sign in")
+            : t.tr("点「应用」后在「AI」里填（不会发给 AI）", "Apply opens AI to add it (never sent to the AI)")
         return row.label + t.tr("：", ": ") + text
     }
 
     /// Over a preview whose request had a key typed into it: it was dropped before anything was sent.
     static var droppedKeyNote: String {
-        tr("别在这里打密钥：它没有发出去。密钥请在 AI 服务里填", "Don't type keys here: it wasn't sent. Add keys in AI Provider.")
+        tr("别在这里打密钥：它没有发出去。密钥请在「AI」里填", "Don't type keys here: it wasn't sent. Add keys in AI.")
     }
 
     /// Esc or Cancel while the request is on its way: nothing more comes of it, and the line that says where it went
@@ -238,7 +239,7 @@ final class AssistantModel: ObservableObject {
         appliedWritesSettings = !preview.edits.isEmpty
         applied = preview.edits.isEmpty
             ? tr("已完成：", "Done: ") + preview.rows.filter { $0.action != nil }.map(\.label).joined(separator: tr("；", "; "))
-            : Self.changed(preview.edits.count)
+            : Self.changed(preview.edits.count) + Self.autocompleteOn(preview.edits)
         if preview.edits.isEmpty, preview.actions.isEmpty { applied = nil }
         if let provider = preview.needsKey { AIConfigSession.openKeyField(provider) }
         if preview.changesProvider { testConnection() }
@@ -247,6 +248,14 @@ final class AssistantModel: ObservableObject {
 
     /// "已改 2 项" / "Changed 2 settings".
     static func changed(_ count: Int) -> String { AIConfig.Text(language: UIText.language).applied(count) }
+
+    /// Autocomplete turned on by `edits`: where its text goes now, as its row said (`Autocomplete.Words.destination`),
+    /// after the confirmation; else nothing.
+    static func autocompleteOn(_ edits: [AIConfig.Edit]) -> String {
+        guard edits.contains(.autocomplete(true)), let config = try? Config.load(from: AIConfigSession.url),
+              let destination = Autocomplete.Words(language: UIText.language).destination(config) else { return "" }
+        return tr("。", ". ") + destination
+    }
 
     /// Settings' own Test Connection on the config file as it is now; its line under the confirmation.
     private func testConnection() {
@@ -301,6 +310,21 @@ final class AssistantModel: ObservableObject {
             applied = nil
             appliedWritesSettings = false
         }
+    }
+
+    /// The card closed: what the last request or apply said goes (Undo with it).
+    func dismissOutcome() {
+        message = nil
+        notice = nil
+        undone = nil
+        connection = nil
+        applied = nil
+        appliedWritesSettings = false
+    }
+
+    /// Whether there's a request, its preview or what came of it to show.
+    var showsChange: Bool {
+        working || preview != nil || message != nil || applied != nil || undone != nil || notice != nil
     }
 
     /// The page shown again: a confirmation whose undo has run out goes.
@@ -410,6 +434,20 @@ final class AssistantModel: ObservableObject {
     /// Every finding is fine: the folded line says "Everything looks good" (else "N more look good").
     var allFine: Bool { !findings.isEmpty && findings.allSatisfy { $0.status == .ok } }
 
+    /// The problems and warnings, a row each, always shown, with their index among all the findings (what Fix and
+    /// Copied go by).
+    var issues: [(offset: Int, element: Doctor.Finding)] { findings.enumerated().filter { $0.element.status != .ok } }
+
+    /// What is fine, folded under one line (`fold`) until it is opened (`showsFine`).
+    var fine: [(offset: Int, element: Doctor.Finding)] { findings.enumerated().filter { $0.element.status == .ok } }
+
+    /// The line what is fine is folded under: "Everything looks good", else "N more look good"; nil while nothing is.
+    var fold: String? {
+        let count = fine.count
+        guard count > 0 else { return nil }
+        return allFine ? tr("一切正常", "Everything looks good") : tr("另外 \(count) 项正常", "\(count) more look good")
+    }
+
     /// Fix on finding `index`: a config fix shows its changes in the preview above (Apply, Undo); the others act at once,
     /// as they did before. The probes run again after.
     func fix(_ index: Int) {
@@ -469,83 +507,78 @@ final class AssistantModel: ObservableObject {
     }
 }
 
-/// The page: the request and its preview, then the checks.
-struct AssistantPage: View {
+/// The search's "Change: …" at the top of the page shown: the request, while it's on its way (Cancel), its preview (Cancel,
+/// Apply), and what came of it (Undo for ten minutes, Done). A fix of the checks that changes settings shows here too.
+struct ChangeCard: View {
     @ObservedObject var assistant: AssistantModel
-    @FocusState private var requestFocused: Bool
 
     var body: some View {
-        changeSection
-        checkSection
-    }
-
-    // MARK: Change settings in a sentence
-
-    @ViewBuilder private var changeSection: some View {
-        Section {
-            HStack(alignment: .top, spacing: 8) {
-                TextField(text: $assistant.request, prompt: Text(tr("例如：翻译成日语和英语", "e.g. translate into Japanese and English")),
-                          axis: .vertical) {
-                    Text(tr("想怎么改", "What to change"))
+        if assistant.showsChange {
+            Section {
+                if !assistant.request.isEmpty {
+                    Label(assistant.request, systemImage: "wand.and.stars").fixedSize(horizontal: false, vertical: true)
                 }
-                .labelsHidden()
-                .lineLimit(2...5)
-                .focused($requestFocused)
-                .onSubmit { assistant.sendRequest() }
                 if assistant.working {
-                    ProgressView().controlSize(.small).padding(.top, 2)
-                    Button(tr("取消", "Cancel")) { assistant.cancelRequest() }
-                        .keyboardShortcut(.cancelAction)
-                } else {
-                    Button(tr("预览", "Preview")) { assistant.sendRequest() }
-                        .keyboardShortcut(.return, modifiers: .command)
-                        .disabled(!assistant.canPreview)
-                }
-            }
-            if let notice = assistant.notice {
-                Label(notice, systemImage: "info.circle").font(.callout).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            if let preview = assistant.preview {
-                ForEach(Array(preview.rows.enumerated()), id: \.offset) { index, row in
-                    previewRow(row, line: assistant.lines.indices.contains(index) ? assistant.lines[index] : "")
-                }
-                if preview.droppedKey {
-                    Label(AssistantModel.droppedKeyNote, systemImage: "exclamationmark.triangle.fill")
-                        .font(.callout).foregroundStyle(.orange)
-                }
-                if let note = preview.note {
-                    Text(note).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                }
-                HStack {
-                    Spacer()
-                    Button(tr("取消", "Cancel")) { assistant.dismissPreview() }
-                        .keyboardShortcut(.cancelAction)
-                    Button(tr("应用", "Apply")) { assistant.apply() }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(!preview.canApply)
-                }
-            }
-            if let message = assistant.message {
-                Label(message, systemImage: "exclamationmark.circle").foregroundStyle(.secondary)
-            }
-            if let applied = assistant.applied {
-                HStack {
-                    Label(applied, systemImage: "checkmark.circle.fill").labelStyle(StatusLabelStyle(color: .green))
-                    Spacer()
-                    if assistant.canUndo {
-                        Button(tr("撤销", "Undo")) { assistant.undo() }
+                    HStack {
+                        ProgressView().controlSize(.small)
+                        Text(tr("正在问 AI…", "Asking the AI…")).foregroundStyle(.secondary)
+                        Spacer()
+                        Button(tr("取消", "Cancel")) { assistant.cancelRequest() }
+                            .keyboardShortcut(.cancelAction)
                     }
                 }
-                if let connection = assistant.connection {
-                    Text(connection).font(.callout).foregroundStyle(.secondary).lineLimit(2)
+                if let notice = assistant.notice {
+                    Label(notice, systemImage: "info.circle").font(.callout).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+                if let preview = assistant.preview {
+                    ForEach(Array(preview.rows.enumerated()), id: \.offset) { index, row in
+                        previewRow(row, line: assistant.lines.indices.contains(index) ? assistant.lines[index] : "")
+                    }
+                    if preview.droppedKey {
+                        Label(AssistantModel.droppedKeyNote, systemImage: "exclamationmark.triangle.fill")
+                            .font(.callout).foregroundStyle(.orange)
+                    }
+                    if let note = preview.note {
+                        Text(note).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    }
+                    HStack {
+                        Spacer()
+                        Button(tr("取消", "Cancel")) { assistant.dismissPreview() }
+                            .keyboardShortcut(.cancelAction)
+                        Button(tr("应用", "Apply")) { assistant.apply() }
+                            .keyboardShortcut(.return, modifiers: .command)
+                            .buttonStyle(.borderedProminent)
+                            .disabled(!preview.canApply)
+                    }
+                }
+                if let message = assistant.message {
+                    Label(message, systemImage: "exclamationmark.circle").foregroundStyle(.secondary)
+                }
+                if let applied = assistant.applied {
+                    HStack {
+                        Label(applied, systemImage: "checkmark.circle.fill").labelStyle(StatusLabelStyle(color: .green))
+                        Spacer()
+                        if assistant.canUndo {
+                            Button(tr("撤销", "Undo")) { assistant.undo() }
+                        }
+                    }
+                    if let connection = assistant.connection {
+                        Text(connection).font(.callout).foregroundStyle(.secondary).lineLimit(2)
+                    }
+                }
+                if let undone = assistant.undone {
+                    Label(undone, systemImage: "arrow.uturn.backward.circle").foregroundStyle(.secondary)
+                }
+                if !assistant.working, assistant.preview == nil {
+                    HStack {
+                        Spacer()
+                        Button(tr("完成", "Done")) { assistant.dismissOutcome() }
+                    }
+                }
+            } header: {
+                SectionTitle(tr("用一句话改设置", "Change settings in a sentence"), icon: CandidateView.Icon(symbol: "wand.and.stars", color: .systemPurple))
             }
-            if let undone = assistant.undone {
-                Label(undone, systemImage: "arrow.uturn.backward.circle").foregroundStyle(.secondary)
-            }
-        } header: {
-            SectionTitle(tr("用一句话改设置", "Change settings in a sentence"), icon: SettingsPage.assistant.icon)
         }
     }
 
@@ -564,19 +597,120 @@ struct AssistantPage: View {
             Text(line)
         }
     }
+}
 
-    // MARK: Check for problems
+/// What the checks found wrong on a page, at its top: a row each, with what its button does ("Add Key…", "Download",
+/// "Open System Settings").
+struct ProblemBanners: View {
+    @ObservedObject var assistant: AssistantModel
+    let page: SettingsPage
+
+    var body: some View {
+        let shown = assistant.issues.filter { SettingsPage.of($0.element.area) == page }
+        if !shown.isEmpty {
+            Section {
+                ForEach(shown, id: \.offset) { index, finding in
+                    FindingRow(assistant: assistant, finding: finding, index: index)
+                        .listRowBackground(TroubleshootSheet.color(finding.status).opacity(0.1))
+                }
+            }
+        }
+    }
+}
+
+/// A finding with its index among all of them (what its button and Copied go by): its status icon, the title with the
+/// detail under it, and its fix at the end.
+struct FindingRow: View {
+    @ObservedObject var assistant: AssistantModel
+    let finding: Doctor.Finding
+    let index: Int
+
+    var body: some View {
+        LabeledContent {
+            if let fix = finding.fix {
+                if assistant.copied == index {
+                    Text(tr("已复制", "Copied")).foregroundStyle(.secondary)
+                } else if assistant.recommended.contains(fix) {
+                    Button(Self.title(fix)) { assistant.fix(index) }.buttonStyle(.borderedProminent)
+                } else {
+                    Button(Self.title(fix)) { assistant.fix(index) }
+                }
+            }
+        } label: {
+            TroubleshootSheet.statusTitled(finding.status, finding.title, finding.detail)
+        }
+    }
+
+    /// What a fix's button says it does, never just "Fix".
+    static func title(_ fix: Doctor.Fix) -> String {
+        switch fix {
+        case .enableInputMethod: return tr("重新启用输入法", "Enable Input Method")
+        case .openPrivacy, .openAppleIntelligenceSettings: return tr("打开系统设置", "Open System Settings")
+        case .downloadPack: return tr("下载", "Download")
+        case .repairConfig, .resaveConfig: return tr("查看修改…", "Review Changes…")
+        case .openKeyField(.hosted): return tr("登录…", "Sign In…")
+        case .openKeyField(.bedrock): return tr("查看 AWS profile…", "Check AWS Profile…")
+        case .openKeyField: return tr("添加密钥…", "Add Key…")
+        case .copyCommand: return tr("复制命令", "Copy Command")
+        case .checkForUpdates: return tr("检查更新", "Check for Updates")
+        }
+    }
+}
+
+/// About's line under Troubleshoot: everything fine (green), or how many things to look at.
+struct TroubleshootSummary: View {
+    @ObservedObject var assistant: AssistantModel
+
+    var body: some View {
+        let issues = assistant.issues.map(\.element)
+        if let worst = issues.map(\.status).min() {
+            Label(issues.count == 1 ? tr("有 1 项要看一下", "1 thing to look at") : tr("有 \(issues.count) 项要看一下", "\(issues.count) things to look at"),
+                  systemImage: TroubleshootSheet.symbol(worst))
+                .labelStyle(StatusLabelStyle(color: TroubleshootSheet.color(worst))).font(.callout)
+        } else if assistant.allFine {
+            Label(tr("一切正常", "Everything looks good"), systemImage: TroubleshootSheet.symbol(.ok))
+                .labelStyle(StatusLabelStyle(color: .green)).font(.callout)
+        }
+    }
+}
+
+/// About → Troubleshoot…: the setup checked on this Mac (the probes again as it opens), and a question for the AI about
+/// what's wrong; problems and warnings each on a row, what is fine folded under one green line.
+struct TroubleshootSheet: View {
+    @ObservedObject var assistant: AssistantModel
+    let done: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Form {
+                ChangeCard(assistant: assistant)
+                checkSection
+            }
+            .formStyle(.grouped)
+            .scrollContentBackground(.hidden)
+            HStack {
+                Spacer()
+                Button(tr("完成", "Done"), action: done).keyboardShortcut(.defaultAction)
+            }
+            .padding([.horizontal, .bottom], 16)
+        }
+        .frame(width: 640, height: 560)
+        .onAppear { assistant.probe() }
+    }
 
     @ViewBuilder private var checkSection: some View {
         Section {
-            HStack(spacing: 8) {
-                TextField(text: $assistant.question, prompt: Text(tr("遇到什么问题？（可选）", "What's wrong? (optional)"))) {
-                    Text(tr("问题", "Question"))
+            // As the other text fields with a button (API key): the label, the field, the button after it.
+            LabeledContent(tr("问题", "Question")) {
+                HStack(spacing: 8) {
+                    TextField(text: $assistant.question, prompt: Text(tr("遇到什么问题？（可选）", "What's wrong? (optional)"))) {
+                        Text(tr("问题", "Question"))
+                    }
+                    .labelsHidden()
+                    .onSubmit { if !assistant.question.trimmingCharacters(in: .whitespaces).isEmpty { assistant.check() } }
+                    Button(tr("检查", "Check")) { assistant.check() }
+                        .disabled(assistant.checkingConnection)
                 }
-                .labelsHidden()
-                .onSubmit { if !assistant.question.trimmingCharacters(in: .whitespaces).isEmpty { assistant.check() } }
-                Button(tr("检查", "Check")) { assistant.check() }
-                    .disabled(assistant.checkingConnection)
             }
             if let note = assistant.questionNote {
                 Label(note, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange)
@@ -585,66 +719,44 @@ struct AssistantPage: View {
                 Label(explanation, systemImage: "sparkles").labelStyle(StatusLabelStyle(color: .purple))
                     .fixedSize(horizontal: false, vertical: true)
             }
-            // Problems and warnings each on a row; what is fine folded under one line, opened by its disclosure.
-            let indexed = Array(assistant.findings.enumerated())
-            findingRows(indexed.filter { $0.element.status != .ok })
-            let fine = indexed.filter { $0.element.status == .ok }
-            if !fine.isEmpty {
+            // Problems and warnings each on a row (problems first); what is fine folded under one green line, opened by
+            // clicking it. Each as Settings' other rows: its status icon, the title with the detail under it, its fix.
+            ForEach(assistant.issues, id: \.offset) { index, finding in
+                FindingRow(assistant: assistant, finding: finding, index: index)
+            }
+            if let fold = assistant.fold {
                 DisclosureGroup(isExpanded: $assistant.showsFine) {
-                    findingRows(fine)
+                    ForEach(assistant.fine, id: \.offset) { index, finding in
+                        FindingRow(assistant: assistant, finding: finding, index: index)
+                    }
                 } label: {
-                    Label(assistant.allFine ? tr("一切正常", "Everything looks good")
-                          : tr("另外 \(fine.count) 项正常", "\(fine.count) more look good"), systemImage: "checkmark.circle.fill")
-                        .labelStyle(StatusLabelStyle(color: .green))
+                    Self.statusTitled(.ok, fold, nil)
                 }
+                .disclosureGroupStyle(RowDisclosureStyle())
             }
         } header: {
             HStack(spacing: 8) {
-                SectionTitle(tr("检查问题", "Check for problems"), icon: SettingsPage.assistant.icon)
+                SectionTitle(SettingsSpot.troubleshoot.title, icon: SettingsPage.about.icon)
                 if assistant.checking {
                     ProgressView().controlSize(.small).padding(.top, 6)
                 }
             }
         }
-        .onAppear {
-            assistant.expireUndo()
-            assistant.dropStalePreview()
-            assistant.probe()
-            AIConfigSession.prewarmIfDue()  // the on-device model and the apps, before a request
-            // The request field, once the page is up.
-            DispatchQueue.main.async { requestFocused = true }
-        }
-        // Settings back in front (the input method's process active again), not any window of it becoming key.
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            assistant.dropStalePreview()
-            assistant.probe()
-        }
     }
 
-    /// Findings with their index among all of them (what Fix and Copied go by).
-    @ViewBuilder private func findingRows(_ rows: [(offset: Int, element: Doctor.Finding)]) -> some View {
-        ForEach(rows, id: \.offset) { index, finding in
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Image(systemName: Self.symbol(finding.status)).foregroundStyle(Self.color(finding.status))
-                    .accessibilityLabel(finding.status.mark)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(finding.title)
-                    if let detail = finding.detail {
-                        Text(detail).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-                Spacer()
-                if finding.fix != nil {
-                    if assistant.copied == index {
-                        Text(tr("已复制", "Copied")).foregroundStyle(.secondary)
-                    } else if let fix = finding.fix, assistant.recommended.contains(fix) {
-                        Button(tr("修复", "Fix")) { assistant.fix(index) }.buttonStyle(.borderedProminent)
-                    } else {
-                        Button(tr("修复", "Fix")) { assistant.fix(index) }
-                    }
+    /// A status icon before a row's title, with a short explanation under the title as System Settings shows them.
+    static func statusTitled(_ status: Doctor.Status, _ title: String, _ note: String?) -> some View {
+        Label {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                if let note {
+                    Text(note).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
             }
+        } icon: {
+            Image(systemName: Self.symbol(status)).accessibilityLabel(status.mark)
         }
+        .labelStyle(StatusLabelStyle(color: Self.color(status)))
     }
 
     static func symbol(_ status: Doctor.Status) -> String {
@@ -664,14 +776,38 @@ struct AssistantPage: View {
     }
 }
 
-/// A label whose icon has a color of its own and whose title is in the text's.
+/// A label whose icon has a color of its own and whose title is in the text's; the icon as wide as the other rows' (20).
 private struct StatusLabelStyle: LabelStyle {
     let color: Color
 
     func makeBody(configuration: Configuration) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            configuration.icon.foregroundStyle(color)
+        HStack(alignment: .firstTextBaseline) {
+            configuration.icon.foregroundStyle(color).frame(width: 20)
             configuration.title
+        }
+    }
+}
+
+/// A disclosure drawn as a row of the card: the whole row opens and folds it, its chevron at the end (where the other
+/// rows' buttons are), what it holds as rows under it; the default style's chevron before the label would push the
+/// icon out of the other rows' column. VoiceOver still reads it as a disclosure, collapsed or expanded.
+struct RowDisclosureStyle: DisclosureGroupStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        Button {
+            withAnimation { configuration.isExpanded.toggle() }
+        } label: {
+            HStack {
+                configuration.label
+                Spacer()
+                Image(systemName: "chevron.right").foregroundStyle(.secondary)
+                    .rotationEffect(.degrees(configuration.isExpanded ? 90 : 0))
+                    .accessibilityHidden(true)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        if configuration.isExpanded {
+            configuration.content
         }
     }
 }

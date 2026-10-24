@@ -298,7 +298,7 @@ The first frame is `hello`. Its shape, and the shape of `welcome`, never change 
 - drawing candidates and notices (in its own window);
 - reading and writing the clipboard;
 - opening URLs and paths, terminals and agents, notes, reminders and messages;
-- voice, AI, scripts and search;
+- AI, scripts and search (and voice, off for now: `Features.voiceInput`);
 - **type out:** the engine pushes a series of `apply` frames, one `commit` per step, and fixes typos with `deleteBefore`. Each step waits for the previous `applied`. No `SendInput`.
 
 ## 7. Async pushes
@@ -622,32 +622,52 @@ given and sends back what the user did. It opens no sessions.
   in use, the typing speed while typing out is on, fuzzy pinyin and the English words with Chinese among the input
   languages. After a change, draw the new document: fields come and go.
 - **Which platform:** a document is made for the client's platform (the engine's: `windows`). The Mac's own fields
-  aren't in Windows' document: `iCloudSync`, `menuBarIcon`, `checkForUpdates`, `voiceInput`, `agentPageContext`
-  (Chrome's page). Nor are the Mac's choices: the action keys `optionTap` and `optionSpace`, Apple Notes
+  aren't in Windows' document: `iCloudSync`, `menuBarIcon`, `checkForUpdates`, `voiceInput` (while voice input is
+  on: off for now, `Features.voiceInput`, so in neither), `agentPageContext` (Chrome's page). Nor are the Mac's choices: the action keys `optionTap` and `optionSpace`, Apple Notes
   (`notes.destination` `notes`), the providers `apple` (Apple Intelligence) and `hosted` (its sign-in is the Mac's). A
   choice only the other platform has is shown, `disabled`, when it is the value now (Apple Notes, a new user's
   default). Messages (`@imessage`) has no setting. A field's `platforms`, when present, says where it applies. Its
   text is the platform's too: Windows' names its keys (Enter, Ctrl+Space) and places (a terminal window, this PC,
   `cmd /c` for a shell, the Credential Manager), and writes a folder in the home folder from `%USERPROFILE%`
-  (`extensions.folders`' placeholder and titles; one typed so is taken, its `%NAME%`s written out).
+  (`extensions.folders`' placeholder and titles; one typed so is taken, its `%NAME%`s written out). Its paths are
+  Windows', whatever the system it is made on: the jargon list's default file `%APPDATA%\AllInOneIME\jargon.txt`
+  (`jargonFile`'s placeholder; a `jargonFile` with `%NAME%`s is read with them written out), the config file and the
+  error that names it with backslashes (`configFile`, `loadError`).
 - **Field ids** (stable; a later version may add fields, and a client draws any it is given):
 
 | Section | Fields |
 |---|---|
-| `general` | `actionKey`, `typeOut`, `typeOutRate`, `typeOutVaries`, `typeOutMistakes`, `useSelection`, `rememberQuestions`, `uiLanguage`; the Mac's: `menuBarIcon`, `iCloudSync`, `checkForUpdates` |
-| `input` | `inputLanguages`, `candidateLayout`, `fuzzyPinyin`, `learnsEnglishWords`, `englishWords`; the Mac's: `voiceInput` |
+| `general` | `actionKey`, `commandTrigger` (the magic key), `typeOut`, `typeOutRate`, `typeOutVaries`, `typeOutMistakes`, `useSelection`, `rememberQuestions`, `suggestions`, `suggestionsInsert` (what a suggestion row inserts, under the Suggestions switch), `uiLanguage`; the Mac's: `menuBarIcon`, `iCloudSync`, `checkForUpdates` |
+| `input` | `inputLanguages`, `codingLanguage` (Code), `code.installed`, `code.library` (the coding packs), `candidateLayout`, `fuzzyPinyin`, `learnsEnglishWords`, `englishWords`; the Mac's: `voiceInput` (while voice input is on) |
 | `writing` | `outputLanguages`, `rewriteStyles`, `improveTranslates`, `jargonFile` |
 | `provider` | `provider`; `<p>.model`, `<p>.key`, `<p>.baseURL`, `<p>.effort` for `anthropic`, `gemini`, `openai`; `bedrock.modelId`, `bedrock.awsProfile`, `bedrock.region`; `provider.test` |
 | `request` | `maxTokens`, `temperature` (Bedrock), `timeoutSeconds` |
 | `privacy` | `redaction.enabled`, `redaction.emails`, `.phones`, `.cards`, `.keys`, `.ips`, `redaction.customWords` |
 | `agent` | `agent`, `agentCommand` (a custom agent), `claudeInBackground` (Claude Code); the Mac's: `agentPageContext` |
-| `apps` | `apps.profiles`: an item per app with settings of its own (`win:notepad.exe`), its fields `apps.<app>.inputLanguage`, `.ownStyles`, `.rewriteStyles` (with its own styles), `.noAI`; the Mac's: `.typeOut`, `.translateAlways` |
-| `plugins` | `plugins.installed`, `plugins.library` |
+| `apps` | `apps.profiles`: an item per app with settings of its own (`win:notepad.exe`), its fields `apps.<app>.inputLanguage`, `.ownStyles`, `.rewriteStyles` (with its own styles), `.noAI`, `.suggestions`, `.suggestionsInsert`; the Mac's: `.typeOut`, `.translateAlways` |
+| `plugins` | `plugins.installed`: an item per plugin, its fields `plugins.completion.<plugin>.<source>` (a completion source's switch), `plugins.refused.<plugin>` (its completions not used, and why) and `plugins.preference.<plugin>.<name>` (a password is a `secret`); `plugins.suggestionsInsert` (where what a row inserts is chosen: General), `plugins.library` |
 | `extensions` | `extensions.folders` (an item per folder), `extensions.installed`: an item per bundle (`bundle:<name>`) or script, its fields `extensions.on.<id>` (its switch; a bundle's commands' too, `<bundle>/<command>`) and a bundle's preferences `extensions.preference.<bundle>.<name>` (a password is a `secret`) |
 | `search` | `search.key` |
 | `notes` | `notes.destination`, `notes.folder`, `notes.notionToken`, `notes.notion` |
 | `commands` | `commands.custom` |
 | `advanced` | `configFile` |
+
+- **The Mac's window** lays these settings, and some the document doesn't have (`autocomplete`, `questionContinueIn`,
+  the extension sources), out on pages of its own, not by these sections (0.6.7: General, AI, Privacy, Commands,
+  Advanced, About; `SettingsPage` and `SettingsSpot`, Sources/AllInOneIME/SettingsSearch.swift).
+  General: `inputLanguages` and `codingLanguage` as chips (fuzzy pinyin, the personal dictionaries, `englishWords` and
+  the coding packs in a chip's options), `writing`'s fields, `autocomplete`, `suggestions`, `suggestionsInsert` and each
+  app's (`.suggestionsInsert`), `commandTrigger`, `actionKey`, `menuBarIcon`, `uiLanguage`, `iCloudSync`, and an app's
+  other fields as "Previous per-app settings" (only while one is set). AI: `provider`'s fields; `request`'s only when
+  one isn't its default. Privacy: `privacy`'s fields (a kind set off only then), each app's `.noAI` (Apps without AI),
+  `agentPageContext`, `rememberQuestions`, `learnsEnglishWords`. Commands: `commands`, `agent`, `questionContinueIn`,
+  `notes`, `search`, `plugins`, `extensions`, the extension sources. Advanced: `typeOut` and its rate, variation and
+  typos, `candidateLayout`, `useSelection`, `configFile`. About: `checkForUpdates`. The ids above stay as they are:
+  they are the wire's.
+- **What is learned isn't a setting** (`LearnedStore`, Learned.swift: the starting input each app learned and the
+  streaks toward one, the apps where typos couldn't be fixed, the suggestion rows picked, and through it what
+  autocomplete and `TemperatureSupport` learned): kept on the device by its shell (the Mac:
+  `~/Library/Application Support/AllInOneIME/learned.json`), never in config.json or the document, never synced.
 
 ### 12.4 Changes (`settingsSet`)
 
@@ -762,7 +782,9 @@ given and sends back what the user did. It opens no sessions.
 - **Wire:** the messages in `WireMessages.swift`; `WireServer.settings` (a `SettingsService`; nil: none), its settings
   queue (§12.7), `checkSettings` (the file checked on that queue), and `useTestSettings` (`#! settings`, test mode).
 - **Windows engine:** one `SettingsService` over its config file (`--config`, else `%APPDATA%\AllInOneIME\config.json`),
-  checked for changes about once a second (`checkSettings`, from the watchdog's loop, which never waits for it). Its
+  checked for changes about once a second (`checkSettings`, from the watchdog's loop, which never waits for it). The
+  English words it learns are written into that file under the service's lock (`SettingsService.writingFile`), never
+  between a change's reading of the file and its writing, and read again at once (the windows are told). Its
   interface text in the nine languages of the core's String Catalog (`Localizable.xcstrings` beside it,
   `UIText.useCatalog`), in the language the settings pick (`UIText.choice`, applied after each change wherever it was
   made), else Windows' own.

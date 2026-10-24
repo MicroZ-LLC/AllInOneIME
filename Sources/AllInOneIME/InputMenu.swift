@@ -10,7 +10,7 @@ extension AllInOneIMEInputController {
     @MainActor
     func makeMenu() -> NSMenu {
         let menu = NSMenu()
-        let config = try? Config.load()
+        let config = LiveConfig.currentIfValid
         UIText.choice = services.loadSettings().uiLanguage  // the menu can open before any text field in this process
         let settings = NSMenuItem(title: tr("设置…", "Settings…"), action: #selector(showPreferences(_:)), keyEquivalent: "")
         settings.target = self
@@ -40,12 +40,15 @@ extension AllInOneIMEInputController {
         outputs.addItem(.separator())
         let addOutput = NSMenuItem(title: tr("添加 / 排序语言…", "Add or Reorder Languages…"), action: #selector(showPreferences(_:)), keyEquivalent: "")
         addOutput.target = self
-        addOutput.representedObject = SettingsPage.writing.rawValue
+        // The page and the row it opens Settings at, as `SettingsPage` and `SettingsSpot` name them (`showPreferences`).
+        addOutput.representedObject = "general/outputLanguages"
         outputs.addItem(addOutput)
         outputItem.submenu = outputs
         menu.addItem(outputItem)
 
-        let inputNames = current.inputLanguages.map { SessionText.inputName($0, language: UIText.language) }
+        // The inputs: the languages, then Code ("Code (Python)", its item added by `addingCode`).
+        let coding = current.codingLanguage.map { CodingLanguagePack.title(of: $0) }
+        let inputNames = current.inputs.map { SessionText.inputName($0, language: UIText.language, coding: coding) }
         let inputItem = NSMenuItem(title: tr("输入：", "Input: ") + inputNames.joined(separator: " + "),
                                    action: nil, keyEquivalent: "")
         let inputs = NSMenu()
@@ -62,14 +65,14 @@ extension AllInOneIMEInputController {
             inputs.addItem(item)
         }
         inputs.addItem(.separator())
-        if current.inputLanguages.count > 1 {
+        if current.inputs.count > 1 {
             let shiftNote = NSMenuItem(title: tr("✓ 是默认；Shift 切换", "✓ is the default; Shift switches"), action: nil, keyEquivalent: "")
             shiftNote.isEnabled = false
             inputs.addItem(shiftNote)
         }
         let addInput = NSMenuItem(title: tr("添加语言…", "Add Languages…"), action: #selector(showPreferences(_:)), keyEquivalent: "")
         addInput.target = self
-        addInput.representedObject = SettingsPage.input.rawValue
+        addInput.representedObject = "general/inputLanguages"
         inputs.addItem(addInput)
         inputItem.submenu = inputs
         menu.addItem(inputItem)
@@ -93,13 +96,14 @@ extension AllInOneIMEInputController {
         }
         stylesItem.submenu = styles
         menu.addItem(stylesItem)
-        let improveTranslates = NSMenuItem(title: tr("@improve 同时翻译", "@improve Also Translates"),
+        let improveTranslates = NSMenuItem(title: tr("@improve 同时翻译", "@improve Also Translates")
+                                                .replacingOccurrences(of: "@", with: config?.commandTrigger ?? "@"),
                                            action: #selector(toggleImproveTranslates(_:)), keyEquivalent: "")
         improveTranslates.target = self
         improveTranslates.state = current.improveTranslates ? .on : .off
         improveTranslates.isEnabled = config != nil
         menu.addItem(improveTranslates)
-        // The app being typed in: no AI, typing out, the language it starts in (`AppProfile`).
+        // The app being typed in: the input it learned to start in, No AI, what a suggestion row inserts there.
         if let appItem = appMenuItem(config: config, app: activeApp ?? appID) { menu.addItem(appItem) }
         menu.addItem(.separator())
         let rimeDir = NSMenuItem(title: tr("打开 Rime 用户目录", "Open Rime User Folder"), action: #selector(openRimeDirectory(_:)),
@@ -138,9 +142,7 @@ extension AllInOneIMEInputController {
                 return
             }
             do {
-                var config = try Config.load()
-                config.rewriteStyles = SessionText.toggled(name, in: config.rewriteStyles)
-                try config.write()
+                let config = try Config.change { $0.rewriteStyles = SessionText.toggled(name, in: $0.rewriteStyles) }
                 NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
                 log.notice("rewrite styles now \(config.rewriteStyles.joined(separator: ","), privacy: .public)")
             } catch {
@@ -159,10 +161,10 @@ extension AllInOneIMEInputController {
                 return
             }
             do {
-                var config = try Config.load()
-                config.outputLanguage = OutputLanguage(raw)
-                config.normalizeLanguages()
-                try config.write()
+                try Config.change { config in
+                    config.outputLanguage = OutputLanguage(raw)
+                    config.normalizeLanguages()
+                }
                 NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
                 log.notice("output language now \(raw, privacy: .public)")
             } catch {
@@ -172,12 +174,47 @@ extension AllInOneIMEInputController {
     }
 
 
+    /// The tag of the input menu's line under Autocomplete that says where the text goes (what comes after it goes below).
+    static let autocompleteDestinationTag = 0x4143_4C4E
+
+    /// `menu` (`makeMenu`'s) with autocomplete's switch after "@improve Also Translates": one switch for every app (an
+    /// app's own choice is in "This App"), the model it asks in its title (`AutocompleteSwitch.modelName`), what was
+    /// counted of it on the item's tooltip; under it, where the text goes (`AutocompleteSwitch.destination`): what each
+    /// pause sends to the cloud provider picked, or, with AllInOneIME Cloud picked, that it uses Apple Intelligence.
+    @MainActor
+    func addingAutocomplete(to menu: NSMenu) -> NSMenu {
+        let config = LiveConfig.currentIfValid
+        let current = config ?? .default
+        var items: [NSMenuItem] = []
+        // The model it asks, and where the text goes, whether it's on or not: turning it on is the choice to send it there.
+        let model = AutocompleteSwitch.modelName(current)
+        let autocomplete = NSMenuItem(title: tr("续写（Beta） · \(model)", "Autocomplete (Beta) · \(model)"), action: #selector(toggleAutocomplete(_:)),
+                                      keyEquivalent: "")
+        autocomplete.target = self
+        autocomplete.state = current.autocomplete ? .on : .off
+        autocomplete.isEnabled = config != nil  // don't overwrite a config file that failed to parse
+        autocomplete.toolTip = AutocompleteSwitch.store.metrics.summary(language: UIText.language)
+            ?? tr("停一下，光标后出现灰字，按 Tab 接受", "Pause, and the rest of the sentence shows in gray after the caret; Tab takes it")
+        items.append(autocomplete)
+        if let line = AutocompleteSwitch.destinationItem(current) {
+            line.tag = Self.autocompleteDestinationTag
+            items.append(line)
+        }
+        let after = menu.items.firstIndex { $0.action == #selector(toggleImproveTranslates(_:)) }.map { $0 + 1 } ?? menu.items.count
+        for (offset, item) in items.enumerated() { menu.insertItem(item, at: after + offset) }
+        return menu
+    }
+
+    /// Autocomplete on or off for every app (`AutocompleteSwitch`): nothing asks first; the item above says where the text
+    /// goes.
+    @objc func toggleAutocomplete(_ sender: Any?) {
+        MainActor.assumeIsolated { _ = AutocompleteSwitch.set(!AutocompleteSwitch.isOn, notify: self) }
+    }
+
     @objc func toggleImproveTranslates(_ sender: Any?) {
         MainActor.assumeIsolated {
             do {
-                var config = try Config.load()
-                config.improveTranslates.toggle()
-                try config.write()
+                let config = try Config.change { $0.improveTranslates.toggle() }
                 NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
                 log.notice("@improve also translates: \(config.improveTranslates, privacy: .public)")
             } catch {
@@ -194,15 +231,74 @@ extension AllInOneIMEInputController {
                 return
             }
             do {
-                var config = try Config.load()
-                config.defaultInput = language
-                config.normalizeLanguages()
-                try config.write()
+                let config = try Config.change { config in
+                    config.defaultInput = language
+                    config.normalizeLanguages()
+                }
                 NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
                 log.notice("default input now \(config.defaultInput.rawValue, privacy: .public)")
                 applySettings()
             } catch {
                 log.error("could not update the default input: \(String(describing: error), privacy: .public)")
+            }
+        }
+    }
+
+    /// `menu` (`makeMenu`'s) with Code in its inputs' submenu, after the languages and apart from them (decision 22):
+    /// named with its coding language ("Code (Python)"), which its submenu changes (one whose pack isn't installed
+    /// downloads it first, `CodingPackManager.pick`). Nothing without Code.
+    @MainActor
+    func addingCode(to menu: NSMenu) -> NSMenu {
+        let config = LiveConfig.currentIfValid
+        let current = config ?? .default
+        guard let coding = current.codingLanguage,
+              let inputs = menu.items.lazy.compactMap(\.submenu).first(where: { $0.items.contains { $0.action == #selector(setDefaultInput(_:)) } }),
+              let last = inputs.items.lastIndex(where: { $0.action == #selector(setDefaultInput(_:)) }) else { return menu }
+        let code = NSMenuItem(title: AppProfileText.inputName(.code, current), action: nil, keyEquivalent: "")
+        code.image = NSImage(systemSymbolName: "curlybraces", accessibilityDescription: nil)
+        let languages = NSMenu()
+        let packs = CodingPackManager.shared
+        for offered in CodeInputSettings.languages(current, installed: packs.installed) {
+            let installed = packs.installed.contains { $0.language == offered.language }
+            let item = NSMenuItem(title: offered.title + (installed ? "" : tr("（下载语言包）", " (downloads a language pack)")),
+                                  action: #selector(setCodingLanguage(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = offered.language
+            item.state = offered.language == coding ? .on : .off
+            item.isEnabled = config != nil && !packs.isDownloading(offered.language)
+            languages.addItem(item)
+        }
+        code.submenu = languages
+        // After the languages' separator, with one of its own.
+        inputs.insertItem(code, at: last + 2)
+        inputs.insertItem(.separator(), at: last + 3)
+        return menu
+    }
+
+    /// Code's coding language picked in the input menu: Code's at once where its pack is installed, else once the pack has
+    /// downloaded (`CodingPackManager.pick`); written to the config file, the field takes it at once.
+    @objc func setCodingLanguage(_ sender: Any?) {
+        MainActor.assumeIsolated {
+            guard let language = Self.menuItem(from: sender)?.representedObject as? String else {
+                log.error("input menu action without a coding language")
+                return
+            }
+            let packs = CodingPackManager.shared
+            if !packs.installed.contains(where: { $0.language == language }) {
+                // Its progress and any failure in Settings → General (Code's chip), as an input language's.
+                let title = CodingLanguagePack.title(of: language)
+                showNotice(tr("正在下载 \(title) 编程语言包，好了就切到代码（\(title)）", "Downloading the \(title) coding pack: Code is in \(title) once it's in"),
+                           client: nil)
+            }
+            packs.pick(language) { language in
+                do {
+                    try Config.change { $0.codingLanguage = language }
+                    NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
+                    log.notice("Code's language now \(language, privacy: .public)")
+                    AllInOneIMEInputController.activeController?.applySettings()
+                } catch {
+                    log.error("could not change Code's language: \(String(describing: error), privacy: .public)")
+                }
             }
         }
     }
@@ -217,9 +313,11 @@ extension AllInOneIMEInputController {
     override func showPreferences(_ sender: Any!) {
         MainActor.assumeIsolated {
             perform(composer.commitAll(), client: nil)  // the window takes focus from the text field
-            // "Add Languages…" opens the page with the languages; Settings… opens on Assistant.
-            if let page = (Self.menuItem(from: sender)?.representedObject as? String).flatMap(SettingsPage.init(rawValue:)) {
-                SettingsWindow.shared.show(page: page)
+            // "Add Languages…" opens the page with the languages, at their row ("general/inputLanguages"); Settings… opens
+            // on General.
+            let place = (Self.menuItem(from: sender)?.representedObject as? String)?.split(separator: "/").map(String.init) ?? []
+            if let page = place.first.flatMap(SettingsPage.init(rawValue:)) {
+                SettingsWindow.shared.show(page: page, spot: place.dropFirst().first.flatMap(SettingsSpot.init(rawValue:)))
             } else {
                 SettingsWindow.shared.show()
             }

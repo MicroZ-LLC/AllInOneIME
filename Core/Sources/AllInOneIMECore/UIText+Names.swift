@@ -70,7 +70,7 @@ extension InterfaceWords {
         let agentName = UIText.agentName, paste = terms.paste
         switch command {
         case .improve: return tr("润色，再给几种改写（不翻译）", "Polish in the same language, plus rewrites")
-        case .translate: return tr("翻译成你加的语言；和 @improve 一起写就翻译加改写", "Translate into your languages; with @improve, both")
+        case .translate: return UIText.triggered(tr("翻译成你加的语言；和 @improve 一起写就翻译加改写", "Translate into your languages; with @improve, both"))
         case .question: return tr("提问，答案可以直接上屏", "Ask a question; insert the answer")
         case .reply: return tr("回复对方：\(paste) 粘贴消息或截图", "Reply: \(paste) their message or a screenshot")
         case .agent: return tr("交给 \(agentName) 去做", "Hand it to \(agentName)")
@@ -120,7 +120,17 @@ extension InterfaceWords {
                 + program
         case .link: return tr("在浏览器打开 ", "Open in the browser: ") + (LinkTemplate.host(custom.url) ?? "")
         case .snippet: return tr("插入文字", "Insert text")
+        case .suggestions:
+            let prefix = custom.prefix ?? ""
+            return tr("打 \(prefix) 时给出建议", "Suggestions after \(prefix)")
         }
+    }
+
+    /// What a suggestion source says when it is picked or run as a command (`UIText.suggestionSource`).
+    public func suggestionSource(_ command: Command, trigger: String) -> String {
+        let prefix = command.custom?.prefix ?? ""
+        return tr("\(trigger)\(command.name) 是建议来源，不是命令：在任何输入框里打 \(prefix)，就会列出它的行，按 Tab 插入",
+                  "\(trigger)\(command.name) is a suggestion source, not a command: type \(prefix) in any text field to see its rows, Tab inserts")
     }
 
     /// What the action key does with a command draft, after "⏎ →".
@@ -139,11 +149,13 @@ extension InterfaceWords {
         case .run?: return tr("运行", "run")
         case .terminal?: return terms.terminal == .terminalApp ? tr("在终端运行", "run in Terminal") : tr("在终端运行", "run in a terminal")
         case .snippet?: return tr("插入文字", "Insert text")
+        case .suggestions?: return tr("看看它是什么", "see what it is")
         case .link?, nil: break
         }
         switch command {
         case .improve, .translate:
-            return action(WritingMode.parse(command, draft, improveTranslates: config.improveTranslates).mode, input: input, config: config)
+            return action(WritingMode.parse(command, draft, improveTranslates: config.improveTranslates,
+                                            trigger: config.commandTrigger).mode, input: input, config: config)
         case .question: return tr("提问", "ask")
         case .reply: return tr("写三条回复", "write three replies")
         case .agent:
@@ -182,7 +194,7 @@ extension InterfaceWords {
     /// The row comment of an answer: "回答" / "answer", the agent's name.
     public func answerLabel(_ command: Command?) -> String {
         if command == .webSearch { return tr("搜索结果", "results") }
-        if command?.kind == .run { return command?.plugin.map { "@" + $0.name } ?? tr("输出", "output") }
+        if command?.kind == .run { return command?.plugin.map { UIText.commandTrigger + $0.name } ?? tr("输出", "output") }
         if command == .reply { return tr("回复", "reply") }
         return command == .agent ? UIText.agentName : tr("回答", "answer")
     }
@@ -294,7 +306,7 @@ extension UIText {
         case .brokenLink: return tr("这个替身（符号链接）指向的东西不在了", "A link to something that isn't there")
         case .bundleTaken: return tr("已经有一个同名的扩展包", "Another bundle with this name is loaded")
         case let .nameTaken(taken, owner):
-            let name = "@" + taken
+            let name = UIText.commandTrigger + taken
             switch owner {
             case .builtIn: return tr("\(name) 是内置命令的名字", "\(name) is a built-in command")
             case .plugin: return tr("\(name) 是一个插件的名字", "\(name) is a plugin's name")
@@ -319,6 +331,12 @@ extension UIText {
 
     /// A custom command without a summary of its own, by what it does.
     public static func customKind(_ custom: CustomCommand) -> String { words.customKind(custom) }
+
+    /// What a suggestion source (a custom command of type `suggestions`) says when it is picked or run as a command: what
+    /// it is, and where its rows come.
+    public static func suggestionSource(_ command: Command, trigger: String) -> String {
+        words.suggestionSource(command, trigger: trigger)
+    }
 
     /// What the action key does with a command draft, after "⏎ →".
     /// `draft`: the text typed, so `@translate @improve …` reads as both.
@@ -354,7 +372,39 @@ extension UIText {
         set { noteDestinationState.withLock { $0 = newValue } }
     }
 
+    /// The symbol that starts a command (`Config.commandTrigger`; the session and Settings set it with the settings, a
+    /// settings document's is its config's: `scopedCommandTrigger`): what the interface's "@" is (`triggered`). @ until
+    /// then.
+    public static var commandTrigger: String {
+        get { scopedCommandTrigger ?? commandTriggerState.withLock { $0 } }
+        set { commandTriggerState.withLock { $0 = newValue } }
+    }
+
+    /// The command trigger of what one task makes (or one synchronous scope: `$scopedCommandTrigger.withValue`), the
+    /// process's left as it is: a settings document's (`SettingsService`). Nil: the process's.
+    @TaskLocal public static var scopedCommandTrigger: String?
+
+    /// Interface text that names commands ("@improve", "@ commands") with the command trigger in place of each "@" of the
+    /// text itself (the translations keep the ASCII @ for this); what the user gave in it (an agent's program, a plugin's
+    /// version or hosts) goes in through `verbatim`, its own "@" left as it is.
+    public static func triggered(_ text: String) -> String { triggered(text, trigger: commandTrigger) }
+
+    /// `text` naming commands with `trigger`: a window's own settings' (the Mac's Settings window draws with its config's,
+    /// whatever the process's is when it draws).
+    public static func triggered(_ text: String, trigger: String) -> String {
+        let named = trigger == "@" ? text : text.replacingOccurrences(of: "@", with: trigger)
+        return named.contains(verbatimAt) ? named.replacingOccurrences(of: verbatimAt, with: "@") : named
+    }
+
+    /// `argument`, something the user gave (or a plugin's author), as it goes into text that names commands (`triggered`):
+    /// its "@"s are no command's, and stay. Only inside `triggered`'s text, which puts them back.
+    public static func verbatim(_ argument: String) -> String { argument.replacingOccurrences(of: "@", with: verbatimAt) }
+
+    /// What stands for an argument's "@" until `triggered` puts it back: a noncharacter, never in text.
+    static let verbatimAt = String(Character(Unicode.Scalar(0xFDD0)!))  // a literal can't hold one
+
     private static let clock24State = Locked<Bool?>(initialState: nil)
+    private static let commandTriggerState = Locked(initialState: "@")
     private static let agentNameState = Locked(initialState: AgentKind.claude.displayName())
     /// The name the session set (`noteDestinationName`); nil until then.
     static let noteDestinationState = Locked<String?>(initialState: nil)

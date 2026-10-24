@@ -38,14 +38,26 @@ it on. A shell where reading is cheap (or that has to send it all across a pipe)
 where it isn't asks `fieldWants(for:given:)` and reads what it says, asking again until it says nothing more (three
 times at most): first whether secure input is on (nothing else is read in a password field), then the marked text's
 length when something is composed, where the selection is while a command is written on it, the selection and the
-character before the caret when "@" may start a command, the text around the caret when `@reply` may run. The Mac reads
-so: the selection with Accessibility, where the field doesn't tell it, only when "@" may use it.
+character before the caret when "@" may start a command, the text around the caret when `@reply` may run, and once a
+field where suggestions may show, whether it's a password field all the same (`passwordField`, told in `field`'s
+`secure`: rows show only once it's known to be none, and autocomplete goes by the same answer). The Mac reads so: the
+selection with Accessibility, where the field doesn't tell it, only when "@" may use it; a password field where secure
+input isn't on with Accessibility (`AXSecureTextField`), only when asked, and with each read autocomplete's pause makes.
 
 `FieldInfo` comes with the focus: the app (its own settings: `AppProfile`), whether it's a terminal (it runs every line
 it is given and pastes on ⌘V itself), whether it's a password field. Once the shell has said what it says of the focus
 itself (the Mac: Translate as You Type on, in an app that translates always), it calls `tellBuiltinRenames()`: a custom
 command renamed because a built-in has its name now is said once, last, so no notice of the focus takes its place. A
 field that takes the focus again after `.close` starts over: its engine is made again, its work starts again.
+
+## A key handed over twice
+
+A shell asks `KeyEchoes` first, before anything else sees a key down (the Mac: `handleKeyDown`, after only the events it
+posts itself to paste into a terminal). A copy, the same key, characters, modifiers and repeat at the very same event time,
+no more than 2 seconds after the first, gets the first one's answer (taken, or the app's) and goes no further: neither
+the session nor anything around it sees it, so a token (`#1`, then `7`) never takes a key twice. A held key's repeats and
+a second press come at later times, never copies. Modifier changes, which Chromium and Electron hand over twice, have
+`ModifierEchoes`.
 
 ## Outputs
 
@@ -59,7 +71,48 @@ field that takes the focus again after `.close` starts over: its engine is made 
 | `readClipboard` | read once the key is answered, never during secure input: `SessionEvent.clipboard` |
 | `keyboardLayout` | the input language's layout told to the field |
 | `startTimer` | `DispatchQueue.main.asyncAfter`, then `SessionEvent.timer` |
-| `platform(.startVoice …)` | dictation (macOS 26's speech recognition), `SessionEvent.voice` as it hears |
+| `readField` | what the field says read once the event is done (secure input, the selection, the text around the caret), then `SessionEvent.field` |
+| `ghost` | autocomplete's suggestion in gray after the caret, a window of its own (`GhostOverlay`); where the field tells no caret rect, a line of the candidate panel; with too little room for its text after the caret, nothing, and `SessionEvent.ghostNotShown` (it ends unseen, Tab is the app's) |
+| `platform(.startVoice …)` | dictation (macOS 26's speech recognition), `SessionEvent.voice` as it hears; never while voice input is off (`Features.voiceInput`, off for now) |
+
+## Autocomplete
+
+Autocomplete (`Autocomplete`, `InputSession+Autocomplete.swift`) is the session's, around the composer: after a key that
+put text into the field, a pause (`TimerID.autocomplete`); once it's over, the field is read (`readField`, answered with
+`SessionEvent.field`), and a suggestion kept for its text is shown, or a request starts in the autocomplete slot
+(`SessionTasks.autocomplete`), which every key stops. The answer (`TaskUpdate.suggested`) is the `ghost` output. Before the
+composer has a key, Tab takes the suggestion (`commit`) and Esc takes it down; after, text that is its start takes it on
+(typed along), anything else ends it, and while something is composed it's held, its rest coming back if what goes in is
+its start. What is kept across fields and launches (the suggestions, what is learned per app, the counts) is
+`SessionServices.autocomplete` (`AutocompleteStore`); the time it goes by, `SessionServices.uptime`. The shell draws the
+suggestion and reads the field; the Windows engine, which doesn't run the session yet, has neither.
+
+## Suggestions
+
+Suggestions (`InputSession+Suggestions.swift`, Suggestions/) are the session's too, around the composer: the token typed
+into the field since a boundary (what went in with each key: the app's typing of it, the input method's commits; a
+space, a mark, ⏎, an arrow, a click, another field end it), the rows its sources have for it (plugins' lists and live
+queries; in Code, the input after the languages (`Composer.coding`, `Config.codingLanguage`), its language's pack and
+the field's own words, `FieldContext.text` read once typing pauses), drawn as the candidate panel's rows (`panel`, the
+session's own while nothing is composed, the chosen row its `highlighted`), the keys they take, one set in every app
+and input (decision 31, `suggestionsBeforeKey`: the first row that puts something in chosen from the start, ↓ ↑ move
+it, ⏎ or Tab puts it in, → or Esc hide the rows for the token; never a digit), Code's word held as marked text where
+its rows may show (decision 33: `codeHoldsTheWord`, the composer's draft as `Composer.codeWord`, Composer+CodeWord.swift;
+the token's end, a row put in its place, → or Esc and any key that ends it putting it in as typed, as the command list
+does with what follows its trigger), what a row puts in (its source's
+templates for the app's class, `SuggestionsAppClass`, or the user's choice: `SuggestionsSettings.insert(for:)`), a
+source's prefix of letters and a dash typed in pinyin, which ends the composition as typed at its dash
+(`Composer.finishesSuggestionPrefix`, `suggestionsPrefixFinished(by:)`), and the long press of Shift that turns Translate as You Type on or off (`TranslateMode.ShiftHold` on the
+session's clock; the mode is the shell's: `SuggestionsServices.setTranslateAsYouType`; in Code it says it can't run
+there). What every field of a launch shares is `SuggestionsServices.store` (`SuggestionsStore`: each source's
+list, its failures and pause, its queries' answers; a 0600 cache file per source in `cacheFolder`). Plugins' scripts run
+off the session's thread (`SuggestionsServices.runtime`, the shell's `PluginCompletionRuntime`, on Dispatch's threads);
+what they answer is left in the store and every field with the focus is told (`TaskUpdate.completionsAnswered`), so a
+list loaded for one field shows in the next. Its timers are `TimerID.suggestions` (the long press, a query's pause,
+a list's refresh, back-off or pause); its rows hold the caret: no ghost text while they show, none in Code
+(`autocompleteMayRun`). Where no rows may show (no source enabled, the input not Code), a key asks nothing of the pointer
+for the token, as autocomplete off does nothing for a key. The Windows engine, which doesn't run the session yet, shows
+no rows.
 
 ## The candidate panel
 
@@ -99,8 +152,10 @@ its ⌃⏎ Win+Enter); on the Mac as it was recorded. Which key does what is the
 which the shell sets): the presenter and the session's messages name the keys by its roles, whatever roles the terms
 came with, so the text names the keys the composer acts on. The settings document names the keys and places of the
 platform it is made for (`SettingsSchema.terms`: on Windows Enter, a terminal window, this PC, `cmd /c`, the Credential
-Manager, `%USERPROFILE%`). Other text outside the panel and the composer's messages still names the Mac: `@settings`'
-"⏎ opens Settings", `@doctor`'s and some errors' ("no key for it on this Mac", "Run `aws sso login` in Terminal").
+Manager, `%USERPROFILE%`), and its paths as that platform writes them, whatever the system it is made on (on Windows
+`%APPDATA%\AllInOneIME\jargon.txt` for the jargon list's default, backslashes: `SettingsSchema.shown(path:)`). Other
+text outside the panel and the composer's messages still names the Mac: `@settings`' "⏎ opens Settings", `@doctor`'s
+and some errors' ("no key for it on this Mac", "Run `aws sso login` in Terminal").
 
 ## Services
 
@@ -109,6 +164,10 @@ launches, level one's engine, the language packs, programs, plugins and extensio
 reminders, contacts and messages, the web page, the secret store's keys. Its defaults do nothing and keep nothing; the
 Mac fills it in (`SessionServices.mac`), a test with stand-ins (`FakeHost` in `AllInOneIMETestSupport` drives a session
 as a shell does; `InputSessionTests` run on every platform).
+What a session learns about apps is apart from the settings: `SessionServices.learned` (`LearnedStore`, Learned.swift),
+the starting input a field's switches teach its app (InputSession+Learning.swift: switched with Shift before anything
+is typed, to the same input in two fields in a row) and what else is learned on the device, kept there only (the Mac:
+`learned.json` in its data folder), never in config.json, never synced.
 
 Still the Mac shell's: Translate as You Type's state shared by every field and its chip (`TranslateModeShared`), the
 recording itself, typing out, drawing the panel, the input menu.
@@ -153,7 +212,9 @@ The engine (merged in 0.6.6/integration) drives a `Composer` through `AllInOneIM
    `EnglishWordsEngine`), `learnEnglishWord` (`EnglishWords.learn` into the engine's `config.json`) and `englishTypedOnce` (one for
    all the engine's sessions, as the Mac's: a word is learned the second time, in any field; the engine does all three
    already, on the Composer: `EngineHost.levelOne` and `learn`, by the session's rule, `EnglishWords.learns`, with the
-   field's `terminal` its own: a terminal's program or window, PowerShell ISE), `runProgram` and `runPlugin`
+   field's `terminal` its own: a terminal's program or window, PowerShell ISE; the words typed in English mode the
+   session follows itself, from the keys it is handed and what it puts in: `EnglishModeWords`, learned by
+   `EnglishWords.learnsTypedInEnglish`, which the engine's Composer doesn't do yet), `runProgram` and `runPlugin`
    (this program as a child, `--run-js`, `--run-plugin`), `loadExtensions`, `searchFiles` (`SystemActions.search`),
    `runInTerminal`, `continueInAgent` and `launchInTerminal` (`SystemActions.launchInTerminal`), `noteDestination` (a
    folder or Notion; Apple Notes refuses), `addReminder`, `messageSender`, `startAgent`, `listAgents` and
@@ -172,9 +233,11 @@ The engine (merged in 0.6.6/integration) drives a `Composer` through `AllInOneIM
    - a row's `icon` (`PanelIcons`): a built-in as a glyph of Segoe Fluent Icons (Segoe MDL2 Assets' code points, for
      Windows 10) white on a rounded square of its color (the Mac's system colors), a symbol's name mapped where Windows
      has one (else its `fallback`), an emoji drawn in the square's place (Segoe UI Emoji, in the row's text color where
-     the font has none of its own), an image read with WIC on a thread of its own (`fallback` until it is in, or when it
-     can't be read; looked at again as the panel is drawn 2 s or more later, so a file changed or readable now is drawn
-     as it is); a row's `choice` needs nothing there, the click's row index goes to `.pick` as it is;
+     the font has none of its own), an image read with WIC off the window's thread (`fallback` until it is in, or when
+     it can't be read; looked at again as the panel is drawn 2 s or more later, so a file changed or readable now is
+     drawn as it is; two read at once, and another for those waiting once a read has run 1 s, 8 threads in all, so a
+     share that doesn't answer holds up no other image; 64 kept, those being read too); a row's `choice` needs nothing
+     there, the click's row index goes to `.pick` as it is;
    - `transcript`: the rows' text wrapped, the panel no taller than half the monitor's work area, the rows scrolled to
      the last one (or the highlighted one above), a rule where they are cut; a row out of sight takes no click;
    - from top to bottom as the model says (the status under the rows), a rule above the footer as the Mac's panel

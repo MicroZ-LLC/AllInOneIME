@@ -49,6 +49,22 @@ struct CommandRunnerTests {
         #expect(try await run(rev, "abc").get() == "cba")
     }
 
+    #if os(macOS) || os(Linux)
+    /// What is written to the standard input of a program that ended without reading it fails (EPIPE), and ends nothing
+    /// else: no SIGPIPE for the process writing it (`CommandRunner` writes it off its queue, maybe once a quick program
+    /// is over; a test run, the Settings app, don't ignore SIGPIPE as the input method does). On macOS and Linux alike
+    /// (Windows has no signals).
+    @Test func writingToAProgramThatEndedFailsWithoutSIGPIPE() throws {
+        let stdin = Pipe()
+        let ended = DispatchSemaphore(value: 0)
+        let spec = LaunchSpec(executable: URL(fileURLWithPath: "/bin/sh"), arguments: ["-c", "exit 0"], standardInput: .pipe(stdin),
+                              standardOutput: .null, standardError: .null) { _ in ended.signal() }
+        _ = try FoundationProcessLauncher().launch(spec)
+        #expect(ended.wait(timeout: .now() + 10) == .success)
+        #expect(throws: (any Error).self) { try stdin.fileHandleForWriting.write(contentsOf: Data("unread".utf8)) }
+    }
+    #endif
+
     @Test func failuresSayWhatWentWrong() async {
         let sh = CustomCommand(name: "sh", type: .run, argv: ["sh", "-c", "{input}"])
         let failed = await run(sh, "echo first >&2; echo 'the reason' >&2; echo '  ~~^~~' >&2; exit 3")

@@ -4,7 +4,8 @@ import Foundation
 /// or one whose character went in with what the input method inserted for it (a terminal gets "@x" in one piece). A
 /// terminal tells nothing of its text, so this is how an "@" right after a word ("ssh user@host") is known there
 /// (`Composer.characterBeforeCaret`). Not known after any other key (an arrow, ⌫, ⏎, a shortcut), after text the input
-/// method inserted (a result, a conversion, a draft as typed: no word being typed), nor in another text field.
+/// method inserted (a result, a conversion, a draft as typed: no word being typed; Code's word held, though, is what was
+/// typed: `typedIn`), nor in another text field.
 public struct LastTyped: Equatable, Sendable {
     public private(set) var character: Character?
     /// When it was typed (`ProcessInfo.systemUptime`): a click since may have moved the caret.
@@ -27,4 +28,11 @@ public struct LastTyped: Equatable, Sendable {
 
     /// The input method inserted text outside a key (a click on a result, dictation, after a key), or another text field.
     public mutating func forget() { character = nil }
+
+    /// What the user typed went in at `time` without the key that typed it: Code's word held as marked text, put in as
+    /// typed (→ or Esc on its rows, decision 33). Its last character is the last one typed.
+    public mutating func typedIn(_ text: String, at time: TimeInterval) {
+        guard let last = text.last else { return }
+        (character, self.time) = (last, time)
+    }
 }

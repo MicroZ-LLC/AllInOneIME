@@ -120,6 +120,69 @@ struct DoctorTests {
         #expect(findings.contains { $0.area == .recentErrors && $0.status == .warning })
     }
 
+    /// The report as it came: librime's two lines for the missing lunar database were "error in Rime" three times.
+    @Test func lunarLogsNameTheFileAndGroupRepeatedOldErrors() {
+        let lines = [
+            "E20261010 09:00:00.000 1234 mapped_file.cc:78] attempt to open non-existent file '/Users/alice/Library/Application Support/AllInOneIME/Rime/lua/lunar.db'",
+            "E20261010 09:00:01.000 1234 reverse_lookup_dictionary.cc:39] Error opening reversedb '/Users/alice/Library/Application Support/AllInOneIME/Rime/lua/lunar.db'",
+            "E20261010 09:00:02.000 1234 mapped_file.cc:78] attempt to open non-existent file '/Users/alice/Library/Application Support/AllInOneIME/Rime/lua/lunar.db'",
+        ]
+        let missing = Doctor.summarizeLogLines(lines, home: "/Users/alice")
+        #expect(missing == ["Rime: a file it needs is missing: lua/lunar.db (the lunar date), 3 times"])
+        let shown = Doctor.findings(facts { $0.recentErrors = missing }, chinese: false).first { $0.area == .recentErrors }
+        #expect(shown?.text(chinese: false)
+                == "⚠ 1 recent error in the logs — Rime: a file it needs is missing: lua/lunar.db (the lunar date), 3 times")
+        let zh = Doctor.findings(facts { $0.recentErrors = missing }, chinese: true).first { $0.area == .recentErrors }
+        #expect(zh?.detail == "Rime：缺少所需文件 lua/lunar.db（农历日期），3 次")
+        // The file is there now (this version puts it there): those runs were earlier ones, and nothing is wrong.
+        let available = Doctor.summarizeLogLines(lines, home: "/Users/alice", lunarDatabaseAvailable: true)
+        #expect(available == ["Earlier Rime run: lua/lunar.db was missing; this version provides it, 3 times"])
+        let finding = Doctor.findings(facts { $0.recentErrors = available }, chinese: false).first { $0.area == .recentErrors }
+        #expect(finding?.status == .ok && finding?.title == "An earlier Rime error is resolved")
+        #expect(!(missing + available).joined().contains("alice"))
+        // With other lines beside it, those are still worth a look: the resolved one doesn't hide them.
+        let both = available + ["2 other log lines"]
+        let other = Doctor.findings(facts { $0.recentErrors = both }, chinese: false).first { $0.area == .recentErrors }
+        #expect(other?.status == .warning && other?.title == "Other lines in the logs", "\(String(describing: other))")
+        #expect(other?.detail == "Earlier Rime run: lua/lunar.db was missing; this version provides it, 3 times; 2 other log lines")
+    }
+
+    /// The same event is named once, with how many times it came up in all the lines (not only the newest few), and the
+    /// newest events are the ones shown.
+    @Test func repeatedLogEventsAreCountedOnce() {
+        let lunar = "E20261010 09:00:00.000 1234 mapped_file.cc:78] attempt to open non-existent file '/Users/x/Rime/lua/lunar.db'"
+        let lines = Array(repeating: lunar, count: 5) + [
+            "2026-10-12 update check failed: The request timed out.",
+            "E20261012 10:00:00.000 1234 engine.cc:81] error 1",
+            "E20261012 10:00:01.000 1234 engine.cc:82] error 2",
+            "2026-10-13 update check failed: The request timed out.",
+            lunar,
+        ]
+        #expect(Doctor.summarizeLogLines(lines, home: "/Users/x") == [
+            "error in Rime (engine), 2 times",
+            "update check failed (timed out), 2 times",
+            "Rime: a file it needs is missing: lua/lunar.db (the lunar date), 6 times",
+        ])
+        #expect(Doctor.summarizeLogLines(lines, home: "/Users/x", limit: 1) == [
+            "Rime: a file it needs is missing: lua/lunar.db (the lunar date), 6 times",
+        ])
+    }
+
+    /// After an update System Settings may show AllInOneIME allowed while this build isn't: the finding says where to turn
+    /// it off and on, and Fix opens that pane.
+    @Test func accessibilityDenialExplainsStaleSystemSettingsEntry() {
+        let denied = Doctor.findings(facts { $0.accessibility = .denied }, chinese: false).first { $0.area == .permissions }
+        #expect(denied?.status == .warning && denied?.fix == .openPrivacy(.accessibility))
+        #expect(denied?.text(chinese: false) == "⚠ Accessibility isn't allowed — the selection can't be read in some apps. "
+                + "If AllInOneIME is already on in System Settings → Privacy & Security → Accessibility, turn it off and on again "
+                + "(macOS can keep the permission for the previous version)")
+        let chinese = Doctor.findings(facts { $0.accessibility = .denied }, chinese: true).first { $0.area == .permissions }
+        #expect(chinese?.detail == "有的 App 里读不到选中的文字。如果系统设置 → 隐私与安全性 → 辅助功能里 AllInOneIME 已经打开，"
+                + "先关掉再打开（macOS 可能还留着上一个版本的权限）")
+        let allowed = Doctor.findings(facts { $0.accessibility = .granted }, chinese: false).first { $0.area == .permissions }
+        #expect(allowed?.status == .ok && allowed?.detail == nil)
+    }
+
     @Test func theReportForTheModelNamesFixesByID() {
         let findings = Doctor.findings(facts { $0.packs = [.chinese: .missing] }, chinese: false)
         let report = Doctor.report(findings)

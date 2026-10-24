@@ -97,9 +97,9 @@ enum PanelShowcase {
     }
 
     /// A settings menu clicked open on screen and captured: Settings → General's interface language menu, each language
-    /// in its own (`language-menu.png`), then Settings → Plugins → Notes (@note)'s "Save to" (`note-save-to-menu.png`).
+    /// in its own (`language-menu.png`), then Settings → Commands → Notes (@note)'s "Save to" (`note-save-to-menu.png`).
     /// The settings window from a config of its own (the defaults; nothing saved, no key looked up); run it with a
-    /// sample home (CFFIXED_USER_HOME) so the Plugins page lists no plugins of the user's. Exits when done.
+    /// sample home (CFFIXED_USER_HOME) so the Commands page lists no plugins of the user's. Exits when done.
     static func captureLanguageMenu(output: URL, appearance: NSAppearance?) {
         let config = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-showcase-\(UUID().uuidString).json")
         try? Config.default.write(to: config)
@@ -107,7 +107,7 @@ enum PanelShowcase {
         // Each found by the item it shows (its menu is filled as it opens).
         let menus: [(page: SettingsPage, item: String, file: String, setUp: (SettingsModel) -> Void)] = [
             (.general, tr("跟随系统", "Follow the system"), "language-menu.png", { _ in }),
-            (.plugins, tr("文件夹（Obsidian 等）", "Folder (Obsidian or any)"), "note-save-to-menu.png",
+            (.commands, tr("文件夹（Obsidian 等）", "Folder (Obsidian or any)"), "note-save-to-menu.png",
              { $0.config.notes = NoteSettings(destination: .folder, folder: "~/Vault/Inbox") }),
         ]
         func capture(_ index: Int) {
@@ -208,7 +208,7 @@ enum PanelShowcase {
 @MainActor
 enum SettingsPageImages {
     static func run(output: URL, chinese: Bool, dark: Bool, extensions: String? = nil, update: String? = nil,
-                    agent: String? = nil) -> Never {
+                    agent: String? = nil, doctor: String? = nil) -> Never {
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
         try? FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
@@ -220,10 +220,16 @@ enum SettingsPageImages {
         // Fuzzy pinyin shown on, with its pairs (the model saves nothing).
         if !model.config.inputLanguages.contains(.chinese) { model.config.setOrder(model.config.inputLanguages + [.chinese]) }
         if model.config.fuzzyPinyin.isEmpty { model.config.fuzzyPinyin = SettingsModel.fuzzyDefaults }
-        // Settings → Apps with sample apps, never the user's own (the images go into docs and release notes).
+        // Code shown added, in Python (the model saves nothing).
+        if model.config.codingLanguage == nil { model.config.codingLanguage = "python" }
+        // Sample apps (Insert's, Apps without AI, the previous per-app settings), never the user's own (the images go into
+        // docs and release notes).
         model.config.appProfiles = AppProfileSamples.profiles
         // Hiding sensitive information shown on, with its switches and sample words, never the user's own.
         model.config.redaction = RedactionSettings(enabled: true, customWords: ["Project Atlas", "Phoenix"])
+        // What is learned (Privacy → Learned…): samples, in memory, never the user's.
+        let learnedSamples = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-learned-\(UUID().uuidString)")
+        LearnedShared.store = LearnedSamples.store(in: learnedSamples)
         // Extension sources: samples, never the user's (their statuses only shown, never saved).
         model.config.extensionSources = ExtensionSourceSamples.sources
         for source in model.config.extensionSources { ExtensionSources.enable(source, in: &model.config) }
@@ -266,18 +272,47 @@ enum SettingsPageImages {
             default: updates.state = .upToDate
             }
         }
-        // Assistant: a sample request and made-up findings, from stand-ins and a config file of its own (no probe of
-        // this Mac, no AI, nothing of the user's).
+        // The checks and the search's Change: a sample request and findings from stand-ins and a config file of their own
+        // (no probe of this Mac, no AI, nothing of the user's): the pages with nothing wrong, then made-up problems (unless
+        // `doctor=fine`) on a page's banner and in Troubleshoot (`doctor=open`: what is fine opened there).
         let samples = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-assistant-\(UUID().uuidString)")
         try? FileManager.default.createDirectory(at: samples, withIntermediateDirectories: true)
         let rig = SelfTest.AssistantRig(samples, name: "config.json", config: SelfTest.assistantSampleConfig)
-        let assistant = SelfTest.sampleAssistant(rig)
-        for page in SettingsPage.allCases {
-            SettingsImage.render(model, page: page, assistant: page == .assistant ? assistant : nil,
-                                 to: output.appendingPathComponent("settings-\(page.rawValue).png"),
+        let shownChecks = doctor?.split(separator: ",") ?? []
+        let fine = SelfTest.sampleAssistant(rig, fine: true)
+        fine.dismissPreview()
+        func render(_ page: SettingsPage, _ name: String, assistant: AssistantModel = fine, query: String = "",
+                    troubleshoot: Bool = false) {
+            SettingsImage.render(model, page: page, assistant: assistant, query: query, troubleshoot: troubleshoot,
+                                 to: output.appendingPathComponent("settings-\(name).png"),
                                  appearance: dark ? .darkAqua : .aqua) { RunLoop.main.run(until: Date().addingTimeInterval($0)) }
         }
+        for page in SettingsPage.allCases { render(page, page.rawValue) }
+        // Settings no longer shown, set otherwise than their default: their rows with Restore Default.
+        let saved = model.config
+        model.config.maxTokens = 3000
+        model.config.redaction.phones = false
+        model.config.suggestionsInsert = .id
+        render(.ai, "restore-default")
+        render(.privacy, "restore-default-privacy")
+        render(.general, "restore-default-insert")
+        model.config = saved
+        let troubled = SelfTest.sampleAssistant(rig, fine: shownChecks.contains("fine"))
+        troubled.showsFine = shownChecks.contains("open")
+        // The sample request's preview where the search's "Change: …" shows it, the search typed.
+        render(.general, "search", assistant: troubled, query: troubled.request)
+        troubled.dismissPreview()
+        render(.ai, "problem", assistant: troubled)
+        render(.about, "troubleshoot", assistant: troubled, troubleshoot: true)
         rig.restore()
+        // Privacy → Learned…: the list with the samples, then empty (all forgotten, in memory).
+        SettingsImage.render(model, page: .privacy, assistant: fine, learned: true, to: output.appendingPathComponent("settings-learned.png"),
+                             appearance: dark ? .darkAqua : .aqua) { RunLoop.main.run(until: Date().addingTimeInterval($0)) }
+        model.forgetAllLearned()
+        SettingsImage.render(model, page: .privacy, assistant: fine, learned: true,
+                             to: output.appendingPathComponent("settings-learned-empty.png"),
+                             appearance: dark ? .darkAqua : .aqua) { RunLoop.main.run(until: Date().addingTimeInterval($0)) }
+        try? FileManager.default.removeItem(at: learnedSamples)
         try? FileManager.default.removeItem(at: samples)
         // AI Provider's key row with a key saved (its last 4 shown) and without one, and the key sheet for another
         // provider: sample states, no keychain asked.
@@ -285,16 +320,16 @@ enum SettingsPageImages {
         model.showKeys([.openai: .keychain, .anthropic: .none, .gemini: .none], endings: [.openai: "a1b2"])
         for (shown, sheet, name) in [(Provider.openai, nil, "key-saved"), (.gemini, nil, "key-missing"), (.bedrock, Provider.gemini, "key-sheet")] {
             model.config.provider = shown
-            SettingsImage.render(model, page: .provider, keySheet: sheet, to: output.appendingPathComponent("settings-provider-\(name).png"),
+            SettingsImage.render(model, page: .ai, keySheet: sheet, to: output.appendingPathComponent("settings-provider-\(name).png"),
                                  appearance: dark ? .darkAqua : .aqua) { RunLoop.main.run(until: Date().addingTimeInterval($0)) }
         }
         model.config.provider = provider
         // Bedrock with a role, an SSO profile, and an SSO sign-in that expired.
         AWSProfileSamples.render(model, to: output, appearance: dark ? .darkAqua : .aqua)
-        // The Input page with each input language's tab picked.
-        for language in model.config.inputLanguages {
-            SettingsImage.render(model, page: .input, inputTab: language,
-                                 to: output.appendingPathComponent("settings-input-\(language.rawValue).png"),
+        // Input with its options under the chips (each input's options under its name).
+        for input in model.config.inputs {
+            SettingsImage.render(model, page: .input, inputTab: input,
+                                 to: output.appendingPathComponent("settings-input-\(input.rawValue).png"),
                                  appearance: dark ? .darkAqua : .aqua) { RunLoop.main.run(until: Date().addingTimeInterval($0)) }
         }
         exit(0)

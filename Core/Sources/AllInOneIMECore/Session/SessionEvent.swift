@@ -19,6 +19,10 @@ public enum SessionEvent: Sendable {
     case scroll(Int)
     /// The clipboard as `SessionOutput.readClipboard` asked for it, for the draft's request `id`.
     case clipboard(ClipboardContent, id: Int)
+    /// What the field says as `SessionOutput.readField` asked for it (its `id`: autocomplete's pause, or below 0 coding
+    /// mode's): whether secure input is on, the selection, the text around the caret (what wasn't read,
+    /// `FieldContext.read`, counts as unknown).
+    case field(FieldContext, id: Int)
     /// What the session's work answers (`SessionTasks`).
     case task(TaskID, TaskUpdate)
     /// A timer the session started (`SessionOutput.startTimer`) went off.
@@ -27,6 +31,9 @@ public enum SessionEvent: Sendable {
     case voice(VoiceUpdate)
     /// The settings changed: applied now (a shell that doesn't read them again on every key).
     case configChanged
+    /// Autocomplete's suggestion (`SessionOutput.ghost`, its text) couldn't be shown: no room for its text after the caret
+    /// (the field's edge, the screen's). It ends unseen, and Tab is the app's.
+    case ghostNotShown(String)
     /// The field's session ends: nothing more comes, unless the field takes the focus again (it starts over then).
     case close
 }
@@ -83,6 +90,14 @@ public enum SessionOutput: Equatable, Sendable {
     case keyboardLayout
     /// `SessionEvent.timer(id)` after `seconds`.
     case startTimer(TimerID, after: TimeInterval)
+    /// Read what the field says now (secure input, the selection, the text around the caret: up to
+    /// `Autocomplete.beforeLimit` characters before it and `Autocomplete.afterLimit` after it; for an `id` below 0, coding
+    /// mode's words once typing paused, `ReplyContext.Limits.fieldBefore` and `fieldAfter`), never during secure input,
+    /// and hand it back as `SessionEvent.field` with `id`. A shell that can't read it answers with nothing read.
+    case readField(id: Int)
+    /// Autocomplete's suggestion (`Autocomplete`): `text` in gray right after the caret (where the caret can't be placed,
+    /// a line of the candidate panel), until the next one; nil: none. Shown again as the caret moves (typed along).
+    case ghost(String?)
     /// What only some platforms can do.
     case platform(PlatformAction)
 }
@@ -109,11 +124,27 @@ public enum TimerID: Hashable, Sendable {
     case notice(Int)
     /// The voice key has been held long enough to dictate.
     case voiceHold(Int)
+    /// Autocomplete's pause is over (`Autocomplete.Route.pause`): its suggestion may be asked for.
+    case autocomplete(Int)
+    /// Suggestions' (`InputSession+Suggestions.swift`): Shift held long enough to turn Translate as You Type on or off, a
+    /// pause before a query is asked again, a list's refresh (or its back-off or pause) due.
+    case suggestions(SuggestionsTimer)
+}
+
+/// A timer of suggestions' (`TimerID.suggestions`), counted: an older one of a kind does nothing.
+public enum SuggestionsTimer: Hashable, Sendable {
+    /// The long press of Shift half way (its hint), then long enough to turn Translate as You Type on or off.
+    case holdHint(Int)
+    case hold(Int)
+    case query(Int)
+    case refresh(Int)
+    /// A pause in typing in Code: the field's words read again (`SessionOutput.readField`).
+    case words(Int)
 }
 
 /// The modifier keys changed: `key` the one that did (`.modifier(kind, side)`), `modifiers` those down now with their
-/// sides, `timestamp` when (seconds), `late` how long ago that was when the shell got it (the pointer is asked later:
-/// it looks back that much further).
+/// sides (fn as `.function`, where there is one: only the long press of Shift minds it), `timestamp` when (seconds),
+/// `late` how long ago that was when the shell got it (the pointer is asked later: it looks back that much further).
 public struct ModifierChange: Equatable, Sendable {
     public var key: Key
     public var modifiers: Modifiers
@@ -135,7 +166,8 @@ public struct FieldInfo: Equatable, Sendable {
     /// A terminal: it runs every line it is given, pastes on ⌘V itself, tells nothing of its text.
     public var terminal: Bool
     /// A password field (Windows' `IS_PASSWORD` scope): nothing is composed or sent. (The Mac tells secure input per key,
-    /// `FieldContext.secure`, and anywhere, `SessionServices.secureInputActive`.)
+    /// `FieldContext.secure`, and anywhere, `SessionServices.secureInputActive`; a password field where it isn't on, in
+    /// `FieldContext.field`: `FieldContext.Parts.passwordField`.)
     public var secure: Bool
 
     public init(app: String? = nil, terminal: Bool = false, secure: Bool = false) {
@@ -158,7 +190,10 @@ public struct FieldContext: Equatable, Sendable {
         public static let selection = Parts(rawValue: 1 << 3)
         public static let beforeCaret = Parts(rawValue: 1 << 4)
         public static let text = Parts(rawValue: 1 << 5)
-        public static let all: Parts = [.secure, .markedText, .selectedRange, .selection, .beforeCaret, .text]
+        /// Whether the field is a password field where secure input isn't on (the Mac: one Accessibility tells is an
+        /// `AXSecureTextField`), told in `field`'s `secure`: asked once a field, where suggestions may show.
+        public static let passwordField = Parts(rawValue: 1 << 6)
+        public static let all: Parts = [.secure, .markedText, .selectedRange, .selection, .beforeCaret, .text, .passwordField]
     }
 
     /// What is right before the caret, as the field tells it.

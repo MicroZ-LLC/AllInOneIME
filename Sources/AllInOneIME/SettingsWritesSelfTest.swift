@@ -3,8 +3,8 @@ import AppKit
 import SwiftUI
 
 extension SelfTest {
-    /// Settings writes the config file only when something in it was changed. Each page is opened (AI Provider for each
-    /// provider), every text field is entered, ⏎ pressed on it as it is, and left; the window is closed: the file wasn't
+    /// Settings writes the config file only when something in it was changed. Each page is opened (AI for each provider),
+    /// every text field is entered, ⏎ pressed on it as it is, and left; the window is closed: the file wasn't
     /// written at all. Then a letter is typed after each field's text and deleted: the file ends as it was, with no default
     /// put in where nothing was set (a default a field isn't set to is only its placeholder).
     static func testSettingsWritesNothingUnasked(snapshotDirectory: URL) {
@@ -51,7 +51,7 @@ extension SelfTest {
         var written: [String] = []
         var entered = 0
         for provider in [Provider.bedrock, .anthropic, .gemini, .openai] {
-            for page in provider == .bedrock ? SettingsPage.allCases : [.provider] {
+            for page in provider == .bedrock ? SettingsPage.allCases : [.ai] {
                 var config = Config.default
                 config.provider = provider
                 config.modelId = "us.example.custom-model-v1:0"  // Bedrock's Model ID field shown too
@@ -93,8 +93,8 @@ extension SelfTest {
     }
 
     /// A field copied from the config when its page shows follows the config while it isn't being edited, and is written
-    /// back only when it was: with the Privacy words showing, the Assistant adds a word to the file; the page is left and the
-    /// window closed: the word is still there. With a word typed into the field meanwhile, both are kept.
+    /// back only when it was: with Privacy's words showing, the search's Change adds a word to the file; the page is left
+    /// and the window closed: the word is still there. With a word typed into the field meanwhile, both are kept.
     static func testFieldsFollowOutsideWrites(snapshotDirectory: URL) {
         let url = snapshotDirectory.appendingPathComponent("outside-config.json")
         defer { try? FileManager.default.removeItem(at: url) }
@@ -104,7 +104,7 @@ extension SelfTest {
             config.redaction = RedactionSettings(enabled: true, customWords: ["Atlas"])
             try? config.write(to: url)
             let model = SettingsModel(configURL: url)
-            let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(model: model, page: .provider)))
+            let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(model: model, page: .privacy)))
             window.setContentSize(NSSize(width: 880, height: 900))
             window.makeKeyAndOrderFront(nil)
             _ = pump(timeout: 0.6) { false }
@@ -146,7 +146,7 @@ extension SelfTest {
         }
     }
 
-    /// The custom agent's command (Settings → Agent) follows the config the same way: a command written into
+    /// The custom agent's command (Settings → Commands → @agent) follows the config the same way: a command written into
     /// the file by hand while the field shows is read again and shown, and what's typed then goes on from it.
     static func testAgentCommandFollowsOutsideWrites(snapshotDirectory: URL) {
         let url = snapshotDirectory.appendingPathComponent("agent-config.json")
@@ -155,7 +155,7 @@ extension SelfTest {
         (config.agent, config.agentCommand) = (.custom, ["muse", "--"])
         try? config.write(to: url)
         let model = SettingsModel(configURL: url)
-        let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(model: model, page: .agent)))
+        let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(model: model, page: .commands)))
         window.setContentSize(NSSize(width: 880, height: 900))
         window.makeKeyAndOrderFront(nil)
         _ = pump(timeout: 0.6) { false }
@@ -190,36 +190,113 @@ extension SelfTest {
               "the custom agent's command follows a hand edit, and typing goes on from it (shown \(shown), written \(written))")
     }
 
-    /// A Settings save writes only what the window changed. With Settings open, the Assistant sets one app's profile and a
-    /// switch of hiding sensitive information, and the window isn't told; the window then changes another app's profile
-    /// and another switch, and saves: all four are in the file, and the window shows them.
+    /// A Settings save writes only what the window changed. With Settings open, the search's Change sets one app's profile
+    /// and a switch of hiding sensitive information, and the window isn't told; the window then changes another app's
+    /// Insert (General → Suggestions) and a category of hiding (one the config set off, shown with Restore Default), and
+    /// saves: all four are in the file, and the window shows them.
     static func testSettingsSavesOnlyItsChanges(snapshotDirectory: URL) {
         let url = snapshotDirectory.appendingPathComponent("both-config.json")
         defer { try? FileManager.default.removeItem(at: url) }
         let (mail, weChat) = ("com.apple.mail", "com.tencent.xinWeChat")
         var config = Config.default
         config.appProfiles = [mail: AppProfile(inputLanguage: .english), weChat: AppProfile(inputLanguage: .chinese)]
-        config.redaction = RedactionSettings(enabled: true)
+        config.redaction = RedactionSettings(enabled: true, phones: false)
         try? config.write(to: url)
         let model = SettingsModel(configURL: url)
-        let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(model: model, page: .apps)))
+        let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(model: model, page: .general)))
         window.setContentSize(NSSize(width: 880, height: 900))
         window.makeKeyAndOrderFront(nil)
         _ = pump(timeout: 0.6) { false }
-        // The Assistant: Mail's results typed out, emails no longer hidden; the window not told.
-        _ = try? AIConfig.applying([.app(mail, .typeOut(true)), .flag(.redactionEmails, false)], at: url, now: Date())
-        // The window: WeChat in English, phone numbers no longer hidden, saved as its controls save.
-        model.config.appProfiles[weChat]?.inputLanguage = .english
-        model.config.redaction.phones = false
+        // The search's Change: no AI in Mail, emails no longer hidden; the window not told.
+        _ = try? AIConfig.applying([.app(mail, .noAI(true)), .flag(.redactionEmails, false)], at: url, now: Date())
+        // The window: WeChat inserts with title (its list's picker), phone numbers hidden again (Restore Default), saved as
+        // its controls save.
+        model.changeProfile(weChat) { $0.suggestionsInsert = .title }
+        model.config.redaction.phones = true
         model.save()
         window.close()
         model.save()  // as the settings window's close does
         _ = pump(timeout: 0.3) { false }
         let file = (try? Config.load(from: url)) ?? .default
-        check(file.appProfiles[mail] == AppProfile(inputLanguage: .english, typeOut: true) && file.appProfiles[weChat] == AppProfile(inputLanguage: .english)
-              && !file.redaction.emails && !file.redaction.phones && file.redaction.cards,
-              "a Settings save over an Assistant write it hadn't read keeps both: another app's profile, another switch (\(file.appProfiles), "
+        check(file.appProfiles[mail] == AppProfile(inputLanguage: .english, noAI: true)
+              && file.appProfiles[weChat] == AppProfile(inputLanguage: .chinese, suggestionsInsert: .title)
+              && !file.redaction.emails && file.redaction.phones && file.redaction.cards,
+              "a Settings save over a Change it hadn't read keeps both: another app's profile, another switch (\(file.appProfiles), "
               + "emails \(file.redaction.emails), phones \(file.redaction.phones))")
-        check(model.config.appProfiles[mail]?.typeOut == true && !model.config.redaction.emails, "and the window then shows the Assistant's change")
+        check(model.config.appProfiles[mail]?.noAI == true && !model.config.redaction.emails, "and the window then shows the Change's change")
+    }
+
+    /// General → Previous per-app settings → Remove clears what an app's profile still sets of the settings no longer
+    /// offered (where it starts, Translate as You Type always on, autocomplete always, typing out, rewrite styles), its
+    /// Insert (its Off among it: suggestions off, never listed here) and No AI kept; another app's are as they were; an
+    /// app left with nothing goes from the file. The section is there only while an app has one.
+    static func testPreviousAppSettings(snapshotDirectory: URL) {
+        let url = snapshotDirectory.appendingPathComponent("previous-config.json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let (slack, mail, notes) = ("com.tinyspeck.slackmacgap", "com.apple.mail", "com.apple.Notes")
+        var config = Config.default
+        config.appProfiles = [slack: AppProfile(inputLanguage: .english, translateAlways: true, autocomplete: true, suggestions: false,
+                                                suggestionsInsert: .titleAndLink),
+                              mail: AppProfile(rewriteStyles: ["正式"], typeOut: true), notes: AppProfile(noAI: true, suggestions: false)]
+        try? config.write(to: url)
+        let model = SettingsModel(configURL: url)
+        check(Set(model.previousAppSettings.map(\.app)) == [mail, slack],
+              "the previous per-app settings list Slack and Mail, not Notes (No AI and Off only): \(model.previousAppSettings.map(\.app))")
+        let row = model.previousAppSettings.first { $0.app == slack }?.text ?? ""
+        let name = AppNames.name(for: slack)
+        check(row == tr("\(name)：用英文开始、总是边打边译、总是续写", "\(name): starts in English, Always Translate as You Type, Autocomplete always on"),
+              "Slack's row says what it sets: \(row)")
+        model.removePreviousSettings(slack)
+        var file = (try? Config.load(from: url)) ?? .default
+        check(file.appProfiles[slack] == AppProfile(suggestions: false, suggestionsInsert: .titleAndLink)
+              && file.appProfiles[mail] == config.appProfiles[mail] && file.appProfiles[notes] == AppProfile(noAI: true, suggestions: false),
+              "Remove clears Slack's, its Insert and Off kept, Mail's and Notes' as they were (\(file.appProfiles))")
+        model.removePreviousSettings(mail)
+        file = (try? Config.load(from: url)) ?? .default
+        check(file.appProfiles[mail] == nil && model.previousAppSettings.isEmpty,
+              "Mail, left with nothing, goes from the file; the section is gone (\(file.appProfiles))")
+    }
+
+    /// General → Suggestions → "In these apps" with Off (the owner's decision of 2026-10-24), as its picker and Remove
+    /// write it (`SettingsModel.setInsertChoice`): an app with only its suggestions off is listed, at Off; Off chosen for
+    /// an app that inserts with title and link turns its suggestions off and keeps that; With title turns them back on
+    /// with it; Remove clears both, its No AI kept; an app with neither isn't listed, its settings untouched. The page is
+    /// drawn with an app at Off, in both languages.
+    static func testAppInsertOff(snapshotDirectory: URL) {
+        let url = snapshotDirectory.appendingPathComponent("insert-off-config.json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let (mail, terminal, notes) = ("com.apple.mail", "com.apple.Terminal", "com.apple.Notes")
+        var config = Config.default
+        config.appProfiles = [mail: AppProfile(noAI: true, suggestionsInsert: .titleAndLink), terminal: AppProfile(suggestions: false),
+                              notes: AppProfile(inputLanguage: .english)]
+        try? config.write(to: url)
+        let model = SettingsModel(configURL: url)
+        func own(_ app: String) -> AppProfile? { ((try? Config.load(from: url)) ?? .default).appProfiles[app] }
+        check(Set(model.appInsertApps) == [mail, terminal] && model.config.profile(for: terminal)?.insertChoice == .off,
+              "In these apps lists Mail and Terminal (Off, nothing to insert of its own), not Notes: \(model.appInsertApps)")
+        model.setInsertChoice(.off, for: mail)
+        check(own(mail) == AppProfile(noAI: true, suggestions: false, suggestionsInsert: .titleAndLink)
+              && model.config.profile(for: mail)?.insertChoice == .off,
+              "Off for Mail: its suggestions off, With title and link kept for when they're back (\(own(mail).map { "\($0)" } ?? "none"))")
+        model.setInsertChoice(.insert(.title), for: mail)
+        check(own(mail) == AppProfile(noAI: true, suggestionsInsert: .title),
+              "With title for Mail: its suggestions back on, with title (\(own(mail).map { "\($0)" } ?? "none"))")
+        model.setInsertChoice(.off, for: mail)
+        model.setInsertChoice(nil, for: mail)
+        model.setInsertChoice(nil, for: terminal)
+        check(own(mail) == AppProfile(noAI: true) && own(terminal) == nil && own(notes) == config.appProfiles[notes] && model.appInsertApps.isEmpty,
+              "Remove clears both, Mail's No AI kept, Terminal gone, Notes as it was (\(((try? Config.load(from: url)) ?? .default).appProfiles))")
+
+        let chosen = UIText.choice
+        defer { UIText.choice = chosen }
+        for (name, language) in [("settings-insert-off", "zh"), ("settings-insert-off-en", "en")] {
+            UIText.choice = language
+            let preview = SettingsModel(configURL: url, persists: false)
+            preview.config.appProfiles = [mail: AppProfile(suggestionsInsert: .titleAndLink), terminal: AppProfile(suggestions: false)]
+            let image = snapshotDirectory.appendingPathComponent("\(name).png")
+            SettingsImage.render(preview, page: .general, to: image) { seconds in _ = pump(timeout: seconds) { false } }
+            check(FileManager.default.fileExists(atPath: image.path) && AppInsertChoice.off.label == tr("关闭", "Off"),
+                  "General drawn with Terminal at Off in these apps (\(language))")
+        }
     }
 }

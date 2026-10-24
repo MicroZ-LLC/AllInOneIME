@@ -161,11 +161,17 @@ const UINT kSync = WM_APP + 2;
 const UINT kSavePng = WM_APP + 3;
 const UINT kImagesRead = WM_APP + 4;  // the image loader read something: draw again
 // An image is looked at again (in the background) when a draw wants it this long after it last was: changed, or
-// readable now. At most kMaxImages are kept, the least recently drawn going first.
+// readable now. At most kMaxImages are kept, those being read too, the least recently drawn going first.
 const ULONGLONG kImageRecheckMs = 2000;
 const size_t kMaxImages = 64;
+// The images are read by kImageReaders threads at once at most, started as reads wait for one; a read under way this
+// long (a share that doesn't answer) holds up no other: another thread is started for them, kMaxImageThreads in all.
+const size_t kImageReaders = 2;
+const ULONGLONG kImageStuckMs = 1000;
+const size_t kMaxImageThreads = 8;
 const UINT_PTR kNoticeTimer = 1;
 const UINT_PTR kCaretTimer = 2;
+const UINT_PTR kImageTimer = 3;  // an image waits for a read to end or to be stuck: look again
 const wchar_t kClassName[] = L"AllInOneIME.CandidateWindow";
 
 struct Colors {
@@ -208,9 +214,10 @@ struct ImageEntry {
     bool loading = false;
 };
 
-// Reads the rows' images on a thread of its own, never the window's: a file on a share that is slow or offline holds
-// nothing up, the panel drawing the fallback meanwhile. What it read goes into `entries` and the window is told to draw
-// again (kImagesRead). Shared with that thread, which may outlive the panel (a read that never ends) and then ends.
+// Reads the rows' images on threads of their own, never the window's: a file on a share that is slow or offline holds
+// nothing up, the panel drawing the fallback meanwhile, nor the other images (`kImageStuckMs`). What they read goes into
+// `entries` and the window is told to draw again (kImagesRead). Shared with those threads, which may outlive the panel
+// (a read that never ends) and then end.
 struct ImageLoader {
     std::mutex lock;
     std::condition_variable wake;
@@ -218,6 +225,9 @@ struct ImageLoader {
     std::vector<ImageEntry> entries;
     HWND notify = nullptr;
     bool stopping = false;
+    // The threads, those waiting for a path, and when each read under way started.
+    size_t threads = 0, idle = 0;
+    std::vector<ULONGLONG> reading;
 };
 
 }  // namespace
@@ -571,6 +581,10 @@ void PublishState(AioPanel *p) {
     p->state.caretX = p->caretDrawn.x;
     p->state.caretY = p->caretDrawn.y;
     p->state.scrolled = p->scrolled;
+    if (p->images) {
+        std::lock_guard<std::mutex> images(p->images->lock);
+        p->state.images = (int32_t)p->images->entries.size();
+    }
 }
 
 bool EnsureBitmap(AioPanel *p, int width, int height) {
@@ -710,13 +724,17 @@ void LoadImages(std::shared_ptr<ImageLoader> loader) {
         return nullptr;
     };
     while (true) {
+        loader->idle += 1;
         loader->wake.wait(lock, [&] { return loader->stopping || !loader->pending.empty(); });
+        loader->idle -= 1;
         if (loader->stopping) break;
         const std::wstring path = std::move(loader->pending.front());
         loader->pending.pop_front();
         ImageEntry *before = entry(path);
         if (!before) continue;  // no longer kept
         const ImageEntry was = *before;
+        const ULONGLONG started = GetTickCount64();
+        loader->reading.push_back(started);
         lock.unlock();
         ImageEntry read;
         FILETIME written = {};
@@ -726,6 +744,7 @@ void LoadImages(std::shared_ptr<ImageLoader> loader) {
                           (!exists || (CompareFileTime(&written, &was.written) == 0 && size == was.size));
         if (!same && exists) ReadImage(wic, path, read);
         lock.lock();
+        loader->reading.erase(std::find(loader->reading.begin(), loader->reading.end(), started));
         ImageEntry *now = entry(path);
         if (!now) continue;
         now->loading = false;
@@ -741,9 +760,36 @@ void LoadImages(std::shared_ptr<ImageLoader> loader) {
         now->height = read.height;
         if (changed && loader->notify) PostMessageW(loader->notify, kImagesRead, 0, 0);
     }
+    loader->threads -= 1;
     lock.unlock();
     SafeRelease(wic);
     if (SUCCEEDED(init)) CoUninitialize();
+}
+
+// A thread for each image waiting to be read (the loader's lock held): one waiting for a path, else a new one while
+// fewer than kImageReaders read without being stuck (kImageStuckMs), kMaxImageThreads in all. False when one waits for
+// a read to end or to be stuck: the window looks again (kImageTimer).
+bool ReadPending(const std::shared_ptr<ImageLoader> &loader) {
+    for (size_t asked = 0; asked < loader->pending.size(); asked++) {
+        if (asked < loader->idle) {
+            loader->wake.notify_one();
+            continue;
+        }
+        const ULONGLONG now = GetTickCount64();
+        const size_t stuck = (size_t)std::count_if(loader->reading.begin(), loader->reading.end(),
+                                                   [&](ULONGLONG started) { return now - started >= kImageStuckMs; });
+        if (loader->threads >= kMaxImageThreads) return true;  // till a read ends
+        if (loader->threads - std::min(stuck, loader->threads) >= kImageReaders) return false;
+        loader->threads += 1;
+        std::thread(LoadImages, loader).detach();
+    }
+    return true;
+}
+
+// `path` to be looked at by the loader's threads (its lock held).
+void AskForImage(const std::shared_ptr<ImageLoader> &loader, const std::wstring &path) {
+    loader->pending.push_back(path);
+    if (!ReadPending(loader) && loader->notify) SetTimer(loader->notify, kImageTimer, (UINT)kImageStuckMs, nullptr);
 }
 
 // `entry`'s pixels as a bitmap of the render target's; nil without pixels.
@@ -773,7 +819,6 @@ ID2D1Bitmap *Image(AioPanel *p, const std::wstring &path) {
     if (!p->images) {
         p->images = std::make_shared<ImageLoader>();
         p->images->notify = p->hwnd;
-        std::thread(LoadImages, p->images).detach();
     }
     ImageLoader &loader = *p->images;
     std::lock_guard<std::mutex> lock(loader.lock);
@@ -785,23 +830,23 @@ ID2D1Bitmap *Image(AioPanel *p, const std::wstring &path) {
             for (auto e = loader.entries.begin(); e != loader.entries.end(); ++e) {
                 if (!e->loading && (oldest == loader.entries.end() || e->usedAt < oldest->usedAt)) oldest = e;
             }
-            if (oldest != loader.entries.end()) loader.entries.erase(oldest);
+            // All being read (shares that don't answer): none kept for this one, its fallback drawn until one is done.
+            if (oldest == loader.entries.end()) return nullptr;
+            loader.entries.erase(oldest);
         }
         ImageEntry entry;
         entry.path = path;
         entry.loading = true;
         entry.checkedAt = entry.usedAt = now;
         loader.entries.push_back(std::move(entry));
-        loader.pending.push_back(path);
-        loader.wake.notify_one();
+        AskForImage(p->images, path);
         return nullptr;
     }
     found->usedAt = now;
     if (!found->loading && now - found->checkedAt >= kImageRecheckMs) {
         found->loading = true;
         found->checkedAt = now;
-        loader.pending.push_back(path);
-        loader.wake.notify_one();
+        AskForImage(p->images, path);
     }
     return Bitmap(p, *found);
 }
@@ -1372,6 +1417,13 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
             } else {
                 PublishState(p);
             }
+        } else if (wParam == kImageTimer) {
+            bool done = true;
+            if (p->images) {
+                std::lock_guard<std::mutex> lock(p->images->lock);
+                done = ReadPending(p->images);
+            }
+            if (done) KillTimer(hwnd, kImageTimer);
         } else if (wParam == kCaretTimer) {
             KillTimer(hwnd, kCaretTimer);
             if (p->waitingForCaret) {

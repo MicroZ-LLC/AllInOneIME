@@ -67,20 +67,7 @@ extension SelfTest {
         }
         let realBefore = try? Data(contentsOf: Config.userURL)
         defer { check((try? Data(contentsOf: Config.userURL)) == realBefore, "Assistant on device: the user's config file was not touched") }
-        var config = settings
-        config.provider = .bedrock
-        config.candidateLayout = .horizontal
-        config.setOrder([OutputLanguage.english, .chinese, OutputLanguage("ja"), OutputLanguage("fr"), OutputLanguage("de")])
-        config.setOrder([Language.chinese, .english, .french, .korean, .hindi])
-        config.rewriteStyles = RewriteStyle.catalog.map(\.name)
-        let styles = RewriteStyle.catalog.map(\.name)
-        config.appProfiles = [:]
-        for index in 0..<250 {
-            let id = index == 0 ? "com.tencent.xinWeChat" : "com.example.selftest.app\(index)"
-            config.appProfiles[id] = AppProfile(inputLanguage: Language.allCases[index % Language.allCases.count],
-                                                rewriteStyles: Array(styles.prefix(1 + index % 3)), typeOut: index % 2 == 0)
-        }
-        config.redaction = RedactionSettings(enabled: true, customWords: (0..<50).map { "SelfTestWord\($0)" })
+        let config = longTimeUsersConfig()
         let apps = AIConfig.AppCatalog(apps: [.init(bundleID: "com.tencent.xinWeChat", names: ["WeChat", "微信"])])
         let context = AIConfigPrompt.Context(config: config, knownModels: AIConfigSession.knownModels(), awsProfiles: ["default"],
                                              offeredProviders: Provider.offered, installedPacks: [.chinese], apps: apps)
@@ -141,7 +128,7 @@ extension SelfTest {
         assistant.sendRequest()
         _ = pump(timeout: 120) { !assistant.working }
         let text = AIConfig.Text(language: "zh-Hans")
-        let lines = [AIConfig.Failure.notUnderstood, .notAllowed, .alreadySet].map(text.failure)
+        let lines = [AIConfig.Failure.notUnderstood, .notAllowed, .alreadySet, .unclearSetting].map(text.failure)
         check(capped.sent.count == 1 && capped.lastFits && (assistant.preview != nil || assistant.message.map(lines.contains) == true),
               "the page with a 4096-token context (\(capped.lastLine)): "
                   + (assistant.preview != nil ? "a preview (\(assistant.lines.joined(separator: "; ")))" : assistant.message ?? "nothing"))
@@ -154,6 +141,92 @@ extension SelfTest {
         _ = pump(timeout: 60) { !assistant.working }
         check(long.sent.isEmpty && assistant.message == text.tooLong(notSetUp: .bedrock),
               "a request too long for the context isn't sent to the model, and says what to do: \(assistant.message ?? "-")")
+    }
+
+    /// A long-time user's config: many apps with settings of their own, five languages each way, every style, hidden words.
+    private static func longTimeUsersConfig() -> Config {
+        var config = settings
+        config.provider = .bedrock
+        config.candidateLayout = .horizontal
+        config.setOrder([OutputLanguage.english, .chinese, OutputLanguage("ja"), OutputLanguage("fr"), OutputLanguage("de")])
+        config.setOrder([Language.chinese, .english, .french, .korean, .hindi])
+        config.rewriteStyles = RewriteStyle.catalog.map(\.name)
+        let styles = RewriteStyle.catalog.map(\.name)
+        config.appProfiles = [:]
+        for index in 0..<250 {
+            let id = index == 0 ? "com.tencent.xinWeChat" : "com.example.selftest.app\(index)"
+            // What an earlier version set (never shown to the model) and what can be set here (shown).
+            config.appProfiles[id] = AppProfile(inputLanguage: Language.allCases[index % Language.allCases.count],
+                                                rewriteStyles: Array(styles.prefix(1 + index % 3)), typeOut: index % 2 == 0,
+                                                suggestionsInsert: index % 2 == 0 ? .title : .titleAndLink)
+        }
+        config.redaction = RedactionSettings(enabled: true, customWords: (0..<50).map { "SelfTestWord\($0)" })
+        return config
+    }
+
+    /// Autocomplete turned on and off in a sentence on Settings → Assistant's page, on Apple Intelligence on this Mac, in
+    /// the Chinese interface, with the self-test's config and a long-time user's, autocomplete on and off: the bug as
+    /// reported ("我要把 auto complete 关闭" and "… 打开" both said "Already set that way": the model answered with the
+    /// setting as it was). A sentence that only turns it is done as it says without the model; one that says more is
+    /// answered by the model, Autocomplete as it says whatever the model wrote for it. Only where the model is available;
+    /// the page writes the self-test's own config file, never the user's.
+    static func testAssistantAutocompleteOnDevice(snapshotDirectory: URL) {
+        let real = AppleModel.system
+        section("Settings → Assistant on Apple Intelligence on this Mac: Autocomplete on and off in a sentence (\(real.availability.rawValue))")
+        guard real.availability == .available, let guided = real as? any AppleGuidedBackend else {
+            print("  skipped: the on-device model isn't available here")
+            return
+        }
+        let realBefore = try? Data(contentsOf: Config.userURL)
+        defer { check((try? Data(contentsOf: Config.userURL)) == realBefore, "Assistant Autocomplete: the user's config file was not touched") }
+        var small = settings
+        small.candidateLayout = .horizontal
+        let rig = AssistantRig(snapshotDirectory, name: "assistant-autocomplete.json", config: small)
+        let pickedBefore = UIText.choice
+        UIText.choice = "zh"
+        defer {
+            rig.restore()
+            UIText.choice = pickedBefore
+        }
+        let text = AIConfig.Text(language: "zh-Hans")
+        let assistant = AssistantModel()
+        func send(_ sentence: String, config: Config) -> CappedGuidedModel {
+            try? config.write(to: rig.url)
+            let model = CappedGuidedModel(guided, contextSize: guided.contextSize)
+            AIConfigSession.service = AIConfigService(client: ChatClient(apple: model),
+                                                      loadCredentials: { _ in throw AWSConfigError.profileNotFound("selftest") },
+                                                      loadKey: { _, _ in nil })
+            assistant.reset()
+            assistant.request = sentence
+            assistant.sendRequest()
+            _ = pump(timeout: 120) { !assistant.working }
+            return model
+        }
+        let shown = { assistant.preview != nil ? "a preview (\(assistant.lines.joined(separator: "; ")))" : assistant.message ?? "nothing" }
+        for (name, base) in [("the self-test's config", small), ("a long-time user's config", longTimeUsersConfig())] {
+            for now in [false, true] {
+                var config = base
+                config.autocomplete = now
+                for (sentence, on) in [("我要把 auto complete 打开", true), ("我要把 auto complete 关闭", false), ("打开续写", true),
+                                       ("关掉自动补全", false), ("turn on autocomplete", true), ("disable auto-complete", false)] {
+                    let model = send(sentence, config: config)
+                    let done = on == now ? assistant.preview == nil && assistant.message == text.failure(.alreadySet)
+                        : assistant.preview?.edits == [.autocomplete(on)]
+                    check(done && model.sent.isEmpty, "\(name), autocomplete \(now ? "on" : "off"), “\(sentence)”: "
+                              + (on == now ? "already so" : "turned \(on ? "on" : "off")") + " without the model: \(shown())")
+                }
+                // Saying more: the model answers; Autocomplete as the sentence says, whatever it wrote for it.
+                let sentence = now ? "关闭续写，候选竖排" : "打开续写，候选竖排"
+                let model = send(sentence, config: config)
+                let edits = assistant.preview?.edits ?? []
+                check(model.sent.count == 1 && edits.contains(.autocomplete(!now)) && !edits.contains(.autocomplete(now)),
+                      "\(name), autocomplete \(now ? "on" : "off"), “\(sentence)”: answered on the device (\(model.lastLine)), "
+                          + "Autocomplete turned \(now ? "off" : "on"): \(shown())")
+                if !edits.contains(.candidateLayout(.vertical)) {
+                    print("  ⚠︎ the model left out the candidates in a column for “\(sentence)”: its slip, not checked")
+                }
+            }
+        }
     }
 
     /// "use Bedrock" as the on-device model answered it: the answer in full, and what the preview makes of it. Another

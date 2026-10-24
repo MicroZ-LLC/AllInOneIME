@@ -144,7 +144,8 @@ public final class Composer {
         case hidePanel
         /// Briefly show a status message near the caret.
         case notice(String)
-        /// The input language changed (Shift): the controller types with its keyboard layout.
+        /// The input language changed (Shift): the controller types with its keyboard layout. Into Code or out of it too
+        /// (`input`): its language is English, whose letters it types.
         case inputLanguageChanged(Language)
         /// The right Option key went down on its own: call `voiceHoldElapsed` after `delay` seconds.
         case armVoice(delay: Double)
@@ -256,12 +257,15 @@ public final class Composer {
         public var noteNotSaved: String
         /// ⏎ on a send command (`@imessage`) before a recipient was picked.
         public var pickRecipient = "先选收件人：↑↓ 选择，⏎ / Tab 确定（也可以直接输入手机号或邮箱）"
-        /// `@py` (or another command that runs code) in pasted or dictated text: left as text.
-        public var codeNotRun = "粘贴或语音来的文字里的 @py、@js 等没有运行，当作文字"
+        /// `@py` (or another command that runs code) in pasted or dictated text: left as text. Dictation only while voice
+        /// input is on (`Features.voiceInput`).
+        public var codeNotRun = "粘贴来的文字里的 @py、@js 等没有运行，当作文字"
         /// The notices of a switch to French or Korean (Shift).
         public var frenchMode = "法"
         public var koreanMode = "韩"
         public var hindiMode = "印"
+        /// The notice of a switch to Code (Shift), with its coding language as the session names it ("Code (Python)").
+        public var codeMode = "代码"
         /// A script extension's required arguments left empty: their placeholders follow.
         public var scriptNeeds = "还要写："
         /// A script's dropdown value that isn't one of its choices: their titles follow.
@@ -349,10 +353,13 @@ public final class Composer {
                 noteNotSaved: t.tr("笔记还没存，原文已复制到剪贴板", "The note wasn't saved; its text is on the clipboard"),
                 pickRecipient: t.tr("先选收件人：↑↓ 选择，\(terms.enter) / Tab 确定（也可以直接输入手机号或邮箱）",
                                     "Pick a recipient first: ↑↓ choose, \(terms.enter) / Tab confirm (or type a phone number or email)"),
-                codeNotRun: t.tr("粘贴或语音来的文字里的 @py、@js 等没有运行，当作文字", "@py, @js and the like in pasted or dictated text weren't run: kept as text"),
+                codeNotRun: Features.voiceInput
+                    ? t.tr("粘贴或语音来的文字里的 @py、@js 等没有运行，当作文字", "@py, @js and the like in pasted or dictated text weren't run: kept as text")
+                    : t.tr("粘贴来的文字里的 @py、@js 等没有运行，当作文字", "@py, @js and the like in pasted text weren't run: kept as text"),
                 frenchMode: t.tr("法", "French"),
                 koreanMode: t.tr("韩", "Korean"),
                 hindiMode: t.tr("印", "Hindi"),
+                codeMode: t.tr("代码", "Code"),
                 scriptNeeds: t.tr("还要写：", "Needs: "),
                 scriptChoices: t.tr("只能是这几个之一：", "Pick one of: "),
                 confirmScript: t.tr("运行「{title}」？{key} 确认", "Run {title}? {key} again"),
@@ -445,6 +452,13 @@ public final class Composer {
             commandsGeneration &+= 1
         }
     }
+    /// The symbol the user types to open the command palette.
+    public var commandTrigger = "@"
+    var triggerCharacter: Character { commandTrigger.first ?? "@" }
+    var hiddenTrigger: String {
+        let scalar = commandTrigger.unicodeScalars.first?.value ?? 64
+        return UnicodeScalar(scalar + 0xFEE0).map(String.init) ?? commandTrigger
+    }
     /// `commands` by name, for the draft's command (`parse`), and how many times they were set: what the
     /// command list matched is kept per query while they and the usage stay the same (`paletteMatches`).
     /// With many script extensions, a key mustn't go through all of them again and again.
@@ -460,7 +474,7 @@ public final class Composer {
 
     /// The command at the start of `text` and what follows it (as `Command.parse`, by name).
     private func parse(_ text: String) -> (command: Command, content: String)? {
-        guard text.hasPrefix("@"), let space = text.firstIndex(of: " ") else { return nil }
+        guard text.hasPrefix(commandTrigger), let space = text.firstIndex(of: " ") else { return nil }
         guard let command = commandsByName[text[text.index(after: text.startIndex)..<space].lowercased()] else { return nil }
         return (command, String(text[text.index(after: space)...]))
     }
@@ -577,6 +591,14 @@ public final class Composer {
     /// what it typed into the field (a terminal tells nothing); a composer on its own knows none. Right after a word
     /// (`continuesWord`) the "@" is just text: no command list.
     public var characterBeforeCaret: () -> Character? = { nil }
+    /// Whether `typed`, the letters pinyin holds and the key typed after them ("proj-"), finishes the prefix of a suggestion
+    /// source that may show rows here ("PROJ-"): the composition then goes in as typed and the token starts
+    /// (`endForSuggestionPrefix`). Set by the session; a composer on its own has no sources.
+    public var finishesSuggestionPrefix: (String) -> Bool = { _ in false }
+    /// Whether Code holds the word being typed here as marked text (`codeWord`, decision 33): where Code's rows may show
+    /// (not in a terminal, in secure input or a password field). Set by the session; a composer on its own holds none,
+    /// and Code's letters go straight in.
+    public var holdsCodeWord: () -> Bool = { false }
     /// Whether the field's app still acts on a key the input method lets through after inserting text during it, as
     /// text views do: "@" then → inserts the "@" and the caret moves on. Not in terminals (set by the controller):
     /// Ghostty sends what is inserted during a key in the key's place (an arrow then goes out without the "@", a
@@ -629,9 +651,19 @@ public final class Composer {
     public private(set) var engineState = EngineSnapshot.empty
     public internal(set) var result = ConversionResult.empty
     public private(set) var voice = Voice.off
-    /// The input languages on (`Config.inputLanguages`): with one, a tap of Shift doesn't switch.
+    /// The input languages on (`Config.inputLanguages`): with one, and no Code, a tap of Shift doesn't switch.
     public var inputLanguages: [Language] = [.chinese, .english]
-    /// Holding the right Option key records speech.
+    /// Code is among the inputs, after the languages (`Config.codingLanguage`, its pack installed: decision 22). Gone, the
+    /// field is no longer in it.
+    public var hasCode = false {
+        didSet { if !hasCode { coding = false } }
+    }
+    /// Code is the input now: Latin letters as English (`inputLanguage` is English), with no English words learned, no
+    /// autocomplete and no Translate as You Type; the session offers the Code pack's rows, and where they may show the word
+    /// being typed is held as marked text (`codeWord`).
+    public private(set) var coding = false
+    /// Holding the right Option key records speech. Off, as voice input is for now (`Features.voiceInput`), unless
+    /// made so directly.
     public var voiceEnabled: Bool
     /// The key that runs the @ command at the start of the draft.
     public var actionKey: ActionKey
@@ -711,8 +743,17 @@ public final class Composer {
     /// The language typed while the engine is in its ASCII mode: English, French or Korean (Chinese is pinyin).
     public private(set) var asciiLanguage: Language = .english
 
-    /// The input language in effect.
+    /// The input language in effect (English's letters in Code).
     public var inputLanguage: Language { engineState.isAsciiMode ? asciiLanguage : nativeLanguage }
+
+    /// The input in effect: Code, or the input language.
+    public var input: Input { coding ? .code : .language(inputLanguage) }
+
+    /// The inputs a tap of Shift goes through, in order: the input languages, then Code (not while Translate as You Type
+    /// is on here: it can't run in Code).
+    public var inputs: [Input] {
+        inputLanguages.map(Input.language) + (hasCode && translateMode == nil ? [.code] : [])
+    }
 
     /// What to type in once `language`'s pack is gone: the first other input language (the default, normally).
     private func fallbackLanguage(for language: Language) -> Language {
@@ -722,7 +763,7 @@ public final class Composer {
     /// The language of the engine in place when it isn't in its ASCII mode.
     private var nativeLanguage: Language { hindiActive ? .hindi : .chinese }
 
-    public init(engine: PinyinEngine? = nil, voiceEnabled: Bool = true, actionKey: ActionKey = .enter) {
+    public init(engine: PinyinEngine? = nil, voiceEnabled: Bool = Features.voiceInput, actionKey: ActionKey = .enter) {
         primaryEngine = engine
         self.voiceEnabled = voiceEnabled
         self.actionKey = actionKey
@@ -786,7 +827,7 @@ public final class Composer {
     /// Where the text after the command starts (the cursor never goes into "@question ").
     private var textStart: Int {
         guard let command = draftCommand else { return 0 }
-        let header = "@\(command.name) "
+        let header = "\(commandTrigger)\(command.name) "
         return draft.hasPrefix(header) ? header.count : 0
     }
 
@@ -801,7 +842,7 @@ public final class Composer {
     }
 
     /// ⌫ in the text: the character before the cursor (none before the command's text).
-    private func deleteBeforeCursor() {
+    func deleteBeforeCursor() {
         let after = tail
         guard draft.count - after.count > (after.isEmpty ? 0 : textStart) else { return }
         draft = String(draft.dropLast(after.count).dropLast()) + after
@@ -845,7 +886,7 @@ public final class Composer {
     /// the draft as typed.
     public var shownDraft: String {
         if let shown = modeShownDraft { return shown }
-        guard draft.contains("@") else { return draft }
+        guard draft.contains(triggerCharacter) else { return draft }
         let chars = Array(draft)
         let names = commandsByName
         let paletteAt = palette.map { draft.distance(from: draft.startIndex, to: $0.at) }
@@ -857,7 +898,7 @@ public final class Composer {
         var out = ""
         var i = 0
         while i < chars.count {
-            guard chars[i] == "@" else {
+            guard chars[i] == triggerCharacter else {
                 // A note keeps its lines (`pasted`); the draft is shown on one line.
                 if chars[i].isNewline { out += Self.lineBreak } else { out.append(chars[i]) }
                 i += 1
@@ -875,10 +916,10 @@ public final class Composer {
                 out += String(chars[(i + 1)..<j])  // its name being typed
                 i = j
             } else if chars.count == 1 || !inCommand && i == 0 {
-                out.append("@")
+                out += commandTrigger
                 i += 1
             } else {
-                out.append("＠")
+                out += hiddenTrigger
                 i += 1
             }
         }
@@ -920,7 +961,7 @@ public final class Composer {
             return [Choice(label: "⏎", kind: .send, text: line.text, isComplete: line.isComplete)]
         case .report?:
             return pendingIssue.map { [Choice(label: "⏎", kind: .issue($0.url), text: $0.title, isComplete: true)] } ?? []
-        case .convert?, .terminal?, .settings?, .note?, .snippet?, nil:
+        case .convert?, .terminal?, .settings?, .note?, .snippet?, .suggestions?, nil:
             break
         }
         let original = originalText
@@ -1011,7 +1052,7 @@ public final class Composer {
         guard command.script == nil else { return false }
         switch command.kind {
         case .convert, .generate, .run, .link, .note, .snippet: return true
-        case .terminal, .search, .agents, .settings, .reminder, .message, .report: return false
+        case .terminal, .search, .agents, .settings, .reminder, .message, .report, .suggestions: return false
         }
     }
 
@@ -1043,7 +1084,7 @@ public final class Composer {
     /// (`@reply 告诉他 @st`, not inside a word), where the commands that can run inside a text are offered.
     /// Not inside a note, a reminder, a search, code or a terminal command: they take their text as typed (`takesTextAsTyped`).
     private var palette: (query: String, nested: Bool, at: String.Index)? {
-        guard !isLevelTwo, voice == .off, !engineState.isComposing, tail.isEmpty, let at = draft.lastIndex(of: "@") else { return nil }
+        guard !isLevelTwo, voice == .off, !engineState.isComposing, tail.isEmpty, let at = draft.lastIndex(of: triggerCharacter) else { return nil }
         let query = draft[draft.index(after: at)...]
         guard query.first?.isNumber != true, query.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber) }) else { return nil }
         if at == draft.startIndex { return (String(query), false, at) }
@@ -1059,7 +1100,8 @@ public final class Composer {
     private var takesTextAsTyped: Bool {
         guard let command = draftCommand else { return false }
         return command.kind == .note || command.kind == .reminder || command.kind == .search || command.kind == .terminal
-            || command.kind == .report || command.kind == .snippet || command.isCode || command.script != nil
+            || command.kind == .report || command.kind == .snippet || command.kind == .suggestions || command.isCode
+            || command.script != nil
     }
 
     /// The commands the list can offer: all of them at the start, inside a text the ones that run there,
@@ -1076,7 +1118,7 @@ public final class Composer {
         // The writing commands (built in, first in the catalog) that pair with the draft's and aren't written yet.
         let written = Set(draft.split(separator: " ").map(String.init))
         let pairs = commands.prefix { $0.custom == nil && $0.plugin == nil && $0.script == nil }
-            .filter { $0.kind == .convert && $0 != draftCommand && !written.contains("@" + $0.name) }
+            .filter { $0.kind == .convert && $0 != draftCommand && !written.contains(commandTrigger + $0.name) }
         return pairs + innerCommands.commands
     }
     private var innerCommands: (generation: Int, commands: [Command]) = (-1, [])
@@ -1197,7 +1239,7 @@ public final class Composer {
         let found = currentRecipients
         guard found.indices.contains(index), let command = draftCommand else { return [] }
         messageRecipient = found[index]
-        draft = "@\(command.name) "
+        draft = "\(commandTrigger)\(command.name) "
         clearRecipientResults()
         setLevelOnePhase()
         return [.updateMarkedText, .showPanel]
@@ -1268,6 +1310,7 @@ public final class Composer {
 
     /// Whether the candidate panel has something to show.
     public var wantsPanel: Bool {
+        if codeWord != nil { return false }  // Code's word: its rows are the session's
         if let wants = modeWantsPanel { return wants }
         if isLevelTwo || voice != .off { return true }
         if engineState.isComposing { return !engineState.candidates.isEmpty }
@@ -1294,7 +1337,7 @@ public final class Composer {
     /// code inside the text, until its argument is typed: `nestedLatinFrom`).
     private var typesHangul: Bool {
         inputLanguage == .korean && !isLevelTwo && voice == .off && engine != nil && palette == nil
-            && draftCommand?.typesLatin != true && nestedLatinFrom == nil && !(draft.hasPrefix("@") && draftCommand == nil)
+            && draftCommand?.typesLatin != true && nestedLatinFrom == nil && !(draft.hasPrefix(commandTrigger) && draftCommand == nil)
     }
 
     /// A letter key in Korean: its jamo joins the syllable being typed, and a finished one goes in. ⌫ takes
@@ -1336,10 +1379,12 @@ public final class Composer {
         return []
     }
 
-    private func handleOtherKeyDown(_ event: KeyEvent) -> Response {
+    func handleOtherKeyDown(_ event: KeyEvent) -> Response {
         shiftPressedAt = nil
         optionPressed = nil  // ⌥ with a key is a shortcut, not a tap
         voiceArmed = false  // a key with right ⌥ down is an ⌥ shortcut, not dictation
+        // Code's word being typed, held as marked text (Composer+CodeWord.swift).
+        if let response = handleCodeWordKey(event) { return response }
         // A held key goes no further than its first press did: holding ⏎ runs a command, it doesn't then
         // also insert the result, or send the message it shows to confirm.
         if event.isRepeat, isLevelTwo || !draft.isEmpty,
@@ -1391,16 +1436,17 @@ public final class Composer {
     }
 
     /// A dead key waits, with its accent marked, for the key it goes on (`KeyEvent.composed`): in English
-    /// mode, and in a command's text in either mode. Not while pinyin is being typed (the key is then as before).
+    /// mode, and in a command's text in either mode. Not while pinyin is being typed (the key is then as before). In Code,
+    /// a letter it types ("é") starts the word Code holds (`startsCodeWord`).
     private func handleDeadKey(_ event: KeyEvent) -> DeadKeyOutcome {
         if let accent = pendingAccent {
             pendingAccent = nil
             setLevelOnePhase()
             if let text = event.composed {
-                guard !draft.isEmpty || modeCollects(text) else { return .done(.consumed([.commit(text)])) }
+                guard !draft.isEmpty || modeCollects(text) || startsCodeWord(text) else { return .done(.consumed([.commit(text)])) }
                 appendTyped(text)
                 setLevelOnePhase()
-                return .done(.consumed([.updateMarkedText, .showPanel]))
+                return .done(.consumed([.updateMarkedText] + (codeWord == nil ? [.showPanel] : [])))
             }
             // ⌫ and Esc take the accent back; another key types it, then does what it does (as macOS does).
             if event.key == .backspace || event.key == .escape { return .done(.consumed([.updateMarkedText])) }
@@ -1504,9 +1550,9 @@ public final class Composer {
     }
 
     private func shiftTap() -> [Effect] {
-        // With one input language Shift stays put, except to leave the letters a command switched to
-        // (Chinese inside `@python print("…")`).
-        let switches = inputLanguages.count > 1 || restoreChineseAfterOpen || nestedLatinFrom != nil
+        // With one input (and in it) Shift stays put, except to leave the letters a command switched to (Chinese inside
+        // `@python print("…")`).
+        let switches = inputs.count > 1 || !inputs.contains(input) || restoreChineseAfterOpen || nestedLatinFrom != nil
         return voice == .off && switches ? switchInputLanguage() : []
     }
 
@@ -1633,8 +1679,27 @@ public final class Composer {
         enter(language)
     }
 
+    /// Switches to `input`: a language (`setInputMode`), or Code where it is among the inputs (`hasCode`). Ignored while
+    /// something is being composed.
+    public func setInput(_ input: Input) {
+        guard engine != nil, !isComposing, hangul.isEmpty, input != .code || hasCode else { return }
+        enter(input)
+    }
+
+    /// Puts level one in `input`: Code types English's letters.
+    private func enter(_ input: Input) {
+        switch input {
+        case let .language(language):
+            enter(language)
+        case .code:
+            enter(.english)
+            coding = hasCode
+        }
+    }
+
     /// Puts level one in `language`: Hindi's engine or librime's, in or out of its ASCII mode.
     private func enter(_ language: Language) {
+        coding = false
         hindiActive = language == .hindi && hindiEngine != nil
         guard let engine else { return }
         let ascii = language != .chinese && language != .hindi
@@ -1726,7 +1791,7 @@ public final class Composer {
     /// here. Nil otherwise: the controller then puts the text on the clipboard instead.
     public func restoreDraft(_ command: Command, text: String) -> [Effect]? {
         guard phase == .idle, draft.isEmpty, voice == .off, !(engine?.snapshot().isComposing ?? false) else { return nil }
-        draft = "@\(command.name) " + text
+        draft = "\(commandTrigger)\(command.name) " + text
         draftHasOutsideText = true
         setLevelOnePhase()
         return [.updateMarkedText, .showPanel]
@@ -1885,6 +1950,7 @@ public final class Composer {
         let composing = engine.snapshot().isComposing
         let modifiers = event.modifiers.subtracting(.capsLock)
         if let response = handleModeKey(event) { return response }
+        if composing, let response = endForSuggestionPrefix(event, engine) { return response }
         if !composing, let response = handlePaletteKey(event) { return response }
         // Return runs a command draft ("@question …"), like the action key; text keeps Return = as typed.
         if event.key == .enter || event.key == .keypadEnter, modifiers.isEmpty,
@@ -1895,13 +1961,13 @@ public final class Composer {
             if !draft.isEmpty, let response = handleDraftKey(event, afterVoice: afterVoice) { return response }
             if draft.isEmpty {
                 // "@" first: the command palette ("@question …").
-                if event.printableText == "@" {
+                if event.printableText == commandTrigger {
                     // Right after a word it's text, as in "bob@example.com" or "ssh user@host": no list.
                     if let before = characterBeforeCaret(), Self.continuesWord(before) { return .passThrough }
                     // Text selected in the field: the command works on it, written in the panel (the field keeps it selected).
                     selection = readSelection().flatMap { $0.text.isEmpty ? nil : $0 }
                     selectionFits = (selection?.text.count ?? 0) <= Self.maxSelectionLength
-                    draft = "@"
+                    draft = commandTrigger
                     paletteHighlight = 0
                     setLevelOnePhase()
                     return .consumed([.updateMarkedText, .showPanel])
@@ -1956,6 +2022,19 @@ public final class Composer {
         if !consumed && !committedDirectly { return .passThrough }
         effects += [.updateMarkedText, wantsPanel ? .showPanel : .hidePanel]
         return Response(effects: effects, handled: consumed)
+    }
+
+    /// "-" (or "_", ".") after the letters pinyin holds, finishing a suggestion source's prefix ("proj" then "-" for "PROJ-",
+    /// any case: `finishesSuggestionPrefix`): the letters and the key go in as typed, not converted, and the token starts
+    /// there, as "#" ends a composition (suggestions spec 1.3). Digits after it are typed then, so the rows come as in
+    /// English. Only with nothing but those letters composed, on the candidates' first page (where librime's "-" turns
+    /// no page back). Nil: the key goes to the engine as before.
+    private func endForSuggestionPrefix(_ event: KeyEvent, _ engine: PinyinEngine) -> Response? {
+        guard draft.isEmpty, !isLevelTwo, voice == .off, engine.language == .chinese, engineState.pageNumber == 0,
+              event.modifiers.subtracting([.capsLock, .shift]).subtracting(.sides).isEmpty,
+              let text = event.printableText, ["-", "_", "."].contains(text),
+              finishesSuggestionPrefix(engine.rawInput + text) else { return nil }
+        return .consumed(finishAsTyped(engine.rawInput + text) + [.updateMarkedText])
     }
 
     private enum HorizontalKey {
@@ -2166,7 +2245,7 @@ public final class Composer {
         }
         // A snippet that needs nothing typed goes in when the action key picks it; Tab and Space only complete its name.
         if run, command.snippet?.needsTyping == false, palette?.nested != true {
-            draft = "@\(command.name) "
+            draft = "\(commandTrigger)\(command.name) "
             paletteHighlight = 0
             setLevelOnePhase()
             let effects = startAction().effects
@@ -2175,14 +2254,14 @@ public final class Composer {
         // A script extension that takes no input runs when the action key picks it (or asks first); Tab and
         // Space only complete its name.
         if run, command.script?.input == ScriptCommand.Input.none, palette?.nested != true {
-            draft = "@\(command.name) "
+            draft = "\(commandTrigger)\(command.name) "
             paletteHighlight = 0
             setLevelOnePhase()
             let run = startAction().effects
             return isLevelTwo ? run : [.updateMarkedText, .showPanel] + run
         }
         let nested = palette?.nested == true
-        draft = (palette.map { String(draft[..<$0.at]) } ?? "") + "@\(command.name) "
+        draft = (palette.map { String(draft[..<$0.at]) } ?? "") + "\(commandTrigger)\(command.name) "
         paletteHighlight = 0
         // File names, paths and code are typed as letters; the input mode comes back when the command is
         // done (inside a text: once its argument is typed and a space follows).
@@ -2193,6 +2272,10 @@ public final class Composer {
             nestedLatinFrom = draft.count  // letters, not Hangul, until its argument is typed (`typesHangul`)
         }
         setLevelOnePhase()
+        // A suggestion source picked: what it is, said (it is no action: nothing runs).
+        if command.kind == .suggestions, !nested {
+            return [.updateMarkedText, .showPanel, .notice(UIText.suggestionSource(command, trigger: commandTrigger))]
+        }
         return [.updateMarkedText, .showPanel]
     }
 
@@ -2201,7 +2284,7 @@ public final class Composer {
         let live = currentLiveResults
         guard live.indices.contains(liveHighlight) else { return [] }
         let result = live[liveHighlight]
-        draft = "@open " + Self.abbreviatingHome(result.path) + (result.isFolder ? "/" : "")
+        draft = commandTrigger + "open " + Self.abbreviatingHome(result.path) + (result.isFolder ? "/" : "")
         liveResults = []
         liveResultsQuery = nil
         resetLiveHighlight()
@@ -2224,7 +2307,7 @@ public final class Composer {
         let query = paletteQuery ?? ""
         let pinyin = !query.isEmpty && event.printableText?.allSatisfy(\.isLetter) == true
             && engine.map { !$0.snapshot().isAsciiMode } == true
-        let typed = finish(committing: pinyin ? "@" : draft)
+        let typed = finish(committing: pinyin ? commandTrigger : draft)
         var effects = typed
         if pinyin {
             for letter in query {
@@ -2265,7 +2348,7 @@ public final class Composer {
                 return .consumed([.showPanel])
             case .tab:
                 guard let complete = listItem?.autocomplete, let command = draftCommand else { return .consumed() }
-                draft = "@\(command.name) " + complete
+                draft = "\(commandTrigger)\(command.name) " + complete
                 return .consumed([.updateMarkedText, .showPanel])
             default:
                 break
@@ -2299,7 +2382,7 @@ public final class Composer {
             return .consumed(finishAsTyped(draft))
         case .backspace:
             // Right after a picked recipient: back to picking one.
-            if messageRecipient != nil, let command = draftCommand, draft == "@\(command.name) " {
+            if messageRecipient != nil, let command = draftCommand, draft == "\(commandTrigger)\(command.name) " {
                 messageRecipient = nil
                 if let engine, !engine.snapshot().isAsciiMode { typeLetters(engine) }  // names, pinyin, numbers: typed as letters
                 return .consumed([.updateMarkedText, .showPanel])
@@ -2388,8 +2471,8 @@ public final class Composer {
         engineState = engine.snapshot()
     }
 
-    /// A tap of Shift: the next input language, in the order they were added (`inputLanguages`). Out of the
-    /// letters a command switched to (`@open` typed in Chinese), back to Chinese.
+    /// A tap of Shift: the next input, in the order they were added (`inputs`: the input languages, then Code). Out of
+    /// the letters a command switched to (`@open` typed in Chinese), back to Chinese.
     private func switchInputLanguage() -> [Effect] {
         // In level two only while a refine instruction can be typed (Chinese or English for it).
         guard engine != nil, !isLevelTwo || typesRefine else { return [] }
@@ -2399,15 +2482,17 @@ public final class Composer {
             nestedLatinFrom = nil
             return typeWaitingAccent() + [.updateMarkedText, .notice(messages.mode(current))]
         }
-        let next: Language
-        if restoreChineseAfterOpen || nestedLatinFrom != nil || inputLanguages.count < 2 {
-            next = current == nativeLanguage ? asciiLanguage : nativeLanguage
+        let inputs = inputs
+        let next: Input
+        if restoreChineseAfterOpen || nestedLatinFrom != nil || inputs.count < 2 && inputs.contains(input) {
+            next = .language(current == nativeLanguage ? asciiLanguage : nativeLanguage)
         } else {
-            let index = inputLanguages.firstIndex(of: current).map { $0 + 1 } ?? 0
-            next = inputLanguages[index % inputLanguages.count]
+            let index = inputs.firstIndex(of: input).map { $0 + 1 } ?? 0
+            next = inputs[index % inputs.count]
         }
-        guard next != current else { return [] }
-        var effects = typeWaitingAccent() + finishHangul()
+        guard next != input else { return [] }
+        // Code's word held goes in as typed (Composer+CodeWord.swift).
+        var effects = endCodeWord() + typeWaitingAccent() + finishHangul()
         if current == .chinese {
             // Pinyin being typed goes in as librime's Shift does it (`toggleLatin`).
             effects += toggleLatin()
@@ -2418,7 +2503,8 @@ public final class Composer {
             restoreChineseAfterOpen = false  // left by hand
         }
         enter(next)
-        return effects + [.updateMarkedText, .inputLanguageChanged(next), .notice(messages.mode(next))]
+        return effects + [.updateMarkedText, .inputLanguageChanged(inputLanguage),
+                          .notice(next == .code ? messages.codeMode : messages.mode(inputLanguage))]
     }
 
     private func toggleLatin() -> [Effect] {
@@ -2712,6 +2798,10 @@ public final class Composer {
         resetRefine()
         // Local, like a note: no AI, nothing sent, so neither a No-AI app nor secure input holds it back.
         if let command = parsed?.command, command.kind == .snippet { return .consumed(insertSnippet(command)) }
+        // A suggestion source isn't run: it only says what it is (its rows come as its prefix is typed in any field).
+        if let command = parsed?.command, command.kind == .suggestions {
+            return .consumed([.updateMarkedText, .notice(UIText.suggestionSource(command, trigger: commandTrigger))])
+        }
         let typed = sentText.trimmingCharacters(in: .whitespacesAndNewlines)
         // `@reply`, and any command while its screenshot is still being read (Composer+Reply.swift).
         if let response = startReply(parsed!.command, typed: typed) { return response }
@@ -2908,7 +2998,7 @@ public final class Composer {
     /// typed and it is one line (the answer has a line per version); otherwise one rewrite of it, its lines kept, as the
     /// text typed after the command asks ("ja", "more formal": `Command.edit`).
     private func writing(_ command: Command, typed: String, selection: String, id: Int) -> Effect {
-        let (mode, rest) = WritingMode.parse(command, typed)
+        let (mode, rest) = WritingMode.parse(command, typed, trigger: commandTrigger)
         if rest.isEmpty, !selection.contains(where: \.isNewline) {
             // The other writing command typed after it ("@translate @improve") goes along, as for a typed sentence.
             return .startConversion(input: typed.isEmpty ? selection : typed + " " + selection, id: id)
@@ -3167,8 +3257,8 @@ public final class Composer {
     /// stay text (`draftHasOutsideText`); `codeLeft`: some did, which a notice says.
     func innerPlan(_ input: String) -> (plan: CommandPlan, snippets: [Command], codeLeft: Bool) {
         let usable = draftHasOutsideText ? commands.filter { !$0.runsCode } : commands
-        let filled = CommandPlan.make(input, commands: usable).fillingSnippets(snippetValues(typed: "", fields: []))
-        let codeLeft = draftHasOutsideText && CommandPlan.make(input, commands: commands).inner.contains { $0.command.runsCode }
+        let filled = CommandPlan.make(input, commands: usable, trigger: triggerCharacter).fillingSnippets(snippetValues(typed: "", fields: []))
+        let codeLeft = draftHasOutsideText && CommandPlan.make(input, commands: commands, trigger: triggerCharacter).inner.contains { $0.command.runsCode }
         return (filled.plan, filled.used, codeLeft)
     }
 
@@ -3482,7 +3572,7 @@ extension Composer {
         recalled = (entry, draft)
         questionPick = (index, draft)  // highlighted again when Esc comes back to the list
         cursorTail = ""
-        draft = "@\(command.name) " + entry.question
+        draft = "\(commandTrigger)\(command.name) " + entry.question
         result = ConversionResult(versions: [CandidateLine(entry.answer, isComplete: true)])
         // Its rounds, to go on with (`QuestionChat`).
         loadThread(entry, command: command)

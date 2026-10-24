@@ -207,6 +207,7 @@ struct KeyboardLayoutTests {
         #expect(t.composer.markedText == "하")
         // Dictation in a command's text: the accent, then what was said.
         let d = try Typist("com.apple.keylayout.US")
+        d.composer.voiceEnabled = true  // as if voice input were on (`Features.voiceInput`)
         d.type("@improve caf")
         d.press(keyE, .option)
         _ = d.composer.handleFlagsChanged(keyCode: VirtualKey.rightOption, modifiers: [.option, .rightOption], timestamp: 2)

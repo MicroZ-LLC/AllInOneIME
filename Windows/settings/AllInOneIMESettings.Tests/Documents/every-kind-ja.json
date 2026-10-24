@@ -16,11 +16,20 @@
         "value": "space"
        }
       ],
-      "help": "Enterで@コマンドを実行します。ピンインが未確定でも実行できます。@がなければEnterは通常どおり動作します。",
+      "help": "@で入力したコマンドをEnterで実行します。ピンインが未確定でも実行できます。@がなければEnterは通常どおり動作します。",
       "id": "actionKey",
       "kind": "choice",
       "label": "実行キー",
       "value": "enter"
+     },
+     {
+      "help": "文頭で @ や ~ などの記号を1つ入力するとコマンドが開きます。",
+      "id": "commandTrigger",
+      "kind": "text",
+      "label": "マジックキー",
+      "optional": true,
+      "placeholder": "@",
+      "value": "@"
      },
      {
       "help": "コマンドの結果を、人がタイプするように1文字ずつ入力します。ピンインで選んだ語はすぐに入力されます。Escで停止し、ほかのキーを押すと残りを一度に入力します。",
@@ -518,7 +527,7 @@
      {
       "id": "temperature",
       "kind": "number",
-      "label": "temperatureを送信（対応していないモデルもあります。リクエストが失敗する場合はオフにしてください）",
+      "label": "temperatureを送信（受け付けないモデルには自動的に送りません）",
       "max": 1,
       "min": 0,
       "optional": true,
@@ -783,8 +792,8 @@
          "remove"
         ],
         "detail": "追加済み",
-        "id": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-bwv3qyov",
-        "title": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-bwv3qyov"
+        "id": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-v5brge1a",
+        "title": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-extensions-v5brge1a"
        }
       ],
       "kind": "items",
@@ -863,13 +872,13 @@
         "fields": [
          {
           "help": "Say hi",
-          "id": "extensions.on.C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-bwv3qyov/hello.sh",
+          "id": "extensions.on.C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-v5brge1a/hello.sh",
           "kind": "toggle",
           "label": "@hello",
           "value": true
          }
         ],
-        "id": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-bwv3qyov/hello.sh",
+        "id": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-extensions-v5brge1a/hello.sh",
         "title": "@hello"
        }
       ],
@@ -1113,7 +1122,7 @@
       "id": "configFile",
       "kind": "info",
       "label": "設定ファイル",
-      "value": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-ot5u_e94/config.json"
+      "value": "C:\\Users\\zwj10\\AppData\\Local\\Temp\\aio-docs-13g4b84x\\config.json"
      }
     ],
     "footer": "変更はすぐに反映され、再起動は不要です。",

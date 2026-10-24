@@ -5,16 +5,23 @@ import Foundation
 
 extension UIText {
     /// How the chosen action key works, and what Space does with it; the keys as `terms` names them (on Windows Enter,
-    /// a tap of Ctrl, Ctrl+Space, a recorded shortcut as it is pressed there).
+    /// a tap of Ctrl, Ctrl+Space, a recorded shortcut as it is pressed there), the commands with the trigger (`triggered`).
     public static func actionKeyNote(_ key: ActionKey, terms: PlatformTerms = Platform.current.terms) -> String {
-        if terms.keyStyle == .names { return windowsActionKeyNote(key, terms: terms) }
+        triggered(terms.keyStyle == .names ? windowsActionKeyNote(key, terms: terms) : macActionKeyNote(key))
+    }
+
+    private static func macActionKeyNote(_ key: ActionKey) -> String {
         switch key {
         case .enter:
             return tr("@ 命令写完按 ⏎ 执行，拼音没选完也能直接按。没有 @ 时 ⏎ 就是普通回车。",
-                      "Return runs an @ command, also on pinyin not yet picked. Without @, Return is a normal Return.")
+                      "Return runs a command typed with @, also on pinyin not yet picked. Without @, Return is a normal Return.")
         case .optionTap:
-            return tr("按一下 ⌥ 马上松开，左右都行；按住右 ⌥ 仍然是说话。@ 命令按 ⏎ 也执行。",
-                      "Press either ⌥ and let go right away; holding right ⌥ still dictates. @ commands also run on Return.")
+            // Holding the right ⌥ dictates only while voice input is on (`Features.voiceInput`).
+            return Features.voiceInput
+                ? tr("按一下 ⌥ 马上松开，左右都行；按住右 ⌥ 仍然是说话。@ 命令按 ⏎ 也执行。",
+                     "Press either ⌥ and let go right away; holding right ⌥ still dictates. @ commands also run on Return.")
+                : tr("按一下 ⌥ 马上松开，左右都行。@ 命令按 ⏎ 也执行。",
+                     "Press either ⌥ and let go right away. @ commands also run on Return.")
         case .optionSpace:
             return tr("拼音没选完也可以直接按 ⌥空格。⌥空格被 Alfred、Raycast 等占用时，改用「单按 ⌥」。@ 命令按 ⏎ 也执行。",
                       "⌥Space also works before the pinyin is picked. If Alfred, Raycast or another app uses ⌥Space, "
@@ -25,7 +32,7 @@ extension UIText {
                           + "@ commands also run on Return.")
         case let .shortcut(key):
             return tr("@ 命令写完按 \(key.name) 执行；⏎ 也执行，没有 @ 时 ⏎ 是普通回车。",
-                      "\(key.name) runs an @ command; Return does too, and without @ Return is a normal Return.")
+                      "\(key.name) runs a command typed with @; Return does too, and without @ Return is a normal Return.")
         }
     }
 
@@ -34,7 +41,7 @@ extension UIText {
         switch key {
         case .enter:
             return tr("@ 命令写完按 Enter 执行，拼音没选完也能直接按。没有 @ 时 Enter 就是普通的换行。",
-                      "Enter runs an @ command, also on pinyin not yet picked. Without @, Enter is a normal Enter.")
+                      "Enter runs a command typed with @, also on pinyin not yet picked. Without @, Enter is a normal Enter.")
         case .optionTap:
             return tr("按一下 Ctrl 马上松开，左右都行。@ 命令按 Enter 也执行。",
                       "Press either Ctrl and let go right away. @ commands also run on Enter.")
@@ -48,7 +55,7 @@ extension UIText {
         case let .shortcut(key):
             let name = terms.name(key, space: tr("空格", "Space"))
             return tr("@ 命令写完按 \(name) 执行；Enter 也执行，没有 @ 时 Enter 是普通的换行。",
-                      "\(name) runs an @ command; Enter does too, and without @ Enter is a normal Enter.")
+                      "\(name) runs a command typed with @; Enter does too, and without @ Enter is a normal Enter.")
         }
     }
 
@@ -102,7 +109,47 @@ extension UIText {
         case .link(.invalid): return tr("网址格式不对", "The address isn't valid")
         case .emptyText: return tr("写上要插入的文字", "Write the text to insert")
         case .twoCursors: return tr("{cursor} 只能有一个", "{cursor} can appear only once")
+        case .badPrefix:
+            return tr("前缀要写 1 到 16 个英文字母、数字或 . _ - #，不能以 @ 开头，比如 JIRA-",
+                      "The prefix must be 1 to 16 letters, digits or . _ - #, not starting with @, like JIRA-")
+        case let .prefixIsMagicKey(trigger):
+            return tr("前缀不能以魔法键 \(trigger) 开头：打 \(trigger) 会打开命令列表", "The prefix can't start with the magic key \(trigger): typing it opens the command list")
+        case .badTemplate: return tr("插入模板写得不对：每个 { 都要有 }，比如 {arg} {title}", "An insert template isn't valid: close each { with }, like {arg} {title}")
+        case .timeoutTooLong: return tr("建议来源最多运行 20 秒", "A suggestion source can run 20 seconds at most")
+        case let .suggestions(reason): return tr("不能作为建议来源：", "Can't be a suggestion source: ") + reason
         }
+    }
+
+    /// When a custom `suggestions` command's program runs on `device`, as its editor says it (the Mac's, the settings
+    /// document's): as the session runs it (InputSession+Suggestions), its list as a text field takes the focus (before
+    /// anything is typed, so maybe in a password field; given nothing of the field) and at its refresh interval; a query
+    /// only with what follows the prefix, where rows may show (never in a password field).
+    public static func suggestionsProgramRuns(on device: PlatformTerms.Device) -> String {
+        device == .mac
+            ? tr("这个程序会在你的 Mac 上运行：有输入框获得焦点时拿列表（可能是密码框，但输入框里的内容一概不给它），之后按刷新间隔再拿；边打边查时把前缀后面打的字作为一个参数给它，密码框里从不查。只加你自己写的、信得过的程序。",
+                 "The program runs on your Mac: for its list when a text field gets the focus (it may be a password field: nothing of the field is given to it), then at the refresh interval; with Look up as you type, with what you type after the prefix as one argument, never in a password field. Add only programs you wrote and trust.")
+            : tr("这个程序会在这台电脑上运行：有输入框获得焦点时拿列表（可能是密码框，但输入框里的内容一概不给它），之后按刷新间隔再拿；边打边查时把前缀后面打的字作为一个参数给它，密码框里从不查。只加你自己写的、信得过的程序。",
+                 "The program runs on this PC: for its list when a text field gets the focus (it may be a password field: nothing of the field is given to it), then at the refresh interval; with Look up as you type, with what you type after the prefix as one argument, never in a password field. Add only programs you wrote and trust.")
+    }
+
+    /// Why a custom command in config.json isn't used (`CustomCommand.Refused`), as Settings → Custom Commands says it
+    /// under its name: "This command isn't used: “minChars” should be a whole number".
+    public static func describe(_ refused: CustomCommand.Refused) -> String {
+        let reason: String
+        switch refused.reason {
+        case let .wrongKind(field, kind):
+            let kind = switch kind {
+            case .text: tr("文字", "text")
+            case .number: tr("数字", "a number")
+            case .wholeNumber: tr("整数", "a whole number")
+            case .trueOrFalse: tr("true 或 false", "true or false")
+            case .list: tr("列表 [ … ]", "a list, [ … ]")
+            }
+            reason = tr("「\(field)」应该是\(kind)", "“\(field)” should be \(kind)")
+        case let .missing(field): reason = tr("缺少「\(field)」", "“\(field)” is missing")
+        case .unreadable: reason = tr("读不出一个命令", "it can't be read as a command")
+        }
+        return tr("这个命令没有用上：\(reason)", "This command isn't used: \(reason)")
     }
 }
 
