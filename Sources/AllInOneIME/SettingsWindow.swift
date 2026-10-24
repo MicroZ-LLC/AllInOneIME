@@ -2007,7 +2007,10 @@ struct SettingsView: View {
         case .code:
             CodeOptions(model: model)
         case let .language(language):
-            languageOptions(language).disabled(personalDictionaries.isWorking)
+            // English has nothing of its own but its words (below): no empty section under its name.
+            if language != .english || LanguagePack.for(language) != nil {
+                languageOptions(language).disabled(personalDictionaries.isWorking)
+            }
             if language == .chinese {
                 PersonalDictionariesSection(model: model, dictionaries: personalDictionaries)
             }
@@ -2070,21 +2073,6 @@ struct SettingsView: View {
                 Text(tr("用拉丁字母按发音打，出天城文：namaste → नमस्ते。常用词按词表拼写，其他词可以从几种写法里选：空格上屏第一个，数字选别的，⏎ 上屏原样的字母，. 打出 ।",
                         "Type it as it sounds in Latin letters, get Devanagari: namaste → नमस्ते. Common words are spelled from a list; for others pick a spelling: Space inserts the first, a digit another, ⏎ the letters as typed, . the danda (।)."))
                     .foregroundStyle(.secondary)
-            }
-            // Its place in the order (the chips follow it); the first is the default. Dragging a chip does the same.
-            let languages = model.config.inputLanguages
-            if languages.count > 1, let index = languages.firstIndex(of: language) {
-                LabeledContent {
-                    HStack(spacing: 4) {
-                        Button(tr("左移", "Move Left")) { model.store.moveInputLanguage(language, by: -1) }
-                            .disabled(index == 0)
-                        Button(tr("右移", "Move Right")) { model.store.moveInputLanguage(language, by: 1) }
-                            .disabled(index == languages.count - 1)
-                    }
-                } label: {
-                    titled(tr("位置", "Position"),
-                           tr("第 \(index + 1) 个，共 \(languages.count) 个；第一个是默认", "\(index + 1) of \(languages.count); the first is the default"))
-                }
             }
         } header: {
             SectionTitle(SessionText.inputName(language, language: UIText.language), icon: CommandIcons.input)

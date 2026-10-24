@@ -536,10 +536,10 @@ Settings has seven pages, in this order in the sidebar, and opens on General:
   settings, only while an app has one.
 - **Input**: the input languages as chips at the top: drag to reorder, ⊗ removes one, Add… adds one; the first is the
   default, and Code comes after them ("Code · Python"). Under the chips, each input has its options in a section under
-  its name, always shown, with nothing to click. English has its position and English words; Chinese (pinyin) its
-  language pack, fuzzy pinyin and position, then Personal Dictionaries; Code its coding language, the coding languages
-  installed and the coding language library. An input's position is Move Left / Move Right, also in its chip's context
-  menu. A language pack's problem shows its banner on this page.
+  its name, always shown, with nothing to click. English has its words; Chinese (pinyin) its language pack and fuzzy
+  pinyin, then Personal Dictionaries; Code its coding language, the coding languages installed and the coding language
+  library. A chip's context menu has Move Left and Move Right too. A language pack's problem shows its banner on this
+  page.
 - **AI**: the provider, its model, its key or AWS profile, and Test Connection; the base URL is under More…, which opens
   by itself once one is set.
 - **Privacy**: hiding sensitive information before sending, the words to hide, Apps without AI, what `@agent` and
