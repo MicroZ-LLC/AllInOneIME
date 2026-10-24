@@ -843,8 +843,9 @@ They take the place of [autocomplete](#autocomplete-beta-new)'s gray text while 
   use it, never when you haven't for a week), and some also look up what you type, from 2 characters after the prefix,
   so a brand-new issue shows too. Up to 5 rows, the ones you picked before first (by how often and how recently); the
   footer names the source, and the list's age when it's older than 10 minutes. It works in English and in pinyin: `#`
-  typed while pinyin is composed puts the words in and starts the token. What you typed stays as typed; only the rest
-  goes in (`#12` and the row `#1234` add `34`).
+  typed while pinyin is composed puts the words in and starts the token; a prefix of letters and a dash (`PROJ-`) typed
+  in pinyin goes in as typed once its dash is typed (its letters aren't made Chinese), and the digits after it are
+  typed. What you typed stays as typed; only the rest goes in (`#12` and the row `#1234` add `34`).
 - **Keys:** in most apps Tab inserts the highlighted row (the first), ↓ ↑ move the highlight and ⏎ then inserts it, Esc
   hides the rows until what you type changes. In chat apps and browsers (Slack, WeChat, Teams, Chrome, Edge…) only Tab
   is taken, with the plugin's chat form (`#1234 https://github.com/…`): ⏎ always sends. In terminals and code editors

@@ -131,6 +131,7 @@ public final class InputSession {
         composer.aiRefusal = { [weak self] in self?.aiRefusal() }
         composer.readFieldText = { [weak self] in self?.readFieldText() }
         composer.pageContextApplies = { [weak self] in self.map { $0.agentPageContext && $0.services.page($0.app) != nil } ?? false }
+        composer.finishesSuggestionPrefix = { [weak self] typed in self?.suggestionsPrefixFinished(by: typed) ?? false }
     }
 
     // MARK: - Events

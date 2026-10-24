@@ -168,6 +168,9 @@ struct SuggestionsReturnTests {
             #expect(plugin.host.panel?.highlighted == 0 && plugin.host.panel?.highlightChosen == false,
                     "the first row, nothing chosen yet: \(String(describing: plugin.host.panel?.highlighted))")
             #expect(plugin.press(SuggestionKeys.down))
+            #expect(plugin.host.panel?.highlighted == 0 && plugin.host.panel?.highlightChosen == true,
+                    "the first ↓ chooses the first row (decision 29)")
+            #expect(plugin.press(SuggestionKeys.down))
             #expect(plugin.host.panel?.highlighted == 1 && plugin.host.panel?.highlightChosen == true, "moved: chosen")
             #expect(plugin.press(SuggestionKeys.up))
             #expect(plugin.host.panel?.highlighted == 0 && plugin.host.panel?.highlightChosen == true, "moved back: still chosen")

@@ -28,6 +28,15 @@ struct SuggestionsCodingPacksTests {
     /// The texts of the rows, each with its comment.
     static func texts(_ field: SuggestionsField) -> [String] { field.rows.map { $0.text + " " + $0.comment } }
 
+    /// Picks Code's row at `index` in an ordinary app: Tab the first, else ↓ `index` times and Return. Code's first row
+    /// is chosen from the start, so ↓ moves at once (decision 29), unlike a plugin's (`SuggestionsField.pick(at:)`).
+    static func pick(_ field: SuggestionsField, at index: Int) -> Bool {
+        if index == 0 { return field.press(SuggestionKeys.tab) }
+        var handled = true
+        for _ in 0..<index { handled = field.press(SuggestionKeys.down) && handled }
+        return field.press(SuggestionKeys.enter) && handled
+    }
+
     // MARK: - The packs
 
     /// Every pack in Core/CodingPacks is kept as a downloaded one is (`CodingPackStore.keep`: a pack, of the language its
@@ -150,7 +159,7 @@ struct SuggestionsCodingPacksTests {
             tabs.type("if")
             #expect(tabs.settle { tabs.rows.contains { $0.comment.contains("if err != nil") } }, "\(Self.texts(tabs))")
             let index = try #require(tabs.rows.firstIndex { $0.comment.contains("if err != nil") })
-            #expect(tabs.pick(at: index))
+            #expect(Self.pick(tabs, at: index))
             #expect(tabs.document == "func main() {\n\tx := 1; if err != nil {\n\t\treturn \n\t}", "\(tabs.document.debugDescription)")
         }
     }
@@ -175,7 +184,7 @@ struct SuggestionsCodingPacksTests {
             #expect(indented.settle { indented.rows.contains { $0.comment.contains("method") } }, "\(Self.texts(indented))")
             let index = try #require(indented.rows.firstIndex { $0.comment.contains("method") })
             before = indented.host.outputs.count
-            #expect(indented.pick(at: index))
+            #expect(Self.pick(indented, at: index))
             #expect(indented.document == "class A:\n    def (self):\n        ", "\(indented.document.debugDescription)")
             #expect(Self.moves(indented, since: before) == ["(self):\n        ".utf16.count], "\(Self.moves(indented, since: before))")
 
@@ -281,7 +290,7 @@ struct SuggestionsCodingPacksTests {
             #expect(field.settle { field.rows.count == 3 }, "\(Self.texts(field))")
             let index = try #require(field.rows.firstIndex { $0.comment.contains("main guard") }, "\(Self.texts(field))")
             #expect(index > 0)
-            #expect(field.pick(at: index))
+            #expect(Self.pick(field, at: index))
             #expect(field.document == "if __name__ == \"__main__\":\n    ", "its first stop, main(), left out: \(field.document.debugDescription)")
             let again = world.codeField()
             again.type("if")
