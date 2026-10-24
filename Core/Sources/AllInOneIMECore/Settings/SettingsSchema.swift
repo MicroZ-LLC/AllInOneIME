@@ -247,7 +247,7 @@ struct SettingsSchema {
             to: &fields) { store.setRememberQuestions(Self.bool($0)) }
         add(suggestionsSwitch(), to: &fields) { store.config.suggestions = Self.bool($0) ? nil : false }
         add(suggestionsInsert(), to: &fields) { value in
-            store.config.suggestionsInsert = value.string.flatMap(SuggestionsInsert.init(rawValue:)).flatMap { $0 == .source ? nil : $0 }
+            store.config.suggestionsInsert = value.string.flatMap(SuggestionsInsert.init(rawValue:))
         }
         add(toggle("menuBarIcon", tr("在菜单栏显示图标", "Show in Menu Bar"),
                    tr("笔记、提醒和后台的 Claude 任务，点一下就下拉出来", "Your notes, reminders and Claude tasks, a click away"),

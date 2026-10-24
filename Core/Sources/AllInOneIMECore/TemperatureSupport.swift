@@ -8,7 +8,7 @@ import Foundation
 /// where it has one: the Assistant's and Check for problems' 0; the Claude API and OpenAI-compatible services send the
 /// provider's settings' one, `HTTPProviders.makeRequest`). Only the providers' and models' names are kept: no request,
 /// answer or key. Bedrock, the Claude API and OpenAI-compatible services use it; Gemini and AllInOneIME Cloud send theirs
-/// as before. Settings → AI Provider says how many are remembered and forgets them (`models`, `forget`).
+/// as before. Privacy → Learned… lists them and forgets them (`LearnedStore`: `models`, `forget`).
 public final class TemperatureSupport: Sendable {
     /// The app's own (`BedrockClient()`'s): in the caches.
     public static let shared = TemperatureSupport(file: CorePaths.cacheDir.appendingPathComponent("unsupported-temperature.json"))
@@ -18,7 +18,8 @@ public final class TemperatureSupport: Sendable {
     /// "provider:model" of each, read from `file` on first use.
     private let refused = Locked<Set<String>?>(initialState: nil)
 
-    init(file: URL?) {
+    /// The models kept in `file` (nil: for the process only: a test's, a self-test's).
+    public init(file: URL?) {
         self.file = file
     }
 
@@ -61,6 +62,24 @@ public final class TemperatureSupport: Sendable {
         refused.withLock { refused in
             refused = []
             if let file { try? FileManager.default.removeItem(at: file) }
+        }
+    }
+
+    /// One model remembered forgotten (Privacy → Learned…, Forget), here and in `file`; the others, another process's
+    /// added since among them, stay.
+    public func forget(_ provider: Provider, model: String) {
+        refused.withLock { refused in
+            var known = (refused ?? []).union(Self.read(file))
+            guard known.remove(Self.key(provider, model)) != nil else { return }
+            refused = known
+            guard let file else { return }
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = .withoutEscapingSlashes
+            if known.isEmpty {
+                try? FileManager.default.removeItem(at: file)
+            } else if let data = try? encoder.encode(known.sorted()) {
+                try? data.write(to: file, options: .atomic)
+            }
         }
     }
 

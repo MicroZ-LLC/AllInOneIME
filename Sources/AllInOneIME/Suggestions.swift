@@ -22,9 +22,6 @@ enum SuggestionsShared {
         didSet { installedPacks = nil }
     }
     private static var installedPacks: [CodingLanguagePack]?
-    /// The rows picked (`SuggestionPick`), oldest first, the latest kept (`SuggestionPicks`).
-    static var picks = SuggestionPicks()
-
     /// The coding packs installed, read again only once one is added or removed here.
     static var codingPacks: [CodingLanguagePack] {
         if let installedPacks { return installedPacks }
@@ -104,8 +101,9 @@ enum SuggestionsShared {
         services.codingPacks = { MainActor.assumeIsolated { codingPacks } }
         services.translateAsYouType = { MainActor.assumeIsolated { TranslateModeShared.state.isOn } }
         services.setTranslateAsYouType = { on in MainActor.assumeIsolated { field.value?.setTranslateMode(on) } }
-        services.loadPicks = { MainActor.assumeIsolated { picks.all } }
-        services.recordPick = { pick in MainActor.assumeIsolated { picks.record(pick) } }
+        // The rows picked: kept with what else is learned on this Mac (`LearnedShared`).
+        services.loadPicks = { MainActor.assumeIsolated { LearnedShared.store.picks } }
+        services.recordPick = { pick in MainActor.assumeIsolated { LearnedShared.store.recordPick(pick) } }
         services.reportStatus = { reported($0) }
         services.approvalsLapsed = { lapsed in MainActor.assumeIsolated { markLapsed(lapsed) } }
         services.pointer = { MainActor.assumeIsolated { TranslateModeShared.pointer() } }
@@ -121,42 +119,6 @@ enum SuggestionsShared {
     nonisolated static func pluginPreferences(_ plugin: InstalledPlugin) -> [String: String] {
         let read = { MainActor.assumeIsolated { LiveConfig.current.pluginPreferences[plugin.name] ?? [:] } }
         return PluginPreference.stored(for: plugin, texts: Thread.isMainThread ? read() : DispatchQueue.main.sync(execute: read))
-    }
-}
-
-/// The rows picked (inserted), oldest first: rows picked before come first by frecency (`Frecency`). Kept on this Mac
-/// only, in the app's data folder (suggestion-picks.json, readable by this user only): the source and the item's
-/// `match` (a plugin's, a coding pack's keyword or snippet), never the field's own words. The latest 500.
-@MainActor
-struct SuggestionPicks {
-    static let limit = 500
-    /// Where they're kept (the self-test's own while it runs; nil: in memory only).
-    var url: URL? = CorePaths.dataDir.appendingPathComponent("suggestion-picks.json")
-    private var loaded: [SuggestionPick]?
-
-    var all: [SuggestionPick] {
-        mutating get {
-            if let loaded { return loaded }
-            let read = url.flatMap { try? Data(contentsOf: $0) }.flatMap { try? JSONDecoder().decode([SuggestionPick].self, from: $0) } ?? []
-            loaded = read
-            return read
-        }
-    }
-
-    mutating func record(_ pick: SuggestionPick) {
-        let picks = Array((all + [pick]).suffix(Self.limit))
-        loaded = picks
-        guard let url, let data = try? JSONEncoder().encode(picks) else { return }
-        DispatchQueue.global(qos: .utility).async {
-            try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try? Platform.current.files.writePrivate(data, to: url)
-        }
-    }
-
-    /// Forgets them all (Settings → General → Suggestions).
-    mutating func clear() {
-        loaded = []
-        if let url { try? FileManager.default.removeItem(at: url) }
     }
 }
 

@@ -804,6 +804,9 @@ public enum Autocomplete {
         /// The switch turned on again: every app starts over.
         public mutating func restart() { apps = [:] }
 
+        /// What was learned in `app` forgotten (Privacy → Learned…, Forget): it starts over there, as if new.
+        public mutating func forget(_ app: String) { apps[app.lowercased()] = nil }
+
         /// The pause before asking in `app`: `base`, longer where suggestions are waved away one after the other, up
         /// to twice as long after ten.
         public func pause(_ base: TimeInterval, in app: String?) -> TimeInterval {

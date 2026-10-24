@@ -24,7 +24,7 @@ struct SuggestionsSection: View {
                 Spacer()
                 Button(tr("忘掉选过的行（\(picked)）", "Forget Picked Rows (\(picked))")) {
                     guard model.store.persists else { return }
-                    SuggestionsShared.picks.clear()
+                    LearnedShared.store.forget(LearnedItem(kind: .pickedRows(count: picked)))
                     picked = 0
                 }
                 .disabled(picked == 0)
@@ -33,7 +33,7 @@ struct SuggestionsSection: View {
             SectionTitle(tr("建议", "Suggestions"), icon: SettingsPage.general.icon)
         }
         .disabled(!model.canSave)
-        .onAppear { picked = SuggestionsShared.picks.all.count }
+        .onAppear { picked = LearnedShared.store.picks.count }
     }
 
     /// A row's title with a short explanation under it, as the other pages show them.

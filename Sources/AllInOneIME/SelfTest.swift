@@ -2105,18 +2105,15 @@ enum SelfTest {
         let (mistakesBefore, sleepBefore, documentBefore) = (settings.typeOutMistakes, controller.typeOutSleep, client.document)
         settings.typeOutMistakes = true
         controller.applySettings()
-        // The apps remembered for not keeping a fix: the self-test's own (the user's stay as they are).
-        let memoryBefore = TypoMemory.defaults
-        let suite = "com.aipinyin.selftest.typos"
-        UserDefaults.standard.removePersistentDomain(forName: suite)
-        TypoMemory.defaults = UserDefaults(suiteName: suite) ?? .standard
+        // The apps remembered for not keeping a fix: the self-test's own, in memory (the user's stay as they are).
+        let learnedBefore = LearnedShared.store
+        LearnedShared.store = LearnedStore(file: nil, autocomplete: AutocompleteStore(), temperature: TemperatureSupport(file: nil))
         defer {
             settings.typeOutMistakes = mistakesBefore
             controller.applySettings()
             (controller.typeOutSleep, controller.typeOutRandom) = (sleepBefore, nil)
             (client.document, client.selection, client.bundleIDOverride, client.knowsRanges, client.ignoresRanges) = (documentBefore, nil, nil, true, false)
-            TypoMemory.defaults = memoryBefore
-            UserDefaults.standard.removePersistentDomain(forName: suite)
+            LearnedShared.store = learnedBefore
         }
         let text = "Thanks for the quick reply, I will look into it tomorrow morning and get back to you. "
             + "See https://example.com/docs or write to ops@example.com, order 1042. 好的，明天下午三点见！"
@@ -2180,13 +2177,15 @@ enum SelfTest {
         controller.typeOutRandom = seeded(1)
         _ = typeOut(text)
         let firstRun = client.document
-        let remembered = TypoMemory.contains( "com.example.ignores-ranges")
-        check(oneEditApart(firstRun, intended) && remembered && !TypoMemory.remember(""),
+        let remembered = LearnedShared.store.typosOff(in: "com.example.ignores-ranges")
+        check(oneEditApart(firstRun, intended) && remembered && !LearnedShared.store.turnTyposOff(in: ""),
               "a field ignoring replacement ranges: one typo stays at most, its app remembered (\(remembered)): '\(firstRun)'")
         _ = typeOut(text)
         check(client.document == intended, "…the next time, no typos there: the text exact")
-        TypoMemory.forget()
-        check(TypoMemory.apps.isEmpty, "…until forgotten (Settings → General); never an app without a bundle identifier")
+        let typosOff = LearnedShared.store.items(appName: { _ in nil }).filter { if case .typosOff = $0.kind { true } else { false } }
+        typosOff.forEach(LearnedShared.store.forget)
+        check(typosOff.count == 1 && LearnedShared.store.typosOffApps.isEmpty,
+              "…until forgotten (its row in the Learned list); never an app without a bundle identifier")
         (client.bundleIDOverride, client.ignoresRanges) = (nil, false)
 
         // No typos where they couldn't be taken back.
@@ -2595,11 +2594,16 @@ enum SelfTest {
         // moved between the login keychain and iCloud Keychain when a section turns sync on).
         APIKeys.keychain = .inMemory()
         ICloudSyncController.shared.keys = nil
-        // Suggestions keep nothing where the user's are (the lists' cache, the rows picked, the coding packs).
+        // Suggestions keep nothing where the user's are (the lists' cache, the coding packs).
         isolateSuggestions(in: snapshotDirectory)
         // Autocomplete learns and counts in memory, never in the input method's defaults; its suggestion is drawn
         // invisible, and the user's clicks don't take it down.
         AutocompleteSwitch.store = AutocompleteStore()
+        // What is learned (Settings v2 §3.2: the rows picked, the apps without typos, the starting inputs) in memory, never
+        // in the user's store; the checks' fields teach no starting input (they switch inputs in field after field, each
+        // expecting the one its field starts in).
+        LearnedShared.store = LearnedStore(file: nil, autocomplete: AutocompleteSwitch.store, temperature: TemperatureSupport(file: nil))
+        LearnedShared.store.learnsStartingInputs = false
         (GhostOverlay.invisible, GhostOverlay.watchesPointer) = (true, false)
         _ = secureInputGoes()  // held elsewhere just now (a password field): a while for it to go
 

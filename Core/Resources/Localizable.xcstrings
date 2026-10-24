@@ -4939,6 +4939,53 @@
         }
       }
     },
+    "%@ starts in %@ from now on" : {
+      "comment" : "%@ 以后用%@开始 — Sources/AllInOneIMECore/Session/InputSession+Learning.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ startet ab jetzt mit %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ empieza en %@ a partir de ahora"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ démarre désormais en %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ はこれから%@で開始します"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@은(는) 이제부터 %@(으)로 시작합니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ começa em %@ a partir de agora"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 以後用%@開始"
+          }
+        }
+      }
+    },
     "%@ tasks running" : {
       "comment" : "%@ 个任务进行中 — Sources/AllInOneIMECore/Dashboard.swift",
       "localizations" : {
@@ -5311,6 +5358,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ 個，新的在前"
+          }
+        }
+      }
+    },
+    "%@: starts in %@" : {
+      "comment" : "%@：用%@开始 — Sources/AllInOneIMECore/Learned.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: startet mit %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: empieza en %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ : démarre en %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@：%@で開始"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: %@(으)로 시작"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: começa em %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@：用%@開始"
           }
         }
       }
@@ -10130,6 +10224,100 @@
         }
       }
     },
+    "Autocomplete always off" : {
+      "comment" : "从不续写 — Sources/AllInOneIMECore/AppProfile.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autovervollständigen immer aus"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autocompletar siempre desactivado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Complétion automatique toujours désactivée"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オートコンプリート：常にオフ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자동 완성 항상 끔"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autocompletar sempre desativado"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一律不續寫"
+          }
+        }
+      }
+    },
+    "Autocomplete always on" : {
+      "comment" : "总是续写 — Sources/AllInOneIMECore/AppProfile.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autovervollständigen immer an"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autocompletar siempre activado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Complétion automatique toujours activée"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オートコンプリート：常にオン"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자동 완성 항상 켬"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autocompletar sempre ativado"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一律續寫"
+          }
+        }
+      }
+    },
     "Autocomplete got no answer from %@: %@" : {
       "comment" : "续写没拿到 %@ 的回应：%@ — Sources/AllInOneIMECore/Session/InputSession+Autocomplete.swift",
       "localizations" : {
@@ -10220,6 +10408,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "續寫需要本機的 Apple Intelligence：%@"
+          }
+        }
+      }
+    },
+    "Autocomplete stopped in %@" : {
+      "comment" : "续写在「%@」里停下了 — Sources/AllInOneIMECore/Learned.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autovervollständigen in %@ angehalten"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autocompletar se detuvo en %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Complétion automatique arrêtée dans %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ でオートコンプリートを停止"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@에서 자동 완성 멈춤"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autocompletar parou em %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "續寫在「%@」中停下了"
           }
         }
       }
@@ -15260,6 +15495,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "預設"
+          }
+        }
+      }
+    },
+    "Default (each source's own)" : {
+      "comment" : "默认（各来源自己的） — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Standard (der jeweiligen Quelle)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Predeterminado (el de cada fuente)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Par défaut (celui de chaque source)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "既定（各ソースのもの）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기본값 (각 소스의 설정)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Padrão (o de cada fonte)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "預設（各來源自己的）"
           }
         }
       }
@@ -21807,6 +22089,53 @@
         }
       }
     },
+    "Model %@ doesn't take temperature" : {
+      "comment" : "模型 %@ 不接受 temperature — Sources/AllInOneIMECore/Learned.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modell %@ nimmt keine Temperatur an"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El modelo %@ no acepta temperatura"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le modèle %@ n’accepte pas de température"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "モデル %@ は temperature を受け付けません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "모델 %@은(는) temperature를 받지 않음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O modelo %@ não aceita temperatura"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型 %@ 不接受 temperature"
+          }
+        }
+      }
+    },
     "model not ready" : {
       "comment" : "模型还没准备好 — Sources/AllInOneIMECore/UIText+Names.swift",
       "localizations" : {
@@ -24160,6 +24489,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "~/.aws 中沒有這個 profile"
+          }
+        }
+      }
+    },
+    "no suggestions" : {
+      "comment" : "不显示建议 — Sources/AllInOneIMECore/AppProfile.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "keine Vorschläge"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sin sugerencias"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "pas de suggestions"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "候補なし"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "제안 없음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sem sugestões"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不顯示建議"
           }
         }
       }
@@ -31696,6 +32072,100 @@
         }
       }
     },
+    "results not typed out" : {
+      "comment" : "不逐字上屏 — Sources/AllInOneIMECore/AppProfile.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ergebnisse nicht eingetippt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "resultados de una vez"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "résultats pas tapés lettre par lettre"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "結果を1文字ずつ入力しない"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "결과를 한 글자씩 입력 안 함"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "resultados não digitados letra a letra"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不逐字打出"
+          }
+        }
+      }
+    },
+    "results typed out" : {
+      "comment" : "逐字上屏 — Sources/AllInOneIMECore/AppProfile.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ergebnisse eingetippt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "resultados letra a letra"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "résultats tapés lettre par lettre"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "結果を1文字ずつ入力"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "결과를 한 글자씩 입력"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "resultados digitados letra a letra"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "逐字打出"
+          }
+        }
+      }
+    },
     "Return runs a command typed with @, also on pinyin not yet picked. Without @, Return is a normal Return." : {
       "comment" : "@ 命令写完按 ⏎ 执行，拼音没选完也能直接按。没有 @ 时 ⏎ 就是普通回车。 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
       "localizations" : {
@@ -31927,6 +32397,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "依你的要求改寫選取的文字"
+          }
+        }
+      }
+    },
+    "rewrites: " : {
+      "comment" : "改写： — Sources/AllInOneIMECore/AppProfile.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Umformulierungen: "
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "reescrituras: "
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "réécritures : "
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き換え："
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다시 쓰기: "
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "reescritas: "
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "改寫："
           }
         }
       }
@@ -37478,6 +37995,53 @@
         }
       }
     },
+    "starts in %@" : {
+      "comment" : "用%@开始 — Sources/AllInOneIMECore/AppProfile.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "startet mit %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "empieza en %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "démarre en %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@で開始"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@(으)로 시작"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "começa em %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用%@開始"
+          }
+        }
+      }
+    },
     "Starts in %@" : {
       "comment" : "用%@开始 — Sources/AllInOneIMECore/Settings/SettingsSchema+Apps.swift",
       "localizations" : {
@@ -38078,6 +38642,53 @@
         }
       }
     },
+    "Suggestion rows you picked: %@" : {
+      "comment" : "选过的建议行：%@ — Sources/AllInOneIMECore/Learned.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gewählte Vorschlagszeilen: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filas de sugerencias elegidas: %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lignes de suggestion choisies : %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選んだ候補の行：%@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "선택한 제안 행: %@"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linhas de sugestão escolhidas: %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選過的建議行：%@"
+          }
+        }
+      }
+    },
     "Suggestions" : {
       "comment" : "建议 — Sources/AllInOneIMECore/Settings/SettingsSchema+Apps.swift",
       "localizations" : {
@@ -38357,6 +38968,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "建議關著，這個來源不會出現：在「一般」裡打開。"
+          }
+        }
+      }
+    },
+    "suggestions on" : {
+      "comment" : "显示建议 — Sources/AllInOneIMECore/AppProfile.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vorschläge an"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sugerencias activadas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "suggestions activées"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "候補を表示"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "제안 표시"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sugestões ativadas"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示建議"
           }
         }
       }
@@ -44108,6 +44766,53 @@
         }
       }
     },
+    "Translate as You Type always on" : {
+      "comment" : "总是边打边译 — Sources/AllInOneIMECore/AppProfile.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beim Tippen übersetzen immer an"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Traducir al escribir siempre activado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Traduire en tapant toujours activé"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "入力しながら翻訳：常にオン"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "입력하며 번역 항상 켬"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Traduzir ao Digitar sempre ativado"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一律邊打邊譯"
+          }
+        }
+      }
+    },
     "Translate as You Type isn't available in Code" : {
       "comment" : "代码输入里不能边打边译 — Sources/AllInOneIMECore/Session/InputSession+Suggestions.swift",
       "localizations" : {
@@ -45148,6 +45853,53 @@
         }
       }
     },
+    "Typos off in %@" : {
+      "comment" : "「%@」里不打错字 — Sources/AllInOneIMECore/Learned.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Tippfehler in %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sin erratas en %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pas de fautes de frappe dans %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ではタイプミスなし"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@에서 오타 내지 않음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sem erros de digitação em %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」中不打錯字"
+          }
+        }
+      }
+    },
     "Unclosed quotation mark." : {
       "comment" : "引号没有闭合。 — Sources/AllInOneIMECore/PersonalDictionary.swift",
       "localizations" : {
@@ -46044,6 +46796,7 @@
     },
     "What a suggestion row inserts (plugins' completions and Suggestions commands, not Code): for a GitHub issue, ID only is \"#1234\", with title \"#1234 Fix login\", with title and link \"#1234 Fix login https://github.com/…/issues/1234\"; the source's default is what the plugin or the command says. An app can have its own in Settings → Apps." : {
       "comment" : "建议的行插入什么（插件的补全和建议类的自定义命令，不管代码输入）：比如 GitHub issue，只有 ID 是「#1234」，带标题是「#1234 Fix login」，带标题和链接是「#1234 Fix login https://github.com/…/issues/1234」；来源的默认是插件或命令自己定的。某个 App 可以在设置 →「按 App 设置」里单独选。 — Sources/AllInOneIMECore/Suggestions/SuggestionsInsert.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -46085,6 +46838,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "建議的行插入什麼（外掛的補全和建議類的自訂指令，不含程式碼輸入）：比如 GitHub issue，只有 ID 是「#1234」，帶標題是「#1234 Fix login」，帶標題和連結是「#1234 Fix login https://github.com/…/issues/1234」；來源的預設是外掛或指令自己定的。某個 App 可以在設定 →「各 App 設定」裡單獨選。"
+          }
+        }
+      }
+    },
+    "What a suggestion row inserts (plugins' completions and Suggestions commands, not Code): for GitHub issue #1234, with title is \"#1234 Fix login\", with title and link \"#1234 Fix login https://github.com/…/issues/1234\", and unset, what the plugin or the command says." : {
+      "comment" : "建议的行插入什么（插件的补全和建议类的自定义命令，不管代码输入）：比如 GitHub issue #1234，带标题是「#1234 Fix login」，带标题和链接是「#1234 Fix login https://github.com/…/issues/1234」，不设就用插件或命令自己定的。 — Sources/AllInOneIMECore/Suggestions/SuggestionsInsert.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Was eine Vorschlagszeile einfügt (Vervollständigungen von Plug-ins und Vorschlags-Befehle, nicht Code): bei GitHub-Issue #1234 ist „Mit Titel“ „#1234 Fix login“, „Mit Titel und Link“ „#1234 Fix login https://github.com/…/issues/1234“, und ohne Wahl das, was das Plug-in oder der Befehl vorgibt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lo que inserta una fila de sugerencias (completados de plugins y comandos de sugerencias, no Código): para el issue #1234 de GitHub, «Con título» es «#1234 Fix login», «Con título y enlace» «#1234 Fix login https://github.com/…/issues/1234», y sin elegir, lo que diga el plugin o el comando."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce qu’insère une ligne de suggestion (complétions des plug-ins et commandes de suggestions, pas Code) : pour le ticket GitHub #1234, « Avec le titre » donne « #1234 Fix login », « Avec le titre et le lien » « #1234 Fix login https://github.com/…/issues/1234 », et sans choix, ce que dit le plug-in ou la commande."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "候補の行が挿入する内容（プラグインの補完と候補用のカスタムコマンド。コードは対象外）：GitHub の Issue #1234 なら、タイトル付きは「#1234 Fix login」、タイトルとリンク付きは「#1234 Fix login https://github.com/…/issues/1234」、未設定ならプラグインやコマンドが決めたものです。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "제안 행이 삽입하는 내용(플러그인의 자동 완성과 제안 명령, 코드는 제외): GitHub 이슈 #1234라면 제목 포함은 \"#1234 Fix login\", 제목과 링크 포함은 \"#1234 Fix login https://github.com/…/issues/1234\"이고, 설정하지 않으면 플러그인이나 명령이 정한 것입니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O que uma linha de sugestão insere (completações de plug-ins e comandos de sugestões, não Código): para o issue #1234 do GitHub, Com título é \"#1234 Fix login\", Com título e link \"#1234 Fix login https://github.com/…/issues/1234\", e sem escolha, o que o plug-in ou o comando define."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建議的行插入什麼（外掛的補全和建議類的自訂指令，不含程式碼輸入）：比如 GitHub issue #1234，帶標題是「#1234 Fix login」，帶標題和連結是「#1234 Fix login https://github.com/…/issues/1234」，不設就用外掛或指令自己定的。"
           }
         }
       }

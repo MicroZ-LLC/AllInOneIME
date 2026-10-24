@@ -20,12 +20,24 @@ extension SettingsSchema {
                config.suggestions != false)
     }
 
-    /// What a suggestion row inserts everywhere (`Config.suggestionsInsert`, decision 28), General's, under the switch: the
-    /// source's own (none), ID only, with title, with title and link; for every source, plugins' and custom commands'.
+    /// What a suggestion row inserts everywhere (`Config.suggestionsInsert`, decision 28), General's, under the switch,
+    /// for every source, plugins' and custom commands': unset (the source's own) or one of those Settings offers
+    /// (`SuggestionsInsert.offered`, Settings v2 §4). An old value a config has (ID only, the source's own set
+    /// explicitly) is the field's value, shown under its name and not to be picked again; Restore Default unsets it.
     func suggestionsInsert() -> Field {
-        let own = config.suggestionsInsert.flatMap { $0 == .source ? nil : $0 }
-        return choice("suggestionsInsert", tr("插入", "Insert"), SuggestionsInsert.help, value: own.map { .string($0.rawValue) } ?? .null,
-                      choices: SuggestionsInsert.allCases.map { insert in (Choice(insert == .source ? nil : insert.rawValue, insert.label), nil) })
+        choice("suggestionsInsert", tr("插入", "Insert"), SuggestionsInsert.help,
+               value: config.suggestionsInsert.map { .string($0.rawValue) } ?? .null,
+               choices: Self.insertChoices(unset: tr("默认（各来源自己的）", "Default (each source's own)"), now: config.suggestionsInsert))
+    }
+
+    /// Insert's choices (everywhere's, an app's): unset as `unset` says, those Settings offers, and `now` where it is an
+    /// old value, `disabled`: kept, never picked anew.
+    static func insertChoices(unset: String, now: SuggestionsInsert?) -> [(Choice, [SettingsPlatform]?)] {
+        var choices = [(Choice(nil, unset), nil)] + SuggestionsInsert.offered.map { (Choice($0.rawValue, $0.label), [SettingsPlatform]?.none) }
+        if let now, !SuggestionsInsert.offered.contains(now) {
+            choices.append((Choice(value: .string(now.rawValue), label: now.label, disabled: true), nil))
+        }
+        return choices
     }
 
     /// The fields of `plugin`'s item in the plugins' list: its completion sources and its preferences.

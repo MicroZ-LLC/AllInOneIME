@@ -38,15 +38,14 @@ final class GitHubStandIn: PluginFetcher, @unchecked Sendable {
 }
 
 extension SelfTest {
-    /// Suggestions in a field of the self-test's own: nothing kept where the user's are (the lists' cache, the rows
-    /// picked, the coding packs), no plugin of the user's run. Before the controller's session is made (it takes them).
+    /// Suggestions in a field of the self-test's own: nothing kept where the user's are (the lists' cache, the coding
+    /// packs; the rows picked are `LearnedShared`'s, in memory while it runs), no plugin of the user's run. Before the
+    /// controller's session is made (it takes them).
     @MainActor
     static func isolateSuggestions(in directory: URL) {
         SuggestionsShared.store = SuggestionsStore()
         SuggestionsShared.cacheFolder = directory.appendingPathComponent("suggestions-cache", isDirectory: true)
         SuggestionsShared.packs = CodingPackStore(directory: directory.appendingPathComponent("coding-packs", isDirectory: true))
-        SuggestionsShared.picks = SuggestionPicks(url: directory.appendingPathComponent("suggestion-picks.json"))
-        SuggestionsShared.picks.clear()
         SuggestionsShared.runtime = PluginCompletionRuntime(mode: .inProcess(fetcher: { _ in GitHubStandIn() }))
         CodingPackManager.shared.library = CodingPackLibrary(store: SuggestionsShared.packs)
         try? FileManager.default.removeItem(at: directory.appendingPathComponent("suggestions-cache"))

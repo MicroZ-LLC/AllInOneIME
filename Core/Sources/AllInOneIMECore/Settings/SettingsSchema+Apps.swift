@@ -106,12 +106,12 @@ extension SettingsSchema {
         add(choice(prefix + "suggestions", tr("建议", "Suggestions"), value: profile.suggestions == false ? .bool(false) : .null,
                    choices: [(Choice(value: .null, label: suggestions), nil), (Choice(value: .bool(false), label: tr("关", "Off")), nil)]),
             to: &fields, set: change { $0.suggestions = $1.bool == false ? false : nil })
-        // What a suggestion row inserts here (decision 28): as everywhere, or its own (the source's among them).
+        // What a suggestion row inserts here (decision 28): as everywhere, or one of those Settings offers (Settings v2 §4);
+        // an old one (ID only, the source's own) shown as it is until restored.
         let inserted = (config.suggestionsInsert ?? .source).label
         add(choice(prefix + "suggestionsInsert", tr("插入", "Insert"), SuggestionsInsert.help,
                    value: profile.suggestionsInsert.map { .string($0.rawValue) } ?? .null,
-                   choices: [(Choice(nil, tr("跟全局一样（\(inserted)）", "Same as everywhere (\(inserted))")), nil)]
-                       + SuggestionsInsert.allCases.map { (Choice($0.rawValue, $0.label), nil) }),
+                   choices: Self.insertChoices(unset: tr("跟全局一样（\(inserted)）", "Same as everywhere (\(inserted))"), now: profile.suggestionsInsert)),
             to: &fields, set: change { $0.suggestionsInsert = $1.string.flatMap(SuggestionsInsert.init(rawValue:)) })
         return fields
     }

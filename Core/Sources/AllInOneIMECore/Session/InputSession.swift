@@ -62,8 +62,10 @@ public final class InputSession {
     private var englishWordsMadeOf: [String]?
     /// The words typed in English mode in this field, learned once they stand (`learnTypedInEnglish`).
     private var englishModeWords = EnglishModeWords()
-    /// The default input last applied (applied again when the setting changes).
-    private var appliedDefaultInput: Input?
+    /// The default input last applied (applied again when the setting changes, or what the app learned).
+    var appliedDefaultInput: Input?
+    /// What a tap of Shift before anything is typed corrects the field's starting input to (InputSession+Learning.swift).
+    var startingCorrection = StartingCorrection()
     /// A dead key typed before the next key.
     private var deadKeys = DeadKeyComposer()
     /// The last character the user typed straight into the field (`characterBeforeCaret`).
@@ -264,6 +266,7 @@ public final class InputSession {
         tasks.reopen()  // focused again after `.close`: its work starts again (the engine is made again below)
         ensureLevelOne()
         settings(app: info.app)  // the app's own starting language, rewrite styles, typing out (`AppProfile`)
+        learningFocused()  // what Shift does before anything is typed may teach the app its starting input
         // Terminals paste on ⌘V whatever the input method does: there ⌘V stays theirs…
         composer.pastesIntoDraft = !info.terminal
         // …and don't act on a key after text inserted during it (`Composer.appTakesKeysAfterInsert`).
@@ -475,13 +478,15 @@ public final class InputSession {
         composer.hasCode = code != nil
         composer.messages.codeMode = SessionText.inputName(.code, language: UIText.language,
                                                            coding: config.codingLanguage.map { CodingLanguagePack.title(of: $0) })
-        let defaultInput = config.startingInput(in: app, among: languages, code: code != nil)
+        // What the app learned (Settings v2 §3.1), else its own, else the default.
+        let defaultInput = config.startingInput(in: app, among: languages, code: code != nil, learned: services.learned.startingInput(in: app))
         // With one input, a field is always in it (it may have been switched before it was the only one); a field in
         // Code no longer there is in its default input again.
         let onlyOne = languages.count == 1 && code == nil
         if appliedDefaultInput != defaultInput || onlyOne || leftCode, composer.engine != nil, !composer.isComposing {
             composer.setInput(defaultInput)
             appliedDefaultInput = defaultInput
+            learningApplied()
         }
         emit(.keyboardLayout)
     }
@@ -685,6 +690,8 @@ public final class InputSession {
             log.notice("the selection changed while a command was written on it: given up")
             perform(composer.selectionMoved())
         }
+        // The field's first key that types: a switch with Shift before it may teach the app its starting input.
+        let learned = learningTyped(event)
         keyContext = context
         let english = typesEnglishStraightIn
         let held = composer.codeWord ?? ""
@@ -704,6 +711,7 @@ public final class InputSession {
         }.joined() + (response.handled ? "" : key.printableText ?? "")
         suggestionsAfterKey(key, handled: response.handled, inserted: put, held: (held, composer.codeWord ?? ""), context: context)
         autocompleteAfterKey(key, handled: response.handled, inserted: put)
+        if let learned { say(learned, long: true) }  // once, as it is learned
         return response.handled
     }
 
@@ -722,8 +730,10 @@ public final class InputSession {
         composer.pointerUsedWithin = { pointerUsedWithin($0 + late) }
         keyContext = context
         // fn is the long press's only (fn and Shift is none); a tap of Shift with fn held switches as it always did.
+        let before = composer.input
         perform(composer.handleFlagsChanged(key: change.key, modifiers: change.modifiers.subtracting(.function), timestamp: change.timestamp))
         keyContext = nil
+        learningSwitched(from: before)
     }
 
     // MARK: - What the composer asks of the field

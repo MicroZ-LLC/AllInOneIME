@@ -131,6 +131,9 @@ public struct SessionServices {
     /// Autocomplete's suggestions kept, what it learned per app and what it counted (`AutocompleteStore`): the shell
     /// gives one for every field; the default is these services' own, in memory.
     public var autocomplete: AutocompleteStore
+    /// What is learned on this device: a field starts in what its app learned, and its switches teach it (Settings v2
+    /// §3.1). The shell gives one for every field; the default is these services' own, in memory.
+    public var learned: LearnedStore
     /// The time now, in seconds from any fixed point (the system's uptime): what autocomplete's Tab and its metrics go by.
     /// A test sets its own.
     public var uptime: () -> TimeInterval
@@ -186,6 +189,7 @@ public struct SessionServices {
         }
         translateChip = { nil }
         autocomplete = AutocompleteStore()
+        learned = LearnedStore(file: nil, autocomplete: autocomplete, temperature: TemperatureSupport(file: nil))
         uptime = { ProcessInfo.processInfo.systemUptime }
         appName = { _ in nil }
         noteSaved = { _ in }

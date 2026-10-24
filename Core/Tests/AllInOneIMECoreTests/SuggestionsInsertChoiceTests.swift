@@ -352,16 +352,17 @@ struct SuggestionsInsertChoiceTests {
     // MARK: - The settings document
 
     /// Windows' Settings (and the Mac's document): the choice everywhere in General under the Suggestions switch (not in
-    /// Plugins), its four values and its help with GitHub's example, set into the config (the source's own written as
-    /// none); an app's own in its item in Apps, "Same as everywhere" naming the choice everywhere, the source's own among
-    /// its values, and in its summary.
+    /// Plugins), unset and the two Settings offers (Settings v2 §4: With title, With title and link), its help with
+    /// GitHub's example, set into the config; an app's own in its item in Apps, "Same as everywhere" naming the choice
+    /// everywhere, the two among its values, and in its summary. An app's ID only from an older version stays honored:
+    /// its value, shown under its name, never picked anew.
     @Test(arguments: [SettingsPlatform.windows, .mac])
     func theSettingsDocumentHasBothFields(_ platform: SettingsPlatform) async throws {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("insert-settings-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }
         let url = folder.appendingPathComponent("config.json")
-        try Data(#"{"appProfiles": {"com.apple.Terminal": {"noAI": true}}}"#.utf8).write(to: url)
+        try Data(#"{"appProfiles": {"com.apple.Terminal": {"noAI": true}, "com.apple.mail": {"suggestionsInsert": "id"}}}"#.utf8).write(to: url)
         let service = SettingsService(store: SettingsStore(configURL: url), platform: platform,
                                       library: PluginLibrary(directory: folder.appendingPathComponent("plugins", isDirectory: true)),
                                       secrets: .inMemory())
@@ -373,8 +374,8 @@ struct SuggestionsInsertChoiceTests {
             #expect(!section("plugins").contains("suggestionsInsert"), "\(section("plugins"))")
             let everywhere = try #require(service.document().field("suggestionsInsert"))
             #expect(everywhere.kind == .choice && everywhere.label == "Insert" && everywhere.value == nil, "\(everywhere)")
-            #expect(everywhere.choices?.map(\.value) == [.null, .string("id"), .string("title"), .string("titleAndLink")])
-            #expect(everywhere.choices?.map(\.label) == ["Source's default", "ID only", "With title", "With title and link"])
+            #expect(everywhere.choices?.map(\.value) == [.null, .string("title"), .string("titleAndLink")])
+            #expect(everywhere.choices?.map(\.label) == ["Default (each source's own)", "With title", "With title and link"])
             let help = try #require(everywhere.help)
             #expect(help.contains("#1234") && help.contains("#1234 Fix login")
                     && help.contains("#1234 Fix login https://github.com/…/issues/1234"), "\(help)")
@@ -385,19 +386,26 @@ struct SuggestionsInsertChoiceTests {
 
             let own = try #require(service.document().field("apps.com.apple.Terminal.suggestionsInsert"))
             #expect(own.kind == .choice && own.label == "Insert" && own.value == nil, "\(own)")
-            #expect(own.choices?.map(\.value) == [.null, .string("source"), .string("id"), .string("title"), .string("titleAndLink")])
-            #expect(own.choices?.map(\.label) == ["Same as everywhere (With title)", "Source's default", "ID only", "With title",
-                                                  "With title and link"])
-            #expect((try? service.set("apps.com.apple.Terminal.suggestionsInsert", to: .string("id")).get()) != nil)
-            #expect(try Config.load(from: url).profile(for: "com.apple.Terminal") == AppProfile(noAI: true, suggestionsInsert: .id))
+            #expect(own.choices?.map(\.value) == [.null, .string("title"), .string("titleAndLink")])
+            #expect(own.choices?.map(\.label) == ["Same as everywhere (With title)", "With title", "With title and link"])
+            #expect((try? service.set("apps.com.apple.Terminal.suggestionsInsert", to: .string("titleAndLink")).get()) != nil)
+            #expect(try Config.load(from: url).profile(for: "com.apple.Terminal") == AppProfile(noAI: true, suggestionsInsert: .titleAndLink))
             let item = service.document().field("apps.profiles")?.items?.first { $0.id == "com.apple.Terminal" }
-            #expect(item?.detail?.contains("Insert: ID only") == true, "\(item?.detail ?? "-")")
+            #expect(item?.detail?.contains("Insert: With title and link") == true, "\(item?.detail ?? "-")")
+            #expect((try? service.set("apps.com.apple.Terminal.suggestionsInsert", to: .string("id")).get()) == nil, "ID only isn't offered")
             #expect((try? service.set("apps.com.apple.Terminal.suggestionsInsert", to: .null).get()) != nil)
             #expect(try Config.load(from: url).profile(for: "com.apple.Terminal") == AppProfile(noAI: true))
 
+            // An app's ID only from an older version: honored and shown as it is.
+            let old = try #require(service.document().field("apps.com.apple.mail.suggestionsInsert"))
+            #expect(old.value == .string("id") && old.choices?.last == SettingsDocument.Choice(value: .string("id"), label: "ID only", disabled: true),
+                    "\(old.choices ?? [])")
+            let mail = service.document().field("apps.profiles")?.items?.first { $0.id == "com.apple.mail" }
+            #expect(mail?.detail?.contains("Insert: ID only") == true, "\(mail?.detail ?? "-")")
+            #expect(try Config.load(from: url).profile(for: "com.apple.mail")?.suggestionsInsert == .id)
+
             #expect((try? service.set("suggestionsInsert", to: .null).get()) != nil)
             #expect(try Config.load(from: url).suggestionsInsert == nil)
-            #expect(!(try String(contentsOf: url, encoding: .utf8)).contains("suggestionsInsert"))
         }
     }
 }

@@ -33,12 +33,12 @@ final class SettingsModel: ObservableObject {
     @Published private(set) var keySources: [Provider: APIKeys.Source] = [:]
     @Published private(set) var keyEndings: [Provider: String] = [:]
     @Published private(set) var keyError: String?
-    /// The apps that get no typos (`TypoMemory`), as when the window opened or they were forgotten.
-    @Published private(set) var typoApps: [String] = TypoMemory.apps
+    /// The apps that get no typos (`LearnedShared`), as when the window opened or they were forgotten.
+    @Published private(set) var typoApps: [String] = LearnedShared.store.typosOffApps
 
     func forgetTypoApps() {
-        TypoMemory.forget()
-        typoApps = TypoMemory.apps
+        for app in LearnedShared.store.typosOffApps { LearnedShared.store.forget(LearnedItem(kind: .typosOff(app: app))) }
+        typoApps = LearnedShared.store.typosOffApps
     }
 
     /// How many recent `@question`s are kept (`QuestionHistoryStore`), as when the window opened or they were cleared.

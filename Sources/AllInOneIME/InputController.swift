@@ -158,6 +158,8 @@ final class AllInOneIMEInputController: IMKInputController {
         services.translateChip = { MainActor.assumeIsolated { box.value?.translateChip() } }
         // Autocomplete: what it learns and counts, one for every field; an app's name for what it says of the app.
         services.autocomplete = MainActor.assumeIsolated { MainThreadBox(AutocompleteSwitch.store) }.value
+        // What is learned (Settings v2 §3.2): the starting input each app learned, which this field's switches teach.
+        services.learned = MainActor.assumeIsolated { LearnedShared.store }
         // Suggestions: one store for every field, the coding packs installed, and Translate as You Type the input method's
         // (this field turns it on and off for the session's long press of Shift).
         services.suggestions = MainActor.assumeIsolated { MainThreadBox(SuggestionsShared.services(field: box)) }.value
@@ -332,7 +334,7 @@ final class AllInOneIMEInputController: IMKInputController {
     /// says where its caret is, right where the text typed so far ends, and reads that text back as typed
     /// (`attributedSubstring`); while a typo is in the field, and after each fix, that's checked before every step
     /// (`TypeOut.Typist`). Never in a terminal (keys go to a shell). An app that doesn't keep a fix as asked is
-    /// remembered (`TypoMemory`) and gets no typos again. (A ⌫ posted as a key would need the Accessibility
+    /// remembered (`LearnedShared`) and gets no typos again. (A ⌫ posted as a key would need the Accessibility
     /// permission and could reach the app after the next character: never here.)
     @MainActor
     private func typeOut(_ text: String, into client: IMKTextInput) {
@@ -342,7 +344,7 @@ final class AllInOneIMEInputController: IMKInputController {
         typingPastes = field.pastesLineBreaks
         let caret = field.caret
         let app = client.bundleIdentifier() ?? ""
-        let mistakes = session.typeOutMistakes && !Self.isTerminal(client) && !TypoMemory.contains(app) && caret != nil
+        let mistakes = session.typeOutMistakes && !Self.isTerminal(client) && !LearnedShared.store.typosOff(in: app) && caret != nil
         // Wrong letters from the keys next to the right one on the keyboard the keys come from (AZERTY, QWERTZ …).
         let layout = appliedLayout.flatMap(KeyboardLayout.init(id:)) ?? KeyboardLayout.current()
         let keyboard = layout.map(TypeOut.Keyboard.init(layout:)) ?? .qwerty
@@ -404,10 +406,10 @@ final class AllInOneIMEInputController: IMKInputController {
         if client.selectedRange().location != target { log.notice("caret not moved: the field didn't take it; it stays at the end") }
     }
 
-    /// Remembers `app` when its field didn't take a typo's fix (`TypoMemory`): no typos there again.
+    /// Remembers `app` when its field didn't take a typo's fix (`LearnedShared`): no typos there again.
     @MainActor
     private func rememberFailure(_ app: String) {
-        guard typist.fieldFailed, TypoMemory.remember(app) else { return }
+        guard typist.fieldFailed, LearnedShared.store.turnTyposOff(in: app) else { return }
         log.error("typing out: \(app, privacy: .public) didn't take a typo's fix (\(self.typist.failure ?? "", privacy: .public)); no typos there again")
     }
 

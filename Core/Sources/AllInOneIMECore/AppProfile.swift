@@ -4,7 +4,9 @@ import Foundation
 /// and where it's unset the app follows the setting for every app.
 public struct AppProfile: Codable, Equatable, Sendable {
     /// The input a text field of the app starts in: an input language, or Code (else `Config.defaultInput`; one that
-    /// isn't among the inputs, or whose pack isn't there, is passed over too). Written as `inputLanguage`, Code as "code".
+    /// isn't among the inputs, or whose pack isn't there, is passed over too), until the app learns another
+    /// (`LearnedStore`, Settings v2 §3.1). Written as `inputLanguage`, Code as "code". No Settings UI sets it any more
+    /// (`PreviousField`).
     public var startingInput: Input?
     /// The input language a text field of the app starts in, where that's one (`startingInput`); set, the app starts in
     /// it (nil: as everywhere).
@@ -197,4 +199,92 @@ extension Command {
     /// @agent (a coding agent). Refused in an app with no AI (`AppProfile.noAI`); the others (@open, @note, a program,
     /// a script, a link …) work.
     public var usesAI: Bool { kind == .convert || kind == .generate || self == .agent }
+}
+
+// MARK: - Previous per-app settings (Settings v2 §2)
+
+extension AppProfile {
+    /// The fields no Settings UI sets any more (Settings v2 §2), still honored while set, in the order a row lists them.
+    /// The two per-app settings that stay are `noAI` and `suggestionsInsert`.
+    public enum PreviousField: String, CaseIterable, Sendable {
+        case startingInput, translateAlways, autocomplete, suggestions, typeOut, rewriteStyles
+    }
+
+    /// The previous fields it sets, in `PreviousField`'s order: `translateAlways` when on, as `isEmpty` counts it.
+    public var previousFields: [PreviousField] {
+        PreviousField.allCases.filter { field in
+            switch field {
+            case .startingInput: return startingInput != nil
+            case .translateAlways: return translateAlways == true
+            case .autocomplete: return autocomplete != nil
+            case .suggestions: return suggestions != nil
+            case .typeOut: return typeOut != nil
+            case .rewriteStyles: return rewriteStyles != nil
+            }
+        }
+    }
+
+    /// It without the previous fields: its `noAI` and `suggestionsInsert` as they are.
+    public var withoutPreviousFields: AppProfile {
+        AppProfile(noAI: noAI, suggestionsInsert: suggestionsInsert)
+    }
+}
+
+/// One row of General → "Previous per-app settings".
+public struct PreviousAppSettings: Equatable, Sendable {
+    /// The app's key in `Config.appProfiles` (what Remove takes).
+    public var app: String
+    /// What its profile sets of them, in `PreviousField`'s order.
+    public var fields: [AppProfile.PreviousField]
+    /// The row, in the interface language: "Slack: starts in English, Translate as You Type always on".
+    public var text: String
+
+    public init(app: String, fields: [AppProfile.PreviousField], text: String) {
+        self.app = app
+        self.fields = fields
+        self.text = text
+    }
+}
+
+extension Config {
+    /// General → "Previous per-app settings": a row for each app whose profile sets any `PreviousField` (none: the
+    /// section isn't shown), apps named by `appName` (else by their id), in the order of their names.
+    public func previousAppSettings(appName: (String) -> String?) -> [PreviousAppSettings] {
+        func name(_ app: String) -> String { appName(app) ?? SettingsSchema.appName(app) }
+        return appProfiles.compactMap { app, profile -> PreviousAppSettings? in
+            let fields = profile.previousFields
+            guard !fields.isEmpty else { return nil }
+            let said = fields.map { previousText($0, of: profile) }.joined(separator: tr("、", ", "))
+            return PreviousAppSettings(app: app, fields: fields, text: name(app) + tr("：", ": ") + said)
+        }
+        .sorted { name($0.app).localizedCaseInsensitiveCompare(name($1.app)) == .orderedAscending }
+    }
+
+    /// Remove: `app`'s `PreviousField`s cleared, its id in any case; its `noAI` and `suggestionsInsert` as they are. A
+    /// profile left setting nothing goes. An app that sets none of them is left as it is.
+    public mutating func removePreviousAppSettings(for app: String) {
+        guard profile(for: app)?.previousFields.isEmpty == false else { return }
+        changeProfile(for: app, dropsEmpty: true) { $0 = $0.withoutPreviousFields }
+    }
+
+    /// What `field` of `profile` says, in the interface language: "starts in English", "Translate as You Type always on".
+    private func previousText(_ field: AppProfile.PreviousField, of profile: AppProfile) -> String {
+        switch field {
+        case .startingInput:
+            guard let input = profile.startingInput else { return "" }
+            let name = SessionText.inputName(input, language: UIText.language, coding: codingLanguage.map { CodingLanguagePack.title(of: $0) })
+            return tr("用\(name)开始", "starts in \(name)")
+        case .translateAlways:
+            return tr("总是边打边译", "Translate as You Type always on")
+        case .autocomplete:
+            return profile.autocomplete == true ? tr("总是续写", "Autocomplete always on") : tr("从不续写", "Autocomplete always off")
+        case .suggestions:
+            return profile.suggestions == false ? tr("不显示建议", "no suggestions") : tr("显示建议", "suggestions on")
+        case .typeOut:
+            return profile.typeOut == true ? tr("逐字上屏", "results typed out") : tr("不逐字上屏", "results not typed out")
+        case .rewriteStyles:
+            let names = RewriteStyle.resolve(profile.rewriteStyles ?? []).map(UIText.name)
+            return tr("改写：", "rewrites: ") + (names.isEmpty ? tr("无", "none") : names.joined(separator: tr("、", ", ")))
+        }
+    }
 }
