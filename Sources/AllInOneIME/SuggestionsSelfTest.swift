@@ -63,8 +63,9 @@ extension SelfTest {
     /// Suggestions v1 end to end, in the fake field with the candidate panel: the GitHub plugin (Core/Plugins/github)
     /// installed in the self-test's folder and its issues enabled, its script run here with a stand-in for
     /// api.github.com (`GitHubStandIn`). "#12" shows its rows (the list's, then the live query, asked once 2 characters
-    /// follow "#"), Tab inserts what wasn't typed of the first; in Slack (a chat app) Tab inserts the issue's address
-    /// too. The child process a completion script runs in (`--run-plugin … --completion load`). Code (decision 22): a tap
+    /// follow "#"), the first chosen from the start (decision 31), Tab inserts what wasn't typed of it; in Slack (a chat
+    /// app) Return inserts the issue with its address too, and after → Return is Slack's. The child process a completion
+    /// script runs in (`--run-plugin … --completion load`). Code (decision 22): a tap
     /// of Shift after the languages, its Python pack's rows (Core/CodingPacks), Return taking one at once, a snippet's
     /// caret, the menu bar icon's mark, the long press saying Translate as You Type isn't available there, an app that
     /// starts in it. Everything left as it was found.
@@ -134,25 +135,34 @@ extension SelfTest {
         snapshot("suggestions-rows", in: snapshotDirectory)
         check(CandidatePanel.shared.isShowing && CandidatePanel.shared.view.model.rows.count == model.rows.count,
               "…drawn in the candidate panel")
-        check(model.highlighted == 0 && !model.highlightChosen,
-              "…the first row outlined, not selected: ⏎ is the app's until ↓ or ↑ moves (\(String(describing: model.highlighted)))")
+        let enter = Platform.current.terms.enter
+        let footer = tr("Tab 或 \(enter) 插入 · ↑↓ 选择 · → 或 Esc 隐藏", "Tab or \(enter) inserts · ↑↓ to pick · → or Esc hides")
+        check(model.highlighted == 0 && model.footer == footer,
+              "…the first row chosen, drawn selected from the start (decision 31: \(String(describing: model.highlighted))), the footer \"\(model.footer)\"")
         // Tab: what wasn't typed of the first row, as the plugin's default template has it here ("{arg} {title}").
         check(press(controller, client, "\t", code: VirtualKey.tab) && client.inserted.last == "34 Fix login on the settings page",
               "Tab inserts what wasn't typed of the first row, with its title: \"\(client.inserted.last ?? "")\"")
         check(controller.session.panelModel().rows.isEmpty, "…and the rows go")
         check(!press(controller, client, "\t", code: VirtualKey.tab), "…no rows: Tab is the app's")
 
-        // Slack (a chat app): Tab inserts the issue with its title and address (the plugin's chat template).
+        // Slack (a chat app): the same keys (decision 31). Return inserts the chosen row, the issue with its title and
+        // address (the plugin's chat template); after → hid the rows, Return is Slack's (it sends "#12" as typed).
         controller.commitComposition(client)
         client.bundleIDOverride = "com.tinyspeck.slackmacgap"
         controller.activateServer(client)
         controller.composer.setInputMode(.english)
         type("#12", controller, client)
         let slackRows = pump(timeout: 5) { !controller.session.panelModel().rows.isEmpty }
-        check(slackRows && press(controller, client, "\t", code: VirtualKey.tab)
+        check(slackRows && press(controller, client, "\r", code: VirtualKey.returnKey)
               && client.inserted.last == "34 Fix login on the settings page https://github.com/\(GitHubStandIn.repository)/issues/1234",
-              "Slack: Tab inserts \"{arg} {title} {url}\": \"\(client.inserted.last ?? "")\"")
-        check(!press(controller, client, "\r", code: VirtualKey.returnKey), "…and Return stays Slack's")
+              "Slack: Return inserts \"{arg} {title} {url}\" of the chosen row: \"\(client.inserted.last ?? "")\"")
+        _ = space(controller, client)
+        client.inserted.removeAll()
+        type("#12", controller, client)
+        let slackAgain = pump(timeout: 5) { !controller.session.panelModel().rows.isEmpty }
+        let hidden = press(controller, client, "", code: VirtualKey.right) && controller.session.panelModel().rows.isEmpty
+        check(slackAgain && hidden && !press(controller, client, "\r", code: VirtualKey.returnKey) && client.inserted.isEmpty,
+              "…→ hides the rows, then Return is Slack's: \"#12\" sent as typed (\(client.inserted))")
 
         // The child process a completion script runs in: a plugin with its own list (no host to reach), loaded there.
         let local = folder.appendingPathComponent("accounts", isDirectory: true)
@@ -208,8 +218,8 @@ extension SelfTest {
             check(coded && client.marked.isEmpty, "Code: \"pr\" typed as letters offers the pack's print (\(controller.session.panelModel().rows.map(\.text)))")
             snapshot("suggestions-code", in: snapshotDirectory)
             let panel = controller.session.panelModel()
-            check(panel.highlightChosen && !panel.rows.contains { $0.comment.contains("Python") },
-                  "…the highlighted row selected (⏎ takes it), no row naming the language (\(panel.rows.map(\.comment)))")
+            check(panel.highlighted == 0 && !panel.rows.contains { $0.comment.contains("Python") },
+                  "…the first row chosen, drawn selected (⏎ takes it), no row naming the language (\(panel.rows.map(\.comment)))")
             if let index = panel.rows.firstIndex(where: { $0.text == "print" && $0.comment != tr("关键字", "keyword") }) {
                 for _ in 0..<index { press(controller, client, "", code: VirtualKey.down) }
                 press(controller, client, "\r", code: VirtualKey.returnKey)
@@ -253,8 +263,8 @@ extension SelfTest {
     /// candidate panel: a temporary sh script of the self-test's own as its program (lines "match⇥title⇥url" with no
     /// argument; with one, a query's answer), run as `run` commands run (`CommandCompletionRunner`). "tk-1" shows its
     /// list's rows, "tk-12" asks it with "12" as its one argument, Tab inserts the row with its title; in Code its rows
-    /// are a plugin's (Return the app's until ↓ or ↑); "@tk" only says what it is. Nothing of the user's is run;
-    /// everything left as it was found.
+    /// take the same keys as every row (decision 31: the first chosen from the start, Return takes it); "@tk" only says
+    /// what it is. Nothing of the user's is run; everything left as it was found.
     static func testCustomSuggestions(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
         section("Suggestions: a custom command's program as a source (a temporary sh script)", needs: .composing)
         let saved = (services: controller.services.suggestions, settings: settings)
@@ -320,8 +330,8 @@ extension SelfTest {
         check(press(controller, client, "\t", code: VirtualKey.tab) && client.inserted.last == " Fix login",
               "Tab inserts what wasn't typed of \"tk-12 Fix login\": \"\(client.inserted.last ?? "")\"")
 
-        // Code (its Python pack from Core/CodingPacks for the while): its rows as a plugin's there, Return the app's until
-        // ↓ or ↑ moves (decision 20 is for Code's own rows).
+        // Code (its Python pack from Core/CodingPacks for the while): its rows with the same keys as everywhere (decision
+        // 31): the first chosen from the start, Return puts it in.
         if let pack = try? Data(contentsOf: coreFolder.appendingPathComponent("CodingPacks/python.json")),
            (try? SuggestionsShared.packs.keep(pack, language: "python")) != nil {
             SuggestionsShared.packsChanged()
@@ -334,10 +344,10 @@ extension SelfTest {
             type("tk-1", controller, client)
             let coded = pump(timeout: 5) { controller.session.panelModel().rows.map(\.text).starts(with: ["tk-12", "tk-123"]) }
             let codeModel = controller.session.panelModel()
-            check(coded && controller.composer.input == .code && !codeModel.highlightChosen,
-                  "Code: \"tk-1\" shows its rows (\(codeModel.rows.map(\.text))), the first only outlined")
-            check(!press(controller, client, "\r", code: VirtualKey.returnKey) && client.inserted.isEmpty,
-                  "…and Return stays the app's (\(client.inserted))")
+            check(coded && controller.composer.input == .code && codeModel.highlighted == 0,
+                  "Code: \"tk-1\" shows its rows (\(codeModel.rows.map(\.text))), the first chosen and drawn selected")
+            check(press(controller, client, "\r", code: VirtualKey.returnKey) && client.inserted.last == "2 Fix login",
+                  "…and Return puts it in, with its title (\(client.inserted))")
             controller.commitComposition(client)
             settings.codingLanguage = saved.settings.codingLanguage
             try? SuggestionsShared.packs.remove("python")
