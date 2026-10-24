@@ -44,11 +44,11 @@ struct SettingsAppsExtensionsTests {
         let item = try #require(list.items?.first)
         #expect(item.id == "win:notepad.exe" && item.title == "notepad.exe" && item.actions == ["remove"])
         #expect(list.choices?.map(\.value) == [.string("win:slack.exe")])
-        // Windows' own fields: where it starts, its styles, AI off, suggestions; the Mac's (typed out, always translate) left
-        // out.
+        // Windows' own fields: where it starts, its styles, AI off, suggestions and what their rows insert; the Mac's (typed
+        // out, always translate) left out.
         let ids = item.fields?.map(\.id) ?? []
         #expect(ids == ["apps.win:notepad.exe.inputLanguage", "apps.win:notepad.exe.ownStyles", "apps.win:notepad.exe.noAI",
-                        "apps.win:notepad.exe.suggestions"])
+                        "apps.win:notepad.exe.suggestions", "apps.win:notepad.exe.suggestionsInsert"])
 
         #expect((try? service.set("apps.win:notepad.exe.noAI", to: .bool(true)).get()) != nil)
         #expect(try Config.load(from: url).appProfiles["win:notepad.exe"]?.noAI == true)

@@ -135,18 +135,20 @@ enum PluginRows {
         return count
     }
 
-    /// The templates of `source` for an app of `appClass`: nil, none there (`null`); the terminal and code editor
-    /// class's are `{match}` (spec 6.10).
-    static func templates(_ source: CompletionSource, _ appClass: SuggestionsAppClass) -> [String]? {
+    /// The templates of `source` for an app of `appClass` where the user chose `insert` (decision 28: the app's own, else
+    /// the one everywhere): the source's own for the class, the terminal and code editor class's `{match}` (spec 6.10),
+    /// or the choice's in every class. Nil: none there (`null`), whatever is chosen. The one place a row's templates are
+    /// decided.
+    static func templates(_ source: CompletionSource, _ appClass: SuggestionsAppClass, insert: SuggestionsInsert = .source) -> [String]? {
         let chosen: CompletionInsert.Templates
         switch appClass {
         case .ordinary, .none: chosen = source.insert.default
         case .chat: chosen = source.insert.chat ?? source.insert.default
         case .codeEditor:
             if (source.insert.terminal ?? source.insert.default) == .off { return nil }
-            return ["{match}"]
+            return insert.templates ?? ["{match}"]
         }
-        if case let .templates(list) = chosen { return list }
+        if case let .templates(list) = chosen { return insert.templates ?? list }
         return nil
     }
 
@@ -156,13 +158,14 @@ enum PluginRows {
     static let maxTried = 100
 
     /// The rows of `lists` (the list's items, then the queries' answers, each match once: its first) for `token` in an
-    /// app of `appClass`, in their order: those whose insertion starts with what was typed. Only what matches is looked
-    /// at, and only until `limit` rows are found (nil: all of them), `maxTried` items tried at most then; the items
-    /// picked before (`picked`, their `match`) are rows wherever they are, looked up on their own.
+    /// app of `appClass` where `insert` is chosen, in their order: those whose insertion starts with what was typed. Only
+    /// what matches is looked at, and only until `limit` rows are found (nil: all of them), `maxTried` items tried at most
+    /// then; the items picked before (`picked`, their `match`) are rows wherever they are, looked up on their own.
     static func rows(_ token: String, key: CompletionSourceKey, source: CompletionSource, lists: [CompletionItems],
-                     madeAt: Date?, appClass: SuggestionsAppClass, picked: Set<String> = [], limit: Int? = nil,
-                     in t: InterfaceWords) -> [SuggestionRow] {
-        guard let maker = RowMaker(token, key: key, source: source, madeAt: madeAt, appClass: appClass, in: t) else { return [] }
+                     madeAt: Date?, appClass: SuggestionsAppClass, insert: SuggestionsInsert = .source, picked: Set<String> = [],
+                     limit: Int? = nil, in t: InterfaceWords) -> [SuggestionRow] {
+        guard let maker = RowMaker(token, key: key, source: source, madeAt: madeAt, appClass: appClass, insert: insert, in: t)
+        else { return [] }
         // Where each row is: its list, then its place there.
         var found: [(list: Int, index: Int, row: SuggestionRow)] = []
         var (others, tried) = (0, 0)
@@ -196,7 +199,7 @@ enum PluginRows {
         maker.each(in: lists) { _, _, item in maker.insertion(item) == nil || visit(item.match) }
     }
 
-    /// What makes a source's rows for a token: its templates for the app's class, read once.
+    /// What makes a source's rows for a token: its templates for the app's class and the choice made there, read once.
     struct RowMaker {
         let token: String
         let lowered: String
@@ -212,8 +215,8 @@ enum PluginRows {
 
         /// Nil: the source has no rows in an app of `appClass` (`templates`).
         init?(_ token: String, key: CompletionSourceKey, source: CompletionSource, madeAt: Date?, appClass: SuggestionsAppClass,
-              in t: InterfaceWords) {
-            guard let templates = PluginRows.templates(source, appClass) else { return nil }
+              insert: SuggestionsInsert = .source, in t: InterfaceWords) {
+            guard let templates = PluginRows.templates(source, appClass, insert: insert) else { return nil }
             (self.token, self.key, self.source, self.madeAt) = (token, key, source, madeAt)
             lowered = SuggestionsToken.normalized(token).lowercased()
             self.templates = templates.compactMap(CompletionTemplate.parts)

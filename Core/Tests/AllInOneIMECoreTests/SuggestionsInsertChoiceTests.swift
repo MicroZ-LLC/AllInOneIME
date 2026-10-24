@@ -257,8 +257,8 @@ struct SuggestionsInsertChoiceTests {
         #expect(AppProfile(suggestionsInsert: .source).isEmpty == false, "its own choice: kept")
         try read.write(to: url)
         let again = try Config.load(from: url)
-        #expect(again.suggestionsInsert == .titleAndLink && again.appProfiles == read.appProfiles,
-                "\(try String(contentsOf: url, encoding: .utf8))")
+        let text = try String(contentsOf: url, encoding: .utf8)
+        #expect(again.suggestionsInsert == .titleAndLink && again.appProfiles == read.appProfiles, "\(text)")
 
         try Data(#"{"suggestionsInsert": "everything", "typeOut": true, "appProfiles": {"com.apple.Terminal": {"suggestionsInsert": 3, "noAI": true}}}"#
             .utf8).write(to: url)

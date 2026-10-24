@@ -18890,6 +18890,53 @@
         }
       }
     },
+    "ID only" : {
+      "comment" : "只有 ID — Sources/AllInOneIMECore/Suggestions/SuggestionsInsert.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nur ID"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Solo ID"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ID seulement"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "IDのみ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ID만"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Só o ID"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只有 ID"
+          }
+        }
+      }
+    },
     "Import a file containing its own entries, without dependencies in import_tables." : {
       "comment" : "请导入直接包含词条的词库，不能依赖 import_tables 中的其他文件。 — Sources/AllInOneIMECore/PersonalDictionary.swift",
       "localizations" : {
@@ -19314,7 +19361,7 @@
       }
     },
     "Insert" : {
-      "comment" : "插入 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "comment" : "插入 — Sources/AllInOneIMECore/Settings/SettingsSchema+Apps.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -36347,6 +36394,53 @@
         }
       }
     },
+    "Source's default" : {
+      "comment" : "来源的默认 — Sources/AllInOneIMECore/Suggestions/SuggestionsInsert.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Standard der Quelle"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Predeterminado de la fuente"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Par défaut de la source"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ソースの既定"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "소스 기본값"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Padrão da fonte"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "來源的預設"
+          }
+        }
+      }
+    },
     "Space" : {
       "comment" : "空格 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
       "localizations" : {
@@ -45610,6 +45704,53 @@
         }
       }
     },
+    "What a suggestion row inserts (plugins' completions and Suggestions commands, not Code): for a GitHub issue, ID only is \"#1234\", with title \"#1234 Fix login\", with title and link \"#1234 Fix login https://github.com/…/issues/1234\"; the source's default is what the plugin or the command says. An app can have its own in Apps." : {
+      "comment" : "建议的行插入什么（插件的补全和建议类的自定义命令，不管代码输入）：比如 GitHub issue，只有 ID 是「#1234」，带标题是「#1234 Fix login」，带标题和链接是「#1234 Fix login https://github.com/…/issues/1234」；来源的默认是插件或命令自己定的。某个 App 可以在「按 App 设置」里单独选。 — Sources/AllInOneIMECore/Suggestions/SuggestionsInsert.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Was eine Vorschlagszeile einfügt (Vervollständigungen von Plug-ins und Vorschlags-Befehle, nicht Code): bei einem GitHub-Issue ist „Nur ID“ „#1234“, „Mit Titel“ „#1234 Fix login“, „Mit Titel und Link“ „#1234 Fix login https://github.com/…/issues/1234“; der Standard der Quelle ist, was das Plug-in oder der Befehl vorgibt. Eine App kann unter „Apps“ eine eigene Wahl haben."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lo que inserta una fila de sugerencias (completados de plugins y comandos de sugerencias, no Código): para un issue de GitHub, «Solo ID» es «#1234», «Con título» «#1234 Fix login», «Con título y enlace» «#1234 Fix login https://github.com/…/issues/1234»; el predeterminado de la fuente es lo que diga el plugin o el comando. Una app puede tener el suyo en Apps."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce qu’insère une ligne de suggestion (complétions des plug-ins et commandes de suggestions, pas Code) : pour un ticket GitHub, « ID seulement » donne « #1234 », « Avec le titre » « #1234 Fix login », « Avec le titre et le lien » « #1234 Fix login https://github.com/…/issues/1234 » ; par défaut de la source, c’est ce que dit le plug-in ou la commande. Une app peut avoir son propre choix dans Apps."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "候補の行が挿入する内容（プラグインの補完と候補用のカスタムコマンド。コードは対象外）：GitHub の Issue なら、IDのみは「#1234」、タイトル付きは「#1234 Fix login」、タイトルとリンク付きは「#1234 Fix login https://github.com/…/issues/1234」。ソースの既定はプラグインやコマンドが決めたものです。App ごとの設定は「App別設定」で選べます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "제안 행이 삽입하는 내용(플러그인의 자동 완성과 제안 명령, 코드는 제외): GitHub 이슈라면 ID만은 \"#1234\", 제목 포함은 \"#1234 Fix login\", 제목과 링크 포함은 \"#1234 Fix login https://github.com/…/issues/1234\"입니다. 소스 기본값은 플러그인이나 명령이 정한 것입니다. 앱마다 '앱별 설정'에서 따로 고를 수 있습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O que uma linha de sugestão insere (completações de plug-ins e comandos de sugestões, não Código): para um issue do GitHub, Só o ID é \"#1234\", Com título \"#1234 Fix login\", Com título e link \"#1234 Fix login https://github.com/…/issues/1234\"; o padrão da fonte é o que o plug-in ou o comando define. Um app pode ter o seu em Apps."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建議的行插入什麼（外掛的補全和建議類的自訂指令，不含程式碼輸入）：比如 GitHub issue，只有 ID 是「#1234」，帶標題是「#1234 Fix login」，帶標題和連結是「#1234 Fix login https://github.com/…/issues/1234」；來源的預設是外掛或指令自己定的。某個 App 可以在「各 App 設定」裡單獨選。"
+          }
+        }
+      }
+    },
     "What it does" : {
       "comment" : "做什么 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
@@ -45935,6 +46076,100 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "只有一種時，Shift 不會切換"
+          }
+        }
+      }
+    },
+    "With title" : {
+      "comment" : "带标题 — Sources/AllInOneIMECore/Suggestions/SuggestionsInsert.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit Titel"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Con título"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avec le titre"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "タイトル付き"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "제목 포함"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Com título"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "帶標題"
+          }
+        }
+      }
+    },
+    "With title and link" : {
+      "comment" : "带标题和链接 — Sources/AllInOneIMECore/Suggestions/SuggestionsInsert.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit Titel und Link"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Con título y enlace"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avec le titre et le lien"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "タイトルとリンク付き"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "제목과 링크 포함"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Com título e link"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "帶標題和連結"
           }
         }
       }

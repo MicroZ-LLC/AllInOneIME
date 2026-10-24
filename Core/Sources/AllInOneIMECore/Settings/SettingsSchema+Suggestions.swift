@@ -19,6 +19,14 @@ extension SettingsSchema {
                config.suggestions != false)
     }
 
+    /// What a suggestion row inserts everywhere (`Config.suggestionsInsert`, decision 28), Plugins': the source's own
+    /// (none), ID only, with title, with title and link; for every source, plugins' and custom commands'.
+    func suggestionsInsert() -> Field {
+        let own = config.suggestionsInsert.flatMap { $0 == .source ? nil : $0 }
+        return choice("suggestionsInsert", tr("插入", "Insert"), SuggestionsInsert.help, value: own.map { .string($0.rawValue) } ?? .null,
+                      choices: SuggestionsInsert.allCases.map { insert in (Choice(insert == .source ? nil : insert.rawValue, insert.label), nil) })
+    }
+
     /// The fields of `plugin`'s item in the plugins' list: its completion sources and its preferences.
     mutating func pluginFields(_ plugin: InstalledPlugin) -> [Field] {
         var fields: [Field] = []

@@ -37,14 +37,15 @@ public enum ICloudSync {
     /// The config keys "Settings" syncs (each as the config file writes it), besides the apps' (`appPrefix`). The output
     /// and input languages carry the one in use and the default input (the first of each list); the Code input
     /// (`codingLanguage`) syncs as they do (its pack, as theirs, is each Mac's download); `redaction` is its switches, the
-    /// words being `hiddenWordsKey`.
+    /// words being `hiddenWordsKey`; what a suggestion row inserts (`suggestionsInsert`) is the same on every Mac, whatever
+    /// sources each has.
     public static let settingsKeys: [String] = [
         "provider", "awsProfile", "region", "modelId", "anthropic", "gemini", "openai",
         "maxTokens", "temperature", "timeoutSeconds",
         "outputLanguages", "inputLanguages", "codingLanguage", "rewriteStyles", "improveTranslates", "voiceInput", "actionKey", "commandTrigger", "uiLanguage",
         "claudeInBackground", "rememberQuestions", "questionRounds", "questionContinueIn", "menuBarIcon",
         "typeOut", "typeOutRate", "typeOutVaries", "typeOutMistakes", "fuzzyPinyin", "keyboardLayouts", "candidateLayout",
-        "checkForUpdates", "useSelection", "redaction", "learnsEnglishWords",
+        "checkForUpdates", "useSelection", "redaction", "learnsEnglishWords", "suggestionsInsert",
     ]
     /// One app's settings: "appProfiles.<bundle id>".
     public static let appPrefix = "appProfiles."
@@ -658,10 +659,11 @@ public enum ICloudSync {
 
     /// The fields this version knows of an object-valued key (`redaction`, a provider's settings, an app's settings); nil
     /// for any other key. An app's own autocomplete and Suggestions are known (never carried up from iCloud), but never
-    /// synced (`thisMacsOwnAppFields`).
+    /// synced (`thisMacsOwnAppFields`); what a suggestion row inserts there is known and synced.
     public static func knownFields(of key: String) -> Set<String>? {
         if key.hasPrefix(appPrefix) {
-            return ["inputLanguage", "rewriteStyles", "typeOut", "noAI", "translateAlways", "autocomplete", "suggestions"]
+            return ["inputLanguage", "rewriteStyles", "typeOut", "noAI", "translateAlways", "autocomplete", "suggestions",
+                    "suggestionsInsert"]
         }
         switch key {
         case "redaction": return ["enabled", "emails", "phones", "cards", "keys", "ips", "customWords"]
@@ -673,7 +675,8 @@ public enum ICloudSync {
     /// The fields of an app's settings each Mac has for itself, as autocomplete's and Suggestions' switches are this Mac's
     /// own (`neverSynced`): whether autocomplete runs in the app, always or never (`AppProfile.autocomplete`), and whether
     /// Suggestions are off there (`AppProfile.suggestions`). Never sent; another Mac's settings for the app neither replace
-    /// nor remove this Mac's (`withThisMacsOwn`).
+    /// nor remove this Mac's (`withThisMacsOwn`). What a suggestion row inserts there (`AppProfile.suggestionsInsert`)
+    /// isn't among them: it says what goes into the app, the same on every Mac, as its other fields do.
     public static let thisMacsOwnAppFields: Set<String> = ["autocomplete", "suggestions"]
 
     /// An app's settings as they sync (`profile` as the config file writes it): without `thisMacsOwnAppFields`; nil when
@@ -924,7 +927,8 @@ public enum ICloudSync {
     public static func problem(_ key: String, _ value: AIConfig.JSONValue?, environment env: Environment) -> Problem? {
         guard let value else {
             // Only what the config may leave out can be deleted.
-            return key.hasPrefix(appPrefix) || ["questionRounds", "questionContinueIn", "codingLanguage"].contains(key) ? nil : .cannotDelete
+            return key.hasPrefix(appPrefix) || ["questionRounds", "questionContinueIn", "codingLanguage", "suggestionsInsert"].contains(key)
+                ? nil : .cannotDelete
         }
         func number(_ range: ClosedRange<Double>) -> Problem? {
             guard case let .number(n) = value else { return .wrongType }
@@ -943,6 +947,7 @@ public enum ICloudSync {
                 guard let field = fields[flag], field != .null else { continue }
                 guard case .bool = field else { return .wrongType }
             }
+            if let insert = fields["suggestionsInsert"], insert != .null { return insertProblem(insert) }
             return nil
         }
         switch key {
@@ -1014,6 +1019,8 @@ public enum ICloudSync {
         case "candidateLayout":
             guard case let .string(name) = value else { return .wrongType }
             return CandidateArrangement(rawValue: name) == nil ? .unknownValue : nil
+        case "suggestionsInsert":
+            return insertProblem(value)
         case "redaction":
             guard case let .object(fields) = value else { return .wrongType }
             for (name, field) in fields where name != "customWords" {
@@ -1043,6 +1050,13 @@ public enum ICloudSync {
         default:
             return .unknownValue
         }
+    }
+
+    /// Why `value` can't be what a suggestion row inserts (`SuggestionsInsert`, everywhere's or an app's): not text, or a
+    /// choice this version doesn't know (it would read as none). Nil: it can.
+    static func insertProblem(_ value: AIConfig.JSONValue) -> Problem? {
+        guard case let .string(name) = value else { return .wrongType }
+        return SuggestionsInsert(rawValue: name) == nil ? .unknownValue : nil
     }
 
     /// `value` read as `T` the way the config file is read, or nil.

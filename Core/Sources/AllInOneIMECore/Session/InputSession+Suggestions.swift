@@ -656,8 +656,11 @@ extension InputSession {
         let scores = Frecency.scores(s.loadPicks())
         var rows: [SuggestionRow] = []
         let token = suggesting.token
+        // What a row inserts here (decision 28): the app's own choice, else the one everywhere, else the source's.
+        let insert = settings.insert(for: app)
         for active in activeSources(settings) {
-            guard let after = PluginRows.afterPrefix(token, active.source), PluginRows.templates(active.source, appClass) != nil
+            guard let after = PluginRows.afterPrefix(token, active.source),
+                  PluginRows.templates(active.source, appClass, insert: insert) != nil
             else { continue }
             s.store.markUsed(active.key, now: now)
             if active.source.list { suggestionsLoadIfDue(active, settings: settings, now: now) }
@@ -667,7 +670,7 @@ extension InputSession {
             let picked = Set(scores.keys.filter { $0.plugin == active.key.plugin && $0.source == active.key.source }.map(\.match))
             rows += PluginRows.rows(token, key: active.key, source: active.source,
                                     lists: (list.map { [$0.items] } ?? []) + answers.map(\.items), madeAt: list?.madeAt, appClass: appClass,
-                                    picked: picked, limit: Self.maxSuggestionRows, in: t)
+                                    insert: insert, picked: picked, limit: Self.maxSuggestionRows, in: t)
             // Never without a prefix (the declaration refuses it): any number typed would go out.
             if active.source.query, active.source.prefix != nil, after.count >= active.source.queryMinChars {
                 suggestionsQuery(active, text: after, answers: answers, askAgain: askAgain, now: now)

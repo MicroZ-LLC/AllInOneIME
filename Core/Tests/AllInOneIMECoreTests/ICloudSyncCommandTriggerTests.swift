@@ -128,7 +128,7 @@ struct ICloudSyncCommandTriggerTests {
     /// Every field of an app's settings is one this version knows (never carried up from iCloud as a newer version's).
     @Test func everyAppFieldIsKnown() throws {
         let every = AppProfile(inputLanguage: .english, rewriteStyles: [], typeOut: true, noAI: true, translateAlways: true,
-                               autocomplete: true, suggestions: false)
+                               autocomplete: true, suggestions: false, suggestionsInsert: .title)
         let data = try JSONEncoder().encode(every)
         let fields = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
         #expect(Set(fields.keys) == ICloudSync.knownFields(of: ICloudSync.appPrefix + "com.apple.mail"))

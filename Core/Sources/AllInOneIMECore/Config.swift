@@ -248,6 +248,10 @@ public struct Config: Codable, Equatable, Sendable {
     public var completionSources: [CompletionSourceApproval] = []
     /// Plugins' preferences that aren't passwords (those are in the keychain): plugin name → name → value. Never synced.
     public var pluginPreferences: [String: [String: String]] = [:]
+    /// What a suggestion row inserts in every app without a choice of its own (`AppProfile.suggestionsInsert`; Settings →
+    /// Plugins, decision 28): ID only, with title, with title and link; nil: the source's own (a plugin's `insert`, a
+    /// custom command's Insert). Synced as the other settings are: what goes in is the same on every Mac.
+    public var suggestionsInsert: SuggestionsInsert?
 
     /// The settings of an API-key provider, with its defaults filled in.
     public func settings(for provider: Provider) -> ProviderSettings {
@@ -373,7 +377,7 @@ public struct Config: Codable, Equatable, Sendable {
         case autocomplete
         case iCloudSync
         case notes
-        case suggestions, completionSources, pluginPreferences, unconfirmedCommands
+        case suggestions, completionSources, pluginPreferences, unconfirmedCommands, suggestionsInsert
         case extensionSources
         case provider, anthropic, gemini, openai
     }
@@ -478,6 +482,8 @@ public struct Config: Codable, Equatable, Sendable {
         pluginPreferences = (try? c.decodeIfPresent([String: [String: String]].self, forKey: .pluginPreferences)).flatMap { $0 } ?? [:]
         // A value of the wrong type reads as none, not an error.
         unconfirmedCommands = (try? c.decodeIfPresent([CustomCommand.Unconfirmed].self, forKey: .unconfirmedCommands)).flatMap { $0 } ?? []
+        // A value of the wrong type, or one this version doesn't know, reads as none.
+        suggestionsInsert = (try? c.decodeIfPresent(String.self, forKey: .suggestionsInsert)).flatMap { $0 }.flatMap(SuggestionsInsert.init(rawValue:))
         provider = try c.decodeIfPresent(Provider.self, forKey: .provider) ?? d.provider
         anthropic = try c.decodeIfPresent(ProviderSettings.self, forKey: .anthropic) ?? d.anthropic
         gemini = try c.decodeIfPresent(ProviderSettings.self, forKey: .gemini) ?? d.gemini
@@ -660,6 +666,7 @@ public struct Config: Codable, Equatable, Sendable {
         if !completionSources.isEmpty { try c.encode(completionSources, forKey: .completionSources) }
         if !pluginPreferences.isEmpty { try c.encode(pluginPreferences, forKey: .pluginPreferences) }
         if !unconfirmedCommands.isEmpty { try c.encode(unconfirmedCommands, forKey: .unconfirmedCommands) }
+        try c.encodeIfPresent(suggestionsInsert?.rawValue, forKey: .suggestionsInsert)
         try c.encode(provider, forKey: .provider)
         try c.encode(anthropic, forKey: .anthropic)
         try c.encode(gemini, forKey: .gemini)

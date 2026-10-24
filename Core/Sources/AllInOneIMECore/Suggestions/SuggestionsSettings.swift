@@ -3,11 +3,12 @@ import Foundation
 extension Config {
     /// The switches suggestions follow, as the settings have them (`SuggestionsSettings`): the input menu's
     /// (`suggestions`), the apps' (`AppProfile.suggestions`), the completion sources enabled, the custom commands that are
-    /// sources (not one from another Mac awaiting confirmation here: `awaitsConfirmation`); "Refresh now" is the shell's
-    /// (`refreshes`).
+    /// sources (not one from another Mac awaiting confirmation here: `awaitsConfirmation`), what a row inserts everywhere
+    /// and in each app (`suggestionsInsert`, `AppProfile.suggestionsInsert`); "Refresh now" is the shell's (`refreshes`).
     public func suggestionsSettings(refreshes: [CompletionSourceRefresh] = []) -> SuggestionsSettings {
         SuggestionsSettings(master: suggestions, apps: appProfiles.compactMapValues(\.suggestions), enabled: completionSources,
-                            refreshes: refreshes, commands: customCommands.filter { $0.type == .suggestions && !awaitsConfirmation($0) })
+                            refreshes: refreshes, commands: customCommands.filter { $0.type == .suggestions && !awaitsConfirmation($0) },
+                            insert: suggestionsInsert, appInserts: appProfiles.compactMapValues(\.suggestionsInsert))
     }
 
     /// The approval `source` of `plugin` was enabled with (nil: not enabled).

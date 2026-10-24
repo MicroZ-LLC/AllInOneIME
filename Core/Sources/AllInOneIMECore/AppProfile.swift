@@ -30,9 +30,14 @@ public struct AppProfile: Codable, Equatable, Sendable {
     /// Suggestions (plugin completions, Code's rows) in the app (Settings → Apps: 「建议」): off (false), or as
     /// everywhere (nil, or true). This Mac's own, as the switch is: never synced (`ICloudSync.thisMacsOwnAppFields`).
     public var suggestions: Bool?
+    /// What a suggestion row inserts in the app (Settings → Apps: 「插入」, decision 28): the source's own, ID only, with
+    /// title, with title and link; nil: as everywhere (`Config.suggestionsInsert`). Synced as the app's other fields are
+    /// (what goes in there is the same on every Mac), unlike its Suggestions switch.
+    public var suggestionsInsert: SuggestionsInsert?
 
     public init(inputLanguage: Language? = nil, rewriteStyles: [String]? = nil, typeOut: Bool? = nil, noAI: Bool? = nil,
-                translateAlways: Bool? = nil, autocomplete: Bool? = nil, suggestions: Bool? = nil) {
+                translateAlways: Bool? = nil, autocomplete: Bool? = nil, suggestions: Bool? = nil,
+                suggestionsInsert: SuggestionsInsert? = nil) {
         self.startingInput = inputLanguage.map(Input.language)
         self.rewriteStyles = rewriteStyles
         self.typeOut = typeOut
@@ -40,20 +45,21 @@ public struct AppProfile: Codable, Equatable, Sendable {
         self.translateAlways = translateAlways
         self.autocomplete = autocomplete
         self.suggestions = suggestions
+        self.suggestionsInsert = suggestionsInsert
     }
 
     /// Sets nothing: the app follows every setting.
     public var isEmpty: Bool {
         startingInput == nil && rewriteStyles == nil && typeOut == nil && noAI != true && translateAlways != true && autocomplete == nil
-            && suggestions == nil
+            && suggestions == nil && suggestionsInsert == nil
     }
 
     private enum CodingKeys: String, CodingKey {
-        case inputLanguage, rewriteStyles, typeOut, noAI, translateAlways, autocomplete, suggestions
+        case inputLanguage, rewriteStyles, typeOut, noAI, translateAlways, autocomplete, suggestions, suggestionsInsert
     }
 
-    /// Each key on its own: one of the wrong type, or an input this version doesn't know, is left unset; other keys are
-    /// ignored.
+    /// Each key on its own: one of the wrong type, or an input (or a choice of what a row inserts) this version doesn't
+    /// know, is left unset; other keys are ignored.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         startingInput = (try? c.decodeIfPresent(String.self, forKey: .inputLanguage)).flatMap { $0 }.flatMap(Input.init(rawValue:))
@@ -63,6 +69,7 @@ public struct AppProfile: Codable, Equatable, Sendable {
         translateAlways = (try? c.decodeIfPresent(Bool.self, forKey: .translateAlways)).flatMap { $0 }
         autocomplete = (try? c.decodeIfPresent(Bool.self, forKey: .autocomplete)).flatMap { $0 }
         suggestions = (try? c.decodeIfPresent(Bool.self, forKey: .suggestions)).flatMap { $0 }
+        suggestionsInsert = (try? c.decodeIfPresent(String.self, forKey: .suggestionsInsert)).flatMap { $0 }.flatMap(SuggestionsInsert.init(rawValue:))
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -74,6 +81,7 @@ public struct AppProfile: Codable, Equatable, Sendable {
         try c.encodeIfPresent(translateAlways, forKey: .translateAlways)
         try c.encodeIfPresent(autocomplete, forKey: .autocomplete)
         try c.encodeIfPresent(suggestions, forKey: .suggestions)
+        try c.encodeIfPresent(suggestionsInsert?.rawValue, forKey: .suggestionsInsert)
     }
 
     /// `Config.appProfiles` from a config file: an entry that isn't an object, or whose key is no bundle id (empty, or

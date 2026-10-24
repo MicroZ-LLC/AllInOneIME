@@ -106,6 +106,13 @@ extension SettingsSchema {
         add(choice(prefix + "suggestions", tr("建议", "Suggestions"), value: profile.suggestions == false ? .bool(false) : .null,
                    choices: [(Choice(value: .null, label: suggestions), nil), (Choice(value: .bool(false), label: tr("关", "Off")), nil)]),
             to: &fields, set: change { $0.suggestions = $1.bool == false ? false : nil })
+        // What a suggestion row inserts here (decision 28): as everywhere, or its own (the source's among them).
+        let inserted = (config.suggestionsInsert ?? .source).label
+        add(choice(prefix + "suggestionsInsert", tr("插入", "Insert"), SuggestionsInsert.help,
+                   value: profile.suggestionsInsert.map { .string($0.rawValue) } ?? .null,
+                   choices: [(Choice(nil, tr("跟全局一样（\(inserted)）", "Same as everywhere (\(inserted))")), nil)]
+                       + SuggestionsInsert.allCases.map { (Choice($0.rawValue, $0.label), nil) }),
+            to: &fields, set: change { $0.suggestionsInsert = $1.string.flatMap(SuggestionsInsert.init(rawValue:)) })
         return fields
     }
 
@@ -126,6 +133,7 @@ extension SettingsSchema {
         if profile.noAI == true { parts.append(tr("不用 AI", "No AI")) }
         if platform == .mac, profile.translateAlways == true { parts.append(tr("总是边打边译", "Always Translate as You Type")) }
         if profile.suggestions == false { parts.append(tr("不显示建议", "No suggestions")) }
+        if let insert = profile.suggestionsInsert { parts.append(tr("插入", "Insert") + tr("：", ": ") + insert.label) }
         return parts.isEmpty ? tr("和全局设置一样", "Same as everywhere", key: "appProfile.sameAsEverywhere") : parts.joined(separator: " · ")
     }
 
