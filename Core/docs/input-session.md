@@ -50,6 +50,15 @@ itself (the Mac: Translate as You Type on, in an app that translates always), it
 command renamed because a built-in has its name now is said once, last, so no notice of the focus takes its place. A
 field that takes the focus again after `.close` starts over: its engine is made again, its work starts again.
 
+## A key handed over twice
+
+A shell asks `KeyEchoes` first, before anything else sees a key down (the Mac: `handleKeyDown`, after only the events it
+posts itself to paste into a terminal). A copy, the same key, characters, modifiers and repeat at the very same event time,
+no more than 2 seconds after the first, gets the first one's answer (taken, or the app's) and goes no further: neither
+the session nor anything around it sees it, so a token (`#1`, then `7`) never takes a key twice. A held key's repeats and
+a second press come at later times, never copies. Modifier changes, which Chromium and Electron hand over twice, have
+`ModifierEchoes`.
+
 ## Outputs
 
 | Output | The Mac |
@@ -87,7 +96,9 @@ queries; in Code, the input after the languages (`Composer.coding`, `Config.codi
 the field's own words, `FieldContext.text` read once typing pauses), drawn as the candidate panel's rows (`panel`, the
 session's own while nothing is composed), the keys they take per app class (`SuggestionsAppClass`: Tab, ↓ ↑, ⏎ once
 moved, or at once on Code's rows, Esc in ordinary apps; Tab only in chat apps; the rows' common start in terminals and
-code editors), and the long press of Shift that turns Translate as You Type on or off (`TranslateMode.ShiftHold` on the
+code editors), what a row puts in (its source's templates, or the user's choice: `SuggestionsSettings.insert(for:)`), a
+source's prefix of letters and a dash typed in pinyin, which ends the composition as typed at its dash
+(`Composer.finishesSuggestionPrefix`, `suggestionsPrefixFinished(by:)`), and the long press of Shift that turns Translate as You Type on or off (`TranslateMode.ShiftHold` on the
 session's clock; the mode is the shell's: `SuggestionsServices.setTranslateAsYouType`; in Code it says it can't run
 there). What every field of a launch shares is `SuggestionsServices.store` (`SuggestionsStore`: each source's
 list, its failures and pause, its queries' answers; a 0600 cache file per source in `cacheFolder`). Plugins' scripts run
