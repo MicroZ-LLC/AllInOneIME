@@ -1,13 +1,14 @@
 import Foundation
 
 /// Suggestions in one text field's session (spec Suggestions v1, Suggestions/): the token typed into the field since a
-/// boundary, the rows its sources have for it (plugin lists and queries; in Code, its coding language's pack and the
-/// field's own words), the keys they take (one set in every app and input: decision 31), the long press of Shift that
-/// turns Translate as You Type on and off (decision 22), and the timers they wait on.
+/// boundary (in Code, its end the word held as marked text: decision 33), the rows its sources have for it (plugin lists
+/// and queries; in Code, its coding language's pack and the field's own words), the keys they take (one set in every app
+/// and input: decision 31), the long press of Shift that turns Translate as You Type on and off (decision 22), and the
+/// timers they wait on.
 struct SuggestionsField {
-    /// What was typed into this field since the last boundary, as typed (token characters only), and when it changed
-    /// last (`SessionServices.uptime`); where no rows may show (`unasked`: the pointer isn't asked with a key there),
-    /// when it started.
+    /// What was typed into this field since the last boundary, as typed (token characters only; Code's word held as marked
+    /// text with it, `Composer.codeWord`), and when it changed last (`SessionServices.uptime`); where no rows may show
+    /// (`unasked`: the pointer isn't asked with a key there), when it started.
     var token = ""
     var tokenAt: TimeInterval = 0
     var unasked = false
@@ -168,6 +169,15 @@ extension InputSession {
         composer.coding && !terminal && !secureInputActive() && passwordField == false
             && SuggestionsAppClass(app: app, terminal: terminal) != .none && suggestionsOn(services.suggestions.settings())
     }
+
+    /// Whether Code holds the word being typed here as marked text (`Composer.holdsCodeWord`, decision 33): where it reads
+    /// the field (`codeReadsTheField`), where its rows may show. Elsewhere (a terminal, secure input, a password field, an
+    /// app with no rows, the switches off) its letters go straight in, as the language inputs' do.
+    func codeHoldsTheWord() -> Bool { codeReadsTheField() }
+
+    /// Something is composed besides Code's word held (`Composer.codeWord`): pinyin, a command, a result. Rows show and
+    /// take their keys only without it; Code's word is what they are for.
+    var composesBesidesCodeWord: Bool { composer.isComposing && composer.codeWord == nil }
 
     /// Whether a key asks if the field is a password field (`FieldContext.Parts.passwordField`, the Mac's Accessibility):
     /// not yet told in this field, and rows may show in it. So it's asked once a field, and only where suggestions may use
@@ -347,7 +357,7 @@ extension InputSession {
     /// The row `key` would put in where rows show (`suggestionsBeforeKey`): Tab's or Return's, the chosen one
     /// (`suggestionsChosenRow`); nil: none.
     func suggestionsRowPut(by key: KeyEvent) -> SuggestionRow? {
-        guard suggesting.shown, !composer.isComposing, key.modifiers.subtracting(.capsLock).subtracting(.sides).isEmpty else { return nil }
+        guard suggesting.shown, !composesBesidesCodeWord, key.modifiers.subtracting(.capsLock).subtracting(.sides).isEmpty else { return nil }
         switch key.key {
         case .tab, .enter, .keypadEnter: return suggestionsChosenRow()
         default: return nil
@@ -364,8 +374,9 @@ extension InputSession {
     /// Before the composer has `event`: the rows' keys while they show, one set in every app and input (decision 31,
     /// which replaced spec 1.4's per class of app): ↓ and ↑ move the choice, Tab and Return put the chosen row in, → and
     /// Esc hide the rows for the token (the key is ours; the keys are the app's then, until the token changes); digits
-    /// are typed, never pick. Not while pinyin composes: its own candidates have the keys then. Nil: the key goes on.
-    /// The one place the rows' keys are decided.
+    /// are typed, never pick. Code's word held as marked text (decision 33) is the token's end: a row goes in in its
+    /// place, → and Esc put it in as typed. Not while pinyin composes: its own candidates have the keys then. Nil: the
+    /// key goes on. The one place the rows' keys are decided.
     func suggestionsBeforeKey(_ event: KeyEvent, _ context: FieldContext) -> Bool? {
         // A key while Shift is held is no long press of it.
         shiftHold.keyDown()
@@ -379,7 +390,7 @@ extension InputSession {
             suggesting.indent = CodingRows.indent(text.before)
             if suggesting.shown { suggestionsUpdate() }
         }
-        guard suggesting.shown, !suggesting.rows.isEmpty, !composer.isComposing,
+        guard suggesting.shown, !suggesting.rows.isEmpty, !composesBesidesCodeWord,
               event.modifiers.subtracting(.capsLock).subtracting(.sides).isEmpty else { return nil }
         switch event.key {
         case .tab, .enter, .keypadEnter:
@@ -394,6 +405,10 @@ extension InputSession {
             return true
         case .arrow(.right), .escape:
             suggesting.hiddenFor = suggesting.token
+            if let word = composer.codeWord {
+                perform(composer.endCodeWord())
+                lastTyped.typedIn(word, at: ProcessInfo.processInfo.systemUptime)
+            }
             suggestionsUpdate()
             return true
         default:
@@ -403,23 +418,32 @@ extension InputSession {
 
     /// After the composer had `key`: what went into the field with it (`inserted`: what the input method put in, the key's
     /// own text where the app typed it) extends the token or ends it; a key the app had that typed nothing ends it (an
-    /// arrow, Home, End, Return, a shortcut: ⌘V), but ⌫, which takes its last character back. Then the rows for it.
-    /// A click since its last key ends it. Where no rows may show (`suggestionsMayShow`) a key asks nothing of the
-    /// pointer (as autocomplete off does nothing for a key), and a click since the token started is looked for once
+    /// arrow, Home, End, Return, a shortcut: ⌘V), but ⌫, which takes its last character back. Code's word held as marked
+    /// text (`held`: before the key and after it, decision 33) is followed as it is typed: what the key added to it extends
+    /// the token, ⌫ on it takes the token's last character back, and the word going in as typed is nothing new. Then the
+    /// rows for it. A click since its last key ends it. Where no rows may show (`suggestionsMayShow`) a key asks nothing
+    /// of the pointer (as autocomplete off does nothing for a key), and a click since the token started is looked for once
     /// they may: where it left the caret isn't known then, no token until the next boundary.
-    func suggestionsAfterKey(_ key: KeyEvent, handled: Bool, inserted: String, context: FieldContext) {
+    func suggestionsAfterKey(_ key: KeyEvent, handled: Bool, inserted: String, held: (before: String, after: String) = ("", ""),
+                             context: FieldContext) {
         guard !secureInputActive(), passwordField != true else { return suggestionsSecure() }
         let now = services.uptime()
         let mayShow = suggestionsMayShow()
+        var held = held
         if mayShow, !suggesting.token.isEmpty, services.pointerUsedWithin(now - suggesting.tokenAt) {
             let unasked = suggesting.unasked
             suggestionsBoundary()
             suggesting.dead = unasked
+            held.before = ""  // the word held starts the token again
         }
         let started = suggesting.token.isEmpty
-        if !inserted.isEmpty {
-            suggestionsTyped(inserted)
-        } else if !handled, key.key.modifierKind == nil, key.key != .capsLock, key.key != .function {
+        // What the key typed, as the token follows it: what it left before the caret, the word held too, past what was held.
+        let left = inserted + held.after
+        let typed = left.hasPrefix(held.before) ? String(left.dropFirst(held.before.count)) : inserted
+        let heldBack = !held.before.isEmpty && left == String(held.before.dropLast())
+        if !typed.isEmpty {
+            suggestionsTyped(typed)
+        } else if heldBack || !handled, key.key.modifierKind == nil, key.key != .capsLock, key.key != .function {
             let plain = key.modifiers.subtracting(.capsLock).subtracting(.sides).isDisjoint(with: [.command, .control, .option])
             if key.key == .backspace, plain, !suggesting.token.isEmpty {
                 suggesting.token.removeLast()
@@ -435,7 +459,7 @@ extension InputSession {
                 (suggesting.words, suggesting.indent) = (CodingRows.words(text), CodingRows.indent(text.before))
             }
             // Something typed: the words read again once typing pauses.
-            if !inserted.isEmpty || key.key == .backspace {
+            if !typed.isEmpty || key.key == .backspace {
                 suggesting.wordsPause += 1
                 emit(.startTimer(.suggestions(.words(suggesting.wordsPause)), after: Self.wordsPause))
             }
@@ -518,25 +542,28 @@ extension InputSession {
 
     // MARK: - Putting a row in
 
-    /// `row` put in: what wasn't typed of it (spec 1.4); where the field reports ranges, a snippet's first tab stop
-    /// without its text and the caret there (or at its `$0`), else every stop's text and the caret at the end; picked
-    /// before, it comes first next time. The token ends with it.
+    /// `row` put in: what wasn't typed of it (spec 1.4), with Code's word held in place of the marked text (decision 33);
+    /// where the field reports ranges, a snippet's first tab stop without its text and the caret there (or at its `$0`),
+    /// else every stop's text and the caret at the end; picked before, it comes first next time. The token ends with it.
     func suggestionsInsert(_ row: SuggestionRow, key: KeyEvent?) {
         let rest = row.rest(ranges: suggesting.ranges)
-        if !rest.isEmpty {
+        let text = (composer.codeWord ?? "") + rest
+        if composer.codeWord != nil {
+            perform(composer.endCodeWord(inserting: text))
+        } else if !rest.isEmpty {
             emit(.commit(rest))
             lastTyped.forget()
             followEnglishInserted(rest)
         }
         if row.caretBack > 0, suggesting.ranges, !rest.isEmpty {
-            emit(.moveCaret(back: min(row.caretBack, rest.utf16.count), after: rest))
+            emit(.moveCaret(back: min(row.caretBack, rest.utf16.count), after: text))
         }
         if let pick = row.pick { services.suggestions.recordPick(pick) }
         log.notice("suggestions: a row put in (\(rest.count) characters)")
         suggesting.showedRows = true
         suggestionsBoundary()
         suggestionsUpdate()
-        if let key { autocompleteAfterKey(key, handled: true, inserted: rest) }
+        if let key { autocompleteAfterKey(key, handled: true, inserted: text) }
     }
 
     // MARK: - The rows
@@ -586,8 +613,8 @@ extension InputSession {
 
     /// The rows for the token (5 at most), as the class of app puts them in: the plugins' sources that apply (their
     /// list's and queries' items, those picked before first), Code's (its coding language's pack, the field's words). None while
-    /// something is composed, in secure input, in a password field or one not known to be none yet (`passwordField`),
-    /// where a switch is off or the app has none (spec 1.5). Asks the queries
+    /// something is composed (Code's word held is the token's end, not that), in secure input, in a password field or one
+    /// not known to be none yet (`passwordField`), where a switch is off or the app has none (spec 1.5). Asks the queries
     /// due (spec 6.4) and marks the sources used. Each source's items are looked through only for what matches, until
     /// its first 5 rows (with the rows picked before, wherever they are): a list may have 20,000.
     func suggestionsRows(askAgain: Bool) -> [SuggestionRow] {
@@ -595,7 +622,7 @@ extension InputSession {
         let s = services.suggestions
         let settings = s.settings()
         guard !suggesting.token.isEmpty, !suggesting.dead, suggesting.hiddenFor != suggesting.token,
-              !composer.isComposing, !composer.wantsPanel, !secureInputActive(), passwordField == false, appClass != .none,
+              !composesBesidesCodeWord, !composer.wantsPanel, !secureInputActive(), passwordField == false, appClass != .none,
               suggestionsOn(settings)
         else { return [] }
         let now = s.now()

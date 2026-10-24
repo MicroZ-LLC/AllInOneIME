@@ -199,8 +199,8 @@ struct SuggestionsCodingPacksTests {
             before = plain.host.outputs.count
             plain.host.send(.key(SuggestionKeys.tab, context))
             let outputs = Array(plain.host.outputs.dropFirst(before))
-            #expect(outputs.contains { if case .commit(" name():\n    ") = $0 { true } else if case .commitAfterKey(" name():\n    ") = $0 { true } else { false } },
-                    "no ranges: its text, the caret at the end (\(outputs))")
+            #expect(outputs.contains { if case .commit("def name():\n    ") = $0 { true } else { false } },
+                    "no ranges: its text in place of the word held, the caret at the end (\(outputs))")
             #expect(Self.moves(plain, since: before).allSatisfy { $0 == 0 }, "\(outputs)")
         }
     }

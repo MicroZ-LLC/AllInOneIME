@@ -36,7 +36,7 @@ extension Composer {
         guard translateMode != nil, selection == nil else { return false }
         if modeTranslating { return true }
         guard !isLevelTwo else { return false }
-        if !draft.isEmpty { return !draft.hasPrefix(commandTrigger) }
+        if !draft.isEmpty { return !draft.hasPrefix(commandTrigger) && codeWord == nil }
         return modeCollects && (engineState.isComposing || !hangul.isEmpty || pendingAccent != nil)
     }
 

@@ -857,7 +857,8 @@ They take the place of [autocomplete](#autocomplete-beta-new)'s gray text while 
 - **Keys:** the same for every kind of row, in every app (chat apps, browsers, code editors and terminals too) and every
   input (English, pinyin when nothing is being composed, Code), as in the command list: while the rows show, the keys
   are AllInOneIME's first. The first row that puts something in is chosen from the start, drawn selected; ↓ ↑ move it;
-  ⏎ or Tab inserts it. → or Esc hides the rows (nothing else happens), and keys are the app's again until what you type
+  ⏎ or Tab inserts it. → or Esc hides the rows (nothing else happens; in Code the word you're typing goes in as typed),
+  and keys are the app's again until what you type
   changes: in Slack, `#12` then ⏎ inserts the issue, and `#12` → ⏎ sends `#12` as typed. Digits never pick a row: they
   go on typing (`#7` then `1` is `#71`). Pinyin's own candidates while it composes are as always (⏎ puts in the
   letters, Space picks). No rows in launchers, remote desktops, virtual machines and SSH clients.
@@ -885,7 +886,12 @@ They take the place of [autocomplete](#autocomplete-beta-new)'s gray text while 
   are on the Input page too. A tap of Shift goes through your inputs: the languages, then Code (Chinese → English → Code). The input
   menu lists Code with its language ("Code (Python)") and changes it; an app can start in Code (Settings → Apps); the menu
   bar icon shows `{}` while it's the input. In Code you type letters as in English, but nothing you type is learned as
-  an English word and there's no autocomplete; from two letters on the rows offer that one language's keywords,
+  an English word and there's no autocomplete. The word you're typing is held underlined, as after the magic key, until
+  you pick a row (it goes in its place), hide the rows (→ or Esc: it goes in as typed) or end the word (a space, a mark,
+  a bracket, an arrow, ⏎ or Tab with no row chosen, a shortcut: it goes in, then the key does what it does in the app),
+  so ↑↓ on the rows never move the caret too in Google Docs, Slack, VS Code and other apps; ⌫ takes back its last
+  letter. A word starts with a letter or `_` (a number goes straight in); in terminals and password fields the letters
+  go straight in as before. From two letters on the rows offer that one language's keywords,
   built-ins and snippets and the words already in the field (`de` → `def`, `define_task`), each saying what it is
   (`function`, `keyword`, `built-in`). ⏎ inserts the chosen row at once, as in an IDE, in every app (the keys above);
   in code editors and terminals a snippet puts in its name only. Elsewhere a snippet goes in with its line breaks, its

@@ -122,7 +122,14 @@ public final class FakeHost: @unchecked Sendable {
     /// A key goes down: whether the session took it.
     @discardableResult
     public func press(_ key: KeyEvent) -> Bool {
-        let response = session.handle(.key(key, readsWhatIsWanted ? context(wantedFor: key) : context))
+        press(key, with: readsWhatIsWanted ? context(wantedFor: key) : context)
+    }
+
+    /// A key goes down with `context` what the field says (a shell's reads of it, made by the test): whether the session
+    /// took it.
+    @discardableResult
+    public func press(_ key: KeyEvent, with context: FieldContext) -> Bool {
+        let response = session.handle(.key(key, context))
         appTakesMarkedText = false
         apply(response.outputs)
         if appTypesKeys, !response.handled, let text = key.printableText { insert(text, replacing: selection) }

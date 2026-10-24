@@ -269,9 +269,8 @@ extension SuggestionsSessionTests {
             }
             context.read.formUnion(missing)
         }
-        let before = field.host.outputs.count
-        field.host.send(.key(key, context))
-        let took = field.host.outputs.dropFirst(before).contains { if case .commit = $0 { true } else { false } }
+        // The app types a key the session let through (Code's word held as marked text is the session's: decision 33).
+        let took = field.host.press(key, with: context)
         if !took, key.key == .character || key.key == .space, let typed = key.printableText { field.host.document += typed }
         field.noteTimers()
         return (askedText, askedPassword)

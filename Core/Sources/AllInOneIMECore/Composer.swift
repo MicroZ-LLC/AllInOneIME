@@ -595,6 +595,10 @@ public final class Composer {
     /// source that may show rows here ("PROJ-"): the composition then goes in as typed and the token starts
     /// (`endForSuggestionPrefix`). Set by the session; a composer on its own has no sources.
     public var finishesSuggestionPrefix: (String) -> Bool = { _ in false }
+    /// Whether Code holds the word being typed here as marked text (`codeWord`, decision 33): where Code's rows may show
+    /// (not in a terminal, in secure input or a password field). Set by the session; a composer on its own holds none,
+    /// and Code's letters go straight in.
+    public var holdsCodeWord: () -> Bool = { false }
     /// Whether the field's app still acts on a key the input method lets through after inserting text during it, as
     /// text views do: "@" then → inserts the "@" and the caret moves on. Not in terminals (set by the controller):
     /// Ghostty sends what is inserted during a key in the key's place (an arrow then goes out without the "@", a
@@ -655,7 +659,8 @@ public final class Composer {
         didSet { if !hasCode { coding = false } }
     }
     /// Code is the input now: Latin letters as English (`inputLanguage` is English), with no English words learned, no
-    /// autocomplete and no Translate as You Type; the session offers the Code pack's rows.
+    /// autocomplete and no Translate as You Type; the session offers the Code pack's rows, and where they may show the word
+    /// being typed is held as marked text (`codeWord`).
     public private(set) var coding = false
     /// Holding the right Option key records speech. Off, as voice input is for now (`Features.voiceInput`), unless
     /// made so directly.
@@ -837,7 +842,7 @@ public final class Composer {
     }
 
     /// ⌫ in the text: the character before the cursor (none before the command's text).
-    private func deleteBeforeCursor() {
+    func deleteBeforeCursor() {
         let after = tail
         guard draft.count - after.count > (after.isEmpty ? 0 : textStart) else { return }
         draft = String(draft.dropLast(after.count).dropLast()) + after
@@ -1305,6 +1310,7 @@ public final class Composer {
 
     /// Whether the candidate panel has something to show.
     public var wantsPanel: Bool {
+        if codeWord != nil { return false }  // Code's word: its rows are the session's
         if let wants = modeWantsPanel { return wants }
         if isLevelTwo || voice != .off { return true }
         if engineState.isComposing { return !engineState.candidates.isEmpty }
@@ -1373,10 +1379,12 @@ public final class Composer {
         return []
     }
 
-    private func handleOtherKeyDown(_ event: KeyEvent) -> Response {
+    func handleOtherKeyDown(_ event: KeyEvent) -> Response {
         shiftPressedAt = nil
         optionPressed = nil  // ⌥ with a key is a shortcut, not a tap
         voiceArmed = false  // a key with right ⌥ down is an ⌥ shortcut, not dictation
+        // Code's word being typed, held as marked text (Composer+CodeWord.swift).
+        if let response = handleCodeWordKey(event) { return response }
         // A held key goes no further than its first press did: holding ⏎ runs a command, it doesn't then
         // also insert the result, or send the message it shows to confirm.
         if event.isRepeat, isLevelTwo || !draft.isEmpty,
@@ -1428,16 +1436,17 @@ public final class Composer {
     }
 
     /// A dead key waits, with its accent marked, for the key it goes on (`KeyEvent.composed`): in English
-    /// mode, and in a command's text in either mode. Not while pinyin is being typed (the key is then as before).
+    /// mode, and in a command's text in either mode. Not while pinyin is being typed (the key is then as before). In Code,
+    /// a letter it types ("é") starts the word Code holds (`startsCodeWord`).
     private func handleDeadKey(_ event: KeyEvent) -> DeadKeyOutcome {
         if let accent = pendingAccent {
             pendingAccent = nil
             setLevelOnePhase()
             if let text = event.composed {
-                guard !draft.isEmpty || modeCollects(text) else { return .done(.consumed([.commit(text)])) }
+                guard !draft.isEmpty || modeCollects(text) || startsCodeWord(text) else { return .done(.consumed([.commit(text)])) }
                 appendTyped(text)
                 setLevelOnePhase()
-                return .done(.consumed([.updateMarkedText, .showPanel]))
+                return .done(.consumed([.updateMarkedText] + (codeWord == nil ? [.showPanel] : [])))
             }
             // ⌫ and Esc take the accent back; another key types it, then does what it does (as macOS does).
             if event.key == .backspace || event.key == .escape { return .done(.consumed([.updateMarkedText])) }
@@ -2482,7 +2491,8 @@ public final class Composer {
             next = inputs[index % inputs.count]
         }
         guard next != input else { return [] }
-        var effects = typeWaitingAccent() + finishHangul()
+        // Code's word held goes in as typed (Composer+CodeWord.swift).
+        var effects = endCodeWord() + typeWaitingAccent() + finishHangul()
         if current == .chinese {
             // Pinyin being typed goes in as librime's Shift does it (`toggleLatin`).
             effects += toggleLatin()

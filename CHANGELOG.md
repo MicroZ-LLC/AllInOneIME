@@ -33,6 +33,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 - A custom command with a value of the wrong kind in the config (`"minChars": "two"`, `"argv": "ls"`) no longer keeps the whole config from loading: that command alone is refused, Settings → Custom Commands lists it with the reason ("This command isn't used: “minChars” should be a whole number") and Delete, and the rest of the config loads.
 - A key press that reaches the input method twice (the same key event handed over again) is typed once on the Mac: the copy gets the first one's answer and nothing else sees it. After "#1" showed GitHub rows, "7" could leave none, the field showing "#17" while the input method had taken "#117".
 - The candidate panel no longer jumps to the top-left corner of the page in Google Docs and other Chrome pages; it stays under the caret.
+- In Code the word you're typing is held underlined, as after the magic key, until you pick a row or end the word, so ↑↓ on the rows never move the caret too in Google Docs, Slack, VS Code and other Chromium and Electron apps: ⏎ or Tab puts the chosen row in its place, → or Esc puts the word in as typed, and a space, a mark, an arrow or a shortcut puts it in and then does what it does in the app. In terminals and password fields the letters go straight in as before.
 
 ## 0.6.6 (2026-10-20)
 

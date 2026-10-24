@@ -132,6 +132,7 @@ public final class InputSession {
         composer.readFieldText = { [weak self] in self?.readFieldText() }
         composer.pageContextApplies = { [weak self] in self.map { $0.agentPageContext && $0.services.page($0.app) != nil } ?? false }
         composer.finishesSuggestionPrefix = { [weak self] typed in self?.suggestionsPrefixFinished(by: typed) ?? false }
+        composer.holdsCodeWord = { [weak self] in self?.codeHoldsTheWord() ?? false }
     }
 
     // MARK: - Events
@@ -469,6 +470,7 @@ public final class InputSession {
         // Code, once its pack is installed (as a language once its pack is), named with its coding language.
         let code = codePack(config)
         let leftCode = composer.coding && code == nil
+        if leftCode { perform(composer.endCodeWord()) }  // the word Code held goes in as typed
         composer.inputLanguages = languages
         composer.hasCode = code != nil
         composer.messages.codeMode = SessionText.inputName(.code, language: UIText.language,
@@ -602,8 +604,8 @@ public final class InputSession {
            key.key == .enter || key.key == .keypadEnter || key.key == .space || composer.isActionKey(key) {
             wants.insert(.text)
         }
-        // Suggestions: the selection where rows show, the field's words in Code.
-        if !composer.isComposing { wants.formUnion(suggestionsFieldWants(for: key)) }
+        // Suggestions: the selection where rows show, the field's words in Code (its word held too).
+        if !composesBesidesCodeWord { wants.formUnion(suggestionsFieldWants(for: key)) }
         return wants
     }
 
@@ -685,6 +687,7 @@ public final class InputSession {
         }
         keyContext = context
         let english = typesEnglishStraightIn
+        let held = composer.codeWord ?? ""
         let response = composer.handleKeyDown(key)
         keyContext = nil
         if composer.pendingAccent == nil { deadKeys.reset() }
@@ -699,7 +702,7 @@ public final class InputSession {
             default: return nil
             }
         }.joined() + (response.handled ? "" : key.printableText ?? "")
-        suggestionsAfterKey(key, handled: response.handled, inserted: put, context: context)
+        suggestionsAfterKey(key, handled: response.handled, inserted: put, held: (held, composer.codeWord ?? ""), context: context)
         autocompleteAfterKey(key, handled: response.handled, inserted: put)
         return response.handled
     }
@@ -804,6 +807,8 @@ public final class InputSession {
                     let now = ProcessInfo.processInfo.systemUptime
                     learnTypedInEnglish(englishModeWords.leftEnglish(at: now, pointerUsedSince: pointerUsedSince(now: now)))
                 }
+                // The rows as the input has them now: Code's go with it (its word went in as typed).
+                if suggesting.shown { suggestionsUpdate() }
             case let .commit(text):
                 emit(.commit(text))
                 lastInserted = text

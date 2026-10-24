@@ -29,7 +29,8 @@ struct CodeInputTests {
     // MARK: - Rotation
 
     /// A tap of Shift goes through the inputs added: the languages in their order, then Code, then the first again
-    /// (中 → EN → Code → 中), each said as it comes ("Code (Python)"). Code types English's letters.
+    /// (中 → EN → Code → 中), each said as it comes ("Code (Python)"). Code types English's letters, the word held as marked
+    /// text (decision 33) until the tap out of Code puts it in as typed.
     @Test func aTapOfShiftGoesThroughTheLanguagesThenCode() async throws {
         try await inEnglish {
             let world = SuggestionsWorld(input: .chinese)
@@ -46,11 +47,12 @@ struct CodeInputTests {
                 if field.host.composer.coding {
                     #expect(field.host.composer.inputLanguage == .english, "Code types English's letters")
                     field.type("de")
-                    #expect(field.host.marked.isEmpty && field.document == "de", "letters straight in: \(field.host.marked)")
+                    #expect(field.host.marked == "de" && field.document.isEmpty, "the word held: \(field.host.marked)")
                 }
             }
             #expect(seen == [.language(.english), .code, .language(.chinese)], "\(seen)")
             #expect(notices == [["English"], ["Code (Python)"], ["Chinese"]], "\(notices)")
+            #expect(field.document == "de" && field.host.marked.isEmpty, "in as typed with the tap: \(field.document)")
             field.type("nihao")
             #expect(field.host.marked == "nihao", "pinyin again: \(field.host.marked)")
         }
@@ -110,7 +112,8 @@ struct CodeInputTests {
     }
 
     /// While Translate as You Type is on in the field, a tap of Shift goes through the languages only: it can't run in
-    /// Code. A field in Code while it's on (an app that starts in Code) types as Code does, no chip, nothing collected.
+    /// Code. A field in Code while it's on (an app that starts in Code) types as Code does, no chip, nothing collected to
+    /// translate: the word held is Code's (decision 33), and a space puts it in as typed.
     @Test func whileTranslateAsYouTypeIsOnShiftLeavesCodeOut() async throws {
         try await inEnglish {
             let world = SuggestionsWorld()
@@ -128,7 +131,8 @@ struct CodeInputTests {
             _ = code.host.session.apply(code.host.composer.setTranslateMode(TranslateMode.Session(target: .chinese)))
             #expect(code.host.composer.coding && code.host.composer.translateModeChip() == nil)
             code.type("print")
-            #expect(code.host.marked.isEmpty && code.document == "print", "no draft to translate: \(code.host.marked)")
+            #expect(code.host.composer.codeWord == "print" && !code.host.composer.inModeComposition, "Code's word, no draft to translate")
+            #expect(!code.press(SuggestionKeys.space) && code.document == "print " && code.host.marked.isEmpty, "\(code)")
         }
     }
 

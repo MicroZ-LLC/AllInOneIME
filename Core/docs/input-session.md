@@ -96,7 +96,10 @@ queries; in Code, the input after the languages (`Composer.coding`, `Config.codi
 the field's own words, `FieldContext.text` read once typing pauses), drawn as the candidate panel's rows (`panel`, the
 session's own while nothing is composed, the chosen row its `highlighted`), the keys they take, one set in every app
 and input (decision 31, `suggestionsBeforeKey`: the first row that puts something in chosen from the start, ↓ ↑ move
-it, ⏎ or Tab puts it in, → or Esc hide the rows for the token; never a digit), what a row puts in (its source's
+it, ⏎ or Tab puts it in, → or Esc hide the rows for the token; never a digit), Code's word held as marked text where
+its rows may show (decision 33: `codeHoldsTheWord`, the composer's draft as `Composer.codeWord`, Composer+CodeWord.swift;
+the token's end, a row put in its place, → or Esc and any key that ends it putting it in as typed, as the command list
+does with what follows its trigger), what a row puts in (its source's
 templates for the app's class, `SuggestionsAppClass`, or the user's choice: `SuggestionsSettings.insert(for:)`), a
 source's prefix of letters and a dash typed in pinyin, which ends the composition as typed at its dash
 (`Composer.finishesSuggestionPrefix`, `suggestionsPrefixFinished(by:)`), and the long press of Shift that turns Translate as You Type on or off (`TranslateMode.ShiftHold` on the
