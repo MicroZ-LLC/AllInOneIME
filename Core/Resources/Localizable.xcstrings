@@ -5174,6 +5174,53 @@
         }
       }
     },
+    "%@, %@" : {
+      "comment" : "%@，%@ — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@、%@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, %@"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@，%@"
+          }
+        }
+      }
+    },
     "%@, %@, %@" : {
       "comment" : "%@，%@，%@ — Sources/AllInOneIMECore/Doctor.swift",
       "localizations" : {
@@ -8103,6 +8150,7 @@
     },
     "AllInOneIME %@" : {
       "comment" : "AllInOneIME %@ — Sources/AllInOneIMECore/Doctor.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -12528,6 +12576,7 @@
     },
     "checks for updates automatically" : {
       "comment" : "自动检查更新 — Sources/AllInOneIMECore/Doctor.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -15593,6 +15642,7 @@
     },
     "doesn't check for updates automatically" : {
       "comment" : "没有自动检查更新 — Sources/AllInOneIMECore/Doctor.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -45375,6 +45425,100 @@
         }
       }
     },
+    "Updates: checked automatically" : {
+      "comment" : "更新：自动检查 — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Updates: werden automatisch gesucht"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actualizaciones: se buscan automáticamente"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mises à jour : recherchées automatiquement"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アップデート：自動的に確認"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "업데이트: 자동으로 확인"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Atualizações: verificadas automaticamente"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新：自動檢查"
+          }
+        }
+      }
+    },
+    "Updates: not checked automatically" : {
+      "comment" : "更新：不自动检查 — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Updates: werden nicht automatisch gesucht"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actualizaciones: no se buscan automáticamente"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mises à jour : pas recherchées automatiquement"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アップデート：自動的に確認しない"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "업데이트: 자동으로 확인 안 함"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Atualizações: não verificadas automaticamente"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新：不自動檢查"
+          }
+        }
+      }
+    },
     "Use a list such as [text, code, weight], or indented - items." : {
       "comment" : "列表需要用 [text, code, weight] 或缩进的 - 列表。 — Sources/AllInOneIMECore/PersonalDictionary.swift",
       "localizations" : {
@@ -46970,6 +47114,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你要的是 %@，不是 %@"
+          }
+        }
+      }
+    },
+    "you have %@" : {
+      "comment" : "当前版本 %@ — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "installiert: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "tienes la %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "version actuelle : %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在は%@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "현재 %@"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sua versão: %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前版本 %@"
           }
         }
       }

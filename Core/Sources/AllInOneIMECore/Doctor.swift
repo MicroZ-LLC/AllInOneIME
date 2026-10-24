@@ -402,10 +402,11 @@ public enum Doctor {
                                            "AllInOneIME \(available) is available (you have \(u.version))"),
                                detail: t.tr("可以检查并更新", "check for updates to install it"), fix: .checkForUpdates))
         } else {
-            out.append(Finding(area: .updates, status: .ok, title: t.tr("AllInOneIME \(u.version)", "AllInOneIME \(u.version)"),
-                               detail: u.checkEnabled ? t.tr("自动检查更新", "checks for updates automatically")
-                                   : t.tr("没有自动检查更新", "doesn't check for updates automatically"),
-                               fix: nil))
+            // Named by what is checked: the version is the input method's row's title already.
+            out.append(Finding(area: .updates, status: .ok,
+                               title: u.checkEnabled ? t.tr("更新：自动检查", "Updates: checked automatically")
+                                   : t.tr("更新：不自动检查", "Updates: not checked automatically"),
+                               detail: t.tr("当前版本 \(u.version)", "you have \(u.version)")))
         }
         if let error = u.lastError {
             out.append(Finding(area: .updates, status: .warning, title: t.tr("上次更新没有成功", "The last update didn't work"), detail: error,
@@ -711,7 +712,7 @@ public enum Doctor {
         }.joined(separator: "\n")
     }
 
-    /// "2 problems, 1 warning, 9 fine".
+    /// "2 problems, 1 warning, 9 fine"; a count that is 0 left out ("2 problems, 10 fine").
     public static func summary(_ findings: [Finding], language: String) -> String {
         let t = Words(language: language)
         let problems = findings.filter { $0.status == .problem }.count, warnings = findings.filter { $0.status == .warning }.count
@@ -720,6 +721,8 @@ public enum Doctor {
         let problemCount = problems == 1 ? t.tr("1 个问题", "1 problem") : t.tr("\(problems) 个问题", "\(problems) problems")
         let warningCount = warnings == 1 ? t.tr("1 个提醒", "1 warning") : t.tr("\(warnings) 个提醒", "\(warnings) warnings")
         let fineCount = t.tr("\(fine) 项正常", "\(fine) fine")
+        if problems == 0 { return t.tr("\(warningCount)，\(fineCount)", "\(warningCount), \(fineCount)") }
+        if warnings == 0 { return t.tr("\(problemCount)，\(fineCount)", "\(problemCount), \(fineCount)") }
         return t.tr("\(problemCount)，\(warningCount)，\(fineCount)", "\(problemCount), \(warningCount), \(fineCount)")
     }
 
