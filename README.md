@@ -552,8 +552,8 @@ and named).
   language packs. Without it, your provider answers.
 
 **Check for problems.** As the page appears (and when the window comes back to the front) it checks the setup on this Mac
-and lists the results, a row each, ✗ problems first, then ⚠ warnings, then ✓ what is fine (all fine: one line,
-"Everything looks good"): the input method (installed, enabled, in your input sources), the AI provider (its key saved or
+and lists the results under a summary ("Everything looks good", or "2 problems, 10 fine"), a row each, ✗ problems
+first, then ⚠ warnings, then ✓ what is fine: the input method (installed, enabled, in your input sources), the AI provider (its key saved or
 the Bedrock profile's credentials found, never read or shown; Apple Intelligence), the permissions (Accessibility,
 controlling Notes, Reminders, Terminal and Messages, asked of macOS without a prompt), secure
 input, the language packs of your input languages, `config.json` (readable, unknown keys, values out of range, a language

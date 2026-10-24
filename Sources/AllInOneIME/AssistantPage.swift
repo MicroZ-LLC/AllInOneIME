@@ -52,8 +52,6 @@ final class AssistantModel: ObservableObject {
     @Published private(set) var checkingConnection = false
     /// The finding whose command was just copied ("Copied" for a moment).
     @Published private(set) var copied: Int?
-    /// The ✓ rows shown though everything is fine (the disclosure opened).
-    @Published var showsFine = false
 
     /// How many times the probes ran, and the connection test (the self-test counts them).
     private(set) var probes = 0
@@ -415,8 +413,15 @@ final class AssistantModel: ObservableObject {
         }
     }
 
-    /// Every finding is fine: the folded line says "Everything looks good" (else "N more look good").
+    /// Every finding is fine: the summary says "Everything looks good".
     var allFine: Bool { !findings.isEmpty && findings.allSatisfy { $0.status == .ok } }
+
+    /// The row over the findings: "Everything looks good", else how many problems and warnings (`Doctor.summary`); nil
+    /// until the first probe is in.
+    var summary: String? {
+        guard !findings.isEmpty else { return nil }
+        return allFine ? tr("一切正常", "Everything looks good") : Doctor.summary(findings, language: UIText.language)
+    }
 
     /// Fix on finding `index`: a config fix shows its changes in the preview above (Apply, Undo); the others act at once,
     /// as they did before. The probes run again after.
@@ -472,7 +477,7 @@ final class AssistantModel: ObservableObject {
         checkTask?.cancel()
         connectionTask?.cancel()
         (request, preview, lines, message, applied, appliedWritesSettings, undone, connection) = ("", nil, [], nil, nil, false, nil, nil)
-        (findings, checking, question, questionNote, explanation, recommended, copied, showsFine) = ([], false, "", nil, nil, [], nil, false)
+        (findings, checking, question, questionNote, explanation, recommended, copied) = ([], false, "", nil, nil, [], nil)
         (probes, connectionTests, lastProbe, tested, checkingConnection, pendingReprobe) = (0, 0, nil, nil, false, false)
     }
 }
@@ -577,14 +582,17 @@ struct AssistantPage: View {
 
     @ViewBuilder private var checkSection: some View {
         Section {
-            HStack(spacing: 8) {
-                TextField(text: $assistant.question, prompt: Text(tr("遇到什么问题？（可选）", "What's wrong? (optional)"))) {
-                    Text(tr("问题", "Question"))
+            // As the other text fields with a button (API key): the label, the field, the button after it.
+            LabeledContent(tr("问题", "Question")) {
+                HStack(spacing: 8) {
+                    TextField(text: $assistant.question, prompt: Text(tr("遇到什么问题？（可选）", "What's wrong? (optional)"))) {
+                        Text(tr("问题", "Question"))
+                    }
+                    .labelsHidden()
+                    .onSubmit { if !assistant.question.trimmingCharacters(in: .whitespaces).isEmpty { assistant.check() } }
+                    Button(tr("检查", "Check")) { assistant.check() }
+                        .disabled(assistant.checkingConnection)
                 }
-                .labelsHidden()
-                .onSubmit { if !assistant.question.trimmingCharacters(in: .whitespaces).isEmpty { assistant.check() } }
-                Button(tr("检查", "Check")) { assistant.check() }
-                    .disabled(assistant.checkingConnection)
             }
             if let note = assistant.questionNote {
                 Label(note, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange)
@@ -593,18 +601,13 @@ struct AssistantPage: View {
                 Label(explanation, systemImage: "sparkles").labelStyle(StatusLabelStyle(color: .purple))
                     .fixedSize(horizontal: false, vertical: true)
             }
-            // Problems and warnings each on a row; what is fine folded under one line, opened by its disclosure.
-            let indexed = Array(assistant.findings.enumerated())
-            findingRows(indexed.filter { $0.element.status != .ok })
-            let fine = indexed.filter { $0.element.status == .ok }
-            if !fine.isEmpty {
-                DisclosureGroup(isExpanded: $assistant.showsFine) {
-                    findingRows(fine)
-                } label: {
-                    Label(assistant.allFine ? tr("一切正常", "Everything looks good")
-                          : tr("另外 \(fine.count) 项正常", "\(fine.count) more look good"), systemImage: "checkmark.circle.fill")
-                        .labelStyle(StatusLabelStyle(color: .green))
-                }
+            // The summary, then a row per finding (problems first), each as Settings' other rows: its status icon, the
+            // title with the detail under it, Fix at the end.
+            if let summary = assistant.summary, let worst = assistant.findings.map(\.status).min() {
+                statusTitled(worst, summary, nil)
+            }
+            ForEach(Array(assistant.findings.enumerated()), id: \.offset) { index, finding in
+                findingRow(finding, index: index)
             }
         } header: {
             HStack(spacing: 8) {
@@ -629,30 +632,36 @@ struct AssistantPage: View {
         }
     }
 
-    /// Findings with their index among all of them (what Fix and Copied go by).
-    @ViewBuilder private func findingRows(_ rows: [(offset: Int, element: Doctor.Finding)]) -> some View {
-        ForEach(rows, id: \.offset) { index, finding in
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Image(systemName: Self.symbol(finding.status)).foregroundStyle(Self.color(finding.status))
-                    .accessibilityLabel(finding.status.mark)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(finding.title)
-                    if let detail = finding.detail {
-                        Text(detail).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-                Spacer()
-                if finding.fix != nil {
-                    if assistant.copied == index {
-                        Text(tr("已复制", "Copied")).foregroundStyle(.secondary)
-                    } else if let fix = finding.fix, assistant.recommended.contains(fix) {
-                        Button(tr("修复", "Fix")) { assistant.fix(index) }.buttonStyle(.borderedProminent)
-                    } else {
-                        Button(tr("修复", "Fix")) { assistant.fix(index) }
-                    }
+    /// A finding with its index among all of them (what Fix and Copied go by).
+    @ViewBuilder private func findingRow(_ finding: Doctor.Finding, index: Int) -> some View {
+        LabeledContent {
+            if finding.fix != nil {
+                if assistant.copied == index {
+                    Text(tr("已复制", "Copied")).foregroundStyle(.secondary)
+                } else if let fix = finding.fix, assistant.recommended.contains(fix) {
+                    Button(tr("修复", "Fix")) { assistant.fix(index) }.buttonStyle(.borderedProminent)
+                } else {
+                    Button(tr("修复", "Fix")) { assistant.fix(index) }
                 }
             }
+        } label: {
+            statusTitled(finding.status, finding.title, finding.detail)
         }
+    }
+
+    /// A status icon before a row's title, with a short explanation under the title as System Settings shows them.
+    private func statusTitled(_ status: Doctor.Status, _ title: String, _ note: String?) -> some View {
+        Label {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                if let note {
+                    Text(note).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        } icon: {
+            Image(systemName: Self.symbol(status)).accessibilityLabel(status.mark)
+        }
+        .labelStyle(StatusLabelStyle(color: Self.color(status)))
     }
 
     static func symbol(_ status: Doctor.Status) -> String {
@@ -672,13 +681,13 @@ struct AssistantPage: View {
     }
 }
 
-/// A label whose icon has a color of its own and whose title is in the text's.
+/// A label whose icon has a color of its own and whose title is in the text's; the icon as wide as the other rows' (20).
 private struct StatusLabelStyle: LabelStyle {
     let color: Color
 
     func makeBody(configuration: Configuration) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            configuration.icon.foregroundStyle(color)
+        HStack(alignment: .firstTextBaseline) {
+            configuration.icon.foregroundStyle(color).frame(width: 20)
             configuration.title
         }
     }
