@@ -100,6 +100,8 @@ public enum AIConfigPrompt {
             messages.append(.init(role: "assistant", text: turn.answer.versions.first?.text ?? ""))
             messages.append(.init(role: "user", text: Prompt.refineMessage(turn.instruction)))
         }
+        // At least 1000 tokens whatever limit the user set: room for the changes and their explanation. A floor of this
+        // answer's own, below the default (2000), which goes as it is.
         return ConverseRequest(system: [.init(system(context, compact: compact, refining: !turns.isEmpty, scope: scope))], messages: messages,
                                inferenceConfig: .init(maxTokens: max(context.config.maxTokens, 1000), temperature: 0))
     }

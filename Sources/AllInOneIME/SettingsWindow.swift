@@ -3340,7 +3340,7 @@ struct RestoreDefaultRow: View {
     var note: String? = nil
     let restore: () -> Void
 
-    /// "The default is 1000."
+    /// "The default is 2000."
     static func defaultIs(_ value: String) -> String { tr("默认是 \(value)。", "The default is \(value).") }
 
     var body: some View {

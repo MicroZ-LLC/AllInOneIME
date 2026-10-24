@@ -290,7 +290,7 @@ enum SettingsPageImages {
         for page in SettingsPage.allCases { render(page, page.rawValue) }
         // Settings no longer shown, set otherwise than their default: their rows with Restore Default.
         let saved = model.config
-        model.config.maxTokens = 2000
+        model.config.maxTokens = 3000
         model.config.redaction.phones = false
         model.config.suggestionsInsert = .id
         render(.ai, "restore-default")

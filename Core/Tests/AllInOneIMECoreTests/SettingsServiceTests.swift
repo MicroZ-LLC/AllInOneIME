@@ -150,6 +150,7 @@ struct SettingsServiceTests {
     /// change of something else doesn't write it; and a change that saves nothing after it isn't refused for it. A rule
     /// that saves on its own (the style order) and fails is refused too.
     @Test func aSaveThatFails() throws {
+        // The default before 0.6.7: read as today's (2000).
         let (service, url) = try service(#"{"maxTokens": 1000}"#)
         let folder = url.deletingLastPathComponent()
         var result: Result<Void, SettingsProblem> = .success(())
@@ -157,15 +158,15 @@ struct SettingsServiceTests {
         guard case let .failure(problem) = result else { Issue.record("a change not saved was taken"); return }
         var document = service.document()
         #expect(problem.code == .failed && problem.message == document.saveError)
-        #expect(document.field("maxTokens")?.value == .number(1000))
+        #expect(document.field("maxTokens")?.value == .number(2000))
         // Writable again: another change, saved alone.
         #expect((try? service.set("typeOut", to: .bool(true)).get()) != nil)
         let config = try Config.load(from: url)
-        #expect(config.typeOut && config.maxTokens == 1000 && service.document().saveError == nil)
+        #expect(config.typeOut && config.maxTokens == 2000 && service.document().saveError == nil)
         // Failed; then a change to what it is: taken, nothing left to show.
-        _ = try whileReadOnly(folder) { _ = service.set("maxTokens", to: .number(2000)) }
+        _ = try whileReadOnly(folder) { _ = service.set("maxTokens", to: .number(3000)) }
         #expect(service.document().saveError != nil)
-        #expect((try? service.set("maxTokens", to: .number(1000)).get()) != nil)
+        #expect((try? service.set("maxTokens", to: .number(2000)).get()) != nil)
         #expect(service.document().saveError == nil)
         // The style order saves itself.
         let styles = try #require(service.document().field("rewriteStyles")?.value)
@@ -426,10 +427,10 @@ struct SettingsServiceTests {
         let before = service.revision
         service.checkForChanges()
         #expect(service.revision == before)
-        try Data(#"{"maxTokens": 2000}"#.utf8).write(to: url)
+        try Data(#"{"maxTokens": 3000}"#.utf8).write(to: url)
         try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(60)], ofItemAtPath: url.path)
         service.checkForChanges()
-        #expect(service.revision > before && service.document().field("maxTokens")?.value == .number(2000))
+        #expect(service.revision > before && service.document().field("maxTokens")?.value == .number(3000))
     }
 
     // MARK: Commands

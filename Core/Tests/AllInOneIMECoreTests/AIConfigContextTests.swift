@@ -248,7 +248,7 @@ struct AIConfigContextTests {
         let sent = try #require(model.sent.last)
         #expect(sent.request.instructions == AIConfigPrompt.system(context, compact: true, refining: false))
         #expect(sent.schema == AIConfigPrompt.schema(context) && sent.tools == ["findApps", "awsProfiles", "languagePacks"])
-        #expect(sent.request.maximumResponseTokens == 1000)
+        #expect(sent.request.maximumResponseTokens == 2000)
     }
 
     /// Where it doesn't, the settings the sentence is about go first, with the apps it names (their current values) and the

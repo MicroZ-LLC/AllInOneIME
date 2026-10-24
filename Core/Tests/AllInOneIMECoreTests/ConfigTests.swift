@@ -97,6 +97,20 @@ struct ConfigTests {
         #expect(try decode(#"{"temperature": null}"#).temperature == nil)
     }
 
+    /// The most output tokens: 2000 unless set. A file's 1000 is the default before 0.6.7 (every file of then has it,
+    /// the default is written too) and reads as today's; any other value is the user's and stays.
+    @Test func maxTokens() throws {
+        #expect(Config.default.maxTokens == 2000 && Config.fresh.maxTokens == 2000)
+        #expect(try decode("{}").maxTokens == 2000)
+        #expect(try decode(#"{"maxTokens": 1000}"#).maxTokens == 2000)
+        #expect(try decode(#"{"maxTokens": 1500}"#).maxTokens == 1500)
+        #expect(try decode(#"{"maxTokens": 4000}"#).maxTokens == 4000)
+        // Written and read again: still the default.
+        let text = String(decoding: try JSONEncoder().encode(Config.default), as: UTF8.self)
+        #expect(text.contains(#""maxTokens":2000"#))
+        #expect(try decode(text).maxTokens == 2000)
+    }
+
     @Test func rewriteStyles() throws {
         #expect(try decode("{}").rewriteStyles == ["润色", "简洁", "正式"])
         #expect(try decode(#"{"rewriteStyles": ["简洁", "委婉"]}"#).rewriteStyles == ["简洁", "委婉"])

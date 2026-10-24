@@ -318,14 +318,14 @@ struct GoldenScenario: Sendable {
 
 /// The digests of `GoldenScenario.all` as release-0.6.3 (55d496e) sends them, generated from a worktree of it.
 let goldenDigests: [String: String] = [
-    "bedrock-convert-zh": "9cf3f2c5f5bf11e5c728d0531cc92b614f1c4af8142905672edc038e84c43bb7",
-    "anthropic-improve-en": "69c2f332f70381d20cee04c84d83989d9ddab487d0ea6b7a98bfeede095cdcbd",
-    "gemini-translate-zh": "f573e94ad11c1a634557388fb85f95daa5366f61f39826d36efedda3479fc246",
-    "openai-both-jargon": "de7ecefb5c65f5d8c406171b2df09cba00dad1d9322f6cc563dda907bdb6266d",
-    "ollama-question": "a66f7ea623c2bb1c580d69390d23692da82c023b468730cd7e417852118f6852",
-    "hosted-custom-prompt": "351a521ad4407a5e3bbdecea83a43735dd76cc8399dfe9504818346c4868a7c2",
-    "anthropic-edit-selection": "f2099dce68fc901e6149c7283b55e39636234f7331bd65e1208c80855a0b3cfe",
-    "bedrock-question-selection": "d6b9626576f1db4eb1622dddb2793eeebf2fc5ff8c80131368ec86b0903e4d7c",
+    "bedrock-convert-zh": "8c4ff75f7e142261ac9d21bc472416bffbc7ac471070ef040b366d48643f8401",
+    "anthropic-improve-en": "9aa0e3681c78b23e1e0eaf7aa512ce613390a9f434d6b44bf0717f56d3ba40b6",
+    "gemini-translate-zh": "e4c069d8ab7d2dd104384ba2b4688d5bc3188e331ec1639afd70409762ca6c9a",
+    "openai-both-jargon": "235fdf0d32a21ce513336ec747ed88d88bd9f80c128cd933842a1aa193a79e07",
+    "ollama-question": "51613958b4727f74a53394bedb5c3b829f13584abcf5ec642168f73e1027ff0c",
+    "hosted-custom-prompt": "d75a7955df9643ab62905e4e1edbde893e821dc47d99f2236a50b1c24b210a4d",
+    "anthropic-edit-selection": "fdf97350cd6a83c8147740134844dd85ed1d3c1b5e2864bb0bdaa26a6408c42c",
+    "bedrock-question-selection": "797bb126c747d43a696a72ee4d5e47568fd3976cfeb5a6069b4fbca7e63291f5",
 ]
 
 /// Real values used throughout: none of them may reach a provider while hiding is on.

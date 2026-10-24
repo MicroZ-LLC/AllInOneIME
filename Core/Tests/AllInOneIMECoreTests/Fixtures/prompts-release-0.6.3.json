@@ -1,7 +1,7 @@
 {
   "custom-prompt" : {
     "inferenceConfig" : {
-      "maxTokens" : 1000,
+      "maxTokens" : 2000,
       "temperature" : 0.3
     },
     "messages" : [
@@ -22,7 +22,7 @@
   },
   "edit" : {
     "inferenceConfig" : {
-      "maxTokens" : 1000,
+      "maxTokens" : 2000,
       "temperature" : 0.3
     },
     "messages" : [
@@ -43,7 +43,7 @@
   },
   "en-en-both" : {
     "inferenceConfig" : {
-      "maxTokens" : 1000,
+      "maxTokens" : 2000,
       "temperature" : 0.3
     },
     "messages" : [
@@ -160,7 +160,7 @@
   },
   "en-en-improve" : {
     "inferenceConfig" : {
-      "maxTokens" : 1000,
+      "maxTokens" : 2000,
       "temperature" : 0.3
     },
     "messages" : [
@@ -277,7 +277,7 @@
   },
   "en-en-translate" : {
     "inferenceConfig" : {
-      "maxTokens" : 1000,
+      "maxTokens" : 2000,
       "temperature" : 0.3
     },
     "messages" : [
@@ -394,7 +394,7 @@
   },
   "en-zh-both" : {
     "inferenceConfig" : {
-      "maxTokens" : 1000,
+      "maxTokens" : 2000,
       "temperature" : 0.3
     },
     "messages" : [
@@ -511,7 +511,7 @@
   },
   "en-zh-improve" : {
     "inferenceConfig" : {
-      "maxTokens" : 1000,
+      "maxTokens" : 2000,
       "temperature" : 0.3
     },
     "messages" : [
@@ -628,7 +628,7 @@
   },
   "en-zh-translate" : {
     "inferenceConfig" : {
-      "maxTokens" : 1000,
+      "maxTokens" : 2000,
       "temperature" : 0.3
     },
     "messages" : [
@@ -745,7 +745,7 @@
   },
   "jargon-zh-improve" : {
     "inferenceConfig" : {
-      "maxTokens" : 1000,
+      "maxTokens" : 2000,
       "temperature" : 0.3
     },
     "messages" : [
@@ -862,7 +862,7 @@
   },
   "question" : {
     "inferenceConfig" : {
-      "maxTokens" : 1000,
+      "maxTokens" : 2000,
       "temperature" : 0.3
     },
     "messages" : [
@@ -883,7 +883,7 @@
   },
   "question-about-selection" : {
     "inferenceConfig" : {
-      "maxTokens" : 1000,
+      "maxTokens" : 2000,
       "temperature" : 0.3
     },
     "messages" : [
@@ -904,7 +904,7 @@
   },
   "zh-en-both" : {
     "inferenceConfig" : {
-      "maxTokens" : 1000,
+      "maxTokens" : 2000,
       "temperature" : 0.3
     },
     "messages" : [
@@ -1021,7 +1021,7 @@
   },
   "zh-en-improve" : {
     "inferenceConfig" : {
-      "maxTokens" : 1000,
+      "maxTokens" : 2000,
       "temperature" : 0.3
     },
     "messages" : [
@@ -1138,7 +1138,7 @@
   },
   "zh-en-translate" : {
     "inferenceConfig" : {
-      "maxTokens" : 1000,
+      "maxTokens" : 2000,
       "temperature" : 0.3
     },
     "messages" : [
@@ -1255,7 +1255,7 @@
   },
   "zh-zh-both" : {
     "inferenceConfig" : {
-      "maxTokens" : 1000,
+      "maxTokens" : 2000,
       "temperature" : 0.3
     },
     "messages" : [
@@ -1372,7 +1372,7 @@
   },
   "zh-zh-improve" : {
     "inferenceConfig" : {
-      "maxTokens" : 1000,
+      "maxTokens" : 2000,
       "temperature" : 0.3
     },
     "messages" : [
@@ -1489,7 +1489,7 @@
   },
   "zh-zh-translate" : {
     "inferenceConfig" : {
-      "maxTokens" : 1000,
+      "maxTokens" : 2000,
       "temperature" : 0.3
     },
     "messages" : [

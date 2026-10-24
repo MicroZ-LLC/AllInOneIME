@@ -358,11 +358,14 @@ public struct Config: Codable, Equatable, Sendable {
         region: nil,
         modelId: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
         // Three main versions plus the rewrites; only generated tokens are billed.
-        maxTokens: 1000,
+        maxTokens: 2000,
         temperature: 0.3,
         timeoutSeconds: 15,
         rewriteStyles: RewriteStyle.defaultNames
     )
+
+    /// The default `maxTokens` before 0.6.7, which a config file of then holds: read as `Config.default`'s.
+    static let oldDefaultMaxTokens = 1000
 
     /// Every key a config file may hold (`allKeys`: what the Assistant's checks and changes know as the config's own).
     enum CodingKeys: String, CodingKey, CaseIterable {
@@ -391,7 +394,10 @@ public struct Config: Codable, Equatable, Sendable {
         awsProfile = try c.decodeIfPresent(String.self, forKey: .awsProfile) ?? d.awsProfile
         region = try c.decodeIfPresent(String.self, forKey: .region) ?? d.region
         modelId = try c.decodeIfPresent(String.self, forKey: .modelId) ?? d.modelId
-        maxTokens = try c.decodeIfPresent(Int.self, forKey: .maxTokens) ?? d.maxTokens
+        // 1000 was the default before 0.6.7, and every config written until then holds it (the default is written too):
+        // it is the old default, not a limit the user chose, and reads as today's. Any other value stays as it is.
+        maxTokens = try c.decodeIfPresent(Int.self, forKey: .maxTokens).flatMap { $0 == Self.oldDefaultMaxTokens ? nil : $0 }
+            ?? d.maxTokens
         // An explicit `null` disables temperature; an absent key keeps the default.
         temperature = c.contains(.temperature)
             ? try c.decodeIfPresent(Double.self, forKey: .temperature)

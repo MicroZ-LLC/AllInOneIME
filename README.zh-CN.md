@@ -952,6 +952,7 @@ Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系�
 | `pluginPreferences` | 插件的偏好设置（密码除外），按插件和名字：`{"github": {"repos": "octo-org/octo-repo"}}`；不通过 iCloud 云盘同步（密码类的偏好在钥匙串里，只有打开「API 密钥和密码」时才经过 iCloud 钥匙串） | `{}` |
 | `unconfirmedCommands` | 经 iCloud 从另一台 Mac 来、还在等这台 Mac「允许」的 `suggestions` 类自定义命令，每个记它的 `name` 和带来的 `argv`：它们在这里什么都不运行。允许（或在这里编辑、删除）就从列表里去掉；另一台 Mac 改了它的程序，又会回到列表里。由同步和设置写；只属于这台 Mac，不同步 | `[]` |
 | `notes` | `@note` 存到哪里（设置 →「命令」→「笔记」）：`{"destination": "folder", "folder": "~/Vault/Inbox"}`，或者 `"notion"` 加上「测试」找到的页面或数据库；不通过 iCloud 云盘同步（令牌在钥匙串里，只有打开「API 密钥和密码」时才经过 iCloud 钥匙串） | `destination: "notes"` |
+| `maxTokens` | AI 一次回答最多输出多少 tokens，200–4000；不是默认值时设置里才显示。配置文件里的 `1000` 是 0.6.7 之前的默认值，按新的默认值读 | `2000` |
 | `redaction` | 发送前对 AI 隐藏敏感信息（见「隐私」）：`{"enabled": true, "phones": false, "customWords": ["Phoenix"]}`；各类识别（`emails`、`phones`、`cards`、`keys`、`ips`）不设成 `false` 就开着（设成 `false` 的，设置里会显示出来，带「恢复默认」） | `enabled: false` |
 
 ## 隐私

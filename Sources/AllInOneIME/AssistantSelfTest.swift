@@ -678,14 +678,14 @@ extension SelfTest {
 
         // AI: the provider's problem on its banner, its button Add Key…; a setting no longer shown, set otherwise than its
         // default, on its row with Restore Default, which restores it.
-        model.config.maxTokens = 2000
+        model.config.maxTokens = 3000
         let ai = open(SettingsView(model: model, page: .ai, assistant: assistant))
         _ = pump(timeout: 1) { false }
         let onAI = texts(ai)
         let keyFinding = assistant.issues.first { SettingsPage.of($0.element.area) == .ai }?.element
         check(keyFinding.map { onAI.contains($0.title) } == true && onAI.contains(tr("添加密钥…", "Add Key…")),
               "AI's problem on its banner, its button Add Key… (\(keyFinding?.title ?? "-"))")
-        check(onAI.contains(tr("最多输出 2000 tokens", "Up to 2000 output tokens")) && onAI.contains(tr("恢复默认", "Restore Default"))
+        check(onAI.contains(tr("最多输出 3000 tokens", "Up to 3000 output tokens")) && onAI.contains(tr("恢复默认", "Restore Default"))
               && !onAI.contains(tr("超时 15 秒", "Timeout 15 s")),
               "the output tokens set otherwise show with Restore Default; the timeout at its default doesn't show")
         let restore = nodes(ai).first {
