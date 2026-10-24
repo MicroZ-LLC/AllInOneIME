@@ -648,7 +648,7 @@ public final class InputSession {
         }
         // Autocomplete's suggestion: Tab puts it in, Esc takes it down; any key ends its pause and stops its request.
         if let taken = autocompleteBeforeKey(event) { return taken }
-        // Suggestions' rows take their keys (Tab, the arrows, Return, Esc, by the app's class).
+        // Suggestions' rows take their keys (the arrows, Tab, Return, →, Esc: the same in every app).
         if let taken = suggestionsBeforeKey(event, context) { return taken }
         ensureLevelOne()
         // Commands added to the config apply from the next sentence on (the file is re-read only when it changed).

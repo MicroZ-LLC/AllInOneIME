@@ -12,7 +12,7 @@ struct SuggestionRow: Equatable {
     /// What it puts in instead where the field reports no ranges (the caret stays at the end there), when that differs:
     /// a snippet's first tab stop with its text too.
     var plainInsertion: String?
-    /// What the terminal and code editor class completes: the item's `match`, a keyword, a snippet's trigger, a word.
+    /// What the row is of: the item's `match`, a keyword, a snippet's trigger, a word (`isSame`).
     var completion: String
     /// The part of the token it answers: the whole token for a plugin's row, the identifier for coding's.
     var typed: String
@@ -21,9 +21,6 @@ struct SuggestionRow: Equatable {
     /// The source's title, for the footer, and when its list was made.
     var source: String
     var madeAt: Date?
-    /// Code's (a pack's keyword or snippet, a word of the field), not a plugin's: Return picks it at once, as an
-    /// IDE does (`InputSession.suggestionsReturnRow`).
-    var coding = false
 
     /// What goes in for it where the field reports ranges (`ranges`), or not: what wasn't typed yet (the typed part, its
     /// case, stays).
@@ -195,15 +192,6 @@ enum PluginRows {
             found.append((number, index, row))
         }
         return found.sorted { ($0.list, $0.index) < ($1.list, $1.index) }.map(\.row)
-    }
-
-    /// What each row of `lists` for `token` completes (as `rows` has them, every one: its `completion`), in their order,
-    /// until `visit` says to stop (false): what Tab in a terminal or code editor completes is what all of them share.
-    /// Only the insertion is made, no row.
-    static func eachCompletion(_ token: String, key: CompletionSourceKey, source: CompletionSource, lists: [CompletionItems],
-                               appClass: SuggestionsAppClass, in t: InterfaceWords, _ visit: (String) -> Bool) {
-        guard let maker = RowMaker(token, key: key, source: source, madeAt: nil, appClass: appClass, in: t) else { return }
-        maker.each(in: lists) { _, _, item in maker.insertion(item) == nil || visit(item.match) }
     }
 
     /// What makes a source's rows for a token: its templates for the app's class and the choice made there, read once.
@@ -460,7 +448,7 @@ enum CodingRows {
 
     /// The rows for `identifier` (what is typed of it): `pack`'s snippets whose trigger it starts (the whole trigger too)
     /// and whose body starts with it, its keywords and built-ins it starts (not one typed in full), and `words`; in an
-    /// app of `appClass` (terminals and code editors: a snippet completes as its trigger). A snippet's later lines get
+    /// app of `appClass` (terminals and code editors: a snippet goes in as its trigger). A snippet's later lines get
     /// `indent` (the caret's line's); two that put in the same are one row (spec 6.19). The comment says what a row is,
     /// not its language: Code has one (decision 22).
     static func rows(_ identifier: String, pack: CodingLanguagePack?, words: [String], indent: String = "",
@@ -486,7 +474,7 @@ enum CodingRows {
                 let pick = SuggestionPick(plugin: "", source: pack.language, match: "snippet:\(snippet.trigger):\(snippet.title ?? snippet.body)")
                 snippets.append((SuggestionRow(text: snippet.trigger, comment: "", insertion: insertion, caretBack: back,
                                                plainInsertion: other, completion: snippet.trigger, typed: identifier, pick: pick,
-                                               source: pack.title, coding: true), title))
+                                               source: pack.title), title))
             }
         }
         // Its title, or that it's a snippet ("function", "snippet").
@@ -504,60 +492,15 @@ enum CodingRows {
                 for keyword in list where keyword.hasPrefix(identifier) && keyword != identifier {
                     guard keywords.insert(keyword).inserted else { continue }
                     rows.append(SuggestionRow(text: keyword, comment: comment, insertion: keyword, completion: keyword, typed: identifier,
-                                              pick: SuggestionPick(plugin: "", source: pack.language, match: keyword), source: pack.title,
-                                              coding: true))
+                                              pick: SuggestionPick(plugin: "", source: pack.language, match: keyword), source: pack.title))
                 }
             }
         }
         let fieldWords = t.tr("这个字段里的词", "Words in this field")
         for word in words where word.hasPrefix(identifier) && word != identifier && !keywords.contains(word) {
             rows.append(SuggestionRow(text: word, comment: "", insertion: word, completion: word, typed: identifier, pick: nil,
-                                      source: fieldWords, coding: true))
+                                      source: fieldWords))
         }
         return rows
     }
-}
-
-/// The longest start `texts` share, in any case (the first's case kept).
-func commonPrefix(_ texts: [String]) -> String {
-    guard var common = texts.first else { return "" }
-    for text in texts.dropFirst() where !common.isEmpty {
-        common = commonPrefix(common, text)
-    }
-    return common
-}
-
-/// The longest start `a` and `b` share, in any case (`a`'s case kept; `a` itself when it is all shared). Byte by byte
-/// while both are ASCII (an item's match, a keyword: most often all of it), character by character where either isn't
-/// (or a mark could join the last character compared): no string made per character.
-func commonPrefix(_ a: String, _ b: String) -> String {
-    var (a, b) = (a, b)
-    // The bytes both share, where they stop at a character's start in both; nil: not so.
-    let shared: Int? = a.withUTF8 { x in
-        b.withUTF8 { y in
-            let end = min(x.count, y.count)
-            var n = 0
-            while n < end {
-                var (c, d) = (x[n], y[n])
-                guard c < 0x80, d < 0x80 else { break }
-                if c != d {
-                    if (0x41...0x5A).contains(c) { c |= 0x20 }
-                    if (0x41...0x5A).contains(d) { d |= 0x20 }
-                    guard c == d else { break }
-                }
-                n += 1
-            }
-            return (n == x.count || x[n] < 0x80) && (n == y.count || y[n] < 0x80) ? n : nil
-        }
-    }
-    if let shared {
-        return shared == a.utf8.count ? a : String(a[..<a.utf8.index(a.utf8.startIndex, offsetBy: shared)])
-    }
-    var (k, l) = (a.startIndex, b.startIndex)
-    while k < a.endIndex, l < b.endIndex {
-        let (c, d) = (a[k], b[l])
-        guard c == d || c.lowercased() == d.lowercased() else { break }
-        (k, l) = (a.index(after: k), b.index(after: l))
-    }
-    return k == a.endIndex ? a : String(a[..<k])
 }

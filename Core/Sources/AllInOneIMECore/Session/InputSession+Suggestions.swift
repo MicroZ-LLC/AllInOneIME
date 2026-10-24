@@ -2,8 +2,8 @@ import Foundation
 
 /// Suggestions in one text field's session (spec Suggestions v1, Suggestions/): the token typed into the field since a
 /// boundary, the rows its sources have for it (plugin lists and queries; in Code, its coding language's pack and the
-/// field's own words), the keys they take per app class, the long press of Shift that turns Translate as You Type on and
-/// off (decision 22), and the timers they wait on.
+/// field's own words), the keys they take (one set in every app and input: decision 31), the long press of Shift that
+/// turns Translate as You Type on and off (decision 22), and the timers they wait on.
 struct SuggestionsField {
     /// What was typed into this field since the last boundary, as typed (token characters only), and when it changed
     /// last (`SessionServices.uptime`); where no rows may show (`unasked`: the pointer isn't asked with a key there),
@@ -17,14 +17,16 @@ struct SuggestionsField {
     /// last few such words.
     var showedRows = false
     var notLearned: [String] = []
-    /// The rows shown, the token and class of app they are for.
+    /// The rows shown and the token they are for.
     var rows: [SuggestionRow] = []
     var rowsToken: String?
-    var appClass = SuggestionsAppClass.ordinary
-    var highlighted = 0
-    /// ↓ or ↑ moved the highlight: Return inserts it (a coding row's without it, `suggestionsReturnRow`).
+    /// The row chosen, drawn selected: what Tab and Return put in (decision 31). From the start the first row that puts
+    /// something in; nil: none does (what was typed is all of each), until ↓ or ↑ chooses one.
+    var chosen: Int?
+    /// ↓ or ↑ moved the choice: rows made again for the token keep the row they moved to; else the first that puts
+    /// something in is chosen again.
     var moved = false
-    /// The token Esc hid the rows for (spec 6.12).
+    /// The token → or Esc hid the rows for (spec 6.12, decision 31).
     var hiddenFor: String?
     /// The panel shows the rows.
     var shown = false
@@ -342,40 +344,28 @@ extension InputSession {
         return wants
     }
 
-    /// The row `key` would put in where rows show (`suggestionsBeforeKey`): Tab's, or Return's
-    /// (`suggestionsReturnRow`); nil: none.
+    /// The row `key` would put in where rows show (`suggestionsBeforeKey`): Tab's or Return's, the chosen one
+    /// (`suggestionsChosenRow`); nil: none.
     func suggestionsRowPut(by key: KeyEvent) -> SuggestionRow? {
-        guard suggesting.shown, !suggesting.rows.isEmpty, !composer.isComposing,
-              key.modifiers.subtracting(.capsLock).subtracting(.sides).isEmpty else { return nil }
-        switch (suggesting.appClass, key.key) {
-        case (.ordinary, .tab): return suggesting.rows[suggesting.highlighted]
-        case (.chat, .tab): return suggesting.rows[0]
-        case (_, .enter), (_, .keypadEnter): return suggestionsReturnRow()
+        guard suggesting.shown, !composer.isComposing, key.modifiers.subtracting(.capsLock).subtracting(.sides).isEmpty else { return nil }
+        switch key.key {
+        case .tab, .enter, .keypadEnter: return suggestionsChosenRow()
         default: return nil
         }
     }
 
-    /// The row Return puts in while the rows show; nil: Return is the app's. In an ordinary app the highlighted row once
-    /// ↓/↑ moved it, or at once where it is Code's (decision 20: as in an IDE); in a code editor the first row, where it
-    /// is Code's (the arrows are the editor's). Never in chat apps (Return sends) or terminals (it runs the
-    /// command), nor a coding row that adds nothing to what was typed (a snippet's trigger typed in full, in a code
-    /// editor): the app has Return then.
-    func suggestionsReturnRow() -> SuggestionRow? {
-        guard !suggesting.rows.isEmpty else { return nil }
-        switch suggesting.appClass {
-        case .ordinary:
-            let row = suggesting.rows[suggesting.highlighted]
-            return suggesting.moved || (row.coding && !row.rest(ranges: suggesting.ranges).isEmpty) ? row : nil
-        case .codeEditor:
-            let row = suggesting.rows[0]
-            return !terminal && row.coding && !row.rest(ranges: suggesting.ranges).isEmpty ? row : nil
-        case .chat, .none:
-            return nil
-        }
+    /// The row Tab and Return put in while the rows show: the chosen one, in every app (decision 31: chat apps, browsers,
+    /// code editors and terminals too) and every input. Nil: none is chosen (no row puts anything in), and the key is the
+    /// app's.
+    func suggestionsChosenRow() -> SuggestionRow? {
+        suggesting.chosen.flatMap { suggesting.rows.indices.contains($0) ? suggesting.rows[$0] : nil }
     }
 
-    /// Before the composer has `event`: the rows' keys of the app's class while they show (spec 1.4: Tab, ↓ ↑, Return
-    /// once moved or on a Code row, Esc; digits never). Nil: the key goes on.
+    /// Before the composer has `event`: the rows' keys while they show, one set in every app and input (decision 31,
+    /// which replaced spec 1.4's per class of app): ↓ and ↑ move the choice, Tab and Return put the chosen row in, → and
+    /// Esc hide the rows for the token (the key is ours; the keys are the app's then, until the token changes); digits
+    /// are typed, never pick. Not while pinyin composes: its own candidates have the keys then. Nil: the key goes on.
+    /// The one place the rows' keys are decided.
     func suggestionsBeforeKey(_ event: KeyEvent, _ context: FieldContext) -> Bool? {
         // A key while Shift is held is no long press of it.
         shiftHold.keyDown()
@@ -391,35 +381,18 @@ extension InputSession {
         }
         guard suggesting.shown, !suggesting.rows.isEmpty, !composer.isComposing,
               event.modifiers.subtracting(.capsLock).subtracting(.sides).isEmpty else { return nil }
-        switch (suggesting.appClass, event.key) {
-        case (.ordinary, .tab):
-            suggestionsInsert(suggesting.rows[suggesting.highlighted], key: event)
+        switch event.key {
+        case .tab, .enter, .keypadEnter:
+            guard let row = suggestionsChosenRow() else { return nil }
+            suggestionsInsert(row, key: event)
             return true
-        case (.chat, .tab):
-            suggestionsInsert(suggesting.rows[0], key: event)
-            return true
-        case (.codeEditor, .tab):
-            return suggestionsCompleteShared(event) ? true : nil
-        case (.ordinary, .arrow(.down)), (.ordinary, .arrow(.up)):
-            let count = suggesting.rows.count
-            if suggestionsReturnRow() == nil {
-                // Nothing chosen yet (the first row only outlined): ↓ chooses the first row, ↑ the last; then they move.
-                // Not one that puts nothing in (what was typed is all of it: "JIRA-12" typed, its row): ↓ goes on to the
-                // next that puts something in, ↑ back to the one before.
-                let down = event.key == .arrow(.down)
-                let fills = suggesting.rows.indices.filter { !suggesting.rows[$0].rest(ranges: suggesting.ranges).isEmpty }
-                suggesting.highlighted = (down ? fills.first : fills.last) ?? (down ? 0 : count - 1)
-            } else {
-                suggesting.highlighted = (suggesting.highlighted + (event.key == .arrow(.down) ? 1 : -1) + count) % count
-            }
+        case .arrow(.down), .arrow(.up):
+            let (count, down) = (suggesting.rows.count, event.key == .arrow(.down))
+            suggesting.chosen = suggesting.chosen.map { ($0 + (down ? 1 : -1) + count) % count } ?? (down ? 0 : count - 1)
             suggesting.moved = true
             suggestionsShow()
             return true
-        case (_, .enter), (_, .keypadEnter):
-            guard let row = suggestionsReturnRow() else { return nil }
-            suggestionsInsert(row, key: event)
-            return true
-        case (.ordinary, .escape):
+        case .arrow(.right), .escape:
             suggesting.hiddenFor = suggesting.token
             suggestionsUpdate()
             return true
@@ -566,85 +539,27 @@ extension InputSession {
         if let key { autocompleteAfterKey(key, handled: true, inserted: rest) }
     }
 
-    /// Tab in a terminal or code editor: the common start of what every row for the token completes (not only the 5
-    /// shown), when it adds to what was typed (spec 6.10); the token goes on with it, the rows stay.
-    func suggestionsCompleteShared(_ key: KeyEvent) -> Bool {
-        let typed = suggesting.rows[0].typed
-        let common = suggestionsSharedCompletion(typed)
-        guard common.count > typed.count,
-              SuggestionsToken.normalized(common).lowercased().hasPrefix(SuggestionsToken.normalized(typed).lowercased()) else { return false }
-        let rest = String(common.dropFirst(typed.count))
-        emit(.commit(rest))
-        lastTyped.forget()
-        followEnglishInserted(rest)
-        suggesting.token += rest
-        suggesting.tokenAt = services.uptime()
-        suggestionsUpdate()
-        autocompleteAfterKey(key, handled: true, inserted: rest)
-        return true
-    }
-
-    /// What the completions of all the rows for the token that answer `typed` (the whole token, or Code's identifier)
-    /// start with, in any case (`commonPrefix`): the plugins' items (looked through until nothing more is shared) and
-    /// Code's.
-    func suggestionsSharedCompletion(_ typed: String) -> String {
-        let s = services.suggestions
-        let appClass = SuggestionsAppClass(app: app, terminal: terminal)
-        let t = InterfaceWords(language: UIText.language)
-        let token = suggesting.token
-        var common: String?
-        var commonCount = 0
-        let typedCount = typed.count
-        /// `completion` taken in: false once nothing more than what was typed is shared. (What is shared only ever gets
-        /// shorter: its characters counted again only then.)
-        func share(_ completion: String) -> Bool {
-            let shared = commonPrefix(common ?? completion, completion)
-            if shared.utf8.count != common?.utf8.count { (common, commonCount) = (shared, shared.count) }
-            return commonCount > typedCount
-        }
-        // A plugin's rows answer the whole token.
-        sources: for active in activeSources(s.settings()) where typed == token {
-            guard let after = PluginRows.afterPrefix(token, active.source) else { continue }
-            let list = active.source.list ? s.store.list(active.key) : nil
-            let answers = active.source.query && active.source.prefix != nil
-                ? s.store.answers(active.key, for: after.lowercased(), now: s.now()) : []
-            var more = true
-            PluginRows.eachCompletion(token, key: active.key, source: active.source,
-                                      lists: (list.map { [$0.items] } ?? []) + answers.map(\.items), appClass: appClass, in: t) { completion in
-                more = share(completion)
-                return more
-            }
-            if !more { break sources }
-        }
-        if composer.coding, common.map({ $0.count > typed.count }) ?? true {
-            let identifier = SuggestionsToken.identifier(endingAt: SuggestionsToken.normalized(token))
-            for row in CodingRows.rows(identifier, pack: codePack(services.loadSettings()), words: terminal ? [] : suggesting.words,
-                                       appClass: appClass, in: t)
-            where row.typed == typed {
-                if !share(row.completion) { break }
-            }
-        }
-        return common ?? typed
-    }
-
     // MARK: - The rows
 
-    /// The rows for the token now, shown (or hidden): the highlight and Esc's hiding kept while the token stays; rows
-    /// shown, autocomplete's gray text goes (spec 0). `askAgain`: the pause before a query is asked again is over.
-    /// Made again for the same token (Code's words read once typing pauses, a list or a query come back), the highlighted
-    /// row stays highlighted wherever it is now (`SuggestionRow.isSame`), and ↓/↑ having moved (Return's rule) stays.
+    /// The rows for the token now, shown (or hidden): the choice and the hiding by → or Esc kept while the token stays;
+    /// rows shown, autocomplete's gray text goes (spec 0). `askAgain`: the pause before a query is asked again is over.
+    /// The first row that puts something in is chosen (decision 31), made again for the same token too (Code's words read
+    /// once typing pauses, a list or a query come back); once ↓ or ↑ moved, the row they moved to stays chosen wherever it
+    /// is now (`SuggestionRow.isSame`).
     func suggestionsUpdate(askAgain: Bool = false) {
-        let (rows, appClass) = suggestionsRows(askAgain: askAgain)
+        let rows = suggestionsRows(askAgain: askAgain)
         let sameToken = suggesting.rowsToken == suggesting.token
-        let wasHighlighted = suggesting.rows.indices.contains(suggesting.highlighted) ? suggesting.rows[suggesting.highlighted] : nil
+        let wasChosen = suggestionsChosenRow()
         suggesting.rows = rows
-        suggesting.appClass = appClass
         suggesting.rowsToken = suggesting.token
-        if sameToken {
-            suggesting.highlighted = wasHighlighted.flatMap { row in rows.firstIndex { $0.isSame(as: row) } }
-                ?? min(suggesting.highlighted, max(rows.count - 1, 0))
+        if !sameToken { suggesting.moved = false }
+        if rows.isEmpty {
+            suggesting.chosen = nil
+        } else if suggesting.moved {
+            suggesting.chosen = wasChosen.flatMap { row in rows.firstIndex { $0.isSame(as: row) } }
+                ?? suggesting.chosen.map { min($0, rows.count - 1) }
         } else {
-            (suggesting.highlighted, suggesting.moved) = (0, false)
+            suggesting.chosen = rows.firstIndex { !$0.rest(ranges: suggesting.ranges).isEmpty }
         }
         if !rows.isEmpty {
             suggesting.showedRows = true
@@ -669,20 +584,20 @@ extension InputSession {
         }
     }
 
-    /// The rows for the token (5 at most) and the class of app they are for: the plugins' sources that apply (their
+    /// The rows for the token (5 at most), as the class of app puts them in: the plugins' sources that apply (their
     /// list's and queries' items, those picked before first), Code's (its coding language's pack, the field's words). None while
     /// something is composed, in secure input, in a password field or one not known to be none yet (`passwordField`),
     /// where a switch is off or the app has none (spec 1.5). Asks the queries
     /// due (spec 6.4) and marks the sources used. Each source's items are looked through only for what matches, until
     /// its first 5 rows (with the rows picked before, wherever they are): a list may have 20,000.
-    func suggestionsRows(askAgain: Bool) -> ([SuggestionRow], SuggestionsAppClass) {
+    func suggestionsRows(askAgain: Bool) -> [SuggestionRow] {
         let appClass = SuggestionsAppClass(app: app, terminal: terminal)
         let s = services.suggestions
         let settings = s.settings()
         guard !suggesting.token.isEmpty, !suggesting.dead, suggesting.hiddenFor != suggesting.token,
               !composer.isComposing, !composer.wantsPanel, !secureInputActive(), passwordField == false, appClass != .none,
               suggestionsOn(settings)
-        else { return ([], appClass) }
+        else { return [] }
         let now = s.now()
         let t = InterfaceWords(language: UIText.language)
         let scores = Frecency.scores(s.loadPicks())
@@ -715,45 +630,26 @@ extension InputSession {
                                                      words: terminal ? [] : suggesting.words, indent: suggesting.indent,
                                                      appClass: appClass, in: t), scores: scores)
         }
-        return (Array(rows.prefix(Self.maxSuggestionRows)), appClass)
+        return Array(rows.prefix(Self.maxSuggestionRows))
     }
 
-    /// The panel of the rows: no number on a row (digits are typed, spec 6.1), the keys of the app's class in the footer,
-    /// the source and its list's age (once older than 10 minutes) on its right, or the notice. The highlighted row is
-    /// drawn chosen only where Return takes it: until then it is only the row Tab takes.
+    /// The panel of the rows: no number on a row (digits are typed, spec 6.1), the chosen row drawn selected, the keys in
+    /// the footer, the same in every app (decision 31), the source and its list's age (once older than 10 minutes) on its
+    /// right, or the notice.
     func suggestionsPanel() -> PanelModel? {
         guard suggesting.shown, let first = suggesting.rows.first else { return nil }
         let t = InterfaceWords(language: UIText.language)
         let rows = suggesting.rows.enumerated().map { index, row in
             PanelModel.Row(label: "", text: row.text, comment: row.comment, kind: .candidate, choice: index)
         }
-        // What Return does, said: it inserts, it waits for ↓/↑, or it is the app's.
         let enter = Platform.current.terms.enter
-        let returnInserts = suggestionsReturnRow() != nil
-        let footer: String
-        let highlighted: Int?
-        switch suggesting.appClass {
-        case .ordinary:
-            footer = returnInserts ? t.tr("Tab 或 \(enter) 插入 · ↑↓ 选择 · Esc 隐藏", "Tab or \(enter) inserts · ↑↓ to pick · Esc hides")
-                : t.tr("Tab 插入 · ↑↓ 再 \(enter) 选择 · Esc 隐藏", "Tab inserts · ↑↓ then \(enter) to pick · Esc hides")
-            highlighted = suggesting.highlighted
-        case .chat:
-            footer = t.tr("Tab 插入第一行 · \(enter) 交给应用", "Tab inserts the first row · \(enter) goes to the app")
-            highlighted = 0  // Tab's, never chosen: Return sends
-        case .codeEditor, .none:
-            footer = returnInserts ? t.tr("Tab 补全它们共同的开头 · \(enter) 插入第一行", "Tab completes what they share · \(enter) inserts the first row")
-                : t.tr("Tab 补全它们共同的开头 · \(enter) 交给应用", "Tab completes what they share · \(enter) goes to the app")
-            // The row Return puts in, else none: Tab completes what they all share.
-            highlighted = returnInserts ? 0 : nil
-        }
-        let shown = suggesting.rows[suggesting.appClass == .ordinary ? suggesting.highlighted : 0]
+        let footer = t.tr("Tab 或 \(enter) 插入 · ↑↓ 选择 · → 或 Esc 隐藏", "Tab or \(enter) inserts · ↑↓ to pick · → or Esc hides")
+        let shown = suggestionsChosenRow() ?? first
         var detail = shown.source
         if let madeAt = shown.madeAt ?? first.madeAt, let age = Self.listAge(madeAt, now: services.suggestions.now(), in: t) {
             detail += " · " + age
         }
-        // Chosen (drawn selected) only where Return takes it; else only the row Tab takes, nothing chosen yet.
-        return PanelModel(rows: rows, highlighted: highlighted, highlightChosen: returnInserts, footer: footer,
-                          detail: notice ?? detail)
+        return PanelModel(rows: rows, highlighted: suggesting.chosen, footer: footer, detail: notice ?? detail)
     }
 
     /// A list's age as the footer says it, once older than 10 minutes: "12 min ago", "2 h ago", "3 d ago".

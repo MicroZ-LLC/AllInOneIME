@@ -38596,6 +38596,7 @@
     },
     "Tab completes what they share · %@ goes to the app" : {
       "comment" : "Tab 补全它们共同的开头 · %@ 交给应用 — Sources/AllInOneIMECore/Session/InputSession+Suggestions.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -38643,6 +38644,7 @@
     },
     "Tab completes what they share · %@ inserts the first row" : {
       "comment" : "Tab 补全它们共同的开头 · %@ 插入第一行 — Sources/AllInOneIMECore/Session/InputSession+Suggestions.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -38738,6 +38740,7 @@
     },
     "Tab inserts · ↑↓ then %@ to pick · Esc hides" : {
       "comment" : "Tab 插入 · ↑↓ 再 %@ 选择 · Esc 隐藏 — Sources/AllInOneIMECore/Session/InputSession+Suggestions.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -38833,6 +38836,7 @@
     },
     "Tab inserts the first row · %@ goes to the app" : {
       "comment" : "Tab 插入第一行 · %@ 交给应用 — Sources/AllInOneIMECore/Session/InputSession+Suggestions.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -38878,8 +38882,56 @@
         }
       }
     },
+    "Tab or %@ inserts · ↑↓ to pick · → or Esc hides" : {
+      "comment" : "Tab 或 %@ 插入 · ↑↓ 选择 · → 或 Esc 隐藏 — Sources/AllInOneIMECore/Session/InputSession+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab oder %@ fügt ein · ↑↓ zum Wählen · → oder Esc blendet aus"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab o %@ inserta · ↑↓ para elegir · → o Esc oculta"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab ou %@ insère · ↑↓ pour choisir · → ou Échap masque"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab か %@ で挿入 · ↑↓ で選択 · → か Esc で隠す"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab 또는 %@ 삽입 · ↑↓ 선택 · → 또는 Esc 숨기기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab ou %@ insere · ↑↓ para escolher · → ou Esc oculta"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab 或 %@ 插入 · ↑↓ 選擇 · → 或 Esc 隱藏"
+          }
+        }
+      }
+    },
     "Tab or %@ inserts · ↑↓ to pick · Esc hides" : {
       "comment" : "Tab 或 %@ 插入 · ↑↓ 选择 · Esc 隐藏 — Sources/AllInOneIMECore/Session/InputSession+Suggestions.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {

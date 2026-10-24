@@ -3,7 +3,7 @@ import Foundation
 /// The code editors, one list for all that tells them apart: autocomplete is off there unless the app is set to always
 /// (`Autocomplete.isCodeEditor`: Tab indents there and takes the editor's own completion, which a gray suggestion would
 /// take instead, and what is written there is code), and suggestions' rows are the terminal and code editor class's there
-/// (`SuggestionsAppClass.codeEditor`: Tab completes the rows' shared start only). Xcode, Visual Studio Code (and its
+/// (`SuggestionsAppClass.codeEditor`: a row puts in its match, a snippet its trigger). Xcode, Visual Studio Code (and its
 /// Insiders build), VSCodium, Cursor, Windsurf, Zed, Nova, Sublime Text, JetBrains' IDEs (IntelliJ IDEA, PyCharm,
 /// WebStorm, GoLand, CLion, Rider, PhpStorm, RubyMine, DataGrip, Fleet), Android Studio, BBEdit, TextMate, MacVim, Emacs;
 /// on Windows the same by program, with Visual Studio and Notepad++. Jupyter in a browser goes by the browser's id, and

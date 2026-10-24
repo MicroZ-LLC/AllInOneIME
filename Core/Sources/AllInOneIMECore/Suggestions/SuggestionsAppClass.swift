@@ -1,14 +1,14 @@
 import Foundation
 
-/// What suggestions' rows do in an app (spec 1.4, 6.11), by its id (the Mac's bundle id, Windows' "win:<program>") and
-/// whether the field is a terminal's (`FieldInfo.terminal`).
+/// Whether suggestions' rows show in an app and what they put in there (spec 1.4, 6.11), by its id (the Mac's bundle id,
+/// Windows' "win:<program>") and whether the field is a terminal's (`FieldInfo.terminal`). Not their keys: those are
+/// the same in every class with rows (decision 31, `InputSession.suggestionsBeforeKey`).
 public enum SuggestionsAppClass: Equatable, Sendable {
-    /// Tab inserts the highlighted row (the first), ↓ ↑ move it, Return inserts it once moved, Esc hides the rows.
+    /// The `default` template.
     case ordinary
-    /// Chat apps and browsers (Return sends): Tab inserts the first row with the `chat` template; every other key is the
-    /// app's.
+    /// Chat apps and browsers: the `chat` template.
     case chat
-    /// Terminals and code editors: Tab completes the rows' common prefix only, with `{match}`; every other key is the app's.
+    /// Terminals and code editors: `{match}` (a snippet as its trigger).
     case codeEditor
     /// Launchers, remote desktops, virtual machines, SSH clients: no rows.
     case none
@@ -31,8 +31,8 @@ public enum SuggestionsAppClass: Equatable, Sendable {
     static let launcherPrograms: Set<String> = ["powertoys.powerlauncher.exe", "flow.launcher.exe", "wox.exe"]
 
     /// The chat apps (`AppClass`'s: WeChat, Slack, Messages, Telegram, Discord, Teams), Electron chat apps, and the
-    /// Chromium browsers (Chrome, Edge, Brave, Arc, Vivaldi, Opera), whose web apps send on Return; by the beginning of
-    /// their ids, in small letters.
+    /// Chromium browsers (Chrome, Edge, Brave, Arc, Vivaldi, Opera), whose web apps are chats; by the beginning of their
+    /// ids, in small letters.
     static let chatApps = AppClass.chatApps.map { $0 } + [
         "com.google.chrome", "com.microsoft.edgemac", "com.brave.browser", "company.thebrowser.browser", "com.vivaldi.vivaldi",
         "com.operasoftware.opera", "org.whispersystems.signal-desktop", "im.riot.app", "mattermost.desktop",
