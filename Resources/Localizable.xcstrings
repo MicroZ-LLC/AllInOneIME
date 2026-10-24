@@ -2213,7 +2213,6 @@
     },
     "%@ more look good" : {
       "comment" : "另外 %@ 项正常 — Sources/AllInOneIME/AssistantPage.swift",
-      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {

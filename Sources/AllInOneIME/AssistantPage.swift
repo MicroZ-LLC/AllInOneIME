@@ -52,6 +52,8 @@ final class AssistantModel: ObservableObject {
     @Published private(set) var checkingConnection = false
     /// The finding whose command was just copied ("Copied" for a moment).
     @Published private(set) var copied: Int?
+    /// The ✓ rows shown under their line (`fold`, opened): folded each time Settings opens, then as the user leaves it.
+    @Published var showsFine = false
 
     /// How many times the probes ran, and the connection test (the self-test counts them).
     private(set) var probes = 0
@@ -413,14 +415,21 @@ final class AssistantModel: ObservableObject {
         }
     }
 
-    /// Every finding is fine: the summary says "Everything looks good".
+    /// Every finding is fine: the folded line says "Everything looks good" (else "N more look good").
     var allFine: Bool { !findings.isEmpty && findings.allSatisfy { $0.status == .ok } }
 
-    /// The row over the findings: "Everything looks good", else how many problems and warnings (`Doctor.summary`); nil
-    /// until the first probe is in.
-    var summary: String? {
-        guard !findings.isEmpty else { return nil }
-        return allFine ? tr("一切正常", "Everything looks good") : Doctor.summary(findings, language: UIText.language)
+    /// The problems and warnings, a row each, always shown, with their index among all the findings (what Fix and
+    /// Copied go by).
+    var issues: [(offset: Int, element: Doctor.Finding)] { findings.enumerated().filter { $0.element.status != .ok } }
+
+    /// What is fine, folded under one line (`fold`) until it is opened (`showsFine`).
+    var fine: [(offset: Int, element: Doctor.Finding)] { findings.enumerated().filter { $0.element.status == .ok } }
+
+    /// The line what is fine is folded under: "Everything looks good", else "N more look good"; nil while nothing is.
+    var fold: String? {
+        let count = fine.count
+        guard count > 0 else { return nil }
+        return allFine ? tr("一切正常", "Everything looks good") : tr("另外 \(count) 项正常", "\(count) more look good")
     }
 
     /// Fix on finding `index`: a config fix shows its changes in the preview above (Apply, Undo); the others act at once,
@@ -477,7 +486,7 @@ final class AssistantModel: ObservableObject {
         checkTask?.cancel()
         connectionTask?.cancel()
         (request, preview, lines, message, applied, appliedWritesSettings, undone, connection) = ("", nil, [], nil, nil, false, nil, nil)
-        (findings, checking, question, questionNote, explanation, recommended, copied) = ([], false, "", nil, nil, [], nil)
+        (findings, checking, question, questionNote, explanation, recommended, copied, showsFine) = ([], false, "", nil, nil, [], nil, false)
         (probes, connectionTests, lastProbe, tested, checkingConnection, pendingReprobe) = (0, 0, nil, nil, false, false)
     }
 }
@@ -601,13 +610,20 @@ struct AssistantPage: View {
                 Label(explanation, systemImage: "sparkles").labelStyle(StatusLabelStyle(color: .purple))
                     .fixedSize(horizontal: false, vertical: true)
             }
-            // The summary, then a row per finding (problems first), each as Settings' other rows: its status icon, the
-            // title with the detail under it, Fix at the end.
-            if let summary = assistant.summary, let worst = assistant.findings.map(\.status).min() {
-                statusTitled(worst, summary, nil)
-            }
-            ForEach(Array(assistant.findings.enumerated()), id: \.offset) { index, finding in
+            // Problems and warnings each on a row (problems first); what is fine folded under one green line, opened by
+            // clicking it. Each as Settings' other rows: its status icon, the title with the detail under it, Fix at the end.
+            ForEach(assistant.issues, id: \.offset) { index, finding in
                 findingRow(finding, index: index)
+            }
+            if let fold = assistant.fold {
+                DisclosureGroup(isExpanded: $assistant.showsFine) {
+                    ForEach(assistant.fine, id: \.offset) { index, finding in
+                        findingRow(finding, index: index)
+                    }
+                } label: {
+                    statusTitled(.ok, fold, nil)
+                }
+                .disclosureGroupStyle(RowDisclosureStyle())
             }
         } header: {
             HStack(spacing: 8) {
@@ -689,6 +705,30 @@ private struct StatusLabelStyle: LabelStyle {
         HStack(alignment: .firstTextBaseline) {
             configuration.icon.foregroundStyle(color).frame(width: 20)
             configuration.title
+        }
+    }
+}
+
+/// A disclosure drawn as a row of the card: the whole row opens and folds it, its chevron at the end (where the other
+/// rows' buttons are), what it holds as rows under it; the default style's chevron before the label would push the
+/// icon out of the other rows' column. VoiceOver still reads it as a disclosure, collapsed or expanded.
+private struct RowDisclosureStyle: DisclosureGroupStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        Button {
+            withAnimation { configuration.isExpanded.toggle() }
+        } label: {
+            HStack {
+                configuration.label
+                Spacer()
+                Image(systemName: "chevron.right").foregroundStyle(.secondary)
+                    .rotationEffect(.degrees(configuration.isExpanded ? 90 : 0))
+                    .accessibilityHidden(true)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        if configuration.isExpanded {
+            configuration.content
         }
     }
 }

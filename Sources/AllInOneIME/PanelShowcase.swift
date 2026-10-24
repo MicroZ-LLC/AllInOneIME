@@ -268,12 +268,14 @@ enum SettingsPageImages {
             default: updates.state = .upToDate
             }
         }
-        // Assistant: a sample request and made-up findings (`doctor=fine`: nothing wrong), from stand-ins and a config
-        // file of its own (no probe of this Mac, no AI, nothing of the user's).
+        // Assistant: a sample request and made-up findings (`doctor=fine`: nothing wrong; `open`: what is fine opened),
+        // from stand-ins and a config file of its own (no probe of this Mac, no AI, nothing of the user's).
         let samples = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-assistant-\(UUID().uuidString)")
         try? FileManager.default.createDirectory(at: samples, withIntermediateDirectories: true)
         let rig = SelfTest.AssistantRig(samples, name: "config.json", config: SelfTest.assistantSampleConfig)
-        let assistant = SelfTest.sampleAssistant(rig, fine: doctor == "fine")
+        let shownChecks = doctor?.split(separator: ",") ?? []
+        let assistant = SelfTest.sampleAssistant(rig, fine: shownChecks.contains("fine"))
+        assistant.showsFine = shownChecks.contains("open")
         for page in SettingsPage.allCases where page.isShown {
             SettingsImage.render(model, page: page, assistant: page == .assistant ? assistant : nil,
                                  to: output.appendingPathComponent("settings-\(page.rawValue).png"),

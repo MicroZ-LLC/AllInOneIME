@@ -2725,6 +2725,7 @@ final class SettingsWindow {
             let model = SettingsModel()
             self.model = model
             UIText.choice = model.config.uiLanguage
+            AssistantModel.shared.showsFine = false  // Check for problems: what is fine folded again
             let host = NSHostingController(rootView: SettingsView(model: model, page: page))
             let window = NSWindow(contentViewController: host)
             // Fields saved on ⏎ (a model ID, the base URL) are saved when the window closes too.

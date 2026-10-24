@@ -446,7 +446,7 @@ extension SelfTest {
     /// own: the quick probes alone (no connection test), problems first; a config fix shows in the first section's preview
     /// and applies and undoes like a request; the other fixes act at once (recorded here, never done), the key's opens the
     /// key field; Check runs the connection test, and with a question the model's explanation (a stand-in on-device
-    /// model); everything fine is one line. The user's config is never touched.
+    /// model); problems and warnings each a row, what is fine folded under one line. The user's config is never touched.
     static func testDoctor(snapshotDirectory: URL) {
         section("Settings → Assistant: check for problems (fake probes)")
         let realBefore = try? Data(contentsOf: Config.userURL)
@@ -547,26 +547,37 @@ extension SelfTest {
             check(false, "an expired SSO sign-in's finding offers its command to copy (\(assistant.findings.map { $0.text(chinese: false) }))")
         }
 
-        // The summary over the rows: how many problems; everything fine, says so.
-        let problems = assistant.findings.filter { $0.status == .problem }.count
-        check(problems > 0 && assistant.summary?.hasPrefix("\(problems) 个问题，") == true,
-              "the summary counts the problems (\(assistant.summary ?? "-"))")
+        // Problems and warnings each a row, never folded; what is fine folded under one line, at first; opened, it stays
+        // so while the probes run again.
+        let passed = assistant.findings.filter { $0.status == .ok }
+        check(!assistant.showsFine && !passed.isEmpty && assistant.fold == "另外 \(passed.count) 项正常"
+              && assistant.fine.map(\.element) == passed
+              && assistant.issues.map(\.element) == assistant.findings.filter { $0.status != .ok } && !assistant.issues.isEmpty,
+              "the problems are rows, what is fine folded under one line (\(assistant.fold ?? "-"))")
+        assistant.showsFine = true
+        assistant.probe(now: true)
+        probed()
+        check(assistant.showsFine, "opened, what is fine stays open while the probes run again")
+        assistant.showsFine = false
         rig.facts = fineFacts
         var fine = start
         fine.typeOutRate = TypeOut.defaultRate
         try? fine.write(to: rig.url)
         assistant.probe(now: true)
         probed()
-        check(assistant.allFine && !assistant.findings.isEmpty && assistant.summary == "一切正常",
-              "everything fine: the summary says so (\(assistant.findings.map { $0.status }))")
+        check(assistant.allFine && assistant.issues.isEmpty && assistant.fold == "一切正常" && !assistant.showsFine,
+              "everything fine: one line, folded (\(assistant.findings.map { $0.status }))")
         let updates = assistant.findings.first { $0.area == .updates }
         check(updates?.title == "更新：自动检查" && updates?.detail == "当前版本 \(AppVersion.string)",
               "the updates row is named by what it checks, not the version again (\(updates?.text(chinese: true) ?? "-"))")
+        assistant.showsFine = true
         assistant.reset()
+        check(!assistant.showsFine, "reset folds it again")
     }
 
     /// The page itself: Settings opens on Assistant, the probes run as it appears and never the connection test, the
-    /// request field has the focus; and its images in both languages, light and dark (`assistant*.png`).
+    /// request field has the focus, what is fine folded until a click opens it; and its images in both languages, light
+    /// and dark (`assistant*.png`).
     static func testAssistantPage(snapshotDirectory: URL) {
         section("Settings → Assistant: the page")
         let start = assistantSampleConfig
@@ -591,6 +602,59 @@ extension SelfTest {
         check(rig.tested == 0 && assistant.connectionTests == 0, "opening the page doesn't run the connection test")
         let focused = window.firstResponder is NSText
         check(focused, "the request field has the focus")
+
+        // The checks as VoiceOver finds them: the problems' rows, then what is fine folded under one line, a disclosure,
+        // collapsed; a click on its title opens it (the ✓ rows under it), one on its chevron folds it again. SwiftUI
+        // builds the views' accessibility for an assistive app only, which says so with `AXEnhancedUserInterface` on the
+        // app: set here on this process's own, by its selector (AppKit has no API for it), and off again after.
+        func enhanced(_ on: Bool) {
+            _ = NSApp.perform(Selector(("accessibilitySetValue:forAttribute:")), with: on as NSNumber, with: "AXEnhancedUserInterface")
+        }
+        enhanced(true)
+        _ = pump(timeout: 0.5) { false }
+        func ax(_ node: NSObject, _ key: String) -> Any? { node.responds(to: NSSelectorFromString(key)) ? node.value(forKey: key) : nil }
+        func nodes(_ node: NSObject) -> [NSObject] { [node] + ((ax(node, "accessibilityChildren") as? [NSObject]) ?? []).flatMap(nodes) }
+        /// The page's texts in VoiceOver's order, and the disclosure among them: where, what it says, open or not.
+        struct Shown { var texts: [String], fold: Int?, label: String?, expanded: Bool?, frame: NSRect? }
+        func seen() -> Shown {
+            let all = nodes(window)
+            let fold = all.firstIndex { ax($0, "accessibilityRole") as? String == NSAccessibility.Role.disclosureTriangle.rawValue }
+            let node = fold.map { all[$0] }
+            return Shown(texts: all.map { (ax($0, "accessibilityValue") as? String) ?? (ax($0, "accessibilityLabel") as? String) ?? "" },
+                         fold: fold, label: node.flatMap { ax($0, "accessibilityLabel") as? String },
+                         expanded: node.flatMap { (ax($0, "accessibilityValue") as? NSNumber)?.boolValue },
+                         frame: node.flatMap { (ax($0, "accessibilityFrame") as? NSValue)?.rectValue })
+        }
+        func click(_ frame: NSRect?, atEnd: Bool) {
+            guard let frame else { return }
+            let point = window.convertPoint(fromScreen: NSPoint(x: atEnd ? frame.maxX - 8 : frame.minX + 40, y: frame.midY))
+            for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
+                guard let event = NSEvent.mouseEvent(with: type, location: point, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                                     windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1,
+                                                     pressure: 1) else { continue }
+                window.sendEvent(event)
+            }
+            _ = pump(timeout: 0.5) { false }
+        }
+        let issues = assistant.issues.map(\.element.title)
+        let passed = assistant.fine.map(\.element.title).filter { !issues.contains($0) }
+        /// The problems' rows above the line, which says how many more are fine.
+        func above(_ seen: Shown) -> Bool {
+            !issues.isEmpty && seen.label?.contains(assistant.fold ?? "-") == true
+                && issues.allSatisfy { title in seen.texts.firstIndex(of: title).map { $0 < seen.fold ?? 0 } ?? false }
+        }
+        let folded = seen()
+        check(folded.expanded == false && !assistant.showsFine && above(folded) && !passed.contains(where: folded.texts.contains),
+              "the problems are rows above one line, a disclosure, collapsed (\(folded.label ?? "-"))")
+        click(folded.frame, atEnd: false)
+        let opened = seen()
+        check(opened.expanded == true && assistant.showsFine && above(opened) && !passed.isEmpty && passed.allSatisfy(opened.texts.contains),
+              "a click on the line opens it: the ✓ rows under it (\(String(describing: opened.expanded)))")
+        click(opened.frame, atEnd: true)
+        let closed = seen()
+        check(closed.expanded == false && !assistant.showsFine && above(closed) && !passed.contains(where: closed.texts.contains),
+              "a click on its chevron folds it again (\(String(describing: closed.expanded)))")
+        enhanced(false)
         window.close()
         _ = pump(timeout: 0.3) { false }
 
