@@ -854,9 +854,13 @@ They take the place of [autocomplete](#autocomplete-beta-new)'s gray text while 
   in pinyin goes in as typed once its dash is typed (its letters aren't made Chinese), and the digits after it are
   typed. What you typed stays as typed; only the rest goes in (`#12` and the row `#1234 Fix login` add `34 Fix login`).
 - **Keys:** in most apps Tab inserts the highlighted row (the first), ↓ ↑ move the highlight and ⏎ then inserts it, Esc
-  hides the rows until what you type changes. In chat apps and browsers (Slack, WeChat, Teams, Chrome, Edge…) only Tab
+  hides the rows until what you type changes. Until ↓ or ↑ is pressed the first row is only outlined, not chosen (Tab
+  takes it; ⏎ is still the app's): the first ↓ chooses the first row (the next one when the first would put nothing in,
+  what you typed being all of it), the first ↑ the last, and then they move; Code's rows are chosen from the start, so
+  ↓ ↑ move at once. In chat apps and browsers (Slack, WeChat, Teams, Chrome, Edge…) only Tab
   is taken, with the plugin's chat form (`#1234 Fix login https://github.com/…`): ⏎ always sends. In terminals and code editors
-  (Xcode, VS Code, JetBrains…) Tab completes only what the rows share. Digits never pick a row: they go on typing (`#7`
+  (Xcode, VS Code, JetBrains…) Tab completes only what the rows share; where that adds nothing to what you typed,
+  Tab is the app's (its own completion). Digits never pick a row: they go on typing (`#7`
   then `1` is `#71`). No rows in launchers, remote desktops, virtual machines and SSH clients.
 - **Turning them on:** **Suggestions** in Settings → General, on unless you turn it off, covers plugins', Suggestions
   commands' and Code's rows; they show once there is a source (a plugin's completions turned on, a Suggestions command,
@@ -864,7 +868,8 @@ They take the place of [autocomplete](#autocomplete-beta-new)'s gray text while 
   now; its preferences, passwords in the keychain). A plugin update that changes the hosts it reaches, its
   prefix, whether it looks up what you type and from which character on, how it compares (`compare`) or its script turns
   them off until you turn them on again (Settings says so under it). **Suggestions** in the input menu turns them all off
-  or on; Settings → Apps per app. With `#` as the magic key, a source after `#` can't work (Settings says so).
+  or on; Settings → Apps per app. An app with No AI still has them: no AI is involved (a plugin's lookup still goes to
+  its hosts there). With `#` as the magic key, a source after `#` can't work (Settings says so).
 - **What a row inserts:** what its source says (a plugin's `insert`, per class of app: `@github` puts in `#1234 Fix
   login` in documents and the link too in chat apps; a custom command's Insert), unless you choose otherwise in Settings
   → General → **Insert**, under the Suggestions switch, for every source: **ID only** (`#1234`), **With title** (`#1234
