@@ -43,9 +43,9 @@ extension CompletionSourceKey {
 
 extension CompletionSourceApproval {
     /// What turning `command`'s source on in Settings → Commands approves now: its key (`CompletionSourceKey(extension:)`),
-    /// the SHA-256 of its script file, whether it queries, its terms (prefix, compare); no hosts. Kept with the plugins'
-    /// approvals (`Config.completionSources`, `SuggestionsSettings.enabled`). Nil: the command declares no source (or one
-    /// refused), or its script can't be read.
+    /// its extension's digest (every file of its bundle, a single script's file; owner 2026-10-24), whether it queries,
+    /// its terms (prefix, compare); no hosts. Kept with the plugins' approvals (`Config.completionSources`,
+    /// `SuggestionsSettings.enabled`). Nil: the command declares no source (or one refused), or nothing of it can be read.
     public init?(enabling command: ScriptCommand)
 }
 ```
@@ -58,4 +58,7 @@ extension CompletionSourceApproval {
   `CommandCompletionRunner`): the tests give no runner of their own and nothing of the shell's (`startScript`), and see
   what the programs did in files they write.
 - An approval that no longer holds is reported through `SuggestionsServices.approvalsLapsed`, as a plugin's is; statuses
-  through `SuggestionsServices.reportStatus`, under the command's key.
+  through `SuggestionsServices.reportStatus`, under the command's key. Where the extension comes from (owner
+  2026-10-24): a bundle in the extension sources' folder (`SuggestionsServices.extensionSourcesFolder`) whose source
+  (`Config.extensionSources`) isn't marked `trustUpdates` lapses on any change; the user's own, and a trusted source's,
+  never do (`SuggestionsServices.approvalsFollowed`).

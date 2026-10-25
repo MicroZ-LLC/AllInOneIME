@@ -233,6 +233,109 @@ extension SelfTest {
         check((try? Data(contentsOf: Config.userURL)) == realBefore, "the real config file was not touched")
     }
 
+    /// Settings → Commands → Extension Sources' "Trust its updates" (0.6.7.1 §2), on the sample sources with a config file
+    /// and a clones folder of its own (never the user's): under each reviewed source, off by default and not written while
+    /// off, its line under it; as VoiceOver finds it, a switch of that name; pressed, on and saved with its source
+    /// (`"trustUpdates": true`), the other sources and keys as they were; pressed again, off, the key gone; the settings
+    /// search finds it. Drawn in both languages, one source's on (settings-extension-sources-trust*.png).
+    static func testExtensionSourceTrust(snapshotDirectory: URL) {
+        section("extension sources: Trust its updates")
+        let fm = FileManager.default
+        let dir = snapshotDirectory.appendingPathComponent("extension-source-trust", isDirectory: true)
+        try? fm.removeItem(at: dir)
+        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: dir) }
+        let realBefore = try? Data(contentsOf: Config.userURL)
+        let sources = ExtensionSourceController.shared
+        let before = (sources.root, sources.statuses, ExtensionSourcesSection.shownLoaded, UIText.choice)
+        defer {
+            sources.root = before.0
+            sources.show(before.1)
+            ExtensionSourcesSection.shownLoaded = before.2
+            UIText.choice = before.3
+        }
+        UIText.choice = "en"
+        sources.root = dir.appendingPathComponent("Sources", isDirectory: true)
+        // Saved in its own clones folder too: the section reads sources.json again as a window becomes key.
+        let statuses = ExtensionSourceSamples.statuses()
+        try? ExtensionSourceStatus.save(statuses, to: sources.statusFile)
+        sources.show(statuses)
+        ExtensionSourcesSection.shownLoaded = ExtensionSourceSamples.loaded
+        let configURL = dir.appendingPathComponent("config.json")
+        var fresh = Config.default
+        fresh.extensionFolders = []
+        fresh.findRaycastScripts = false
+        for source in ExtensionSourceSamples.sources { ExtensionSources.enable(source, in: &fresh, root: sources.root) }
+        try? fresh.write(to: configURL)
+        let model = SettingsModel(configURL: configURL)
+        let loaded = try? Config.load(from: configURL)
+        func saved() -> String { (try? String(contentsOf: configURL, encoding: .utf8)) ?? "" }
+        check(model.config.extensionSources.count == 3 && model.config.extensionSources.allSatisfy { !$0.trustUpdates }
+              && !saved().contains("trustUpdates"), "Trust its updates is off by default, and not written while off")
+
+        // The section as VoiceOver finds it (`AXEnhancedUserInterface`, as Settings' own checks set it).
+        func enhanced(_ on: Bool) {
+            _ = NSApp.perform(NSSelectorFromString("accessibilitySetValue:forAttribute:"), with: on as NSNumber, with: "AXEnhancedUserInterface")
+        }
+        func ax(_ node: NSObject, _ key: String) -> Any? { node.responds(to: NSSelectorFromString(key)) ? node.value(forKey: key) : nil }
+        func nodes(_ node: NSObject) -> [NSObject] { [node] + ((ax(node, "accessibilityChildren") as? [NSObject]) ?? []).flatMap(nodes) }
+        enhanced(true)
+        defer { enhanced(false) }
+        let window = NSWindow(contentViewController: NSHostingController(rootView: Form { ExtensionSourcesSection(model: model) }.formStyle(.grouped)))
+        window.setContentSize(NSSize(width: 680, height: 1000))
+        NSApp.activate()
+        window.makeKeyAndOrderFront(nil)
+        defer { window.close() }
+        _ = pump(timeout: 1) { false }
+        func switches() -> [NSObject] {
+            nodes(window).filter {
+                ax($0, "accessibilityRole") as? String == NSAccessibility.Role.checkBox.rawValue
+                    && ax($0, "accessibilityLabel") as? String == ExtensionSourceText.trustUpdates
+            }
+        }
+        func value(_ node: NSObject?) -> Int? { node.flatMap { (ax($0, "accessibilityValue") as? NSNumber)?.intValue } }
+        // The first source's switch pressed: the window's top switch clicked (this test's own window), as a click does.
+        func appKitSwitches(_ view: NSView) -> [NSSwitch] { ((view as? NSSwitch).map { [$0] } ?? []) + view.subviews.flatMap(appKitSwitches) }
+        func pressFirst() {
+            let top = window.contentView.map(appKitSwitches)?.max { $0.convert($0.bounds, to: nil).maxY < $1.convert($1.bounds, to: nil).maxY }
+            if let top { top.performClick(nil) } else { _ = switches().first?.perform(NSSelectorFromString("accessibilityPerformPress")) }
+        }
+        let texts = nodes(window).compactMap { (ax($0, "accessibilityValue") as? String) ?? (ax($0, "accessibilityLabel") as? String) }
+        let found = switches()
+        check(found.count == 3 && found.allSatisfy { value($0) == 0 } && texts.contains(ExtensionSourceText.trustUpdatesHelp),
+              "each reviewed source has the switch, off, its line under it (\(found.count) switches)")
+        check(ExtensionSourceText.trustUpdatesHelp == "Its extensions' suggestions keep running after its updates; turn on only for a source you trust, such as your team's repository.",
+              "…the line says what it does and when to turn it on")
+
+        // Pressed: on, saved with its source; the others and the rest of the file as they were.
+        pressFirst()
+        _ = pump(timeout: 2) { model.config.extensionSources.first?.trustUpdates == true }
+        let stored = try? Config.load(from: configURL)
+        var expected = loaded
+        expected?.extensionSources[0].trustUpdates = true
+        check(stored?.extensionSources.map(\.trustUpdates) == [true, false, false] && stored == expected
+              && saved().contains(#""trustUpdates" : true"#), "pressed: on, saved with its source (\(stored?.extensionSources.map(\.trustUpdates) ?? []))")
+        _ = pump(timeout: 1) { value(switches().first) == 1 }
+        check(value(switches().first) == 1, "…and the switch shows it on")
+        pressFirst()
+        _ = pump(timeout: 2) { model.config.extensionSources.first?.trustUpdates == false }
+        check((try? Config.load(from: configURL)) == loaded && !saved().contains("trustUpdates"), "pressed again: off, the key gone")
+        check(SettingsSpot.search("trust its updates", trigger: "@", config: fresh).contains(.extensionSources)
+              && SettingsSpot.search("信任", trigger: "@", config: fresh).contains(.extensionSources),
+              "the settings search finds it under Extension Sources")
+        enhanced(false)
+
+        // The images: the first source trusted.
+        model.setTrustUpdates(true, of: ExtensionSourceSamples.sources[0], root: sources.root)
+        for chinese in [false, true] {
+            UIText.choice = chinese ? "zh" : "en"
+            let image = snapshotDirectory.appendingPathComponent("settings-extension-sources-trust\(chinese ? "-zh" : "").png")
+            renderOffscreen(Form { ExtensionSourcesSection(model: model) }.formStyle(.grouped), size: NSSize(width: 680, height: 660), to: image)
+            check(fm.fileExists(atPath: image.path), "Extension Sources with the switch renders (\(image.lastPathComponent))")
+        }
+        check((try? Data(contentsOf: Config.userURL)) == realBefore, "the real config file was not touched")
+    }
+
     /// This app's executable with `arguments`: its exit status and what it printed (both streams).
     static func runSelf(_ arguments: [String]) -> (status: Int32, output: String) {
         let process = Process()

@@ -269,6 +269,8 @@ public struct CompletionSourceApproval: Codable, Equatable, Hashable, Sendable {
     public var source: String
     public var hosts: [String]
     public var query: Bool
+    /// A plugin's script file's SHA-256; a script extension's, its extension's digest (`ExtensionDigest`: every file of
+    /// its bundle, a single script's file).
     public var scriptSHA256: String
     /// Nil: not kept (an approval made before they were), which holds no more, whatever they are now: the source is off
     /// until turned on again, as when it lapsed (a plugin updated since may have dropped its prefix, and what is typed
@@ -525,6 +527,14 @@ public struct SuggestionsServices {
     /// the source stays off until enabled again, the plugin as it was again too. Their cached lists are kept: those go
     /// with the approval (the source disabled, the plugin removed).
     public var approvalsLapsed: ([CompletionSourceApproval]) -> Void
+    /// These script extensions' approvals follow their extension, changed since (`CompletionSourceApproval.followed`: the
+    /// user's own, or from an extension source whose updates are trusted, 0.6.7.1 §2): the shell keeps each in place of
+    /// its source's (`Config.follow`), said nowhere, so that only a change after its source stops being trusted turns it
+    /// off. The source stays on meanwhile.
+    public var approvalsFollowed: ([CompletionSourceApproval]) -> Void
+    /// The extension sources' clones' folder (`ExtensionSources.directory`, the shell's own): a script extension in a
+    /// source's bundle folder there is that source's (`Config.extensionOrigin`).
+    public var extensionSourcesFolder: URL
     /// Where the pointer is (screen points) and whether Sticky Keys is on, for the long press of Shift
     /// (`TranslateMode.ShiftHold`: the pointer moved while Shift is held is a Shift-click being aimed; with Sticky Keys
     /// Shift is latched, never held). The defaults: nowhere, off.
@@ -557,6 +567,8 @@ public struct SuggestionsServices {
         recordPick = { _ in }
         reportStatus = { _ in }
         approvalsLapsed = { _ in }
+        approvalsFollowed = { _ in }
+        extensionSourcesFolder = ExtensionSources.directory
         pointer = TranslateMode.ShiftHold.noPointer
         stickyKeys = { false }
         shiftHeld = { true }

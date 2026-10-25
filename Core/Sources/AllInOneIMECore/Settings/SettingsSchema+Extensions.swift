@@ -134,9 +134,9 @@ extension SettingsSchema {
 
     /// The completion source `command` declares (0.6.7.1 §2), under its switch: its own switch, off until turned on here,
     /// saying what it does (it runs the script in the background; one that queries gets what you type after its prefix),
-    /// then why it can't show (the magic key), that it changed since it was turned on (its script, prefix, query or
-    /// compare: off until turned on again), that Suggestions are off, or how it is doing (its items, last refresh, last
-    /// error); or why its declaration is refused. None for a command that declares none.
+    /// then why it can't show (the magic key), that it changed since it was turned on (an update of an extension source
+    /// whose updates aren't trusted: off until turned on again), that Suggestions are off, or how it is doing (its items,
+    /// last refresh, last error); or why its declaration is refused. None for a command that declares none.
     mutating func extensionCompletionFields(_ command: ScriptCommand) -> [Field] {
         var fields: [Field] = []
         switch command.completion {
@@ -150,7 +150,7 @@ extension SettingsSchema {
             let store = store
             let key = CompletionSourceKey(extension: command)
             let approval = config.approval(of: source, in: command)
-            let holds = approval?.holds(for: source, of: command) ?? false
+            let holds = approval?.holds(for: source, of: command, follows: config.followsChanges(of: command)) ?? false
             var field = toggle("extensions.completion." + command.id, tr("建议", "Suggestions"), source.scriptSummary(), holds)
             if let reason = source.inactiveReason(config) {
                 field.status = reason

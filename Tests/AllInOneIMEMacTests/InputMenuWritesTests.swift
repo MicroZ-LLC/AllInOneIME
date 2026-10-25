@@ -25,7 +25,7 @@ struct InputMenuWritesTests {
         ("InputMenu.swift", "toggleStyle"), ("InputMenu.swift", "setOutputLanguage"), ("InputMenu.swift", "toggleImproveTranslates"),
         ("InputMenu.swift", "setDefaultInput"), ("InputMenu.swift", "setCodingLanguage"),
         ("AppProfiles.swift", "changeAppProfile"), ("AutocompleteOverlay.swift", "set"), ("Suggestions.swift", "toggleSuggestions"),
-        ("Suggestions.swift", "markLapsed"),
+        ("Suggestions.swift", "markLapsed"), ("Suggestions.swift", "markFollowed"),
     ]
 
     @Test(arguments: writers)

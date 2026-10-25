@@ -21062,6 +21062,53 @@
         }
       }
     },
+    "It changed since you turned it on (a file of its bundle, its prefix, live query or how it compares), so it's off: turn it on again to use it." : {
+      "comment" : "打开以后它改过（扩展包里的文件、前缀、实时查询或比较方式），已经关掉：要用的话再打开一次。 — Sources/AllInOneIMECore/Suggestions/ExtensionCompletions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Es hat sich seit dem Einschalten geändert (eine Datei seines Bundles, sein Präfix, seine Live-Abfrage oder sein Vergleich), daher ist es aus: Schalte es wieder ein, um es zu nutzen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cambió desde que lo activaste (un archivo de su paquete, su prefijo, la consulta en vivo o la forma de comparar), así que está desactivado: actívalo de nuevo para usarlo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il a changé depuis que vous l’avez activé (un fichier de son paquet, son préfixe, sa recherche en direct ou sa façon de comparer), il est donc désactivé : réactivez-le pour l’utiliser."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オンにした後で変わったため（バンドル内のファイル、プレフィックス、ライブ検索、比較方法のいずれか）、オフになりました。使うにはもう一度オンにしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "켠 뒤에 바뀌어(번들의 파일, 접두사, 실시간 조회 또는 비교 방식) 꺼졌습니다. 사용하려면 다시 켜세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ele mudou desde que você ativou (um arquivo do pacote, o prefixo, a consulta ao vivo ou a forma de comparar), então está desativado: ative de novo para usar."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟以後它改過（擴充套件裡的檔案、前綴、即時查詢或比較方式），已經關掉：要用的話再開啟一次。"
+          }
+        }
+      }
+    },
     "it isn't a known source" : {
       "comment" : "不认识这个来源 — Sources/AllInOneIMECore/AWSCredentialError.swift",
       "localizations" : {
@@ -21393,6 +21440,7 @@
     },
     "Its script, prefix, live query or how it compares changed since you turned it on, so it's off: turn it on again to use it." : {
       "comment" : "脚本、前缀、实时查询或比较方式改过了，已经关掉：要用的话再打开一次。 — Sources/AllInOneIMECore/Suggestions/ExtensionCompletions.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -42865,6 +42913,53 @@
         }
       }
     },
+    "The extension changed since its suggestions were turned on: not run" : {
+      "comment" : "扩展在打开补全以后改过，没有运行 — Sources/AllInOneIMECore/Suggestions/ExtensionCompletions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Erweiterung hat sich seit dem Einschalten ihrer Vorschläge geändert: nicht ausgeführt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La extensión cambió desde que se activaron sus sugerencias: no se ejecutó"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’extension a changé depuis l’activation de ses suggestions : non exécutée"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "候補をオンにした後で拡張機能が変わったため、実行しませんでした"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "제안을 켠 뒤에 확장 프로그램이 바뀌어 실행하지 않았습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A extensão mudou desde que as sugestões dela foram ativadas: não executada"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "擴充功能在開啟補全以後改過，沒有執行"
+          }
+        }
+      }
+    },
     "The file must be at most 32 MiB." : {
       "comment" : "文件不能超过 32 MiB。 — Sources/AllInOneIMECore/PersonalDictionary.swift",
       "localizations" : {
@@ -45079,6 +45174,7 @@
     },
     "The script changed since its suggestions were turned on: not run" : {
       "comment" : "脚本在打开补全以后改过，没有运行 — Sources/AllInOneIMECore/Suggestions/ExtensionCompletions.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {

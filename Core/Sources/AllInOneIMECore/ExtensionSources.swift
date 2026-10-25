@@ -21,7 +21,7 @@ import Foundation
 /// A Git repository extension bundles come from (`Config.extensionSources`).
 ///
 ///     { "url": "git@github.com:you/my-extensions.git", "path": "extensions/team", "branch": "main", "pin": null,
-///       "autoCheck": true }
+///       "autoCheck": true, "trustUpdates": true }
 public struct ExtensionSource: Codable, Hashable, Sendable {
     /// `ssh://…`, `git@host:…`, `https://…`, or `file://…` (`ExtensionSources.validate`).
     public var url: String
@@ -35,18 +35,24 @@ public struct ExtensionSource: Codable, Hashable, Sendable {
     public var autoCheck: Bool
     /// Shown under a git error: the user's own reminder of how this host is signed in to.
     public var authHint: String?
+    /// "Trust its updates" (Settings → Commands → Extension Sources; off by default): its bundle's completion sources
+    /// stay on through its updates, whatever they change (`Config.extensionOrigin`, 0.6.7.1 §2). Off, an update that
+    /// changes a file of the bundle or a source's terms turns that source off until it is turned on again. Turning it
+    /// off turns nothing off by itself: the next change does. Written only when on.
+    public var trustUpdates: Bool
 
     public init(url: String, path: String? = nil, branch: String? = nil, pin: String? = nil, autoCheck: Bool = true,
-                authHint: String? = nil) {
+                authHint: String? = nil, trustUpdates: Bool = false) {
         self.url = url
         self.path = path
         self.branch = branch
         self.pin = pin
         self.autoCheck = autoCheck
         self.authHint = authHint
+        self.trustUpdates = trustUpdates
     }
 
-    private enum CodingKeys: String, CodingKey { case url, path, branch, pin, autoCheck, authHint }
+    private enum CodingKeys: String, CodingKey { case url, path, branch, pin, autoCheck, authHint, trustUpdates }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -59,6 +65,7 @@ public struct ExtensionSource: Codable, Hashable, Sendable {
         pin = text(.pin)
         autoCheck = (try? c.decodeIfPresent(Bool.self, forKey: .autoCheck)).flatMap { $0 } ?? true
         authHint = text(.authHint)
+        trustUpdates = (try? c.decodeIfPresent(Bool.self, forKey: .trustUpdates)).flatMap { $0 } ?? false
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -69,6 +76,7 @@ public struct ExtensionSource: Codable, Hashable, Sendable {
         try c.encode(pin, forKey: .pin)  // null: following the branch (the key stays discoverable)
         try c.encode(autoCheck, forKey: .autoCheck)
         try c.encodeIfPresent(authHint, forKey: .authHint)
+        if trustUpdates { try c.encode(true, forKey: .trustUpdates) }
     }
 
     /// `Config.extensionSources` as read: an entry without an address is left out, not the whole file; an address twice,
@@ -537,11 +545,13 @@ public enum ExtensionSources {
     /// Enable: the source is in the config (replacing one of the same address), and its bundle's folder in the load list.
     public static func enable(_ source: ExtensionSource, in config: inout Config, root: URL = directory) {
         if let index = config.extensionSources.firstIndex(where: { $0.url == source.url }) {
-            // An entry the config had (one handed out with its sign-in hint, say) keeps its hint and its schedule.
+            // An entry the config had (one handed out with its sign-in hint, say) keeps its hint, its schedule and whether
+            // its updates are trusted.
             var source = source
             let had = config.extensionSources[index]
             source.authHint = source.authHint ?? had.authHint
             source.autoCheck = had.autoCheck
+            source.trustUpdates = had.trustUpdates
             config.extensionSources[index] = source
         } else {
             config.extensionSources.append(source)

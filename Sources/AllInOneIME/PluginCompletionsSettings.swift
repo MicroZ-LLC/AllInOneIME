@@ -20,8 +20,9 @@ extension SettingsModel {
         SuggestionsShared.refreshNow(plugin: plugin.name, source: source.name)
     }
 
-    /// `source` of the script extension `command` turned on (approving what it is now: its script, whether it queries, its
-    /// prefix and how it compares) or off, and saved; the field being typed in takes it at once.
+    /// `source` of the script extension `command` turned on (approving what it is now: its extension, every file of its
+    /// bundle, whether it queries, its prefix and how it compares) or off, and saved; the field being typed in takes it at
+    /// once.
     func setCompletionSource(_ source: CompletionSource, of command: ScriptCommand, enabled: Bool) {
         config.setCompletionSource(source, of: command, enabled: enabled)
         save()
@@ -319,8 +320,10 @@ struct ScriptCompletionView: View {
 
     @ViewBuilder private func sourceRow(_ source: CompletionSource) -> some View {
         let approval = model.config.approval(of: source, in: command)
-        // Turned on before its script, prefix, query or terms changed: off until turned on again.
-        let changed = approval.map { !$0.holds(for: source, of: command) } ?? false
+        // Turned on before an update from an extension source whose updates aren't trusted changed it (a file of its
+        // bundle, its prefix, query or terms): off until turned on again. The user's own and a trusted source's follow.
+        let follows = model.config.followsChanges(of: command, root: ExtensionSourceGate.root)
+        let changed = approval.map { !$0.holds(for: source, of: command, follows: follows) } ?? false
         let on = approval != nil && !changed
         let title = tr("建议", "Suggestions")
         VStack(alignment: .leading, spacing: 2) {

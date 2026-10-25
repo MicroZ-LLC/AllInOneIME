@@ -5,7 +5,8 @@ import AllInOneIMETestSupport
 
 /// Script extensions as completion sources (0.6.7.1 §2): a command's declaration (a script's `@allinoneime.completion`
 /// line, a bundle entry's `"completion"` over it; refused on its own, with its reason, the command still loading), its
-/// trust (off until turned on; a change to its script, prefix, query, queryMinChars or compare turns it off again), its
+/// trust (off until turned on; pinned, a change to any file of its bundle, its query, prefix, queryMinChars or compare
+/// turns it off again: ExtensionCompletionsTrustTests has where it comes from), its
 /// program run as its commands run with `ALLINONEIME_COMPLETION` (its list with no arguments, a query with the text
 /// after the prefix as its one argument; nothing of the field in its environment; 4 MB of output, not a command's 64 KB;
 /// one program of a bundle at a time, a cancelled one's turn passed on once it has exited), and its rows through a text
@@ -214,7 +215,7 @@ struct ExtensionCompletionsTests {
             #expect(reason("[1]") == "completion 必须是 JSON 对象")
             #expect(script.describe(failed: Silent()) == "程序出错了" && fromPlugin.describe(failed: Silent()) == "插件出错了")
             #expect(script.describe(failed: CommandRunner.RunError.timedOut(3)) == "运行超过 3 秒，已停止")
-            #expect(script.describe(failed: ExtensionCompletionError.scriptChanged) == "脚本在打开补全以后改过，没有运行")
+            #expect(script.describe(failed: ExtensionCompletionError.scriptChanged) == "扩展在打开补全以后改过，没有运行")
         }
     }
 
@@ -297,10 +298,11 @@ struct ExtensionCompletionsTests {
         }
     }
 
-    /// What its switch approved: its script, query and terms as a plugin's (prefix, queryMinChars, compare). A change to
-    /// any of them turns it off (said once: the approval marked lapsed); its refresh, minChars or insert don't (a bundle's
-    /// entry: a single script's line is its script).
-    @Test func aChangeToItsScriptPrefixQueryOrCompareTurnsItOff() throws {
+    /// What its switch approved, pinned (an extension source's whose updates aren't trusted): its whole bundle (every
+    /// file: its extension.json, its script, lib/…), query and terms as a plugin's (prefix, queryMinChars, compare). A
+    /// change to any of them turns it off (said once: the approval marked lapsed); one that follows its changes holds
+    /// through them all (ExtensionCompletionsTrustTests).
+    @Test func aChangeToAPinnedExtensionTurnsItOff() throws {
         let extensions = try Extensions()
         try extensions.script("crm/contacts.sh", metadata: [], body: Self.ticketsBody)
         func bundle(_ completion: String) throws -> ScriptCommand {
@@ -313,59 +315,67 @@ struct ExtensionCompletionsTests {
         guard case let .success(source)? = command.completion else { Issue.record("no source"); return }
         let approval = try #require(CompletionSourceApproval(enabling: source, of: command))
         #expect(approval.holds(for: source, of: command) && approval.hosts.isEmpty)
+        #expect(approval.scriptSHA256 == ExtensionDigest.of(command) && approval.scriptSHA256 != PluginStore.sha256(of: command.file),
+                "its bundle's digest, not its script's")
 
-        for change in [#", "minChars": 3}"#, #", "refresh": "1d"}"#, #", "insert": {"default": "{match}"}}"#] {
-            let other = try bundle(declared + change)
-            guard case let .success(changed)? = other.completion else { Issue.record("\(change)"); continue }
-            #expect(approval.holds(for: changed, of: other), "\(change)")
-            #expect(CompletionSourceApproval.lapsed([approval], extensions: [other]).isEmpty, "\(change)")
-        }
-        // From which character it queries is approved as a plugin's is: a bundle's update that lowers it sends less typed.
-        for change in [#", "query": true}"#, #", "compare": "exact"}"#, #", "queryMinChars": 5}"#] {
+        // Its extension.json is a file of the bundle: what else its entry says changes it too.
+        for change in [#", "minChars": 3}"#, #", "refresh": "1d"}"#, #", "insert": {"default": "{match}"}}"#,
+                       #", "query": true}"#, #", "compare": "exact"}"#, #", "queryMinChars": 5}"#] {
             let other = try bundle(declared + change)
             guard case let .success(changed)? = other.completion else { Issue.record("\(change)"); continue }
             #expect(!approval.holds(for: changed, of: other), "\(change)")
+            #expect(approval.holds(for: changed, of: other, follows: true), "\(change): one that follows holds")
             #expect(CompletionSourceApproval.lapsed([approval], extensions: [other]) == [approval], "\(change)")
         }
         let prefixed = try bundle(#"{"prefix": "TIX-", "list": true}"#)
         guard case let .success(newPrefix)? = prefixed.completion else { Issue.record("no source with another prefix"); return }
         #expect(!approval.holds(for: newPrefix, of: prefixed))
-        // Its script itself.
+        // As it was turned on: it holds again.
         let same = try bundle(declared + "}")
+        #expect(approval.holds(for: source, of: same) && CompletionSourceApproval.lapsed([approval], extensions: [same]).isEmpty)
+        // Its script itself.
         try extensions.script("crm/contacts.sh", metadata: [], body: Self.ticketsBody + "\n# 2")
         #expect(!approval.holds(for: source, of: same))
         #expect(CompletionSourceApproval.lapsed([approval], extensions: [same]) == [approval])
         var marked = approval
         marked.lapsed = true
         #expect(CompletionSourceApproval.lapsed([marked], extensions: [same]).isEmpty, "said once")
+        #expect(!marked.holds(for: source, of: same, follows: true), "marked lapsed: off, whatever it is now")
         #expect(CompletionSourceApproval.lapsed([approval], extensions: []).isEmpty, "a command not there doesn't lapse")
         // A single script's line is part of its script: any change to it is one.
         let single = try Self.tickets(in: extensions)
         guard case let .success(line)? = single.completion else { Issue.record("no line"); return }
         let lineApproval = try #require(CompletionSourceApproval(enabling: line, of: single))
+        #expect(lineApproval.scriptSHA256 == PluginStore.sha256(of: single.file), "a single script: its file's SHA-256")
         let edited = try Self.tickets(in: extensions, declaration: Self.declaration(#", "minChars": 2"#))
         guard case let .success(editedLine)? = edited.completion else { Issue.record("no edited line"); return }
         #expect(!lineApproval.holds(for: editedLine, of: edited))
     }
 
-    /// Through a field: a script changed since its source was turned on shows no rows, runs nothing, and its approval is
-    /// marked lapsed as the field takes the focus.
-    @Test func aChangedScriptRunsNothing() async throws {
+    /// Through a field: a script of the user's own (a folder of theirs, not an extension source's) changed since its
+    /// source was turned on keeps it on: its rows, its program run as it is now, nothing lapsed, and its approval made
+    /// what it is now as the field takes the focus (said nowhere). One from an extension source whose updates aren't
+    /// trusted runs nothing then: ExtensionCompletionsTrustTests.
+    @Test func aChangedScriptOfYourOwnKeepsRunning() async throws {
         try await inEnglish {
             let extensions = try Extensions()
             let command = try Self.tickets(in: extensions)
             let (world, adjust) = Self.world(extensions, on: [command])
             try extensions.script("tickets.sh", metadata: ["schemaVersion 1", "title Tickets", Self.declaration()],
                                   body: Self.ticketsBody + "\n# changed")
-            let lapsed = Locked<[CompletionSourceApproval]>(initialState: [])
+            let (lapsed, followed) = (Locked<[CompletionSourceApproval]>(initialState: []), Locked<[CompletionSourceApproval]>(initialState: []))
             let field = world.field { services in
                 adjust(&services)
                 services.suggestions.approvalsLapsed = { found in lapsed.withLock { $0 += found } }
+                services.suggestions.approvalsFollowed = { found in followed.withLock { $0 += found } }
             }
             field.type("TCK-1")
-            field.idle()
-            #expect(field.rows.isEmpty && extensions.read("calls.log") == nil)
-            #expect(lapsed.withLock { $0 } == world.config.completionSources)
+            #expect(field.settle(timeout: 15) { field.rows.map(\.text) == ["TCK-12", "TCK-17"] }, "\(field.rows.map(\.text))")
+            #expect(extensions.read("calls.log") == "load|0|\n", "run as it is now")
+            #expect(lapsed.withLock { $0 }.isEmpty)
+            let changed = try #require(extensions.command("tickets"))
+            #expect(followed.withLock { $0 }.map(\.scriptSHA256) == [PluginStore.sha256(of: changed.file)],
+                    "its approval follows it: \(followed.withLock { $0 })")
         }
     }
 
@@ -501,7 +511,7 @@ struct ExtensionCompletionsTests {
         let other = try #require(extensions.command("other"))
         func call(_ command: ScriptCommand) -> ExtensionCompletionCall {
             ExtensionCompletionCall(command: command, environment: ProcessInfo.processInfo.environment, timeout: 10,
-                                    scriptSHA256: PluginStore.sha256(of: command.file))
+                                    scriptSHA256: ExtensionDigest.of(command))
         }
         let runner = ExtensionCompletionRunner()
         async let first = runner.load(call(slow))
@@ -515,7 +525,7 @@ struct ExtensionCompletionsTests {
         #expect(order.firstIndex(of: "end other.sh")! < endSlow!, "another bundle's runs meanwhile: \(order)")
     }
 
-    /// One waiting its turn that is cancelled (a newer query) never runs; the script approved only runs.
+    /// One waiting its turn that is cancelled (a newer query) never runs; the extension approved only runs.
     @Test func aCancelledCallLeavesTheLineAndAChangedScriptNeverRuns() async throws {
         let extensions = try Extensions()
         let body = #"""
@@ -533,7 +543,7 @@ struct ExtensionCompletionsTests {
         let runner = ExtensionCompletionRunner()
         func call(_ command: ScriptCommand, sha: String? = nil) -> ExtensionCompletionCall {
             ExtensionCompletionCall(command: command, environment: ProcessInfo.processInfo.environment, timeout: 10,
-                                    scriptSHA256: sha ?? PluginStore.sha256(of: command.file))
+                                    scriptSHA256: sha ?? ExtensionDigest.of(command))
         }
         let first = Task { try await runner.load(call(slow)) }
         try await Task.sleep(nanoseconds: 200_000_000)
@@ -570,7 +580,7 @@ struct ExtensionCompletionsTests {
         let slow = try #require(extensions.command("slow")), quick = try #require(extensions.command("quick"))
         func call(_ command: ScriptCommand) -> ExtensionCompletionCall {
             ExtensionCompletionCall(command: command, environment: ProcessInfo.processInfo.environment, timeout: 10,
-                                    scriptSHA256: PluginStore.sha256(of: command.file))
+                                    scriptSHA256: ExtensionDigest.of(command))
         }
         let runner = ExtensionCompletionRunner()
         let first = Task { try await runner.query("1", call(slow)) }

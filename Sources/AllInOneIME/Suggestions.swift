@@ -49,18 +49,22 @@ enum SuggestionsShared {
 
     /// The settings of suggestions changed (a source enabled or disabled, "Refresh now", a plugin removed): the field
     /// being typed in takes them in at once (a source disabled, or its plugin removed, is forgotten, its cache deleted;
-    /// one whose approval no longer holds is marked so; a refresh asked for starts).
+    /// one whose approval no longer holds is marked so, and a script extension's that follows its changes made what it is
+    /// now; a refresh asked for starts).
     static func settingsChanged() {
         if let field = AllInOneIMEInputController.activeController {
             field.received(.configChanged)
         } else {
-            // No field: what's disabled (or a custom command that was a source, deleted) is still forgotten now, and what
-            // no longer holds marked, with the plugins as they are.
+            // No field: what's disabled (or a custom command that was a source, deleted) is still forgotten now, what no
+            // longer holds marked and what follows its extension made what it is, with the plugins and extensions as they are.
             let config = LiveConfig.current
             store.prune(keeping: settings(config).sourceKeys, folder: cacheFolder)
             let extensions = LiveExtensions.current(config).commands
+            let follows = { config.followsChanges(of: $0, root: ExtensionSourceGate.root) }
+            let digest = { ExtensionDigest.of($0, sha256: store.sha256(of:)) }
             markLapsed(CompletionSourceApproval.lapsed(config.completionSources, plugins: LivePlugins.current(rescan: true))
-                       + CompletionSourceApproval.lapsed(config.completionSources, extensions: extensions))
+                       + CompletionSourceApproval.lapsed(config.completionSources, extensions: extensions, follows: follows, digest: digest))
+            markFollowed(CompletionSourceApproval.followed(config.completionSources, extensions: extensions, follows: follows, digest: digest))
         }
         NotificationCenter.default.post(name: .allInOneIMESuggestionsChanged, object: nil)
     }
@@ -81,6 +85,25 @@ enum SuggestionsShared {
                 NotificationCenter.default.post(name: .allInOneIMESuggestionsChanged, object: nil)
             } catch {
                 log.error("suggestions: approvals couldn't be marked lapsed: \(String(describing: error), privacy: .public)")
+            }
+        }
+    }
+
+    /// Script extensions' approvals that follow their extension (the user's own, a trusted source's:
+    /// `CompletionSourceApproval.followed`) made what it is now in the config file, once the key or focus being handled is
+    /// done; said nowhere, the source on all along.
+    static func markFollowed(_ followed: [CompletionSourceApproval]) {
+        guard !followed.isEmpty else { return }
+        DispatchQueue.main.async {
+            do {
+                var changed = false
+                try Config.change { changed = $0.follow(followed) }
+                guard changed else { return }
+                log.notice("suggestions: \(followed.count, privacy: .public) approval(s) follow their extension as it is now")
+                NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
+                NotificationCenter.default.post(name: .allInOneIMESuggestionsChanged, object: nil)
+            } catch {
+                log.error("suggestions: approvals couldn't follow their extension: \(String(describing: error), privacy: .public)")
             }
         }
     }
@@ -108,6 +131,8 @@ enum SuggestionsShared {
         services.recordPick = { pick in MainActor.assumeIsolated { LearnedShared.store.recordPick(pick) } }
         services.reportStatus = { reported($0) }
         services.approvalsLapsed = { lapsed in MainActor.assumeIsolated { markLapsed(lapsed) } }
+        services.approvalsFollowed = { followed in MainActor.assumeIsolated { markFollowed(followed) } }
+        services.extensionSourcesFolder = ExtensionSourceGate.root
         services.pointer = { MainActor.assumeIsolated { TranslateModeShared.pointer() } }
         services.stickyKeys = { MainActor.assumeIsolated { TranslateModeShared.stickyKeys() } }
         services.shiftHeld = { MainActor.assumeIsolated { TranslateModeShared.shiftHeld() } }

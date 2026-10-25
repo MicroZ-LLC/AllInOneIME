@@ -416,6 +416,12 @@ extensions folder. (Don't put a name, password or token in an https address: git
   again: **Re-clone** shows it, and only Enable puts the rewritten history in place (until then the reviewed version
   keeps working).
   A source pinned to a tag or commit isn't checked. Turn the daily check off per source (`autoCheck`).
+- **Suggestions after an update.** A bundle's suggestions (its commands as
+  [completion sources](#suggestions-and-code-new)) are pinned to what you turned on: an update that changes any file of
+  the bundle, or a source's prefix or lookup, turns them off until you turn them on again, and Settings says so.
+  **Trust its updates** (under each source, off by default) keeps them running after its updates: turn it on only for
+  a source you trust, such as your team's repository. Turning it off turns nothing off until the next change
+  (`trustUpdates` in the config).
 - **Errors** are git's own words, with "This uses your own git and SSH setup; check that `git ls-remote <url>` works in
   Terminal", and your own reminder under it if you set one (`authHint` in the config).
 - **Remove** moves the clone to the Trash; the bundle's preferences are kept for next time.
@@ -906,8 +912,10 @@ They take the place of [autocomplete](#autocomplete-beta-new)'s gray text while 
   `extension.json`. Its script prints the items, run in the background with `ALLINONEIME_COMPLETION=load` (and, with
   `query`, `query` and what follows the prefix as its one argument); it's off until you turn it on in Settings →
   Commands, under the command, which says it runs the script in the background and, with `query`, gets what you type
-  after the prefix, with its last refresh, items, last error and Refresh now; turning it on pins its script file,
-  `query`, and, as for a plugin, its prefix, `queryMinChars` and `compare`: a change to any of them turns it off again.
+  after the prefix, with its last refresh, items, last error and Refresh now; turning it on pins its whole bundle
+  (every file of it) and, as for a plugin, its `query`, prefix, `queryMinChars` and `compare`. A change to an extension
+  of your own never turns it off, nor an update from an extension source you marked **Trust its updates**; from any
+  other source, a change to any file of the bundle or to those terms turns it off again, and Settings says so.
   The example bundle `bookmarks` has one: `bm.sw` → `[Swift](https://www.swift.org)`
   ([docs/extensions.md §11](docs/extensions.md#11-completions)).
 - **Plugins' completions:** a plugin declares what it completes after a prefix, `#12` for `@github`'s issues, or a whole

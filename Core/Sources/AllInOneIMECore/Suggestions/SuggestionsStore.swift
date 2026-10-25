@@ -181,7 +181,7 @@ public final class SuggestionsStore: @unchecked Sendable {
     // MARK: - The script's hash
 
     /// The SHA-256 (lowercase hex) of the file at `url`, read again when it changed (its size or date); nil: none.
-    func sha256(of url: URL) -> String? {
+    public func sha256(of url: URL) -> String? {
         let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
         guard let size = (attributes?[.size] as? NSNumber)?.intValue else { return nil }
         let modified = attributes?[.modificationDate] as? Date

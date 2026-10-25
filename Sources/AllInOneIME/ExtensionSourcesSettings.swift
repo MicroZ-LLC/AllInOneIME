@@ -119,6 +119,7 @@ struct ExtensionSourcesSection: View {
                 }
                 .textSelection(.enabled)
             }
+            if trusted { trustSwitch(source).disabled(busy) }
         }
     }
 
@@ -190,6 +191,23 @@ struct ExtensionSourcesSection: View {
         }
         if !enabled { parts.append(tr("没有启用", "not enabled")) }
         return parts.filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+
+    /// "Trust its updates" (off by default), with what it does under it: its bundle's suggestions keep running after its
+    /// updates (0.6.7.1 §2); off, an update that changes the bundle turns them off until they're turned on again.
+    @ViewBuilder private func trustSwitch(_ source: ExtensionSource) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Text(ExtensionSourceText.trustUpdates)
+                Spacer()
+                Toggle("", isOn: Binding(get: { source.trustUpdates }, set: { model.setTrustUpdates($0, of: source, root: sources.root) }))
+                    .labelsHidden().toggleStyle(.switch).controlSize(.small)
+                    .accessibilityLabel(ExtensionSourceText.trustUpdates)
+            }
+            Text(ExtensionSourceText.trustUpdatesHelp).font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.leading, 28)
     }
 
     /// What's new: subject, author, date (the newest few).
@@ -285,6 +303,17 @@ struct ExtensionSourcesSection: View {
         ExtensionSources.remove(source, from: &model.config, root: sources.root)
         model.save()
         model.refreshExtensions()
+    }
+}
+
+extension SettingsModel {
+    /// `source`'s "Trust its updates" switched `on`, and saved (`Config.setTrustUpdates`: turned off, what its extensions'
+    /// suggestions are now stays approved, so only the next change turns them off); the field being typed in takes it at
+    /// once. `root`: the sources folder.
+    func setTrustUpdates(_ on: Bool, of source: ExtensionSource, root: URL) {
+        guard config.setTrustUpdates(on, of: source.url, extensions: extensionIndex.commands, root: root) else { return }
+        save()
+        if store.persists { SuggestionsShared.settingsChanged() }
     }
 }
 

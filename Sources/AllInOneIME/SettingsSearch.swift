@@ -190,7 +190,7 @@ enum SettingsSpot: String, CaseIterable {
         case .webSearch: return "@search search web brave api key 搜索 网页"
         case .plugins: return "plugins library stock xe completions preferences password 插件 插件库 补全 偏好 密码"
         case .scriptExtensions: return "raycast script commands scripts extensions bundles preferences folder spotlight 脚本 扩展 扩展包 偏好 文件夹 聚焦"
-        case .extensionSources: return "extension sources git repository link clone update pin ssh 扩展来源 仓库 链接 克隆 更新 固定"
+        case .extensionSources: return "extension sources git repository link clone update pin ssh trust its updates suggestions 扩展来源 仓库 链接 克隆 更新 固定 信任 建议"
         case .typeOut: return "type out typing speed typos mistakes 打字速度 打错"
         case .candidateLayout: return "candidate layout horizontal vertical 候选 排列 横排 竖排"
         case .useSelection: return "selection selected text 选中 文字"

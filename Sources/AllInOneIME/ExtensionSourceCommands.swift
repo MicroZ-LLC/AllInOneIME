@@ -96,6 +96,7 @@ enum ExtensionSourceCommands {
                 source.pin = source.pin ?? had.pin
                 source.autoCheck = had.autoCheck
                 source.authHint = had.authHint
+                source.trustUpdates = had.trustUpdates
             }
             let statuses = ExtensionSourceStatus.load(from: options.root.appendingPathComponent(ExtensionSources.statusFileName))
             // Added and reviewed already: only again after a force push, which needs a new review.

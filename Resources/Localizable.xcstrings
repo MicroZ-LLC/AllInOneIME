@@ -15547,6 +15547,53 @@
         }
       }
     },
+    "Its extensions' suggestions keep running after its updates; turn on only for a source you trust, such as your team's repository." : {
+      "comment" : "更新以后，它的扩展给的建议照常运行；只对你信任的来源打开，比如你团队的仓库。 — Sources/AllInOneIME/ExtensionSourceController.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Vorschläge seiner Erweiterungen laufen nach seinen Updates weiter; schalte das nur für eine Quelle ein, der du vertraust, etwa das Repository deines Teams."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las sugerencias de sus extensiones siguen funcionando tras sus actualizaciones; actívalo solo para un origen en el que confíes, como el repositorio de tu equipo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les suggestions de ses extensions continuent de fonctionner après ses mises à jour ; activez-le seulement pour une source de confiance, comme le dépôt de votre équipe."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新後も、このソースの拡張機能の候補はそのまま動きます。チームのリポジトリなど、信頼できるソースだけでオンにしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "업데이트 후에도 이 소스의 확장 프로그램 제안이 계속 실행됩니다. 팀 저장소처럼 신뢰하는 소스에서만 켜세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "As sugestões das extensões dela continuam funcionando depois das atualizações; ative só para uma fonte em que você confia, como o repositório da sua equipe."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新以後，它的擴充功能給的建議照常執行；只對你信任的來源開啟，比如你團隊的儲存庫。"
+          }
+        }
+      }
+    },
     "Its keywords and snippets no longer show; you can download it again from the library below." : {
       "comment" : "它的关键字和代码片段不再出现；以后可以从下面的语言库再下载。 — Sources/AllInOneIME/CodeInputSettings.swift",
       "localizations" : {
@@ -32322,6 +32369,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "疑難排解⋯"
+          }
+        }
+      }
+    },
+    "Trust its updates" : {
+      "comment" : "信任它的更新 — Sources/AllInOneIME/ExtensionSourceController.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seinen Updates vertrauen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confiar en sus actualizaciones"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Faire confiance à ses mises à jour"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このソースの更新を信頼する"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 소스의 업데이트 신뢰"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confiar nas atualizações"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "信任它的更新"
           }
         }
       }

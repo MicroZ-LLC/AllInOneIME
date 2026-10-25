@@ -360,7 +360,8 @@ bundle, others in a repository of their own.
 ```json
 "extensionSources": [
   { "url": "git@github.com:you/my-extensions.git", "path": "extensions/team", "branch": "main", "pin": null,
-    "autoCheck": true, "authHint": "Optional: your own reminder of how to sign in, shown under a git error" }
+    "autoCheck": true, "authHint": "Optional: your own reminder of how to sign in, shown under a git error",
+    "trustUpdates": true }
 ]
 ```
 
@@ -372,6 +373,7 @@ bundle, others in a repository of their own.
 | `pin` | a tag or commit the clone stays on; `null` follows the branch. A pinned source isn't checked for updates |
 | `autoCheck` | `true` (default): checked once a day and about 30 s after the input method starts |
 | `authHint` | shown under a git error |
+| `trustUpdates` | `true`: its bundle's suggestions (§11) keep running after its updates ("Trust its updates"). Absent or `false` (the default): an update that changes the bundle turns them off until you turn them on again |
 
 **What happens.**
 
@@ -399,6 +401,12 @@ bundle, others in a repository of their own.
 - **Trust** is per source and address: once enabled, its fast-forward updates don't need another review. A force push
   is different: the rewritten history could be anything, so Re-clone shows the review again and only Enable puts it in
   place (the reviewed clone keeps working meanwhile).
+- **Suggestions after an update.** A command's suggestions (§11) run in the background as you type, so they are pinned
+  to what you turned on: an update that changes any file of the bundle, or the source's prefix, lookup or how it
+  compares, turns them off, said once in Settings, until you turn them on again. **Trust its updates**, a switch under
+  each source (Settings → Commands → Extension Sources; off by default, `trustUpdates`), keeps them running after its
+  updates: turn it on only for a source you trust, such as your team's repository. Turning it off turns nothing off by
+  itself; the next change does. Like the rest of the source, it stays on this Mac (never synced).
 - **Checking** (`autoCheck`, or Check Now): `git fetch` of the branch (100 commits deep), and the commits after the
   clone's listed (subject, author, date). Nothing changes.
 - **Update** (only when you click it, or `--update-sources`): fetched again, then the clone is moved to the new commit
@@ -502,11 +510,24 @@ link, Markdown link) and each app's own choice apply to it, as to every source.
 
 **Trust.** As a plugin's completions: off until you turn it on in Settings → Commands, under the command (its switch,
 what it does: it runs this script in the background, and with `query` it also gets what you type after the prefix;
-then its last refresh, items, last error and Refresh Now). Turning it on pins the command's script file (its
-SHA-256: a single script's `completion` line is part of it), `query`, and the terms a plugin's source is pinned by: its
-`prefix`, `queryMinChars` and `compare`. A change to any of them, an extension source's update or your own edit, turns
-it off again, and Settings says so; until it's on again nothing of it runs, and a script file that changed since is
-never run for it. Nothing else is pinned: another file of the bundle the script reads or sources (`lib/common.sh`), its
-`refresh`, `minChars` and `insert` may change and it stays on. Turning the command or its bundle off turns its
-suggestions off too.
+then its last refresh, items, last error and Refresh Now). Turning it on pins the whole extension and its terms:
+
+- **The bundle:** a digest of every file in its folder (`extension.json`, every script, `lib/…`, hidden files too; a
+  link as the file it leads to), all but the Finder's and Windows' own (`.DS_Store`, `._` files, `Icon\r`,
+  `Thumbs.db`, `desktop.ini`) and git's folder (`.git`). For a single script, its file (its `completion` line is part
+  of it).
+- **The terms** a plugin's source is pinned by: `query`, `prefix`, `queryMinChars` and `compare`.
+
+What a later change does depends on where the extension comes from:
+
+| The extension | A change to any file of it, or to its terms |
+|---|---|
+| Your own: a folder of yours (your extensions folder, one you added), not installed from an extension source | keeps it on; the pin just follows it |
+| From an extension source marked **Trust its updates** (§10) | keeps it on; the pin follows the update, said nowhere |
+| From any other extension source | turns it off again, and Settings says so once; until you turn it on again nothing of it runs, and a bundle that changed since is never run for it (each run reads it again first) |
+
+Turning **Trust its updates** off turns nothing off by itself: what the bundle is then stays approved, and the next
+change turns it off. Turning it on doesn't turn back on a source already turned off. A script that writes into its own
+folder (a cache, a cookie file) changes its bundle, which from a source not trusted turns it off: keep such files
+elsewhere (`~/Library/Caches/…`). Turning the command or its bundle off turns its suggestions off too.
 

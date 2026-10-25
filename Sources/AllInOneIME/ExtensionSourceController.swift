@@ -172,7 +172,7 @@ final class ExtensionSourceController: ObservableObject {
             return await perform(source) { try await $0.pin(source, to: pin, $1) }
         }
         let following = ExtensionSource(url: source.url, path: source.path, branch: source.branch, pin: nil,
-                                        autoCheck: source.autoCheck, authHint: source.authHint)
+                                        autoCheck: source.autoCheck, authHint: source.authHint, trustUpdates: source.trustUpdates)
         return await perform(following) { try await $0.update(following, $1) }
     }
 
@@ -272,6 +272,13 @@ enum ExtensionSourceText {
     static func gitHint(_ url: String) -> String {
         tr("这里用的是你自己的 git 和 SSH 设置；先在终端里确认 git ls-remote \(url) 能用。",
            "This uses your own git and SSH setup; check that git ls-remote \(url) works in Terminal.")
+    }
+
+    /// A source's switch (Settings → Commands → Extension Sources), and the line under it.
+    static var trustUpdates: String { tr("信任它的更新", "Trust its updates") }
+    static var trustUpdatesHelp: String {
+        tr("更新以后，它的扩展给的建议照常运行；只对你信任的来源打开，比如你团队的仓库。",
+           "Its extensions' suggestions keep running after its updates; turn on only for a source you trust, such as your team's repository.")
     }
 
     static func updates(_ count: Int) -> String {

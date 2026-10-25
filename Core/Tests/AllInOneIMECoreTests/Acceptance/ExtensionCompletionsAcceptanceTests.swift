@@ -20,8 +20,9 @@ import AllInOneIMETestSupport
      }
 
      extension CompletionSourceApproval {
-         /// What turning `command`'s source on in Settings → Commands approves now: its key, its script file's SHA-256,
-         /// whether it queries, its terms; no hosts. Nil: no source declared (or one refused), or no script to read.
+         /// What turning `command`'s source on in Settings → Commands approves now: its key, its extension's digest (every
+         /// file of its bundle, a single script's file: `ExtensionDigest`), whether it queries, its terms; no hosts. Nil: no
+         /// source declared (or one refused), or nothing of it to read.
          public init?(enabling command: ScriptCommand)
      }
 
@@ -45,9 +46,11 @@ import AllInOneIMETestSupport
 /// time per bundle): `theListRunsWithLoadAndNoArguments`, `aQueryGetsTheTextAfterThePrefixAsItsOneArgument`,
 /// `theEnvironmentHasTheLanguageAndThePreferencesButNotTheAppOrTheToken`, `outputsOver64KBAreRead`,
 /// `aListOverTheItemsOrBytesLimitIsAFailure`, `aQueryIsStoppedAfterThreeSeconds`, `aListIsStoppedAfterTwentySecondsAtMost`,
-/// `aBundleRunsOneCompletionProgramAtATime`, `aNewerQueryCancelsTheOlderOne`; trust (off by default, turned off on
-/// script/prefix/query/compare change): `aSourceIsOffUntilTurnedOn`, `aChangeToItsScriptPrefixQueryOrCompareTurnsItOff`,
-/// `aChangeToAnythingElseKeepsItOn`, `nothingRunsForSecureInputOrPasswordFields`; Insert choices apply:
+/// `aBundleRunsOneCompletionProgramAtATime`, `aNewerQueryCancelsTheOlderOne`; trust (off by default; from an extension
+/// source whose updates aren't trusted, turned off by a change to any file of the bundle or to its prefix, query or
+/// compare; the user's own kept on, owner 2026-10-24): `aSourceIsOffUntilTurnedOn`,
+/// `aChangeToItsScriptPrefixQueryOrCompareTurnsItOff`, `aChangeToAnythingElseKeepsItOn`,
+/// `nothingRunsForSecureInputOrPasswordFields`; Insert choices apply:
 /// `theInsertChoicesApplyToItsRows`.
 @Suite(.serialized, SuggestionsOneAtATime())
 struct ExtensionCompletionsAcceptanceTests {
@@ -63,6 +66,8 @@ struct ExtensionCompletionsAcceptanceTests {
     /// bundles' commands get (`extensionPreferences`: what the user set, passwords from the keychain); an approval reported
     /// lapsed is marked so in the settings, as the shell marks it. The programs are bash scripts of the test's own
     /// (`body`), which note each run in a folder of their own (`logs`) and print what the test wrote there for them.
+    /// With `source`, the extensions' folder is the extension sources' folder (as the shell has it, `Config.extensionSources`
+    /// naming it), the bundle "desk" that source's clone (`deskFolder`); without, a folder of the user's own.
     final class World: @unchecked Sendable {
         let suggestions: SuggestionsWorld
         let extensions = ScriptFolder()
@@ -73,7 +78,17 @@ struct ExtensionCompletionsAcceptanceTests {
         /// The approvals the session reported lapsed (`approvalsLapsed`), in order.
         let lapsed = Locked<[CompletionSourceApproval]>(initialState: [])
 
-        init() { suggestions = SuggestionsWorld() }
+        /// The extension source "desk" is installed from (nil: the user's own folder).
+        let source: ExtensionSource?
+
+        init(source: ExtensionSource? = nil) {
+            suggestions = SuggestionsWorld()
+            self.source = source
+            suggestions.config.extensionSources = source.map { [$0] } ?? []
+        }
+
+        /// The bundle "desk"'s folder in the extensions' folder: "desk", or its source's clone.
+        var deskFolder: String { source.map { ExtensionSources.folderName(for: $0.url) } ?? "desk" }
 
         /// Writes `name` (folders made as needed) into the extensions' folder, executable.
         func add(_ name: String, _ text: String) { extensions.add(name, text) }
@@ -104,6 +119,7 @@ struct ExtensionCompletionsAcceptanceTests {
         func field(app: String = SuggestionsApps.editor, terminal: Bool = false, passwordField: Bool = false) -> SuggestionsField {
             suggestions.field(app: app, terminal: terminal, passwordField: passwordField) { services in
                 services.loadExtensions = { _, _ in self.loaded }
+                if self.source != nil { services.suggestions.extensionSourcesFolder = self.extensions.url }
                 services.extensionPreferences = { bundle, _ in self.preferences.withLock { $0[bundle.name] ?? [:] } }
                 services.suggestions.approvalsLapsed = { marked in
                     self.lapsed.withLock { $0 += marked }
@@ -265,11 +281,12 @@ struct ExtensionCompletionsAcceptanceTests {
             """#
     }
 
-    /// The world with the bundle "desk" (`desk`) written and read, its program printing `ticketList`.
-    static func deskWorld(_ completion: String = tickets(), preferences: Bool = false) -> World {
-        let world = World()
-        world.add("desk/extension.json", desk(completion, preferences: preferences))
-        world.add("desk/tickets.sh", "#!/bin/bash\n" + world.body("tickets"))
+    /// The world with the bundle "desk" (`desk`) written and read, its program printing `ticketList`; installed from
+    /// `source` (nil: a folder of the user's own).
+    static func deskWorld(_ completion: String = tickets(), preferences: Bool = false, from source: ExtensionSource? = nil) -> World {
+        let world = World(source: source)
+        world.add(world.deskFolder + "/extension.json", desk(completion, preferences: preferences))
+        world.add(world.deskFolder + "/tickets.sh", "#!/bin/bash\n" + world.body("tickets"))
         world.list("tickets", ticketList)
         world.reload()
         return world
@@ -703,16 +720,23 @@ struct ExtensionCompletionsAcceptanceTests {
     /// What an update of the command changes.
     enum Change: String, CaseIterable, Sendable {
         case script, prefix, query, compare
+        /// Another file of its bundle, one its script could use (lib/common.sh).
+        case lib
     }
 
+    /// The extension source "desk" is installed from in these tests, its updates not marked trusted.
+    static let deskSource = ExtensionSource(url: "git@git.example.com:team/desk.git")
+
     /// "When an extension source updates the command, a change to its script file, `prefix`, `query` or `compare` turns the
-    /// source off again (said once, as for plugins)." The command as an update leaves it (its script file, or its bundle
-    /// entry's declaration, changed): the approval is reported lapsed once, the source shows no rows and runs nothing until
-    /// it is turned on again; then its rows.
+    /// source off again (said once, as for plugins)"; since 2026-10-24 (owner): from an extension source whose updates
+    /// aren't trusted, a change to any file of its bundle (lib/ too) or to those terms. The command as an update leaves it
+    /// (its script file, its bundle entry's declaration, or a file in lib/ changed): the approval is reported lapsed once,
+    /// the source shows no rows and runs nothing until it is turned on again; then its rows.
     @Test(arguments: Change.allCases)
     func aChangeToItsScriptPrefixQueryOrCompareTurnsItOff(_ change: Change) async throws {
         try await inEnglish {
-            let world = Self.deskWorld()
+            let world = Self.deskWorld(from: Self.deskSource)
+            let desk = world.deskFolder
             world.list("tickets", Self.ticketList + [Self.ticket("TIX-101", "Under another prefix")])
             let approval = try world.enable("tickets")
             let warm = world.field()
@@ -721,10 +745,11 @@ struct ExtensionCompletionsAcceptanceTests {
             #expect(world.reportedLapsed.isEmpty)
 
             switch change {
-            case .script: world.add("desk/tickets.sh", "#!/bin/bash\n# fixed upstream\n" + world.body("tickets"))
-            case .prefix: world.add("desk/extension.json", Self.desk(Self.tickets(prefix: "TIX-")))
-            case .query: world.add("desk/extension.json", Self.desk(Self.tickets(query: false)))
-            case .compare: world.add("desk/extension.json", Self.desk(Self.tickets(compare: "exact")))
+            case .script: world.add(desk + "/tickets.sh", "#!/bin/bash\n# fixed upstream\n" + world.body("tickets"))
+            case .prefix: world.add(desk + "/extension.json", Self.desk(Self.tickets(prefix: "TIX-")))
+            case .query: world.add(desk + "/extension.json", Self.desk(Self.tickets(query: false)))
+            case .compare: world.add(desk + "/extension.json", Self.desk(Self.tickets(compare: "exact")))
+            case .lib: world.add(desk + "/lib/common.sh", "# fixed upstream\n")
             }
             world.reload()
             let calls = world.calls("tickets").count
@@ -749,8 +774,9 @@ struct ExtensionCompletionsAcceptanceTests {
         }
     }
 
-    /// The four are what turn it off: an update that changes only how often the list is refreshed and what a row puts in
-    /// keeps the source on (nothing said), with what it says now.
+    /// Before 2026-10-24 the four were what turned it off, wherever it came from; now (owner) an extension of the user's own
+    /// (a folder of theirs, not an extension source's) is trusted: a change to it, here how often the list is refreshed,
+    /// what a row puts in and a file in lib/, keeps the source on (nothing said), with what it says now.
     @Test func aChangeToAnythingElseKeepsItOn() async throws {
         try await inEnglish {
             let world = Self.deskWorld()
@@ -760,6 +786,7 @@ struct ExtensionCompletionsAcceptanceTests {
             #expect(warm.settle(timeout: Self.wait) { warm.shown(Self.ticketMatches) == ["TKT-101", "TKT-102"] }, "\(warm.rows.map(\.text))")
 
             world.add("desk/extension.json", Self.desk(Self.tickets(refresh: "2h", insert: #"{"default": ["{arg} {title}", "{arg}"]}"#)))
+            world.add("desk/lib/common.sh", "# shared\n")
             world.reload()
             let field = world.field(app: "com.apple.TextEdit")
             field.type("TKT-10")

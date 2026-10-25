@@ -56,6 +56,9 @@ struct SuggestionsField {
     /// Where the token starts in the field (UTF-16), by `selected`, while all the last key did there is what the token
     /// gained or lost (`suggestionsTokenRange`, for a row put in with a click); nil: not known.
     var tokenStart: Int?
+    /// The script extensions turned on as they were read for this field (`InputSession.extensionPin`), by command id and
+    /// folder: read again as the field takes the focus or the settings change, a key only reading them.
+    var extensionPins: [String: InputSession.ExtensionPin] = [:]
     /// `selected` was told while pinyin composed: it is in the marked text the key then put in, as the field counts it,
     /// so it places no token (`suggestionsPlaceToken`).
     var selectedComposing = false
@@ -81,8 +84,9 @@ extension InputSession {
             /// `CompletionCall.hosts`); `scriptSHA256`, the script approved (only that one runs).
             case plugin(InstalledPlugin, hosts: [String], scriptSHA256: String)
             /// A script extension's command (`ExtensionCompletionRuntime`), with its bundle (nil: a single script);
-            /// `scriptSHA256`, the script approved (only that one runs).
-            case script(ScriptCommand, bundle: ExtensionBundle?, scriptSHA256: String)
+            /// `scriptSHA256`, its extension's digest approved (`ExtensionDigest`: only that one runs), unless it
+            /// `follows` its changes (the user's own, a trusted source's: it runs as it is).
+            case script(ScriptCommand, bundle: ExtensionBundle?, scriptSHA256: String, follows: Bool = false)
             /// A custom command's program (`CommandCompletionRuntime`).
             case command(CustomCommand)
         }
@@ -109,7 +113,7 @@ extension InputSession {
         var version: String {
             switch origin {
             case let .plugin(plugin, _, _): return plugin.manifest.version
-            case let .script(_, _, sha): return sha + ":" + String(source.hashValue)  // the store is this launch's
+            case let .script(_, _, sha, _): return sha + ":" + String(source.hashValue)  // the store is this launch's
             case let .command(command): return String(command.hashValue)
             }
         }
@@ -148,11 +152,34 @@ extension InputSession {
 
     // MARK: - The sources
 
+    /// What a script extension turned on is, as its approval goes (0.6.7.1 §2): its digest (`ExtensionDigest`: every
+    /// file of its bundle, a single script's file; nil: none read) and whether a change keeps it on (`followsChanges`:
+    /// the user's own, or from an extension source whose updates are trusted).
+    struct ExtensionPin: Equatable {
+        var digest: String?
+        var follows: Bool
+    }
+
+    /// `command`'s pin (`ExtensionPin`), as read for this field: read once as it takes the focus or the settings change
+    /// (`suggestionsMaintain(prune:)` forgets them), its files hashed again only when their size or date changed
+    /// (`SuggestionsStore.sha256`). A key reads it as it was then; its program's run reads the extension again as it
+    /// starts (`ExtensionCompletionRunner`).
+    func extensionPin(_ command: ScriptCommand, config: Config) -> ExtensionPin {
+        let id = command.id + "\u{0}" + command.extensionDirectory.path
+        if let pin = suggesting.extensionPins[id] { return pin }
+        let store = services.suggestions.store
+        let pin = ExtensionPin(digest: ExtensionDigest.of(command, sha256: store.sha256(of:)),
+                               follows: config.followsChanges(of: command, root: services.suggestions.extensionSourcesFolder))
+        suggesting.extensionPins[id] = pin
+        return pin
+    }
+
     /// The completion sources enabled (`SuggestionsSettings.enabled`) with the hosts, query, script and terms (prefix,
     /// when the query is first asked, how it compares) their plugin has now (an update that changed one needs enabling
-    /// again), then the script extensions' turned on with the script, query and terms their command has now
-    /// (0.6.7.1 §2: of the commands not turned off), then the custom commands' (`SuggestionsSettings.commands`: those its
-    /// rules don't refuse, a name once), all active with the settings (`inactiveReason`).
+    /// again), then the script extensions' turned on (0.6.7.1 §2: of the commands not turned off): those that follow
+    /// their changes unless marked lapsed, the others with the extension, query and terms their command has now
+    /// (`extensionPin`); then the custom commands' (`SuggestionsSettings.commands`: those its rules don't refuse, a name
+    /// once), all active with the settings (`inactiveReason`).
     func activeSources(_ settings: SuggestionsSettings, plugins: [InstalledPlugin]? = nil) -> [ActiveSource] {
         guard !settings.enabled.isEmpty || !settings.commands.isEmpty else { return [] }
         let config = services.loadSettings()
@@ -175,10 +202,12 @@ extension InputSession {
             for command in index.enabled(config.disabledExtensions) {
                 guard case let .success(source)? = command.completion, source.inactiveReason(config) == nil else { continue }
                 let key = CompletionSourceKey(extension: command)
-                guard let approval = settings.enabled.first(where: { $0.plugin == key.plugin && $0.source == key.source }),
-                      let sha = store.sha256(of: command.file), approval.holds(forScript: source, of: command, scriptSHA256: sha)
+                guard let approval = settings.enabled.first(where: { $0.plugin == key.plugin && $0.source == key.source }) else { continue }
+                let pin = extensionPin(command, config: config)
+                guard let digest = pin.digest, approval.holds(forScript: source, of: command, digest: digest, follows: pin.follows)
                 else { continue }
-                active.append(ActiveSource(origin: .script(command, bundle: index.bundle(of: command), scriptSHA256: sha),
+                active.append(ActiveSource(origin: .script(command, bundle: index.bundle(of: command), scriptSHA256: digest,
+                                                           follows: pin.follows),
                                            source: source, key: key))
             }
         }
@@ -826,11 +855,13 @@ extension InputSession {
     // MARK: - Lists and queries
 
     /// The results that came back taken in (now), Settings told of each source whose status changed; the lists due
-    /// loaded (`prune`, as a field takes the focus or the settings change, the plugins just scanned again: the sources
-    /// disabled forgotten first, their cache deleted, and the shell told of those whose approval no longer holds, to mark
-    /// it lapsed: kept, with its cache); the next refresh's timer.
+    /// loaded (`prune`, as a field takes the focus or the settings change, the plugins just scanned again and the script
+    /// extensions read again: the sources disabled forgotten first, their cache deleted, and the shell told of those
+    /// whose approval no longer holds, to mark it lapsed: kept, with its cache, and of the script extensions' that follow
+    /// their changes, made what they are now); the next refresh's timer.
     func suggestionsMaintain(prune: Bool = false) {
         let s = services.suggestions
+        if prune { suggesting.extensionPins = [:] }
         let settings = s.settings()
         let plugins = services.plugins(false)
         let active = activeSources(settings, plugins: plugins)
@@ -847,11 +878,18 @@ extension InputSession {
             s.store.prune(keeping: settings.sourceKeys, folder: s.cacheFolder)
             var lapsed = CompletionSourceApproval.lapsed(settings.enabled, plugins: plugins, sha256: s.store.sha256)
             if settings.enabled.contains(where: { $0.plugin == CompletionSourceKey.scriptExtensions }) {
-                let commands = services.loadExtensions(services.loadSettings(), false).commands
-                lapsed += CompletionSourceApproval.lapsed(settings.enabled, extensions: commands, sha256: s.store.sha256)
+                let config = services.loadSettings()
+                let commands = services.loadExtensions(config, false).commands
+                let (follows, digest) = ({ self.extensionPin($0, config: config).follows }, { self.extensionPin($0, config: config).digest })
+                lapsed += CompletionSourceApproval.lapsed(settings.enabled, extensions: commands, follows: follows, digest: digest)
+                let followed = CompletionSourceApproval.followed(settings.enabled, extensions: commands, follows: follows, digest: digest)
+                if !followed.isEmpty {
+                    log.notice("suggestions: \(followed.count) script extension source(s) changed, kept on (their own, or a trusted source's)")
+                    s.approvalsFollowed(followed)
+                }
             }
             if !lapsed.isEmpty {
-                log.notice("suggestions: \(lapsed.count) source(s) no longer approved (their plugin or script changed): off until enabled again")
+                log.notice("suggestions: \(lapsed.count) source(s) no longer approved (their plugin or extension changed): off until enabled again")
                 s.approvalsLapsed(lapsed)
             }
         }
@@ -941,12 +979,12 @@ extension InputSession {
     /// thread: its plugin's script called (`CompletionCall`: its `ctx`, its preferences filled in then,
     /// `completionPreferences`; the hosts and the script approved), a script extension's program run
     /// (`ExtensionCompletionCall`: its environment made then, its bundle's preferences with passwords from the secret
-    /// store, a required one not set failing it; the script approved), or its custom command's program run
-    /// (`CommandCompletionRuntime`).
+    /// store, a required one not set failing it; the extension approved, unless it follows its changes), or its custom
+    /// command's program run (`CommandCompletionRuntime`).
     func suggestionsFetch(_ active: ActiveSource, query: String?) -> @Sendable () async throws -> Data {
         let s = services.suggestions
         switch active.origin {
-        case let .script(command, bundle, sha):
+        case let .script(command, bundle, sha, follows):
             let (runtime, preferences, config) = (s.extensionRuntime, services.extensionPreferences, services.loadSettings())
             // As the session has them now: the work runs on another thread, a test's platform not seen there.
             let (processes, language) = (Platform.current.processes, UIText.chinese ? "zh" : "en")
@@ -956,7 +994,8 @@ extension InputSession {
                 if let missing = bundle?.missing(values).first { throw ExtensionCompletionError.missingPreference(missing.title) }
                 let environment = command.completionEnvironment(query == nil ? .load : .query, base: processes.environment,
                                                                 language: language, preferences: values)
-                let call = ExtensionCompletionCall(command: command, environment: environment, timeout: timeout, scriptSHA256: sha)
+                let call = ExtensionCompletionCall(command: command, environment: environment, timeout: timeout, scriptSHA256: sha,
+                                                   followsChanges: follows)
                 if let query { return try await runtime.query(query, call) }
                 return try await runtime.load(call)
             }
