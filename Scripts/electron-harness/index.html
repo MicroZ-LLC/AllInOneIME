@@ -34,8 +34,22 @@
   if (busy > 0) {
     document.addEventListener('keydown', () => { const end = performance.now() + busy; while (performance.now() < end) {} });
   }
+  // Like Slack's composer: a key down of Enter (keyCode 13, not composing, no Shift) sends the message. Its text stays
+  // (Slack's goes), so what the field ends with can be read. On the harness's stdout for the self-test, as "PAGE <what>
+  // <JSON>" lines: each key down's key, keyCode and isComposing, what was sent, and the field's text as it changes.
+  const page = (what, value) => log('PAGE ' + what + ' ' + JSON.stringify(value));
   const target = query.get('field') || 'composer';
-  document.getElementById(target).focus();
+  const field = document.getElementById(target);
+  const text = () => field.value ?? field.textContent;
+  field.addEventListener('keydown', e => {
+    page('keydown', { key: e.key, keyCode: e.keyCode, isComposing: e.isComposing });
+    if (e.key === 'Enter' && e.keyCode === 13 && !e.isComposing && !e.shiftKey) {
+      e.preventDefault();
+      page('sent', text());
+    }
+  });
+  for (const type of ['input', 'compositionend']) field.addEventListener(type, () => page('text', text()));
+  field.focus();
   log('focused', document.activeElement.id, 'hasFocus', document.hasFocus());
 </script>
 </body>

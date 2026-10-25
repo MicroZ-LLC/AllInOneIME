@@ -13,7 +13,12 @@ if (app.dock) app.dock.hide();
 app.whenReady().then(() => {
   const win = new BrowserWindow({ width: 520, height: 240, x: 40, y: 40, show: false,
                                   webPreferences: { contextIsolation: true, sandbox: true, backgroundThrottling: false } });
-  win.webContents.on('console-message', (event) => process.stderr.write(`[page] ${event.message ?? event}\n`));
+  win.webContents.on('console-message', (event) => {
+    const message = `${event.message ?? event}`;
+    process.stderr.write(`[page] ${message}\n`);
+    // What the page says for the self-test ("PAGE …", index.html) on stdout too, with the probe's lines.
+    if (message.startsWith('PAGE ')) process.stdout.write(`${message}\n`);
+  });
   win.loadFile(path.join(__dirname, 'index.html'),
                { query: { field: process.env.HARNESS_FIELD || 'composer', busy: process.env.HARNESS_BUSY || '0' } });
   win.webContents.once('did-finish-load', () => {

@@ -246,10 +246,11 @@ public protocol CompletionRuntime: Sendable {
 
 // MARK: - Trust, switches, what is kept (spec 1.4, 1.5, 3)
 
-/// A completion source the user enabled in Settings → Plugins, and what they enabled: the plugin's `hosts`, whether the
-/// source queries, the SHA-256 (lowercase hex) of its script file, and what else its switch said (`terms`). A plugin
-/// whose hosts, query, script or terms differ now needs enabling again: until then the source is off, its approval kept
-/// and marked `lapsed` (Settings says it changed since it was turned on).
+/// A completion source approved, and what was approved: as its plugin was installed or first found on this Mac (0.6.7.2:
+/// on by default, `Config.approveNewPlugins`), or as the user turned it on in Settings → Plugins: the plugin's `hosts`,
+/// whether the source queries, the SHA-256 (lowercase hex) of its script file, and what else its switch says (`terms`).
+/// A plugin whose hosts, query, script or terms differ now needs turning on again: until then the source is off, its
+/// approval kept and marked `lapsed` (Settings says it changed since it was turned on).
 public struct CompletionSourceApproval: Codable, Equatable, Hashable, Sendable {
     /// What a source's switch says besides its hosts and whether it queries ("sends what you type after # to …"): its
     /// prefix, how many characters after it before its query is first asked, how it compares.
@@ -322,12 +323,15 @@ extension CompletionSource.Compare: Codable {}
 
 /// The switches suggestions follow, as the shell has them from its settings: the input menu's "Suggestions" (nil: the
 /// default, on once a source is enabled), Settings → Apps' per-app "Suggestions" by app id (absent: the default), the
-/// completion sources enabled (one disabled: its cached list is deleted), the custom commands that are sources, and
-/// "Refresh now" pressed for a source. (No AI in an app doesn't turn completions off: no AI is involved.)
+/// completion sources approved (one disabled: its cached list is deleted) and those turned off, the custom commands that
+/// are sources, and "Refresh now" pressed for a source. (No AI in an app doesn't turn completions off: no AI is involved.)
 public struct SuggestionsSettings: Equatable, Sendable {
     public var master: Bool?
     public var apps: [String: Bool]
     public var enabled: [CompletionSourceApproval]
+    /// The sources the user turned off (`Config.completionSourcesOff`): off whatever else. A script extension's that
+    /// follows its changes (the user's own, a trusted source's) is on with no approval unless it is among them (0.6.7.2).
+    public var off: [CompletionSourceKey]
     /// "Refresh now" (Settings → Plugins, or a custom command's editor), the latest for each source: one newer than the
     /// source's last load loads it again now, paused or not (spec 3, 6.17).
     public var refreshes: [CompletionSourceRefresh]
@@ -343,10 +347,11 @@ public struct SuggestionsSettings: Equatable, Sendable {
 
     public init(master: Bool? = nil, apps: [String: Bool] = [:], enabled: [CompletionSourceApproval] = [],
                 refreshes: [CompletionSourceRefresh] = [], commands: [CustomCommand] = [], insert: SuggestionsInsert? = nil,
-                appInserts: [String: SuggestionsInsert] = [:]) {
+                appInserts: [String: SuggestionsInsert] = [:], off: [CompletionSourceKey] = []) {
         self.master = master
         self.apps = apps
         self.enabled = enabled
+        self.off = off
         self.refreshes = refreshes
         self.commands = commands
         self.insert = insert

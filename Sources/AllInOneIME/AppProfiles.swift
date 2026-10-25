@@ -255,7 +255,9 @@ extension AllInOneIMEInputController {
             menu.addItem(entry)
         }
         add(tr("不用 AI", "No AI"), #selector(toggleAppNoAI(_:)), on: profile.noAI == true)
-        if !current.completionSources.isEmpty || current.customCommands.contains(where: { $0.type == .suggestions }) {
+        // A source approved, a custom command that is one, or a script extension's (on by default, 0.6.7.2).
+        if !current.completionSources.isEmpty || current.customCommands.contains(where: { $0.type == .suggestions })
+            || LiveExtensions.current(current).commands.contains(where: { if case .success? = $0.completion { return true } else { return false } }) {
             menu.addItem(.separator())
             let inserts = NSMenuItem(title: tr("建议插入：", "Suggestions Insert:"), action: nil, keyEquivalent: "")
             inserts.isEnabled = false

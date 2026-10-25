@@ -5,15 +5,19 @@ import Foundation
 // source, with a plugin's `completions` entry's keys and meaning (docs/plugins.md), its name and title the command's. One
 // kind of source: the session takes it with the plugins' and the custom commands' (`InputSession.ActiveSource`), the
 // store keeps it as theirs under `CompletionSourceKey(extension:)` (its list, the disk cache, back-off and pause, statuses,
-// "Refresh now", the picks), its approval is a `CompletionSourceApproval` in `Config.completionSources` (off until turned
-// on in Settings → Commands), its rows, keys and insertions are theirs. Turning it on pins its whole extension and its
-// terms (query, prefix, queryMinChars, compare); what a change does then depends on where the extension comes from
-// (`ExtensionOrigin`, owner 2026-10-24): the user's own, or one from an extension source whose updates they trust, keeps
-// it on (the approval follows it, said nowhere, nothing of it read); one from any other source turns it off again, said
-// once: that one is pinned by a digest of every file of its source's repository (`ExtensionDigest`), which can't be
-// over 2,000 files, 20 MB or 10,000 items, and must be read all. Where it comes from is where it was loaded from, never
-// where links lead. What differs is where its items come from: its script, run as its commands run
-// (`CommandRunner`) with `ALLINONEIME_COMPLETION` set (`ExtensionCompletionRunner`), a bundle's programs one at a time.
+// "Refresh now", the picks), its approval is a `CompletionSourceApproval` in `Config.completionSources`, its rows, keys
+// and insertions are theirs. On by default (owner 2026-10-25, 0.6.7.2): the user's own extension's as it loads, and a
+// trusted source's, with no approval (`CompletionSourceApproval.byDefault`); one from any other extension source once
+// approved as the source is added (`Config.approveAddedSource`) or turned on in Settings → Commands; one the user turned
+// off stays off (`Config.completionSourcesOff`). An approval pins its whole extension and its terms (query, prefix,
+// queryMinChars, compare); what a change does then depends on where the extension comes from (`ExtensionOrigin`, owner
+// 2026-10-24): the user's own, or one from an extension source whose updates they trust, keeps it on (the approval
+// follows it, said nowhere, nothing of it read); one from any other source turns it off again, said once, and a source
+// an update adds waits until turned on: that one is pinned by a digest of every file of its source's repository
+// (`ExtensionDigest`), which can't be over 2,000 files, 20 MB or 10,000 items, and must be read all. Where it comes from
+// is where it was loaded from, never where links lead. What differs is where its items come from: its script, run as
+// its commands run (`CommandRunner`) with `ALLINONEIME_COMPLETION` set (`ExtensionCompletionRunner`), a bundle's programs
+// one at a time.
 
 extension CompletionDeclaration {
     /// A script extension's declaration (`completion`: the JSON text of a script's `@allinoneime.completion` line, or of
@@ -344,9 +348,12 @@ extension Config {
         extensionOrigin(of: command, root: root).followsChanges
     }
 
-    /// The extension source of `url`'s "Trust its updates" switched `on`. Turned off, its extensions' approvals that hold
-    /// are first made what they are now (`follow`: their repository read then, by `sha256`, `pinsWithoutTrust`), so
-    /// turning it off turns nothing off by itself: only a change after it does (one whose repository is too large to read,
+    /// The extension source of `url`'s "Trust its updates" switched `on`. Turned on, its extensions' sources off because
+    /// of a change (marked lapsed) are turned on again, approved as they are now (0.6.7.2, owner 2026-10-25), and those
+    /// waiting (added by an update, no approval) are on as its updates are trusted (`CompletionSourceApproval.byDefault`);
+    /// never one the user turned off. Turned off, its extensions' sources on (approved and holding, or on by default) are
+    /// first approved as they are now (`follow`: their repository read then, by `sha256`, `pinsWithoutTrust`), so turning
+    /// it off turns nothing off by itself: only a change after it does (one whose repository is too large to read,
     /// `ExtensionDigest.tooLarge`, or can't be read all, is turned off at the next check). `commands`: the script
     /// extensions as loaded; `root`: the extension sources' folder. Whether it changed.
     @discardableResult
@@ -354,13 +361,15 @@ extension Config {
                                          root: URL = ExtensionSources.directory,
                                          sha256: (URL) -> String? = PluginStore.sha256(of:)) -> Bool {
         guard extensionSources.contains(where: { $0.url == url && $0.trustUpdates != on }) else { return false }
-        return setTrustUpdates(on, of: url, pinning: on ? [] : pinsWithoutTrust(of: url, extensions: commands, root: root, sha256: sha256))
+        return setTrustUpdates(on, of: url, pinning: on ? [] : pinsWithoutTrust(of: url, extensions: commands, root: root, sha256: sha256),
+                               extensions: commands, root: root)
     }
 
-    /// What turning "Trust its updates" of the extension source `url` off approves: its extensions' approvals that hold
-    /// (of `commands`, the script extensions as loaded), each made what it is now, its repository read (in `root`, by
-    /// `sha256`; one that can't be read or is too large is left as it was). It reads the repository: Settings calls it off
-    /// the main thread, then `setTrustUpdates(_:of:pinning:)` with what it found.
+    /// What turning "Trust its updates" of the extension source `url` off approves: its extensions' sources that are on
+    /// (of `commands`, the script extensions as loaded): approvals that hold, and those on by default with none (not turned
+    /// off), each made what it is now, its repository read (in `root`, by `sha256`; one that can't be read or is too large
+    /// is left as it was). It reads the repository: Settings calls it off the main thread, then
+    /// `setTrustUpdates(_:of:pinning:extensions:root:)` with what it found.
     public func pinsWithoutTrust(of url: String, extensions commands: [ScriptCommand], root: URL = ExtensionSources.directory,
                                  sha256: (URL) -> String? = PluginStore.sha256(of:)) -> [CompletionSourceApproval] {
         pinsWithoutTrust(of: url, extensions: commands, root: root, digest: { ExtensionDigest.of($0, root: root, sha256: sha256) })
@@ -369,21 +378,87 @@ extension Config {
     /// `pinsWithoutTrust(of:extensions:root:sha256:)`, each extension read by `digest` (`ExtensionDigest.of`).
     public func pinsWithoutTrust(of url: String, extensions commands: [ScriptCommand], root: URL = ExtensionSources.directory,
                                  digest: (ScriptCommand) -> String?) -> [CompletionSourceApproval] {
-        let own = commands.filter { if case let .source(source) = extensionOrigin(of: $0, root: root) { return source.url == url } else { return false } }
+        let own = extensions(from: url, in: commands, root: root)
+        let defaults = own.compactMap { command -> CompletionSourceApproval? in
+            guard case let .success(source)? = command.completion, approval(of: source, in: command) == nil,
+                  !turnedOff(CompletionSourceKey(extension: command)),
+                  let read = digest(command), read != ExtensionDigest.tooLarge else { return nil }
+            return CompletionSourceApproval(source, of: command, digest: read)
+        }
         return withoutActuallyEscaping(digest) { digest in
             CompletionSourceApproval.followed(completionSources, extensions: own, follows: { _ in true }, digest: digest)
-        }
+        } + defaults
     }
 
     /// The extension source of `url`'s "Trust its updates" switched `on`; turned off, `followed` (what `pinsWithoutTrust`
-    /// read) taken first (`follow`: those turned off or marked lapsed since are left so). Nothing read. Whether it changed.
+    /// read) taken first (`follow`: those turned off or marked lapsed since are left so; one on by default, with no
+    /// approval, approved so unless turned off since). Turned on, the sources of its extensions (of `commands`, as loaded,
+    /// in `root`) marked lapsed are approved as they are now, nothing of them read (`turnOnChanged`). Whether it changed.
     @discardableResult
-    public mutating func setTrustUpdates(_ on: Bool, of url: String, pinning followed: [CompletionSourceApproval]) -> Bool {
+    public mutating func setTrustUpdates(_ on: Bool, of url: String, pinning followed: [CompletionSourceApproval],
+                                         extensions commands: [ScriptCommand] = [], root: URL = ExtensionSources.directory) -> Bool {
         guard let index = extensionSources.firstIndex(where: { $0.url == url }), extensionSources[index].trustUpdates != on
         else { return false }
-        if !on { follow(followed) }
+        if !on {
+            follow(followed)
+            for approval in followed where !completionSources.contains(where: { $0.plugin == approval.plugin && $0.source == approval.source })
+                && !turnedOff(CompletionSourceKey(plugin: approval.plugin, source: approval.source)) {
+                completionSources.append(approval)
+            }
+        }
         extensionSources[index].trustUpdates = on
+        if on { turnOnChanged(of: url, extensions: commands, root: root) }
         return true
+    }
+
+    /// The sources of the extension source `url`'s extensions (of `commands`, as loaded, in `root`) off because of a change
+    /// (marked lapsed) approved as they are now, as one whose updates are trusted is (its query and terms, nothing read):
+    /// turning "Trust its updates" on turns them on (owner 2026-10-25). Never one the user turned off. Whether any changed.
+    @discardableResult
+    mutating func turnOnChanged(of url: String, extensions commands: [ScriptCommand], root: URL = ExtensionSources.directory) -> Bool {
+        var changed = false
+        for command in extensions(from: url, in: commands, root: root) {
+            guard case let .success(source)? = command.completion, approval(of: source, in: command)?.lapsed == true,
+                  !turnedOff(CompletionSourceKey(extension: command)) else { continue }
+            setCompletionSource(source, of: command, enabled: true, digest: nil, root: root)
+            changed = true
+        }
+        return changed
+    }
+
+    /// The script extensions of `commands` installed from the extension source `url` (`extensionOrigin`, in `root`).
+    func extensions(from url: String, in commands: [ScriptCommand], root: URL) -> [ScriptCommand] {
+        commands.filter { if case let .source(source) = extensionOrigin(of: $0, root: root) { return source.url == url } else { return false } }
+    }
+
+    /// The completion sources the extensions of the extension source `url` declare (of `commands`, the script extensions
+    /// as loaded, in `root`) approved as they are now, as the source is added (0.6.7.2, owner 2026-10-25: reviewed and
+    /// installed, Settings' Add from Link… or `--add-source`, or reviewed again after a force push): from a source whose
+    /// updates aren't trusted with its repository's digest (`digest`, `ExtensionDigest.of`: not one that can't be read all
+    /// or is too large to pin, which stays off, Settings saying why), from a trusted one with nothing read. Never one the
+    /// user turned off. Whether any changed.
+    @discardableResult
+    public mutating func approveAddedSource(_ url: String, extensions commands: [ScriptCommand], root: URL = ExtensionSources.directory,
+                                            digest: (ScriptCommand) -> String?) -> Bool {
+        let before = completionSources
+        for command in extensions(from: url, in: commands, root: root) {
+            let key = CompletionSourceKey(extension: command)
+            guard case let .success(source)? = command.completion, !turnedOff(key) else { continue }
+            let approval: CompletionSourceApproval
+            if followsChanges(of: command, root: root) {
+                approval = CompletionSourceApproval(source, of: command, digest: "")
+            } else if let read = digest(command), read != ExtensionDigest.tooLarge {
+                approval = CompletionSourceApproval(source, of: command, digest: read)
+            } else {
+                continue
+            }
+            if let index = completionSources.firstIndex(where: { $0.plugin == key.plugin && $0.source == key.source }) {
+                completionSources[index] = approval
+            } else {
+                completionSources.append(approval)
+            }
+        }
+        return completionSources != before
     }
 }
 
@@ -410,6 +485,15 @@ extension CompletionSourceApproval {
     init(_ source: CompletionSource, of command: ScriptCommand, digest: String) {
         let key = CompletionSourceKey(extension: command)
         self.init(plugin: key.plugin, source: key.source, hosts: [], query: source.query, scriptSHA256: digest, terms: Terms(source))
+    }
+
+    /// What `source` of `command` is on with when it has no approval (0.6.7.2, owner 2026-10-25: on by default): one
+    /// whose changes keep it on (`follows`: the user's own, a trusted source's), with its query and terms as they are now,
+    /// nothing of it read. Nil for any other (from an extension source whose updates aren't trusted): it is on only once
+    /// approved (as its source was added, or by its switch), and one an update adds waits until turned on. Not for one the
+    /// user turned off (`Config.completionSourcesOff`): the caller asks that first.
+    public static func byDefault(_ source: CompletionSource, of command: ScriptCommand, follows: Bool) -> CompletionSourceApproval? {
+        follows ? CompletionSourceApproval(source, of: command, digest: "") : nil
     }
 
     /// Whether it still pins `source` of `command` as they are now: the same extension (its digest: any file of its
@@ -481,16 +565,18 @@ extension CompletionSourceApproval {
 }
 
 extension Config {
-    /// The approval `source` of the script extension `command` was turned on with (nil: not turned on).
+    /// The approval `source` of the script extension `command` was approved with (nil: none; one that follows its changes
+    /// may be on by default all the same: `CompletionSourceApproval.byDefault`).
     public func approval(of source: CompletionSource, in command: ScriptCommand) -> CompletionSourceApproval? {
         let key = CompletionSourceKey(extension: command)
         return completionSources.first { $0.plugin == key.plugin && $0.source == key.source }
     }
 
-    /// `source` of the script extension `command` turned on with what it is now, or off. One whose changes keep it on
-    /// (`followsChanges`: the user's own, a trusted source's) is turned on with its query and terms, nothing of it read
-    /// (no digest); any other with its digest too (`ExtensionDigest.of`: not when it can't be read all, or its repository
-    /// is too large to pin). `root`: the extension sources' folder; `sha256`: a file's.
+    /// `source` of the script extension `command` turned on with what it is now, or off: turned off, kept off
+    /// (`completionSourcesOff`) through its updates, restarts and a re-index, until turned on again, which takes it off
+    /// that list. One whose changes keep it on (`followsChanges`: the user's own, a trusted source's) is turned on with its
+    /// query and terms, nothing of it read (no digest); any other with its digest too (`ExtensionDigest.of`: not when it
+    /// can't be read all, or its repository is too large to pin). `root`: the extension sources' folder; `sha256`: a file's.
     public mutating func setCompletionSource(_ source: CompletionSource, of command: ScriptCommand, enabled: Bool,
                                              root: URL = ExtensionSources.directory,
                                              sha256: (URL) -> String? = PluginStore.sha256(of:)) {
@@ -502,10 +588,12 @@ extension Config {
     /// `setCompletionSource(_:of:enabled:root:sha256:)` with its extension read already (Settings reads it off the main
     /// thread): `digest`, its `ExtensionDigest.of` (nil: it can't be read all). One whose changes keep it on is turned on
     /// without it, whatever it is; any other only with a digest that pins it (not nil, not `ExtensionDigest.tooLarge`).
+    /// Turned on, it is no longer turned off either way.
     public mutating func setCompletionSource(_ source: CompletionSource, of command: ScriptCommand, enabled: Bool, digest: String?,
                                              root: URL = ExtensionSources.directory) {
         let key = CompletionSourceKey(extension: command)
         completionSources.removeAll { $0.plugin == key.plugin && $0.source == key.source }
+        setTurnedOff(key, !enabled)
         guard enabled else { return }
         if followsChanges(of: command, root: root) {
             completionSources.append(CompletionSourceApproval(source, of: command, digest: ""))
@@ -527,12 +615,17 @@ extension Config {
 
     /// `completionState(of:in:root:sha256:)` from what was read already, nothing read here: `follows`, whether a change
     /// keeps it on (`followsChanges`); `digest`, its extension's (`ExtensionDigest.of`; nil: it can't be read all; not
-    /// looked at for one that follows).
+    /// looked at for one that follows). On with its approval, or with none when it follows (on by default,
+    /// `CompletionSourceApproval.byDefault`); never once turned off (`completionSourcesOff`).
     public func completionState(of source: CompletionSource, in command: ScriptCommand, follows: Bool, digest: String?) -> ScriptCompletionState {
-        let approval = approval(of: source, in: command)
         let tooLarge = !follows && digest == ExtensionDigest.tooLarge
         let unreadable = !follows && digest == nil
-        let on = approval?.holds(forScript: source, of: command, digest: digest, follows: follows) ?? false
+        guard !turnedOff(CompletionSourceKey(extension: command)) else {
+            return ScriptCompletionState(on: false, changed: false, tooLarge: tooLarge, unreadable: unreadable, turnedOff: true)
+        }
+        let approval = approval(of: source, in: command)
+        let on = (approval ?? CompletionSourceApproval.byDefault(source, of: command, follows: follows))?
+            .holds(forScript: source, of: command, digest: digest, follows: follows) ?? false
         return ScriptCompletionState(on: on, changed: approval != nil && !on && !tooLarge && !unreadable, tooLarge: tooLarge,
                                      unreadable: unreadable)
     }
@@ -552,9 +645,18 @@ extension Config {
     }
 }
 
+extension ExtensionSources {
+    /// The script extensions of `source`'s bundle as they load from its clone in `root` (its folder read only as the one
+    /// bundle it is, as the input method loads it): what adding the source approves (`Config.approveAddedSource`).
+    public static func extensions(of source: ExtensionSource, root: URL = directory) -> [ScriptCommand] {
+        ExtensionStore.load([ExtensionStore.Folder(path: loadPath(for: source, root: root), found: false, bundleOnly: true)]).commands
+    }
+}
+
 /// How a script extension's completion source stands in Settings, under its command (`Config.completionState`).
 public struct ScriptCompletionState: Equatable, Sendable {
-    /// Turned on, and holding for the extension as it is now: its rows may show.
+    /// On, and holding for the extension as it is now (approved, or on by default: the user's own, a trusted source's):
+    /// its rows may show.
     public var on: Bool
     /// Turned on before a change that turned it off (from an extension source whose updates aren't trusted): off until
     /// turned on again (`CompletionSource.scriptChanged`).
@@ -565,12 +667,15 @@ public struct ScriptCompletionState: Equatable, Sendable {
     /// Its extension can't be read all to check for changes (a folder that can't be listed, a file that can't be read: no
     /// digest): it can't be turned on, and one turned on before is off (`CompletionSource.repositoryUnreadable`).
     public var unreadable: Bool
+    /// The user turned it off (`Config.completionSourcesOff`): off, whatever its approval, until turned on again.
+    public var turnedOff: Bool
 
-    public init(on: Bool, changed: Bool, tooLarge: Bool, unreadable: Bool = false) {
+    public init(on: Bool, changed: Bool, tooLarge: Bool, unreadable: Bool = false, turnedOff: Bool = false) {
         self.on = on
         self.changed = changed
         self.tooLarge = tooLarge
         self.unreadable = unreadable
+        self.turnedOff = turnedOff
     }
 
     /// Why it can't be turned on (its switch disabled while off), as said under it; nil: it can.

@@ -306,6 +306,59 @@ struct SuggestionsReplaceTests {
         }
     }
 
+    /// A row a key puts in says so first (`SessionOutput.rowByKey`), before what puts it in: Tab's, Return's and keypad
+    /// Enter's, in the token's place, as a plain insertion of one character, and for a row that adds nothing (nothing
+    /// follows it then). A row clicked doesn't: there is no key to answer.
+    @Test func aRowPutInByAKeySaysSoFirst() async throws {
+        try await inEnglish {
+            /// What `outputs` say of putting text in, the marker too.
+            func said(_ outputs: ArraySlice<SessionOutput>) -> [SessionOutput] {
+                outputs.filter { output in
+                    switch output {
+                    case .rowByKey, .checkNextReplace, .replace, .commit, .commitAfterKey, .typeOut: return true
+                    default: return false
+                    }
+                }
+            }
+            let world = try Self.world(insert: Self.markdown)
+            let keypadEnter = KeyEvent(keyCode: VirtualKey.keypadEnter, characters: "\u{3}")
+            for key in [SuggestionKeys.tab, SuggestionKeys.enter, keypadEnter] {
+                let field = world.field()
+                field.type("#12")
+                #expect(field.settle { field.issuesShown.first == "#1234" }, "\(field.rows.map(\.text))")
+                let before = field.host.outputs.count
+                #expect(field.press(key))
+                #expect(said(field.host.outputs.dropFirst(before))
+                        == [.rowByKey, .checkNextReplace(ReplacementCheck(expected: "#12", otherwise: "34")),
+                            .replace("[Fix login](\(Self.link))", range: 0..<3)], "\(key.key)")
+                #expect(field.document == "[Fix login](\(Self.link))", "\(key.key): \(field.document)")
+            }
+            // A plain insertion of one character: what wasn't typed of "#1299".
+            let plain = world.field()
+            plain.type("#129")
+            #expect(plain.settle { plain.issuesShown == ["#1299"] }, "\(plain.rows.map(\.text))")
+            var before = plain.host.outputs.count
+            #expect(plain.press(SuggestionKeys.enter))
+            #expect(said(plain.host.outputs.dropFirst(before)) == [.rowByKey, .commit("9")] && plain.document == "#1299")
+            // A row that adds nothing ("#1299" typed in full, its own row moved to): the marker alone, the key taken.
+            let whole = world.field()
+            whole.type("#1299")
+            #expect(whole.settle { whole.issuesShown == ["#1299"] }, "\(whole.rows.map(\.text))")
+            before = whole.host.outputs.count
+            #expect(whole.pick(at: 0))
+            #expect(said(whole.host.outputs.dropFirst(before)) == [.rowByKey] && whole.document == "#1299",
+                    "\(said(whole.host.outputs.dropFirst(before)))")
+            // Clicked: in the token's place, no marker.
+            let clicked = world.field()
+            clicked.type("#12")
+            #expect(clicked.settle { clicked.issuesShown.first == "#1234" }, "\(clicked.rows.map(\.text))")
+            before = clicked.host.outputs.count
+            clicked.host.send(.pick(0))
+            #expect(said(clicked.host.outputs.dropFirst(before))
+                    == [.checkNextReplace(ReplacementCheck(expected: "#12", otherwise: "34")), .replace("[Fix login](\(Self.link))", range: 0..<3)])
+        }
+    }
+
     /// A row clicked once the text moved since the last key (text put in before the token by something the input method
     /// doesn't see): the range that key told holds other text now, so nothing is taken out; what a plain insertion would
     /// put in goes in at the caret, and nothing where there is none (a source whose only template is a link).

@@ -59,6 +59,9 @@ struct SuggestionsField {
     /// The script extensions turned on as they were read for this field (`InputSession.extensionPin`), by command id and
     /// folder: read again as the field takes the focus or the settings change, a key only reading them.
     var extensionPins: [String: InputSession.ExtensionPin] = [:]
+    /// Whether a script extension's source is on here with no approval (0.6.7.2: the user's own, a trusted source's, not
+    /// turned off), read with the pins (`InputSession.extensionSourcesOnByDefault`); nil: not read yet.
+    var extensionsOnByDefault: Bool?
     /// `selected` was told while pinyin composed: it is in the marked text the key then put in, as the field counts it,
     /// so it places no token (`suggestionsPlaceToken`).
     var selectedComposing = false
@@ -175,14 +178,16 @@ extension InputSession {
         return pin
     }
 
-    /// The completion sources enabled (`SuggestionsSettings.enabled`) with the hosts, query, script and terms (prefix,
-    /// when the query is first asked, how it compares) their plugin has now (an update that changed one needs enabling
-    /// again), then the script extensions' turned on (0.6.7.1 §2: of the commands not turned off): those that follow
-    /// their changes unless marked lapsed, the others with the extension, query and terms their command has now
-    /// (`extensionPin`); then the custom commands' (`SuggestionsSettings.commands`: those its rules don't refuse, a name
-    /// once), all active with the settings (`inactiveReason`).
+    /// The completion sources approved (`SuggestionsSettings.enabled`) with the hosts, query, script and terms (prefix,
+    /// when the query is first asked, how it compares) their plugin has now (an update that changed one needs turning on
+    /// again), then the script extensions' (0.6.7.1 §2: of the commands not turned off): those that follow their changes
+    /// (the user's own, a trusted source's) unless marked lapsed, approved or not (0.6.7.2: on by default,
+    /// `CompletionSourceApproval.byDefault`), the others approved with the extension, query and terms their command has
+    /// now (`extensionPin`), never one the user turned off (`SuggestionsSettings.off`); then the custom commands'
+    /// (`SuggestionsSettings.commands`: those its rules don't refuse, a name once), all active with the settings
+    /// (`inactiveReason`).
     func activeSources(_ settings: SuggestionsSettings, plugins: [InstalledPlugin]? = nil) -> [ActiveSource] {
-        guard !settings.enabled.isEmpty || !settings.commands.isEmpty else { return [] }
+        guard suggestionsSourcesMayBeOn(settings) else { return [] }
         let config = services.loadSettings()
         let store = services.suggestions.store
         var active: [ActiveSource] = []
@@ -191,21 +196,24 @@ extension InputSession {
                 let approvals = settings.enabled.filter { $0.plugin == plugin.name }
                 guard !approvals.isEmpty, let script = plugin.scriptURL, let sha = store.sha256(of: script) else { continue }
                 for source in plugin.manifest.completions where source.inactiveReason(config) == nil {
-                    guard let approval = approvals.first(where: { $0.holds(for: source, hosts: plugin.manifest.hosts, scriptSHA256: sha) })
+                    guard !settings.off.contains(CompletionSourceKey(plugin: plugin.name, source: source.name)),
+                          let approval = approvals.first(where: { $0.holds(for: source, hosts: plugin.manifest.hosts, scriptSHA256: sha) })
                     else { continue }
                     active.append(ActiveSource(origin: .plugin(plugin, hosts: approval.hosts, scriptSHA256: approval.scriptSHA256),
                                                source: source, key: CompletionSourceKey(plugin: plugin.name, source: source.name)))
                 }
             }
         }
-        if settings.enabled.contains(where: { $0.plugin == CompletionSourceKey.scriptExtensions }) {
+        if settings.enabled.contains(where: { $0.plugin == CompletionSourceKey.scriptExtensions }) || extensionSourcesOnByDefault(settings) {
             let index = services.loadExtensions(config, false)
             for command in index.enabled(config.disabledExtensions) {
                 guard case let .success(source)? = command.completion, source.inactiveReason(config) == nil else { continue }
                 let key = CompletionSourceKey(extension: command)
-                guard let approval = settings.enabled.first(where: { $0.plugin == key.plugin && $0.source == key.source }) else { continue }
+                guard !settings.off.contains(key) else { continue }
                 let pin = extensionPin(command, config: config)
-                guard approval.holds(forScript: source, of: command, digest: pin.digest, follows: pin.follows) else { continue }
+                guard let approval = settings.enabled.first(where: { $0.plugin == key.plugin && $0.source == key.source })
+                        ?? CompletionSourceApproval.byDefault(source, of: command, follows: pin.follows),
+                      approval.holds(forScript: source, of: command, digest: pin.digest, follows: pin.follows) else { continue }
                 active.append(ActiveSource(origin: .script(command, bundle: index.bundle(of: command), scriptSHA256: approval.scriptSHA256,
                                                            follows: pin.follows),
                                            source: source, key: key))
@@ -227,11 +235,34 @@ extension InputSession {
         return settings.apps.first { $0.key.caseInsensitiveCompare(app) == .orderedSame }?.value != false
     }
 
-    /// Whether rows may show in this field at all: a source enabled, a custom command that is one, or the input Code, and
-    /// the switches on. None may: a key asks nothing of the pointer for the token (`suggestionsAfterKey`).
+    /// Whether rows may show in this field at all: a source enabled (or on by default), a custom command that is one, or
+    /// the input Code, and the switches on. None may: a key asks nothing of the pointer for the token
+    /// (`suggestionsAfterKey`).
     func suggestionsMayShow() -> Bool {
         let settings = services.suggestions.settings()
-        return (!settings.enabled.isEmpty || !settings.commands.isEmpty || composer.coding) && suggestionsOn(settings)
+        return (composer.coding || suggestionsSourcesMayBeOn(settings)) && suggestionsOn(settings)
+    }
+
+    /// Whether a completion source may be on: one approved, a custom command that is one, or a script extension's on by
+    /// default (`extensionSourcesOnByDefault`).
+    func suggestionsSourcesMayBeOn(_ settings: SuggestionsSettings) -> Bool {
+        !settings.enabled.isEmpty || !settings.commands.isEmpty || extensionSourcesOnByDefault(settings)
+    }
+
+    /// Whether a script extension's source is on here with no approval (0.6.7.2, owner 2026-10-25): of the commands not
+    /// turned off, one that declares a source, active with the settings, not turned off (`SuggestionsSettings.off`), whose
+    /// changes keep it on (`extensionPin`: the user's own, a trusted source's). Read once with the pins (as the field takes
+    /// the focus or the settings change), a key only asking.
+    func extensionSourcesOnByDefault(_ settings: SuggestionsSettings) -> Bool {
+        if let known = suggesting.extensionsOnByDefault { return known }
+        let config = services.loadSettings()
+        let on = services.loadExtensions(config, false).enabled(config.disabledExtensions).contains { command in
+            guard case let .success(source)? = command.completion, source.inactiveReason(config) == nil,
+                  !settings.off.contains(CompletionSourceKey(extension: command)) else { return false }
+            return extensionPin(command, config: config).follows
+        }
+        suggesting.extensionsOnByDefault = on
+        return on
     }
 
     /// Whether Code reads the field's text here (its words, the caret's line's indentation): it is the input, the field is
@@ -627,7 +658,7 @@ extension InputSession {
         let appClass = SuggestionsAppClass(app: app, terminal: terminal)
         let settings = services.suggestions.settings()
         guard !suggesting.dead, appClass != .none, passwordField == false, !secureInputActive(),
-              !settings.enabled.isEmpty || !settings.commands.isEmpty, suggestionsOn(settings) else { return false }
+              suggestionsSourcesMayBeOn(settings), suggestionsOn(settings) else { return false }
         let start = SuggestionsToken.normalized(suggesting.token + typed).lowercased()
         let insert = settings.insert(for: app)
         return activeSources(settings).contains { active in
@@ -687,8 +718,10 @@ extension InputSession {
     /// field tells where the token is (`suggestionsTokenRange`): the token taken out, prefix and all, and its text put in,
     /// one change (`SessionOutput.replace`), Code's word held taken out first; only where the field still holds the
     /// token there as the shell reads it back (`ReplacementCheck`: else what a plain insertion would put in, at the
-    /// caret); elsewhere its next template that starts with the token goes in as any row's.
+    /// caret); elsewhere its next template that starts with the token goes in as any row's. Put in by a key, it says so
+    /// first (`SessionOutput.rowByKey`).
     func suggestionsInsert(_ row: SuggestionRow, key: KeyEvent?) {
+        if key != nil { emit(.rowByKey) }
         if row.replaces, suggesting.ranges, let range = suggestionsTokenRange() {
             let word = composer.codeWord ?? ""
             if !word.isEmpty { perform(composer.endCodeWord(inserting: "")) }
@@ -861,7 +894,7 @@ extension InputSession {
     /// their changes, made what they are now); the next refresh's timer.
     func suggestionsMaintain(prune: Bool = false) {
         let s = services.suggestions
-        if prune { suggesting.extensionPins = [:] }
+        if prune { (suggesting.extensionPins, suggesting.extensionsOnByDefault) = ([:], nil) }
         let settings = s.settings()
         let plugins = services.plugins(false)
         let active = activeSources(settings, plugins: plugins)
@@ -875,7 +908,9 @@ extension InputSession {
             }
         }
         if prune {
-            s.store.prune(keeping: settings.sourceKeys, folder: s.cacheFolder)
+            // Those on by default with no approval (the user's own extension's, a trusted source's) keep their lists too.
+            let declared = services.loadExtensions(services.loadSettings(), false).commands
+            s.store.prune(keeping: settings.sourceKeys(extensions: declared), folder: s.cacheFolder)
             var lapsed = CompletionSourceApproval.lapsed(settings.enabled, plugins: plugins, sha256: s.store.sha256)
             if settings.enabled.contains(where: { $0.plugin == CompletionSourceKey.scriptExtensions }) {
                 let config = services.loadSettings()

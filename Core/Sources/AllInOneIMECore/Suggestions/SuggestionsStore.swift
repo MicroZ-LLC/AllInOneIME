@@ -1,8 +1,9 @@
 import Crypto
 import Foundation
 
-/// A completion source of a plugin, by their names; a custom command's under `customCommands` (`init(command:)`).
-public struct CompletionSourceKey: Hashable, Sendable {
+/// A completion source of a plugin, by their names; a custom command's under `customCommands` (`init(command:)`). Kept
+/// in the config as `{"plugin": …, "source": …}` where a source is named (`Config.completionSourcesOff`).
+public struct CompletionSourceKey: Hashable, Sendable, Codable {
     public var plugin: String
     public var source: String
 

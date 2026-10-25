@@ -2,24 +2,74 @@ import Foundation
 
 extension Config {
     /// The switches suggestions follow, as the settings have them (`SuggestionsSettings`): the input menu's
-    /// (`suggestions`), the apps' (`AppProfile.suggestions`), the completion sources enabled, the custom commands that are
-    /// sources (not one from another Mac awaiting confirmation here: `awaitsConfirmation`), what a row inserts everywhere
-    /// and in each app (`suggestionsInsert`, `AppProfile.suggestionsInsert`); "Refresh now" is the shell's (`refreshes`).
+    /// (`suggestions`), the apps' (`AppProfile.suggestions`), the completion sources approved and those turned off, the
+    /// custom commands that are sources (not one from another Mac awaiting confirmation here: `awaitsConfirmation`), what
+    /// a row inserts everywhere and in each app (`suggestionsInsert`, `AppProfile.suggestionsInsert`); "Refresh now" is the
+    /// shell's (`refreshes`).
     public func suggestionsSettings(refreshes: [CompletionSourceRefresh] = []) -> SuggestionsSettings {
         SuggestionsSettings(master: suggestions, apps: appProfiles.compactMapValues(\.suggestions), enabled: completionSources,
                             refreshes: refreshes, commands: customCommands.filter { $0.type == .suggestions && !awaitsConfirmation($0) },
-                            insert: suggestionsInsert, appInserts: appProfiles.compactMapValues(\.suggestionsInsert))
+                            insert: suggestionsInsert, appInserts: appProfiles.compactMapValues(\.suggestionsInsert),
+                            off: completionSourcesOff)
     }
 
-    /// The approval `source` of `plugin` was enabled with (nil: not enabled).
+    /// Whether the user turned the completion source `key` off (`completionSourcesOff`): off whatever else.
+    public func turnedOff(_ key: CompletionSourceKey) -> Bool { completionSourcesOff.contains(key) }
+
+    /// `key` turned off by the user (kept so, `completionSourcesOff`), or turned on (taken off the list).
+    mutating func setTurnedOff(_ key: CompletionSourceKey, _ off: Bool) {
+        completionSourcesOff.removeAll { $0 == key }
+        if off { completionSourcesOff.append(key) }
+    }
+
+    /// The approval `source` of `plugin` was approved with (nil: none).
     public func approval(of source: CompletionSource, in plugin: InstalledPlugin) -> CompletionSourceApproval? {
         completionSources.first { $0.plugin == plugin.name && $0.source == source.name }
     }
 
-    /// `source` of `plugin` enabled with what it is now (`CompletionSourceApproval(enabling:of:)`), or disabled.
+    /// `source` of `plugin` turned on with what it is now (`CompletionSourceApproval(enabling:of:)`), or off: kept off
+    /// (`completionSourcesOff`) through its updates and restarts until turned on again, which takes it off that list.
     public mutating func setCompletionSource(_ source: CompletionSource, of plugin: InstalledPlugin, enabled: Bool) {
         completionSources.removeAll { $0.plugin == plugin.name && $0.source == source.name }
+        setTurnedOff(CompletionSourceKey(plugin: plugin.name, source: source.name), !enabled)
         if enabled, let approval = CompletionSourceApproval(enabling: source, of: plugin) { completionSources.append(approval) }
+    }
+
+    /// Whether `plugins` (as installed now) has one this Mac hasn't found before (`pluginsSeen`): nothing read.
+    public func hasNewPlugins(_ plugins: [InstalledPlugin]) -> Bool {
+        plugins.contains { !pluginsSeen.contains($0.name) }
+    }
+
+    /// The plugins of `plugins` (as installed now) this Mac hasn't found before (`pluginsSeen`: just installed, from the
+    /// library or put in the plugins folder, or there before this version) found now (0.6.7.2): each completion source
+    /// they declare approved as it is now (`CompletionSourceApproval(enabling:of:)`: its hosts, query, script and terms),
+    /// but one approved already (or marked lapsed: off until turned on again) and one turned off; then noted, so that a
+    /// source a later update adds stays off until turned on. Whether anything changed.
+    @discardableResult
+    public mutating func approveNewPlugins(_ plugins: [InstalledPlugin]) -> Bool {
+        var changed = false
+        for plugin in plugins where !pluginsSeen.contains(plugin.name) {
+            for source in plugin.manifest.completions {
+                guard approval(of: source, in: plugin) == nil, !turnedOff(CompletionSourceKey(plugin: plugin.name, source: source.name)),
+                      let approval = CompletionSourceApproval(enabling: source, of: plugin) else { continue }
+                completionSources.append(approval)
+            }
+            pluginsSeen.append(plugin.name)
+            changed = true
+        }
+        return changed
+    }
+
+    /// What this Mac kept of the plugin `name`'s completion sources forgotten: their approvals and that it was found here
+    /// (removed in Settings, or about to be installed anew from the library, its folder gone): installed again, its
+    /// sources are on as they are then. Not those the user turned off (`completionSourcesOff`): they stay off, installed
+    /// again too, until turned on. Whether anything changed.
+    @discardableResult
+    public mutating func forgetPlugin(_ name: String) -> Bool {
+        let before = (completionSources.count, pluginsSeen.count)
+        completionSources.removeAll { $0.plugin == name }
+        pluginsSeen.removeAll { $0 == name }
+        return before != (completionSources.count, pluginsSeen.count)
     }
 
     /// The approvals `lapsed` found (`CompletionSourceApproval.lapsed`) marked so, kept: off until enabled again, which
@@ -40,6 +90,16 @@ extension SuggestionsSettings {
     /// among them is forgotten, its cached list deleted (`SuggestionsStore.prune`).
     public var sourceKeys: Set<CompletionSourceKey> {
         Set(enabled.map { CompletionSourceKey(plugin: $0.plugin, source: $0.source) } + commands.map { CompletionSourceKey(command: $0.name) })
+    }
+
+    /// `sourceKeys` and those of the script extensions' sources `commands` (as loaded) declare that aren't turned off
+    /// (`off`): one on with no approval (0.6.7.2: the user's own, a trusted source's) keeps its cached list.
+    public func sourceKeys(extensions commands: [ScriptCommand]) -> Set<CompletionSourceKey> {
+        sourceKeys.union(commands.compactMap { command in
+            guard case .success? = command.completion else { return nil }
+            let key = CompletionSourceKey(extension: command)
+            return off.contains(key) ? nil : key
+        })
     }
 }
 

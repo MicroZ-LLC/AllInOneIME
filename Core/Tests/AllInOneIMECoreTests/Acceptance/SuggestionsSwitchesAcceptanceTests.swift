@@ -95,8 +95,10 @@ struct SuggestionsSwitchesAcceptanceTests {
         }
     }
 
-    /// A source is off until it is enabled: its plugin's script isn't run at all, no rows; enabled, its rows.
-    @Test func aSourceIsOffUntilEnabled() async throws {
+    /// A source runs only once approved: without an approval its plugin's script isn't run at all, no rows; approved as
+    /// its plugin is installed (owner 2026-10-25, 0.6.7.2: on by default, `Config.approveNewPlugins`; before, off until
+    /// enabled), its rows.
+    @Test func aSourceRunsOnceApprovedAsItsPluginIsInstalled() async throws {
         try await inEnglish {
             let world = SuggestionsWorld()
             let plugin = try world.github(enable: false)
@@ -105,10 +107,12 @@ struct SuggestionsSwitchesAcceptanceTests {
             field.idle()
             #expect(field.issuesShown.isEmpty, "\(field.issuesShown)")
             #expect(world.runtime.calls.isEmpty, "nothing run: \(world.runtime.calls.map(\.kind))")
-            world.enable(plugin, "issues")
+            var installed = Config.default
+            installed.approveNewPlugins([plugin])
+            world.switches.enabled = installed.completionSources
             field.host.send(.configChanged)
             field.type(" #7")
-            #expect(field.waitForIssues(Self.allRows), "enabled: \(field.issuesShown)")
+            #expect(field.waitForIssues(Self.allRows), "approved as it was installed: \(field.issuesShown)")
         }
     }
 

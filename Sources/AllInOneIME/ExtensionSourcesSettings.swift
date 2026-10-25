@@ -199,7 +199,8 @@ struct ExtensionSourcesSection: View {
     }
 
     /// "Trust its updates" (off by default), with what it does under it: its bundle's suggestions keep running after its
-    /// updates (0.6.7.1 §2); off, an update that changes the bundle turns them off until they're turned on again.
+    /// updates (0.6.7.1 §2), and turning it on turns on those a change turned off or an update added (0.6.7.2); off, an
+    /// update that changes the bundle turns them off until they're turned on again.
     @ViewBuilder private func trustSwitch(_ source: ExtensionSource) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack {
@@ -312,11 +313,12 @@ struct ExtensionSourcesSection: View {
 }
 
 extension SettingsModel {
-    /// `source`'s "Trust its updates" switched `on`, and saved (`Config.setTrustUpdates`: turned off, what its extensions'
-    /// suggestions are now stays approved, so only the next change turns them off); the field being typed in takes it at
-    /// once. Turned off, what it pins is read off the main thread first (`Config.pinsWithoutTrust`: its repository), then
-    /// saved, unless the switch was pressed again meanwhile; the switch shows as it was until then. `root`: the sources
-    /// folder.
+    /// `source`'s "Trust its updates" switched `on`, and saved (`Config.setTrustUpdates`: turned on, its extensions'
+    /// suggestions turned off by a change are on again, approved as they are now, and those an update added are on too,
+    /// but one turned off by the user; turned off, what its extensions' suggestions are now stays approved, so only the
+    /// next change turns them off); the field being typed in takes it at once. Turned off, what it pins is read off the
+    /// main thread first (`Config.pinsWithoutTrust`: its repository), then saved, unless the switch was pressed again
+    /// meanwhile; the switch shows as it was until then. `root`: the sources folder.
     func setTrustUpdates(_ on: Bool, of source: ExtensionSource, root: URL) {
         let url = source.url
         guard config.extensionSources.contains(where: { $0.url == url }) else { return }
@@ -324,7 +326,7 @@ extension SettingsModel {
         extensionSwitchPresses[url] = extensionSerial
         guard !on else {
             extensionSwitchPresses[url] = nil
-            savedTrust(config.setTrustUpdates(true, of: url, pinning: []), of: url, root: root)
+            savedTrust(config.setTrustUpdates(true, of: url, pinning: [], extensions: extensionIndex.commands, root: root), of: url, root: root)
             return
         }
         guard config.extensionSources.contains(where: { $0.url == url && $0.trustUpdates }) else { return }
@@ -350,6 +352,33 @@ extension SettingsModel {
             if case let .source(source) = config.extensionOrigin(of: $0, root: root) { return source.url == url } else { return false }
         }
         savedExtensionSwitch(commands)
+    }
+
+    /// The source `source` just added (reviewed and enabled): the suggestions its extensions declare on, approved as they
+    /// are now (0.6.7.2, `Config.approveAddedSource`), but one turned off before; its repository read off the main thread
+    /// first (once: every command of it shares it; nothing read when its updates are trusted), then saved; the field
+    /// being typed in takes them at once. One that can't be pinned (too large, not all readable) stays off, its row saying
+    /// why. `root`: the sources folder.
+    func approveAddedSource(_ source: ExtensionSource, root: URL) {
+        let (url, read) = (source.url, extensionReader())
+        extensionWork += 1
+        Task { [weak self] in
+            let (commands, digests) = await Task.detached(priority: .userInitiated) { () -> ([ScriptCommand], [String: String?]) in
+                let commands = ExtensionSources.extensions(of: source, root: root)
+                let pinned = commands.first { command in
+                    guard case .success? = command.completion else { return false }
+                    return !source.trustUpdates
+                }
+                let digest = pinned.map { read($0, root) }
+                return (commands, Dictionary(commands.map { (SettingsModel.extensionReadKey($0), digest ?? nil) }, uniquingKeysWith: { a, _ in a }))
+            }.value
+            guard let self else { return }
+            self.extensionWork -= 1
+            guard self.config.extensionSources.contains(where: { $0.url == url }),
+                  self.config.approveAddedSource(url, extensions: commands, root: root,
+                                                 digest: { digests[SettingsModel.extensionReadKey($0)] ?? nil }) else { return }
+            self.savedExtensionSwitch(commands)
+        }
     }
 }
 
@@ -574,6 +603,10 @@ struct ExtensionSourceSheet: View {
         ExtensionSources.enable(enabled, in: &model.config, root: sources.root)
         model.save()
         model.refreshExtensions()
+        // Added: its extensions' suggestions on, as they are now (0.6.7.2).
+        if let added = model.config.extensionSources.first(where: { $0.url == enabled.url }) {
+            model.approveAddedSource(added, root: sources.root)
+        }
         dismiss()
     }
 

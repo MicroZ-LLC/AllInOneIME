@@ -150,8 +150,26 @@ enum ExtensionSourceCommands {
             try manager.save(all)
             // Read again (the input method or Settings may have written it meanwhile), and only what changed written.
             try ExtensionSources.enableInConfigFile(source, at: options.configURL, quarantining: unreviewed, root: options.root)
+            // Added: the suggestions its extensions declare on, approved as they are now (0.6.7.2), its repository read
+            // once (every command of it shares it); one turned off before stays off.
+            let commands = ExtensionSources.extensions(of: source, root: options.root)
+            var read: String??
+            var approved: [String] = []
+            try Config.change(at: options.configURL) { config in
+                let before = config.completionSources
+                config.approveAddedSource(source.url, extensions: commands, root: options.root, digest: { command in
+                    if read == nil { read = .some(ExtensionDigest.of(command, root: options.root)) }
+                    return read ?? nil
+                })
+                approved = commands.filter { command in
+                    let key = CompletionSourceKey(extension: command)
+                    let now = config.completionSources.first { $0.plugin == key.plugin && $0.source == key.source }
+                    return now != nil && now != before.first { $0.plugin == key.plugin && $0.source == key.source }
+                }.map(\.name)
+            }
             ExtensionSourceController.postChanged()
             print("enabled:     \(ExtensionSources.loadPath(for: source, root: options.root))")
+            if !approved.isEmpty { print("suggestions: on for \(approved.joined(separator: ", "))") }
             return 0
         } catch {
             return fail(error, source: source)

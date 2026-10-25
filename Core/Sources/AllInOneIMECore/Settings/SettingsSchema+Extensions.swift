@@ -132,7 +132,8 @@ extension SettingsSchema {
         return fields
     }
 
-    /// The completion source `command` declares (0.6.7.1 §2), under its switch: its own switch, off until turned on here,
+    /// The completion source `command` declares (0.6.7.1 §2), under its switch: its own switch (on by default, 0.6.7.2:
+    /// the user's own and a trusted source's, one from any other source once approved; turned off, kept off),
     /// saying what it does (it runs the script in the background; one that queries gets what you type after its prefix),
     /// then that its source's repository is too large, or can't be read all, to check for changes (it can't be turned on),
     /// why it can't show

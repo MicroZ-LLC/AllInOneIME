@@ -120,6 +120,16 @@ final class AllInOneIMEInputController: IMKInputController {
     /// to clear it: with nothing marked, NSTextView puts (empty) marked text in place of the selection,
     /// deleting the selected text (a Shift tap, a focus change).
     private var hasMarkedText = false
+    /// A suggestion row a key put in as marked text, to commit once the key is done (`markRow`).
+    private var markedRow: MarkedRow?
+    private struct MarkedRow {
+        let text: String
+        let client: IMKTextInput
+        /// The field session it went into (`fieldSession`): committed only while that one is on.
+        let fieldSession: Int
+        /// A snippet's caret, moved once it's in (`moveCaret`).
+        var caret: (back: Int, after: String?)?
+    }
     /// Kept while the session waits for a web page a request takes along (`InputSession.waitsForPage`): the request
     /// starts even if the field is gone by then.
     private var keepAlive: AllInOneIMEInputController?
@@ -196,6 +206,7 @@ final class AllInOneIMEInputController: IMKInputController {
     /// Hands `event` to the session and does what it answers, in the field being typed in.
     @MainActor
     func received(_ event: SessionEvent) {
+        commitRow()  // a row a key put in, before what comes after the key
         apply(session.handle(event).outputs, client: nil)
     }
 
@@ -243,6 +254,7 @@ final class AllInOneIMEInputController: IMKInputController {
     override func activateServer(_ sender: Any!) {
         super.activateServer(sender)
         MainActor.assumeIsolated {
+            commitRow()  // in the field it went into, while that one's session is on
             markedWatch.reset()  // another text field, maybe another app
             hasMarkedText = false
             appliedLayout = nil  // the layout is told to each text field
@@ -265,6 +277,7 @@ final class AllInOneIMEInputController: IMKInputController {
 
     override func commitComposition(_ sender: Any!) {
         MainActor.assumeIsolated {
+            commitRow()
             stopTyping(insertingRest: true)  // the app wants everything in now (a click elsewhere in it)
             apply(session.handle(.commit).outputs, client: sender as? IMKTextInput)
         }
@@ -295,6 +308,7 @@ final class AllInOneIMEInputController: IMKInputController {
     /// line breaks don't run (or send) anything.
     @MainActor
     private func insert(_ text: String, into client: IMKTextInput?) {
+        commitRow()  // a row marked during the key goes in first: the text would take its place
         if text.contains("\n"), Self.isTerminal(client), canPasteInTerminal() {
             let paste = pasteInTerminal
             Task { @MainActor in await paste(text) }
@@ -435,6 +449,7 @@ final class AllInOneIMEInputController: IMKInputController {
 
     override func deactivateServer(_ sender: Any!) {
         MainActor.assumeIsolated {
+            commitRow()  // still this field's session
             stopTyping(insertingRest: false)  // another field has the focus now: the rest isn't typed anywhere
             apply(session.handle(.blur).outputs, client: sender as? IMKTextInput)
             fieldSession += 1
@@ -452,6 +467,7 @@ final class AllInOneIMEInputController: IMKInputController {
 
     override func inputControllerWillClose() {
         MainActor.assumeIsolated {
+            commitRow()
             cancelVoiceSession()
             apply(session.handle(.close).outputs, client: nil)
             hidePanelIfOwned()
@@ -501,6 +517,7 @@ final class AllInOneIMEInputController: IMKInputController {
     @MainActor
     func handleKeyDown(_ event: NSEvent, client: IMKTextInput?) -> Bool {
         if TerminalPaste.isOurs(event) { return false }  // a line break being pasted into a terminal
+        commitRow()  // a row the key before put in, if this key came first
         // The same key down handed over a second time (the owner's "#17" had the session's token one "1" longer than
         // the field): answered as the first was, before anything sees it (the session, typing out, Translate as You
         // Type's long press).
@@ -559,6 +576,7 @@ final class AllInOneIMEInputController: IMKInputController {
 
     @MainActor
     func handleFlagsChanged(_ event: NSEvent, client: IMKTextInput?) {
+        commitRow()  // a row the key before put in, if this change came first
         // Chromium and Electron apps (Slack, VS Code, Chrome) hand every modifier change over twice, the same event,
         // after the next change too when the page is busy: the copy changes nothing, for the session's composer (a tap
         // of Shift or ⌥) and its long press of Shift (Translate as You Type) alike.
@@ -704,10 +722,19 @@ final class AllInOneIMEInputController: IMKInputController {
         let target: IMKTextInput? = client ?? clientOverride ?? self.client()
         // What the next `replace` must take out (`checkNextReplace`): a row in the token's place.
         var check: ReplacementCheck?
+        // A row the key being answered put in (`rowByKey`), until what puts it in: whether it goes in as marked text.
+        var rowByKey: Bool?
         for output in outputs {
             switch output {
+            case .rowByKey:
+                rowByKey = marksRow(in: target)
             case let .commit(text):
-                insert(text, into: target)
+                if rowByKey == true, let target, text.utf16.count < 2 {
+                    markRow(text, replacing: nil, in: target)
+                } else {
+                    insert(text, into: target)
+                }
+                rowByKey = nil
             case let .commitAfterKey(text):
                 // Once this key is done: a terminal would send what is inserted during it in the key's place.
                 let session = fieldSession
@@ -719,18 +746,24 @@ final class AllInOneIMEInputController: IMKInputController {
                 check = next
             case let .replace(text, range):
                 if let next = check, let range, let target {
-                    replaceToken(text, range: range, check: next, in: target)
+                    replaceToken(text, range: range, check: next, marking: rowByKey == true, in: target)
                 } else {
                     target?.insertText(text, replacementRange: range.map { NSRange(location: $0.lowerBound, length: $0.count) } ?? Self.notFound)
                 }
-                check = nil
+                (check, rowByKey) = (nil, nil)
             case let .marked(text, cursor, converted):
                 setMarkedText(text, cursor: cursor, converted: converted, in: target)
             case let .typeOut(text):
                 if let target { typeOut(text, into: target) }
             case let .moveCaret(back, inserted):
-                // A result being typed out: once it's all in.
-                if isTypingOut { caretAfterTyping = back } else { moveCaret(back: back, after: inserted, in: target) }
+                // A result being typed out: once it's all in; a row marked during the key: once it's committed.
+                if isTypingOut {
+                    caretAfterTyping = back
+                } else if markedRow != nil {
+                    markedRow?.caret = (back, inserted)
+                } else {
+                    moveCaret(back: back, after: inserted, in: target)
+                }
             case let .panel(model):
                 showPanel(model, target)
             case let .notice(text):
@@ -793,6 +826,8 @@ final class AllInOneIMEInputController: IMKInputController {
                 cancelVoiceSession(id: id)
             }
         }
+        // A row the key put in that adds nothing: the key is still the input method's.
+        if rowByKey == true, let target { markBeforeCaret(in: target) }
         keepAlive = session.waitsForPage ? self : nil
         if composer.translateMode != nil { scheduleChipRefresh() }  // Translate as You Type's chip follows the caret
     }
@@ -800,22 +835,109 @@ final class AllInOneIMEInputController: IMKInputController {
     /// A row in the token's place (0.6.7.1 §1): the field's text in `range` read back first (`attributedSubstring`), and
     /// replaced only where it is the token the session expects there; else (a click or a drag moved things since the
     /// key that told the range, a page that told its selection late) what a plain insertion would put in goes in at the
-    /// caret. Only how long the range is, and which was done, are logged: never the text.
+    /// caret. Only how long the range is, and which was done, are logged: never the text. `marking`: a row a key put in,
+    /// marked during the key (`markRow`; where the field marks it elsewhere, put in as when not marking).
     @MainActor
-    private func replaceToken(_ text: String, range: Range<Int>, check: ReplacementCheck, in target: IMKTextInput) {
+    private func replaceToken(_ text: String, range: Range<Int>, check: ReplacementCheck, marking: Bool, in target: IMKTextInput) {
         let replaced = check.apply(text, range: range,
                                    read: { target.attributedSubstring(from: NSRange(location: $0.lowerBound, length: $0.count))?.string },
-                                   replace: { target.insertText($0, replacementRange: NSRange(location: $1.lowerBound, length: $1.count)) },
-                                   insert: { insert($0, into: target) })
+                                   replace: { text, range in
+                                       let range = NSRange(location: range.lowerBound, length: range.count)
+                                       if marking { markRow(text, replacing: range, in: target) } else { target.insertText(text, replacementRange: range) }
+                                   },
+                                   insert: { text in
+                                       if marking, text.utf16.count < 2 { markRow(text, replacing: nil, in: target) } else { insert(text, into: target) }
+                                   })
         guard !replaced else { return }
+        if marking, check.otherwise.isEmpty { markBeforeCaret(in: target) }
         let instead = check.otherwise.isEmpty ? "nothing" : "its plain insertion"
         log.notice("a row didn't take the token's place: other text in its range now (\(range.count, privacy: .public) UTF-16 units); \(instead, privacy: .public) put in instead")
+    }
+
+    /// Whether a row a key puts in in `client` goes in as marked text (`markRow`): not in a terminal (its keys go to a
+    /// shell, and it takes no marked text in place of a range), nor where marked text of ours is in the field before the
+    /// row goes in (Code's word: the app has the key as the input method's already).
+    @MainActor
+    private func marksRow(in client: IMKTextInput?) -> Bool {
+        guard let client else { return false }
+        return !Self.isTerminal(client) && !hasMarkedText
+    }
+
+    /// A suggestion row a key put in (`SessionOutput.rowByKey`) in place of `range` (nil: at the caret), where the app
+    /// could act on the key as well: marked text during the key, committed once it's done (`commitRow`). Chromium's view
+    /// (Slack, Chrome, every Electron app) gives the page the key as the input method's ("Process", 229) only while there
+    /// is marked text, or when more than one character goes in during the key with no range; a replacement (text in with
+    /// its range) and a single character go in as they come, and the page gets the key itself: Return sent Slack's
+    /// message with the row in it. A longer plain insertion goes in as before; so does a click on a row (no key).
+    /// Where the field put the marked text is asked right after (`markedRange`; Chromium's view and an NSTextView tell it
+    /// at once): it must start where `range` does (with none, at the caret) and be as long as the text. Anywhere else (a
+    /// field that ignores the replacement range in setMarkedText, or tells no caret) it is taken out again, and what
+    /// 0.6.7.1 did goes in instead: the text with its range, or at the caret; nothing for a row that adds nothing
+    /// (`addsNothing`, `markBeforeCaret`). Only lengths are logged, never the text.
+    @MainActor
+    private func markRow(_ text: String, replacing range: NSRange?, in client: IMKTextInput, addsNothing: Bool = false) {
+        let length = (text as NSString).length
+        let start = range?.location ?? client.selectedRange().location
+        client.setMarkedText(text, selectionRange: NSRange(location: length, length: 0), replacementRange: range ?? Self.notFound)
+        let marked = client.markedRange()
+        guard start != NSNotFound, marked.location == start, marked.length == length else {
+            client.setMarkedText("", selectionRange: NSRange(location: 0, length: 0), replacementRange: Self.notFound)
+            hasMarkedText = false
+            let instead: String
+            if addsNothing {
+                instead = "nothing"
+            } else if let range {
+                client.insertText(text, replacementRange: range)
+                instead = "its replacement"
+            } else {
+                insert(text, into: client)
+                instead = "its plain insertion"
+            }
+            let found = marked.location == NSNotFound ? "none" : "\(marked.length) UTF-16 units\(marked.location == start ? "" : ", elsewhere")"
+            log.notice("a row put in by a key: the field didn't mark it where asked (\(length, privacy: .public) UTF-16 units\(range == nil ? " at the caret" : " in place of \(range?.length ?? 0)", privacy: .public); its marked text: \(found, privacy: .public)); taken out, \(instead, privacy: .public) put in instead")
+            return
+        }
+        hasMarkedText = true
+        markedRow = MarkedRow(text: text, client: client, fieldSession: fieldSession)
+        DispatchQueue.main.async { [weak self] in self?.commitRow() }
+        log.notice("a row put in by a key: marked until the key is done (\(length, privacy: .public) UTF-16 units\(range == nil ? "" : " in place of \(range?.length ?? 0)", privacy: .public))")
+    }
+
+    /// The row marked during its key (`markRow`) committed, and a snippet's caret moved in it (`moveCaret`): on the run
+    /// loop's next turn, or first thing for anything that reaches this controller before (a key, a modifier change, the
+    /// session's work, the app wanting everything in, another field). Only in the field session it went into, as
+    /// `commitAfterKey`; each way out of it commits the row first, so nothing of it is left marked there.
+    @MainActor
+    private func commitRow() {
+        guard let row = markedRow else { return }
+        markedRow = nil
+        guard row.fieldSession == fieldSession else { return }
+        row.client.insertText(row.text, replacementRange: Self.notFound)
+        hasMarkedText = false
+        if let caret = row.caret { moveCaret(back: caret.back, after: caret.after, in: row.client) }
+    }
+
+    /// A row a key put in that adds nothing (it is what was typed): the character before the caret, the token's last, marked
+    /// in its own place and committed once the key is done (`markRow`), so the app doesn't act on the key either. Where
+    /// the field tells no caret or reads nothing back there, or marks it elsewhere, nothing.
+    @MainActor
+    private func markBeforeCaret(in client: IMKTextInput) {
+        let caret = client.selectedRange()
+        guard caret.location != NSNotFound, caret.length == 0, caret.location > 0 else { return }
+        let range = NSRange(location: caret.location - 1, length: 1)
+        // Half of a character outside the Basic Multilingual Plane reads back as U+FFFD: left alone.
+        guard let before = client.attributedSubstring(from: range)?.string, before.utf16.count == 1, before != "\u{FFFD}" else { return }
+        markRow(before, replacing: range, in: client, addsNothing: true)
     }
 
     /// The marked text in `client`: nothing of ours (empty) leaves the document, and any selection in it, alone.
     @MainActor
     private func setMarkedText(_ text: String, cursor: Int, converted: Bool, in client: IMKTextInput?) {
         guard let client else { return }
+        // A row marked during the key (`markRow`) is the field's marked text, none of the composer's: none to clear; new
+        // marked text goes after it.
+        guard markedRow == nil || !text.isEmpty else { return }
+        commitRow()
         guard !text.isEmpty else {
             guard hasMarkedText || (Self.markedLength(client) ?? 0) > 0 else { return }
             client.setMarkedText("", selectionRange: NSRange(location: 0, length: 0), replacementRange: Self.notFound)
