@@ -1,15 +1,15 @@
 {
-  "build" : "15",
-  "generated" : "2026-10-25T05:15:48Z",
+  "build" : "16",
+  "generated" : "2026-10-25T09:00:52Z",
   "minimumSystemVersion" : "14.0",
-  "notesURL" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/tag/v0.6.7.1",
+  "notesURL" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/tag/v0.6.7.2",
   "schema" : 1,
-  "sha256" : "fef05c2c11ed7e3ce293bfcf79eacaf225030813f577453981831ed61bf83f99",
-  "size" : 28032594,
+  "sha256" : "fe5b00782f268960971241e1e509344e3a724dd3187fbcf050bd279bd1d4b08f",
+  "size" : 28220384,
   "summary" : {
-    "en" : "Suggestions from script extensions (a team's commands can complete #12 or PROJ-12 as you type, with trust by where the extension comes from); a suggestion can be put in as a Markdown link; fixes.",
-    "zh" : "脚本扩展也能给出打字建议（团队的命令可以补全 #12、PROJ-12，按扩展的来处决定是否信任）；建议可以插入成 Markdown 链接；以及若干修复。"
+    "en" : "Suggestions from plugins (@github) and script extensions are on by default; Trust its updates turns a source's suggestions back on; in Slack and other Chromium apps, ⏎ on a Markdown-link row no longer sends the message.",
+    "zh" : "插件（@github）和脚本扩展的建议默认打开；打开「信任它的更新」会把那个来源的建议重新打开；在 Slack 等 Chromium 系 App 里，对 Markdown 链接的行按 ⏎ 不再把消息发出去。"
   },
-  "url" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/download/v0.6.7.1/AllInOneIME-0.6.7.1-update.zip",
-  "version" : "0.6.7.1"
+  "url" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/download/v0.6.7.2/AllInOneIME-0.6.7.2-update.zip",
+  "version" : "0.6.7.2"
 }
