@@ -225,7 +225,7 @@ plugin.json still lists them (the hosts approved come on standard input too):
 - The plugin's `insert` is the default: the user may choose otherwise, everywhere (Settings → General → Insert) or per
   app ("In these apps" there, and the input menu's This App ▸ Insert), and then every class of app gets the choice: with
   title (`{arg} {title}`, else `{arg}`), with title and link (`{arg} {title} {url}`, else `{arg} {title}`, else
-  `{arg}`), or Markdown link (`[{title}]({url})`, else `{arg}`: a replacement, the number where it can't be one); ID only
+  `{arg}`), or Markdown link (`[{title}]({url})`, else `{arg}`: a replacement, its `{arg}` where it can't be one); ID only
   (`{arg}`) is no longer offered, and still used where a config has it. So give an item the variables `title` (the
   title alone, without the number: the row's `title` isn't `{title}`) and `url` where it has them. A class whose
   `insert` is `null` still has no rows, whatever the user chose.

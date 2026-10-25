@@ -949,7 +949,7 @@ They take the place of [autocomplete](#autocomplete-beta-new)'s gray text while 
   login` in documents and the link too in chat apps; a custom command's Insert), unless you choose otherwise in Settings
   → General → **Insert**, under the Suggestions switch, for every source: **Default** (each source's own), **With title**
   (`#1234 Fix login`), **With title and link** (`#1234 Fix login https://github.com/…/issues/1234`) or **Markdown link**
-  (`[Fix login](https://github.com/…/issues/1234)` in the place of the `#12` you typed; the number in a terminal), the
+  (`[Fix login](https://github.com/…/issues/1234)` in the place of the `#12` you typed; its `{arg}`, `#1234`, in a terminal), the
   same in every app, terminals and code editors too; an item without a title or a link goes in with what it has. An app can have its
   own under "In these apps" (Add App…, Remove) or in the input menu's This App, over the one everywhere: links in Slack,
   titles in Mail; or **Off**, no suggestion rows in that app at all (plugins', Suggestions commands' and Code's). "ID
