@@ -607,16 +607,14 @@ public final class SettingsStore {
 
     // MARK: Plugins
 
-    /// Removes an installed plugin (its folder), and what was enabled of it (its completion sources: installed again,
-    /// they ask again; their cached lists go as the input method takes the settings in). What went wrong (nil: done).
+    /// Removes an installed plugin (its folder), and what was kept of its completion sources (`Config.forgetPlugin`: their
+    /// approvals, those turned off, that it was found here: installed again, they are on as they are then; their cached
+    /// lists go as the input method takes the settings in). What went wrong (nil: done).
     public func uninstall(_ plugin: InstalledPlugin) -> String? {
         guard persists else { return nil }
         do {
             try PluginStore.uninstall(plugin)
-            if config.completionSources.contains(where: { $0.plugin == plugin.name }) {
-                config.completionSources.removeAll { $0.plugin == plugin.name }
-                save()
-            }
+            if config.forgetPlugin(plugin.name) { save() }
             return nil
         } catch {
             return tr("无法删除插件：", "Couldn't remove the plugin: ") + error.localizedDescription

@@ -193,8 +193,8 @@ refused on its own, its reason shown under the plugin in Settings; the plugin an
 plugin's problem.
 
 The script, in its child process as `run` is (`AllInOneIME --run-plugin <dir> --completion load|query`, `ctx` on standard
-input), with the same `fetch` to its `hosts`: those the user approved when turning the source on, and only while
-plugin.json still lists them (the hosts approved come on standard input too):
+input), with the same `fetch` to its `hosts`: those approved with the source (as the plugin was installed, or as the
+user turned it on), and only while plugin.json still lists them (the hosts approved come on standard input too):
 
 - `load(ctx)` returns `{ items: [Item], fetchedAt?: unixSeconds }`, the whole list: at most 20,000 items and 4 MB. It may
   take the plugin's `timeoutSeconds` (20 at most).
@@ -237,9 +237,12 @@ plugin.json still lists them (the hosts approved come on standard input too):
 - Only what wasn't typed goes in: `#12` and the row `#1234` insert `34` and the rest of the template (a replacement,
   above, puts all of its text in the token's place).
 
-The user turns each source on in Settings → Commands → Plugins; the switch says what it does and, for a source with `query`, where
-what is typed after the prefix goes. An update that changes `hosts`, `query`, the script, or the source's `prefix`,
-`queryMinChars` or `compare` needs turning on again.
+A plugin's sources are on once it is installed (0.6.7.2: from the library or put in the plugins folder, and one installed
+before the first time 0.6.7.2 finds it), approved as they are then: its hosts, `query`, script and terms. Each has a
+switch in Settings → Commands → Plugins, which says what it does and, for a source with `query`, where what is typed
+after the prefix goes; one the user turns off stays off (`completionSourcesOff`) until turned on again. An update that
+changes `hosts`, `query`, the script, or the source's `prefix`, `queryMinChars` or `compare` needs turning on again,
+and a source an update adds is off until turned on.
 [Core/Plugins/github](../Core/Plugins/github/) is the example.
 
 ### Without a plugin: a custom command
@@ -268,7 +271,8 @@ A 10-line program, and the editor's presets: [README, Suggestions from a program
 A script extension's command may declare one source too (0.6.7.1), with the keys above (but `name` and `title`: the
 source is the command's), in its script (`# @allinoneime.completion {…}`) or in its bundle's `extension.json`. Its
 script runs as its commands run, with `ALLINONEIME_COMPLETION=load` or `query`, and prints the `{ items }` above; it is
-off until turned on in Settings → Commands, under the command. The protocol: [docs/extensions.md §11](extensions.md#11-completions).
+on by default (0.6.7.2: the user's own as it loads, an extension source's as the source is added) and has its switch in
+Settings → Commands, under the command. The protocol: [docs/extensions.md §11](extensions.md#11-completions).
 
 ## Milestones
 

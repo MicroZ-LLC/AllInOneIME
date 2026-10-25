@@ -277,27 +277,32 @@ struct ExtensionCompletionsTests {
 
     // MARK: - Trust
 
-    /// Off until turned on: a declared source runs nothing and shows no rows; turned on, its list's rows (a bad item
-    /// dropped), a row put in as the source's templates say (here a Markdown link, in the token's place).
-    @Test func offUntilTurnedOn() async throws {
+    /// On by default (owner 2026-10-25; before, off until turned on): a source the user's own extension declares, nothing
+    /// approved, shows its list's rows (a bad item dropped), a row put in as the source's templates say (here a Markdown
+    /// link, in the token's place); turned off (`Config.completionSourcesOff`), it runs nothing and shows no rows.
+    @Test func onUntilTurnedOff() async throws {
         try await inEnglish {
             let extensions = try Extensions()
             let command = try Self.tickets(in: extensions)
-            let (off, adjust) = Self.world(extensions, on: [])
-            let field = off.field(adjust)
-            field.type("TCK-1")
-            field.idle()
-            #expect(field.rows.isEmpty && extensions.read("calls.log") == nil, "nothing runs")
-
-            let (world, adjustOn) = Self.world(extensions, on: [command])
-            #expect(world.config.completionSources.first?.plugin == CompletionSourceKey.scriptExtensions)
-            let on = world.field(adjustOn)
+            let (world, adjust) = Self.world(extensions, on: [])
+            #expect(world.config.completionSources.isEmpty)
+            let on = world.field(adjust)
             on.type("TCK-1")
             #expect(on.settle(timeout: 15) { on.rows.map(\.text) == ["TCK-12", "TCK-17"] }, "\(on.rows.map(\.text))")
             #expect(on.footer.contains("Tickets"), "\(on.footer)")
             #expect(on.press(SuggestionKeys.tab))
             #expect(on.document == "[Fix login](https://tickets.example.com/TCK-12)", "\(on.document)")
             #expect(extensions.read("calls.log") == "load|0|\n", "its list, with no arguments")
+
+            try FileManager.default.removeItem(at: extensions.folder.appendingPathComponent("calls.log"))
+            guard case let .success(source)? = command.completion else { Issue.record("no source"); return }
+            let (off, adjustOff) = Self.world(extensions, on: [])
+            off.config.setCompletionSource(source, of: command, enabled: false)
+            off.switches = off.config.suggestionsSettings()
+            let field = off.field(adjustOff)
+            field.type("TCK-1")
+            field.idle()
+            #expect(field.rows.isEmpty && extensions.read("calls.log") == nil, "turned off: nothing runs")
         }
     }
 
@@ -620,7 +625,8 @@ struct ExtensionCompletionsTests {
 
     // MARK: - Settings
 
-    /// The settings document has its switch under the command (what it does, off until turned on), or why it is refused.
+    /// The settings document has its switch under the command (what it does; on by default for the user's own, owner
+    /// 2026-10-25), turned off kept in the config (`completionSourcesOff`) and on again off that list, or why it is refused.
     @Test func theSettingsDocumentHasItsSwitch() async throws {
         let extensions = try Extensions()
         let command = try Self.tickets(in: extensions, declaration: Self.declaration(#", "query": true"#))
@@ -635,12 +641,17 @@ struct ExtensionCompletionsTests {
                                       secrets: .inMemory())
         try await withInterfaceLanguage("en") {
             let field = try #require(service.document().field("extensions.completion." + command.id))
-            #expect(field.kind == .toggle && field.value == .bool(false) && field.label == "Suggestions", "\(field)")
+            #expect(field.kind == .toggle && field.value == .bool(true) && field.label == "Suggestions", "\(field)")
             #expect(field.help?.contains("Runs this script in the background") == true && field.help?.contains("after TCK-") == true,
                     "\(field.help ?? "")")
+            #expect((try? service.set(field.id, to: .bool(false)).get()) != nil)
+            let off = try Config.load(from: url)
+            #expect(off.completionSourcesOff == [CompletionSourceKey(extension: command)] && off.completionSources.isEmpty)
+            #expect(service.document().field(field.id)?.value == .bool(false), "turned off: kept")
             #expect((try? service.set(field.id, to: .bool(true)).get()) != nil)
             let saved = try Config.load(from: url)
             #expect(saved.completionSources.map(\.source) == [command.id] && saved.completionSources.first?.query == true)
+            #expect(saved.completionSourcesOff.isEmpty, "on again: off the list")
             #expect(service.document().field(field.id)?.value == .bool(true))
             let bad = try #require(extensions.command("bad"))
             let refused = try #require(service.document().field("extensions.completion.refused." + bad.id))

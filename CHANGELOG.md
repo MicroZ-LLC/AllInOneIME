@@ -4,6 +4,12 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ## 0.6.7.2 (unreleased)
 
+### Changed
+
+- Suggestions from plugins (`@github` and any other) and from script extensions are on by default, so you needn't turn each one on. A plugin's are on once you install it, from the library or by putting it in the plugins folder. A plugin installed before is on the first time this version finds it, so `@github`'s rows come with nothing to do. This version can't tell a source you turned off before from one you never turned on: if you don't want one, turn it off again in Settings → Commands → Plugins. Your own extension's are on as it loads. An extension source's are on once you add the source (Add from Link… or `--add-source`), as they are then. From a source whose updates you don't trust, one an update adds or changes waits for you to turn it on. So does one a plugin update adds, or one whose hosts, lookup or script a plugin update changes. Where a source's repository can't be checked for changes (too large, or files that can't be read), its suggestions stay off, and Settings says why. An extension from a source not trusted, added before this version and never turned on, stays off.
+- Turning a suggestion source off is kept: it stays off through updates, restarts and the extensions being read again, until you turn it on again. In the config: `completionSourcesOff`, and `pluginsSeen` for the plugins found on this Mac. Both stay on this Mac (never synced).
+- Turning on **Trust its updates** for an extension source also turns on its suggestions that a change turned off or an update added, as they are then. One you turned off stays off.
+
 ### Fixed
 
 - In Slack and other Chromium and Electron apps, ⏎ on a suggestion row that takes the place of what you typed (a Markdown link), or adds one character or nothing, no longer also reaches the app (⏎ sent the message).

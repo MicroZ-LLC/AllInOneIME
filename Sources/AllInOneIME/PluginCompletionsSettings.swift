@@ -21,8 +21,8 @@ extension SettingsModel {
     }
 
     /// `source` of the script extension `command` turned on (approving what it is now: whether it queries, its prefix and
-    /// how it compares, and, from an extension source whose updates aren't trusted, every file of its repository) or off,
-    /// and saved; the field being typed in takes it at once. Off, or one whose changes keep it on (the user's own, a
+    /// how it compares, and, from an extension source whose updates aren't trusted, every file of its repository) or off
+    /// (kept off: `Config.completionSourcesOff`), and saved; the field being typed in takes it at once. Off, or one whose changes keep it on (the user's own, a
     /// trusted source's): at once, nothing read. On, any other: its extension read off the main thread first, then turned
     /// on with what was read (not when it can't be read all or is too large to pin), unless the switch was pressed again
     /// meanwhile; the switch shows as it was until then.
@@ -105,9 +105,10 @@ extension SettingsModel {
         }
     }
 
-    /// How `source` of the script extension `command` stands, as its row shows it (`ScriptCompletionState`): nothing read
-    /// here, but what was read off the main thread (`extensionDigests`); one not read yet as it was saved (its approval
-    /// taken to hold for its extension).
+    /// How `source` of the script extension `command` stands, as its row shows it (`ScriptCompletionState`: on with its
+    /// approval, or by default when its changes keep it on, never once turned off): nothing read here, but what was read
+    /// off the main thread (`extensionDigests`); one not read yet as it was saved (its approval taken to hold for its
+    /// extension).
     func completionState(of source: CompletionSource, in command: ScriptCommand) -> ScriptCompletionState {
         let follows = config.followsChanges(of: command, root: ExtensionSourceGate.root)
         let saved = config.approval(of: source, in: command)?.scriptSHA256 ?? ""
@@ -198,7 +199,8 @@ extension SettingsModel {
 }
 
 /// A plugin's suggestions and preferences, under its row in Settings → Plugins: each completion source with its switch
-/// (off until turned on here), what it does and, for one that queries, what it sends where; how it is doing (its items,
+/// (on once the plugin is installed, approved as it was then: 0.6.7.2; turned off, kept off), what it does and, for one
+/// that queries, what it sends where; how it is doing (its items,
 /// when its list was loaded, its last error) and Refresh Now; one turned on before an update that changed its hosts,
 /// prefix, queries or script says it needs turning on again, and one the command trigger shadows says why it can't show. The
 /// completion entries the plugin.json declares that were refused, with why. Its preferences: text in the config file,
@@ -380,7 +382,8 @@ private struct PluginPreferenceField: View {
 }
 
 /// A script extension's completion source, under its command in Settings → Commands (0.6.7.1 §2), as a plugin's is under
-/// it: its switch (off until turned on here), what it does (it runs the script in the background; one that queries gets
+/// it: its switch (on by default, 0.6.7.2: the user's own and a trusted source's as they load, one from any other source
+/// once approved as the source was added; turned off, kept off), what it does (it runs the script in the background; one that queries gets
 /// what you type after its prefix), Refresh Now while its list is on, how it is doing (its items, last refresh, last
 /// error); one turned on before its repository, prefix, query or terms changed says it needs turning on again, one the
 /// command trigger shadows why it can't show, one whose source's repository is too large, or can't be read all, to check

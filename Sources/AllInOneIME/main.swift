@@ -172,6 +172,9 @@ func runServer(showSettings: Bool = false) -> Never {
     MainActor.assumeIsolated { UpdateController.shared.start() }
     // Extension sources: checked about 30 s from now, then once a day, if they check by themselves (only ever noted).
     MainActor.assumeIsolated { ExtensionSourceController.shared.start() }
+    // A plugin found for the first time (installed, put in the plugins folder, or there before 0.6.7.2): its completion
+    // sources on, as each scan of the plugins folder finds it.
+    LivePlugins.found = { plugins in MainActor.assumeIsolated { SuggestionsShared.pluginsFound(plugins) } }
     // Translate as You Type goes off when another app becomes active, a text field in it or not.
     MainActor.assumeIsolated { TranslateModeShared.watchApps() }
     // Sync through iCloud, if it is on: a first run in a moment, then as files change.

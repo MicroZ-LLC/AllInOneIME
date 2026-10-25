@@ -31,8 +31,8 @@ import AllInOneIMETestSupport
 
 /// Script extensions as completion sources; replacing inserts (0.6.7.1, owner, 2026-10-24), section 2: a script
 /// extension's command declares one completion source, as a plugin's `completions` entry declares one; its program runs
-/// for the list (`ALLINONEIME_COMPLETION=load`) and the query (`=query`, the text after the prefix its one argument), off
-/// until the user turns it on; the Insert choices apply to it. Written from the spec by the tests' author, not from the
+/// for the list (`ALLINONEIME_COMPLETION=load`) and the query (`=query`, the text after the prefix its one argument), on
+/// by default until the user turns it off (owner 2026-10-25); the Insert choices apply to it. Written from the spec by the tests' author, not from the
 /// implementation (whose changes don't edit them). The extensions are written to disk and read as the app reads them
 /// (`ScriptFolder`, `ExtensionStore.load`), and handed to a text field's `InputSession` as the shell hands them
 /// (`SessionServices.loadExtensions`); the field is driven as a shell drives it (the rig: SuggestionsAcceptanceTests.swift).
@@ -46,9 +46,9 @@ import AllInOneIMETestSupport
 /// time per bundle): `theListRunsWithLoadAndNoArguments`, `aQueryGetsTheTextAfterThePrefixAsItsOneArgument`,
 /// `theEnvironmentHasTheLanguageAndThePreferencesButNotTheAppOrTheToken`, `outputsOver64KBAreRead`,
 /// `aListOverTheItemsOrBytesLimitIsAFailure`, `aQueryIsStoppedAfterThreeSeconds`, `aListIsStoppedAfterTwentySecondsAtMost`,
-/// `aBundleRunsOneCompletionProgramAtATime`, `aNewerQueryCancelsTheOlderOne`; trust (off by default; from an extension
-/// source whose updates aren't trusted, turned off by a change to any file of the bundle or to its prefix, query or
-/// compare; the user's own kept on, owner 2026-10-24): `aSourceIsOffUntilTurnedOn`,
+/// `aBundleRunsOneCompletionProgramAtATime`, `aNewerQueryCancelsTheOlderOne`; trust (on by default until turned off,
+/// owner 2026-10-25; from an extension source whose updates aren't trusted, turned off by a change to any file of the
+/// bundle or to its prefix, query or compare; the user's own kept on, owner 2026-10-24): `aSourceIsOnUntilTurnedOff`,
 /// `aChangeToItsScriptPrefixQueryOrCompareTurnsItOff`, `aChangeToAnythingElseKeepsItOn`,
 /// `nothingRunsForSecureInputOrPasswordFields`; Insert choices apply:
 /// `theInsertChoicesApplyToItsRows`.
@@ -694,26 +694,28 @@ struct ExtensionCompletionsAcceptanceTests {
 
     // MARK: - Trust
 
-    /// "Off until the user turns the source on in Settings → Commands." With suggestions running (another source on), a
-    /// command's source that isn't turned on shows no rows and its program never runs, not even for its list; turned on,
-    /// its rows.
-    @Test func aSourceIsOffUntilTurnedOn() async throws {
+    /// "On by default" (owner 2026-10-25, 0.6.7.2; before, "off until the user turns the source on in Settings →
+    /// Commands"): with suggestions running (another source on), the source of a command of the user's own shows its rows
+    /// as it loads, nothing turned on; turned off in Settings (`SuggestionsSettings.off`), it shows no rows and its program
+    /// doesn't run again (no lookup), the other source still on.
+    @Test func aSourceIsOnUntilTurnedOff() async throws {
         try await inEnglish {
             let world = Self.ticketsWorld()
             try world.suggestions.github()
             let field = world.field()
-            field.type("TKT-101")
+            field.type("TKT-10")
+            #expect(field.settle(timeout: Self.wait) { field.shown(Self.ticketMatches) == ["TKT-101", "TKT-102"] },
+                    "on as it loads: \(field.rows.map(\.text))")
+
+            world.suggestions.switches.off.append(CompletionSourceKey(extension: try world.command("tickets")))
+            field.host.send(.configChanged)
+            let calls = world.calls("tickets").count
+            field.type(" TKT-101")
             field.idle(1)
-            #expect(field.rows.isEmpty, "\(field.rows.map(\.text))")
-            #expect(world.calls("tickets").isEmpty, "nothing run: \(world.calls("tickets"))")
+            #expect(field.rows.isEmpty, "turned off: \(field.rows.map(\.text))")
+            #expect(world.calls("tickets").count == calls, "nothing run: \(world.calls("tickets"))")
             field.type(" #7")
             #expect(field.waitForIssues(["#7001", "#7002", "#7090", "#7100", "#789"]), "the plugin's source is on: \(field.issuesShown)")
-
-            try world.enable("tickets")
-            field.host.send(.configChanged)
-            field.type(" TKT-10")
-            #expect(field.settle(timeout: Self.wait) { field.shown(Self.ticketMatches) == ["TKT-101", "TKT-102"] },
-                    "turned on: \(field.rows.map(\.text))")
         }
     }
 

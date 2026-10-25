@@ -242,11 +242,24 @@ public struct Config: Codable, Equatable, Sendable {
     /// Suggestions (plugin completions, Code's rows): General's switch (and the input menu's); nil: on (it shows once a completion
     /// source is enabled). This Mac's own, never synced.
     public var suggestions: Bool?
-    /// The completion sources enabled in Settings → Plugins, each with what was enabled (the plugin's hosts, whether it
-    /// queries, its script's SHA-256): an update that changes one needs enabling again (`CompletionSourceApproval`); and
-    /// the script extensions' turned on in Settings → Commands (their bundle's digest and terms; what a change does depends
-    /// on where the extension comes from, `ExtensionOrigin`). Off until enabled. This Mac's own (its plugins), never synced.
+    /// The completion sources approved, each with what was approved: a plugin's (the plugin's hosts, whether it queries,
+    /// its script's SHA-256, its terms), as the plugin was installed or first found here (`approveNewPlugins`) or turned
+    /// on in Settings → Plugins, an update that changes one needing turning on again (`CompletionSourceApproval`); and the
+    /// script extensions' (their repository's digest and terms), as their extension source was added
+    /// (`approveAddedSource`) or turned on in Settings → Commands, what a change does depending on where the extension
+    /// comes from (`ExtensionOrigin`). On by default (0.6.7.2): a plugin's once approved so, the user's own extension's and
+    /// a trusted source's with no entry here too; one turned off is in `completionSourcesOff`. This Mac's own (its plugins
+    /// and extensions), never synced.
     public var completionSources: [CompletionSourceApproval] = []
+    /// The completion sources the user turned off in Settings (a plugin's, a script extension's: `CompletionSourceKey`):
+    /// off whatever else, kept through updates, restarts and a re-index, until turned on again, which takes it off the list
+    /// (0.6.7.2: sources are on by default otherwise). This Mac's own, never synced.
+    public var completionSourcesOff: [CompletionSourceKey] = []
+    /// The plugins this Mac has found installed, by name (0.6.7.2): one found that isn't among them (just installed from
+    /// the library or put in the plugins folder, or there before this version) has its completion sources approved as they
+    /// are then (`approveNewPlugins`); a source a later update of it adds is off until turned on. Removing a plugin in
+    /// Settings takes it out. This Mac's own, never synced.
+    public var pluginsSeen: [String] = []
     /// Plugins' preferences that aren't passwords (those are in the keychain): plugin name → name → value. Never synced.
     public var pluginPreferences: [String: [String: String]] = [:]
     /// What a suggestion row inserts in every app without a choice of its own (`AppProfile.suggestionsInsert`; Settings →
@@ -381,7 +394,7 @@ public struct Config: Codable, Equatable, Sendable {
         case autocomplete
         case iCloudSync
         case notes
-        case suggestions, completionSources, pluginPreferences, unconfirmedCommands, suggestionsInsert
+        case suggestions, completionSources, completionSourcesOff, pluginsSeen, pluginPreferences, unconfirmedCommands, suggestionsInsert
         case extensionSources
         case provider, anthropic, gemini, openai
     }
@@ -486,6 +499,8 @@ public struct Config: Codable, Equatable, Sendable {
         // A value of the wrong type reads as none, not an error.
         suggestions = (try? c.decodeIfPresent(Bool.self, forKey: .suggestions)).flatMap { $0 }
         completionSources = (try? c.decodeIfPresent([CompletionSourceApproval].self, forKey: .completionSources)).flatMap { $0 } ?? []
+        completionSourcesOff = (try? c.decodeIfPresent([CompletionSourceKey].self, forKey: .completionSourcesOff)).flatMap { $0 } ?? []
+        pluginsSeen = (try? c.decodeIfPresent([String].self, forKey: .pluginsSeen)).flatMap { $0 } ?? []
         pluginPreferences = (try? c.decodeIfPresent([String: [String: String]].self, forKey: .pluginPreferences)).flatMap { $0 } ?? [:]
         // A value of the wrong type reads as none, not an error.
         unconfirmedCommands = (try? c.decodeIfPresent([CustomCommand.Unconfirmed].self, forKey: .unconfirmedCommands)).flatMap { $0 } ?? []
@@ -671,6 +686,8 @@ public struct Config: Codable, Equatable, Sendable {
         // Only once set: a file from before suggestions doesn't gain the keys.
         try c.encodeIfPresent(suggestions, forKey: .suggestions)
         if !completionSources.isEmpty { try c.encode(completionSources, forKey: .completionSources) }
+        if !completionSourcesOff.isEmpty { try c.encode(completionSourcesOff, forKey: .completionSourcesOff) }
+        if !pluginsSeen.isEmpty { try c.encode(pluginsSeen, forKey: .pluginsSeen) }
         if !pluginPreferences.isEmpty { try c.encode(pluginPreferences, forKey: .pluginPreferences) }
         if !unconfirmedCommands.isEmpty { try c.encode(unconfirmedCommands, forKey: .unconfirmedCommands) }
         try c.encodeIfPresent(suggestionsInsert?.rawValue, forKey: .suggestionsInsert)

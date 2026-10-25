@@ -67,8 +67,9 @@ public enum ICloudSync {
     /// is its choice for an app (`thisMacsOwnAppFields`); `typeOutSpeed` is only read (from older files); `outputLanguage` and
     /// `defaultInput` come with their lists. `@agent`'s agent and its program are what this Mac has installed, and
     /// whether it takes Chrome's page is this Mac's choice (as they always were: never synced). Suggestions' switch, the
-    /// completion sources enabled and the plugins' preferences are this Mac's plugins' (`suggestions`,
-    /// `completionSources`, `pluginPreferences`), and so is Suggestions' choice for an app (`thisMacsOwnAppFields`); and so
+    /// completion sources approved and those turned off, the plugins found here and their preferences are this Mac's
+    /// plugins' and extensions' (`suggestions`, `completionSources`, `completionSourcesOff`, `pluginsSeen`,
+    /// `pluginPreferences`), and so is Suggestions' choice for an app (`thisMacsOwnAppFields`); and so
     /// are the custom commands from another Mac not confirmed here (`unconfirmedCommands`: what this Mac allows to run is
     /// its own, decision 26). Apps without typos and the recent apps aren't config keys either: named so that no later
     /// version adds them.
@@ -76,7 +77,7 @@ public enum ICloudSync {
         "extensionSources", "extensionFolders", "hiddenExtensionFolders", "findRaycastScripts", "disabledExtensions",
         "extensionPreferences", "jargonFile", "iCloudSync", "typeOutSpeed", "outputLanguage", "defaultInput",
         "typeOutNoTyposApps", "recentApps", "notes", "agent", "agentCommand", "agentPageContext", "autocomplete",
-        "suggestions", "completionSources", "pluginPreferences", "unconfirmedCommands",
+        "suggestions", "completionSources", "completionSourcesOff", "pluginsSeen", "pluginPreferences", "unconfirmedCommands",
     ]
 
     /// The category `key` (a key of `settings.json`) is synced under; nil for a key this version doesn't sync (one a newer

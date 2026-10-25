@@ -545,10 +545,18 @@ final class SettingsModel: ObservableObject {
     @Published private(set) var plugins: [InstalledPlugin] = []
     @Published private(set) var skippedPlugins: [PluginStore.Skipped] = []
     @Published private(set) var pluginError: String?
+    /// The plugins folder the window lists (`PluginStore.directory`; the self-test's own while it runs).
+    var pluginsFolder = PluginStore.directory
 
     func refreshPlugins() {
-        (plugins, skippedPlugins) = PluginStore.load()
+        (plugins, skippedPlugins) = PluginStore.load(from: pluginsFolder)
         updateLibraryStatus()
+        // A plugin not found on this Mac before (just installed, put in the folder, or there before 0.6.7.2): its
+        // completion sources on, approved as they are now; the field being typed in takes them at once.
+        if persists, config.approveNewPlugins(plugins) {
+            save()
+            SuggestionsShared.settingsChanged()
+        }
     }
 
     func uninstall(_ plugin: InstalledPlugin) {
@@ -744,14 +752,18 @@ final class SettingsModel: ObservableObject {
     }
 
     /// Installs or updates `entry` (downloads and checks off the main thread), then has the command
-    /// list pick it up.
+    /// list pick it up. Installed (not an update), its completion sources are on, approved as they are then
+    /// (`refreshPlugins`), what was kept of one installed before (its folder gone since) forgotten first.
     func install(_ entry: PluginIndex.Entry) {
         guard persists, installingPlugin == nil else { return }
         installingPlugin = entry.name
         libraryError = nil
         let library = self.library
+        let fresh = library.status(of: entry) == .notInstalled
         Task { [weak self] in
-            if let error = await SettingsStore.install(entry, from: library) { self?.libraryError = error }
+            let error = await SettingsStore.install(entry, from: library)
+            if let error { self?.libraryError = error }
+            if error == nil, fresh, self?.config.forgetPlugin(entry.name) == true { self?.save() }
             self?.installingPlugin = nil
             self?.refreshPlugins()
             _ = LivePlugins.current(rescan: true)

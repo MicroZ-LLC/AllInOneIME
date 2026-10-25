@@ -540,15 +540,25 @@ public final class SettingsService: @unchecked Sendable {
         }
     }
 
-    /// A library plugin installed or updated.
+    /// A library plugin installed or updated. Installed (not an update), its completion sources are on, approved as they
+    /// are now (0.6.7.2, `Config.approveNewPlugins`), what was kept of one installed before it forgotten first.
     private func install(_ action: SettingsAction) async -> Result<SettingsActionOutcome, SettingsProblem> {
         guard store.persists else { return .success(SettingsActionOutcome()) }
         guard let entry = locked({ libraryEntries?.first { $0.name == action.item } }) else {
             return .failure(SettingsProblem(.badValue, field: action.field, message: Self.badValue))
         }
+        let fresh = library.status(of: entry) == .notInstalled
         // Installed, though cancelled meanwhile: done, and shown. Not installed: cancelled, or why.
         if let error = await SettingsStore.install(entry, from: library) {
             return .failure(Task.isCancelled ? Self.cancelled(action.field) : SettingsProblem(.failed, field: action.field, message: error))
+        }
+        let installed = PluginStore.load(from: library.directory).plugins.filter { $0.name == entry.name }
+        changing {
+            let forgot = fresh && store.config.forgetPlugin(entry.name)
+            if store.config.approveNewPlugins(installed) || forgot {
+                store.save()
+                revisionValue += 1
+            }
         }
         if Task.isCancelled { changing { revisionValue += 1 } }  // its request answered already: the change is told
         pluginsChanged()

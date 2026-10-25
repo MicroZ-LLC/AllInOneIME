@@ -431,8 +431,8 @@ struct ExtensionCompletionsTrustTests {
 
     /// Turning the switch off turns nothing off by itself: what the repository is then (a change made while it was on, not
     /// yet seen; nothing of it was read while trusted) is read and kept as what is approved, and only the next change, out
-    /// of the bundle too, turns the source off. Turning it on turns nothing back on: an approval marked lapsed stays off
-    /// until turned on again.
+    /// of the bundle too, turns the source off. Turning it on turns an approval marked lapsed back on, approved as it is
+    /// then (owner 2026-10-25; before, it stayed off until turned on again).
     @Test func turningTrustOffTurnsNothingOffByItself() throws {
         let place = try Place(.trusted)
         try place.desk()
@@ -459,7 +459,8 @@ struct ExtensionCompletionsTrustTests {
 
         let on = place.config.setTrustUpdates(true, of: Self.teamURL, extensions: [next], root: place.sources)
         #expect(on)
-        #expect(!place.holds(source, of: next), "trusted again: still off until turned on again")
+        #expect(place.holds(source, of: next) && place.config.approval(of: source, in: next)?.lapsed == false,
+                "trusted again: on again, as it is now")
         #expect(place.followed(next).isEmpty)
         let none = place.config.setTrustUpdates(true, of: "https://git.example.com/none.git", extensions: [next], root: place.sources)
         #expect(!none, "no such source")

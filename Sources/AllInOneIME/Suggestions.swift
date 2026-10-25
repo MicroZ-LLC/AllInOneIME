@@ -58,8 +58,9 @@ enum SuggestionsShared {
             // No field: what's disabled (or a custom command that was a source, deleted) is still forgotten now, what no
             // longer holds marked and what follows its extension made what it is, with the plugins and extensions as they are.
             let config = LiveConfig.current
-            store.prune(keeping: settings(config).sourceKeys, folder: cacheFolder)
             let extensions = LiveExtensions.current(config).commands
+            // A script extension's on with no approval (the user's own, a trusted source's) keeps its list too.
+            store.prune(keeping: settings(config).sourceKeys(extensions: extensions), folder: cacheFolder)
             // Only those whose changes turn them off are read (their source's repository), off the main thread (Settings
             // calls this); those that follow, never.
             let (root, store) = (ExtensionSourceGate.root, store)
@@ -91,6 +92,27 @@ enum SuggestionsShared {
                 NotificationCenter.default.post(name: .allInOneIMESuggestionsChanged, object: nil)
             } catch {
                 log.error("suggestions: approvals couldn't be marked lapsed: \(String(describing: error), privacy: .public)")
+            }
+        }
+    }
+
+    /// The plugins a scan found (`LivePlugins.found`): one this Mac hasn't found before (just installed, put in the
+    /// plugins folder, or there before 0.6.7.2) has its completion sources approved as they are now
+    /// (`Config.approveNewPlugins`: on by default), in the config file once the key or focus being handled is done; the
+    /// field being typed in takes them in. Nothing is read or written when every plugin was found before, nor while the
+    /// config file can't be read.
+    static func pluginsFound(_ plugins: [InstalledPlugin]) {
+        guard let config = LiveConfig.currentIfValid, config.hasNewPlugins(plugins) else { return }
+        DispatchQueue.main.async {
+            do {
+                var changed = false
+                try Config.change { changed = $0.approveNewPlugins(plugins) }
+                guard changed else { return }
+                log.notice("suggestions: plugins found here for the first time, their completion sources on")
+                NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
+                settingsChanged()
+            } catch {
+                log.error("suggestions: new plugins' completion sources couldn't be approved: \(String(describing: error), privacy: .public)")
             }
         }
     }

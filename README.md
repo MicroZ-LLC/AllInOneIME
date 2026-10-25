@@ -417,13 +417,14 @@ extensions folder. (Don't put a name, password or token in an https address: git
   keeps working).
   A source pinned to a tag or commit isn't checked. Turn the daily check off per source (`autoCheck`).
 - **Suggestions after an update.** A bundle's suggestions (its commands as
-  [completion sources](#suggestions-and-code-new)) are pinned to what you turned on: an update that changes any file of
-  the source's repository (not only the bundle: a script may use files elsewhere in it), or a source's prefix or lookup,
-  turns them off until you turn them on again, and Settings says so. A repository of more than 2,000 files or 20 MB
-  can't be checked for changes, so its suggestions can't be turned on. **Trust its updates** (under each source, off by
-  default) keeps them running after its updates, and nothing of the repository is checked for them: turn it on only for
-  a source you trust, such as your team's repository. Turning it off turns nothing off until the next change
-  (`trustUpdates` in the config).
+  [completion sources](#suggestions-and-code-new)) are on once you enable the source, pinned to what it was then: an
+  update that changes any file of the source's repository (not only the bundle: a script may use files elsewhere in it),
+  or a source's prefix or lookup, turns them off until you turn them on again, and Settings says so; one an update adds
+  waits until you turn it on. A repository of more than 2,000 files or 20 MB can't be checked for changes, so its
+  suggestions can't be on. **Trust its updates** (under each source, off by default) keeps them running after its
+  updates, one an update adds on too, and nothing of the repository is checked for them: turn it on only for a source
+  you trust, such as your team's repository. Turning it on also turns on those a change turned off or an update added
+  (never one you turned off); turning it off turns nothing off until the next change (`trustUpdates` in the config).
 - **Errors** are git's own words, with "This uses your own git and SSH setup; check that `git ls-remote <url>` works in
   Terminal", and your own reminder under it if you set one (`authHint` in the config).
 - **Remove** moves the clone to the Trash; the bundle's preferences are kept for next time.
@@ -453,9 +454,9 @@ with the date of the rate (rates by ExchangeRate-API). `@calculator` is a calcul
 "Tue, Oct 27 · in 10 days". Writing one: [docs/plugins.md](docs/plugins.md).
 
 Plugins can also complete what you type (new): `@github`'s issues come up as rows as soon as you type `#12`, and Tab
-inserts `#1234 Fix login`. Each plugin's completions are off until you turn them on under it in Settings → Commands → Plugins, which says
-what they do and, for one that looks things up as you type, where what you type after `#` goes. See
-[Suggestions and Code](#suggestions-and-code-new).
+inserts `#1234 Fix login`. Each plugin's completions are on once you install it (0.6.7.2); under it in Settings → Commands →
+Plugins a switch for each says what they do and, for one that looks things up as you type, where what you type after `#`
+goes, and one you turn off there stays off. See [Suggestions and Code](#suggestions-and-code-new).
 
 Commands that fetch something (plugins and programs) also work inside a sentence: `@reply tell her @stock AAPL is up today`.
 The inner ones run first, their output takes their place, and the outer command works on the result. The argument is
@@ -912,13 +913,15 @@ They take the place of [autocomplete](#autocomplete-beta-new)'s gray text while 
 - **Script extensions (0.6.7.1):** a script extension's command can be a source as a plugin's completions are: one line
   in its script, `# @allinoneime.completion {"prefix": "TCK-", "list": true}`, or `"completion"` in its bundle's
   `extension.json`. Its script prints the items, run in the background with `ALLINONEIME_COMPLETION=load` (and, with
-  `query`, `query` and what follows the prefix as its one argument); it's off until you turn it on in Settings →
-  Commands, under the command, which says it runs the script in the background and, with `query`, gets what you type
-  after the prefix, with its last refresh, items, last error and Refresh now; turning it on pins the extension and, as
-  for a plugin, its `query`, prefix, `queryMinChars` and `compare`. A change to an extension of your own never turns it
-  off, nor an update from an extension source you marked **Trust its updates**. From any other source, a change to any
-  file of the source's repository (not only the bundle) or to those terms turns it off again, and Settings says so;
-  a repository of more than 2,000 files or 20 MB can't be checked, so its suggestions can't be turned on.
+  `query`, `query` and what follows the prefix as its one argument); it's on by default (0.6.7.2): your own extension's
+  as it loads, an extension source's once you add the source. Its switch is in Settings → Commands, under the command,
+  which says it runs the script in the background and, with `query`, gets what you type after the prefix, with its last
+  refresh, items, last error and Refresh now; one you turn off stays off. Being on pins the extension and, as for a
+  plugin, its `query`, prefix, `queryMinChars` and `compare`. A change to an extension of your own never turns it off,
+  nor an update from an extension source you marked **Trust its updates**. From any other source, a change to any file
+  of the source's repository (not only the bundle) or to those terms turns it off again, and Settings says so, and one
+  an update adds waits for you; a repository of more than 2,000 files or 20 MB can't be checked, so its suggestions
+  can't be on.
   The example bundle `bookmarks` has one: `bm.sw` → `[Swift](https://www.swift.org)`
   ([docs/extensions.md §11](docs/extensions.md#11-completions)).
 - **Plugins' completions:** a plugin declares what it completes after a prefix, `#12` for `@github`'s issues, or a whole
@@ -940,12 +943,14 @@ They take the place of [autocomplete](#autocomplete-beta-new)'s gray text while 
   changes: in Slack, `#12` then ⏎ inserts the issue, and `#12` → ⏎ sends `#12` as typed. Digits never pick a row: they
   go on typing (`#7` then `1` is `#71`). Pinyin's own candidates while it composes are as always (⏎ puts in the
   letters, Space picks). No rows in launchers, remote desktops, virtual machines and SSH clients.
-- **Turning them on:** **Suggestions** in Settings → General, on unless you turn it off, covers plugins', Suggestions
-  commands' and Code's rows; they show once there is a source (a plugin's completions turned on, a Suggestions command,
-  or Code). Each plugin's completions in Settings → Commands → Plugins (a switch each: last refresh, items, last error, Refresh
-  now; its preferences, passwords in the keychain). A plugin update that changes the hosts it reaches, its
-  prefix, whether it looks up what you type and from which character on, how it compares (`compare`) or its script turns
-  them off until you turn them on again (Settings says so under it). **Suggestions** in the input menu turns them all off
+- **Turning them on:** **Suggestions** in Settings → General, on unless you turn it off, covers plugins', script
+  extensions', Suggestions commands' and Code's rows; they show once there is a source (a plugin's completions, a script
+  extension's, a Suggestions command, or Code). A plugin's completions are on once you install it, and one installed
+  before 0.6.7.2 the first time 0.6.7.2 finds it; each has a switch in Settings → Commands → Plugins (last refresh,
+  items, last error, Refresh now; its preferences, passwords in the keychain), and one you turn off stays off, through
+  updates and restarts. A plugin update that changes the hosts it reaches, its prefix, whether it looks up what you type
+  and from which character on, how it compares (`compare`) or its script turns them off until you turn them on again
+  (Settings says so under it); a source an update adds is off until you turn it on. **Suggestions** in the input menu turns them all off
   or on; an app at Off under "In these apps" has none (see [Per-app settings](#per-app-settings-new)). An app with No AI still has them: no AI is involved (a plugin's lookup still goes to
   its hosts there). With `#` as the magic key, a source after `#` can't work (Settings says so).
 - **What a row inserts:** what its source says (a plugin's `insert`, per class of app: `@github` puts in `#1234 Fix
@@ -1181,7 +1186,9 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 | `autocomplete` | Autocomplete: the rest of the sentence in gray after the caret, Tab puts it in; it asks your AI provider (see Autocomplete); never synced | `false` |
 | `suggestions` | Suggestions (Settings → General, the input menu): `false` turns off every suggestion row, plugins', Suggestions commands' and Code's; this Mac's own, never synced (see Suggestions and Code) | absent (on) |
 | `suggestionsInsert` | What a suggestion row inserts in every app without a choice of its own (Settings → General → Insert): `"title"`, `"titleAndLink"` or `"markdownLink"`; `"id"` still works but is no longer offered; absent: what its source says; syncs with the settings | absent |
-| `completionSources` | The plugins' completion sources turned on in Settings → Commands → Plugins, each by `plugin` and `source` with what was approved: `hosts`, `query`, `scriptSHA256` (its script's) and `terms` (its `prefix`, `queryMinChars`, `compare`); `"lapsed": true` once an update changed one of them, off until turned on again. A script extension command's source too: `"plugin": "script-extensions"` and the command's id as `source`. One from an extension source is lapsed once a file of the source's repository (`scriptSHA256` is its digest), `query`, prefix, `queryMinChars` or `compare` changed; one of your own, or from a source marked Trust its updates, never lapses and nothing of it is read (`scriptSHA256` empty). Written by Settings; this Mac's own, never synced | `[]` |
+| `completionSources` | The completion sources approved, each by `plugin` and `source` with what was approved: `hosts`, `query`, `scriptSHA256` (its script's) and `terms` (its `prefix`, `queryMinChars`, `compare`); a plugin's as it was installed (or first found by 0.6.7.2) or turned on in Settings → Commands → Plugins; `"lapsed": true` once an update changed one of them, off until turned on again. A script extension command's source too: `"plugin": "script-extensions"` and the command's id as `source`, approved as its extension source was added or turned on in Settings → Commands. One from an extension source is lapsed once a file of the source's repository (`scriptSHA256` is its digest), `query`, prefix, `queryMinChars` or `compare` changed; one of your own, or from a source marked Trust its updates, never lapses and nothing of it is read (`scriptSHA256` empty), and is on with no entry here. Written by Settings and as plugins and sources are added; this Mac's own, never synced | `[]` |
+| `completionSourcesOff` | The completion sources you turned off in Settings, each by `plugin` and `source` (as above): off whatever else, through updates and restarts, until you turn one on again; this Mac's own, never synced | `[]` |
+| `pluginsSeen` | The plugins this Mac has found installed, by name: one found that isn't listed has its completion sources turned on as it is then; a source a later update adds stays off until you turn it on. Written by AllInOneIME; this Mac's own, never synced | `[]` |
 | `pluginPreferences` | Plugins' preferences other than passwords, by plugin and name: `{"github": {"repos": "octo-org/octo-repo"}}`; never synced through iCloud Drive (a password preference is in the keychain, and goes through iCloud Keychain only with "API keys and passwords" on) | `{}` |
 | `unconfirmedCommands` | The `suggestions` custom commands that came from another Mac through iCloud and still await Allow on this one, each by its `name` and the `argv` it came with: none of them runs here. Allow (or editing or deleting it here) takes it off the list; its program changed on another Mac puts it back. Written by sync and Settings; this Mac's own, never synced | `[]` |
 | `notes` | Where `@note` saves (Settings → Commands → Notes): `{"destination": "folder", "folder": "~/Vault/Inbox"}`, or `"notion"` with the page or database Test found; never synced through iCloud Drive (the token is in the keychain, and goes through iCloud Keychain only with "API keys and passwords" on) | `destination: "notes"` |
@@ -1202,9 +1209,12 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
   with Apple Intelligence or AllInOneIME Cloud picked, it stays on this Mac (Apple Intelligence; never AllInOneIME Cloud).
   Where it's turned on, the switch says where the text goes. Nothing of it is kept but its last 20 suggestions in memory
   and its counts (no text) in the input method's own preferences.
-- Suggestions: a plugin's completions run its script only once you turned them on, and it reaches only the hosts it
-  lists; it never sees what you type, the app or the field, but for a lookup (which Settings names, with where it goes)
-  what follows its prefix. A `suggestions` custom command's program runs on this Mac, given only (for a lookup) what you
+- Suggestions: a plugin's completions are on once you install the plugin, approved as it is then (the hosts it reaches,
+  whether it looks up what you type, its script); an update that changes one of them turns them off until you turn them
+  on again, and any you turn off in Settings stays off. Its script reaches only the hosts it lists; it never sees what
+  you type, the app or the field, but for a lookup (which Settings names, with where it goes) what follows its prefix. A
+  script extension's suggestions are on by default too (your own as they load, an extension source's as you add it)
+  and run its script on this Mac. A `suggestions` custom command's program runs on this Mac, given only (for a lookup) what you
   typed after its prefix. Code's rows come from its language's pack and the field's text, on this Mac. The
   lists, the tokens and the lookups are never logged, sent to the AI, learned or synced; see
   [Suggestions and Code](#suggestions-and-code-new).

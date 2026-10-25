@@ -17,6 +17,7 @@ enum LivePlugins {
                     DispatchQueue.main.async {
                         self.cached = (Date(), result)
                         scanning = false
+                        found(result.plugins)
                     }
                 }
             }
@@ -24,8 +25,13 @@ enum LivePlugins {
         }
         let result = PluginStore.load()
         cached = (Date(), result)
+        found(result.plugins)
         return result.plugins
     }
+
+    /// Told the plugins each scan finds, on the main thread: the input method's `SuggestionsShared.pluginsFound` (one
+    /// found here for the first time has its completion sources turned on); nothing by default.
+    static var found: ([InstalledPlugin]) -> Void = { _ in }
 }
 
 /// How much each @ command is used (the order of the command list), shared by every text field and kept
