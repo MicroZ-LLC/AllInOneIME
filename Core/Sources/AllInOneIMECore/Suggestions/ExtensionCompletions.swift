@@ -5,8 +5,8 @@ import Foundation
 // kind of source: the session takes it with the plugins' and the custom commands' (`InputSession.ActiveSource`), the
 // store keeps it as theirs under `CompletionSourceKey(extension:)` (its list, the disk cache, back-off and pause, statuses,
 // "Refresh now", the picks), its approval is a `CompletionSourceApproval` in `Config.completionSources` (off until turned
-// on in Settings → Commands; a change to its script, prefix, query or compare turns it off again), its rows, keys and
-// insertions are theirs. What differs is where its items come from: its script, run as its commands run
+// on in Settings → Commands; a change to its script, prefix, query, queryMinChars or compare turns it off again), its
+// rows, keys and insertions are theirs. What differs is where its items come from: its script, run as its commands run
 // (`CommandRunner`) with `ALLINONEIME_COMPLETION` set (`ExtensionCompletionRunner`), a bundle's programs one at a time.
 
 extension CompletionDeclaration {
@@ -19,12 +19,12 @@ extension CompletionDeclaration {
             .failure(CompletionRefusal(name: name, reason: reason))
         }
         guard let object = try? JSONSerialization.jsonObject(with: Data(json.utf8), options: [.fragmentsAllowed]),
-              case var .object(fields)? = JSON(object) else { return refuse("completion must be a JSON object") }
+              case var .object(fields)? = JSON(object) else { return refuse(tr("completion 必须是 JSON 对象", "completion must be a JSON object")) }
         fields["name"] = .string(name)
         fields["title"] = .string(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? name : title)
         let read = read(.array([.object(fields)]), type: .script, timeoutSeconds: nil)
         if let source = read.sources.first { return .success(source) }
-        return .failure(read.refused.first ?? CompletionRefusal(name: name, reason: "not a completion source"))
+        return .failure(read.refused.first ?? CompletionRefusal(name: name, reason: tr("不是补全来源", "not a completion source")))
     }
 }
 
@@ -48,8 +48,9 @@ extension CompletionSourceKey {
 }
 
 extension CompletionSourceApproval {
-    /// What turning on `source`, `command`'s, approves now (0.6.7.1 §2): its script's SHA-256, whether it queries, its
-    /// prefix and how it compares (`Terms`). No hosts: what its script reaches is its own. Nil: its script can't be read.
+    /// What turning on `source`, `command`'s, approves now (0.6.7.1 §2): its script's SHA-256, whether it queries, and its
+    /// terms as a plugin's (`Terms`: its prefix, from which character it queries, how it compares). No hosts: what its
+    /// script reaches is its own. Nil: its script can't be read.
     public init?(enabling source: CompletionSource, of command: ScriptCommand) {
         guard let sha = PluginStore.sha256(of: command.file) else { return nil }
         let key = CompletionSourceKey(extension: command)
@@ -63,9 +64,9 @@ extension CompletionSourceApproval {
         self.init(enabling: source, of: command)
     }
 
-    /// Whether it still holds for `source` of `command` as they are now: the same script, query, prefix and compare (a
-    /// change to its script file, `prefix`, `query` or `compare` turns the source off again; one without terms never
-    /// holds). Never once marked lapsed.
+    /// Whether it still holds for `source` of `command` as they are now: the same script, query and terms (prefix,
+    /// queryMinChars and compare), compared as a plugin's are: a change to its script file, `prefix`, `query`,
+    /// `queryMinChars` or `compare` turns the source off again; one without terms never holds. Never once marked lapsed.
     public func holds(for source: CompletionSource, of command: ScriptCommand) -> Bool {
         guard let sha = PluginStore.sha256(of: command.file) else { return false }
         return holds(forScript: source, of: command, scriptSHA256: sha)
@@ -75,7 +76,7 @@ extension CompletionSourceApproval {
     func holds(forScript source: CompletionSource, of command: ScriptCommand, scriptSHA256 sha: String) -> Bool {
         guard !lapsed, let terms, CompletionSourceKey(plugin: plugin, source: self.source) == CompletionSourceKey(extension: command)
         else { return false }
-        return query == source.query && scriptSHA256 == sha && terms.prefix == source.prefix && terms.compare == source.compare
+        return query == source.query && scriptSHA256 == sha && terms == Terms(source)
     }
 
     /// The approvals of `enabled` not marked lapsed yet that no longer hold for the script extensions' `commands` as they
@@ -127,7 +128,7 @@ extension CompletionSource {
         return text
     }
 
-    /// What a script extension's source turned on before its script, prefix, query or compare changed says (Settings →
+    /// What a script extension's source turned on before its script, prefix, query or terms changed says (Settings →
     /// Commands, the Mac's and the settings document's): it is off until turned on again.
     public static var scriptChanged: String {
         tr("脚本、前缀、实时查询或比较方式改过了，已经关掉：要用的话再打开一次。",
@@ -191,7 +192,8 @@ public protocol ExtensionCompletionRuntime: Sendable {
 /// call's environment and limits of its own: a list within 20 seconds, a query within 3, 4 MB of output (a command's
 /// 64 KB doesn't apply), nothing on standard input. Only the script the user turned the source on with runs (its SHA-256,
 /// checked as it starts: an update may have come since). One program of a bundle at a time (`completionTurn`: they may
-/// share state, a cookie file or a cache), the others waiting their turn; cancelling the task, waiting or running, stops it.
+/// share state, a cookie file or a cache), the others waiting their turn; cancelling the task, waiting or running, stops
+/// it, and one running passes its turn on once its process has exited (SIGTERM, then SIGKILL after half a second).
 public struct ExtensionCompletionRunner: ExtensionCompletionRuntime {
     /// How long a list may take to load, whatever the command's own `timeout`.
     public static let loadTimeout: TimeInterval = PluginManifest.maxTimeout

@@ -56,6 +56,9 @@ struct SuggestionsField {
     /// Where the token starts in the field (UTF-16), by `selected`, while all the last key did there is what the token
     /// gained or lost (`suggestionsTokenRange`, for a row put in with a click); nil: not known.
     var tokenStart: Int?
+    /// `selected` was told while pinyin composed: it is in the marked text the key then put in, as the field counts it,
+    /// so it places no token (`suggestionsPlaceToken`).
+    var selectedComposing = false
 }
 
 extension InputSession {
@@ -127,13 +130,27 @@ extension InputSession {
             case .script, .command: return failure.programMessage
             }
         }
+
+        /// Why its call failed, as Settings says it: a program stopped or not found in the interface language
+        /// (`UIText.describe`), else what the error says; with nothing said, that the plugin failed, or the program (a
+        /// script extension's, a custom command's).
+        func describe(failed error: Error) -> String {
+            if error is CommandRunner.RunError { return UIText.describe(error) }
+            if let error = error as? LocalizedError, let description = error.errorDescription, !description.isEmpty { return description }
+            let text = String(describing: error)
+            guard text.isEmpty else { return text }
+            switch origin {
+            case .plugin: return tr("插件出错了", "The plugin failed")
+            case .script, .command: return tr("程序出错了", "The program failed")
+            }
+        }
     }
 
     // MARK: - The sources
 
     /// The completion sources enabled (`SuggestionsSettings.enabled`) with the hosts, query, script and terms (prefix,
     /// when the query is first asked, how it compares) their plugin has now (an update that changed one needs enabling
-    /// again), then the script extensions' turned on with the script, query, prefix and compare their command has now
+    /// again), then the script extensions' turned on with the script, query and terms their command has now
     /// (0.6.7.1 §2: of the commands not turned off), then the custom commands' (`SuggestionsSettings.commands`: those its
     /// rules don't refuse, a name once), all active with the settings (`inactiveReason`).
     func activeSources(_ settings: SuggestionsSettings, plugins: [InstalledPlugin]? = nil) -> [ActiveSource] {
@@ -371,16 +388,25 @@ extension InputSession {
 
     /// What the field `key` may need for suggestions: the selection where rows show (a snippet's caret, the token's place
     /// a row takes) or may show for the token the key types (whether a row can take the token's place there decides what
-    /// it puts in: 0.6.7.1 §1; never in a terminal, where none can); the text where it puts in a snippet of more than one
-    /// line (its later lines get the caret's line's indentation as it is now). The field's words are read once typing
-    /// pauses, never with a key.
+    /// it puts in: 0.6.7.1 §1; never in a terminal, where none can): while a token is typed, or by a key that types a
+    /// token character, not by every key in every app (each read is a call to the app); the text where it puts in a
+    /// snippet of more than one line (its later lines get the caret's line's indentation as it is now). The field's
+    /// words are read once typing pauses, never with a key.
     func suggestionsFieldWants(for key: KeyEvent) -> FieldContext.Parts {
         var wants: FieldContext.Parts = []
-        if suggesting.shown || !terminal && !suggesting.dead && suggestionsMayShow() { wants.insert(.selectedRange) }
+        if suggesting.shown || !terminal && !suggesting.dead && (!suggesting.token.isEmpty || Self.typesTokenCharacter(key))
+            && suggestionsMayShow() {
+            wants.insert(.selectedRange)
+        }
         if let row = suggestionsRowPut(by: key), row.insertion.contains(where: \.isNewline), codeReadsTheField() {
             wants.insert(.text)
         }
         return wants
+    }
+
+    /// Whether `key` types a character a token is made of (`SuggestionsToken.isTokenCharacter`, full-width folded).
+    static func typesTokenCharacter(_ key: KeyEvent) -> Bool {
+        (key.printableText ?? "").contains { SuggestionsToken.isTokenCharacter(Character(SuggestionsToken.normalized(String($0)))) }
     }
 
     /// The row `key` would put in where rows show (`suggestionsBeforeKey`): Tab's or Return's, the chosen one
@@ -404,7 +430,8 @@ extension InputSession {
     /// which replaced spec 1.4's per class of app): ↓ and ↑ move the choice, Tab and Return put the chosen row in, → and
     /// Esc hide the rows for the token (the key is ours; the keys are the app's then, until the token changes); digits
     /// are typed, never pick. Code's word held as marked text (decision 33) is the token's end: a row goes in in its
-    /// place, → and Esc put it in as typed. Not while pinyin composes: its own candidates have the keys then. Nil: the
+    /// place, → and Esc put it in as typed. Not while pinyin composes: its own candidates have the keys then. A click
+    /// since the token's last key (the caret may be elsewhere now) ends the token first: the key is the app's. Nil: the
     /// key goes on. The one place the rows' keys are decided.
     func suggestionsBeforeKey(_ event: KeyEvent, _ context: FieldContext) -> Bool? {
         // A key while Shift is held is no long press of it.
@@ -415,6 +442,7 @@ extension InputSession {
         suggesting.selected = context.read.contains(.selectedRange) ? context.selectedRange : nil
         suggesting.selectedToken = suggesting.token
         suggesting.ranges = suggesting.selected != nil
+        suggesting.selectedComposing = composesBesidesCodeWord
         // The caret's line as the field tells it now: a snippet the key puts in is indented as it is.
         if context.read.contains(.text), let text = context.text, CodingRows.indent(text.before) != suggesting.indent,
            codeReadsTheField() {
@@ -422,7 +450,18 @@ extension InputSession {
             if suggesting.shown { suggestionsUpdate() }
         }
         guard suggesting.shown, !suggesting.rows.isEmpty, !composesBesidesCodeWord,
-              event.modifiers.subtracting(.capsLock).subtracting(.sides).isEmpty else { return nil }
+              event.modifiers.subtracting(.capsLock).subtracting(.sides).isEmpty, Self.rowsKeys.contains(event.key)
+        else { return nil }
+        // The pointer used since the token's last key: a click elsewhere in the field the input method isn't told of (no
+        // marked text, so the app asks nothing of it), which may have moved the caret. The token ends, as
+        // `suggestionsAfterKey` ends it for a key that types, and the key is the app's: no row goes in where the token
+        // was, nor takes out what is before the caret now.
+        if services.pointerUsedWithin(services.uptime() - suggesting.tokenAt) {
+            log.notice("suggestions: the pointer was used since the token's last key: the token ends, the key is the app's")
+            suggestionsBoundary()
+            suggestionsUpdate()
+            return nil
+        }
         switch event.key {
         case .tab, .enter, .keypadEnter:
             guard let row = suggestionsChosenRow() else { return nil }
@@ -446,6 +485,9 @@ extension InputSession {
             return nil
         }
     }
+
+    /// The keys the rows take while they show (`suggestionsBeforeKey`).
+    static let rowsKeys: [Key] = [.tab, .enter, .keypadEnter, .arrow(.down), .arrow(.up), .arrow(.right), .escape]
 
     /// After the composer had `key`: what went into the field with it (`inserted`: what the input method put in, the key's
     /// own text where the app typed it) extends the token or ends it; a key the app had that typed nothing ends it (an
@@ -509,10 +551,11 @@ extension InputSession {
 
     /// Where the token starts now (`SuggestionsField.tokenStart`), by the selection the field told before `key`: known
     /// while what the key `typed` is all the token gained (pinyin's words put in with "#" are more), or ⌫ took its last
-    /// character back with nothing selected.
+    /// character back with nothing selected; not by a selection told while pinyin composed (in its marked text: the
+    /// letters a prefix's "-" put in as typed).
     private func suggestionsPlaceToken(typed: String, key: KeyEvent) {
         suggesting.tokenStart = nil
-        guard let selected = suggesting.selected, !suggesting.token.isEmpty else { return }
+        guard let selected = suggesting.selected, !suggesting.selectedComposing, !suggesting.token.isEmpty else { return }
         let before = suggesting.selectedToken
         let followed = typed.isEmpty
             ? key.key == .backspace && selected.isEmpty && before.count == suggesting.token.count + 1 && before.hasPrefix(suggesting.token)
@@ -596,14 +639,16 @@ extension InputSession {
     /// Where the token is in the field (UTF-16), by the selection it reported with the last key, before the key had it:
     /// Tab's, Return's (the token as it is: its characters right before the caret, up to the selection's end), or for a
     /// click, the key before's, where the token started then (`SuggestionsField.tokenStart`). A word Code holds as marked
-    /// text is among them, as the field counts it (its caret at the end of it). Nil: it reports none, or where the token
-    /// is isn't known (a key put in more than the token gained).
+    /// text is among them, as the field counts it (its caret at the end of it). Nil: it reports none, where the token is
+    /// isn't known (a key put in more than the token gained), or Tab's or Return's selection isn't right after where the
+    /// token started by the keys before (the caret moved by something the input method doesn't see).
     func suggestionsTokenRange() -> Range<Int>? {
         guard suggestionsReplace, let selected = suggesting.selected else { return nil }
         let length = suggesting.token.utf16.count
         guard suggesting.token == suggesting.selectedToken else { return suggesting.tokenStart.map { $0..<($0 + length) } }
         let start = selected.lowerBound - length
-        return start >= 0 ? start..<selected.upperBound : nil
+        guard start >= 0, suggesting.tokenStart.map({ $0 == start }) ?? true else { return nil }
+        return start..<selected.upperBound
     }
 
     /// `row` put in: what wasn't typed of it (spec 1.4), with Code's word held in place of the marked text (decision 33);
@@ -611,13 +656,18 @@ extension InputSession {
     /// else every stop's text and the caret at the end; picked before, it comes first next time. The token ends with it.
     /// A row that takes the token's place (0.6.7.1 §1: what it puts in doesn't start with the token) does so where the
     /// field tells where the token is (`suggestionsTokenRange`): the token taken out, prefix and all, and its text put in,
-    /// one change (`SessionOutput.replace`), Code's word held taken out first; elsewhere its next template that starts
-    /// with the token goes in as any row's.
+    /// one change (`SessionOutput.replace`), Code's word held taken out first; only where the field still holds the
+    /// token there as the shell reads it back (`ReplacementCheck`: else what a plain insertion would put in, at the
+    /// caret); elsewhere its next template that starts with the token goes in as any row's.
     func suggestionsInsert(_ row: SuggestionRow, key: KeyEvent?) {
         if row.replaces, suggesting.ranges, let range = suggestionsTokenRange() {
             let word = composer.codeWord ?? ""
             if !word.isEmpty { perform(composer.endCodeWord(inserting: "")) }
-            emit(.replace(row.insertion, range: range.lowerBound..<(range.upperBound - word.utf16.count)))
+            let end = max(range.lowerBound, range.upperBound - word.utf16.count)
+            let token = suggesting.token
+            let expected = !word.isEmpty && token.hasSuffix(word) ? String(token.dropLast(word.count)) : token
+            emit(.checkNextReplace(ReplacementCheck(expected: expected, otherwise: word + row.rest(ranges: false))))
+            emit(.replace(row.insertion, range: range.lowerBound..<end))
             lastTyped.forget()
             followEnglishInserted(row.insertion)
             if let pick = row.pick { services.suggestions.recordPick(pick) }
@@ -840,7 +890,7 @@ extension InputSession {
                 case let .failure(failure): result = .failure(.init(message: active.describe(failure)))
                 }
             } catch {
-                result = .failure(.init(message: InputSession.describeFailure(error)))
+                result = .failure(.init(message: active.describe(failed: error)))
             }
             store.deposit(key, .load(id: id, result), from: session, starter: deliver)
         }
@@ -935,13 +985,6 @@ extension InputSession {
     func completionPreferences(_ plugin: InstalledPlugin) -> @Sendable () -> [String: String] {
         let read = services.suggestions.preferences
         return { PluginPreference.values(for: plugin, set: read(plugin)) }
-    }
-
-    /// Why a script's call failed, as Settings says it.
-    static func describeFailure(_ error: Error) -> String {
-        if let error = error as? LocalizedError, let description = error.errorDescription, !description.isEmpty { return description }
-        let text = String(describing: error)
-        return text.isEmpty ? tr("插件出错了", "The plugin failed") : text
     }
 
     // MARK: - The long press of Shift (decision 22)

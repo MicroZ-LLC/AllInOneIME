@@ -92,11 +92,12 @@ public struct ExtensionBundle: Hashable, Sendable {
 
     /// The bundle in `folder`, its commands' entries and its snippets' (the keys of each, as strings), and what's wrong
     /// in it that doesn't keep the rest from loading (`problems`: a list that isn't one of entries next to one that is, a
-    /// snippet whose `text`, `name` … isn't a string); or why it can't be read. It must have a command or a snippet.
+    /// snippet whose `text`, `name` … isn't a string); or why it can't be read. It must have a command or a snippet. A
+    /// key whose value is `null` is taken as not there, in the bundle and in each of its entries.
     static func read(_ data: Data, folder: URL)
         -> Result<(bundle: ExtensionBundle, commands: [[String: String]], snippets: [[String: String]],
                    problems: [ScriptCommand.Problem]), ScriptCommand.Problem> {
-        guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
+        guard let json = ((try? JSONSerialization.jsonObject(with: data)) as? [String: Any]).map(withoutNulls) else {
             return .failure(.badBundle(.notJSON))
         }
         guard let version = json["schemaVersion"] as? Int else { return .failure(.missing("schemaVersion")) }
@@ -109,7 +110,7 @@ public struct ExtensionBundle: Hashable, Sendable {
         // A list of entries; one that isn't (a string, an object, a number among them) is said, not ignored.
         func entries(_ key: String) -> [[String: Any]] {
             guard let value = json[key] else { return [] }
-            if let list = value as? [[String: Any]] { return list }
+            if let list = value as? [[String: Any]] { return list.map(Self.withoutNulls) }
             problems.append(.badValue(key: key, value: Self.shown(value)))
             return []
         }
@@ -117,12 +118,12 @@ public struct ExtensionBundle: Hashable, Sendable {
         let snippets = entries("snippets")
         guard !commands.isEmpty || !snippets.isEmpty else { return .failure(.badBundle(.noCommands)) }
         var preferences: [Preference] = []
-        for item in json["preferences"] as? [[String: Any]] ?? [] {
+        for item in (json["preferences"] as? [[String: Any]] ?? []).map(Self.withoutNulls) {
             guard let name = item["name"] as? String, !name.isEmpty,
                   let kind = Preference.Kind(rawValue: item["type"] as? String ?? "textfield") else {
                 return .failure(.badBundle(.badPreference))
             }
-            let choices = (item["data"] as? [[String: Any]] ?? []).compactMap { choice -> ScriptCommand.Argument.Choice? in
+            let choices = (item["data"] as? [[String: Any]] ?? []).map(Self.withoutNulls).compactMap { choice -> ScriptCommand.Argument.Choice? in
                 guard let value = choice["value"].map({ "\($0)" }) else { return nil }
                 return .init(title: choice["title"].map { "\($0)" } ?? value, value: value)
             }
@@ -146,7 +147,10 @@ public struct ExtensionBundle: Hashable, Sendable {
                 case let number as NSNumber where number.isBoolean: keys[key] = number.boolValue ? "true" : "false"
                 case let number as NSNumber: keys[key] = number.stringValue
                 default:
-                    if let data = try? JSONSerialization.data(withJSONObject: value) { keys[key] = String(decoding: data, as: UTF8.self) }
+                    // Only an object or a list: anything else (a `null` left in) makes JSONSerialization raise, not throw.
+                    if JSONSerialization.isValidJSONObject(value), let data = try? JSONSerialization.data(withJSONObject: value) {
+                        keys[key] = String(decoding: data, as: UTF8.self)
+                    }
                 }
             }
             return keys
@@ -162,6 +166,11 @@ public struct ExtensionBundle: Hashable, Sendable {
             return entry.compactMapValues { $0 as? String }
         }
         return .success((bundle, commands.map { strings($0, ["schemaVersion": String(version)]) }, snippetEntries, problems))
+    }
+
+    /// `object` without its keys whose value is `null` (`NSNull`): `"completion": null` is no completion, as if not written.
+    static func withoutNulls(_ object: [String: Any]) -> [String: Any] {
+        object.filter { !($0.value is NSNull) }
     }
 
     /// A value of `extension.json` as a problem shows it: its JSON, at most 60 characters of it.

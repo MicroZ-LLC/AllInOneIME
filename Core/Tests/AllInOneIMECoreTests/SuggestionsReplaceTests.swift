@@ -230,6 +230,173 @@ struct SuggestionsReplaceTests {
         await withInterfaceLanguage("zh-Hans") { #expect(SuggestionsInsert.markdownLink.label == "Markdown 链接") }
     }
 
+    // MARK: - After a click, or with the field changed
+
+    /// A click elsewhere in the field after the token (the input method isn't told of it: nothing is marked, so the app
+    /// asks nothing of it): Tab, Return, ↓ ↑, → and Esc are the app's then, and the token is over. No row goes in, and
+    /// nothing before the caret is taken out (by Tab's selection less the token's length: "llo" for a link).
+    @Test func aClickSinceTheTokenGivesTheRowsKeysToTheApp() async throws {
+        try await inEnglish {
+            let world = try Self.world(insert: Self.markdown)
+            for key in [SuggestionKeys.tab, SuggestionKeys.enter, SuggestionKeys.down, SuggestionKeys.up, SuggestionKeys.right,
+                        SuggestionKeys.escape] {
+                world.pointerUsed = false
+                let field = world.field()
+                field.host.document = "Hello\nsee "
+                field.type("#12")
+                #expect(field.settle { field.issuesShown.first == "#1234" }, "\(key.key): \(field.rows.map(\.text))")
+                // A click right after "Hello".
+                world.pointerUsed = true
+                field.host.selection = 5..<5
+                let before = field.host.outputs.count
+                #expect(!field.press(key), "\(key.key): the app's")
+                #expect(Self.edits(field, since: before).isEmpty, "\(key.key): \(Self.edits(field, since: before))")
+                #expect(field.document == "Hello\nsee #12" && field.rows.isEmpty, "\(key.key): \(field.document)")
+            }
+            // A click at the end, then typing on: a token of its own, its row put in in its place.
+            world.pointerUsed = false
+            let field = world.field()
+            field.host.document = "Hello\nsee "
+            field.type("#12")
+            #expect(field.settle { field.issuesShown.first == "#1234" }, "\(field.rows.map(\.text))")
+            world.pointerUsed = true
+            #expect(!field.press(SuggestionKeys.tab))
+            world.pointerUsed = false
+            field.type(" #12")
+            #expect(field.settle { field.issuesShown.first == "#1234" }, "\(field.rows.map(\.text))")
+            #expect(field.press(SuggestionKeys.tab))
+            #expect(field.document == "Hello\nsee #12 [Fix login](\(Self.link))", "\(field.document)")
+        }
+    }
+
+    /// The caret elsewhere by Tab's time with no click seen (text dragged in, a menu's command): Tab's selection isn't
+    /// right after where the token started by the keys before, so nothing is taken out by it; the row goes in as a plain
+    /// insertion would (the rest of its `{arg}`).
+    @Test func aCaretMovedUnseenTakesNoTokenOut() async throws {
+        try await inEnglish {
+            let world = try Self.world(insert: Self.markdown)
+            let field = world.field()
+            field.host.document = "Hello\nsee "
+            field.type("#12")
+            #expect(field.settle { field.issuesShown.first == "#1234" }, "\(field.rows.map(\.text))")
+            field.host.selection = 5..<5
+            let before = field.host.outputs.count
+            #expect(field.press(SuggestionKeys.tab))
+            #expect(Self.edits(field, since: before) == ["+34"], "\(Self.edits(field, since: before))")
+            #expect(field.document == "Hello34\nsee #12", "nothing taken out: \(field.document)")
+        }
+    }
+
+    /// What the shell checks before it replaces (`SessionOutput.checkNextReplace`): the token as typed in the range, and
+    /// what a plain insertion would put in instead (the rest of `{arg}`, the next template). The field holds it: replaced.
+    @Test func aReplacementIsReadBackFirst() async throws {
+        try await inEnglish {
+            let world = try Self.world(insert: Self.markdown)
+            let field = world.field()
+            field.host.document = "See "
+            field.type("#12")
+            #expect(field.settle { field.issuesShown.first == "#1234" }, "\(field.rows.map(\.text))")
+            let before = field.host.outputs.count
+            #expect(field.press(SuggestionKeys.tab))
+            let checks = field.host.outputs.dropFirst(before).compactMap { output -> ReplacementCheck? in
+                if case let .checkNextReplace(check) = output { return check } else { return nil }
+            }
+            #expect(checks == [ReplacementCheck(expected: "#12", otherwise: "34")])
+            #expect(field.host.replacementsChecked == 1 && field.document == "See [Fix login](\(Self.link))", "\(field.document)")
+        }
+    }
+
+    /// A row clicked once the text moved since the last key (text put in before the token by something the input method
+    /// doesn't see): the range that key told holds other text now, so nothing is taken out; what a plain insertion would
+    /// put in goes in at the caret, and nothing where there is none (a source whose only template is a link).
+    @Test func aClickedRowWhereTheTextMovedTakesNothingOut() async throws {
+        try await inEnglish {
+            for (insert, expected) in [(Self.markdown, "Hi, a #1234"), (#"{ "default": "[{title}]({url})", "terminal": "{match}" }"#, "Hi, a #123")] {
+                let world = try Self.world(insert: insert)
+                let field = world.field()
+                field.host.document = "a "
+                field.type("#123")
+                #expect(field.settle { field.issuesShown == ["#1234"] }, "\(field.rows.map(\.text))")
+                field.host.document = "Hi, a #123"
+                field.host.send(.pick(0))
+                #expect(field.host.replacementsChecked == 1, "\(insert)")
+                #expect(field.document == expected, "\(insert): \(field.document)")
+            }
+        }
+    }
+
+    /// The check itself, as both shells make it (`ReplacementCheck.apply`): the text in place of the range only where the
+    /// field reads back what is expected there; else what goes in instead, at the caret, unless that's nothing.
+    @Test func aCheckReplacesOnlyWhatItExpects() {
+        func run(_ check: ReplacementCheck, on start: String, range: Range<Int>) -> (String, Bool) {
+            var text = start as NSString
+            let replaced = check.apply("[Fix](u)", range: range,
+                                       read: { range in
+                                           range.upperBound <= text.length ? text.substring(with: NSRange(location: range.lowerBound, length: range.count)) : nil
+                                       },
+                                       replace: { new, range in
+                                           text = text.replacingCharacters(in: NSRange(location: range.lowerBound, length: range.count), with: new) as NSString
+                                       },
+                                       insert: { text = text.appending($0) as NSString })
+            return (text as String, replaced)
+        }
+        let check = ReplacementCheck(expected: "#12", otherwise: "34")
+        #expect(run(check, on: "See #12", range: 4..<7) == ("See [Fix](u)", true))
+        #expect(run(check, on: "Hello see #12", range: 2..<5) == ("Hello see #1234", false), "other text there")
+        #expect(run(check, on: "See #12", range: 6..<9) == ("See #1234", false), "nothing read back")
+        #expect(run(ReplacementCheck(expected: "#12", otherwise: ""), on: "Hello see #12", range: 2..<5) == ("Hello see #12", false))
+    }
+
+    /// The range of a token whose end is the word Code holds never ends before it starts, were the token ever shorter than
+    /// the word (it isn't): empty at worst, where a Range that ends before it starts would stop the input method.
+    @Test func theWordsRangeNeverEndsBeforeItStarts() async throws {
+        try await inEnglish {
+            let world = try Self.world(insert: Self.markdown)
+            world.addCode("python", packs: [try SuggestionsCodingPacksTests.shipped("python")])
+            let field = world.codeField()
+            field.host.document = "x = "
+            field.type("abc")
+            #expect(field.host.composer.codeWord == "abc")
+            let session = field.host.session!
+            (session.suggesting.token, session.suggesting.selectedToken) = ("c", "c")
+            (session.suggesting.selected, session.suggesting.ranges, session.suggesting.tokenStart) = (7..<7, true, nil)
+            let row = SuggestionRow(text: "#1234", comment: "", insertion: "[Fix](u)", replaces: true, plainInsertion: "c",
+                                    completion: "#1234", typed: "c", pick: nil, source: "GitHub")
+            let outputs = session.collect { session.suggestionsInsert(row, key: nil) }
+            let ranges = outputs.compactMap { output -> Range<Int>? in if case let .replace(_, range) = output { return range } else { return nil } }
+            #expect(ranges == [6..<6], "\(outputs)")
+        }
+    }
+
+    // MARK: - Reading the field
+
+    /// The field's selection is read with a key only where it may matter: while a token is typed, or by a key that types a
+    /// token's character; not by a space, Return, an arrow or a shortcut with no token (each read is a call to the app),
+    /// nor in a terminal.
+    @Test func theSelectionIsReadOnlyWhereItMayMatter() async throws {
+        try await inEnglish {
+            let world = try Self.world(insert: Self.markdown)
+            let field = world.field()
+            func reads(_ key: KeyEvent, in field: SuggestionsField) -> Bool {
+                field.host.context(wantedFor: key).read.contains(.selectedRange)
+            }
+            for key in [SuggestionKeys.space, SuggestionKeys.enter, SuggestionKeys.left, SuggestionKeys.commandV, SuggestionKeys.backspace] {
+                #expect(!reads(key, in: field), "\(key.key) with no token")
+            }
+            for character in ["#", "a", "7", "＃"] as [Character] {
+                #expect(reads(SuggestionKeys.key(character), in: field), "\(character)")
+            }
+            field.type("#1")
+            for key in [SuggestionKeys.space, SuggestionKeys.enter, SuggestionKeys.left, SuggestionKeys.backspace] {
+                #expect(reads(key, in: field), "\(key.key) while a token is typed")
+            }
+            field.type(" ")
+            #expect(!reads(SuggestionKeys.enter, in: field), "the token over")
+            let terminal = world.field(app: "com.apple.Terminal", terminal: true)
+            #expect(!reads(SuggestionKeys.key("#"), in: terminal), "a terminal tells none")
+        }
+    }
+
     // MARK: - The rows' own
 
     /// What a row puts in (`SuggestionRow.put`): a replacing one all of it where the field reports ranges, its plain text's

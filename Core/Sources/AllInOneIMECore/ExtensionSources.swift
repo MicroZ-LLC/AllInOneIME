@@ -160,7 +160,8 @@ public struct ExtensionSourceStatus: Codable, Equatable, Sendable {
         decoder.dateDecodingStrategy = .iso8601
         var statuses: [String: ExtensionSourceStatus] = [:]
         for (url, entry) in object {
-            guard let entryData = try? JSONSerialization.data(withJSONObject: entry),
+            // An entry that isn't an object (a `null`) makes JSONSerialization raise, not throw: skipped.
+            guard JSONSerialization.isValidJSONObject(entry), let entryData = try? JSONSerialization.data(withJSONObject: entry),
                   let status = try? decoder.decode(ExtensionSourceStatus.self, from: entryData) else { continue }
             statuses[url] = status
         }

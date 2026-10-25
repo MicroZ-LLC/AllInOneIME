@@ -331,7 +331,7 @@ Raycast's keys are read as they are, and mean:
 | `disabledExtensions` | `[]` | commands (ids) and bundles (names) turned off |
 | `extensionPreferences` | `{}` | bundle → preference → value (not passwords) |
 | `extensionSources` | `[]` | Git repositories bundles are installed from (§10) |
-| `completionSources` | `[]` | the completion sources turned on (§11), plugins' too: for a command, `"plugin": "script-extensions"` and its id as `source`, with what was approved (its script's SHA-256, `query`, its prefix and `compare`); this Mac's own, never synced |
+| `completionSources` | `[]` | the completion sources turned on (§11), plugins' too: for a command, `"plugin": "script-extensions"` and its id as `source`, with what was approved (its script's SHA-256, `query`, and its `terms`: prefix, `queryMinChars`, `compare`); this Mac's own, never synced |
 
 ## 10. Extension sources
 
@@ -485,7 +485,8 @@ line on standard error as the error), with nothing on standard input, and limits
   it until Refresh now, an update or a day later).
 - **One at a time.** One completion program of a bundle runs at a time (a bundle's programs may share state: a cookie
   file, a cache); the others wait their turn. A newer lookup for the same source cancels the one before, waiting or
-  running (SIGTERM to its process group, then SIGKILL).
+  running (SIGTERM to its process group, then SIGKILL half a second later); the next program of the bundle starts only
+  once a cancelled one has exited, so a script that cleans up on SIGTERM is done before it.
 - The list is kept on this Mac (cached in `~/Library/Caches/AllInOneIME/suggestions/`, readable only by you) and loaded
   again every `refresh` while you use it, not after a week unused; rows you picked come first. Nothing runs, and no rows
   show, during secure input or in a password field.
@@ -493,13 +494,19 @@ line on standard error as the error), with nothing on standard input, and limits
 **What a row puts in.** The first template the item fills that can go in there: one that starts with the token adds
 what wasn't typed; one that doesn't (`[{title}]({url})`) takes the token's place where the text field tells where its
 text is (the token, prefix and all, taken out and the text put in, one change you can undo as one), and is skipped for
-the next elsewhere (terminals). Its `insert` is the default: Settings → General → Insert (With title, With title and
+the next elsewhere (terminals). The token is taken out only where the field still holds it when the row goes in (read
+back first): where it holds other text there by then, what wasn't typed of the next template that starts with the token
+goes in at the caret instead, or nothing; after a click elsewhere in the text, Tab, Return and the arrows are the app's.
+Its `insert` is the default: Settings → General → Insert (With title, With title and
 link, Markdown link) and each app's own choice apply to it, as to every source.
 
 **Trust.** As a plugin's completions: off until you turn it on in Settings → Commands, under the command (its switch,
 what it does: it runs this script in the background, and with `query` it also gets what you type after the prefix;
-then its last refresh, items, last error and Refresh Now). What you turned on is its script (its SHA-256), `query`,
-`prefix` and `compare`: a change to any of them, an extension source's update or your own edit (a single script's
-`completion` line is part of its script), turns it off again, and Settings says so; only the script you turned on
-runs. Turning the command or its bundle off turns its suggestions off too.
+then its last refresh, items, last error and Refresh Now). Turning it on pins the command's script file (its
+SHA-256: a single script's `completion` line is part of it), `query`, and the terms a plugin's source is pinned by: its
+`prefix`, `queryMinChars` and `compare`. A change to any of them, an extension source's update or your own edit, turns
+it off again, and Settings says so; until it's on again nothing of it runs, and a script file that changed since is
+never run for it. Nothing else is pinned: another file of the bundle the script reads or sources (`lib/common.sh`), its
+`refresh`, `minChars` and `insert` may change and it stays on. Turning the command or its bundle off turns its
+suggestions off too.
 

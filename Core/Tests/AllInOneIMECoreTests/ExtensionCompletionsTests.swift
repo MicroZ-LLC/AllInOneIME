@@ -5,11 +5,12 @@ import AllInOneIMETestSupport
 
 /// Script extensions as completion sources (0.6.7.1 §2): a command's declaration (a script's `@allinoneime.completion`
 /// line, a bundle entry's `"completion"` over it; refused on its own, with its reason, the command still loading), its
-/// trust (off until turned on; a change to its script, prefix, query or compare turns it off again), its program run as
-/// its commands run with `ALLINONEIME_COMPLETION` (its list with no arguments, a query with the text after the prefix as
-/// its one argument; nothing of the field in its environment; 4 MB of output, not a command's 64 KB; one program of a
-/// bundle at a time), and its rows through a text field's session as a plugin's. The programs are real sh scripts in a
-/// temporary folder; the rig is the acceptance tests' (Acceptance/SuggestionsAcceptanceTests.swift).
+/// trust (off until turned on; a change to its script, prefix, query, queryMinChars or compare turns it off again), its
+/// program run as its commands run with `ALLINONEIME_COMPLETION` (its list with no arguments, a query with the text
+/// after the prefix as its one argument; nothing of the field in its environment; 4 MB of output, not a command's 64 KB;
+/// one program of a bundle at a time, a cancelled one's turn passed on once it has exited), and its rows through a text
+/// field's session as a plugin's. The programs are real sh scripts in a temporary folder; the rig is the acceptance
+/// tests' (Acceptance/SuggestionsAcceptanceTests.swift).
 @Suite(.serialized, SuggestionsOneAtATime())
 struct ExtensionCompletionsTests {
     func inEnglish(_ body: () throws -> Void) async rethrows { try await withInterfaceLanguage("en", body) }
@@ -160,6 +161,63 @@ struct ExtensionCompletionsTests {
         #expect(try #require(extensions.command("plain")).completion == nil)
     }
 
+    /// `null` for a key of extension.json is as if it weren't there (JSONSerialization raises, not throws, when it's asked
+    /// to write one): an entry's `"completion": null` declares no source, its other keys that are null take their
+    /// defaults, the bundle's too, and its other command's source loads.
+    @Test func aNullIsAsIfNotThere() throws {
+        let extensions = try Extensions()
+        try extensions.script("crm/contacts.sh", metadata: [], body: Self.ticketsBody)
+        try extensions.script("crm/deals.sh", metadata: [], body: Self.ticketsBody)
+        try extensions.write("crm/extension.json", #"""
+            { "schemaVersion": 1, "name": "crm", "title": null, "version": null, "description": null, "snippets": null,
+              "preferences": [{ "name": "region", "type": "textfield", "title": null, "default": null, "data": [{ "value": "eu", "title": null }] }],
+              "commands": [{ "script": "contacts.sh", "title": "Contacts", "completion": null, "description": null, "icon": null },
+                           { "script": "deals.sh", "title": null, "completion": { "prefix": "TCK-", "list": true, "insert": null } }] }
+            """#)
+        let index = extensions.index
+        #expect(index.skipped.isEmpty, "\(index.skipped)")
+        let contacts = try #require(extensions.command("contacts")), deals = try #require(extensions.command("deals"))
+        #expect(contacts.title == "Contacts" && contacts.description == nil && contacts.completion == nil,
+                "\(String(describing: contacts.completion))")
+        guard case let .success(source)? = deals.completion else { Issue.record("\(String(describing: deals.completion))"); return }
+        #expect(deals.title == "deals" && source.prefix == "TCK-" && source.title.en == "deals")
+        let bundle = try #require(index.bundles.first { $0.name == "crm" })
+        #expect(bundle.title == "crm" && bundle.version == nil && bundle.description == nil)
+        let region = try #require(bundle.preferences.first)
+        #expect(region.title == "region" && region.defaultValue == nil && region.choices.map(\.title) == ["eu"])
+    }
+
+    /// The reasons a declaration of a script extension is refused for that only it can have, and what Settings says when
+    /// its program failed saying nothing, in the interface language: of the program, not a plugin (a plugin's says so).
+    @Test func itsReasonsAndFailuresInTheInterfaceLanguage() async throws {
+        let extensions = try Extensions()
+        let command = try Self.tickets(in: extensions)
+        guard case let .success(source)? = command.completion else { Issue.record("no source"); return }
+        let script = InputSession.ActiveSource(origin: .script(command, bundle: nil, scriptSHA256: ""), source: source,
+                                               key: CompletionSourceKey(extension: command))
+        let world = SuggestionsWorld()
+        let plugin = try world.github()
+        let pluginSource = try #require(plugin.manifest.completions.first)
+        let fromPlugin = InputSession.ActiveSource(origin: .plugin(plugin, hosts: [], scriptSHA256: ""), source: pluginSource,
+                                                   key: CompletionSourceKey(plugin: plugin.name, source: pluginSource.name))
+        struct Silent: Error, CustomStringConvertible { var description: String { "" } }
+        func reason(_ json: String) -> String? {
+            if case let .failure(refusal) = CompletionDeclaration.extensionSource(json, name: "tickets", title: "Tickets") { return refusal.reason }
+            return nil
+        }
+        await withInterfaceLanguage("en") {
+            #expect(reason("[1]") == "completion must be a JSON object")
+            #expect(script.describe(failed: Silent()) == "The program failed" && fromPlugin.describe(failed: Silent()) == "The plugin failed")
+            #expect(script.describe(failed: CommandRunner.RunError.timedOut(3)) == "Stopped after 3 seconds")
+        }
+        await withInterfaceLanguage("zh-Hans") {
+            #expect(reason("[1]") == "completion 必须是 JSON 对象")
+            #expect(script.describe(failed: Silent()) == "程序出错了" && fromPlugin.describe(failed: Silent()) == "插件出错了")
+            #expect(script.describe(failed: CommandRunner.RunError.timedOut(3)) == "运行超过 3 秒，已停止")
+            #expect(script.describe(failed: ExtensionCompletionError.scriptChanged) == "脚本在打开补全以后改过，没有运行")
+        }
+    }
+
     /// The public example (Examples/extensions/bookmarks): its command `@bm` declares a source in its bundle's entry;
     /// turned on, `bm.sw` shows Swift's bookmark, and Tab puts in a Markdown link of it in the token's place.
     @Test func theBookmarksExampleCompletes() async throws {
@@ -174,6 +232,41 @@ struct ExtensionCompletionsTests {
             field.type("bm.sw")
             #expect(field.settle(timeout: 15) { field.rows.map(\.text) == ["bm.swift"] }, "\(field.rows.map(\.text))")
             #expect(field.press(SuggestionKeys.tab))
+            #expect(field.document == "See [Swift](https://www.swift.org)", "\(field.document)")
+        }
+    }
+
+    /// In Code the token's end is the word Code holds as marked text ("bm.sw": "sw"): it is taken out first, so what the
+    /// shell checks is still in the field before the link goes in is the rest of the token ("bm."), and where it isn't,
+    /// the word goes back in as typed (the source has no template that follows the token). The field counts the marked
+    /// text as a Cocoa text view does: the caret at its end.
+    @Test func inCodeTheWordHeldIsTakenOutBeforeTheCheck() async throws {
+        try await inEnglish {
+            let index = ExtensionStore.load([.init(path: ExtensionExamplesTests.examples.path, found: false)])
+            let bm = try #require(index.commands.first { $0.name == "bm" })
+            let (world, adjust) = Self.world({ index }, on: [bm])
+            world.addCode("python", packs: [try SuggestionsCodingPacksTests.shipped("python")])
+            let field = world.codeField(adjust)
+            @discardableResult
+            func press(_ key: KeyEvent) -> Bool {
+                var context = field.host.context
+                let caret = (field.host.document as NSString).length + (field.host.marked as NSString).length
+                context.selectedRange = caret..<caret
+                let handled = field.host.press(key, with: context)
+                if !handled, key.key == .character, let text = key.printableText { field.host.document += text }
+                field.noteTimers()
+                return handled
+            }
+            field.host.document = "See "
+            for character in "bm.sw" { press(SuggestionKeys.key(character)) }
+            #expect(field.host.composer.codeWord == "sw")
+            #expect(field.settle(timeout: 15) { field.rows.map(\.text).first == "bm.swift" }, "\(field.rows.map(\.text))")
+            let before = field.host.outputs.count
+            #expect(press(SuggestionKeys.tab))
+            let checks = field.host.outputs.dropFirst(before).compactMap { output -> ReplacementCheck? in
+                if case let .checkNextReplace(check) = output { return check } else { return nil }
+            }
+            #expect(checks == [ReplacementCheck(expected: "bm.", otherwise: "sw")])
             #expect(field.document == "See [Swift](https://www.swift.org)", "\(field.document)")
         }
     }
@@ -204,9 +297,9 @@ struct ExtensionCompletionsTests {
         }
     }
 
-    /// What its switch approved: its script, query, prefix and compare. A change to any of them turns it off (said once:
-    /// the approval marked lapsed); its refresh, minChars, queryMinChars or insert don't (a bundle's entry: a single
-    /// script's line is its script).
+    /// What its switch approved: its script, query and terms as a plugin's (prefix, queryMinChars, compare). A change to
+    /// any of them turns it off (said once: the approval marked lapsed); its refresh, minChars or insert don't (a bundle's
+    /// entry: a single script's line is its script).
     @Test func aChangeToItsScriptPrefixQueryOrCompareTurnsItOff() throws {
         let extensions = try Extensions()
         try extensions.script("crm/contacts.sh", metadata: [], body: Self.ticketsBody)
@@ -221,13 +314,14 @@ struct ExtensionCompletionsTests {
         let approval = try #require(CompletionSourceApproval(enabling: source, of: command))
         #expect(approval.holds(for: source, of: command) && approval.hosts.isEmpty)
 
-        for change in [#", "minChars": 3}"#, #", "queryMinChars": 5}"#, #", "refresh": "1d"}"#, #", "insert": {"default": "{match}"}}"#] {
+        for change in [#", "minChars": 3}"#, #", "refresh": "1d"}"#, #", "insert": {"default": "{match}"}}"#] {
             let other = try bundle(declared + change)
             guard case let .success(changed)? = other.completion else { Issue.record("\(change)"); continue }
             #expect(approval.holds(for: changed, of: other), "\(change)")
             #expect(CompletionSourceApproval.lapsed([approval], extensions: [other]).isEmpty, "\(change)")
         }
-        for change in [#", "query": true}"#, #", "compare": "exact"}"#] {
+        // From which character it queries is approved as a plugin's is: a bundle's update that lowers it sends less typed.
+        for change in [#", "query": true}"#, #", "compare": "exact"}"#, #", "queryMinChars": 5}"#] {
             let other = try bundle(declared + change)
             guard case let .success(changed)? = other.completion else { Issue.record("\(change)"); continue }
             #expect(!approval.holds(for: changed, of: other), "\(change)")
@@ -452,6 +546,42 @@ struct ExtensionCompletionsTests {
         #expect(extensions.read("ran.log") == "slow.sh\n")
         await #expect(throws: ExtensionCompletionError.scriptChanged) { try await runner.load(call(quick, sha: String(repeating: "0", count: 64))) }
         #expect(extensions.read("ran.log") == "slow.sh\n")
+    }
+
+    /// A program cancelled while it runs (a newer query) passes its bundle's turn on only once it has exited: one that
+    /// cleans up on SIGTERM is done before the next program of its bundle starts.
+    @Test func aCancelledProgramsTurnPassesOnceItHasExited() async throws {
+        let extensions = try Extensions()
+        // The slow one notes its end on SIGTERM too, a moment after it (well within the half second before SIGKILL).
+        let body = #"""
+            dir="$(cd "$(dirname "$0")" && pwd)"
+            name="$(basename "$0")"
+            [ "$name" = slow.sh ] && trap 'sleep 0.2; echo "end $name" >> "$dir/../order.log"; exit 0' TERM
+            echo "start $name" >> "$dir/../order.log"
+            if [ "$name" = slow.sh ]; then sleep 10 & wait; fi
+            echo "end $name" >> "$dir/../order.log"
+            echo '{"items": []}'
+            """#
+        for path in ["a/slow.sh", "a/quick.sh"] { try extensions.script(path, metadata: [], body: body) }
+        try extensions.write("a/extension.json", #"""
+            { "schemaVersion": 1, "name": "a", "commands": [{ "script": "slow.sh", "completion": {"prefix": "A-", "list": true, "query": true} },
+                                                             { "script": "quick.sh", "completion": {"prefix": "B-", "list": true, "query": true} }] }
+            """#)
+        let slow = try #require(extensions.command("slow")), quick = try #require(extensions.command("quick"))
+        func call(_ command: ScriptCommand) -> ExtensionCompletionCall {
+            ExtensionCompletionCall(command: command, environment: ProcessInfo.processInfo.environment, timeout: 10,
+                                    scriptSHA256: PluginStore.sha256(of: command.file))
+        }
+        let runner = ExtensionCompletionRunner()
+        let first = Task { try await runner.query("1", call(slow)) }
+        for _ in 0..<200 where !(extensions.read("order.log") ?? "").contains("start slow.sh") {
+            try await Task.sleep(nanoseconds: 25_000_000)
+        }
+        first.cancel()
+        _ = try await runner.query("2", call(quick))
+        await #expect(throws: CancellationError.self) { try await first.value }
+        let order = (extensions.read("order.log") ?? "").split(separator: "\n").map(String.init)
+        #expect(order == ["start slow.sh", "end slow.sh", "start quick.sh", "end quick.sh"], "\(order)")
     }
 
     // MARK: - What is kept

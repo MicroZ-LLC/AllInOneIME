@@ -295,7 +295,7 @@ private struct PluginPreferenceField: View {
 /// A script extension's completion source, under its command in Settings → Commands (0.6.7.1 §2), as a plugin's is under
 /// it: its switch (off until turned on here), what it does (it runs the script in the background; one that queries gets
 /// what you type after its prefix), Refresh Now while its list is on, how it is doing (its items, last refresh, last
-/// error); one turned on before its script, prefix, query or compare changed says it needs turning on again, one the
+/// error); one turned on before its script, prefix, query or terms changed says it needs turning on again, one the
 /// command trigger shadows why it can't show. A declaration refused says why (the command loads all the same).
 struct ScriptCompletionView: View {
     @ObservedObject var model: SettingsModel
@@ -319,7 +319,7 @@ struct ScriptCompletionView: View {
 
     @ViewBuilder private func sourceRow(_ source: CompletionSource) -> some View {
         let approval = model.config.approval(of: source, in: command)
-        // Turned on before its script, prefix, query or compare changed: off until turned on again.
+        // Turned on before its script, prefix, query or terms changed: off until turned on again.
         let changed = approval.map { !$0.holds(for: source, of: command) } ?? false
         let on = approval != nil && !changed
         let title = tr("建议", "Suggestions")

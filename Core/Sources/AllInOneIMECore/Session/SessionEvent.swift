@@ -58,8 +58,11 @@ public enum SessionOutput: Equatable, Sendable {
     /// Text in once the key being answered is done, in the field of the key (`Composer.Effect.commitAfterKey`).
     case commitAfterKey(String)
     /// Text in place of `range` (UTF-16; nil: what is selected), never as a paste: a result over the selection a command
-    /// worked on.
+    /// worked on, a row in the token's place (after `checkNextReplace`).
     case replace(String, range: Range<Int>?)
+    /// The next `replace` only where its range still holds what the session expects there, read back just before
+    /// (`ReplacementCheck`); else what a plain insertion would put in goes in at the caret instead.
+    case checkNextReplace(ReplacementCheck)
     /// The marked text: `text`, the caret `cursor` UTF-16 units into it, `converted` at level two. Empty: none of ours
     /// (leave the document alone if the shell set none).
     case marked(String, cursor: Int, converted: Bool)
@@ -100,6 +103,35 @@ public enum SessionOutput: Equatable, Sendable {
     case ghost(String?)
     /// What only some platforms can do.
     case platform(PlatformAction)
+}
+
+/// What a row put in in the token's place (0.6.7.1 §1) must take out: its range is where the field said the token was
+/// with a key, and the field may have changed since (a click elsewhere it doesn't tell the input method of, a page that
+/// tells its selection late, text dragged in), so the shell reads the range back first and replaces it only where it
+/// holds `expected` (the token as typed; without the word Code held, taken out just before). Anywhere else, or where it
+/// reads back nothing, `otherwise` goes in at the caret, as a plain insertion would put the row in (nothing where it's
+/// empty).
+public struct ReplacementCheck: Equatable, Sendable {
+    public var expected: String
+    public var otherwise: String
+
+    public init(expected: String, otherwise: String) {
+        self.expected = expected
+        self.otherwise = otherwise
+    }
+
+    /// `text` in place of `range` where `read` gives `expected` there (true); else `otherwise` inserted at the caret,
+    /// unless it's empty (false). What a shell does for `SessionOutput.checkNextReplace` and the `replace` after it.
+    @discardableResult
+    public func apply(_ text: String, range: Range<Int>, read: (Range<Int>) -> String?, replace: (String, Range<Int>) -> Void,
+                      insert: (String) -> Void) -> Bool {
+        guard read(range) == expected else {
+            if !otherwise.isEmpty { insert(otherwise) }
+            return false
+        }
+        replace(text, range)
+        return true
+    }
 }
 
 /// What a session asks of the platform that not every one can do; one that can't answers as if it failed.

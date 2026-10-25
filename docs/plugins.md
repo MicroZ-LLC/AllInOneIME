@@ -215,8 +215,11 @@ plugin.json still lists them (the hosts approved come on standard input too):
   there: one whose text starts with the token (in any case, `＃` as `#`) adds what wasn't typed (`#12` and `#1234 Fix
   login` add `34 Fix login`); one that doesn't **replaces** the token: where the text field tells where its text is
   (documents, mail, chat apps, browsers), the token is taken out, prefix and all, and the whole text goes in, as one
-  change the app can undo as one (`#12` becomes `[Fix login](https://github.com/…/issues/1234)`). Where the field
-  doesn't tell (terminals, and the few others), such a template is skipped for the next in the list, so
+  change the app can undo as one (`#12` becomes `[Fix login](https://github.com/…/issues/1234)`); only where the field
+  still holds the token there as the row goes in (it's read back first: where other text is there by then, what a
+  template that starts with the token adds goes in at the caret instead, or nothing), and after a click elsewhere in
+  the text, Tab, Return and the arrows are the app's. Where the field doesn't tell (terminals, and the few others),
+  such a template is skipped for the next in the list, so
   `["[{title}]({url})", "{arg}"]` puts a Markdown link in a document and the number in a terminal. An item none of
   whose templates can go in there has no row.
 - The plugin's `insert` is the default: the user may choose otherwise, everywhere (Settings → General → Insert) or per

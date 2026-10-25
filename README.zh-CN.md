@@ -737,7 +737,8 @@ two-way door：可以随时撤回的决定
   `# @allinoneime.completion {"prefix": "TCK-", "list": true}`，或者在扩展包的 `extension.json` 里写 `"completion"`。条目由它的脚本
   打印，在后台运行，带 `ALLINONEIME_COMPLETION=load`（开了 `query` 的，边打边查时是 `query`，前缀后面的字是它唯一的参数）；在设置 →
   「命令」里命令下面打开之前它是关着的，那里写明它会在后台运行这个脚本，开了 `query` 的还会收到你在前缀后面打的字，并显示上次更新、
-  条数、上次的错误和「立即更新」；脚本、前缀、`query` 或 `compare` 改了，就会关掉。示例扩展包 `bookmarks` 里有一个：`bm.sw` →
+  条数、上次的错误和「立即刷新」；打开时认的是它的脚本文件、`query`，以及和插件一样的前缀、`queryMinChars` 和 `compare`，其中
+  任何一项改了，就会关掉。示例扩展包 `bookmarks` 里有一个：`bm.sw` →
   `[Swift](https://www.swift.org)`（[docs/extensions.md §11](docs/extensions.md#11-completions)）。
 - **插件的补全**：插件声明在某个前缀后面补全什么，比如 `@github` 的 `#12`，或者不带前缀、打满 12 位的 AWS 账号。它的列表留在本机
   （你在用时大约每 15 分钟更新一次，一周没用就不再更新），有的还会边打边查（前缀后面打满 2 个字起），刚建的 issue 也能出来。最多 5 行，
@@ -753,7 +754,7 @@ two-way door：可以随时撤回的决定
   （⏎ 上屏字母，空格选字）。启动器、远程桌面、虚拟机和 SSH 客户端里不出行。
 - **打开**：设置 →「通用」里的 **建议** 管所有的行，插件的补全、建议类的自定义命令和代码输入的都在内，默认开着；
   有了来源才出行（打开了的插件补全、建议命令，或代码输入）。每个插件的补全还要在设置 →「命令」→「插件」
-  里打开，各有一个开关（显示上次更新、条数、上次的错误和「立即更新」；它的偏好设置也在这里，
+  里打开，各有一个开关（显示上次更新、条数、上次的错误和「立即刷新」；它的偏好设置也在这里，
   密码存在钥匙串）。插件更新后改了要访问的主机、前缀、边打边查（查不查、从第几个字开始查）、比较方式（`compare`）
   或脚本，就会关掉，要你再打开一次（设置里它下面会写明）。输入法菜单的 **建议** 一次全部开关；
   「在这些 App 里」选了「关闭」的 App 里不出行（见[按 App 设置](#按-app-设置新)）。设了「不用 AI」的 App 里照样出行：这里不用 AI（插件的边打边查照样发到它的
@@ -961,7 +962,7 @@ Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系�
 | `autocomplete` | 续写：光标后出灰字，按 Tab 上屏；问的是你的 AI 服务（见「续写」）；不同步 | `false` |
 | `suggestions` | 建议（设置 →「通用」、输入法菜单）：`false` 关掉所有建议的行，插件的、建议命令的和代码输入的；只属于这台 Mac，不同步（见「建议和代码输入」） | 不写（开） |
 | `suggestionsInsert` | 没有单独设置的 App 里，建议的行插入什么（设置 →「通用」→「插入」）：`"title"`、`"titleAndLink"` 或 `"markdownLink"`；`"id"` 照样有效，但不能再选；不写：按来源定的；随设置同步 | 不写 |
-| `completionSources` | 在设置 →「命令」→「插件」里打开了的插件补全来源，每个按 `plugin` 和 `source` 记下你同意时的样子：`hosts`、`query`、`scriptSHA256`（它脚本的）和 `terms`（它的 `prefix`、`queryMinChars`、`compare`）；插件更新改了其中一项就记 `"lapsed": true`，关着直到你再打开。脚本扩展命令的补全也在这里：`"plugin": "script-extensions"`，`source` 是命令的 id，它的脚本、`query`、前缀或 `compare` 改了就算过期。由设置写；只属于这台 Mac，不同步 | `[]` |
+| `completionSources` | 在设置 →「命令」→「插件」里打开了的插件补全来源，每个按 `plugin` 和 `source` 记下你同意时的样子：`hosts`、`query`、`scriptSHA256`（它脚本的）和 `terms`（它的 `prefix`、`queryMinChars`、`compare`）；插件更新改了其中一项就记 `"lapsed": true`，关着直到你再打开。脚本扩展命令的补全也在这里：`"plugin": "script-extensions"`，`source` 是命令的 id，它的脚本、`query`、前缀、`queryMinChars` 或 `compare` 改了就算过期。由设置写；只属于这台 Mac，不同步 | `[]` |
 | `pluginPreferences` | 插件的偏好设置（密码除外），按插件和名字：`{"github": {"repos": "octo-org/octo-repo"}}`；不通过 iCloud 云盘同步（密码类的偏好在钥匙串里，只有打开「API 密钥和密码」时才经过 iCloud 钥匙串） | `{}` |
 | `unconfirmedCommands` | 经 iCloud 从另一台 Mac 来、还在等这台 Mac「允许」的 `suggestions` 类自定义命令，每个记它的 `name` 和带来的 `argv`：它们在这里什么都不运行。允许（或在这里编辑、删除）就从列表里去掉；另一台 Mac 改了它的程序，又会回到列表里。由同步和设置写；只属于这台 Mac，不同步 | `[]` |
 | `notes` | `@note` 存到哪里（设置 →「命令」→「笔记」）：`{"destination": "folder", "folder": "~/Vault/Inbox"}`，或者 `"notion"` 加上「测试」找到的页面或数据库；不通过 iCloud 云盘同步（令牌在钥匙串里，只有打开「API 密钥和密码」时才经过 iCloud 钥匙串） | `destination: "notes"` |

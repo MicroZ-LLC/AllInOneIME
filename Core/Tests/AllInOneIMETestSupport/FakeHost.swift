@@ -58,6 +58,8 @@ public final class FakeHost: @unchecked Sendable {
     /// Autocomplete's suggestion up after the caret (`SessionOutput.ghost`), and the reads of the field it asked for.
     public private(set) var ghost: String?
     public private(set) var fieldReads = 0
+    /// The replacements read back before they were made (`SessionOutput.checkNextReplace`).
+    public private(set) var replacementsChecked = 0
     /// What the reads asked for while `fieldReadsWait` say, not handed to the session yet.
     private var waitingReads: [SessionEvent] = []
 
@@ -220,14 +222,24 @@ public final class FakeHost: @unchecked Sendable {
 
     private func apply(_ outputs: [SessionOutput]) {
         self.outputs += outputs
+        // What the next `replace` must take out (`checkNextReplace`): read back from the document, as the Mac reads it.
+        var check: ReplacementCheck?
         for output in outputs {
             switch output {
             case let .commit(text):
                 insert(text, replacing: selection)
             case let .commitAfterKey(text):
                 afterKey.append { [weak self] in self?.insert(text, replacing: nil) }
+            case let .checkNextReplace(next):
+                check = next
             case let .replace(text, range):
-                insert(text, replacing: range ?? selection)
+                if let next = check, let range {
+                    replacementsChecked += 1
+                    next.apply(text, range: range, read: { self.read($0) }, replace: { insert($0, replacing: $1) }, insert: { insert($0, replacing: selection) })
+                } else {
+                    insert(text, replacing: range ?? selection)
+                }
+                check = nil
             case let .marked(text, _, _):
                 marked = text
             case let .typeOut(text):
@@ -272,6 +284,13 @@ public final class FakeHost: @unchecked Sendable {
                 platformActions.append(action)
             }
         }
+    }
+
+    /// The document's text in `range` (UTF-16); nil where it has none (past its end).
+    public func read(_ range: Range<Int>) -> String? {
+        let text = document as NSString
+        guard range.lowerBound >= 0, range.upperBound <= text.length else { return nil }
+        return text.substring(with: NSRange(location: range.lowerBound, length: range.count))
     }
 
     /// `text` in place of the marked text, or of `range` (UTF-16).
