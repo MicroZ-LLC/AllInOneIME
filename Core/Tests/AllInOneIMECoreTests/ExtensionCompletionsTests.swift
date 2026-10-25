@@ -219,6 +219,8 @@ struct ExtensionCompletionsTests {
         }
     }
 
+    // The example bundle runs its bash script; ExtensionExamplesTests (where it is found) isn't built on Windows.
+    #if !os(Windows)
     /// The public example (Examples/extensions/bookmarks): its command `@bm` declares a source in its bundle's entry;
     /// turned on, `bm.sw` shows Swift's bookmark, and Tab puts in a Markdown link of it in the token's place.
     @Test func theBookmarksExampleCompletes() async throws {
@@ -271,6 +273,7 @@ struct ExtensionCompletionsTests {
             #expect(field.document == "See [Swift](https://www.swift.org)", "\(field.document)")
         }
     }
+    #endif
 
     // MARK: - Trust
 
