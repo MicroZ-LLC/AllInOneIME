@@ -2,7 +2,7 @@ import AllInOneIMECore
 import SwiftUI
 
 // Settings → Plugins: each plugin's completion sources (suggestions: rows as you type a token like #12, Tab inserts) and
-// its preferences, under its row (spec suggestions v1, 1.5 and 3).
+// its preferences, under its row (spec suggestions v1, 1.5 and 3); a script extension's, under its command (0.6.7.1 §2).
 
 extension SettingsModel {
     /// `source` of `plugin` turned on (enabling what it is now: the plugin's hosts, whether it queries, its script, its
@@ -18,6 +18,119 @@ extension SettingsModel {
     func refreshNow(_ source: CompletionSource, of plugin: InstalledPlugin) {
         guard store.persists else { return }
         SuggestionsShared.refreshNow(plugin: plugin.name, source: source.name)
+    }
+
+    /// `source` of the script extension `command` turned on (approving what it is now: whether it queries, its prefix and
+    /// how it compares, and, from an extension source whose updates aren't trusted, every file of its repository) or off,
+    /// and saved; the field being typed in takes it at once. Off, or one whose changes keep it on (the user's own, a
+    /// trusted source's): at once, nothing read. On, any other: its extension read off the main thread first, then turned
+    /// on with what was read (not when it can't be read all or is too large to pin), unless the switch was pressed again
+    /// meanwhile; the switch shows as it was until then.
+    func setCompletionSource(_ source: CompletionSource, of command: ScriptCommand, enabled: Bool) {
+        let (root, key) = (ExtensionSourceGate.root, Self.extensionReadKey(command))
+        extensionSerial += 1
+        extensionSwitchPresses[key] = extensionSerial
+        guard enabled, !config.followsChanges(of: command, root: root) else {
+            extensionSwitchPresses[key] = nil
+            config.setCompletionSource(source, of: command, enabled: enabled, digest: nil, root: root)
+            savedExtensionSwitch([command])
+            return
+        }
+        let (press, read) = (extensionSerial, extensionReader())
+        extensionWork += 1
+        Task { [weak self] in
+            let digest = await Task.detached(priority: .userInitiated) { read(command, root) }.value
+            guard let self else { return }
+            self.extensionWork -= 1
+            guard self.extensionSwitchPresses[key] == press else { return }
+            self.extensionSwitchPresses[key] = nil
+            self.extensionReadSerials[key] = nil
+            self.extensionDigests[key] = .some(digest)
+            self.config.setCompletionSource(source, of: command, enabled: true, digest: digest, root: root)
+            self.savedExtensionSwitch([command])
+        }
+    }
+
+    /// A switch of script extensions' suggestions changed: saved, the field being typed in told, and `commands` read again
+    /// for what their switches show.
+    func savedExtensionSwitch(_ commands: [ScriptCommand]) {
+        save()
+        if store.persists { SuggestionsShared.settingsChanged() }
+        readExtensionDigests(only: commands)
+    }
+
+    /// What a script extension's read is kept under (`extensionDigests`): its id and folder.
+    nonisolated static func extensionReadKey(_ command: ScriptCommand) -> String { command.id + "\u{0}" + command.extensionDirectory.path }
+
+    /// How a script extension is read for its pin off the main thread: `readExtension`, else `ExtensionDigest.of` by the
+    /// suggestions' hashes (a file read again only when it changed).
+    func extensionReader() -> @Sendable (ScriptCommand, URL) -> String? {
+        if let readExtension { return readExtension }
+        let store = SuggestionsShared.store
+        return { command, root in ExtensionDigest.of(command, root: root, sha256: store.sha256(of:)) }
+    }
+
+    /// The script extensions with suggestions whose changes turn them off (`followsChanges` false; `only`: of these, else
+    /// all loaded) read again off the main thread, each source's repository once; what was read before shows meanwhile,
+    /// and a later read of one replaces this one's. As the extensions are read again, the window becomes key or a switch
+    /// changes.
+    func readExtensionDigests(only commands: [ScriptCommand]? = nil) {
+        let (root, config) = (ExtensionSourceGate.root, config)
+        let pinned = (commands ?? extensionIndex.commands).filter { command in
+            guard case .success? = command.completion else { return false }
+            return !config.followsChanges(of: command, root: root)
+        }
+        guard !pinned.isEmpty else { return }
+        extensionSerial += 1
+        let (serial, read) = (extensionSerial, extensionReader())
+        for command in pinned { extensionReadSerials[Self.extensionReadKey(command)] = serial }
+        extensionWork += 1
+        Task { [weak self] in
+            let digests = await Task.detached(priority: .userInitiated) { () -> [String: String?] in
+                var digests: [String: String?] = [:], repositories: [String: String?] = [:]
+                for command in pinned {
+                    let repository = ExtensionDigest.repositoryFolder(of: command, root: root)?.path
+                    let digest = repository.flatMap { repositories[$0] } ?? read(command, root)
+                    if let repository { repositories[repository] = .some(digest) }
+                    digests[SettingsModel.extensionReadKey(command)] = .some(digest)
+                }
+                return digests
+            }.value
+            guard let self else { return }
+            self.extensionWork -= 1
+            for (key, digest) in digests where self.extensionReadSerials[key] == serial {
+                self.extensionReadSerials[key] = nil
+                self.extensionDigests[key] = .some(digest)
+            }
+        }
+    }
+
+    /// How `source` of the script extension `command` stands, as its row shows it (`ScriptCompletionState`): nothing read
+    /// here, but what was read off the main thread (`extensionDigests`); one not read yet as it was saved (its approval
+    /// taken to hold for its extension).
+    func completionState(of source: CompletionSource, in command: ScriptCommand) -> ScriptCompletionState {
+        let follows = config.followsChanges(of: command, root: ExtensionSourceGate.root)
+        let saved = config.approval(of: source, in: command)?.scriptSHA256 ?? ""
+        let digest: String? = follows ? nil : extensionDigests[Self.extensionReadKey(command)] ?? saved
+        return config.completionState(of: source, in: command, follows: follows, digest: digest)
+    }
+
+    /// "Refresh Now" for a script extension's source.
+    func refreshNow(_ source: CompletionSource, of command: ScriptCommand) {
+        guard store.persists else { return }
+        let key = CompletionSourceKey(extension: command)
+        SuggestionsShared.refreshNow(plugin: key.plugin, source: key.source)
+    }
+
+    /// The lists of `bundle`'s commands' sources that are on, loaded again (a preference changed: another account, a
+    /// token).
+    func reloadLists(of bundle: ExtensionBundle) {
+        guard store.persists else { return }
+        for command in extensionIndex.commands where command.source.bundleName == bundle.name {
+            guard case let .success(source)? = command.completion, source.list, config.approval(of: source, in: command) != nil
+            else { continue }
+            refreshNow(source, of: command)
+        }
     }
 
     /// Suggestions on or off everywhere, as the input menu's "Suggestions" switches them (on is the default, written as
@@ -263,5 +376,88 @@ private struct PluginPreferenceField: View {
         edited = false
         if text != value { save(text) }
         if text.isEmpty { text = value }
+    }
+}
+
+/// A script extension's completion source, under its command in Settings → Commands (0.6.7.1 §2), as a plugin's is under
+/// it: its switch (off until turned on here), what it does (it runs the script in the background; one that queries gets
+/// what you type after its prefix), Refresh Now while its list is on, how it is doing (its items, last refresh, last
+/// error); one turned on before its repository, prefix, query or terms changed says it needs turning on again, one the
+/// command trigger shadows why it can't show, one whose source's repository is too large, or can't be read all, to check
+/// for changes that it can't be turned on (its switch disabled). A declaration refused says why (the command loads all the
+/// same).
+struct ScriptCompletionView: View {
+    @ObservedObject var model: SettingsModel
+    let command: ScriptCommand
+    /// How it is doing this launch, read again whenever suggestions report a change.
+    @State private var status: CompletionSourceStatus?
+
+    var body: some View {
+        switch command.completion {
+        case let .success(source)?:
+            sourceRow(source)
+                .onAppear(perform: readStatus)
+                .onReceive(NotificationCenter.default.publisher(for: .allInOneIMESuggestionsChanged)) { _ in readStatus() }
+        case let .failure(refused)?:
+            Label(tr("补全没有加载：", "Completions not loaded: ") + refused.reason, systemImage: "exclamationmark.triangle")
+                .font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true).padding(.leading, 28)
+        case nil:
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder private func sourceRow(_ source: CompletionSource) -> some View {
+        // Turned on before an update from an extension source whose updates aren't trusted changed it (a file of its
+        // repository, its prefix, query or terms): off until turned on again. The user's own and a trusted source's follow,
+        // nothing of them read; the others as last read off the main thread (`SettingsModel.extensionDigests`), never here.
+        let state = model.completionState(of: source, in: command)
+        let (on, changed) = (state.on, state.changed)
+        let title = tr("建议", "Suggestions")
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Image(systemName: "text.append").foregroundStyle(.secondary).frame(width: 20)
+                Text(title).fontWeight(.medium)
+                if let prefix = source.prefix { Text(prefix).font(.body.monospaced()).foregroundStyle(.secondary) }
+                Spacer()
+                if on, source.list {
+                    Button(tr("立即刷新", "Refresh Now")) { model.refreshNow(source, of: command) }
+                }
+                Toggle("", isOn: Binding(get: { on }, set: { model.setCompletionSource(source, of: command, enabled: $0) }))
+                    .labelsHidden().toggleStyle(.switch).controlSize(.small)
+                    .accessibilityLabel(model.config.commandTrigger + command.name + " " + title)
+                    .disabled(state.cantTurnOn != nil && !on)
+            }
+            Group {
+                Text(source.scriptSummary()).foregroundStyle(.secondary)
+                if let cantTurnOn = state.cantTurnOn {
+                    Label(cantTurnOn, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
+                }
+                if let reason = source.inactiveReason(model.config) {
+                    Label(reason, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
+                }
+                if changed {
+                    Label(CompletionSource.scriptChanged, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
+                } else if on {
+                    if model.config.suggestions == false {
+                        Label(tr("建议关着，这些补全不会出现。", "Suggestions are off, so these completions don't show."),
+                              systemImage: "exclamationmark.triangle")
+                            .foregroundStyle(.orange)
+                    }
+                    if let summary = status?.summary() {
+                        Text(summary).foregroundStyle(status?.error == nil ? AnyShapeStyle(.secondary) : AnyShapeStyle(.orange))
+                    } else if source.list {
+                        Text(tr("还没加载过：第一次用到时加载。", "Not loaded yet: it loads the first time you use it."))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .font(.caption).fixedSize(horizontal: false, vertical: true).padding(.leading, 28)
+        }
+        .padding(.leading, 28)
+    }
+
+    private func readStatus() {
+        let key = CompletionSourceKey(extension: command)
+        status = SuggestionsShared.store.status(key)
     }
 }

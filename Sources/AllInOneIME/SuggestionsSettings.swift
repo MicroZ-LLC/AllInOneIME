@@ -35,9 +35,10 @@ struct SuggestionsSection: View {
 }
 
 /// What a suggestion row inserts everywhere (decision 28), under the Suggestions switch: the source's own (a plugin's
-/// `insert`, a custom command's Insert) until another is chosen, with title, or with title and link; for every source,
-/// plugins' and custom commands', never Code's. "ID only" can't be chosen any more (Settings v2, 4): a config that has it,
-/// or the source's own written out, shows it on its own row with Restore Default.
+/// `insert`, a custom command's Insert) until another is chosen, with title, with title and link, or a Markdown link
+/// (`SuggestionsInsert.offered`); for every source, plugins', extensions' and custom commands', never Code's. "ID only"
+/// can't be chosen any more (Settings v2, 4): a config that has it, or the source's own written out, shows it on its own
+/// row with Restore Default.
 struct SuggestionsInsertPicker: View {
     @ObservedObject var model: SettingsModel
 
@@ -60,10 +61,6 @@ struct SuggestionsInsertPicker: View {
 }
 
 extension SuggestionsInsert {
-    /// What Settings and the input menu offer (Settings v2, 4): with title, with title and link. The source's own is the
-    /// default (none chosen); "ID only" is still honored where a config has it.
-    static let offered: [SuggestionsInsert] = [.title, .titleAndLink]
-
     /// Under a choice that isn't offered any more, kept in a config.
     static var notOffered: String {
         tr("现在不能再选它了；默认用插件或命令自己定的。", "It can't be chosen any more; by default each plugin or command says what goes in.")
@@ -94,7 +91,7 @@ struct AppInsertsList: View {
         .settingsRow(.appInserts, shown: model.spot)
     }
 
-    /// What an app added here inserts: the other one of the two offered than everywhere's (what adding it is for).
+    /// What an app added here inserts: one of those offered other than everywhere's (what adding it is for).
     static func added(everywhere: SuggestionsInsert?) -> SuggestionsInsert {
         everywhere == .titleAndLink ? .title : .titleAndLink
     }

@@ -146,6 +146,7 @@ extension AIConfig {
             case .id?: return tr("只有 ID", "ID only")
             case .title?: return tr("带标题", "With title")
             case .titleAndLink?: return tr("带标题和链接", "With title and link")
+            case .markdownLink?: return tr("Markdown 链接", "Markdown link")
             }
         }
 

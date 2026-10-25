@@ -64,13 +64,13 @@ struct SuggestionsPerformanceTests {
         }
     }
 
-    /// A template whose insertion never starts with what was typed (`"default": "{url}"`, a plugin's mistake) has no rows,
-    /// and costs a key over a list of 20,000 no more than a good one: only so many matching items are tried for a key.
+    /// A template no item can fill (`"default": "{link}"`, a variable none has: a plugin's mistake) has no rows, and costs
+    /// a key over a list of 20,000 no more than a good one: only so many matching items are tried for a key.
     @Test func aTemplateThatNeverFitsCostsAKeyLittle() async throws {
         try await inEnglish {
             let world = SuggestionsWorld()
             try world.github(items: Self.items, manifest: SuggestionsPlugins.githubManifest(
-                query: false, insert: #"{ "default": "{url}", "chat": "{url}", "terminal": "{match}" }"#))
+                query: false, insert: #"{ "default": "{link}", "chat": "{link}", "terminal": "{match}" }"#))
             let field = world.field()
             field.type("#1")
             #expect(field.settle { world.lastStatus?.items == CompletionList.maxItems }, "loaded: \(String(describing: world.lastStatus))")

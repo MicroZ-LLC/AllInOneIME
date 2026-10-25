@@ -6,8 +6,9 @@ import AllInOneIMETestSupport
 /// Suggestions v1, spec 1.4: up to 5 rows, in the list's order with the rows picked before first (the one picked last
 /// first: spec 6.17); the keys while rows show, one set in every class of app that has rows (ordinary, chat, terminal and
 /// code editor; none in the last class: spec 6.11, decision 31), digits never picking a row (6.1), → or Esc hiding them
-/// for the token (6.12, decision 31); which rows are offered (6.13); what goes in: only what wasn't typed, the template
-/// of the app's class. The rig: SuggestionsAcceptanceTests.swift.
+/// for the token (6.12, decision 31); which rows are offered (by their match where what they insert can go in: 0.6.7.1
+/// §1 and §5, which replaced 6.13); what goes in: only what wasn't typed, the template of the app's class. The rig:
+/// SuggestionsAcceptanceTests.swift.
 @Suite(.serialized, SuggestionsOneAtATime())
 struct SuggestionsRowsAcceptanceTests {
     func inEnglish(_ body: () throws -> Void) async rethrows { try await withInterfaceLanguage("en", body) }
@@ -500,9 +501,11 @@ struct SuggestionsRowsAcceptanceTests {
 
     // MARK: - What is offered
 
-    /// A row is offered only when what it inserts starts with what was typed, in any case (spec 6.13): an `arg` that puts
-    /// something before the issue's number isn't offered for "#70" (it is in a terminal, where `{match}` goes in).
-    @Test func aRowWhoseInsertionDoesntStartWithWhatWasTypedIsntOffered() async throws {
+    /// A row is offered by its match, whatever it inserts (0.6.7.1 §1, which replaced spec 6.13): an `arg` that puts
+    /// something before the issue's number is offered for "#70", and goes in in place of the token. Where the field tells
+    /// nothing of where its text is, that is the one template it has that can't go in, so it isn't offered (0.6.7.1 §5:
+    /// no row that would do nothing when picked); in a terminal, where `{match}` goes in, it is.
+    @Test func aRowIsOfferedByItsMatchWhereWhatItInsertsCanGoIn() async throws {
         try await inEnglish {
             let items = [CompletionItem(match: "#7001", title: "Crash", arg: "#7001: Crash at the edge"),
                          CompletionItem(match: "#7002", title: "Settings", arg: "Fixes #7002"),
@@ -510,9 +513,29 @@ struct SuggestionsRowsAcceptanceTests {
             let matches = items.map(\.match)
             let field = try typedHash7(items: items)
             field.type("0")
-            #expect(field.settle { field.shown(matches) == ["#7001", "#7090"] }, "\(field.rows.map(\.text))")
+            #expect(field.settle { field.shown(matches) == ["#7001", "#7002", "#7090"] }, "\(field.rows.map(\.text))")
             field.idle()
-            #expect(field.shown(matches) == ["#7001", "#7090"], "\(field.rows.map(\.text))")
+            #expect(field.shown(matches) == ["#7001", "#7002", "#7090"], "\(field.rows.map(\.text))")
+            #expect(field.press(SuggestionKeys.down) && field.press(SuggestionKeys.tab))
+            #expect(field.document == "Fixes #7002", "in place of the token: \(field.document)")
+
+            // A field whose keys come without a selected range, as a terminal's.
+            let world = SuggestionsWorld()
+            try world.github(items: items, manifest: SuggestionsPlugins.githubManifest())
+            let noRanges = world.field()
+            for character in "#70" {
+                var context = noRanges.host.context
+                context.read.subtract([.selectedRange, .selection])
+                context.selectedRange = nil
+                context.selection = nil
+                let key = SuggestionKeys.key(character)
+                if !noRanges.host.press(key, with: context), let text = key.printableText { noRanges.host.document += text }
+                noRanges.noteTimers()
+            }
+            #expect(noRanges.settle { noRanges.shown(matches) == ["#7001", "#7090"] }, "\(noRanges.rows.map(\.text))")
+            noRanges.idle()
+            #expect(noRanges.shown(matches) == ["#7001", "#7090"], "\(noRanges.rows.map(\.text))")
+
             let terminal = try typedHash7(app: "com.apple.Terminal", terminal: true, items: items)
             terminal.type("0")
             #expect(terminal.settle { terminal.shown(matches) == ["#7001", "#7002", "#7090"] }, "\(terminal.rows.map(\.text))")

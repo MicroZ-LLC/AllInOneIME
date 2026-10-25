@@ -3,18 +3,18 @@ import Testing
 @testable import AllInOneIMECore
 
 /// An app's own choice in Settings → General → Suggestions → "In these apps" and the input menu's This App ▸ Insert
-/// (`AppInsertChoice`, the owner's decision of 2026-10-24): With title, With title and link, Off. It is the app's
+/// (`AppInsertChoice`, the owner's decision of 2026-10-24): With title, With title and link, Markdown link (0.6.7.1), Off. It is the app's
 /// `suggestions` and `suggestionsInsert` (`AppProfile.insertChoice`), no key of its own: what each profile reads as, what
 /// each choice writes, and that an app with only Off is in the list and has settings of its own.
 struct AppInsertChoiceTests {
     @Test func offeredInOrderWithTheirNames() {
-        #expect(AppInsertChoice.offered == [.insert(.title), .insert(.titleAndLink), .off])
+        #expect(AppInsertChoice.offered == [.insert(.title), .insert(.titleAndLink), .insert(.markdownLink), .off])
         UIText.$scopedLanguage.withValue("en") {
-            #expect(AppInsertChoice.offered.map(\.label) == ["With title", "With title and link", "Off"])
+            #expect(AppInsertChoice.offered.map(\.label) == ["With title", "With title and link", "Markdown link", "Off"])
             #expect(AppInsertChoice.insert(.id).label == "ID only" && AppInsertChoice.insert(.source).label == "Source's default")
         }
         UIText.$scopedLanguage.withValue("zh-Hans") {
-            #expect(AppInsertChoice.offered.map(\.label) == ["带标题", "带标题和链接", "关闭"])
+            #expect(AppInsertChoice.offered.map(\.label) == ["带标题", "带标题和链接", "Markdown 链接", "关闭"])
         }
     }
 

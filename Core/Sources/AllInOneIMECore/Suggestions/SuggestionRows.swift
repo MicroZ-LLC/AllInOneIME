@@ -4,13 +4,18 @@ import Foundation
 struct SuggestionRow: Equatable {
     var text: String
     var comment: String
-    /// What it puts in, whole: what was typed (`typed`) is its start, in any case; only the rest goes in.
+    /// What it puts in, whole: what was typed (`typed`) is its start, in any case, and only the rest goes in; unless it
+    /// `replaces` the token.
     var insertion: String
+    /// `insertion` doesn't start with what was typed (a template like `[{title}]({url})`, 0.6.7.1 §1): where the field
+    /// reports ranges, it takes the token's place, the token taken out and all of it put in.
+    var replaces = false
     /// The caret this many UTF-16 units back from the end of what went in, where the field reports ranges (a snippet's
     /// first tab stop, or its `$0`).
     var caretBack = 0
-    /// What it puts in instead where the field reports no ranges (the caret stays at the end there), when that differs:
-    /// a snippet's first tab stop with its text too.
+    /// What it puts in instead where the field reports no ranges (the caret stays at the end there, and no token can be
+    /// taken out), when that differs: a snippet's first tab stop with its text too; for a row that `replaces`, the next
+    /// of its templates that starts with what was typed (what was typed itself where none does: nothing more goes in).
     var plainInsertion: String?
     /// What the row is of: the item's `match`, a keyword, a snippet's trigger, a word (`isSame`).
     var completion: String
@@ -23,8 +28,14 @@ struct SuggestionRow: Equatable {
     var madeAt: Date?
 
     /// What goes in for it where the field reports ranges (`ranges`), or not: what wasn't typed yet (the typed part, its
-    /// case, stays).
-    func rest(ranges: Bool) -> String { String((ranges ? insertion : plainInsertion ?? insertion).dropFirst(typed.count)) }
+    /// case, stays), or (`replacing`) the whole of it in the token's place.
+    func put(ranges: Bool) -> (text: String, replacing: Bool) {
+        if replaces, ranges { return (insertion, true) }
+        return (String((ranges ? insertion : plainInsertion ?? insertion).dropFirst(typed.count)), false)
+    }
+
+    /// What wasn't typed yet of what goes in for it (`put`); for a row that takes the token's place there, all of it.
+    func rest(ranges: Bool) -> String { put(ranges: ranges).text }
 
     /// Whether `other` is this row made again for the same token: the same item, keyword or snippet (its pick), else the
     /// same word from the same source. What it puts in, and what its comment says, may differ (the caret's line's
@@ -107,7 +118,8 @@ struct CompletionItems: Sendable {
     }
 }
 
-/// The rows a completion source has for a token (spec 1.3, 1.4, 6.7, 6.8, 6.13): a plugin's, a custom command's.
+/// The rows a completion source has for a token (spec 1.3, 1.4, 6.7, 6.8, 6.13; 0.6.7.1 §1): a plugin's, a script
+/// extension's, a custom command's.
 enum PluginRows {
     /// The part of `token` after `source`'s prefix, when the source applies to it: it starts with the prefix (in any
     /// case, full-width forms as ASCII) and has `minChars` characters after it; without a prefix, it is all digits and
@@ -157,18 +169,21 @@ enum PluginRows {
     }
 
     /// The most matching items a key fills the templates of for a source's rows (with a `limit`; those picked before
-    /// aside): a template whose insertion never starts with what was typed (`"{url}"`, a plugin's mistake) costs a key no
-    /// more than that over a list of 20,000, and shows no rows.
+    /// aside): templates none of which can go in here (`"{url}"` where the field reports no ranges) cost a key no more
+    /// than that over a list of 20,000, and show no rows.
     static let maxTried = 100
 
     /// The rows of `lists` (the list's items, then the queries' answers, each match once: its first) for `token` in an
-    /// app of `appClass` where `insert` is chosen, in their order: those whose insertion starts with what was typed. Only
-    /// what matches is looked at, and only until `limit` rows are found (nil: all of them), `maxTried` items tried at most
-    /// then; the items picked before (`picked`, their `match`) are rows wherever they are, looked up on their own.
+    /// app of `appClass` where `insert` is chosen, in their order: those whose `match` answers the token and that have a
+    /// template that can go in here (`RowMaker.insertion`; `replacing`: the field reports ranges, and one that doesn't
+    /// start with what was typed can take its place). Only what matches is looked at, and only until `limit` rows are
+    /// found (nil: all of them), `maxTried` items tried at most then; the items picked before (`picked`, their `match`)
+    /// are rows wherever they are, looked up on their own.
     static func rows(_ token: String, key: CompletionSourceKey, source: CompletionSource, lists: [CompletionItems],
-                     madeAt: Date?, appClass: SuggestionsAppClass, insert: SuggestionsInsert = .source, picked: Set<String> = [],
-                     limit: Int? = nil, in t: InterfaceWords) -> [SuggestionRow] {
-        guard let maker = RowMaker(token, key: key, source: source, madeAt: madeAt, appClass: appClass, insert: insert, in: t)
+                     madeAt: Date?, appClass: SuggestionsAppClass, insert: SuggestionsInsert = .source, replacing: Bool = false,
+                     picked: Set<String> = [], limit: Int? = nil, in t: InterfaceWords) -> [SuggestionRow] {
+        guard let maker = RowMaker(token, key: key, source: source, madeAt: madeAt, appClass: appClass, insert: insert,
+                                   replacing: replacing, in: t)
         else { return [] }
         // Where each row is: its list, then its place there.
         var found: [(list: Int, index: Int, row: SuggestionRow)] = []
@@ -205,33 +220,48 @@ enum PluginRows {
         /// The template is `{match}` (the terminal and code editor class's): an item that answers the token puts in its
         /// match, which starts with what was typed.
         let matchOnly: Bool
+        /// The field reports where its text is (`InputSession.suggestionsReplace`): a template that doesn't start with
+        /// what was typed can take the token's place.
+        let replacing: Bool
         let title: String
         let madeAt: Date?
 
         /// Nil: the source has no rows in an app of `appClass` (`templates`).
         init?(_ token: String, key: CompletionSourceKey, source: CompletionSource, madeAt: Date?, appClass: SuggestionsAppClass,
-              insert: SuggestionsInsert = .source, in t: InterfaceWords) {
+              insert: SuggestionsInsert = .source, replacing: Bool = false, in t: InterfaceWords) {
             guard let templates = PluginRows.templates(source, appClass, insert: insert) else { return nil }
-            (self.token, self.key, self.source, self.madeAt) = (token, key, source, madeAt)
+            (self.token, self.key, self.source, self.madeAt, self.replacing) = (token, key, source, madeAt, replacing)
             lowered = SuggestionsToken.normalized(token).lowercased()
             self.templates = templates.compactMap(CompletionTemplate.parts)
             matchOnly = self.templates == [[.variable("match")]]
             title = source.title.text(chinese: t.chinese)
         }
 
-        /// What `item` (one that answers the token: `each`) puts in, if it starts with what was typed.
-        func insertion(_ item: CompletionItem) -> String? {
-            if matchOnly { return item.match }
-            guard let insertion = CompletionTemplate.fill(templates, with: item),
-                  SuggestionsToken.normalized(insertion).lowercased().hasPrefix(lowered) else { return nil }
-            return insertion
+        /// What `item` (one that answers the token: `each`) puts in (0.6.7.1 §1): the first of its templates whose
+        /// variables it all has and that can go in here. One that starts with what was typed (normalized, in any case)
+        /// follows it; one that doesn't takes the token's place where the field reports ranges (`replacing`: then also
+        /// `plain`, the next that starts with what was typed, for a key that finds the field reports none after all), and
+        /// is skipped for the next elsewhere. Nil: none can.
+        func insertion(_ item: CompletionItem) -> (text: String, replaces: Bool, plain: String?)? {
+            if matchOnly { return (item.match, false, nil) }
+            var replacement: String?
+            for parts in templates {
+                guard let filled = CompletionTemplate.fill([parts], with: item) else { continue }
+                if SuggestionsToken.normalized(filled).lowercased().hasPrefix(lowered) {
+                    return replacement.map { ($0, true, filled) } ?? (filled, false, nil)
+                }
+                // Nothing in the token's place would only take it out.
+                if replacing, replacement == nil, !filled.trimmingCharacters(in: .whitespaces).isEmpty { replacement = filled }
+            }
+            return replacement.map { ($0, true, nil) }
         }
 
-        /// `item`'s row, if its insertion starts with what was typed.
+        /// `item`'s row, if one of its templates can go in here (`insertion`).
         func row(_ item: CompletionItem) -> SuggestionRow? {
-            guard let insertion = insertion(item) else { return nil }
+            guard let put = insertion(item) else { return nil }
             let (text, comment) = shown(item)
-            return SuggestionRow(text: text, comment: comment, insertion: insertion, completion: item.match, typed: token,
+            return SuggestionRow(text: text, comment: comment, insertion: put.text, replaces: put.replaces,
+                                 plainInsertion: put.replaces ? put.plain ?? token : nil, completion: item.match, typed: token,
                                  pick: SuggestionPick(plugin: key.plugin, source: key.source, match: item.match),
                                  source: title, madeAt: madeAt)
         }

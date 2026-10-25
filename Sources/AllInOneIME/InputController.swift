@@ -702,6 +702,8 @@ final class AllInOneIMEInputController: IMKInputController {
     @MainActor
     func apply(_ outputs: [SessionOutput], client: IMKTextInput?) {
         let target: IMKTextInput? = client ?? clientOverride ?? self.client()
+        // What the next `replace` must take out (`checkNextReplace`): a row in the token's place.
+        var check: ReplacementCheck?
         for output in outputs {
             switch output {
             case let .commit(text):
@@ -713,8 +715,15 @@ final class AllInOneIMEInputController: IMKInputController {
                     guard let self, self.fieldSession == session else { return }
                     self.insert(text, into: target)
                 }
+            case let .checkNextReplace(next):
+                check = next
             case let .replace(text, range):
-                target?.insertText(text, replacementRange: range.map { NSRange(location: $0.lowerBound, length: $0.count) } ?? Self.notFound)
+                if let next = check, let range, let target {
+                    replaceToken(text, range: range, check: next, in: target)
+                } else {
+                    target?.insertText(text, replacementRange: range.map { NSRange(location: $0.lowerBound, length: $0.count) } ?? Self.notFound)
+                }
+                check = nil
             case let .marked(text, cursor, converted):
                 setMarkedText(text, cursor: cursor, converted: converted, in: target)
             case let .typeOut(text):
@@ -786,6 +795,21 @@ final class AllInOneIMEInputController: IMKInputController {
         }
         keepAlive = session.waitsForPage ? self : nil
         if composer.translateMode != nil { scheduleChipRefresh() }  // Translate as You Type's chip follows the caret
+    }
+
+    /// A row in the token's place (0.6.7.1 §1): the field's text in `range` read back first (`attributedSubstring`), and
+    /// replaced only where it is the token the session expects there; else (a click or a drag moved things since the
+    /// key that told the range, a page that told its selection late) what a plain insertion would put in goes in at the
+    /// caret. Only how long the range is, and which was done, are logged: never the text.
+    @MainActor
+    private func replaceToken(_ text: String, range: Range<Int>, check: ReplacementCheck, in target: IMKTextInput) {
+        let replaced = check.apply(text, range: range,
+                                   read: { target.attributedSubstring(from: NSRange(location: $0.lowerBound, length: $0.count))?.string },
+                                   replace: { target.insertText($0, replacementRange: NSRange(location: $1.lowerBound, length: $1.count)) },
+                                   insert: { insert($0, into: target) })
+        guard !replaced else { return }
+        let instead = check.otherwise.isEmpty ? "nothing" : "its plain insertion"
+        log.notice("a row didn't take the token's place: other text in its range now (\(range.count, privacy: .public) UTF-16 units); \(instead, privacy: .public) put in instead")
     }
 
     /// The marked text in `client`: nothing of ours (empty) leaves the document, and any selection in it, alone.

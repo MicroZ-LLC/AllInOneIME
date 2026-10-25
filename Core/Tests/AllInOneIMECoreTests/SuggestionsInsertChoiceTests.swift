@@ -4,11 +4,12 @@ import Testing
 import AllInOneIMETestSupport
 
 /// What a suggestion row inserts is the user's choice (spec Suggestions v1, decision 28): the source's own templates (a
-/// plugin's `insert`, a custom command's Insert), ID only, with title, with title and link; everywhere (Settings →
-/// General, `Config.suggestionsInsert`) and per app (Settings → Apps, `AppProfile.suggestionsInsert`), an app's own over
-/// the one everywhere. Every suggestion source follows it, plugins' and custom commands', never Code's packs; only what
-/// wasn't typed goes in. Rows are put in by a click here, which inserts the row in every class of app whatever its keys
-/// do. The rig is the acceptance tests' (Acceptance/SuggestionsAcceptanceTests.swift).
+/// plugin's `insert`, a custom command's Insert), ID only, with title, with title and link, a Markdown link (0.6.7.1);
+/// everywhere (Settings → General, `Config.suggestionsInsert`) and per app (Settings → Apps, `AppProfile.suggestionsInsert`),
+/// an app's own over the one everywhere. Every suggestion source follows it, plugins' and custom commands', never Code's
+/// packs; only what wasn't typed goes in, but for a Markdown link, which takes the token's place where the field reports
+/// ranges (a terminal: the ID). Rows are put in by a click here, which inserts the row in every class of app whatever its
+/// keys do. The rig is the acceptance tests' (Acceptance/SuggestionsAcceptanceTests.swift).
 @Suite(.serialized, SuggestionsOneAtATime())
 struct SuggestionsInsertChoiceTests {
     func inEnglish(_ body: () throws -> Void) async rethrows { try await withInterfaceLanguage("en", body) }
@@ -60,6 +61,8 @@ struct SuggestionsInsertChoiceTests {
         case (.id, _): return "#1234"
         case (.title, _): return "#1234 Fix login"
         case (.titleAndLink, _): return "#1234 Fix login " + link
+        case (.markdownLink, .terminal): return "#1234"
+        case (.markdownLink, _): return "[Fix login](\(link))"
         }
     }
 
@@ -79,7 +82,16 @@ struct SuggestionsInsertChoiceTests {
             let inserted = field.host.outputs.dropFirst(before).compactMap { output -> String? in
                 if case let .commit(text) = output { return text } else { return nil }
             }
-            #expect(inserted == [String(Self.github(choice, place).dropFirst(3))], "only what wasn't typed: \(inserted)")
+            let replaced = field.host.outputs.dropFirst(before).compactMap { output -> String? in
+                if case let .replace(text, range) = output { return "\(range.map { "\($0)" } ?? "selection") \(text)" } else { return nil }
+            }
+            if choice == .markdownLink, place != .terminal {
+                // In the token's place, "#12" taken out: one change.
+                #expect(inserted.isEmpty && replaced == ["0..<3 " + Self.github(choice, place)], "\(inserted) \(replaced)")
+            } else {
+                #expect(inserted == [String(Self.github(choice, place).dropFirst(3))], "only what wasn't typed: \(inserted)")
+                #expect(replaced.isEmpty)
+            }
         }
     }
 
@@ -98,12 +110,14 @@ struct SuggestionsInsertChoiceTests {
     static let jira = CustomCommand(name: "jira", type: .suggestions, summary: "Jira issues", argv: ["/Users/me/bin/jira-list"],
                                     prefix: "JIRA-")
 
-    /// What the row JIRA-12 puts in for `choice`: the command's own is the match in every class.
-    static func jira(_ choice: SuggestionsInsert?) -> String {
+    /// What the row JIRA-12 puts in for `choice` at `place`: the command's own is the match in every class; a Markdown
+    /// link the ID in a terminal.
+    static func jira(_ choice: SuggestionsInsert?, _ place: Place) -> String {
         switch choice ?? .source {
         case .source, .id: return "JIRA-12"
         case .title: return "JIRA-12 Fix login"
         case .titleAndLink: return "JIRA-12 Fix login https://jira.example.com/browse/JIRA-12"
+        case .markdownLink: return place == .terminal ? "JIRA-12" : "[Fix login](https://jira.example.com/browse/JIRA-12)"
         }
     }
 
@@ -119,7 +133,7 @@ struct SuggestionsInsertChoiceTests {
             field.type("JIRA-1")
             #expect(field.settle { field.rows.map(\.text) == ["JIRA-12", "JIRA-17"] }, "\(field.rows.map(\.text))")
             field.host.send(.pick(0))
-            #expect(field.document == Self.jira(choice), "\(choice?.rawValue ?? "none") in \(place)")
+            #expect(field.document == Self.jira(choice, place), "\(choice?.rawValue ?? "none") in \(place)")
         }
     }
 
@@ -164,9 +178,9 @@ struct SuggestionsInsertChoiceTests {
                      CompletionItem(match: "#1203", variables: ["url": "https://example.com/1203"]),
                      Self.issue(1204, "Both")]
         let source = try #require(try Self.githubSource())
-        func inserted(_ choice: SuggestionsInsert, _ appClass: SuggestionsAppClass = .ordinary) -> [String] {
+        func inserted(_ choice: SuggestionsInsert, _ appClass: SuggestionsAppClass = .ordinary, replacing: Bool = false) -> [String] {
             PluginRows.rows("#120", key: CompletionSourceKey(plugin: "github", source: "issues"), source: source,
-                            lists: [CompletionItems(items)], madeAt: nil, appClass: appClass, insert: choice,
+                            lists: [CompletionItems(items)], madeAt: nil, appClass: appClass, insert: choice, replacing: replacing,
                             in: InterfaceWords(language: "en")).map(\.insertion)
         }
         let both = "#1204 Both https://github.com/octo-org/octo-repo/issues/1204"
@@ -174,6 +188,10 @@ struct SuggestionsInsertChoiceTests {
             #expect(inserted(.titleAndLink, appClass) == ["#1201", "#1202 Only a title", "#1203", both], "\(appClass)")
             #expect(inserted(.title, appClass) == ["#1201", "#1202 Only a title", "#1203", "#1204 Both"], "\(appClass)")
             #expect(inserted(.id, appClass) == ["#1201", "#1202", "#1203", "#1204"], "\(appClass)")
+            // A Markdown link needs both, and a field that tells where the token is; else the ID.
+            #expect(inserted(.markdownLink, appClass) == ["#1201", "#1202", "#1203", "#1204"], "\(appClass)")
+            #expect(inserted(.markdownLink, appClass, replacing: true)
+                        == ["#1201", "#1202", "#1203", "[Both](https://github.com/octo-org/octo-repo/issues/1204)"], "\(appClass)")
         }
     }
 
@@ -197,6 +215,7 @@ struct SuggestionsInsertChoiceTests {
             #expect(PluginRows.templates(source, appClass, insert: .id) == ["{arg}"])
             #expect(PluginRows.templates(source, appClass, insert: .title) == ["{arg} {title}", "{arg}"])
             #expect(PluginRows.templates(source, appClass, insert: .titleAndLink) == ["{arg} {title} {url}", "{arg} {title}", "{arg}"])
+            #expect(PluginRows.templates(source, appClass, insert: .markdownLink) == ["[{title}]({url})", "{arg}"])
         }
         var quiet = source
         quiet.insert = CompletionInsert(default: .templates(["{arg}"]), chat: .off, terminal: .off)
@@ -228,7 +247,7 @@ struct SuggestionsInsertChoiceTests {
 
     // MARK: - The config
 
-    /// Both keys round-trip: everywhere's (`suggestionsInsert`) and an app's (in its profile), each of the four values; a
+    /// Both keys round-trip: everywhere's (`suggestionsInsert`) and an app's (in its profile), each of the five values; a
     /// file without them doesn't gain them; a value this version doesn't know, or of the wrong type, reads as none and
     /// the rest of the file loads; an app that only chooses this has settings of its own (it's kept).
     @Test func theConfigRoundTrips() throws {
@@ -374,8 +393,8 @@ struct SuggestionsInsertChoiceTests {
             #expect(!section("plugins").contains("suggestionsInsert"), "\(section("plugins"))")
             let everywhere = try #require(service.document().field("suggestionsInsert"))
             #expect(everywhere.kind == .choice && everywhere.label == "Insert" && everywhere.value == nil, "\(everywhere)")
-            #expect(everywhere.choices?.map(\.value) == [.null, .string("title"), .string("titleAndLink")])
-            #expect(everywhere.choices?.map(\.label) == ["Default (each source's own)", "With title", "With title and link"])
+            #expect(everywhere.choices?.map(\.value) == [.null, .string("title"), .string("titleAndLink"), .string("markdownLink")])
+            #expect(everywhere.choices?.map(\.label) == ["Default (each source's own)", "With title", "With title and link", "Markdown link"])
             let help = try #require(everywhere.help)
             // One sentence (Settings v2): the example with title, and that the link comes after it.
             #expect(help.contains("#1234 Fix login") && help.contains("link") && !help.contains("Settings →"), "\(help)")
@@ -386,8 +405,8 @@ struct SuggestionsInsertChoiceTests {
 
             let own = try #require(service.document().field("apps.com.apple.Terminal.suggestionsInsert"))
             #expect(own.kind == .choice && own.label == "Insert" && own.value == nil, "\(own)")
-            #expect(own.choices?.map(\.value) == [.null, .string("title"), .string("titleAndLink"), .string("off")])
-            #expect(own.choices?.map(\.label) == ["Same as everywhere (With title)", "With title", "With title and link", "Off"])
+            #expect(own.choices?.map(\.value) == [.null, .string("title"), .string("titleAndLink"), .string("markdownLink"), .string("off")])
+            #expect(own.choices?.map(\.label) == ["Same as everywhere (With title)", "With title", "With title and link", "Markdown link", "Off"])
             #expect((try? service.set("apps.com.apple.Terminal.suggestionsInsert", to: .string("titleAndLink")).get()) != nil)
             #expect(try Config.load(from: url).profile(for: "com.apple.Terminal") == AppProfile(noAI: true, suggestionsInsert: .titleAndLink))
             let item = service.document().field("apps.profiles")?.items?.first { $0.id == "com.apple.Terminal" }

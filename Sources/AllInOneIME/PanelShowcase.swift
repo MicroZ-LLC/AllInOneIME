@@ -243,6 +243,11 @@ enum SettingsPageImages {
             model.config.findRaycastScripts = paths.count > 1
             model.config.hiddenExtensionFolders = []
             LiveExtensions.shownFound = Array(paths.dropFirst())
+            // Their completion sources shown turned on (`bookmarks`' `bm.`): the switch under the command, what it does.
+            for command in LiveExtensions.load(model.config).commands {
+                guard case let .success(source)? = command.completion else { continue }
+                model.config.setCompletionSource(source, of: command, enabled: true)
+            }
         }
         // `@agent` handing the text to another agent (`agent=gemini`, `agent=custom:muse --`).
         if let agent {
@@ -296,6 +301,10 @@ enum SettingsPageImages {
         render(.ai, "restore-default")
         render(.privacy, "restore-default-privacy")
         render(.general, "restore-default-insert")
+        // Insert set to Markdown link, everywhere (0.6.7.1).
+        model.config = saved
+        model.config.suggestionsInsert = .markdownLink
+        render(.general, "insert-markdown-link")
         model.config = saved
         let troubled = SelfTest.sampleAssistant(rig, fine: shownChecks.contains("fine"))
         troubled.showsFine = shownChecks.contains("open")

@@ -92,8 +92,10 @@ public final class SettingsService: @unchecked Sendable {
     /// Apps added in the window that have no setting of their own yet: listed until one is set, or they are removed
     /// (a profile that sets nothing isn't saved).
     private let addedApps = SettingsSchema.AddedApps()
-    /// The script extensions' files as last read: read again only when they changed.
+    /// The script extensions' files as last read: read again only when they changed; and the SHA-256s of those that pin
+    /// one's completion source (`ExtensionDigest`), by their size and date.
     private let extensionCache = ExtensionCache()
+    private let hashes = FileHashes()
 
     /// Called after each change (here, or found in the file by `checkForChanges`), with the new revision, on the thread
     /// that made it, outside the lock; one at a time, the revisions in order (one passed by a later one is left out).
@@ -131,6 +133,12 @@ public final class SettingsService: @unchecked Sendable {
         get { hooks.withLock { $0.notionSession } }
         set { hooks.withLock { $0.notionSession = newValue } }
     }
+    /// The extension sources' clones' folder (`ExtensionSources.directory`; a test's own): a script extension there is
+    /// a source's (`Config.extensionOrigin`), pinned by its repository.
+    public var extensionSourcesFolder: URL {
+        get { hooks.withLock { $0.extensionSourcesFolder } }
+        set { hooks.withLock { $0.extensionSourcesFolder = newValue } }
+    }
     /// The interface language the settings say (their `uiLanguage`, else the system's): what the document, the problems
     /// and the outcomes are in, whatever the process's own is (`UIText.scopedLanguage`). Windows' engine picks it as its
     /// panel does (Windows' own list of languages).
@@ -148,6 +156,7 @@ public final class SettingsService: @unchecked Sendable {
         var recentApps: @Sendable () -> [String] = { [] }
         var loadCredentials: Converter.CredentialLoader = { try await AWSCredentialResolver.shared.resolve(profile: $0, forceRefresh: true) }
         var notionSession: URLSession = NotionAPI.session
+        var extensionSourcesFolder = ExtensionSources.directory
         var interfaceLanguage: @Sendable (Config) -> String = { config in
             InterfaceLanguage.code(forSetting: config.uiLanguage, shipped: UIText.shipped) ?? UIText.systemLanguage
         }
@@ -739,6 +748,7 @@ public final class SettingsService: @unchecked Sendable {
         builder.recentApps = recentApps()
         builder.addedApps = addedApps
         builder.extensions = ExtensionStore.load(ExtensionStore.folders(store.config, found: []), cache: extensionCache)
+        (builder.extensionSourcesFolder, builder.sha256) = (extensionSourcesFolder, hashes.sha256(of:))
         (builder.suggestionStatuses, builder.codingPacks, builder.codingEntries) = (suggestionStatuses(), codingLibrary.store, codingEntries)
         // Its text names commands with the trigger its settings have, whatever the process's own is.
         let sections = UIText.$scopedCommandTrigger.withValue(store.config.commandTrigger) { builder.sections() }

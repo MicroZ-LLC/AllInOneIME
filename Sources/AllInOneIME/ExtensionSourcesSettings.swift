@@ -119,6 +119,7 @@ struct ExtensionSourcesSection: View {
                 }
                 .textSelection(.enabled)
             }
+            if trusted { trustSwitch(source).disabled(busy) }
         }
     }
 
@@ -157,6 +158,11 @@ struct ExtensionSourcesSection: View {
         if !names.isEmpty { return tr("已加载：", "Loaded: ") + names.joined(separator: " ") }
         if !trusted { return tr("没有加载：还没检查过", "Nothing loaded: not reviewed yet") }
         if !enabled { return tr("没有加载：不在加载列表里", "Nothing loaded: not in the load list") }
+        // A path that climbs out, or a folder that leads out of the clone (a link, maybe since an update): nothing of it
+        // loads (`ExtensionSources.loadFolders`).
+        if ExtensionSources.leavesClone(source, root: sources.root) {
+            return tr("没有加载：", "Nothing loaded: ") + ExtensionSourceText.describe(ExtensionSourceError.outsideClone(source.path ?? ""))
+        }
         if !FileManager.default.fileExists(atPath: folder) { return tr("没有加载：克隆不在了，请重新克隆", "Nothing loaded: the clone is missing; re-clone it") }
         if let problem = model.skippedExtensions.first(where: { ExtensionSources.comparable($0.file.deletingLastPathComponent().path) == folder }) {
             return tr("没有加载：", "Nothing loaded: ") + UIText.describe(problem.problem, file: problem.file)
@@ -190,6 +196,23 @@ struct ExtensionSourcesSection: View {
         }
         if !enabled { parts.append(tr("没有启用", "not enabled")) }
         return parts.filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+
+    /// "Trust its updates" (off by default), with what it does under it: its bundle's suggestions keep running after its
+    /// updates (0.6.7.1 §2); off, an update that changes the bundle turns them off until they're turned on again.
+    @ViewBuilder private func trustSwitch(_ source: ExtensionSource) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Text(ExtensionSourceText.trustUpdates)
+                Spacer()
+                Toggle("", isOn: Binding(get: { source.trustUpdates }, set: { model.setTrustUpdates($0, of: source, root: sources.root) }))
+                    .labelsHidden().toggleStyle(.switch).controlSize(.small)
+                    .accessibilityLabel(ExtensionSourceText.trustUpdates(of: source))
+            }
+            Text(ExtensionSourceText.trustUpdatesHelp).font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.leading, 28)
     }
 
     /// What's new: subject, author, date (the newest few).
@@ -288,6 +311,48 @@ struct ExtensionSourcesSection: View {
     }
 }
 
+extension SettingsModel {
+    /// `source`'s "Trust its updates" switched `on`, and saved (`Config.setTrustUpdates`: turned off, what its extensions'
+    /// suggestions are now stays approved, so only the next change turns them off); the field being typed in takes it at
+    /// once. Turned off, what it pins is read off the main thread first (`Config.pinsWithoutTrust`: its repository), then
+    /// saved, unless the switch was pressed again meanwhile; the switch shows as it was until then. `root`: the sources
+    /// folder.
+    func setTrustUpdates(_ on: Bool, of source: ExtensionSource, root: URL) {
+        let url = source.url
+        guard config.extensionSources.contains(where: { $0.url == url }) else { return }
+        extensionSerial += 1
+        extensionSwitchPresses[url] = extensionSerial
+        guard !on else {
+            extensionSwitchPresses[url] = nil
+            savedTrust(config.setTrustUpdates(true, of: url, pinning: []), of: url, root: root)
+            return
+        }
+        guard config.extensionSources.contains(where: { $0.url == url && $0.trustUpdates }) else { return }
+        let (press, config, commands, read) = (extensionSerial, config, extensionIndex.commands, extensionReader())
+        extensionWork += 1
+        Task { [weak self] in
+            let followed = await Task.detached(priority: .userInitiated) {
+                config.pinsWithoutTrust(of: url, extensions: commands, root: root, digest: { read($0, root) })
+            }.value
+            guard let self else { return }
+            self.extensionWork -= 1
+            guard self.extensionSwitchPresses[url] == press else { return }
+            self.extensionSwitchPresses[url] = nil
+            self.savedTrust(self.config.setTrustUpdates(false, of: url, pinning: followed), of: url, root: root)
+        }
+    }
+
+    /// "Trust its updates" of the source `url` changed (`changed`): saved, the field being typed in told, and its
+    /// extensions read again for what their suggestions' switches show.
+    private func savedTrust(_ changed: Bool, of url: String, root: URL) {
+        guard changed else { return }
+        let commands = extensionIndex.commands.filter {
+            if case let .source(source) = config.extensionOrigin(of: $0, root: root) { return source.url == url } else { return false }
+        }
+        savedExtensionSwitch(commands)
+    }
+}
+
 /// "Add from Link…": the address (and, if wanted, the branch, the bundle's folder, a pin), the clone, the bundle to use
 /// when there are several, then the review: what the bundle is, its commands, the programs they run, its preferences,
 /// where it's from and at which commit, under the warning that it isn't signed. Enable is the only way in; Cancel
@@ -344,14 +409,20 @@ struct ExtensionSourceSheet: View {
         return source
     }
 
-    private var problem: String? {
-        guard !url.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
+    private var problem: String? { Self.problem(source, cloneNow: start.cloneNow, config: model.config) }
+
+    /// Why `source` can't be cloned (nil: it can, or nothing is typed yet): not an address git is used with here; one
+    /// added already (unless it is reviewed again, `cloneNow`); or one whose clone's folder another source of `config`
+    /// has (`ExtensionSources.sharingFolder`: one clone would replace the other).
+    static func problem(_ source: ExtensionSource, cloneNow: Bool, config: Config) -> String? {
+        guard !source.url.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
         do {
-            _ = try ExtensionSources.validate(url)
+            _ = try ExtensionSources.validate(source.url)
+            try ExtensionSources.checkFolder(for: source.url, in: config)
         } catch {
             return ExtensionSourceText.describe(error)
         }
-        if !start.cloneNow, model.config.extensionSources.contains(where: { $0.url == source.url }) {
+        if !cloneNow, config.extensionSources.contains(where: { $0.url == source.url }) {
             return ExtensionSourceText.describe(ExtensionSourceError.alreadyAdded)
         }
         return nil
@@ -445,6 +516,11 @@ struct ExtensionSourceSheet: View {
     // MARK: Steps
 
     private func clone() async {
+        // Reviewed again from the config (`cloneNow`), the form's checks weren't made: not into another source's folder.
+        if let problem {
+            step = .failed(problem)
+            return
+        }
         step = .cloning
         let token = cancelled
         do {

@@ -215,13 +215,17 @@ public struct ScriptCommand: Hashable, Sendable {
     public var extensionDirectory: URL
     /// How it is started, before its arguments: the file when it is executable, else its "#!" line's program.
     public var launch: [String]
+    /// The completion source it declares (`completion`: a script's `@allinoneime.completion` line, a bundle entry's
+    /// `"completion"`, 0.6.7.1 §2), read by a plugin's `completions` entry's rules with its name and title; or why it is
+    /// refused (the command still loads). Nil: it declares none.
+    public var completion: Result<CompletionSource, CompletionRefusal>?
 
     public init(id: String? = nil, source: Source = .script, file: URL, name: String, alias: String? = nil, title: String? = nil,
                 description: String? = nil, group: String? = nil, keywords: [String] = [], icon: Icon? = nil,
                 input: Input = .required, arguments: [Argument] = [Argument()], output: Output = .insert,
                 background: Bool = false, status: Status? = nil, confirm: Bool = false, timeout: Double? = nil,
                 queryDelay: Double = Self.defaultQueryDelay, directory: URL? = nil, extensionDirectory: URL? = nil,
-                launch: [String]? = nil) {
+                launch: [String]? = nil, completion: Result<CompletionSource, CompletionRefusal>? = nil) {
         self.id = id ?? file.path
         self.source = source
         self.file = file
@@ -244,6 +248,7 @@ public struct ScriptCommand: Hashable, Sendable {
         self.directory = directory ?? file.deletingLastPathComponent()
         self.extensionDirectory = extensionDirectory ?? file.deletingLastPathComponent()
         self.launch = launch ?? [file.path]
+        self.completion = completion
     }
 
     public static let defaultTimeout: Double = 10
@@ -512,13 +517,16 @@ extension ScriptCommand {
                 directory = anywhere(value)
             }
         }
+        // Its completion source, the command's own name and title: one refused is said, the command loads all the same.
+        let title = keys["title"] ?? name
+        let completion = keys["completion"].map { CompletionDeclaration.extensionSource($0, name: name, title: title) }
         return .success(ScriptCommand(
-            id: id, source: source, file: file, name: name, alias: alias, title: keys["title"] ?? name,
+            id: id, source: source, file: file, name: name, alias: alias, title: title,
             description: keys["description"], group: keys["group"],
             keywords: keys["keywords"].map { $0.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } } ?? [],
             icon: icon, input: input, arguments: arguments, output: output, background: background, status: status,
             confirm: confirm, timeout: timeout, queryDelay: queryDelay, directory: directory,
-            extensionDirectory: extensionDirectory, launch: launch))
+            extensionDirectory: extensionDirectory, launch: launch, completion: completion))
     }
 
     /// "10s", "5m", "1h", "1d", or plain seconds; nil for anything else.

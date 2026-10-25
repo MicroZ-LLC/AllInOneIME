@@ -19,7 +19,7 @@ app's) is listed in Settings as needing a newer AllInOneIME, and isn't run.
 | `battery.sh` | a `status` line (`status self`, `statusRefresh`) |
 | `say.sh` | `confirm`, and `silent` (its last line as a notice) |
 | `word-count.sh` | a Raycast Script Command as Raycast writes it (`mode compact`, `packageName`) |
-| `bookmarks/` | a bundle: each list row action (`open`, `copy`, `run` for a second step), a row of information only, a text and a password preference |
+| `bookmarks/` | a bundle: each list row action (`open`, `copy`, `run` for a second step), a row of information only, a text and a password preference; a completion source (`bm.` and a title, a Markdown link: §11) |
 | `units/` | a bundle: a dropdown preference, two commands sharing code in `lib/` through `ALLINONEIME_EXTENSION_DIR` |
 
 ## 1. Where extensions come from
@@ -92,6 +92,7 @@ A file may use `@allinoneime.<key> <value>` (the protocol's own keys) or `@rayca
 | `timeout` | seconds before it's stopped | 10; 600 with `background` |
 | `queryDelay` | `list`: milliseconds after the last key before it runs again | 150 |
 | `currentDirectoryPath` | where it runs (from the script's folder, or `~/…`) | the script's folder |
+| `completion` | a completion source, as JSON on one line: suggestions as you type a prefix (§11) | none |
 
 A bundle's command may also set `alias`: the name it takes when its `name` is another command's (§7).
 
@@ -257,8 +258,8 @@ reached through `ALLINONEIME_EXTENSION_DIR`) and settings. One folder to install
 - `schemaVersion`, `name` (letters, digits, `-`, `_`; two bundles can't share one) and `commands` or `snippets` are
   required.
 - Each command names its `script` (a path inside the bundle) and takes the keys of §2 in JSON: strings, `true` /
-  `false`, numbers, and the `argumentN` objects as they are. They override the `@allinoneime.` lines in the script, if
-  it has any.
+  `false`, numbers, and the `argumentN` and `completion` objects as they are. They override the `@allinoneime.` lines in
+  the script, if it has any.
 - The other paths a bundle's command gives are inside it too, from its script's folder as written (no `..`, no `/…`,
   `~/…` or `C:…`): an `icon` image, a `status` program given as a path (`./left.sh`; a program name alone, `date`, is
   still looked for in the script's folder, then on the PATH), and a `currentDirectoryPath` that isn't `~/…` or
@@ -297,7 +298,7 @@ reached through `ALLINONEIME_EXTENSION_DIR`) and settings. One folder to install
   commands with a word of their title or a keyword starting with them. A digit right after letters is part of a name
   when a command's name goes on that way (`@base6` → `@base64`); otherwise digits pick a row.
 - **Limits.** A few processes at a time (status lines two at once, background runs four), 64 KB of output, the
-  timeouts above.
+  timeouts above. A completion's runs have limits of their own (§11).
 
 ## 8. Raycast Script Commands
 
@@ -330,6 +331,7 @@ Raycast's keys are read as they are, and mean:
 | `disabledExtensions` | `[]` | commands (ids) and bundles (names) turned off |
 | `extensionPreferences` | `{}` | bundle → preference → value (not passwords) |
 | `extensionSources` | `[]` | Git repositories bundles are installed from (§10) |
+| `completionSources` | `[]` | the completion sources turned on (§11), plugins' too: for a command, `"plugin": "script-extensions"` and its id as `source`, with what was approved (its script's SHA-256, `query`, and its `terms`: prefix, `queryMinChars`, `compare`); this Mac's own, never synced |
 
 ## 10. Extension sources
 
@@ -358,7 +360,8 @@ bundle, others in a repository of their own.
 ```json
 "extensionSources": [
   { "url": "git@github.com:you/my-extensions.git", "path": "extensions/team", "branch": "main", "pin": null,
-    "autoCheck": true, "authHint": "Optional: your own reminder of how to sign in, shown under a git error" }
+    "autoCheck": true, "authHint": "Optional: your own reminder of how to sign in, shown under a git error",
+    "trustUpdates": true }
 ]
 ```
 
@@ -370,6 +373,7 @@ bundle, others in a repository of their own.
 | `pin` | a tag or commit the clone stays on; `null` follows the branch. A pinned source isn't checked for updates |
 | `autoCheck` | `true` (default): checked once a day and about 30 s after the input method starts |
 | `authHint` | shown under a git error |
+| `trustUpdates` | `true`: its bundle's suggestions (§11) keep running after its updates ("Trust its updates"). Absent or `false` (the default): an update that changes its repository turns them off until you turn them on again |
 
 **What happens.**
 
@@ -389,14 +393,26 @@ bundle, others in a repository of their own.
   that is a link out of the repository, its preferences, the address and commit) and clicked Enable, which moves it into place as
   `~/Library/Application Support/AllInOneIME/Sources/<repository>-<hash>/` (the hash is of the address; in one step,
   swapped with any older clone there) and adds the bundle's folder to `extensionFolders`. Cancel deletes the staged
-  clone, never one in place. A bundle folder that leads out of the repository (a link) is refused. A command whose name
-  is taken follows §7, and the review says so.
+  clone, never one in place. A bundle folder that leads out of the repository (a link) is refused; one that does after
+  an update loads nothing, and Settings says its folder leads out of the repository. A command whose name
+  is taken follows §7, and the review says so. Two addresses can share the folder's short hash: an address whose clone
+  would go in the folder of a source already added is refused, before anything is cloned ("Its folder, … is already
+  another source's"): remove that source first.
 - **Only reviewed code loads.** A folder of the sources folder in the load list that isn't a reviewed source's bundle
   (a config copied from another Mac, a lost `sources.json`) isn't loaded, and is taken out of the load list when the
   input method starts and when Settings shows the page.
 - **Trust** is per source and address: once enabled, its fast-forward updates don't need another review. A force push
   is different: the rewritten history could be anything, so Re-clone shows the review again and only Enable puts it in
   place (the reviewed clone keeps working meanwhile).
+- **Suggestions after an update.** A command's suggestions (§11) run in the background as you type, so they are pinned
+  to what you turned on: an update that changes any file of the source's repository (not only its bundle: a script may
+  use `../shared/common.sh`), or the source's prefix, lookup or how it compares, turns them off, said once in Settings,
+  until you turn them on again. A repository of more than 2,000 files or 20 MB in all can't be checked for changes: its
+  suggestions can't be turned on, and Settings says so under the command. **Trust its updates**, a switch under each
+  source (Settings → Commands → Extension Sources; off by default, `trustUpdates`), keeps them running after its
+  updates, and nothing of the repository is read for them: turn it on only for a source you trust, such as your team's
+  repository. Turning it off turns nothing off by itself; the next change does. Like the rest of the source, it stays
+  on this Mac (never synced).
 - **Checking** (`autoCheck`, or Check Now): `git fetch` of the branch (100 commits deep), and the commits after the
   clone's listed (subject, author, date). Nothing changes.
 - **Update** (only when you click it, or `--update-sources`): fetched again, then the clone is moved to the new commit
@@ -427,3 +443,111 @@ bundle, others in a repository of their own.
 They take only these options (and `--config FILE`, `--sources-dir DIR` for tests); any other is refused.
 
 There is no signature on a source: it runs what its repository holds, as you. Add only repositories you trust.
+
+## 11. Completions
+
+A command may also complete what you type (0.6.7.1): rows in the candidate panel as you type its prefix (`#12`,
+`bm.sw`), the same rows, keys and choices as a plugin's completions (docs/plugins.md, "Completions"), from a list its
+script prints, and, if it says so, a lookup of what follows the prefix. The command is still a command, run as before.
+
+**Declaring it.** One source per command, with the keys of a plugin's `completions` entry, the same meaning, defaults
+and limits: `prefix`, `minChars`, `compare`, `list`, `refresh`, `query`, `queryMinChars`, `insert` (a template, a list
+of them tried in turn, or per class of app `default` / `chat` / `terminal`, `null` for no rows in that class). There is
+no `name` or `title`: the source is the command's (its name, its title).
+
+- A single script: one metadata line, any comment mark as other keys.
+
+  ```bash
+  #!/bin/bash
+  # @allinoneime.schemaVersion 1
+  # @allinoneime.title Tickets
+  # @allinoneime.completion {"prefix": "TCK-", "list": true, "refresh": "15m", "query": true, "queryMinChars": 2, "insert": {"default": ["[{title}]({url})", "{arg}"], "terminal": "{match}"}}
+  ```
+
+- A bundle: `"completion"` in the command's entry, used over its script's own line, as the other keys are (§6).
+
+  ```json
+  { "script": "bookmarks.sh", "name": "bm", "title": "Bookmarks", "output": "list",
+    "completion": { "prefix": "bm.", "list": true, "refresh": "1h",
+                    "insert": { "default": "[{title}]({url})", "terminal": null } } }
+  ```
+
+A declaration that breaks the rules (a `query` without a `prefix`, a source without a prefix that isn't `exact` over
+digits, a template that isn't one, a value out of range, anything but a JSON object) is refused on its own: Settings
+says why under the command, and the command still loads.
+
+**Running it.** As its commands run (§3: its folder or `currentDirectoryPath`, the PATH, its process group, its last
+line on standard error as the error), with nothing on standard input, and limits of its own:
+
+- **The list:** with `ALLINONEIME_COMPLETION=load` and no arguments, it prints
+  `{ "items": [Item], "fetchedAt"?: unixSeconds }` as JSON on standard output. Up to 20 seconds (whatever its
+  `timeout`), 20,000 items and 4 MB (the 64 KB of a command's output doesn't apply).
+- **A lookup** (`query`): with `ALLINONEIME_COMPLETION=query` and what follows the prefix as its one argument (`$1`:
+  `12` for `TCK-12`; never in the environment), it prints `{ "items": [Item] }`. Up to 3 seconds. It's called as a
+  plugin's query is: once the token has `queryMinChars` after the prefix, then again only when what its answers give
+  leaves fewer than 5 rows, after a pause of 150 ms in typing.
+- **Environment:** `ALLINONEIME_PROTOCOL`, `ALLINONEIME_VERSION`, `ALLINONEIME_COMPLETION`, `ALLINONEIME_LANGUAGE` (the
+  interface's), `ALLINONEIME_EXTENSION_DIR` and the bundle's `ALLINONEIME_PREF_<NAME>` (passwords from the keychain, as
+  for its commands; while a required one has no value, it doesn't run and its status says what to set). Never the app
+  in front, the language being typed or the token itself (`ALLINONEIME_APP`, `ALLINONEIME_INPUT_LANGUAGE` and
+  `ALLINONEIME_QUERY` aren't set): a lookup gets only its argument.
+- **`Item`**, as a plugin's: `{ match, title?, subtitle?, arg?, variables? }`, `match` (1–64 letters, digits and
+  `. _ - @ #`, the prefix included) compared with the token, `title` and `subtitle` shown, `arg` (default `match`) and
+  `variables` filling the templates (`{match}`, `{arg}`, `{url}`, `{title}`…: give `title`, the title alone, and `url` as
+  variables for the Insert choices). Bad items are dropped one by one; an output that isn't an object with `items`, too
+  large, a failure or a timeout keeps the old list and backs off (1 min, 5 min, 30 min, 2 h; the fifth in a row pauses
+  it until Refresh now, an update or a day later).
+- **One at a time.** One completion program of a bundle runs at a time (a bundle's programs may share state: a cookie
+  file, a cache); the others wait their turn. A newer lookup for the same source cancels the one before, waiting or
+  running (SIGTERM to its process group, then SIGKILL half a second later); the next program of the bundle starts only
+  once a cancelled one has exited, so a script that cleans up on SIGTERM is done before it.
+- The list is kept on this Mac (cached in `~/Library/Caches/AllInOneIME/suggestions/`, readable only by you) and loaded
+  again every `refresh` while you use it, not after a week unused; rows you picked come first. Nothing runs, and no rows
+  show, during secure input or in a password field.
+
+**What a row puts in.** The first template the item fills that can go in there: one that starts with the token adds
+what wasn't typed; one that doesn't (`[{title}]({url})`) takes the token's place where the text field tells where its
+text is (the token, prefix and all, taken out and the text put in, one change you can undo as one), and is skipped for
+the next elsewhere (terminals). The token is taken out only where the field still holds it when the row goes in (read
+back first): where it holds other text there by then, what wasn't typed of the next template that starts with the token
+goes in at the caret instead, or nothing; after a click elsewhere in the text, Tab, Return and the arrows are the app's.
+Its `insert` is the default: Settings → General → Insert (With title, With title and
+link, Markdown link) and each app's own choice apply to it, as to every source.
+
+**Trust.** As a plugin's completions: off until you turn it on in Settings → Commands, under the command (its switch,
+what it does: it runs this script in the background, and with `query` it also gets what you type after the prefix;
+then its last refresh, items, last error and Refresh Now). Turning it on pins the whole extension and its terms:
+
+- **The extension.** Your own extension, a bundle or a single script (its `completion` line is part of it), is never
+  read for this: a change to it keeps its suggestions on anyway (below). One from an extension source is pinned by a
+  digest of every file of the source's repository (its clone), not only its bundle, since a script may use
+  `../shared/common.sh` or a `lib` that links elsewhere in the clone: every file, hidden ones too, all but git's folder
+  (`.git`) and the Finder's `.DS_Store`. A link, anywhere, is pinned as where it points (its text), never followed: what
+  it leads to in the clone is pinned anyway, and what is outside isn't the source's.
+- **Where it comes from** is the folder it was loaded from, never where a link leads. A source's bundle folder is that
+  source's even when it is a link; any other folder in the sources folder is treated as a source's whose updates aren't
+  trusted. Only a folder outside the sources folder is your own.
+- **The size.** That repository can have at most 2,000 files (links count) and 20 MB in all, and at most 10,000 items
+  of any kind (folders and `.DS_Store` files count; what is in `.git` doesn't): it is read again when a text field takes
+  the focus and before each run, never with a key, and past that it can't be cheap. Settings says "Its repository is
+  too large to check for changes (over 2,000 files or 20 MB)." under the command, and its switch can't be turned on; one
+  turned on before is turned off when the repository grows past it, as by a change.
+- **What can't be read.** If a folder of the repository can't be listed, or a file in it can't be read, it can't be
+  pinned. Settings says "Some of its files can't be read, so it can't be checked for changes." under the command, and its
+  switch can't be turned on; one turned on before is turned off, as by a change.
+- **The terms** a plugin's source is pinned by: `query`, `prefix`, `queryMinChars` and `compare`.
+
+What a later change does depends on where the extension comes from:
+
+| The extension | A change to any file of it, or to its terms |
+|---|---|
+| Your own: a folder of yours (your extensions folder, one you added), not installed from an extension source | keeps it on; the pin just follows it |
+| From an extension source marked **Trust its updates** (§10) | keeps it on; the pin follows the update, said nowhere |
+| From any other extension source | turns it off again, and Settings says so once; until you turn it on again nothing of it runs, and a repository that changed since is never run for it (each run reads it again first) |
+
+Turning **Trust its updates** off turns nothing off by itself: what the repository is then is read and stays approved,
+and the next change turns it off. Turning it on doesn't turn back on a source already turned off. A script that writes
+into its own folder or anywhere in its clone (a cache, a cookie file) changes its repository, which from a source not
+trusted turns it off: keep such files elsewhere (`~/Library/Caches/…`). Turning the command or its bundle off turns its
+suggestions off too.
+

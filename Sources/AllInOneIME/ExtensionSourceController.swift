@@ -172,7 +172,7 @@ final class ExtensionSourceController: ObservableObject {
             return await perform(source) { try await $0.pin(source, to: pin, $1) }
         }
         let following = ExtensionSource(url: source.url, path: source.path, branch: source.branch, pin: nil,
-                                        autoCheck: source.autoCheck, authHint: source.authHint)
+                                        autoCheck: source.autoCheck, authHint: source.authHint, trustUpdates: source.trustUpdates)
         return await perform(following) { try await $0.update(following, $1) }
     }
 
@@ -230,21 +230,23 @@ struct SourceBusy: LocalizedError {
 }
 
 /// What `LiveExtensions` loads (`ExtensionSources.loadFolders`): the config's folders less those of the sources folder
-/// that aren't a trusted source's bundle, a source's folder read only as its one bundle. sources.json is read again only
-/// when it changed (one stat a call), and the folders worked out again only when something they come from changed.
-/// Main thread only, as `LiveExtensions`.
+/// that aren't a trusted source's bundle and a source's bundle folder that leads out of its clone, a source's folder read
+/// only as its one bundle. sources.json is read again only when it changed (one stat a call), and the folders worked out
+/// again only when something they come from changed (an Update saves sources.json), or when asked to look again
+/// (`recheck`: as a text field takes the focus and Settings reads the extensions, never with a key), which sees a
+/// bundle folder that came to lead out of its clone otherwise. Main thread only, as `LiveExtensions`.
 enum ExtensionSourceGate {
     nonisolated(unsafe) private static var cachedStatuses: (url: URL, date: Date?, statuses: [String: ExtensionSourceStatus])?
     nonisolated(unsafe) private static var cachedFolders: (key: [String], folders: [ExtensionStore.Folder])?
     /// The sources folder (`ExtensionSourceController.root`, which sets it).
     nonisolated(unsafe) static var root = ExtensionSources.directory
 
-    static func folders(_ config: Config, found: [String]) -> [ExtensionStore.Folder] {
+    static func folders(_ config: Config, found: [String], recheck: Bool = false) -> [ExtensionStore.Folder] {
         let statuses = statuses(root)
         let key = [root.path, String(describing: cachedStatuses?.date), String(config.findRaycastScripts)]
             + config.extensionFolders + ["|"] + config.hiddenExtensionFolders + ["|"] + found
             + config.extensionSources.map { $0.url + "\u{0}" + ($0.path ?? "") }
-        if let cachedFolders, cachedFolders.key == key { return cachedFolders.folders }
+        if !recheck, let cachedFolders, cachedFolders.key == key { return cachedFolders.folders }
         let folders = ExtensionSources.loadFolders(config, found: found, statuses: statuses, root: root)
         cachedFolders = (key, folders)
         return folders
@@ -272,6 +274,17 @@ enum ExtensionSourceText {
     static func gitHint(_ url: String) -> String {
         tr("这里用的是你自己的 git 和 SSH 设置；先在终端里确认 git ls-remote \(url) 能用。",
            "This uses your own git and SSH setup; check that git ls-remote \(url) works in Terminal.")
+    }
+
+    /// A source's switch (Settings → Commands → Extension Sources), and the line under it.
+    static var trustUpdates: String { tr("信任它的更新", "Trust its updates") }
+    /// The switch as VoiceOver names it: with its source's repository, which tells the sources' switches apart.
+    static func trustUpdates(of source: ExtensionSource) -> String {
+        tr("信任它的更新：\(source.repositoryName)", "Trust its updates: \(source.repositoryName)")
+    }
+    static var trustUpdatesHelp: String {
+        tr("更新以后，它的扩展给的建议照常运行；只对你信任的来源打开，比如你团队的仓库。",
+           "Its extensions' suggestions keep running after its updates; turn on only for a source you trust, such as your team's repository.")
     }
 
     static func updates(_ count: Int) -> String {
@@ -309,6 +322,9 @@ enum ExtensionSourceText {
             return tr("地址里不要写用户名、密码或令牌：交给 git 的凭据助手保存（git help credential）。",
                       "Don't put a user name, password or token in the address: let git's credential helper keep them (git help credential).")
         case let .outsideClone(path): return tr("\(path) 指向仓库外面。", "\(path) leads out of the repository.")
+        case let .folderTaken(folder, other):
+            return tr("它的文件夹 \(folder) 已经是另一个来源（\(other)）的了：先移除那个来源。",
+                      "Its folder, \(folder), is already another source's (\(other)): remove that source first.")
         }
     }
 }

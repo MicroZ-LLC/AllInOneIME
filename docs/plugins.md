@@ -185,7 +185,7 @@ It declares its sources in `completions` (optional; `api` 1 stays valid) and its
 | `refresh` | `1h` | `5m` … `7d`: how often the list is loaded again while the source is used (not after a week unused) |
 | `query` | `false` | the script exports `query(text, ctx)`, a live lookup; only with a `prefix` (without one, every number typed anywhere would be sent) |
 | `queryMinChars` | 3 | characters after the prefix before `query` is first called (at least 1) |
-| `insert` | `{"default": "{arg}"}` | what a row inserts per app class: `default`, `chat` (chat apps and browsers), `terminal` (terminals and code editors: anything but `null` is `{match}` there, unless the user chooses otherwise, below); a template or a list tried in turn (the first whose variables all exist), `null` for no rows in that class; the default the user may change (below) |
+| `insert` | `{"default": "{arg}"}` | what a row inserts per app class: `default`, `chat` (chat apps and browsers), `terminal` (terminals and code editors: anything but `null` is `{match}` there, unless the user chooses otherwise, below); a template or a list tried in turn (the first whose variables all exist and that can go in there: below), `null` for no rows in that class; the default the user may change (below) |
 
 An entry that breaks these rules (or any entry of a `prompt` or `link` plugin, or of one with `timeoutSeconds` over 20) is
 refused on its own, its reason shown under the plugin in Settings; the plugin and its command still load. A preference is
@@ -207,21 +207,35 @@ plugin.json still lists them (the hosts approved come on standard input too):
   and `variables` (texts of the plugin's choosing) fill the templates: `{match}`, `{arg}`, and any of the item's
   variables by name (`{url}`, `{title}`…). The order is the rank; the rows the user picked before come first.
 - What a row puts in is the plugin's to decide, per app class, in `insert`: the number alone (`{arg}`), with its title
-  (`{arg} {title}`), or with a link too (`{arg} {title} {url}`). The example inserts `#1234 Fix login` in documents and
-  mail, `#1234 Fix login https://github.com/…/issues/1234` in chat apps, and `#1234` in terminals; a template whose
-  variables an item lacks is skipped for the next in its list.
+  (`{arg} {title}`), with a link too (`{arg} {title} {url}`), or a Markdown link (`[{title}]({url})`). The example
+  inserts `#1234 Fix login` in documents and mail, `#1234 Fix login https://github.com/…/issues/1234` in chat apps, and
+  `#1234` in terminals; a template whose variables an item lacks is skipped for the next in its list.
+- Whether a row shows is its `match`'s alone (it starts with the token, or is it, as `compare` says), never its
+  template's. What it puts in is the first template in its list whose variables the item all has and that can go in
+  there: one whose text starts with the token (in any case, `＃` as `#`) adds what wasn't typed (`#12` and `#1234 Fix
+  login` add `34 Fix login`); one that doesn't **replaces** the token: where the text field tells where its text is
+  (documents, mail, chat apps, browsers), the token is taken out, prefix and all, and the whole text goes in, as one
+  change the app can undo as one (`#12` becomes `[Fix login](https://github.com/…/issues/1234)`); only where the field
+  still holds the token there as the row goes in (it's read back first: where other text is there by then, what a
+  template that starts with the token adds goes in at the caret instead, or nothing), and after a click elsewhere in
+  the text, Tab, Return and the arrows are the app's. Where the field doesn't tell (terminals, and the few others),
+  such a template is skipped for the next in the list, so
+  `["[{title}]({url})", "{arg}"]` puts a Markdown link in a document and the number in a terminal. An item none of
+  whose templates can go in there has no row.
 - The plugin's `insert` is the default: the user may choose otherwise, everywhere (Settings → General → Insert) or per
-  app ("In these apps" there), and then every class of app gets the choice: with title (`{arg} {title}`, else `{arg}`),
-  or with title and link (`{arg} {title} {url}`, else `{arg} {title}`, else `{arg}`); ID only (`{arg}`) is no longer
-  offered, and still used where a config has it. So give an item
-  the variables `title` (the title alone, without the number: the row's `title` isn't `{title}`) and `url` where it has
-  them. A class whose `insert` is `null` still has no rows, whatever the user chose.
+  app ("In these apps" there, and the input menu's This App ▸ Insert), and then every class of app gets the choice: with
+  title (`{arg} {title}`, else `{arg}`), with title and link (`{arg} {title} {url}`, else `{arg} {title}`, else
+  `{arg}`), or Markdown link (`[{title}]({url})`, else `{arg}`: a replacement, its `{arg}` where it can't be one); ID only
+  (`{arg}`) is no longer offered, and still used where a config has it. So give an item the variables `title` (the
+  title alone, without the number: the row's `title` isn't `{title}`) and `url` where it has them. A class whose
+  `insert` is `null` still has no rows, whatever the user chose.
 - `ctx` is `{ source, preferences, language }` (`"zh"` or `"en"`): nothing about the app, the field or the text around
   the caret.
 - An output that isn't an object with an `items` array, too large, a throw or a timeout keeps the old list; failures
   back off (1 min, 5 min, 30 min, 2 h) and the fifth in a row pauses the source until Refresh now, an update or a day
   later. Bad items are dropped one by one; control, bidi and zero-width characters are taken out of everything first.
-- Only what wasn't typed goes in: `#12` and the row `#1234` insert `34` and the rest of the template.
+- Only what wasn't typed goes in: `#12` and the row `#1234` insert `34` and the rest of the template (a replacement,
+  above, puts all of its text in the token's place).
 
 The user turns each source on in Settings → Commands → Plugins; the switch says what it does and, for a source with `query`, where
 what is typed after the prefix goes. An update that changes `hosts`, `query`, the script, or the source's `prefix`,
@@ -248,6 +262,13 @@ isn't a source, and Settings → Commands → Your Commands says why.
 ```
 
 A 10-line program, and the editor's presets: [README, Suggestions from a program of your own](../README.md#suggestions-from-a-program-of-your-own-new).
+
+### From a script extension
+
+A script extension's command may declare one source too (0.6.7.1), with the keys above (but `name` and `title`: the
+source is the command's), in its script (`# @allinoneime.completion {…}`) or in its bundle's `extension.json`. Its
+script runs as its commands run, with `ALLINONEIME_COMPLETION=load` or `query`, and prints the `{ items }` above; it is
+off until turned on in Settings → Commands, under the command. The protocol: [docs/extensions.md §11](extensions.md#11-completions).
 
 ## Milestones
 

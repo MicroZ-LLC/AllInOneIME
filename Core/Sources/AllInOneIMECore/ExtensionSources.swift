@@ -21,7 +21,7 @@ import Foundation
 /// A Git repository extension bundles come from (`Config.extensionSources`).
 ///
 ///     { "url": "git@github.com:you/my-extensions.git", "path": "extensions/team", "branch": "main", "pin": null,
-///       "autoCheck": true }
+///       "autoCheck": true, "trustUpdates": true }
 public struct ExtensionSource: Codable, Hashable, Sendable {
     /// `ssh://…`, `git@host:…`, `https://…`, or `file://…` (`ExtensionSources.validate`).
     public var url: String
@@ -35,18 +35,24 @@ public struct ExtensionSource: Codable, Hashable, Sendable {
     public var autoCheck: Bool
     /// Shown under a git error: the user's own reminder of how this host is signed in to.
     public var authHint: String?
+    /// "Trust its updates" (Settings → Commands → Extension Sources; off by default): its bundle's completion sources
+    /// stay on through its updates, whatever they change (`Config.extensionOrigin`, 0.6.7.1 §2), and nothing of it is
+    /// read for them. Off, an update that changes a file of its repository or a source's terms turns that source off
+    /// until it is turned on again. Turning it off turns nothing off by itself: the next change does. Written only when on.
+    public var trustUpdates: Bool
 
     public init(url: String, path: String? = nil, branch: String? = nil, pin: String? = nil, autoCheck: Bool = true,
-                authHint: String? = nil) {
+                authHint: String? = nil, trustUpdates: Bool = false) {
         self.url = url
         self.path = path
         self.branch = branch
         self.pin = pin
         self.autoCheck = autoCheck
         self.authHint = authHint
+        self.trustUpdates = trustUpdates
     }
 
-    private enum CodingKeys: String, CodingKey { case url, path, branch, pin, autoCheck, authHint }
+    private enum CodingKeys: String, CodingKey { case url, path, branch, pin, autoCheck, authHint, trustUpdates }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -59,6 +65,7 @@ public struct ExtensionSource: Codable, Hashable, Sendable {
         pin = text(.pin)
         autoCheck = (try? c.decodeIfPresent(Bool.self, forKey: .autoCheck)).flatMap { $0 } ?? true
         authHint = text(.authHint)
+        trustUpdates = (try? c.decodeIfPresent(Bool.self, forKey: .trustUpdates)).flatMap { $0 } ?? false
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -69,6 +76,7 @@ public struct ExtensionSource: Codable, Hashable, Sendable {
         try c.encode(pin, forKey: .pin)  // null: following the branch (the key stays discoverable)
         try c.encode(autoCheck, forKey: .autoCheck)
         try c.encodeIfPresent(authHint, forKey: .authHint)
+        if trustUpdates { try c.encode(true, forKey: .trustUpdates) }
     }
 
     /// `Config.extensionSources` as read: an entry without an address is left out, not the whole file; an address twice,
@@ -160,7 +168,8 @@ public struct ExtensionSourceStatus: Codable, Equatable, Sendable {
         decoder.dateDecodingStrategy = .iso8601
         var statuses: [String: ExtensionSourceStatus] = [:]
         for (url, entry) in object {
-            guard let entryData = try? JSONSerialization.data(withJSONObject: entry),
+            // An entry that isn't an object (a `null`) makes JSONSerialization raise, not throw: skipped.
+            guard JSONSerialization.isValidJSONObject(entry), let entryData = try? JSONSerialization.data(withJSONObject: entry),
                   let status = try? decoder.decode(ExtensionSourceStatus.self, from: entryData) else { continue }
             statuses[url] = status
         }
@@ -202,6 +211,9 @@ public enum ExtensionSourceError: Error, LocalizedError, Equatable, Sendable {
     case credentialsInURL
     /// The bundle folder leads out of the repository (a symbolic link).
     case outsideClone(String)
+    /// Its clone's folder (`folder`, `ExtensionSources.folderName`) is already another configured source's, `by`: a short
+    /// hash of two addresses can be the same, and one folder can't hold two clones.
+    case folderTaken(folder: String, by: String)
 
     public var errorDescription: String? {
         switch self {
@@ -220,6 +232,8 @@ public enum ExtensionSourceError: Error, LocalizedError, Equatable, Sendable {
         case .credentialsInURL:
             return "Don't put a user name, password or token in the address: git's credential helper keeps them (git help credential)"
         case let .outsideClone(path): return "\(path) leads out of the repository"
+        case let .folderTaken(folder, other):
+            return "Its folder, \(folder), is already another source's (\(other)): remove that source first"
         }
     }
 }
@@ -318,6 +332,25 @@ public enum ExtensionSources {
         root.appendingPathComponent(folderName(for: url), isDirectory: true)
     }
 
+    /// The source of `config`, at another address than `url`, whose clone's folder is `url`'s (`folderName`: the
+    /// repository's name and a 4-byte hash of the address, which two addresses can share; the names compared as a volume
+    /// that doesn't tell case apart compares them). Adding `url` is refused then (`ExtensionSourceError.folderTaken`): one
+    /// clone would replace the other; and an extension there is no source's (`Config.extensionOrigin`). Nil: none.
+    public static func sharingFolder(with url: String, in config: Config) -> ExtensionSource? {
+        let url = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = folderName(for: url).lowercased()
+        return config.extensionSources.first {
+            $0.url.trimmingCharacters(in: .whitespacesAndNewlines) != url && folderName(for: $0.url).lowercased() == name
+        }
+    }
+
+    /// Throws `.folderTaken` when another source of `config` has `url`'s folder (`sharingFolder`): before anything of
+    /// `url` is cloned (Settings' Add from Link…, `--add-source`).
+    public static func checkFolder(for url: String, in config: Config) throws {
+        guard let other = sharingFolder(with: url, in: config) else { return }
+        throw ExtensionSourceError.folderTaken(folder: folderName(for: url), by: other.url)
+    }
+
     /// The bundle's folder: the clone's, then `path` in it.
     public static func bundleFolder(for source: ExtensionSource, root: URL = directory) -> URL {
         let clone = cloneFolder(for: source.url, root: root)
@@ -326,15 +359,59 @@ public enum ExtensionSources {
         // A path that climbs out ("..", and on Windows "..\", "C:") or has a NUL in it (a URL with one names "/") names no
         // folder of the clone: a hidden name that never exists, so nothing loads.
         if path.contains("\0") || parts.contains(where: CorePaths.climbs) {
-            return clone.appendingPathComponent(".invalid-bundle-path", isDirectory: true)
+            return clone.appendingPathComponent(invalidBundleFolder, isDirectory: true)
         }
         return parts.isEmpty ? clone : clone.appendingPathComponent(parts.joined(separator: "/"), isDirectory: true)
+    }
+
+    /// What `bundleFolder` names for a path that climbs out of the clone: a hidden name that never exists.
+    static let invalidBundleFolder = ".invalid-bundle-path"
+
+    /// Whether `source`'s bundle folder leads out of its clone: its path climbs out (`bundleFolder`'s
+    /// `invalidBundleFolder`), or its real path (links resolved: the folder, or one it is in, is a link, maybe since an
+    /// update) isn't in its clone's real path. Nothing of it loads then (`loadFolders`), and Settings says so as for a path
+    /// that climbs out. A clone not there doesn't lead out (nothing of it loads anyway).
+    public static func leavesClone(_ source: ExtensionSource, root: URL = directory) -> Bool {
+        let clone = cloneFolder(for: source.url, root: root)
+        let bundle = bundleFolder(for: source, root: root)
+        if bundle == clone.appendingPathComponent(invalidBundleFolder, isDirectory: true) { return true }
+        return !isWithin(comparable(bundle.path), comparable(clone.path))
+    }
+
+    /// Whether the folders at `path` and `other` are one as where something was loaded from is told: their links resolved
+    /// (`comparable`), or as written (`asWritten`), either.
+    public static func sameFolder(_ path: String, _ other: String) -> Bool {
+        comparable(path) == comparable(other) || asWritten(path) == asWritten(other)
+    }
+
+    /// Whether the folder at `path` is `root` or in it, its links resolved (`comparable`) or as written (`asWritten`),
+    /// either: a folder written in the sources folder is in it wherever a link leads.
+    public static func isIn(_ path: String, root: URL) -> Bool {
+        isWithin(comparable(path), comparable(root.path)) || isWithin(asWritten(path), asWritten(root.path))
+    }
+
+    /// Whether `path` is `folder` or in it, both written the same way (`comparable`, `asWritten`).
+    static func isWithin(_ path: String, _ folder: String) -> Bool {
+        path == folder || path.hasPrefix(folder.hasSuffix("/") ? folder : folder + "/")
     }
 
     /// A folder's path as the load list is compared: "~" expanded, standardized, its existing part's links resolved,
     /// no trailing "/", in lower case on a volume that doesn't tell case apart (a folder gone compares the same as before).
     public static func comparable(_ path: String) -> String {
-        var path = ((path as NSString).expandingTildeInPath as NSString).standardizingPath
+        normalized(((path as NSString).expandingTildeInPath as NSString).standardizingPath, resolvingLinks: true)
+    }
+
+    /// A folder's path as written, for telling where something was loaded from whatever its links lead to: "~"
+    /// expanded, "." and ".." taken out by the parts alone, no trailing "/", in lower case on a volume that doesn't tell
+    /// case apart; no link resolved.
+    public static func asWritten(_ path: String) -> String {
+        normalized(URL(fileURLWithPath: (path as NSString).expandingTildeInPath).standardizedFileURL.path, resolvingLinks: false)
+    }
+
+    /// `path` (standardized) without a trailing "/", its existing part's links resolved if `resolvingLinks`, in lower case
+    /// on a volume that doesn't tell case apart.
+    private static func normalized(_ standardized: String, resolvingLinks: Bool) -> String {
+        var path = standardized
         while path.count > 1, path.hasSuffix("/") { path.removeLast() }
         // Its existing part with links resolved (/var → /private/var), the rest as written; on a volume that doesn't tell
         // case apart, in lower case.
@@ -348,10 +425,10 @@ public enum ExtensionSources {
         }
         #if os(Windows)
         // No realpath there: Foundation resolves the links. It doesn't say how the volume compares names: NTFS's way.
-        existing = URL(fileURLWithPath: existing).resolvingSymlinksInPath().path
+        if resolvingLinks { existing = URL(fileURLWithPath: existing).resolvingSymlinksInPath().path }
         let unsaid = false
         #else
-        if let real = realpath(existing, nil) {
+        if resolvingLinks, let real = realpath(existing, nil) {
             existing = String(cString: real)
             free(real)
         }
@@ -536,11 +613,13 @@ public enum ExtensionSources {
     /// Enable: the source is in the config (replacing one of the same address), and its bundle's folder in the load list.
     public static func enable(_ source: ExtensionSource, in config: inout Config, root: URL = directory) {
         if let index = config.extensionSources.firstIndex(where: { $0.url == source.url }) {
-            // An entry the config had (one handed out with its sign-in hint, say) keeps its hint and its schedule.
+            // An entry the config had (one handed out with its sign-in hint, say) keeps its hint, its schedule and whether
+            // its updates are trusted.
             var source = source
             let had = config.extensionSources[index]
             source.authHint = source.authHint ?? had.authHint
             source.autoCheck = had.autoCheck
+            source.trustUpdates = had.trustUpdates
             config.extensionSources[index] = source
         } else {
             config.extensionSources.append(source)
@@ -555,33 +634,33 @@ public enum ExtensionSources {
         config.extensionFolders.removeAll { comparable($0) == full }
     }
 
-    /// The load list's folders inside the sources folder (`root`) that aren't a trusted source's bundle: a config copied
-    /// from another Mac, a lost sources.json, a folder added by hand. Their code was never reviewed here: they aren't
-    /// loaded (`quarantine`, and the input method's own check before it loads extensions).
+    /// The load list's folders in the sources folder (`root`; links resolved or as written, `isIn`) that aren't a trusted
+    /// source's bundle (either way, `sameFolder`): a config copied from another Mac, a lost sources.json, a folder added
+    /// by hand. Their code was never reviewed here: they aren't loaded (`quarantine`, and the input method's own check
+    /// before it loads extensions).
     public static func untrustedFolders(in config: Config, statuses: [String: ExtensionSourceStatus], root: URL = directory) -> [String] {
-        let base = comparable(root.path)
-        let trusted = Set(config.extensionSources.filter { isTrusted($0, statuses[$0.url]) }
-            .map { comparable(bundleFolder(for: $0, root: root).path) })
+        let trusted = config.extensionSources.filter { isTrusted($0, statuses[$0.url]) }.map { bundleFolder(for: $0, root: root).path }
+        let (resolved, written) = (Set(trusted.map(comparable)), Set(trusted.map(asWritten)))
         return config.extensionFolders.filter { path in
-            let full = comparable(path)
-            return (full == base || full.hasPrefix(base + "/")) && !trusted.contains(full)
+            isIn(path, root: root) && !resolved.contains(comparable(path)) && !written.contains(asWritten(path))
         }
     }
 
     /// The folders extensions are loaded from (`ExtensionStore.folders`) as the input method loads them: less
-    /// `untrustedFolders`, and those of the sources folder read only as the one bundle each is (`Folder.bundleOnly`).
-    /// What an interrupted Enable or Re-clone left aside in the sources folder is put right first
-    /// (`FileOps.recoverInterruptedSwaps`).
+    /// `untrustedFolders` and a source's bundle folder that leads out of its clone (`leavesClone`), those of the sources
+    /// folder read only as the one bundle each is (`Folder.bundleOnly`). What an interrupted Enable or Re-clone left aside
+    /// in the sources folder is put right first (`FileOps.recoverInterruptedSwaps`).
     public static func loadFolders(_ config: Config, found: [String], statuses: [String: ExtensionSourceStatus],
                                    root: URL = directory) -> [ExtensionStore.Folder] {
         Platform.current.files.recoverInterruptedSwaps(in: root)
         let base = comparable(root.path)
         let untrusted = Set(untrustedFolders(in: config, statuses: statuses, root: root).map(comparable))
+        let outside = config.extensionSources.filter { leavesClone($0, root: root) }.map { bundleFolder(for: $0, root: root).path }
         return ExtensionStore.folders(config, found: found).compactMap { folder in
             let path = comparable(folder.path)
-            guard !untrusted.contains(path) else { return nil }
+            guard !untrusted.contains(path), !outside.contains(where: { sameFolder(folder.url.path, $0) }) else { return nil }
             var folder = folder
-            if path.hasPrefix(base + "/") { folder.bundleOnly = true }
+            if path != base, isIn(folder.url.path, root: root) { folder.bundleOnly = true }
             return folder
         }
     }

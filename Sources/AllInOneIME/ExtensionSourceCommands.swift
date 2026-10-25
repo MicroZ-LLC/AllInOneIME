@@ -89,6 +89,8 @@ enum ExtensionSourceCommands {
         do {
             source.url = try ExtensionSources.validate(url)
             let config = try Config.load(from: options.configURL)
+            // Never into another source's folder (two addresses can share its short hash): one clone would replace the other.
+            try ExtensionSources.checkFolder(for: source.url, in: config)
             // An entry the config has for it already (handed out with its hint, say): its settings unless given here.
             if let had = config.extensionSources.first(where: { $0.url == source.url }) {
                 source.path = source.path ?? had.path
@@ -96,6 +98,7 @@ enum ExtensionSourceCommands {
                 source.pin = source.pin ?? had.pin
                 source.autoCheck = had.autoCheck
                 source.authHint = had.authHint
+                source.trustUpdates = had.trustUpdates
             }
             let statuses = ExtensionSourceStatus.load(from: options.root.appendingPathComponent(ExtensionSources.statusFileName))
             // Added and reviewed already: only again after a force push, which needs a new review.

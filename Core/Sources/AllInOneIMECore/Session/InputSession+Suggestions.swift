@@ -48,8 +48,20 @@ struct SuggestionsField {
     var indent = ""
     var wordsPause = 0
     var wordsReading: Int?
-    /// The field reported where its selection is with the last key: a snippet's caret can go back into what went in.
+    /// The field reported where its selection is with the last key (`selected`, UTF-16, before the key had it, and the
+    /// token then): a snippet's caret can go back into what went in, and a row can take the token's place (0.6.7.1 §1).
     var ranges = false
+    var selected: Range<Int>?
+    var selectedToken = ""
+    /// Where the token starts in the field (UTF-16), by `selected`, while all the last key did there is what the token
+    /// gained or lost (`suggestionsTokenRange`, for a row put in with a click); nil: not known.
+    var tokenStart: Int?
+    /// The script extensions turned on as they were read for this field (`InputSession.extensionPin`), by command id and
+    /// folder: read again as the field takes the focus or the settings change, a key only reading them.
+    var extensionPins: [String: InputSession.ExtensionPin] = [:]
+    /// `selected` was told while pinyin composed: it is in the marked text the key then put in, as the field counts it,
+    /// so it places no token (`suggestionsPlaceToken`).
+    var selectedComposing = false
 }
 
 extension InputSession {
@@ -62,14 +74,19 @@ extension InputSession {
     /// The pause in typing after which Code reads the field's words again.
     static let wordsPause: TimeInterval = 0.3
 
-    /// A completion source that may run here: a plugin's, enabled with what the plugin is now, or a custom command's
-    /// (decision 24: the user's own, on while it exists); not the command trigger's.
+    /// A completion source that may run here: a plugin's, enabled with what the plugin is now, a script extension's,
+    /// turned on with what its command is now (0.6.7.1 §2), or a custom command's (decision 24: the user's own, on while it
+    /// exists); not the command trigger's.
     struct ActiveSource {
         /// Where its items come from.
         enum Origin {
             /// A plugin's script: `hosts`, those the user approved with it (its script fetches from those only,
             /// `CompletionCall.hosts`); `scriptSHA256`, the script approved (only that one runs).
             case plugin(InstalledPlugin, hosts: [String], scriptSHA256: String)
+            /// A script extension's command (`ExtensionCompletionRuntime`), with its bundle (nil: a single script);
+            /// `scriptSHA256`, its extension's digest approved (`ExtensionDigest`: only that one runs), unless it
+            /// `follows` its changes (the user's own, a trusted source's: it runs as it is, nothing of it read).
+            case script(ScriptCommand, bundle: ExtensionBundle?, scriptSHA256: String, follows: Bool = false)
             /// A custom command's program (`CommandCompletionRuntime`).
             case command(CustomCommand)
         }
@@ -78,10 +95,12 @@ extension InputSession {
         var source: CompletionSource
         var key: CompletionSourceKey
 
-        /// How long its list may take to load: its plugin's `timeoutSeconds`, its command's.
+        /// How long its list may take to load: its plugin's `timeoutSeconds`, a script extension's 20 seconds, its
+        /// command's.
         var timeout: TimeInterval {
             switch origin {
             case let .plugin(plugin, _, _): return plugin.manifest.timeout
+            case .script: return ExtensionCompletionRunner.loadTimeout
             case let .command(command): return command.timeout
             }
         }
@@ -89,19 +108,21 @@ extension InputSession {
         /// How long a query may take: 3 seconds at most.
         var queryTimeout: TimeInterval { min(InputSession.queryTimeout, timeout) }
 
-        /// What it is now, a pause ends when it changes: its plugin's version (an update), its command's definition (an
-        /// edit).
+        /// What it is now, a pause ends when it changes: its plugin's version (an update), a script extension's script
+        /// and declaration, its command's definition (an edit).
         var version: String {
             switch origin {
             case let .plugin(plugin, _, _): return plugin.manifest.version
-            case let .command(command): return String(command.hashValue)  // the store is this launch's
+            case let .script(_, _, sha, _): return sha + ":" + String(source.hashValue)  // the store is this launch's
+            case let .command(command): return String(command.hashValue)
             }
         }
 
-        /// What it returned read: a plugin's JSON, a program's JSON or lines (`CompletionOutput.readProgram`).
+        /// What it returned read: a plugin's JSON (a script extension's too), a program's JSON or lines
+        /// (`CompletionOutput.readProgram`).
         func read(_ data: Data) -> Result<CompletionList, CompletionOutput.Failure> {
             switch origin {
-            case .plugin: return CompletionOutput.read(data, digitsOnly: source.prefix == nil)
+            case .plugin, .script: return CompletionOutput.read(data, digitsOnly: source.prefix == nil)
             case .command: return CompletionOutput.readProgram(data)
             }
         }
@@ -110,23 +131,62 @@ extension InputSession {
         func describe(_ failure: CompletionOutput.Failure) -> String {
             switch origin {
             case .plugin: return failure.message
-            case .command: return failure.programMessage
+            case .script, .command: return failure.programMessage
+            }
+        }
+
+        /// Why its call failed, as Settings says it: a program stopped or not found in the interface language
+        /// (`UIText.describe`), else what the error says; with nothing said, that the plugin failed, or the program (a
+        /// script extension's, a custom command's).
+        func describe(failed error: Error) -> String {
+            if error is CommandRunner.RunError { return UIText.describe(error) }
+            if let error = error as? LocalizedError, let description = error.errorDescription, !description.isEmpty { return description }
+            let text = String(describing: error)
+            guard text.isEmpty else { return text }
+            switch origin {
+            case .plugin: return tr("插件出错了", "The plugin failed")
+            case .script, .command: return tr("程序出错了", "The program failed")
             }
         }
     }
 
     // MARK: - The sources
 
+    /// What a script extension turned on is, as its approval goes (0.6.7.1 §2): whether a change keeps it on
+    /// (`followsChanges`: the user's own, or from an extension source whose updates are trusted) and, only for one whose
+    /// changes turn it off, its digest (`ExtensionDigest`: every file of its source's repository; `tooLarge` past its
+    /// limits; nil: none read, or it follows).
+    struct ExtensionPin: Equatable {
+        var digest: String?
+        var follows: Bool
+    }
+
+    /// `command`'s pin (`ExtensionPin`), as read for this field: read once as it takes the focus or the settings change
+    /// (`suggestionsMaintain(prune:)` forgets them), its files hashed again only when their size or date changed
+    /// (`SuggestionsStore.sha256`); one that follows its changes isn't read at all. A key reads it as it was then, never
+    /// a file; its program's run reads the extension again as it starts (`ExtensionCompletionRunner`).
+    func extensionPin(_ command: ScriptCommand, config: Config) -> ExtensionPin {
+        let id = command.id + "\u{0}" + command.extensionDirectory.path
+        if let pin = suggesting.extensionPins[id] { return pin }
+        let (store, root) = (services.suggestions.store, services.suggestions.extensionSourcesFolder)
+        let follows = config.followsChanges(of: command, root: root)
+        let pin = ExtensionPin(digest: follows ? nil : ExtensionDigest.of(command, root: root, sha256: store.sha256(of:)), follows: follows)
+        suggesting.extensionPins[id] = pin
+        return pin
+    }
+
     /// The completion sources enabled (`SuggestionsSettings.enabled`) with the hosts, query, script and terms (prefix,
     /// when the query is first asked, how it compares) their plugin has now (an update that changed one needs enabling
-    /// again), then the custom commands' (`SuggestionsSettings.commands`: those its rules don't refuse, a name once), all
-    /// active with the settings (`inactiveReason`).
+    /// again), then the script extensions' turned on (0.6.7.1 §2: of the commands not turned off): those that follow
+    /// their changes unless marked lapsed, the others with the extension, query and terms their command has now
+    /// (`extensionPin`); then the custom commands' (`SuggestionsSettings.commands`: those its rules don't refuse, a name
+    /// once), all active with the settings (`inactiveReason`).
     func activeSources(_ settings: SuggestionsSettings, plugins: [InstalledPlugin]? = nil) -> [ActiveSource] {
         guard !settings.enabled.isEmpty || !settings.commands.isEmpty else { return [] }
         let config = services.loadSettings()
         let store = services.suggestions.store
         var active: [ActiveSource] = []
-        if !settings.enabled.isEmpty {
+        if settings.enabled.contains(where: { $0.plugin != CompletionSourceKey.scriptExtensions }) {
             for plugin in plugins ?? services.plugins(false) where !plugin.manifest.completions.isEmpty {
                 let approvals = settings.enabled.filter { $0.plugin == plugin.name }
                 guard !approvals.isEmpty, let script = plugin.scriptURL, let sha = store.sha256(of: script) else { continue }
@@ -136,6 +196,19 @@ extension InputSession {
                     active.append(ActiveSource(origin: .plugin(plugin, hosts: approval.hosts, scriptSHA256: approval.scriptSHA256),
                                                source: source, key: CompletionSourceKey(plugin: plugin.name, source: source.name)))
                 }
+            }
+        }
+        if settings.enabled.contains(where: { $0.plugin == CompletionSourceKey.scriptExtensions }) {
+            let index = services.loadExtensions(config, false)
+            for command in index.enabled(config.disabledExtensions) {
+                guard case let .success(source)? = command.completion, source.inactiveReason(config) == nil else { continue }
+                let key = CompletionSourceKey(extension: command)
+                guard let approval = settings.enabled.first(where: { $0.plugin == key.plugin && $0.source == key.source }) else { continue }
+                let pin = extensionPin(command, config: config)
+                guard approval.holds(forScript: source, of: command, digest: pin.digest, follows: pin.follows) else { continue }
+                active.append(ActiveSource(origin: .script(command, bundle: index.bundle(of: command), scriptSHA256: approval.scriptSHA256,
+                                                           follows: pin.follows),
+                                           source: source, key: key))
             }
         }
         for command in settings.commands where !(command.argv?.first ?? "").isEmpty {
@@ -342,16 +415,27 @@ extension InputSession {
 
     // MARK: - Keys
 
-    /// What the field `key` may need for suggestions: the selection where rows show (a snippet's caret); the text where
-    /// it puts in a snippet of more than one line (its later lines get the caret's line's indentation as it is now). The
-    /// field's words are read once typing pauses, never with a key.
+    /// What the field `key` may need for suggestions: the selection where rows show (a snippet's caret, the token's place
+    /// a row takes) or may show for the token the key types (whether a row can take the token's place there decides what
+    /// it puts in: 0.6.7.1 §1; never in a terminal, where none can): while a token is typed, or by a key that types a
+    /// token character, not by every key in every app (each read is a call to the app); the text where it puts in a
+    /// snippet of more than one line (its later lines get the caret's line's indentation as it is now). The field's
+    /// words are read once typing pauses, never with a key.
     func suggestionsFieldWants(for key: KeyEvent) -> FieldContext.Parts {
         var wants: FieldContext.Parts = []
-        if suggesting.shown { wants.insert(.selectedRange) }
+        if suggesting.shown || !terminal && !suggesting.dead && (!suggesting.token.isEmpty || Self.typesTokenCharacter(key))
+            && suggestionsMayShow() {
+            wants.insert(.selectedRange)
+        }
         if let row = suggestionsRowPut(by: key), row.insertion.contains(where: \.isNewline), codeReadsTheField() {
             wants.insert(.text)
         }
         return wants
+    }
+
+    /// Whether `key` types a character a token is made of (`SuggestionsToken.isTokenCharacter`, full-width folded).
+    static func typesTokenCharacter(_ key: KeyEvent) -> Bool {
+        (key.printableText ?? "").contains { SuggestionsToken.isTokenCharacter(Character(SuggestionsToken.normalized(String($0)))) }
     }
 
     /// The row `key` would put in where rows show (`suggestionsBeforeKey`): Tab's or Return's, the chosen one
@@ -375,7 +459,8 @@ extension InputSession {
     /// which replaced spec 1.4's per class of app): ↓ and ↑ move the choice, Tab and Return put the chosen row in, → and
     /// Esc hide the rows for the token (the key is ours; the keys are the app's then, until the token changes); digits
     /// are typed, never pick. Code's word held as marked text (decision 33) is the token's end: a row goes in in its
-    /// place, → and Esc put it in as typed. Not while pinyin composes: its own candidates have the keys then. Nil: the
+    /// place, → and Esc put it in as typed. Not while pinyin composes: its own candidates have the keys then. A click
+    /// since the token's last key (the caret may be elsewhere now) ends the token first: the key is the app's. Nil: the
     /// key goes on. The one place the rows' keys are decided.
     func suggestionsBeforeKey(_ event: KeyEvent, _ context: FieldContext) -> Bool? {
         // A key while Shift is held is no long press of it.
@@ -383,7 +468,10 @@ extension InputSession {
         suggesting.shift += 1
         holdHintEnds()
         suggesting.lastKeyAt = services.uptime()
-        suggesting.ranges = context.read.contains(.selectedRange) && context.selectedRange != nil
+        suggesting.selected = context.read.contains(.selectedRange) ? context.selectedRange : nil
+        suggesting.selectedToken = suggesting.token
+        suggesting.ranges = suggesting.selected != nil
+        suggesting.selectedComposing = composesBesidesCodeWord
         // The caret's line as the field tells it now: a snippet the key puts in is indented as it is.
         if context.read.contains(.text), let text = context.text, CodingRows.indent(text.before) != suggesting.indent,
            codeReadsTheField() {
@@ -391,7 +479,18 @@ extension InputSession {
             if suggesting.shown { suggestionsUpdate() }
         }
         guard suggesting.shown, !suggesting.rows.isEmpty, !composesBesidesCodeWord,
-              event.modifiers.subtracting(.capsLock).subtracting(.sides).isEmpty else { return nil }
+              event.modifiers.subtracting(.capsLock).subtracting(.sides).isEmpty, Self.rowsKeys.contains(event.key)
+        else { return nil }
+        // The pointer used since the token's last key: a click elsewhere in the field the input method isn't told of (no
+        // marked text, so the app asks nothing of it), which may have moved the caret. The token ends, as
+        // `suggestionsAfterKey` ends it for a key that types, and the key is the app's: no row goes in where the token
+        // was, nor takes out what is before the caret now.
+        if services.pointerUsedWithin(services.uptime() - suggesting.tokenAt) {
+            log.notice("suggestions: the pointer was used since the token's last key: the token ends, the key is the app's")
+            suggestionsBoundary()
+            suggestionsUpdate()
+            return nil
+        }
         switch event.key {
         case .tab, .enter, .keypadEnter:
             guard let row = suggestionsChosenRow() else { return nil }
@@ -415,6 +514,9 @@ extension InputSession {
             return nil
         }
     }
+
+    /// The keys the rows take while they show (`suggestionsBeforeKey`).
+    static let rowsKeys: [Key] = [.tab, .enter, .keypadEnter, .arrow(.down), .arrow(.up), .arrow(.right), .escape]
 
     /// After the composer had `key`: what went into the field with it (`inserted`: what the input method put in, the key's
     /// own text where the app typed it) extends the token or ends it; a key the app had that typed nothing ends it (an
@@ -453,6 +555,7 @@ extension InputSession {
             }
         }
         suggestionsFollowed(started: started, mayShow: mayShow, at: now)
+        suggestionsPlaceToken(typed: typed, key: key)
         if codeReadsTheField() {
             // The field told its text with the key (a shell where that's cheap): its words now.
             if context.read.contains(.text), let text = context.text {
@@ -473,6 +576,21 @@ extension InputSession {
         let started = suggesting.token.isEmpty
         suggestionsTyped(text)
         suggestionsFollowed(started: started, mayShow: suggestionsMayShow(), at: services.uptime())
+    }
+
+    /// Where the token starts now (`SuggestionsField.tokenStart`), by the selection the field told before `key`: known
+    /// while what the key `typed` is all the token gained (pinyin's words put in with "#" are more), or ⌫ took its last
+    /// character back with nothing selected; not by a selection told while pinyin composed (in its marked text: the
+    /// letters a prefix's "-" put in as typed).
+    private func suggestionsPlaceToken(typed: String, key: KeyEvent) {
+        suggesting.tokenStart = nil
+        guard let selected = suggesting.selected, !suggesting.selectedComposing, !suggesting.token.isEmpty else { return }
+        let before = suggesting.selectedToken
+        let followed = typed.isEmpty
+            ? key.key == .backspace && selected.isEmpty && before.count == suggesting.token.count + 1 && before.hasPrefix(suggesting.token)
+            : suggesting.token == before + typed
+        let start = selected.lowerBound - before.utf16.count
+        if followed, start >= 0 { suggesting.tokenStart = start }
     }
 
     /// The token as it is after a key (`started`: it was empty before): `tokenAt` the key's time where rows may show,
@@ -527,6 +645,7 @@ extension InputSession {
                 .suffix(16))
         }
         suggesting.token = ""
+        suggesting.tokenStart = nil
         suggesting.dead = false
         suggesting.showedRows = false
         suggesting.hiddenFor = nil
@@ -542,11 +661,53 @@ extension InputSession {
 
     // MARK: - Putting a row in
 
+    /// Whether a row may take the token's place here (0.6.7.1 §1): the field reported where its selection is with the last
+    /// key, and it isn't a terminal's (one never tells where its text is).
+    var suggestionsReplace: Bool { suggesting.ranges && !terminal }
+
+    /// Where the token is in the field (UTF-16), by the selection it reported with the last key, before the key had it:
+    /// Tab's, Return's (the token as it is: its characters right before the caret, up to the selection's end), or for a
+    /// click, the key before's, where the token started then (`SuggestionsField.tokenStart`). A word Code holds as marked
+    /// text is among them, as the field counts it (its caret at the end of it). Nil: it reports none, where the token is
+    /// isn't known (a key put in more than the token gained), or Tab's or Return's selection isn't right after where the
+    /// token started by the keys before (the caret moved by something the input method doesn't see).
+    func suggestionsTokenRange() -> Range<Int>? {
+        guard suggestionsReplace, let selected = suggesting.selected else { return nil }
+        let length = suggesting.token.utf16.count
+        guard suggesting.token == suggesting.selectedToken else { return suggesting.tokenStart.map { $0..<($0 + length) } }
+        let start = selected.lowerBound - length
+        guard start >= 0, suggesting.tokenStart.map({ $0 == start }) ?? true else { return nil }
+        return start..<selected.upperBound
+    }
+
     /// `row` put in: what wasn't typed of it (spec 1.4), with Code's word held in place of the marked text (decision 33);
     /// where the field reports ranges, a snippet's first tab stop without its text and the caret there (or at its `$0`),
     /// else every stop's text and the caret at the end; picked before, it comes first next time. The token ends with it.
+    /// A row that takes the token's place (0.6.7.1 §1: what it puts in doesn't start with the token) does so where the
+    /// field tells where the token is (`suggestionsTokenRange`): the token taken out, prefix and all, and its text put in,
+    /// one change (`SessionOutput.replace`), Code's word held taken out first; only where the field still holds the
+    /// token there as the shell reads it back (`ReplacementCheck`: else what a plain insertion would put in, at the
+    /// caret); elsewhere its next template that starts with the token goes in as any row's.
     func suggestionsInsert(_ row: SuggestionRow, key: KeyEvent?) {
-        let rest = row.rest(ranges: suggesting.ranges)
+        if row.replaces, suggesting.ranges, let range = suggestionsTokenRange() {
+            let word = composer.codeWord ?? ""
+            if !word.isEmpty { perform(composer.endCodeWord(inserting: "")) }
+            let end = max(range.lowerBound, range.upperBound - word.utf16.count)
+            let token = suggesting.token
+            let expected = !word.isEmpty && token.hasSuffix(word) ? String(token.dropLast(word.count)) : token
+            emit(.checkNextReplace(ReplacementCheck(expected: expected, otherwise: word + row.rest(ranges: false))))
+            emit(.replace(row.insertion, range: range.lowerBound..<end))
+            lastTyped.forget()
+            followEnglishInserted(row.insertion)
+            if let pick = row.pick { services.suggestions.recordPick(pick) }
+            log.notice("suggestions: a row put in the token's place (\(row.insertion.count) characters)")
+            suggesting.showedRows = true
+            suggestionsBoundary()
+            suggestionsUpdate()
+            if let key { autocompleteAfterKey(key, handled: true, inserted: row.insertion) }
+            return
+        }
+        let rest = row.rest(ranges: suggesting.ranges && !row.replaces)
         let text = (composer.codeWord ?? "") + rest
         if composer.codeWord != nil {
             perform(composer.endCodeWord(inserting: text))
@@ -630,8 +791,10 @@ extension InputSession {
         let scores = Frecency.scores(s.loadPicks())
         var rows: [SuggestionRow] = []
         let token = suggesting.token
-        // What a row inserts here (decision 28): the app's own choice, else the one everywhere, else the source's.
+        // What a row inserts here (decision 28): the app's own choice, else the one everywhere, else the source's; one
+        // that doesn't start with the token takes its place where the field tells where it is (0.6.7.1 §1).
         let insert = settings.insert(for: app)
+        let replacing = suggestionsReplace
         for active in activeSources(settings) {
             guard let after = PluginRows.afterPrefix(token, active.source),
                   PluginRows.templates(active.source, appClass, insert: insert) != nil
@@ -644,7 +807,7 @@ extension InputSession {
             let picked = Set(scores.keys.filter { $0.plugin == active.key.plugin && $0.source == active.key.source }.map(\.match))
             rows += PluginRows.rows(token, key: active.key, source: active.source,
                                     lists: (list.map { [$0.items] } ?? []) + answers.map(\.items), madeAt: list?.madeAt, appClass: appClass,
-                                    insert: insert, picked: picked, limit: Self.maxSuggestionRows, in: t)
+                                    insert: insert, replacing: replacing, picked: picked, limit: Self.maxSuggestionRows, in: t)
             // Never without a prefix (the declaration refuses it): any number typed would go out.
             if active.source.query, active.source.prefix != nil, after.count >= active.source.queryMinChars {
                 suggestionsQuery(active, text: after, answers: answers, askAgain: askAgain, now: now)
@@ -692,11 +855,13 @@ extension InputSession {
     // MARK: - Lists and queries
 
     /// The results that came back taken in (now), Settings told of each source whose status changed; the lists due
-    /// loaded (`prune`, as a field takes the focus or the settings change, the plugins just scanned again: the sources
-    /// disabled forgotten first, their cache deleted, and the shell told of those whose approval no longer holds, to mark
-    /// it lapsed: kept, with its cache); the next refresh's timer.
+    /// loaded (`prune`, as a field takes the focus or the settings change, the plugins just scanned again and the script
+    /// extensions read again: the sources disabled forgotten first, their cache deleted, and the shell told of those
+    /// whose approval no longer holds, to mark it lapsed: kept, with its cache, and of the script extensions' that follow
+    /// their changes, made what they are now); the next refresh's timer.
     func suggestionsMaintain(prune: Bool = false) {
         let s = services.suggestions
+        if prune { suggesting.extensionPins = [:] }
         let settings = s.settings()
         let plugins = services.plugins(false)
         let active = activeSources(settings, plugins: plugins)
@@ -711,9 +876,21 @@ extension InputSession {
         }
         if prune {
             s.store.prune(keeping: settings.sourceKeys, folder: s.cacheFolder)
-            let lapsed = CompletionSourceApproval.lapsed(settings.enabled, plugins: plugins, sha256: s.store.sha256)
+            var lapsed = CompletionSourceApproval.lapsed(settings.enabled, plugins: plugins, sha256: s.store.sha256)
+            if settings.enabled.contains(where: { $0.plugin == CompletionSourceKey.scriptExtensions }) {
+                let config = services.loadSettings()
+                let commands = services.loadExtensions(config, false).commands
+                let (follows, digest) = ({ self.extensionPin($0, config: config).follows }, { self.extensionPin($0, config: config).digest })
+                lapsed += CompletionSourceApproval.lapsed(settings.enabled, extensions: commands, follows: follows, digest: digest)
+                // Of those that follow, only the query and terms: nothing of them is read.
+                let followed = CompletionSourceApproval.followed(settings.enabled, extensions: commands, follows: follows)
+                if !followed.isEmpty {
+                    log.notice("suggestions: \(followed.count) script extension source(s) changed, kept on (their own, or a trusted source's)")
+                    s.approvalsFollowed(followed)
+                }
+            }
             if !lapsed.isEmpty {
-                log.notice("suggestions: \(lapsed.count) source(s) no longer approved (their plugin changed): off until enabled again")
+                log.notice("suggestions: \(lapsed.count) source(s) no longer approved (their plugin or extension changed): off until enabled again")
                 s.approvalsLapsed(lapsed)
             }
         }
@@ -752,7 +929,7 @@ extension InputSession {
                 case let .failure(failure): result = .failure(.init(message: active.describe(failure)))
                 }
             } catch {
-                result = .failure(.init(message: InputSession.describeFailure(error)))
+                result = .failure(.init(message: active.describe(failed: error)))
             }
             store.deposit(key, .load(id: id, result), from: session, starter: deliver)
         }
@@ -801,11 +978,30 @@ extension InputSession {
 
     /// What fetches `active`'s list (`query` nil) or its answer for `query` (what follows the prefix), off the session's
     /// thread: its plugin's script called (`CompletionCall`: its `ctx`, its preferences filled in then,
-    /// `completionPreferences`; the hosts and the script approved), or its custom command's program run
-    /// (`CommandCompletionRuntime`).
+    /// `completionPreferences`; the hosts and the script approved), a script extension's program run
+    /// (`ExtensionCompletionCall`: its environment made then, its bundle's preferences with passwords from the secret
+    /// store, a required one not set failing it; the extension approved, unless it follows its changes), or its custom
+    /// command's program run (`CommandCompletionRuntime`).
     func suggestionsFetch(_ active: ActiveSource, query: String?) -> @Sendable () async throws -> Data {
         let s = services.suggestions
         switch active.origin {
+        case let .script(command, bundle, sha, follows):
+            let (runtime, preferences, config) = (s.extensionRuntime, services.extensionPreferences, services.loadSettings())
+            // Its pin read again as it runs as it was read for the field: the same folder, the same hashes kept.
+            let (store, root) = (s.store, s.extensionSourcesFolder)
+            // As the session has them now: the work runs on another thread, a test's platform not seen there.
+            let (processes, language) = (Platform.current.processes, UIText.chinese ? "zh" : "en")
+            let timeout = query == nil ? active.timeout : active.queryTimeout
+            return {
+                let values = bundle.map { preferences($0, config) } ?? [:]
+                if let missing = bundle?.missing(values).first { throw ExtensionCompletionError.missingPreference(missing.title) }
+                let environment = command.completionEnvironment(query == nil ? .load : .query, base: processes.environment,
+                                                                language: language, preferences: values)
+                let call = ExtensionCompletionCall(command: command, environment: environment, timeout: timeout, scriptSHA256: sha,
+                                                   followsChanges: follows, sourcesFolder: root, sha256: { store.sha256(of: $0) })
+                if let query { return try await runtime.query(query, call) }
+                return try await runtime.load(call)
+            }
         case let .plugin(plugin, hosts, sha):
             let call = CompletionCall(plugin: plugin, source: active.source,
                                       context: CompletionContext(source: active.source.name, preferences: [:], language: UIText.pluginLanguage),
@@ -831,13 +1027,6 @@ extension InputSession {
     func completionPreferences(_ plugin: InstalledPlugin) -> @Sendable () -> [String: String] {
         let read = services.suggestions.preferences
         return { PluginPreference.values(for: plugin, set: read(plugin)) }
-    }
-
-    /// Why a script's call failed, as Settings says it.
-    static func describeFailure(_ error: Error) -> String {
-        if let error = error as? LocalizedError, let description = error.errorDescription, !description.isEmpty { return description }
-        let text = String(describing: error)
-        return text.isEmpty ? tr("插件出错了", "The plugin failed") : text
     }
 
     // MARK: - The long press of Shift (decision 22)

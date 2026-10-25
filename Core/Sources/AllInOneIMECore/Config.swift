@@ -243,8 +243,9 @@ public struct Config: Codable, Equatable, Sendable {
     /// source is enabled). This Mac's own, never synced.
     public var suggestions: Bool?
     /// The completion sources enabled in Settings → Plugins, each with what was enabled (the plugin's hosts, whether it
-    /// queries, its script's SHA-256): an update that changes one needs enabling again (`CompletionSourceApproval`). Off
-    /// until enabled. This Mac's own (its plugins), never synced.
+    /// queries, its script's SHA-256): an update that changes one needs enabling again (`CompletionSourceApproval`); and
+    /// the script extensions' turned on in Settings → Commands (their bundle's digest and terms; what a change does depends
+    /// on where the extension comes from, `ExtensionOrigin`). Off until enabled. This Mac's own (its plugins), never synced.
     public var completionSources: [CompletionSourceApproval] = []
     /// Plugins' preferences that aren't passwords (those are in the keychain): plugin name → name → value. Never synced.
     public var pluginPreferences: [String: [String: String]] = [:]

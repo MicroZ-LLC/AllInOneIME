@@ -107,7 +107,8 @@ struct SettingsV2PerAppAcceptanceTests {
         return false
     }
 
-    static let theTwo: [JSON] = [.string("title"), .string("titleAndLink")]
+    // 0.6.7.1: Markdown link added after the two (the owner; spec-extension-completions §1).
+    static let theTwo: [JSON] = [.string("title"), .string("titleAndLink"), .string("markdownLink")]
 
     /// A 0.6.6 config file with every per-app setting there was, the old Insert choices among them.
     static let oldFile = """
@@ -131,9 +132,9 @@ struct SettingsV2PerAppAcceptanceTests {
 
     /// "Insert offers only **With title** and **With title and link**; "ID only" is no longer offered."
     @Test func onlyWithTitleAndWithTitleAndLinkAreOffered() {
-        #expect(SuggestionsInsert.offered == [.title, .titleAndLink])
+        #expect(SuggestionsInsert.offered == [.title, .titleAndLink, .markdownLink])
         UIText.$scopedLanguage.withValue("en") {
-            #expect(SuggestionsInsert.offered.map(\.label) == ["With title", "With title and link"])
+            #expect(SuggestionsInsert.offered.map(\.label) == ["With title", "With title and link", "Markdown link"])
         }
     }
 

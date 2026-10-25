@@ -67,8 +67,9 @@ public struct CompletionSource: Equatable, Hashable, Sendable {
 /// What a source's row inserts (`insert`), per app class: `default` (ordinary apps), `chat` and `terminal` (a class not
 /// declared uses `default`'s). Templates name an item's variables in braces: `{match}`, `{arg}`, and the item's own
 /// `variables` (`{url}`). The terminal and code editor class only says whether there are rows there: `null`, none;
-/// anything else, `{match}` is what goes in (spec 6.10). A row whose insertion doesn't start with what was typed (in any
-/// case) isn't offered for that token (spec 6.13).
+/// anything else, `{match}` is what goes in (spec 6.10). A template that doesn't start with what was typed (in any case)
+/// takes the token's place where the field reports ranges, and is skipped for the next elsewhere (0.6.7.1 §1, which
+/// replaced spec 6.13).
 public struct CompletionInsert: Equatable, Hashable, Sendable {
     public enum Templates: Equatable, Hashable, Sendable {
         /// A template, or several tried in turn: the first whose variables the item all has.
@@ -268,6 +269,8 @@ public struct CompletionSourceApproval: Codable, Equatable, Hashable, Sendable {
     public var source: String
     public var hosts: [String]
     public var query: Bool
+    /// A plugin's script file's SHA-256; a script extension's, its extension's digest (`ExtensionDigest`: every file of
+    /// its bundle, a single script's file).
     public var scriptSHA256: String
     /// Nil: not kept (an approval made before they were), which holds no more, whatever they are now: the source is off
     /// until turned on again, as when it lapsed (a plugin updated since may have dropped its prefix, and what is typed
@@ -492,6 +495,9 @@ public struct SuggestionsServices {
     /// Runs custom commands' programs for their lists and queries: as `run` commands run (`CommandCompletionRunner`)
     /// unless the shell gives another.
     public var commandRuntime: any CommandCompletionRuntime
+    /// Runs script extensions' completion programs (0.6.7.1 §2): as their commands run (`ExtensionCompletionRunner`)
+    /// unless the shell gives another.
+    public var extensionRuntime: any ExtensionCompletionRuntime
     /// The switches (read again as the settings change).
     public var settings: () -> SuggestionsSettings
     /// The time now.
@@ -521,6 +527,14 @@ public struct SuggestionsServices {
     /// the source stays off until enabled again, the plugin as it was again too. Their cached lists are kept: those go
     /// with the approval (the source disabled, the plugin removed).
     public var approvalsLapsed: ([CompletionSourceApproval]) -> Void
+    /// These script extensions' approvals follow their extension, changed since (`CompletionSourceApproval.followed`: the
+    /// user's own, or from an extension source whose updates are trusted, 0.6.7.1 §2): the shell keeps each in place of
+    /// its source's (`Config.follow`), said nowhere, so that only a change after its source stops being trusted turns it
+    /// off. The source stays on meanwhile.
+    public var approvalsFollowed: ([CompletionSourceApproval]) -> Void
+    /// The extension sources' clones' folder (`ExtensionSources.directory`, the shell's own): a script extension in a
+    /// source's bundle folder there is that source's (`Config.extensionOrigin`).
+    public var extensionSourcesFolder: URL
     /// Where the pointer is (screen points) and whether Sticky Keys is on, for the long press of Shift
     /// (`TranslateMode.ShiftHold`: the pointer moved while Shift is held is a Shift-click being aimed; with Sticky Keys
     /// Shift is latched, never held). The defaults: nowhere, off.
@@ -541,6 +555,7 @@ public struct SuggestionsServices {
         store = SuggestionsStore()
         runtime = NoCompletionRuntime()
         commandRuntime = CommandCompletionRunner()
+        extensionRuntime = ExtensionCompletionRunner()
         settings = { SuggestionsSettings() }
         now = { Date() }
         cacheFolder = nil
@@ -552,6 +567,8 @@ public struct SuggestionsServices {
         recordPick = { _ in }
         reportStatus = { _ in }
         approvalsLapsed = { _ in }
+        approvalsFollowed = { _ in }
+        extensionSourcesFolder = ExtensionSources.directory
         pointer = TranslateMode.ShiftHold.noPointer
         stickyKeys = { false }
         shiftHeld = { true }

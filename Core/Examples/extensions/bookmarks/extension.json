@@ -4,7 +4,7 @@
   "title": "Bookmarks",
   "version": "1.0.0",
   "author": "AllInOneIME examples",
-  "description": "Your bookmarks, as you type: open one, copy its address, or see its details.",
+  "description": "Your bookmarks, as you type: open one, copy its address, or see its details; or type bm. and a title for a Markdown link.",
   "preferences": [
     { "name": "file", "type": "textfield", "title": "Bookmarks file",
       "description": "One a line: a title, a tab, an address. Empty: the bundle's own bookmarks.txt" },
@@ -14,6 +14,8 @@
   "commands": [
     { "script": "bookmarks.sh", "name": "bm", "title": "Bookmarks", "icon": "bookmark.fill", "output": "list",
       "keywords": "links, favorites", "queryDelay": 100,
-      "argument1": { "type": "text", "placeholder": "title", "optional": true } }
+      "argument1": { "type": "text", "placeholder": "title", "optional": true },
+      "completion": { "prefix": "bm.", "list": true, "refresh": "1h",
+                      "insert": { "default": "[{title}]({url})", "terminal": null } } }
   ]
 }

@@ -70,10 +70,65 @@ public enum CommandRunner {
         }
     }
 
-    private static func run(_ launch: Launch, environment: [String: String]?,
-                            extraPath: String? = nil) -> AsyncThrowingStream<ConversionUpdate, Error> {
+    /// Runs a script extension's completion program (`ExtensionCompletionRunner`, 0.6.7.1 §2): its launch and
+    /// `arguments` (none for its list, a query's text), in its folder (or its `currentDirectoryPath`) with `environment`
+    /// (`ScriptCommand.completionEnvironment`), /usr/local/bin on the PATH, as its commands run; nothing on standard
+    /// input. What it printed (cleaned), once it exited, `maxOutput` bytes at most (more stops it: a list's 4 MB, not a
+    /// command's 64 KB) within `timeout`; when it fails, its last line says why. Cancelling the task stops it (SIGTERM,
+    /// then SIGKILL after `stopGrace`), and returns once it has exited: what runs after it (its bundle's next program,
+    /// which may share its cookie file or cache) never runs alongside it.
+    static func completionOutput(_ command: ScriptCommand, arguments: [String], environment: [String: String],
+                                 timeout: Double, maxOutput: Int) async throws -> String {
+        let launch = Launch(argv: command.launch + arguments, stdin: nil, timeout: timeout, directory: command.directory,
+                            failureOnStandardOutput: true, maxOutput: maxOutput)
+        let exit = ProgramExit()
+        #if os(Windows)
+        let stream = run(launch, environment: environment, exit: exit)
+        #else
+        let stream = run(launch, environment: environment, extraPath: "/usr/local/bin", exit: exit)
+        #endif
+        do {
+            for try await update in stream where update.isFinal { return update.rawText }
+        } catch {
+            await exit.wait()
+            throw error
+        }
+        await exit.wait()
+        try Task.checkCancellation()
+        return ""
+    }
+
+    /// Whether a program started for a call is over: its process exited, or it never started (cancelled first, not
+    /// found, not launched). What a cancelled call waits for (`completionOutput`).
+    final class ProgramExit: @unchecked Sendable {
+        private let state = Locked(initialState: (over: false, waiting: [CheckedContinuation<Void, Never>]()))
+
+        /// It is over: what waits for it goes on.
+        func signal() {
+            let waiting = state.withLock { state in
+                state.over = true
+                defer { state.waiting = [] }
+                return state.waiting
+            }
+            for continuation in waiting { continuation.resume() }
+        }
+
+        /// Returns once it is over (at once if it is), the task cancelled or not.
+        func wait() async {
+            await withCheckedContinuation { continuation in
+                let over = state.withLock { state in
+                    if !state.over { state.waiting.append(continuation) }
+                    return state.over
+                }
+                if over { continuation.resume() }
+            }
+        }
+    }
+
+    private static func run(_ launch: Launch, environment: [String: String]?, extraPath: String? = nil,
+                            exit: ProgramExit? = nil) -> AsyncThrowingStream<ConversionUpdate, Error> {
         AsyncThrowingStream { continuation in
-            let run = Run(launch: launch, continuation: continuation)
+            let run = Run(launch: launch, continuation: continuation, exit: exit)
             continuation.onTermination = { _ in run.cancel() }
             let processes = Platform.current.processes  // here: a task's `Platform.override` isn't on the queue
             DispatchQueue.global().async {
@@ -224,6 +279,8 @@ public enum CommandRunner {
     private final class Run: @unchecked Sendable {
         private let launch: Launch
         private let continuation: AsyncThrowingStream<ConversionUpdate, Error>.Continuation
+        /// Told once its process exited, or once it's known it never starts.
+        private let exit: ProgramExit?
         private let processes = Platform.current.processes
         /// Set once it started (under `lock`).
         private var process: (any LaunchedProcess)?
@@ -242,18 +299,23 @@ public enum CommandRunner {
         /// Both output pipes closed.
         private let pipes = DispatchGroup()
 
-        init(launch: Launch, continuation: AsyncThrowingStream<ConversionUpdate, Error>.Continuation) {
+        init(launch: Launch, continuation: AsyncThrowingStream<ConversionUpdate, Error>.Continuation, exit: ProgramExit? = nil) {
             self.launch = launch
             self.continuation = continuation
+            self.exit = exit
         }
 
         func start(environment: [String: String]) {
             lock.lock()
             let skip = cancelled
             lock.unlock()
-            guard !skip else { return }
+            guard !skip else {
+                exit?.signal()
+                return
+            }
             let argv = launch.argv
             guard let program = argv.first, let url = CommandRunner.resolve(program, path: CommandRunner.searchPath(environment)) else {
+                exit?.signal()
                 continuation.finish(throwing: RunError.notFound(argv.first ?? ""))
                 return
             }
@@ -266,6 +328,7 @@ public enum CommandRunner {
             let spec = LaunchSpec(executable: url, arguments: Array(argv.dropFirst()), environment: environment,
                                   directory: launch.directory ?? CorePaths.home, standardInput: .pipe(stdin),
                                   standardOutput: .pipe(stdout), standardError: .pipe(stderr)) { [self] process in
+                exit?.signal()
                 // A program it started in the background may keep the pipes open: don't wait for that.
                 DispatchQueue.global().async { [self] in
                     _ = pipes.wait(timeout: .now() + 1)
@@ -289,6 +352,7 @@ public enum CommandRunner {
             } catch {
                 stdout.fileHandleForReading.readabilityHandler = nil
                 stderr.fileHandleForReading.readabilityHandler = nil
+                exit?.signal()
                 continuation.finish(throwing: CommandRunner.launchFailure(error, program: program))
                 return
             }
