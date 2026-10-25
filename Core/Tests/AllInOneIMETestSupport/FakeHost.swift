@@ -232,6 +232,8 @@ public final class FakeHost: @unchecked Sendable {
                 afterKey.append { [weak self] in self?.insert(text, replacing: nil) }
             case let .checkNextReplace(next):
                 check = next
+            case .rowByKey:
+                break
             case let .replace(text, range):
                 if let next = check, let range {
                     replacementsChecked += 1

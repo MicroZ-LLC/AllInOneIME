@@ -13,13 +13,16 @@ let usage = """
       --disable         disable, and remove it from your input sources
       --status          show registration, process and configuration status
       --settings        run as the input method and open the settings window
-      --selftest [DIR] [--rime-data DATA] [--typing-lag-only | --autocomplete-only | --settings-only]
+      --selftest [DIR] [--rime-data DATA] [--typing-lag-only | --autocomplete-only | --settings-only |
+                 --suggestions-only]
                         drive the input controller (real Rime engine on DATA, else the installed
                         Chinese pack; live Bedrock call) with a fake text field; writes panel snapshots
                         to DIR (default /tmp/allinoneime-selftest); --typing-lag-only runs just the
                         offline window lifecycle, menu cache and rapid pinyin checks; --autocomplete-only
                         just autocomplete's (a harness window, stand-in models, no AI requests);
-                        --settings-only just the settings window's (stand-ins, no AI requests)
+                        --settings-only just the settings window's (stand-ins, no AI requests);
+                        --suggestions-only just suggestions' (a stand-in for api.github.com, the
+                        Electron harness where ALLINONEIME_ELECTRON_HARNESS names it; no AI requests)
       --install-pack ID [--library URL] [--key BASE64] [--packs-dir DIR]
                         download and install a language pack (zh-pinyin) as Settings does; plain http
                         is allowed to this Mac only, for a test server
@@ -477,7 +480,8 @@ case "--selftest":
     let directory = URL(fileURLWithPath: arguments.count > 1 && !arguments[1].hasPrefix("--") ? arguments[1] : "/tmp/allinoneime-selftest")
     exit(MainActor.assumeIsolated {
         SelfTest.run(snapshotDirectory: directory, typingLagOnly: arguments.contains("--typing-lag-only"),
-                     autocompleteOnly: arguments.contains("--autocomplete-only"), settingsOnly: arguments.contains("--settings-only"))
+                     autocompleteOnly: arguments.contains("--autocomplete-only"), settingsOnly: arguments.contains("--settings-only"),
+                     suggestionsOnly: arguments.contains("--suggestions-only"))
     })
 case "--showcase":
     let directory = URL(fileURLWithPath: arguments.count > 1 ? arguments[1] : "/tmp/allinoneime-showcase")

@@ -687,8 +687,10 @@ extension InputSession {
     /// field tells where the token is (`suggestionsTokenRange`): the token taken out, prefix and all, and its text put in,
     /// one change (`SessionOutput.replace`), Code's word held taken out first; only where the field still holds the
     /// token there as the shell reads it back (`ReplacementCheck`: else what a plain insertion would put in, at the
-    /// caret); elsewhere its next template that starts with the token goes in as any row's.
+    /// caret); elsewhere its next template that starts with the token goes in as any row's. Put in by a key, it says so
+    /// first (`SessionOutput.rowByKey`).
     func suggestionsInsert(_ row: SuggestionRow, key: KeyEvent?) {
+        if key != nil { emit(.rowByKey) }
         if row.replaces, suggesting.ranges, let range = suggestionsTokenRange() {
             let word = composer.codeWord ?? ""
             if !word.isEmpty { perform(composer.endCodeWord(inserting: "")) }

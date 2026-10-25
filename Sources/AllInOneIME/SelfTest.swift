@@ -2585,7 +2585,8 @@ enum SelfTest {
             Mirror(reflecting: Composer.Messages.english).children.compactMap { $0.value as? String }),
         uniquingKeysWith: { first, _ in first })
 
-    static func run(snapshotDirectory: URL, typingLagOnly: Bool = false, autocompleteOnly: Bool = false, settingsOnly: Bool = false) -> Int32 {
+    static func run(snapshotDirectory: URL, typingLagOnly: Bool = false, autocompleteOnly: Bool = false, settingsOnly: Bool = false,
+                    suggestionsOnly: Bool = false) -> Int32 {
         waitForOtherSelfTests()
         _ = NSApplication.shared
         // The recent @questions in a file of the self-test's own: the user's are neither listed nor changed.
@@ -2728,6 +2729,22 @@ enum SelfTest {
             testExtensionSourceTrust(snapshotDirectory: snapshotDirectory)
             testExtensionSourceLimits(snapshotDirectory: snapshotDirectory)
             testExtensionSourceReading(snapshotDirectory: snapshotDirectory)
+            controller.deactivateServer(client)
+            check((try? Data(contentsOf: Config.userURL)) == userConfig, "the user's config was left unchanged")
+            return summary()
+        }
+        if suggestionsOnly {
+            // Suggestions' checks that ask no AI (the GitHub plugin with a stand-in for api.github.com, Code's packs,
+            // Return on a row in Slack's composer with the Electron harness where there is one), the results inserted at
+            // once.
+            (settings.typeOut, settings.typeOutMistakes) = (false, false)
+            controller.services.loadSettings = { SelfTest.settings }
+            CandidatePanel.shared.alphaValue = 0
+            CandidatePanel.shared.ignoresMouseEvents = true
+            controller.ensureEngine()
+            controller.applySettings()
+            testSuggestions(controller, client, snapshotDirectory: snapshotDirectory)
+            testRowKeysInChromium(controller, client, snapshotDirectory: snapshotDirectory)
             controller.deactivateServer(client)
             check((try? Data(contentsOf: Config.userURL)) == userConfig, "the user's config was left unchanged")
             return summary()
@@ -3209,6 +3226,7 @@ enum SelfTest {
         testAutocomplete(controller, client, snapshotDirectory: snapshotDirectory)
         testShiftHoldInElectron(controller, client)
         testSuggestions(controller, client, snapshotDirectory: snapshotDirectory)
+        testRowKeysInChromium(controller, client, snapshotDirectory: snapshotDirectory)
         testCustomSuggestions(controller, client, snapshotDirectory: snapshotDirectory)
         testRecentQuestions(controller, client, snapshotDirectory: snapshotDirectory)
         testQuestionChat(controller, client, snapshotDirectory: snapshotDirectory)

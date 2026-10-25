@@ -13,6 +13,7 @@ final class GitHubStandIn: PluginFetcher, @unchecked Sendable {
     static let issues: [(number: Int, title: String, state: String)] = [
         (1234, "Fix login on the settings page", "open"), (1201, "Panel flickers on a second screen", "closed"),
         (12, "Candidate panel position", "open"), (7, "Docs: how to write a plugin", "open"),
+        (17, "Return sends the message", "open"),
     ]
 
     static func issue(_ number: Int, _ title: String, _ state: String) -> [String: Any] {
@@ -50,6 +51,31 @@ extension SelfTest {
         CodingPackManager.shared.library = CodingPackLibrary(store: SuggestionsShared.packs)
         try? FileManager.default.removeItem(at: directory.appendingPathComponent("suggestions-cache"))
         try? FileManager.default.removeItem(at: directory.appendingPathComponent("coding-packs"))
+    }
+
+    /// The GitHub plugin (Core/Plugins/github) copied into `folder` with its issues enabled in `controller`, its script
+    /// run here with a stand-in for api.github.com (`GitHubStandIn`): what enabled them, to give the settings again with
+    /// another Insert. Nil: it didn't load (a failed check says so).
+    static func useGitHubPlugin(_ controller: AllInOneIMEInputController, in folder: URL) -> CompletionSourceApproval? {
+        try? FileManager.default.removeItem(at: folder)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let source = coreFolder.appendingPathComponent("Plugins/github", isDirectory: true)
+        guard (try? FileManager.default.copyItem(at: source, to: folder.appendingPathComponent("github"))) != nil,
+              let github = PluginStore.load(from: folder).plugins.first(where: { $0.name == "github" }),
+              let issues = github.manifest.completions.first, let approval = CompletionSourceApproval(enabling: issues, of: github) else {
+            check(false, "the GitHub plugin from \(source.path), with its issues source")
+            return nil
+        }
+        let standIn = GitHubStandIn()
+        var services = controller.services.suggestions
+        services.store = SuggestionsStore()
+        services.runtime = PluginCompletionRuntime(mode: .inProcess(fetcher: { _ in standIn }))
+        services.cacheFolder = nil
+        services.settings = { SuggestionsSettings(enabled: [approval]) }
+        services.preferences = { _ in ["repos": GitHubStandIn.repository] }
+        controller.services.suggestions = services
+        controller.services.plugins = { _ in [github] }
+        return approval
     }
 
     /// Where the repository keeps what the app's source ships with (Core/), from this file's place in it: the self-test

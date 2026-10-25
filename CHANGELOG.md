@@ -2,6 +2,12 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
+## 0.6.7.2 (unreleased)
+
+### Fixed
+
+- In Slack and other Chromium and Electron apps, ⏎ on a suggestion row that takes the place of what you typed (a Markdown link), or adds one character or nothing, no longer also reaches the app (⏎ sent the message).
+
 ## 0.6.7.1 (2026-10-24)
 
 ### Added

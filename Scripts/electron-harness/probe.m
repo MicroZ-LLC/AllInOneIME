@@ -9,8 +9,11 @@
 // handle through -[NSApplication sendEvent:] again (-[CommandDispatcher redispatchKeyEvent:], its window key), so the
 // input method gets every modifier change twice. Whether a key down can come twice too (the owner's "#17", 0.6.7): the
 // hash-digits script types "#17", and a key down through TSMProcessRawKeyEvent is recorded as well ("rawKeyDown").
+// What the page does with a key the input method answers (0.6.7.2: Return on a suggestion row sent Slack's message):
+// the type-enter script, the probe standing in for the input method (HARNESS_ANSWER, `standIn`).
 //
-// Environment: HARNESS_SCRIPT (shift-hold, shift-tap, shift-letter, option-tap, hash-digits), HARNESS_DELAY (seconds before it starts,
+// Environment: HARNESS_SCRIPT (shift-hold, shift-tap, shift-letter, option-tap, hash-digits, type-enter), HARNESS_TYPE
+// (what type-enter types), HARNESS_ANSWER (its answer to Return: `standIn`), HARNESS_DELAY (seconds before it starts,
 // the page loaded), HARNESS_FAKE_KEY (the window says it's key, as it is while someone types in it: on a locked screen, or with
 // another app in front, no app becomes active; it's what Chromium looks at before it sends an event again). Prints
 // "REC <seconds into the script> <what> …" lines on stdout for the self-test (ElectronSelfTest.swift), and what it sees
@@ -119,11 +122,61 @@ __attribute__((used, section("__DATA,__interpose"))) static struct {
 
 static IMP originalHandleEvent, originalActivate, originalDeactivate;
 
+// MARK: Standing in for the input method
+
+/// HARNESS_ANSWER's steps (the type-enter script): the probe is the input method, and the system's gets none of the
+/// keys. nil: the system's input method has them.
+static NSArray<NSString *> *answer;
+/// The field the probe answered last (whether it still has marked text, once the script is done).
+static __weak id<NSTextInputClient> answered;
+
+/// One of the answer's steps, `client` the field: "<key|after>:<insert|mark>:<location|none>:<length>:<selection>:<text,
+/// percent-encoded>": insertText:replacementRange:, or setMarkedText: with the caret `selection` into it, by the range
+/// given (none: NSNotFound). Recorded as "answer <key|after> <insert|mark> <location|none> <length> <selection> <text's
+/// length>".
+static void answerStep(id<NSTextInputClient> client, NSArray<NSString *> *parts) {
+    NSString *text = [parts[5] stringByRemovingPercentEncoding] ?: @"";
+    NSRange range = [parts[2] isEqualToString:@"none"] ? NSMakeRange(NSNotFound, 0)
+                                                       : NSMakeRange((NSUInteger)parts[2].integerValue, (NSUInteger)parts[3].integerValue);
+    record([NSString stringWithFormat:@"answer %@ %@ %@ %@ %@ %lu", parts[0], parts[1], parts[2], parts[3], parts[4],
+            (unsigned long)text.length]);
+    if ([parts[1] isEqualToString:@"mark"]) {
+        [client setMarkedText:text selectedRange:NSMakeRange((NSUInteger)parts[4].integerValue, 0) replacementRange:range];
+    } else {
+        [client insertText:text replacementRange:range];
+    }
+}
+
+/// A key down answered as the input method would: a character key's text put in during it (insertText: with no
+/// range, as an input method that types it does), ⏎ with the answer's steps, each during its key down ("key:…") or on
+/// the run loop's next turn after it ("after:…"). Every key is the input method's.
+static BOOL standIn(id<NSTextInputClient> client, NSEvent *e) {
+    answered = client;
+    if (e.keyCode != kVK_Return) {
+        [client insertText:e.characters replacementRange:NSMakeRange(NSNotFound, 0)];
+        return YES;
+    }
+    for (NSString *step in answer) {
+        NSArray<NSString *> *parts = [step componentsSeparatedByString:@":"];
+        if (parts.count != 6) {
+            say(@"an answer's step not understood: %@", step);
+            continue;
+        }
+        if ([parts[0] isEqualToString:@"after"]) {
+            dispatch_async(dispatch_get_main_queue(), ^{ answerStep(client, parts); });
+        } else {
+            answerStep(client, parts);
+        }
+    }
+    return YES;
+}
+
 static BOOL probeHandleEvent(NSTextInputContext *self, SEL _cmd, NSEvent *e) {
     say(@"-[NSTextInputContext handleEvent:] %@ < %@", describe(e), caller(3));
     // A key down reaches the input method here. With the context not active (no app is, the screen locked) it goes
     // no further: recorded as the input method would get it.
     if (e.type == NSEventTypeKeyDown) record(recorded(e, nil));
+    if (answer && e.type == NSEventTypeKeyDown) return standIn(self.client, e);
     return ((BOOL (*)(id, SEL, NSEvent *))originalHandleEvent)(self, _cmd, e);
 }
 
@@ -213,6 +266,28 @@ static NSArray *steps(NSString *name) {
                  @[@0.3, ^{ key(NSEventTypeKeyDown, 26, @"7", noModifier); }],
                  @[@0.05, ^{ key(NSEventTypeKeyUp, 26, @"7", noModifier); }], @[@1.0, ^{}]];
     }
+    // HARNESS_TYPE ("#17" without it) typed, the probe standing in for the input method (HARNESS_ANSWER), then ⏎
+    // answered with its steps; then a second for what comes after, and whether the field still has marked text.
+    if ([name isEqualToString:@"type-enter"]) {
+        NSString *typed = NSProcessInfo.processInfo.environment[@"HARNESS_TYPE"] ?: @"#17";
+        NSDictionary<NSString *, NSNumber *> *codes = @{@"#": @20, @"0": @29, @"1": @18, @"2": @19, @"3": @20, @"4": @21,
+                                                        @"5": @23, @"6": @22, @"7": @26, @"8": @28, @"9": @25};
+        NSMutableArray *script = [NSMutableArray array];
+        for (NSUInteger i = 0; i < typed.length; i++) {
+            NSString *character = [typed substringWithRange:NSMakeRange(i, 1)];
+            unsigned short code = codes[character].unsignedShortValue;
+            NSEventModifierFlags flags = [character isEqualToString:@"#"] ? leftShift : noModifier;
+            [script addObject:@[@0.1, ^{ post(keyEvent(NSEventTypeKeyDown, flags, code, character)); }]];
+            [script addObject:@[@0.05, ^{ post(keyEvent(NSEventTypeKeyUp, flags, code, character)); }]];
+        }
+        [script addObject:@[@0.3, ^{ post(keyEvent(NSEventTypeKeyDown, noModifier, kVK_Return, @"\r")); }]];
+        [script addObject:@[@0.05, ^{ post(keyEvent(NSEventTypeKeyUp, noModifier, kVK_Return, @"\r")); }]];
+        [script addObject:@[@1.0, ^{
+            id<NSTextInputClient> client = answered;
+            record([NSString stringWithFormat:@"hasMarkedText %d", client ? (int)[client hasMarkedText] : -1]);
+        }]];
+        return script;
+    }
     if ([name isEqualToString:@"option-tap"]) {
         return @[@[@0, ^{ post(keyEvent(NSEventTypeFlagsChanged, leftOption, 58, @"")); }],
                  @[@0.1, ^{ post(keyEvent(NSEventTypeFlagsChanged, noModifier, 58, @"")); }]];
@@ -257,6 +332,10 @@ __attribute__((constructor)) static void start(void) {
         record([NSString stringWithFormat:@"appActivated %@", app.bundleIdentifier]);
     }];
     NSString *name = environment[@"HARNESS_SCRIPT"];
+    if (environment[@"HARNESS_ANSWER"]) {
+        NSString *given = environment[@"HARNESS_ANSWER"];
+        answer = given.length > 0 ? [given componentsSeparatedByString:@","] : @[];
+    }
     NSArray *script = steps(name);
     if (!script) return;
     double delay = [environment[@"HARNESS_DELAY"] ?: @"3" doubleValue];

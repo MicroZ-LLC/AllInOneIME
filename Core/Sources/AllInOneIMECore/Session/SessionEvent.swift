@@ -63,6 +63,11 @@ public enum SessionOutput: Equatable, Sendable {
     /// The next `replace` only where its range still holds what the session expects there, read back just before
     /// (`ReplacementCheck`); else what a plain insertion would put in goes in at the caret instead.
     case checkNextReplace(ReplacementCheck)
+    /// What follows, up to the next `commit` or `replace`, puts in a suggestion row the key being answered took (Tab,
+    /// Return, keypad Enter); nothing follows for a row that adds nothing. The key is the input method's: a shell whose
+    /// app may act on the key as well (Chromium's, where what goes in during the key is a replacement, one character or
+    /// none) puts the row in so the app doesn't.
+    case rowByKey
     /// The marked text: `text`, the caret `cursor` UTF-16 units into it, `converted` at level two. Empty: none of ours
     /// (leave the document alone if the shell set none).
     case marked(String, cursor: Int, converted: Bool)
