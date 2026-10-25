@@ -15594,6 +15594,53 @@
         }
       }
     },
+    "Its folder, %@, is already another source's (%@): remove that source first." : {
+      "comment" : "它的文件夹 %@ 已经是另一个来源（%@）的了：先移除那个来源。 — Sources/AllInOneIME/ExtensionSourceController.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sein Ordner %@ gehört schon einer anderen Quelle (%@): Entferne zuerst diese Quelle."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Su carpeta, %@, ya es de otro origen (%@): quita primero ese origen."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Son dossier, %@, est déjà celui d’une autre source (%@) : supprimez d’abord cette source."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フォルダ %@ はすでに別のソース（%@）のものです。先にそのソースを削除してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "폴더 %@은(는) 이미 다른 소스(%@)의 것입니다. 먼저 그 소스를 제거하세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A pasta dele, %@, já é de outra fonte (%@): remova essa fonte primeiro."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "它的資料夾 %@ 已經是另一個來源（%@）的了：先移除那個來源。"
+          }
+        }
+      }
+    },
     "Its keywords and snippets no longer show; you can download it again from the library below." : {
       "comment" : "它的关键字和代码片段不再出现；以后可以从下面的语言库再下载。 — Sources/AllInOneIME/CodeInputSettings.swift",
       "localizations" : {
@@ -32416,6 +32463,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "信任它的更新"
+          }
+        }
+      }
+    },
+    "Trust its updates: %@" : {
+      "comment" : "信任它的更新：%@ — Sources/AllInOneIME/ExtensionSourceController.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seinen Updates vertrauen: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confiar en sus actualizaciones: %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Faire confiance à ses mises à jour : %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このソースの更新を信頼する：%@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 소스의 업데이트 신뢰: %@"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confiar nas atualizações: %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "信任它的更新：%@"
           }
         }
       }

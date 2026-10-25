@@ -373,7 +373,7 @@ bundle, others in a repository of their own.
 | `pin` | a tag or commit the clone stays on; `null` follows the branch. A pinned source isn't checked for updates |
 | `autoCheck` | `true` (default): checked once a day and about 30 s after the input method starts |
 | `authHint` | shown under a git error |
-| `trustUpdates` | `true`: its bundle's suggestions (§11) keep running after its updates ("Trust its updates"). Absent or `false` (the default): an update that changes the bundle turns them off until you turn them on again |
+| `trustUpdates` | `true`: its bundle's suggestions (§11) keep running after its updates ("Trust its updates"). Absent or `false` (the default): an update that changes its repository turns them off until you turn them on again |
 
 **What happens.**
 
@@ -394,7 +394,9 @@ bundle, others in a repository of their own.
   `~/Library/Application Support/AllInOneIME/Sources/<repository>-<hash>/` (the hash is of the address; in one step,
   swapped with any older clone there) and adds the bundle's folder to `extensionFolders`. Cancel deletes the staged
   clone, never one in place. A bundle folder that leads out of the repository (a link) is refused. A command whose name
-  is taken follows §7, and the review says so.
+  is taken follows §7, and the review says so. Two addresses can share the folder's short hash: an address whose clone
+  would go in the folder of a source already added is refused, before anything is cloned ("Its folder, … is already
+  another source's"): remove that source first.
 - **Only reviewed code loads.** A folder of the sources folder in the load list that isn't a reviewed source's bundle
   (a config copied from another Mac, a lost `sources.json`) isn't loaded, and is taken out of the load list when the
   input method starts and when Settings shows the page.
@@ -402,11 +404,14 @@ bundle, others in a repository of their own.
   is different: the rewritten history could be anything, so Re-clone shows the review again and only Enable puts it in
   place (the reviewed clone keeps working meanwhile).
 - **Suggestions after an update.** A command's suggestions (§11) run in the background as you type, so they are pinned
-  to what you turned on: an update that changes any file of the bundle, or the source's prefix, lookup or how it
-  compares, turns them off, said once in Settings, until you turn them on again. **Trust its updates**, a switch under
-  each source (Settings → Commands → Extension Sources; off by default, `trustUpdates`), keeps them running after its
-  updates: turn it on only for a source you trust, such as your team's repository. Turning it off turns nothing off by
-  itself; the next change does. Like the rest of the source, it stays on this Mac (never synced).
+  to what you turned on: an update that changes any file of the source's repository (not only its bundle: a script may
+  use `../shared/common.sh`), or the source's prefix, lookup or how it compares, turns them off, said once in Settings,
+  until you turn them on again. A repository of more than 2,000 files or 20 MB in all can't be checked for changes: its
+  suggestions can't be turned on, and Settings says so under the command. **Trust its updates**, a switch under each
+  source (Settings → Commands → Extension Sources; off by default, `trustUpdates`), keeps them running after its
+  updates, and nothing of the repository is read for them: turn it on only for a source you trust, such as your team's
+  repository. Turning it off turns nothing off by itself; the next change does. Like the rest of the source, it stays
+  on this Mac (never synced).
 - **Checking** (`autoCheck`, or Check Now): `git fetch` of the branch (100 commits deep), and the commits after the
   clone's listed (subject, author, date). Nothing changes.
 - **Update** (only when you click it, or `--update-sources`): fetched again, then the clone is moved to the new commit
@@ -512,10 +517,16 @@ link, Markdown link) and each app's own choice apply to it, as to every source.
 what it does: it runs this script in the background, and with `query` it also gets what you type after the prefix;
 then its last refresh, items, last error and Refresh Now). Turning it on pins the whole extension and its terms:
 
-- **The bundle:** a digest of every file in its folder (`extension.json`, every script, `lib/…`, hidden files too; a
-  link as the file it leads to), all but the Finder's and Windows' own (`.DS_Store`, `._` files, `Icon\r`,
-  `Thumbs.db`, `desktop.ini`) and git's folder (`.git`). For a single script, its file (its `completion` line is part
-  of it).
+- **The extension.** Your own extension, a bundle or a single script (its `completion` line is part of it), is never
+  read for this: a change to it keeps its suggestions on anyway (below). One from an extension source is pinned by a
+  digest of every file of the source's repository (its clone), not only its bundle, since a script may use
+  `../shared/common.sh` or a `lib` that links elsewhere in the clone: every file, hidden ones too, all but git's folder
+  (`.git`) and the Finder's `.DS_Store`. A link, anywhere, is pinned as where it points (its text), never followed: what
+  it leads to in the clone is pinned anyway, and what is outside isn't the source's.
+- **The size.** That repository can have at most 2,000 files (links count) and 20 MB in all: it is read again when a
+  text field takes the focus and before each run, never with a key, and past that it can't be cheap. Settings says "Its
+  repository is too large to check for changes (over 2,000 files or 20 MB)." under the command, and its switch can't be
+  turned on; one turned on before is turned off when the repository grows past it, as by a change.
 - **The terms** a plugin's source is pinned by: `query`, `prefix`, `queryMinChars` and `compare`.
 
 What a later change does depends on where the extension comes from:
@@ -524,10 +535,11 @@ What a later change does depends on where the extension comes from:
 |---|---|
 | Your own: a folder of yours (your extensions folder, one you added), not installed from an extension source | keeps it on; the pin just follows it |
 | From an extension source marked **Trust its updates** (§10) | keeps it on; the pin follows the update, said nowhere |
-| From any other extension source | turns it off again, and Settings says so once; until you turn it on again nothing of it runs, and a bundle that changed since is never run for it (each run reads it again first) |
+| From any other extension source | turns it off again, and Settings says so once; until you turn it on again nothing of it runs, and a repository that changed since is never run for it (each run reads it again first) |
 
-Turning **Trust its updates** off turns nothing off by itself: what the bundle is then stays approved, and the next
-change turns it off. Turning it on doesn't turn back on a source already turned off. A script that writes into its own
-folder (a cache, a cookie file) changes its bundle, which from a source not trusted turns it off: keep such files
-elsewhere (`~/Library/Caches/…`). Turning the command or its bundle off turns its suggestions off too.
+Turning **Trust its updates** off turns nothing off by itself: what the repository is then is read and stays approved,
+and the next change turns it off. Turning it on doesn't turn back on a source already turned off. A script that writes
+into its own folder or anywhere in its clone (a cache, a cookie file) changes its repository, which from a source not
+trusted turns it off: keep such files elsewhere (`~/Library/Caches/…`). Turning the command or its bundle off turns its
+suggestions off too.
 

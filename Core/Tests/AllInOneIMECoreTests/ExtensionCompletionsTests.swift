@@ -353,9 +353,9 @@ struct ExtensionCompletionsTests {
     }
 
     /// Through a field: a script of the user's own (a folder of theirs, not an extension source's) changed since its
-    /// source was turned on keeps it on: its rows, its program run as it is now, nothing lapsed, and its approval made
-    /// what it is now as the field takes the focus (said nowhere). One from an extension source whose updates aren't
-    /// trusted runs nothing then: ExtensionCompletionsTrustTests.
+    /// source was turned on keeps it on: its rows, its program run as it is now, nothing lapsed, and nothing of it read
+    /// for its approval (turned on with none, it has nothing to follow: only a change of its terms would be). One from an
+    /// extension source whose updates aren't trusted runs nothing then: ExtensionCompletionsTrustTests.
     @Test func aChangedScriptOfYourOwnKeepsRunning() async throws {
         try await inEnglish {
             let extensions = try Extensions()
@@ -373,9 +373,8 @@ struct ExtensionCompletionsTests {
             #expect(field.settle(timeout: 15) { field.rows.map(\.text) == ["TCK-12", "TCK-17"] }, "\(field.rows.map(\.text))")
             #expect(extensions.read("calls.log") == "load|0|\n", "run as it is now")
             #expect(lapsed.withLock { $0 }.isEmpty)
-            let changed = try #require(extensions.command("tickets"))
-            #expect(followed.withLock { $0 }.map(\.scriptSHA256) == [PluginStore.sha256(of: changed.file)],
-                    "its approval follows it: \(followed.withLock { $0 })")
+            #expect(world.config.completionSources.map(\.scriptSHA256) == [""] && followed.withLock { $0 }.isEmpty,
+                    "nothing of it read: \(followed.withLock { $0 })")
         }
     }
 
@@ -466,7 +465,9 @@ struct ExtensionCompletionsTests {
             let load = try #require(calls.first { $0.text == nil }), query = try #require(calls.first { $0.text != nil })
             #expect(load.call.timeout == 20 && query.call.timeout == 3 && query.text == "5")
             #expect(load.call.environment["ALLINONEIME_COMPLETION"] == "load" && query.call.environment["ALLINONEIME_COMPLETION"] == "query")
-            #expect(load.call.scriptSHA256 == PluginStore.sha256(of: command.file))
+            // The user's own: it runs as it is, nothing of it read for its approval.
+            #expect(load.call.followsChanges && load.call.scriptSHA256 == "" && world.config.completionSources.first?.scriptSHA256 == "",
+                    "\(String(describing: load.call.scriptSHA256))")
         }
     }
 

@@ -276,6 +276,10 @@ enum ExtensionSourceText {
 
     /// A source's switch (Settings → Commands → Extension Sources), and the line under it.
     static var trustUpdates: String { tr("信任它的更新", "Trust its updates") }
+    /// The switch as VoiceOver names it: with its source's repository, which tells the sources' switches apart.
+    static func trustUpdates(of source: ExtensionSource) -> String {
+        tr("信任它的更新：\(source.repositoryName)", "Trust its updates: \(source.repositoryName)")
+    }
     static var trustUpdatesHelp: String {
         tr("更新以后，它的扩展给的建议照常运行；只对你信任的来源打开，比如你团队的仓库。",
            "Its extensions' suggestions keep running after its updates; turn on only for a source you trust, such as your team's repository.")
@@ -316,6 +320,9 @@ enum ExtensionSourceText {
             return tr("地址里不要写用户名、密码或令牌：交给 git 的凭据助手保存（git help credential）。",
                       "Don't put a user name, password or token in the address: let git's credential helper keep them (git help credential).")
         case let .outsideClone(path): return tr("\(path) 指向仓库外面。", "\(path) leads out of the repository.")
+        case let .folderTaken(folder, other):
+            return tr("它的文件夹 \(folder) 已经是另一个来源（\(other)）的了：先移除那个来源。",
+                      "Its folder, \(folder), is already another source's (\(other)): remove that source first.")
         }
     }
 }

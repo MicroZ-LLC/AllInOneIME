@@ -85,7 +85,7 @@ extension InputSession {
             case plugin(InstalledPlugin, hosts: [String], scriptSHA256: String)
             /// A script extension's command (`ExtensionCompletionRuntime`), with its bundle (nil: a single script);
             /// `scriptSHA256`, its extension's digest approved (`ExtensionDigest`: only that one runs), unless it
-            /// `follows` its changes (the user's own, a trusted source's: it runs as it is).
+            /// `follows` its changes (the user's own, a trusted source's: it runs as it is, nothing of it read).
             case script(ScriptCommand, bundle: ExtensionBundle?, scriptSHA256: String, follows: Bool = false)
             /// A custom command's program (`CommandCompletionRuntime`).
             case command(CustomCommand)
@@ -152,9 +152,10 @@ extension InputSession {
 
     // MARK: - The sources
 
-    /// What a script extension turned on is, as its approval goes (0.6.7.1 §2): its digest (`ExtensionDigest`: every
-    /// file of its bundle, a single script's file; nil: none read) and whether a change keeps it on (`followsChanges`:
-    /// the user's own, or from an extension source whose updates are trusted).
+    /// What a script extension turned on is, as its approval goes (0.6.7.1 §2): whether a change keeps it on
+    /// (`followsChanges`: the user's own, or from an extension source whose updates are trusted) and, only for one whose
+    /// changes turn it off, its digest (`ExtensionDigest`: every file of its source's repository; `tooLarge` past its
+    /// limits; nil: none read, or it follows).
     struct ExtensionPin: Equatable {
         var digest: String?
         var follows: Bool
@@ -162,14 +163,14 @@ extension InputSession {
 
     /// `command`'s pin (`ExtensionPin`), as read for this field: read once as it takes the focus or the settings change
     /// (`suggestionsMaintain(prune:)` forgets them), its files hashed again only when their size or date changed
-    /// (`SuggestionsStore.sha256`). A key reads it as it was then; its program's run reads the extension again as it
-    /// starts (`ExtensionCompletionRunner`).
+    /// (`SuggestionsStore.sha256`); one that follows its changes isn't read at all. A key reads it as it was then, never
+    /// a file; its program's run reads the extension again as it starts (`ExtensionCompletionRunner`).
     func extensionPin(_ command: ScriptCommand, config: Config) -> ExtensionPin {
         let id = command.id + "\u{0}" + command.extensionDirectory.path
         if let pin = suggesting.extensionPins[id] { return pin }
-        let store = services.suggestions.store
-        let pin = ExtensionPin(digest: ExtensionDigest.of(command, sha256: store.sha256(of:)),
-                               follows: config.followsChanges(of: command, root: services.suggestions.extensionSourcesFolder))
+        let (store, root) = (services.suggestions.store, services.suggestions.extensionSourcesFolder)
+        let follows = config.followsChanges(of: command, root: root)
+        let pin = ExtensionPin(digest: follows ? nil : ExtensionDigest.of(command, root: root, sha256: store.sha256(of:)), follows: follows)
         suggesting.extensionPins[id] = pin
         return pin
     }
@@ -204,9 +205,8 @@ extension InputSession {
                 let key = CompletionSourceKey(extension: command)
                 guard let approval = settings.enabled.first(where: { $0.plugin == key.plugin && $0.source == key.source }) else { continue }
                 let pin = extensionPin(command, config: config)
-                guard let digest = pin.digest, approval.holds(forScript: source, of: command, digest: digest, follows: pin.follows)
-                else { continue }
-                active.append(ActiveSource(origin: .script(command, bundle: index.bundle(of: command), scriptSHA256: digest,
+                guard approval.holds(forScript: source, of: command, digest: pin.digest, follows: pin.follows) else { continue }
+                active.append(ActiveSource(origin: .script(command, bundle: index.bundle(of: command), scriptSHA256: approval.scriptSHA256,
                                                            follows: pin.follows),
                                            source: source, key: key))
             }
@@ -882,7 +882,8 @@ extension InputSession {
                 let commands = services.loadExtensions(config, false).commands
                 let (follows, digest) = ({ self.extensionPin($0, config: config).follows }, { self.extensionPin($0, config: config).digest })
                 lapsed += CompletionSourceApproval.lapsed(settings.enabled, extensions: commands, follows: follows, digest: digest)
-                let followed = CompletionSourceApproval.followed(settings.enabled, extensions: commands, follows: follows, digest: digest)
+                // Of those that follow, only the query and terms: nothing of them is read.
+                let followed = CompletionSourceApproval.followed(settings.enabled, extensions: commands, follows: follows)
                 if !followed.isEmpty {
                     log.notice("suggestions: \(followed.count) script extension source(s) changed, kept on (their own, or a trusted source's)")
                     s.approvalsFollowed(followed)
@@ -986,6 +987,8 @@ extension InputSession {
         switch active.origin {
         case let .script(command, bundle, sha, follows):
             let (runtime, preferences, config) = (s.extensionRuntime, services.extensionPreferences, services.loadSettings())
+            // Its pin read again as it runs as it was read for the field: the same folder, the same hashes kept.
+            let (store, root) = (s.store, s.extensionSourcesFolder)
             // As the session has them now: the work runs on another thread, a test's platform not seen there.
             let (processes, language) = (Platform.current.processes, UIText.chinese ? "zh" : "en")
             let timeout = query == nil ? active.timeout : active.queryTimeout
@@ -995,7 +998,7 @@ extension InputSession {
                 let environment = command.completionEnvironment(query == nil ? .load : .query, base: processes.environment,
                                                                 language: language, preferences: values)
                 let call = ExtensionCompletionCall(command: command, environment: environment, timeout: timeout, scriptSHA256: sha,
-                                                   followsChanges: follows)
+                                                   followsChanges: follows, sourcesFolder: root, sha256: { store.sha256(of: $0) })
                 if let query { return try await runtime.query(query, call) }
                 return try await runtime.load(call)
             }

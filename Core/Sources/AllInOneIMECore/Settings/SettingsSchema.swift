@@ -33,6 +33,10 @@ struct SettingsSchema {
     var addedApps = AddedApps()
     /// The script extensions in the folders the config names.
     var extensions = ExtensionIndex.empty
+    /// The extension sources' clones' folder (a script extension there is a source's, `Config.extensionOrigin`), and how a
+    /// file's SHA-256 is read to pin one (the service's: read again only when its size or date changed).
+    var extensionSourcesFolder = ExtensionSources.directory
+    var sha256: (URL) -> String? = PluginStore.sha256(of:)
     /// How the completion sources are doing (the shell's, where it runs them), the coding packs installed, and what the
     /// coding language library offers, once browsed.
     var suggestionStatuses: [CompletionSourceStatus] = []

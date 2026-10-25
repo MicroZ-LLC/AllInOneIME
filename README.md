@@ -418,8 +418,10 @@ extensions folder. (Don't put a name, password or token in an https address: git
   A source pinned to a tag or commit isn't checked. Turn the daily check off per source (`autoCheck`).
 - **Suggestions after an update.** A bundle's suggestions (its commands as
   [completion sources](#suggestions-and-code-new)) are pinned to what you turned on: an update that changes any file of
-  the bundle, or a source's prefix or lookup, turns them off until you turn them on again, and Settings says so.
-  **Trust its updates** (under each source, off by default) keeps them running after its updates: turn it on only for
+  the source's repository (not only the bundle: a script may use files elsewhere in it), or a source's prefix or lookup,
+  turns them off until you turn them on again, and Settings says so. A repository of more than 2,000 files or 20 MB
+  can't be checked for changes, so its suggestions can't be turned on. **Trust its updates** (under each source, off by
+  default) keeps them running after its updates, and nothing of the repository is checked for them: turn it on only for
   a source you trust, such as your team's repository. Turning it off turns nothing off until the next change
   (`trustUpdates` in the config).
 - **Errors** are git's own words, with "This uses your own git and SSH setup; check that `git ls-remote <url>` works in
@@ -912,10 +914,11 @@ They take the place of [autocomplete](#autocomplete-beta-new)'s gray text while 
   `extension.json`. Its script prints the items, run in the background with `ALLINONEIME_COMPLETION=load` (and, with
   `query`, `query` and what follows the prefix as its one argument); it's off until you turn it on in Settings →
   Commands, under the command, which says it runs the script in the background and, with `query`, gets what you type
-  after the prefix, with its last refresh, items, last error and Refresh now; turning it on pins its whole bundle
-  (every file of it) and, as for a plugin, its `query`, prefix, `queryMinChars` and `compare`. A change to an extension
-  of your own never turns it off, nor an update from an extension source you marked **Trust its updates**; from any
-  other source, a change to any file of the bundle or to those terms turns it off again, and Settings says so.
+  after the prefix, with its last refresh, items, last error and Refresh now; turning it on pins the extension and, as
+  for a plugin, its `query`, prefix, `queryMinChars` and `compare`. A change to an extension of your own never turns it
+  off, nor an update from an extension source you marked **Trust its updates**. From any other source, a change to any
+  file of the source's repository (not only the bundle) or to those terms turns it off again, and Settings says so;
+  a repository of more than 2,000 files or 20 MB can't be checked, so its suggestions can't be turned on.
   The example bundle `bookmarks` has one: `bm.sw` → `[Swift](https://www.swift.org)`
   ([docs/extensions.md §11](docs/extensions.md#11-completions)).
 - **Plugins' completions:** a plugin declares what it completes after a prefix, `#12` for `@github`'s issues, or a whole
@@ -1178,7 +1181,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 | `autocomplete` | Autocomplete: the rest of the sentence in gray after the caret, Tab puts it in; it asks your AI provider (see Autocomplete); never synced | `false` |
 | `suggestions` | Suggestions (Settings → General, the input menu): `false` turns off every suggestion row, plugins', Suggestions commands' and Code's; this Mac's own, never synced (see Suggestions and Code) | absent (on) |
 | `suggestionsInsert` | What a suggestion row inserts in every app without a choice of its own (Settings → General → Insert): `"title"`, `"titleAndLink"` or `"markdownLink"`; `"id"` still works but is no longer offered; absent: what its source says; syncs with the settings | absent |
-| `completionSources` | The plugins' completion sources turned on in Settings → Commands → Plugins, each by `plugin` and `source` with what was approved: `hosts`, `query`, `scriptSHA256` (its script's) and `terms` (its `prefix`, `queryMinChars`, `compare`); `"lapsed": true` once an update changed one of them, off until turned on again. A script extension command's source too: `"plugin": "script-extensions"` and the command's id as `source`, lapsed once its script, `query`, prefix, `queryMinChars` or `compare` changed. Written by Settings; this Mac's own, never synced | `[]` |
+| `completionSources` | The plugins' completion sources turned on in Settings → Commands → Plugins, each by `plugin` and `source` with what was approved: `hosts`, `query`, `scriptSHA256` (its script's) and `terms` (its `prefix`, `queryMinChars`, `compare`); `"lapsed": true` once an update changed one of them, off until turned on again. A script extension command's source too: `"plugin": "script-extensions"` and the command's id as `source`. One from an extension source is lapsed once a file of the source's repository (`scriptSHA256` is its digest), `query`, prefix, `queryMinChars` or `compare` changed; one of your own, or from a source marked Trust its updates, never lapses and nothing of it is read (`scriptSHA256` empty). Written by Settings; this Mac's own, never synced | `[]` |
 | `pluginPreferences` | Plugins' preferences other than passwords, by plugin and name: `{"github": {"repos": "octo-org/octo-repo"}}`; never synced through iCloud Drive (a password preference is in the keychain, and goes through iCloud Keychain only with "API keys and passwords" on) | `{}` |
 | `unconfirmedCommands` | The `suggestions` custom commands that came from another Mac through iCloud and still await Allow on this one, each by its `name` and the `argv` it came with: none of them runs here. Allow (or editing or deleting it here) takes it off the list; its program changed on another Mac puts it back. Written by sync and Settings; this Mac's own, never synced | `[]` |
 | `notes` | Where `@note` saves (Settings → Commands → Notes): `{"destination": "folder", "folder": "~/Vault/Inbox"}`, or `"notion"` with the page or database Test found; never synced through iCloud Drive (the token is in the keychain, and goes through iCloud Keychain only with "API keys and passwords" on) | `destination: "notes"` |

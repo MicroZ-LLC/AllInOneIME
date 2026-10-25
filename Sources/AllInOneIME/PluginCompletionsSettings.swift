@@ -20,11 +20,12 @@ extension SettingsModel {
         SuggestionsShared.refreshNow(plugin: plugin.name, source: source.name)
     }
 
-    /// `source` of the script extension `command` turned on (approving what it is now: its extension, every file of its
-    /// bundle, whether it queries, its prefix and how it compares) or off, and saved; the field being typed in takes it at
-    /// once.
+    /// `source` of the script extension `command` turned on (approving what it is now: whether it queries, its prefix and
+    /// how it compares, and, from an extension source whose updates aren't trusted, every file of its repository) or off,
+    /// and saved; the field being typed in takes it at once.
     func setCompletionSource(_ source: CompletionSource, of command: ScriptCommand, enabled: Bool) {
-        config.setCompletionSource(source, of: command, enabled: enabled)
+        config.setCompletionSource(source, of: command, enabled: enabled, root: ExtensionSourceGate.root,
+                                   sha256: SuggestionsShared.store.sha256(of:))
         save()
         if store.persists { SuggestionsShared.settingsChanged() }
     }
@@ -296,8 +297,9 @@ private struct PluginPreferenceField: View {
 /// A script extension's completion source, under its command in Settings → Commands (0.6.7.1 §2), as a plugin's is under
 /// it: its switch (off until turned on here), what it does (it runs the script in the background; one that queries gets
 /// what you type after its prefix), Refresh Now while its list is on, how it is doing (its items, last refresh, last
-/// error); one turned on before its script, prefix, query or terms changed says it needs turning on again, one the
-/// command trigger shadows why it can't show. A declaration refused says why (the command loads all the same).
+/// error); one turned on before its repository, prefix, query or terms changed says it needs turning on again, one the
+/// command trigger shadows why it can't show, one whose source's repository is too large to check for changes that it
+/// can't be turned on (its switch disabled). A declaration refused says why (the command loads all the same).
 struct ScriptCompletionView: View {
     @ObservedObject var model: SettingsModel
     let command: ScriptCommand
@@ -319,12 +321,12 @@ struct ScriptCompletionView: View {
     }
 
     @ViewBuilder private func sourceRow(_ source: CompletionSource) -> some View {
-        let approval = model.config.approval(of: source, in: command)
         // Turned on before an update from an extension source whose updates aren't trusted changed it (a file of its
-        // bundle, its prefix, query or terms): off until turned on again. The user's own and a trusted source's follow.
-        let follows = model.config.followsChanges(of: command, root: ExtensionSourceGate.root)
-        let changed = approval.map { !$0.holds(for: source, of: command, follows: follows) } ?? false
-        let on = approval != nil && !changed
+        // repository, its prefix, query or terms): off until turned on again. The user's own and a trusted source's follow,
+        // nothing of them read; the others' files hashed again only when they changed (the suggestions' own store).
+        let state = model.config.completionState(of: source, in: command, root: ExtensionSourceGate.root,
+                                                 sha256: SuggestionsShared.store.sha256(of:))
+        let (on, changed) = (state.on, state.changed)
         let title = tr("建议", "Suggestions")
         VStack(alignment: .leading, spacing: 2) {
             HStack {
@@ -338,9 +340,13 @@ struct ScriptCompletionView: View {
                 Toggle("", isOn: Binding(get: { on }, set: { model.setCompletionSource(source, of: command, enabled: $0) }))
                     .labelsHidden().toggleStyle(.switch).controlSize(.small)
                     .accessibilityLabel(model.config.commandTrigger + command.name + " " + title)
+                    .disabled(state.tooLarge && !on)
             }
             Group {
                 Text(source.scriptSummary()).foregroundStyle(.secondary)
+                if state.tooLarge {
+                    Label(CompletionSource.repositoryTooLarge, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
+                }
                 if let reason = source.inactiveReason(model.config) {
                     Label(reason, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
                 }

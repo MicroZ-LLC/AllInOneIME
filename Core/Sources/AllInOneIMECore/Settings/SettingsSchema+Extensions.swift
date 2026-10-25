@@ -134,9 +134,10 @@ extension SettingsSchema {
 
     /// The completion source `command` declares (0.6.7.1 §2), under its switch: its own switch, off until turned on here,
     /// saying what it does (it runs the script in the background; one that queries gets what you type after its prefix),
-    /// then why it can't show (the magic key), that it changed since it was turned on (an update of an extension source
-    /// whose updates aren't trusted: off until turned on again), that Suggestions are off, or how it is doing (its items,
-    /// last refresh, last error); or why its declaration is refused. None for a command that declares none.
+    /// then that its source's repository is too large to check for changes (it can't be turned on), why it can't show
+    /// (the magic key), that it changed since it was turned on (an update of an extension source whose updates aren't
+    /// trusted: off until turned on again), that Suggestions are off, or how it is doing (its items, last refresh, last
+    /// error); or why its declaration is refused. None for a command that declares none.
     mutating func extensionCompletionFields(_ command: ScriptCommand) -> [Field] {
         var fields: [Field] = []
         switch command.completion {
@@ -149,19 +150,28 @@ extension SettingsSchema {
         case let .success(source)?:
             let store = store
             let key = CompletionSourceKey(extension: command)
-            let approval = config.approval(of: source, in: command)
-            let holds = approval?.holds(for: source, of: command, follows: config.followsChanges(of: command)) ?? false
+            let (root, sha256) = (extensionSourcesFolder, sha256)
+            let state = config.completionState(of: source, in: command, root: root, sha256: sha256)
+            let holds = state.on
             var field = toggle("extensions.completion." + command.id, tr("建议", "Suggestions"), source.scriptSummary(), holds)
-            if let reason = source.inactiveReason(config) {
+            if state.tooLarge {
+                field.status = CompletionSource.repositoryTooLarge
+            } else if let reason = source.inactiveReason(config) {
                 field.status = reason
-            } else if approval != nil, !holds {
+            } else if state.changed {
                 field.status = CompletionSource.scriptChanged
             } else if holds, config.suggestions == false {
                 field.status = tr("建议关着，这些补全不会出现：在「通用」里打开。", "Suggestions are off, so these completions don't show: turn them on in General.")
             } else if holds, let status = suggestionStatuses.first(where: { $0.plugin == key.plugin && $0.source == key.source }) {
                 field.status = status.summary()
             }
-            add(field, to: &fields) { store.config.setCompletionSource(source, of: command, enabled: Self.bool($0)) }
+            let id = field.id
+            add(field, to: &fields) { value in
+                let on = Self.bool(value)
+                // Too large to check for changes: it can't be turned on (turned off, it can).
+                if on, state.tooLarge { throw SettingsProblem(.badValue, field: id, message: CompletionSource.repositoryTooLarge) }
+                store.config.setCompletionSource(source, of: command, enabled: on, root: root, sha256: sha256)
+            }
         }
         return fields
     }

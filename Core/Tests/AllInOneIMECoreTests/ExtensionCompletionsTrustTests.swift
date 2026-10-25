@@ -4,13 +4,14 @@ import Testing
 import AllInOneIMETestSupport
 
 /// What a change to a script extension does to its completion source, by where the extension comes from (0.6.7.1 §2,
-/// owner 2026-10-24): turning the source on pins the whole extension (a digest of every file of its bundle, a single
-/// script's file) and its terms (query, prefix, queryMinChars, compare). The user's own extension (a folder of theirs)
-/// and one from an extension source marked "Trust its updates" stay on whatever changes, the approval following it (said
-/// nowhere); one from any other source is turned off by any change, said once, until it's turned on again. The switch is
-/// off by default and kept with the source in the config. The bundles are written to a temporary folder: the user's own
-/// in a folder of theirs, a source's where its clone would be (`ExtensionSources.bundleFolder`, in a sources folder of the
-/// test's own), and read as the input method reads them; their program notes its runs outside the bundle.
+/// owner 2026-10-24): turning the source on pins the whole extension and its terms (query, prefix, queryMinChars,
+/// compare). The user's own extension (a folder of theirs) and one from an extension source marked "Trust its updates"
+/// stay on whatever changes, the approval following it (said nowhere), nothing of them read; one from any other source,
+/// pinned by a digest of every file of its source's repository, is turned off by any change, said once, until it's turned
+/// on again. The switch is off by default and kept with the source in the config. The bundles are written to a temporary
+/// folder: the user's own in a folder of theirs, a source's in its clone (`ExtensionSources.bundleFolder`: its bundle in
+/// extensions/desk, in a sources folder of the test's own, a shared file elsewhere in the repository), and read as the
+/// input method reads them; their program notes its runs outside the bundle.
 @Suite(.serialized, SuggestionsOneAtATime())
 struct ExtensionCompletionsTrustTests {
     func inEnglish(_ body: () throws -> Void) async rethrows { try await withInterfaceLanguage("en", body) }
@@ -29,6 +30,8 @@ struct ExtensionCompletionsTrustTests {
     enum Change: String, CaseIterable, Sendable {
         /// A file of `lib/` the script uses.
         case lib
+        /// A file the script uses elsewhere in its repository, out of its bundle (`../../shared/common.sh`).
+        case shared
         /// The script itself.
         case script
         /// A new file anywhere in the bundle.
@@ -55,7 +58,7 @@ struct ExtensionCompletionsTrustTests {
             for folder in [own, sources, logs] { try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true) }
             config.extensionFolders = [own.path]
             if origin != .own {
-                let source = ExtensionSource(url: ExtensionCompletionsTrustTests.teamURL, trustUpdates: origin == .trusted)
+                let source = ExtensionSource(url: ExtensionCompletionsTrustTests.teamURL, path: "extensions/desk", trustUpdates: origin == .trusted)
                 ExtensionSources.enable(source, in: &config, root: sources)
             }
         }
@@ -72,6 +75,9 @@ struct ExtensionCompletionsTrustTests {
             return ExtensionSources.bundleFolder(for: source, root: sources)
         }
 
+        /// The source's clone (nil: the user's own).
+        var clone: URL? { config.extensionSources.first.map { ExtensionSources.cloneFolder(for: $0.url, root: sources) } }
+
         /// Writes `path` of the bundle (folders made as needed); a script executable.
         func write(_ path: String, _ text: String) throws {
             let file = bundle.appendingPathComponent(path)
@@ -80,11 +86,12 @@ struct ExtensionCompletionsTrustTests {
             if path.hasSuffix(".sh") { try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: file.path) }
         }
 
-        /// The bundle "desk": its command "tickets" declaring `completion`, its script sourcing lib/common.sh, its list
-        /// `ticketsList` (in `logs`).
+        /// The bundle "desk": its command "tickets" declaring `completion`, its script sourcing lib/common.sh and a file
+        /// out of its bundle (in a source's repository, shared/common.sh), its list `ticketsList` (in `logs`).
         func desk(_ completion: String = ExtensionCompletionsTrustTests.tickets()) throws {
             try write("extension.json", ExtensionCompletionsTrustTests.manifest(completion))
             try write("lib/common.sh", "greeting=hello\n")
+            try write("../../shared/common.sh", "farewell=bye\n")
             try write("tickets.sh", script(body: ""))
             try Data(ExtensionCompletionsTrustTests.ticketsList.utf8).write(to: logs.appendingPathComponent("list.json"))
         }
@@ -94,6 +101,7 @@ struct ExtensionCompletionsTrustTests {
             """
             #!/bin/sh
             . "$(dirname "$0")/lib/common.sh"
+            . "$(dirname "$0")/../../shared/common.sh"
             printf '%s|%s\\n' "$ALLINONEIME_COMPLETION" "$*" >> '\(logs.path)/calls.log'
             cat '\(logs.path)/list.json'
             \(extra)
@@ -118,6 +126,7 @@ struct ExtensionCompletionsTrustTests {
         func make(_ change: Change) throws {
             switch change {
             case .lib: try write("lib/common.sh", "greeting=bonjour\n")
+            case .shared: try write("../../shared/common.sh", "farewell=adieu\n")
             case .script: try write("tickets.sh", script(body: "# fixed upstream"))
             case .added: try write("docs/README.md", "Tickets after TCK-.\n")
             case .prefix: try write("extension.json", ExtensionCompletionsTrustTests.manifest(ExtensionCompletionsTrustTests.tickets(prefix: "TIX-")))
@@ -129,6 +138,39 @@ struct ExtensionCompletionsTrustTests {
 
         /// Whether a change keeps its source on, as the session and Settings ask.
         func follows(_ command: ScriptCommand) -> Bool { config.followsChanges(of: command, root: sources) }
+
+        /// `command`'s digest, as one pinned is read (its source's repository, in this sources folder).
+        func digest(_ command: ScriptCommand) -> String? { ExtensionDigest.of(command, root: sources) }
+
+        /// `source` of `command` turned on as Settings turns it on (this sources folder), `sha256` reading its files.
+        func enable(_ source: CompletionSource, of command: ScriptCommand, sha256: (URL) -> String? = PluginStore.sha256(of:)) {
+            config.setCompletionSource(source, of: command, enabled: true, root: sources, sha256: sha256)
+        }
+
+        /// The approvals that no longer hold for `command` as it is now, and those that follow it, as the session finds
+        /// them (`digest` reading it).
+        func lapsed(_ command: ScriptCommand, digest: ((ScriptCommand) -> String?)? = nil) -> [CompletionSourceApproval] {
+            CompletionSourceApproval.lapsed(config.completionSources, extensions: [command], follows: follows, digest: digest ?? self.digest)
+        }
+
+        func followed(_ command: ScriptCommand) -> [CompletionSourceApproval] {
+            CompletionSourceApproval.followed(config.completionSources, extensions: [command], follows: follows)
+        }
+
+        /// Whether its approval holds for `source` of `command` now, as Settings and the session ask.
+        func holds(_ source: CompletionSource, of command: ScriptCommand) -> Bool {
+            config.approval(of: source, in: command)?.holds(for: source, of: command, follows: follows(command), root: sources) == true
+        }
+    }
+
+    /// A file's SHA-256 that counts the files it read.
+    final class Reads: @unchecked Sendable {
+        private let read = Locked(initialState: 0)
+        var count: Int { read.withLock { $0 } }
+        func sha256(_ url: URL) -> String? {
+            read.withLock { $0 += 1 }
+            return PluginStore.sha256(of: url)
+        }
     }
 
     static func tickets(prefix: String = "TCK-", query: Bool = false, compare: String = "prefix", refresh: String = "1h") -> String {
@@ -143,9 +185,10 @@ struct ExtensionCompletionsTrustTests {
 
     // MARK: - What is pinned
 
-    /// The digest is of every file of the bundle: its extension.json, its script, lib/, a hidden file, one added anywhere,
-    /// one renamed or removed; the same files, the same digest. The Finder's and Windows' own files and git's folder
-    /// aren't the bundle's. A file the bundle links to is read as itself. A single script's is its file's SHA-256.
+    /// The user's own bundle's digest is of every file of the bundle: its extension.json, its script, lib/, a hidden file,
+    /// one added anywhere, one renamed or removed; the same files, the same digest. The Finder's and Windows' own files and
+    /// git's folder aren't the bundle's. A file the bundle links to is read as itself. A single script's is its file's
+    /// SHA-256. (A source's is of its whole repository: ExtensionCompletionsRepositoryTests.)
     @Test func theDigestIsOfEveryFileOfTheBundle() throws {
         let place = try Place(.own)
         try place.desk()
@@ -211,10 +254,11 @@ struct ExtensionCompletionsTrustTests {
 
     // MARK: - The three cases
 
-    /// Every change, each of the three: the user's own and a trusted source's stay on (nothing lapsed), the approval
-    /// following the bundle as it is now (its digest, query and terms), kept in its place (`Config.follow`); an untrusted
-    /// source's lapses (the approval marked so: off, said once), a change in lib/ as much as one to its script, and
-    /// nothing follows. Before the change, all three hold.
+    /// Every change, each of the three: the user's own and a trusted source's stay on (nothing lapsed), turned on with
+    /// nothing of them read (no digest), the approval following only their query and terms (`Config.follow`: a change to
+    /// a file has nothing to follow, one to the terms is kept in its place); an untrusted source's, pinned by its whole
+    /// repository, lapses (the approval marked so: off, said once), a change out of its bundle as much as one to its
+    /// script, and nothing follows. Before the change, all three hold.
     @Test(arguments: Origin.allCases)
     func whatAChangeDoes(_ origin: Origin) throws {
         for change in Change.allCases {
@@ -222,49 +266,56 @@ struct ExtensionCompletionsTrustTests {
             try place.desk()
             let before = try place.command()
             guard case let .success(source)? = before.completion else { Issue.record("no source"); return }
-            place.config.setCompletionSource(source, of: before, enabled: true)
+            let reads = Reads()
+            place.enable(source, of: before, sha256: reads.sha256)
             let approval = try #require(place.config.approval(of: source, in: before))
-            #expect(approval.holds(for: source, of: before, follows: place.follows(before)), "\(origin): on")
-            #expect(CompletionSourceApproval.lapsed(place.config.completionSources, extensions: [before], follows: place.follows).isEmpty)
-            #expect(CompletionSourceApproval.followed(place.config.completionSources, extensions: [before], follows: place.follows).isEmpty)
+            let pinned = place.digest(before)
+            #expect(place.holds(source, of: before), "\(origin): on")
+            #expect(place.lapsed(before).isEmpty && place.followed(before).isEmpty)
 
             try place.make(change)
             let after = try place.command()
             guard case let .success(now)? = after.completion else { Issue.record("\(change): no source"); continue }
-            #expect(ExtensionDigest.of(after) != approval.scriptSHA256, "\(change): the bundle changed")
-            let lapsed = CompletionSourceApproval.lapsed(place.config.completionSources, extensions: [after], follows: place.follows)
-            let followed = CompletionSourceApproval.followed(place.config.completionSources, extensions: [after], follows: place.follows)
+            // (The user's own is read as a bundle, the file out of it not its own.)
+            if origin != .own || change != .shared { #expect(place.digest(after) != pinned, "\(change): the repository changed") }
+            let lapsed = place.lapsed(after, digest: { _ in reads.sha256(place.bundle.appendingPathComponent("tickets.sh")) })
+            let followed = place.followed(after)
             switch origin {
             case .own, .trusted:
+                #expect(approval.scriptSHA256.isEmpty && reads.count == 0, "\(origin), \(change): nothing of it read (\(reads.count))")
                 #expect(lapsed.isEmpty, "\(origin), \(change): stays on")
-                #expect(approval.holds(for: now, of: after, follows: true), "\(origin), \(change)")
-                let expected = try #require(CompletionSourceApproval(enabling: now, of: after))
-                #expect(followed == [expected], "\(origin), \(change): follows it (\(followed))")
+                #expect(place.holds(now, of: after), "\(origin), \(change)")
+                let terms = [.prefix, .query, .compare].contains(change)
+                let expected = CompletionSourceApproval(plugin: approval.plugin, source: approval.source, hosts: [], query: now.query,
+                                                        scriptSHA256: "", terms: CompletionSourceApproval.Terms(now))
+                #expect(followed == (terms ? [expected] : []), "\(origin), \(change): follows its terms only (\(followed))")
                 let kept = place.config.follow(followed)
-                #expect(kept && place.config.approval(of: now, in: after) == expected, "\(origin), \(change): kept in its place")
+                #expect(kept == terms && place.config.approval(of: now, in: after) == (terms ? expected : approval),
+                        "\(origin), \(change): kept in its place")
                 let again = place.config.follow(followed)
                 #expect(!again, "\(origin), \(change): once")
             case .untrusted:
-                #expect(lapsed == [approval], "\(origin), \(change): off (\(lapsed))")
+                #expect(approval.scriptSHA256 == pinned && reads.count > 0, "\(change): its repository pinned")
+                #expect(place.lapsed(after) == [approval], "\(origin), \(change): off (\(lapsed))")
                 #expect(followed.isEmpty, "\(origin), \(change): nothing follows")
-                #expect(!approval.holds(for: now, of: after, follows: false))
-                let marked = place.config.markLapsed(lapsed)
+                #expect(!place.holds(now, of: after))
+                let marked = place.config.markLapsed(place.lapsed(after))
                 #expect(marked && place.config.approval(of: now, in: after)?.lapsed == true)
-                #expect(CompletionSourceApproval.lapsed(place.config.completionSources, extensions: [after], follows: place.follows).isEmpty,
-                        "\(change): said once")
+                #expect(place.lapsed(after).isEmpty, "\(change): said once")
                 // Turned on again: what it is now, on.
-                place.config.setCompletionSource(now, of: after, enabled: true)
-                #expect(place.config.approval(of: now, in: after)?.holds(for: now, of: after, follows: false) == true, "\(change): on again")
+                place.enable(now, of: after)
+                #expect(place.holds(now, of: after), "\(change): on again")
             }
         }
     }
 
-    /// Through a text field, the bundle changed in lib/ (not its script) since its source was turned on: the user's own
-    /// and a trusted source's show their rows, their program run as it is now, the approval reported followed and none
-    /// lapsed; an untrusted source's shows none and runs nothing, its approval reported lapsed once (as the field takes
-    /// the focus, and not again with the next one).
-    @Test(arguments: Origin.allCases)
-    func throughAField(_ origin: Origin) async throws {
+    /// Through a text field, the bundle changed in lib/, or the repository out of the bundle (not its script), since its
+    /// source was turned on: the user's own and a trusted source's show their rows, their program run as it is now,
+    /// nothing reported followed (nothing of them read: no terms changed) and none lapsed; an untrusted source's shows
+    /// none and runs nothing, its approval reported lapsed once (as the field takes the focus, and not again with the next
+    /// one).
+    @Test(arguments: Origin.allCases, [Change.lib, .shared])
+    func throughAField(_ origin: Origin, _ change: Change) async throws {
         try await inEnglish {
             let place = try Place(origin)
             try place.desk()
@@ -272,10 +323,10 @@ struct ExtensionCompletionsTrustTests {
             guard case let .success(source)? = command.completion else { Issue.record("no source"); return }
             let world = SuggestionsWorld()
             world.config.extensionSources = place.config.extensionSources
-            world.config.setCompletionSource(source, of: command, enabled: true)
+            world.config.setCompletionSource(source, of: command, enabled: true, root: place.sources)
             world.switches = world.config.suggestionsSettings()
             let approval = try #require(world.config.completionSources.first)
-            try place.make(.lib)
+            try place.make(change)
             let (lapsed, followed) = (Locked<[CompletionSourceApproval]>(initialState: []), Locked<[CompletionSourceApproval]>(initialState: []))
             func field(_ app: String) -> SuggestionsField {
                 world.field(app: app) { services in
@@ -298,9 +349,7 @@ struct ExtensionCompletionsTrustTests {
                 #expect(first.settle(timeout: 15) { first.rows.map(\.text) == ["TCK-12", "TCK-17"] }, "\(origin): \(first.rows.map(\.text))")
                 #expect(place.calls == "load|\n", "\(origin): run as it is now (\(place.calls))")
                 #expect(lapsed.withLock { $0 }.isEmpty)
-                let changed = try place.command()
-                let now = try #require(CompletionSourceApproval(enabling: changed))
-                #expect(followed.withLock { $0 }.first == now && now.scriptSHA256 != approval.scriptSHA256, "\(origin): \(followed.withLock { $0 })")
+                #expect(approval.scriptSHA256.isEmpty && followed.withLock { $0 }.isEmpty, "\(origin): \(followed.withLock { $0 })")
             case .untrusted:
                 first.idle()
                 #expect(first.rows.isEmpty && place.calls.isEmpty, "off, nothing run: \(first.rows.map(\.text)), \(place.calls)")
@@ -315,23 +364,26 @@ struct ExtensionCompletionsTrustTests {
 
     // MARK: - Running it
 
-    /// The runner runs only the extension pinned, read again as it starts: a change in lib/ since, as one to the script,
-    /// and nothing runs; one that follows its changes runs as it is now.
-    @Test func theRunnerRunsOnlyWhatWasPinnedUnlessItFollows() async throws {
+    /// The runner runs only the extension pinned, its source's repository read again as it starts: a change in lib/ since,
+    /// or out of the bundle elsewhere in the repository, as one to the script, and nothing runs; one that follows its
+    /// changes runs as it is now.
+    @Test(arguments: [Change.lib, .shared])
+    func theRunnerRunsOnlyWhatWasPinnedUnlessItFollows(_ change: Change) async throws {
         let place = try Place(.untrusted)
         try place.desk()
         let command = try place.command()
-        let pinned = try #require(ExtensionDigest.of(command))
+        let pinned = try #require(place.digest(command))
         let runner = ExtensionCompletionRunner()
+        let store = SuggestionsStore()
         func call(follows: Bool) -> ExtensionCompletionCall {
             ExtensionCompletionCall(command: command, environment: ProcessInfo.processInfo.environment, timeout: 10, scriptSHA256: pinned,
-                                    followsChanges: follows)
+                                    followsChanges: follows, sourcesFolder: place.sources, sha256: { store.sha256(of: $0) })
         }
         _ = try await runner.load(call(follows: false))
         #expect(place.calls == "|\n", "the one pinned runs (\(place.calls))")
-        try place.make(.lib)
+        try place.make(change)
         await #expect(throws: ExtensionCompletionError.scriptChanged) { try await runner.load(call(follows: false)) }
-        #expect(place.calls == "|\n", "a change in lib/: not run")
+        #expect(place.calls == "|\n", "\(change): not run")
         _ = try await runner.load(call(follows: true))
         #expect(place.calls == "|\n|\n", "one that follows runs as it is (\(place.calls))")
     }
@@ -377,37 +429,38 @@ struct ExtensionCompletionsTrustTests {
         #expect(ICloudSync.category(of: "extensionSources") == nil && ICloudSync.neverSynced.contains("extensionSources"))
     }
 
-    /// Turning the switch off turns nothing off by itself: a change made while it was on (not yet seen) is kept as what
-    /// is approved, and only the next change turns the source off. Turning it on turns nothing back on: an approval
-    /// marked lapsed stays off until turned on again.
+    /// Turning the switch off turns nothing off by itself: what the repository is then (a change made while it was on, not
+    /// yet seen; nothing of it was read while trusted) is read and kept as what is approved, and only the next change, out
+    /// of the bundle too, turns the source off. Turning it on turns nothing back on: an approval marked lapsed stays off
+    /// until turned on again.
     @Test func turningTrustOffTurnsNothingOffByItself() throws {
         let place = try Place(.trusted)
         try place.desk()
         let command = try place.command()
         guard case let .success(source)? = command.completion else { Issue.record("no source"); return }
-        place.config.setCompletionSource(source, of: command, enabled: true)
+        place.enable(source, of: command)
+        #expect(place.config.approval(of: source, in: command)?.scriptSHA256 == "", "trusted: nothing of it read")
         try place.make(.lib)  // an update while trusted, not yet seen
         let updated = try place.command()
 
         let off = place.config.setTrustUpdates(false, of: Self.teamURL, extensions: [updated], root: place.sources)
         #expect(off && place.config.extensionSources.first?.trustUpdates == false && !place.follows(updated))
+        #expect(place.config.approval(of: source, in: updated)?.scriptSHA256 == place.digest(updated), "its repository read then")
         let offAgain = place.config.setTrustUpdates(false, of: Self.teamURL, extensions: [updated], root: place.sources)
         #expect(!offAgain, "already off")
-        #expect(CompletionSourceApproval.lapsed(place.config.completionSources, extensions: [updated], follows: place.follows).isEmpty,
-                "nothing off by itself")
-        #expect(place.config.approval(of: source, in: updated)?.holds(for: source, of: updated, follows: false) == true)
+        #expect(place.lapsed(updated).isEmpty, "nothing off by itself")
+        #expect(place.holds(source, of: updated))
 
-        try place.make(.script)  // the next update
+        try place.make(.shared)  // the next update, out of the bundle
         let next = try place.command()
-        let lapsed = CompletionSourceApproval.lapsed(place.config.completionSources, extensions: [next], follows: place.follows)
+        let lapsed = place.lapsed(next)
         #expect(lapsed.count == 1, "the next change turns it off")
         place.config.markLapsed(lapsed)
 
         let on = place.config.setTrustUpdates(true, of: Self.teamURL, extensions: [next], root: place.sources)
         #expect(on)
-        #expect(place.config.approval(of: source, in: next)?.holds(for: source, of: next, follows: place.follows(next)) == false,
-                "trusted again: still off until turned on again")
-        #expect(CompletionSourceApproval.followed(place.config.completionSources, extensions: [next], follows: place.follows).isEmpty)
+        #expect(!place.holds(source, of: next), "trusted again: still off until turned on again")
+        #expect(place.followed(next).isEmpty)
         let none = place.config.setTrustUpdates(true, of: "https://git.example.com/none.git", extensions: [next], root: place.sources)
         #expect(!none, "no such source")
     }

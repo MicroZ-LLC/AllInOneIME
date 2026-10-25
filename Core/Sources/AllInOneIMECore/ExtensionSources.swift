@@ -36,9 +36,9 @@ public struct ExtensionSource: Codable, Hashable, Sendable {
     /// Shown under a git error: the user's own reminder of how this host is signed in to.
     public var authHint: String?
     /// "Trust its updates" (Settings → Commands → Extension Sources; off by default): its bundle's completion sources
-    /// stay on through its updates, whatever they change (`Config.extensionOrigin`, 0.6.7.1 §2). Off, an update that
-    /// changes a file of the bundle or a source's terms turns that source off until it is turned on again. Turning it
-    /// off turns nothing off by itself: the next change does. Written only when on.
+    /// stay on through its updates, whatever they change (`Config.extensionOrigin`, 0.6.7.1 §2), and nothing of it is
+    /// read for them. Off, an update that changes a file of its repository or a source's terms turns that source off
+    /// until it is turned on again. Turning it off turns nothing off by itself: the next change does. Written only when on.
     public var trustUpdates: Bool
 
     public init(url: String, path: String? = nil, branch: String? = nil, pin: String? = nil, autoCheck: Bool = true,
@@ -211,6 +211,9 @@ public enum ExtensionSourceError: Error, LocalizedError, Equatable, Sendable {
     case credentialsInURL
     /// The bundle folder leads out of the repository (a symbolic link).
     case outsideClone(String)
+    /// Its clone's folder (`folder`, `ExtensionSources.folderName`) is already another configured source's, `by`: a short
+    /// hash of two addresses can be the same, and one folder can't hold two clones.
+    case folderTaken(folder: String, by: String)
 
     public var errorDescription: String? {
         switch self {
@@ -229,6 +232,8 @@ public enum ExtensionSourceError: Error, LocalizedError, Equatable, Sendable {
         case .credentialsInURL:
             return "Don't put a user name, password or token in the address: git's credential helper keeps them (git help credential)"
         case let .outsideClone(path): return "\(path) leads out of the repository"
+        case let .folderTaken(folder, other):
+            return "Its folder, \(folder), is already another source's (\(other)): remove that source first"
         }
     }
 }
@@ -325,6 +330,25 @@ public enum ExtensionSources {
     /// The clone of `url` under `root`.
     public static func cloneFolder(for url: String, root: URL = directory) -> URL {
         root.appendingPathComponent(folderName(for: url), isDirectory: true)
+    }
+
+    /// The source of `config`, at another address than `url`, whose clone's folder is `url`'s (`folderName`: the
+    /// repository's name and a 4-byte hash of the address, which two addresses can share; the names compared as a volume
+    /// that doesn't tell case apart compares them). Adding `url` is refused then (`ExtensionSourceError.folderTaken`): one
+    /// clone would replace the other; and an extension there is no source's (`Config.extensionOrigin`). Nil: none.
+    public static func sharingFolder(with url: String, in config: Config) -> ExtensionSource? {
+        let url = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = folderName(for: url).lowercased()
+        return config.extensionSources.first {
+            $0.url.trimmingCharacters(in: .whitespacesAndNewlines) != url && folderName(for: $0.url).lowercased() == name
+        }
+    }
+
+    /// Throws `.folderTaken` when another source of `config` has `url`'s folder (`sharingFolder`): before anything of
+    /// `url` is cloned (Settings' Add from Link…, `--add-source`).
+    public static func checkFolder(for url: String, in config: Config) throws {
+        guard let other = sharingFolder(with: url, in: config) else { return }
+        throw ExtensionSourceError.folderTaken(folder: folderName(for: url), by: other.url)
     }
 
     /// The bundle's folder: the clone's, then `path` in it.

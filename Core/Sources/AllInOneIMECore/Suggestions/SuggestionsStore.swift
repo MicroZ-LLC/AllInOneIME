@@ -133,12 +133,13 @@ public final class SuggestionsStore: @unchecked Sendable {
     struct State {
         var sources: [CompletionSourceKey: Source] = [:]
         var serial = 0
-        var hashes: [String: (modified: Date?, size: Int, sha: String)] = [:]
         /// The sessions of the fields that have the focus, told when a result came back (`answered`).
         var listeners: [ObjectIdentifier: @Sendable (SessionEvent) -> Void] = [:]
     }
 
     let state = Locked(initialState: State())
+    /// The files' SHA-256s it read (plugins' scripts, script extensions' files), by their size and date.
+    let hashes = FileHashes()
     /// Where the cache files are written and deleted, in order.
     static let disk = DispatchQueue(label: "com.aipinyin.inputmethod.suggestions.cache")
 
@@ -181,16 +182,7 @@ public final class SuggestionsStore: @unchecked Sendable {
     // MARK: - The script's hash
 
     /// The SHA-256 (lowercase hex) of the file at `url`, read again when it changed (its size or date); nil: none.
-    public func sha256(of url: URL) -> String? {
-        let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
-        guard let size = (attributes?[.size] as? NSNumber)?.intValue else { return nil }
-        let modified = attributes?[.modificationDate] as? Date
-        if let kept = state.withLock({ $0.hashes[url.path] }), kept.size == size, kept.modified == modified { return kept.sha }
-        guard let data = try? Data(contentsOf: url) else { return nil }
-        let sha = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-        state.withLock { $0.hashes[url.path] = (modified, size, sha) }
-        return sha
-    }
+    public func sha256(of url: URL) -> String? { hashes.sha256(of: url) }
 
     // MARK: - Results
 
@@ -548,5 +540,47 @@ final class SuggestionsExecutor: TaskExecutor {
         let job = UnownedJob(job)
         let executor = asUnownedTaskExecutor()
         queue.async { job.runSynchronously(on: executor) }
+    }
+}
+
+/// Files' SHA-256s (lowercase hex), each read again only when its size or date changed: what pins a plugin's script or
+/// a script extension (`ExtensionDigest`), read as a field takes the focus and before each run, without reading every
+/// file each time.
+public final class FileHashes: @unchecked Sendable {
+    /// A file's size and date as the file system has them (to the nanosecond where it says).
+    struct Stamp: Equatable {
+        var size: Int
+        var seconds: Int
+        var nanoseconds: Int
+    }
+
+    private let kept = Locked<[String: (stamp: Stamp, sha: String)]>(initialState: [:])
+
+    public init() {}
+
+    /// The SHA-256 of the file at `url` (nil: none, or it can't be read).
+    public func sha256(of url: URL) -> String? {
+        guard let stamp = Self.stamp(url.path) else { return nil }
+        if let had = kept.withLock({ $0[url.path] }), had.stamp == stamp { return had.sha }
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        let sha = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        kept.withLock { $0[url.path] = (stamp, sha) }
+        return sha
+    }
+
+    /// `path`'s size and date now, never a value kept (a URL keeps those it read): the item itself, a link not followed.
+    /// Where there is `lstat`, by it (a few microseconds; the file manager's attributes take ten times as long, which a
+    /// repository of 2,000 files read as a field takes the focus would feel).
+    static func stamp(_ path: String) -> Stamp? {
+        #if canImport(Darwin)
+        var info = stat()
+        guard lstat(path, &info) == 0 else { return nil }
+        return Stamp(size: Int(info.st_size), seconds: Int(info.st_mtimespec.tv_sec), nanoseconds: Int(info.st_mtimespec.tv_nsec))
+        #else
+        let attributes = try? FileManager.default.attributesOfItem(atPath: path)
+        guard let size = (attributes?[.size] as? NSNumber)?.intValue else { return nil }
+        let time = (attributes?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
+        return Stamp(size: size, seconds: Int(time.rounded(.down)), nanoseconds: Int((time - time.rounded(.down)) * 1_000_000_000))
+        #endif
     }
 }

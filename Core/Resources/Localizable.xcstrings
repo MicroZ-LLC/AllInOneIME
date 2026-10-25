@@ -21064,6 +21064,7 @@
     },
     "It changed since you turned it on (a file of its bundle, its prefix, live query or how it compares), so it's off: turn it on again to use it." : {
       "comment" : "打开以后它改过（扩展包里的文件、前缀、实时查询或比较方式），已经关掉：要用的话再打开一次。 — Sources/AllInOneIMECore/Suggestions/ExtensionCompletions.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -21105,6 +21106,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "開啟以後它改過（擴充套件裡的檔案、前綴、即時查詢或比較方式），已經關掉：要用的話再開啟一次。"
+          }
+        }
+      }
+    },
+    "It changed since you turned it on (a file of its repository, its prefix, live query or how it compares), so it's off: turn it on again to use it." : {
+      "comment" : "打开以后它改过（仓库里的文件、前缀、实时查询或比较方式），已经关掉：要用的话再打开一次。 — Sources/AllInOneIMECore/Suggestions/ExtensionCompletions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Es hat sich seit dem Einschalten geändert (eine Datei seines Repositorys, sein Präfix, seine Live-Abfrage oder sein Vergleich), daher ist es aus: Schalte es wieder ein, um es zu nutzen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cambió desde que lo activaste (un archivo de su repositorio, su prefijo, la consulta en vivo o la forma de comparar), así que está desactivado: actívalo de nuevo para usarlo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il a changé depuis que vous l’avez activé (un fichier de son dépôt, son préfixe, sa recherche en direct ou sa façon de comparer), il est donc désactivé : réactivez-le pour l’utiliser."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オンにした後で変わったため（リポジトリ内のファイル、プレフィックス、ライブ検索、比較方法のいずれか）、オフになりました。使うにはもう一度オンにしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "켠 뒤에 바뀌어(저장소의 파일, 접두사, 실시간 조회 또는 비교 방식) 꺼졌습니다. 사용하려면 다시 켜세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ele mudou desde que você ativou (um arquivo do repositório, o prefixo, a consulta ao vivo ou a forma de comparar), então está desativado: ative de novo para usar."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟以後它改過（儲存庫裡的檔案、前綴、即時查詢或比較方式），已經關掉：要用的話再開啟一次。"
           }
         }
       }
@@ -21434,6 +21482,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "程式名稱，例如 notepad.exe"
+          }
+        }
+      }
+    },
+    "Its repository is too large to check for changes (over 2,000 files or 20 MB)." : {
+      "comment" : "它的仓库太大，没法检查改动（超过 2,000 个文件或 20 MB）。 — Sources/AllInOneIMECore/Suggestions/ExtensionCompletions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sein Repository ist zu groß, um es auf Änderungen zu prüfen (über 2.000 Dateien oder 20 MB)."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Su repositorio es demasiado grande para comprobar si cambia (más de 2000 archivos o 20 MB)."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Son dépôt est trop volumineux pour en vérifier les changements (plus de 2 000 fichiers ou 20 Mo)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リポジトリが大きすぎて変更を確認できません（2,000 ファイルまたは 20 MB を超えています）。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "저장소가 너무 커서 변경 사항을 확인할 수 없습니다(파일 2,000개 또는 20MB 초과)."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O repositório é grande demais para verificar mudanças (mais de 2.000 arquivos ou 20 MB)."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "它的儲存庫太大，沒法檢查改動（超過 2,000 個檔案或 20 MB）。"
           }
         }
       }

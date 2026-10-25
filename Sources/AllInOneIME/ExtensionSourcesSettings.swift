@@ -202,7 +202,7 @@ struct ExtensionSourcesSection: View {
                 Spacer()
                 Toggle("", isOn: Binding(get: { source.trustUpdates }, set: { model.setTrustUpdates($0, of: source, root: sources.root) }))
                     .labelsHidden().toggleStyle(.switch).controlSize(.small)
-                    .accessibilityLabel(ExtensionSourceText.trustUpdates)
+                    .accessibilityLabel(ExtensionSourceText.trustUpdates(of: source))
             }
             Text(ExtensionSourceText.trustUpdatesHelp).font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -308,10 +308,11 @@ struct ExtensionSourcesSection: View {
 
 extension SettingsModel {
     /// `source`'s "Trust its updates" switched `on`, and saved (`Config.setTrustUpdates`: turned off, what its extensions'
-    /// suggestions are now stays approved, so only the next change turns them off); the field being typed in takes it at
-    /// once. `root`: the sources folder.
+    /// suggestions are now stays approved, its repository read then, so only the next change turns them off); the field
+    /// being typed in takes it at once. `root`: the sources folder.
     func setTrustUpdates(_ on: Bool, of source: ExtensionSource, root: URL) {
-        guard config.setTrustUpdates(on, of: source.url, extensions: extensionIndex.commands, root: root) else { return }
+        guard config.setTrustUpdates(on, of: source.url, extensions: extensionIndex.commands, root: root,
+                                     sha256: SuggestionsShared.store.sha256(of:)) else { return }
         save()
         if store.persists { SuggestionsShared.settingsChanged() }
     }
@@ -373,14 +374,20 @@ struct ExtensionSourceSheet: View {
         return source
     }
 
-    private var problem: String? {
-        guard !url.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
+    private var problem: String? { Self.problem(source, cloneNow: start.cloneNow, config: model.config) }
+
+    /// Why `source` can't be cloned (nil: it can, or nothing is typed yet): not an address git is used with here; one
+    /// added already (unless it is reviewed again, `cloneNow`); or one whose clone's folder another source of `config`
+    /// has (`ExtensionSources.sharingFolder`: one clone would replace the other).
+    static func problem(_ source: ExtensionSource, cloneNow: Bool, config: Config) -> String? {
+        guard !source.url.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
         do {
-            _ = try ExtensionSources.validate(url)
+            _ = try ExtensionSources.validate(source.url)
+            try ExtensionSources.checkFolder(for: source.url, in: config)
         } catch {
             return ExtensionSourceText.describe(error)
         }
-        if !start.cloneNow, model.config.extensionSources.contains(where: { $0.url == source.url }) {
+        if !cloneNow, config.extensionSources.contains(where: { $0.url == source.url }) {
             return ExtensionSourceText.describe(ExtensionSourceError.alreadyAdded)
         }
         return nil
@@ -474,6 +481,11 @@ struct ExtensionSourceSheet: View {
     // MARK: Steps
 
     private func clone() async {
+        // Reviewed again from the config (`cloneNow`), the form's checks weren't made: not into another source's folder.
+        if let problem {
+            step = .failed(problem)
+            return
+        }
         step = .cloning
         let token = cancelled
         do {
