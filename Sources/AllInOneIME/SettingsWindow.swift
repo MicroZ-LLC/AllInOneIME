@@ -753,7 +753,8 @@ final class SettingsModel: ObservableObject {
 
     /// Installs or updates `entry` (downloads and checks off the main thread), then has the command
     /// list pick it up. Installed (not an update), its completion sources are on, approved as they are then
-    /// (`refreshPlugins`), what was kept of one installed before (its folder gone since) forgotten first.
+    /// (`refreshPlugins`), what was kept of one installed before (its folder gone since) forgotten first, but those the
+    /// user turned off, which stay off.
     func install(_ entry: PluginIndex.Entry) {
         guard persists, installingPlugin == nil else { return }
         installingPlugin = entry.name

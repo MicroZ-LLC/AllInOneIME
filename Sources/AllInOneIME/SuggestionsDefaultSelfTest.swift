@@ -10,8 +10,8 @@ extension SelfTest {
     /// kept as the extensions are read again and in a new window (a restart); turned on again, it is off the list. A
     /// source added (Settings' Enable, then `--add-source` from a local bare repository) has its suggestions on, pinned to
     /// its repository as it is then. A plugin found in the plugins folder for the first time has its source on, approved
-    /// as it is; turned off, it stays off as the folder is read again and in a new window. Drawn
-    /// (settings-extension-completion-on.png).
+    /// as it is; turned off, it stays off as the folder is read again, in a new window, and once removed in Settings and
+    /// put in the folder again. Drawn (settings-extension-completion-on.png).
     static func testSuggestionsOnByDefault(snapshotDirectory: URL) {
         section("suggestions: on by default, turned off kept")
         let fm = FileManager.default
@@ -150,11 +150,14 @@ extension SelfTest {
         // A plugin found in the plugins folder for the first time.
         let plugins = dir.appendingPathComponent("plugins", isDirectory: true)
         let pluginFolder = plugins.appendingPathComponent("selftestnotes", isDirectory: true)
-        write(pluginFolder.appendingPathComponent("plugin.json"), #"""
-            { "name": "selftestnotes", "version": "1.0.0", "type": "script", "script": "main.js", "hosts": ["notes.example.com"],
-              "completions": [ { "name": "pages", "title": "Pages", "prefix": "NB-", "list": true, "insert": { "default": "{arg}" } } ] }
-            """#)
-        write(pluginFolder.appendingPathComponent("main.js"), "function load(ctx) { return { items: [] }; }\n")
+        func writePlugin() {
+            write(pluginFolder.appendingPathComponent("plugin.json"), #"""
+                { "name": "selftestnotes", "version": "1.0.0", "type": "script", "script": "main.js", "hosts": ["notes.example.com"],
+                  "completions": [ { "name": "pages", "title": "Pages", "prefix": "NB-", "list": true, "insert": { "default": "{arg}" } } ] }
+                """#)
+            write(pluginFolder.appendingPathComponent("main.js"), "function load(ctx) { return { items: [] }; }\n")
+        }
+        writePlugin()
         model.pluginsFolder = plugins
         model.refreshPlugins()
         guard let plugin = model.plugins.first(where: { $0.name == "selftestnotes" }), let pages = plugin.manifest.completions.first else {
@@ -165,9 +168,9 @@ extension SelfTest {
         check(saved()?.pluginsSeen == ["selftestnotes"]
               && saved()?.completionSources.first(where: { $0.plugin == "selftestnotes" }) == CompletionSourceApproval(enabling: pages, of: plugin)
               && pluginRow() == .on, "a plugin found for the first time: its suggestions on, approved as it is (its hosts, script, terms)")
+        let pagesKey = CompletionSourceKey(plugin: "selftestnotes", source: "pages")
         model.setCompletionSource(pages, of: plugin, enabled: false)
-        check(saved()?.completionSourcesOff.contains(CompletionSourceKey(plugin: "selftestnotes", source: "pages")) == true && pluginRow() == .off,
-              "turned off: saved, its switch off")
+        check(saved()?.completionSourcesOff.contains(pagesKey) == true && pluginRow() == .off, "turned off: saved, its switch off")
         model.refreshPlugins()
         check(pluginRow() == .off, "…kept as the plugins folder is read again")
         model = SettingsModel(configURL: configURL)
@@ -175,6 +178,17 @@ extension SelfTest {
         model.refreshPlugins()
         check(pluginRow() == .off && saved()?.completionSources.contains(where: { $0.plugin == "selftestnotes" }) == false,
               "…and in a new window (a restart)")
+        // Removed in Settings, then put in the plugins folder again: found anew, but what the user turned off stays off.
+        model.uninstall(plugin)
+        check(model.pluginError == nil && !fm.fileExists(atPath: pluginFolder.path) && saved()?.pluginsSeen.isEmpty == true
+              && saved()?.completionSourcesOff.contains(pagesKey) == true,
+              "…removed in Settings: forgotten that it was found, not that it was turned off (\(saved()?.completionSourcesOff ?? []))")
+        writePlugin()
+        model.refreshPlugins()
+        let again = model.plugins.first { $0.name == "selftestnotes" }
+        check(again.flatMap { shown(PluginCompletionsView(model: model, plugin: $0)) } == .off && saved()?.pluginsSeen == ["selftestnotes"]
+              && saved()?.completionSources.contains(where: { $0.plugin == "selftestnotes" }) == false,
+              "…put in the folder again: found anew, its suggestions still off")
         check((try? Data(contentsOf: Config.userURL)) == realBefore, "the real config file was not touched")
     }
 }

@@ -521,8 +521,9 @@ link, Markdown link) and each app's own choice apply to it, as to every source.
 as it loads, and an extension source's as you add the source (§10: Add from Link… or `--add-source`), approved as it is
 then. Settings → Commands shows its switch under the command, with what it does (it runs this script in the
 background, and with `query` it also gets what you type after the prefix; then its last refresh, items, last error and
-Refresh Now). One you turn off there stays off, through updates, restarts and the extensions read again, until you turn
-it on again (`completionSourcesOff` in the config, this Mac's own). Being on pins the whole extension and its terms:
+Refresh Now). One you turn off there stays off, through updates, restarts, the extensions read again and its folder or
+source removed and added again, until you turn it on again (`completionSourcesOff` in the config, this Mac's own).
+Being on pins the whole extension and its terms:
 
 - **The extension.** Your own extension, a bundle or a single script (its `completion` line is part of it), is never
   read for this: a change to it keeps its suggestions on anyway (below). One from an extension source is pinned by a

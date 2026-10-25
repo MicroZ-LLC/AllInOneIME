@@ -608,8 +608,8 @@ public final class SettingsStore {
     // MARK: Plugins
 
     /// Removes an installed plugin (its folder), and what was kept of its completion sources (`Config.forgetPlugin`: their
-    /// approvals, those turned off, that it was found here: installed again, they are on as they are then; their cached
-    /// lists go as the input method takes the settings in). What went wrong (nil: done).
+    /// approvals, that it was found here: installed again, they are on as they are then, but those the user turned off;
+    /// their cached lists go as the input method takes the settings in). What went wrong (nil: done).
     public func uninstall(_ plugin: InstalledPlugin) -> String? {
         guard persists else { return nil }
         do {

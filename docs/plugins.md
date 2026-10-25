@@ -240,9 +240,10 @@ user turned it on), and only while plugin.json still lists them (the hosts appro
 A plugin's sources are on once it is installed (0.6.7.2: from the library or put in the plugins folder, and one installed
 before the first time 0.6.7.2 finds it), approved as they are then: its hosts, `query`, script and terms. Each has a
 switch in Settings → Commands → Plugins, which says what it does and, for a source with `query`, where what is typed
-after the prefix goes; one the user turns off stays off (`completionSourcesOff`) until turned on again. An update that
-changes `hosts`, `query`, the script, or the source's `prefix`, `queryMinChars` or `compare` needs turning on again,
-and a source an update adds is off until turned on.
+after the prefix goes; one the user turns off stays off (`completionSourcesOff`) until turned on again, also when the
+plugin is removed and installed again (removing it forgets its approvals, not that). An update that changes `hosts`,
+`query`, the script, or the source's `prefix`, `queryMinChars` or `compare` needs turning on again, and a source an
+update adds is off until turned on.
 [Core/Plugins/github](../Core/Plugins/github/) is the example.
 
 ### Without a plugin: a custom command

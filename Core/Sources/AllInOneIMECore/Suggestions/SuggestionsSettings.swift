@@ -60,16 +60,16 @@ extension Config {
         return changed
     }
 
-    /// What this Mac kept of the plugin `name`'s completion sources forgotten: their approvals, those turned off, that it
-    /// was found here (removed in Settings, or about to be installed anew from the library, its folder gone): installed
-    /// again, its sources are on as they are then. Whether anything changed.
+    /// What this Mac kept of the plugin `name`'s completion sources forgotten: their approvals and that it was found here
+    /// (removed in Settings, or about to be installed anew from the library, its folder gone): installed again, its
+    /// sources are on as they are then. Not those the user turned off (`completionSourcesOff`): they stay off, installed
+    /// again too, until turned on. Whether anything changed.
     @discardableResult
     public mutating func forgetPlugin(_ name: String) -> Bool {
-        let before = (completionSources.count, completionSourcesOff.count, pluginsSeen.count)
+        let before = (completionSources.count, pluginsSeen.count)
         completionSources.removeAll { $0.plugin == name }
-        completionSourcesOff.removeAll { $0.plugin == name }
         pluginsSeen.removeAll { $0 == name }
-        return before != (completionSources.count, completionSourcesOff.count, pluginsSeen.count)
+        return before != (completionSources.count, pluginsSeen.count)
     }
 
     /// The approvals `lapsed` found (`CompletionSourceApproval.lapsed`) marked so, kept: off until enabled again, which

@@ -541,7 +541,8 @@ public final class SettingsService: @unchecked Sendable {
     }
 
     /// A library plugin installed or updated. Installed (not an update), its completion sources are on, approved as they
-    /// are now (0.6.7.2, `Config.approveNewPlugins`), what was kept of one installed before it forgotten first.
+    /// are now (0.6.7.2, `Config.approveNewPlugins`), what was kept of one installed before it forgotten first (not those
+    /// the user turned off: they stay off).
     private func install(_ action: SettingsAction) async -> Result<SettingsActionOutcome, SettingsProblem> {
         guard store.persists else { return .success(SettingsActionOutcome()) }
         guard let entry = locked({ libraryEntries?.first { $0.name == action.item } }) else {

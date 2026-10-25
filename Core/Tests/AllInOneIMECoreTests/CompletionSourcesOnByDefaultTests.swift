@@ -171,7 +171,8 @@ struct CompletionSourcesOnByDefaultTests {
 
     /// A plugin's source turned off stays off: kept in `completionSourcesOff` (never synced), through a restart (the config
     /// file read again), a scan finding the plugin again and an update; the session doesn't run it. Turned on again, it is
-    /// off the list. Removed in Settings (`forgetPlugin`), everything kept of it goes: installed again, it is on.
+    /// off the list. Removed in Settings (`forgetPlugin`), its approvals and that it was found go, not what the user
+    /// turned off: installed again, it is still off.
     @Test func aPluginSourceTurnedOffStaysOff() throws {
         let plugins = Plugins()
         let plugin = try plugins.install(SuggestionsPlugins.githubManifest())
@@ -203,10 +204,46 @@ struct CompletionSourcesOnByDefaultTests {
         restarted.setCompletionSource(issues, of: updated, enabled: false)
         let forgot = restarted.forgetPlugin("github")
         #expect(forgot)
-        #expect(restarted.completionSources.isEmpty && restarted.completionSourcesOff.isEmpty && restarted.pluginsSeen.isEmpty)
+        #expect(restarted.completionSources.isEmpty && restarted.completionSourcesOff == [key] && restarted.pluginsSeen.isEmpty,
+                "removed: what the user turned off kept")
         let installedAgain = restarted.approveNewPlugins([updated])
-        #expect(installedAgain && restarted.approval(of: issues, in: updated)?.holds(for: issues, of: updated) == true,
-                "installed again: on")
+        #expect(installedAgain && restarted.approval(of: issues, in: updated) == nil && restarted.turnedOff(key),
+                "installed again: still off")
+    }
+
+    /// A plugin removed in Settings (`SettingsStore.uninstall`: its folder, its approvals, that it was found) and installed
+    /// again (put in the folder, or from the library: `forgetPlugin` first) has its sources approved as they are then, but
+    /// one the user turned off: that stays off (docs/plugins.md), as saved, until turned on. Another plugin's choices stay.
+    @Test func aPluginRemovedAndInstalledAgainKeepsWhatTheUserTurnedOff() throws {
+        let plugins = Plugins()
+        let plugin = try plugins.install(Self.twoSources)
+        let (issues, pulls) = (try Self.source(plugin, "issues"), try Self.source(plugin, "pulls"))
+        let (pullsKey, otherKey) = (CompletionSourceKey(plugin: "github", source: "pulls"), CompletionSourceKey(plugin: "aws", source: "accounts"))
+        let url = plugins.folder.appendingPathComponent("config.json")
+        try Data("{}".utf8).write(to: url)
+        let store = SettingsStore(configURL: url)
+        store.config.approveNewPlugins([plugin])
+        store.config.setCompletionSource(pulls, of: plugin, enabled: false)
+        store.config.completionSourcesOff.append(otherKey)
+        store.save()
+        #expect(store.uninstall(plugin) == nil)
+        #expect(PluginStore.load(from: plugins.folder).plugins.isEmpty, "its folder gone")
+        let removed = try Config.load(from: url)
+        #expect(removed.completionSources.isEmpty && removed.pluginsSeen.isEmpty, "\(removed.completionSources), \(removed.pluginsSeen)")
+        #expect(removed.completionSourcesOff == [pullsKey, otherKey], "saved: what the user turned off kept, \(removed.completionSourcesOff)")
+
+        let again = try plugins.install(Self.twoSources)
+        var config = try Config.load(from: url)
+        let forgot = config.forgetPlugin("github")  // from the library: what was kept of it forgotten first
+        #expect(!forgot && config.completionSourcesOff == [pullsKey, otherKey], "nothing more to forget")
+        let installed = config.approveNewPlugins([again])
+        #expect(installed && config.pluginsSeen == ["github"])
+        #expect(config.approval(of: issues, in: again)?.holds(for: issues, of: again) == true, "installed again: the other source on")
+        #expect(config.approval(of: pulls, in: again) == nil && config.turnedOff(pullsKey), "installed again: the one turned off still off")
+        #expect(config.suggestionsSettings().off == [pullsKey, otherKey])
+        config.setCompletionSource(pulls, of: again, enabled: true)
+        #expect(config.approval(of: pulls, in: again)?.holds(for: pulls, of: again) == true && config.completionSourcesOff == [otherKey],
+                "turned on: off the list")
     }
 
     /// The list the user turned off is read leniently: anything but a list of `{plugin, source}` reads as none.
@@ -412,6 +449,44 @@ struct CompletionSourcesOnByDefaultTests {
         restarted.setCompletionSource(source, of: again, enabled: true, root: place.sources)
         #expect(restarted.completionSourcesOff.isEmpty && restarted.completionState(of: source, in: again, root: place.sources).on,
                 "\(origin): turned on again")
+    }
+
+    /// A source turned off stays off as its extension leaves the load list and comes back (the user's folder removed and
+    /// added again, `SettingsStore.removeExtensionFolder`), or its extension source is removed and added again
+    /// (`ExtensionSources.remove`, then enabled and approved as added: `approveAddedSource`), saved each time.
+    @Test(arguments: ExtensionCompletionsTrustTests.Origin.allCases)
+    func turnedOffStaysOffThroughRemovedAndAddedAgain(_ origin: ExtensionCompletionsTrustTests.Origin) throws {
+        let place = try Place(origin)
+        try place.desk()
+        if let source = place.config.extensionSources.first {
+            place.config.approveAddedSource(source.url, extensions: ExtensionSources.extensions(of: source, root: place.sources),
+                                            root: place.sources, digest: place.digest)
+        }
+        let command = try place.command()
+        guard case let .success(source)? = command.completion else { Issue.record("no source"); return }
+        place.config.setCompletionSource(source, of: command, enabled: false, root: place.sources)
+        let key = CompletionSourceKey(extension: command)
+        let file = place.root.appendingPathComponent("config.json")
+        try place.config.write(to: file)
+        let store = SettingsStore(configURL: file)
+        if let added = store.config.extensionSources.first {
+            ExtensionSources.remove(added, from: &store.config, root: place.sources)
+            store.save()
+            #expect(try Config.load(from: file).completionSourcesOff == [key], "\(origin): the source removed, still off")
+            ExtensionSources.enable(added, in: &store.config, root: place.sources)
+            let approved = store.config.approveAddedSource(added.url, extensions: ExtensionSources.extensions(of: added, root: place.sources),
+                                                           root: place.sources, digest: place.digest)
+            #expect(!approved, "\(origin): added again, nothing approved")
+        } else {
+            store.removeExtensionFolder(ExtensionStore.Folder(path: place.own.path, found: false))
+            #expect(try Config.load(from: file).completionSourcesOff == [key] && store.config.extensionFolders.isEmpty,
+                    "\(origin): the folder removed, still off")
+            store.addExtensionFolder(place.own.path)
+        }
+        store.save()
+        let again = try Config.load(from: file)
+        #expect(again.completionSourcesOff == [key] && again.approval(of: source, in: command) == nil, "\(origin): \(again.completionSourcesOff)")
+        #expect(again.completionState(of: source, in: try place.command(), root: place.sources).turnedOff, "\(origin): added again, still off")
     }
 
     /// Where it can't be pinned (its repository too large, or not all of it readable) a source not trusted can't be on:
