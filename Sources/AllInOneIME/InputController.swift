@@ -836,7 +836,7 @@ final class AllInOneIMEInputController: IMKInputController {
     /// replaced only where it is the token the session expects there; else (a click or a drag moved things since the
     /// key that told the range, a page that told its selection late) what a plain insertion would put in goes in at the
     /// caret. Only how long the range is, and which was done, are logged: never the text. `marking`: a row a key put in,
-    /// marked during the key (`markRow`).
+    /// marked during the key (`markRow`; where the field marks it elsewhere, put in as when not marking).
     @MainActor
     private func replaceToken(_ text: String, range: Range<Int>, check: ReplacementCheck, marking: Bool, in target: IMKTextInput) {
         let replaced = check.apply(text, range: range,
@@ -869,10 +869,34 @@ final class AllInOneIMEInputController: IMKInputController {
     /// is marked text, or when more than one character goes in during the key with no range; a replacement (text in with
     /// its range) and a single character go in as they come, and the page gets the key itself: Return sent Slack's
     /// message with the row in it. A longer plain insertion goes in as before; so does a click on a row (no key).
+    /// Where the field put the marked text is asked right after (`markedRange`; Chromium's view and an NSTextView tell it
+    /// at once): it must start where `range` does (with none, at the caret) and be as long as the text. Anywhere else (a
+    /// field that ignores the replacement range in setMarkedText, or tells no caret) it is taken out again, and what
+    /// 0.6.7.1 did goes in instead: the text with its range, or at the caret; nothing for a row that adds nothing
+    /// (`addsNothing`, `markBeforeCaret`). Only lengths are logged, never the text.
     @MainActor
-    private func markRow(_ text: String, replacing range: NSRange?, in client: IMKTextInput) {
+    private func markRow(_ text: String, replacing range: NSRange?, in client: IMKTextInput, addsNothing: Bool = false) {
         let length = (text as NSString).length
+        let start = range?.location ?? client.selectedRange().location
         client.setMarkedText(text, selectionRange: NSRange(location: length, length: 0), replacementRange: range ?? Self.notFound)
+        let marked = client.markedRange()
+        guard start != NSNotFound, marked.location == start, marked.length == length else {
+            client.setMarkedText("", selectionRange: NSRange(location: 0, length: 0), replacementRange: Self.notFound)
+            hasMarkedText = false
+            let instead: String
+            if addsNothing {
+                instead = "nothing"
+            } else if let range {
+                client.insertText(text, replacementRange: range)
+                instead = "its replacement"
+            } else {
+                insert(text, into: client)
+                instead = "its plain insertion"
+            }
+            let found = marked.location == NSNotFound ? "none" : "\(marked.length) UTF-16 units\(marked.location == start ? "" : ", elsewhere")"
+            log.notice("a row put in by a key: the field didn't mark it where asked (\(length, privacy: .public) UTF-16 units\(range == nil ? " at the caret" : " in place of \(range?.length ?? 0)", privacy: .public); its marked text: \(found, privacy: .public)); taken out, \(instead, privacy: .public) put in instead")
+            return
+        }
         hasMarkedText = true
         markedRow = MarkedRow(text: text, client: client, fieldSession: fieldSession)
         DispatchQueue.main.async { [weak self] in self?.commitRow() }
@@ -895,7 +919,7 @@ final class AllInOneIMEInputController: IMKInputController {
 
     /// A row a key put in that adds nothing (it is what was typed): the character before the caret, the token's last, marked
     /// in its own place and committed once the key is done (`markRow`), so the app doesn't act on the key either. Where
-    /// the field tells no caret or reads nothing back there, nothing.
+    /// the field tells no caret or reads nothing back there, or marks it elsewhere, nothing.
     @MainActor
     private func markBeforeCaret(in client: IMKTextInput) {
         let caret = client.selectedRange()
@@ -903,7 +927,7 @@ final class AllInOneIMEInputController: IMKInputController {
         let range = NSRange(location: caret.location - 1, length: 1)
         // Half of a character outside the Basic Multilingual Plane reads back as U+FFFD: left alone.
         guard let before = client.attributedSubstring(from: range)?.string, before.utf16.count == 1, before != "\u{FFFD}" else { return }
-        markRow(before, replacing: range, in: client)
+        markRow(before, replacing: range, in: client, addsNothing: true)
     }
 
     /// The marked text in `client`: nothing of ours (empty) leaves the document, and any selection in it, alone.

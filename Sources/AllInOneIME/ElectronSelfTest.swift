@@ -6,8 +6,14 @@ import InputMethodKit
 /// marked text in its text, where a replacement range puts it; inserted text in place of the range given, else of the
 /// marked text, else at the caret; the caret after what went in, or where marked text puts it. Each call that puts text in
 /// is kept, with whether it came during the key being answered (`duringKey`, which the self-test sets): what the
-/// harness's probe plays into its page (`answer`). The keys the input method lets go by, the app types (`typed`).
+/// harness's probe plays into its page (`answer`). The keys the input method lets go by, the app types (`typed`). As a
+/// field that ignores the replacement range in setMarkedText, it puts marked text elsewhere (`marksAt`).
 final class PageFieldClient: FakeTextClient {
+    /// Where setMarkedText puts its text: as Chromium's view does, in place of the replacement range given, else of the
+    /// marked text, else at the caret (`asked`); or, the range ignored, in place of the marked text, else at the caret
+    /// (`caret`) or at the end of the text, the caret left where it is (`end`).
+    enum MarksAt { case asked, caret, end }
+
     struct Call: Equatable {
         var duringKey: Bool
         var marks: Bool
@@ -21,12 +27,16 @@ final class PageFieldClient: FakeTextClient {
     private(set) var text = ""
     private(set) var calls: [Call] = []
     var duringKey = false
+    var marksAt = MarksAt.asked
     private var marking: NSRange?
     private var caretAt = 0
 
     var hasMarked: Bool { marking != nil }
 
     private static func plain(_ value: Any?) -> String { (value as? NSAttributedString)?.string ?? value as? String ?? "" }
+
+    /// `text` in the field, the caret at `caret` (UTF-16), before anything is typed.
+    func start(_ text: String, caret: Int) { (self.text, caretAt) = (text, caret) }
 
     /// The app types `characters` at the caret: a key the input method let go by.
     func typed(_ characters: String) {
@@ -52,10 +62,15 @@ final class PageFieldClient: FakeTextClient {
         let s = Self.plain(string)
         calls.append(Call(duringKey: duringKey, marks: true, range: AllInOneIMEInputController.range(replacementRange),
                           selection: selectionRange.location, text: s))
-        let at = put(s, replacing: replacementRange)
+        let given = switch marksAt {
+        case .asked: replacementRange
+        case .caret: NSRange(location: NSNotFound, length: 0)
+        case .end: marking ?? NSRange(location: (text as NSString).length, length: 0)
+        }
+        let at = put(s, replacing: given)
         let length = (s as NSString).length
         marking = length == 0 ? nil : NSRange(location: at.location, length: length)
-        caretAt = at.location + min(selectionRange.location, length)
+        if marksAt != .end { caretAt = at.location + min(selectionRange.location, length) }
     }
 
     override func selectedRange() -> NSRange { NSRange(location: caretAt, length: 0) }
@@ -625,9 +640,11 @@ extension SelfTest {
     /// one character, nothing) goes in as marked text during the key, committed once it's done (`markRow`): the Markdown
     /// link in place of "#17" by Return and by Tab, one character ("#123" → "#1234", ID only), and a row that adds nothing
     /// (its last character marked again); the next key, the field left or the app wanting everything in before the run
-    /// loop turns commit it first. As before: a longer insertion, a terminal, a click on a row. In an NSTextView (iMessage's
-    /// kind of field) the text ends as 0.6.7.1's did, and one Undo leaves what it left; a snippet's caret after one
-    /// character so put in still lands. Then the controller's calls played into the Electron harness's page when it's there
+    /// loop turns commit it first. A field that puts marked text elsewhere (one that ignores the replacement range in
+    /// setMarkedText) has it taken out again during the key, and gets 0.6.7.1's: the link with its range, the character
+    /// at the caret, nothing. As before: a longer insertion, a terminal, a click on a row. In an NSTextView (iMessage's
+    /// kind of field) the row is marked during the key, the text ends as 0.6.7.1's did, and one Undo leaves what it left;
+    /// a snippet's caret after one character so put in still lands. Then the controller's calls played into the Electron harness's page when it's there
     /// (`ALLINONEIME_ELECTRON_HARNESS`), 0.6.7.1's way too, for what the page does; else what it recorded.
     static func testRowKeysInChromium(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
         section("Suggestions: Return on a row in Slack's composer puts it in and sends nothing (Chromium's keys)", needs: .composing)
@@ -668,11 +685,14 @@ extension SelfTest {
         /// A Slack composer (another app's field: `app`) with `typed` in it, ↓ `moves` times, then `key`, and `then` before
         /// the run loop turns: the calls made during the key and after, whether the field had marked text right after the
         /// key, and the field.
+        /// `marksAt`: where it puts marked text; `after`: its text after the caret.
         func inPage(_ typed: String, first: String, moves: Int = 0, key: (String, UInt16) = ("\r", VirtualKey.returnKey),
-                    app: String? = nil,
+                    app: String? = nil, marksAt: PageFieldClient.MarksAt = .asked, after: String = "",
                     then: (PageFieldClient) -> Void = { _ in }) -> (handled: Bool, calls: [Call], markedDuring: Bool, page: PageFieldClient) {
             let page = PageFieldClient()
             page.bundleIDOverride = app ?? slack
+            page.marksAt = marksAt
+            page.start(after, caret: 0)
             let shown = typeInto(page, typed, first: first, moves: moves, appTypes: page.typed)
             let count = page.calls.count
             page.duringKey = true
@@ -722,6 +742,30 @@ extension SelfTest {
               "…a row that adds nothing: its last character marked again during the key, committed after (\(said(nothing.calls))): "
               + nothing.page.text)
 
+        // A field that ignores the replacement range in setMarkedText (marked text at the caret, or at the end of its text):
+        // what it marked elsewhere taken out again during the key, then 0.6.7.1's way; one character at the caret stays so.
+        let unmark = Call(duringKey: true, marks: true, range: nil, selection: 0, text: "")
+        insert(.markdownLink)
+        let ignored = inPage("#17", first: "#17", marksAt: .caret)
+        check(ignored.handled && !ignored.markedDuring && ignored.page.text == link && !ignored.page.hasMarked
+              && ignored.calls == [linkCalls[0], unmark, Call(duringKey: true, marks: false, range: 0..<3, text: link)],
+              "a field that ignores the range in setMarkedText: the link marked at the caret is taken out again, and goes in "
+              + "with its range during the key as 0.6.7.1 did (\(said(ignored.calls))): \(ignored.page.text)")
+        insert(.id)
+        let atCaret = inPage("#123", first: "#1234", marksAt: .caret)
+        check(atCaret.handled && atCaret.markedDuring && atCaret.calls == oneCalls && atCaret.page.text == "#1234",
+              "…one character: at the caret where it asked, marked and committed (\(said(atCaret.calls))): \(atCaret.page.text)")
+        let atEnd = inPage("#123", first: "#1234", marksAt: .end, after: " ok")
+        check(atEnd.handled && !atEnd.markedDuring && atEnd.page.text == "#1234 ok" && !atEnd.page.hasMarked
+              && atEnd.calls == [oneCalls[0], unmark, Call(duringKey: true, marks: false, range: nil, text: "4")],
+              "…one character marked at the end, not at the caret: taken out again, inserted at the caret as 0.6.7.1 did "
+              + "(\(said(atEnd.calls))): \(atEnd.page.text)")
+        let nothingIgnored = inPage("#17", first: "#17", moves: 1, marksAt: .caret)
+        check(nothingIgnored.handled && !nothingIgnored.markedDuring && nothingIgnored.page.text == "#17"
+              && nothingIgnored.calls == [nothingCalls[0], unmark],
+              "…a row that adds nothing marked at the caret: taken out again, nothing put in, as 0.6.7.1 did "
+              + "(\(said(nothingIgnored.calls))): \(nothingIgnored.page.text)")
+
         // As before: a longer insertion and a terminal's during the key, a click with its range.
         insert(.titleAndLink)
         let rest = " Return sends the message https://github.com/\(GitHubStandIn.repository)/issues/17"
@@ -767,17 +811,26 @@ extension SelfTest {
             view.textView.undoManager?.undo()
             return (text, caret, marked, view.text)
         }
-        let pressReturn = { (view: TextViewClient) in _ = controller.handle(event("\r", code: VirtualKey.returnKey), client: view) }
+        // Marked during the key: the field put it where asked (where it would be taken out again, nothing is marked).
+        var markedByKey: String?
+        let pressReturn = { (view: TextViewClient) in
+            _ = controller.handle(event("\r", code: VirtualKey.returnKey), client: view)
+            let marked = view.textView.markedRange()
+            markedByKey = marked.location == NSNotFound ? nil : (view.text as NSString).substring(with: marked)
+        }
         let linkBefore = inTextView("#17", first: "#17") { $0.insertText(link, replacementRange: NSRange(location: 0, length: 3)) }
         let linkNow = inTextView("#17", first: "#17", put: pressReturn)
-        check(linkNow.text == link && linkNow == linkBefore,
-              "an NSTextView: Return puts the link in place of \"#17\" as 0.6.7.1 did (\(linkNow.text), caret \(linkNow.caret), "
+        check(linkNow.text == link && linkNow == linkBefore && markedByKey == link,
+              "an NSTextView: Return marks the link in place of \"#17\" during the key (\(markedByKey ?? "nothing marked")) and "
+              + "it ends as 0.6.7.1's did (\(linkNow.text), caret \(linkNow.caret), "
               + "\(linkNow.marked ? "marked" : "nothing marked")); one Undo leaves \"\(linkNow.undone)\" (0.6.7.1's: \"\(linkBefore.undone)\")")
         insert(.id)
         let oneBefore = inTextView("#123", first: "#1234") { $0.insertText("4", replacementRange: NSRange(location: NSNotFound, length: 0)) }
+        markedByKey = nil
         let oneNow = inTextView("#123", first: "#1234", put: pressReturn)
-        check(oneNow.text == "#1234" && oneNow == oneBefore,
-              "…one character as before (\(oneNow.text), caret \(oneNow.caret)); one Undo leaves \"\(oneNow.undone)\" (0.6.7.1's: \"\(oneBefore.undone)\")")
+        check(oneNow.text == "#1234" && oneNow == oneBefore && markedByKey == "4",
+              "…one character marked at the caret (\(markedByKey ?? "nothing marked")), as before in the end (\(oneNow.text), "
+              + "caret \(oneNow.caret)); one Undo leaves \"\(oneNow.undone)\" (0.6.7.1's: \"\(oneBefore.undone)\")")
         // A snippet's caret in one character so put in (")" with the caret before it): moved once it's committed.
         let view = TextViewClient()
         controller.activateServer(view)
