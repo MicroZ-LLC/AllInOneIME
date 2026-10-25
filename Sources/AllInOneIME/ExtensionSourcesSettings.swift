@@ -158,6 +158,11 @@ struct ExtensionSourcesSection: View {
         if !names.isEmpty { return tr("已加载：", "Loaded: ") + names.joined(separator: " ") }
         if !trusted { return tr("没有加载：还没检查过", "Nothing loaded: not reviewed yet") }
         if !enabled { return tr("没有加载：不在加载列表里", "Nothing loaded: not in the load list") }
+        // A path that climbs out, or a folder that leads out of the clone (a link, maybe since an update): nothing of it
+        // loads (`ExtensionSources.loadFolders`).
+        if ExtensionSources.leavesClone(source, root: sources.root) {
+            return tr("没有加载：", "Nothing loaded: ") + ExtensionSourceText.describe(ExtensionSourceError.outsideClone(source.path ?? ""))
+        }
         if !FileManager.default.fileExists(atPath: folder) { return tr("没有加载：克隆不在了，请重新克隆", "Nothing loaded: the clone is missing; re-clone it") }
         if let problem = model.skippedExtensions.first(where: { ExtensionSources.comparable($0.file.deletingLastPathComponent().path) == folder }) {
             return tr("没有加载：", "Nothing loaded: ") + UIText.describe(problem.problem, file: problem.file)
@@ -308,13 +313,43 @@ struct ExtensionSourcesSection: View {
 
 extension SettingsModel {
     /// `source`'s "Trust its updates" switched `on`, and saved (`Config.setTrustUpdates`: turned off, what its extensions'
-    /// suggestions are now stays approved, its repository read then, so only the next change turns them off); the field
-    /// being typed in takes it at once. `root`: the sources folder.
+    /// suggestions are now stays approved, so only the next change turns them off); the field being typed in takes it at
+    /// once. Turned off, what it pins is read off the main thread first (`Config.pinsWithoutTrust`: its repository), then
+    /// saved, unless the switch was pressed again meanwhile; the switch shows as it was until then. `root`: the sources
+    /// folder.
     func setTrustUpdates(_ on: Bool, of source: ExtensionSource, root: URL) {
-        guard config.setTrustUpdates(on, of: source.url, extensions: extensionIndex.commands, root: root,
-                                     sha256: SuggestionsShared.store.sha256(of:)) else { return }
-        save()
-        if store.persists { SuggestionsShared.settingsChanged() }
+        let url = source.url
+        guard config.extensionSources.contains(where: { $0.url == url }) else { return }
+        extensionSerial += 1
+        extensionSwitchPresses[url] = extensionSerial
+        guard !on else {
+            extensionSwitchPresses[url] = nil
+            savedTrust(config.setTrustUpdates(true, of: url, pinning: []), of: url, root: root)
+            return
+        }
+        guard config.extensionSources.contains(where: { $0.url == url && $0.trustUpdates }) else { return }
+        let (press, config, commands, read) = (extensionSerial, config, extensionIndex.commands, extensionReader())
+        extensionWork += 1
+        Task { [weak self] in
+            let followed = await Task.detached(priority: .userInitiated) {
+                config.pinsWithoutTrust(of: url, extensions: commands, root: root, digest: { read($0, root) })
+            }.value
+            guard let self else { return }
+            self.extensionWork -= 1
+            guard self.extensionSwitchPresses[url] == press else { return }
+            self.extensionSwitchPresses[url] = nil
+            self.savedTrust(self.config.setTrustUpdates(false, of: url, pinning: followed), of: url, root: root)
+        }
+    }
+
+    /// "Trust its updates" of the source `url` changed (`changed`): saved, the field being typed in told, and its
+    /// extensions read again for what their suggestions' switches show.
+    private func savedTrust(_ changed: Bool, of url: String, root: URL) {
+        guard changed else { return }
+        let commands = extensionIndex.commands.filter {
+            if case let .source(source) = config.extensionOrigin(of: $0, root: root) { return source.url == url } else { return false }
+        }
+        savedExtensionSwitch(commands)
     }
 }
 

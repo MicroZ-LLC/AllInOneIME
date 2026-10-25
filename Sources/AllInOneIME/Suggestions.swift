@@ -60,12 +60,17 @@ enum SuggestionsShared {
             let config = LiveConfig.current
             store.prune(keeping: settings(config).sourceKeys, folder: cacheFolder)
             let extensions = LiveExtensions.current(config).commands
-            // Only those whose changes turn them off are read (their source's repository); those that follow, never.
-            let follows = { config.followsChanges(of: $0, root: ExtensionSourceGate.root) }
-            let digest = { ExtensionDigest.of($0, root: ExtensionSourceGate.root, sha256: store.sha256(of:)) }
-            markLapsed(CompletionSourceApproval.lapsed(config.completionSources, plugins: LivePlugins.current(rescan: true))
-                       + CompletionSourceApproval.lapsed(config.completionSources, extensions: extensions, follows: follows, digest: digest))
+            // Only those whose changes turn them off are read (their source's repository), off the main thread (Settings
+            // calls this); those that follow, never.
+            let (root, store) = (ExtensionSourceGate.root, store)
+            let follows = { @Sendable (command: ScriptCommand) in config.followsChanges(of: command, root: root) }
+            markLapsed(CompletionSourceApproval.lapsed(config.completionSources, plugins: LivePlugins.current(rescan: true)))
             markFollowed(CompletionSourceApproval.followed(config.completionSources, extensions: extensions, follows: follows))
+            DispatchQueue.global(qos: .userInitiated).async {
+                let lapsed = CompletionSourceApproval.lapsed(config.completionSources, extensions: extensions, follows: follows,
+                                                             digest: { ExtensionDigest.of($0, root: root, sha256: store.sha256(of:)) })
+                Task { @MainActor in markLapsed(lapsed) }
+            }
         }
         NotificationCenter.default.post(name: .allInOneIMESuggestionsChanged, object: nil)
     }

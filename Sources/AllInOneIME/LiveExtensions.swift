@@ -18,17 +18,18 @@ enum LiveExtensions {
     private static var waiting: [() -> Void] = []
     private static let cache = ExtensionCache()
 
-    /// The index as last built. `rescan`: build it again in the background (a text field became active);
-    /// it is rebuilt too when `config` names other folders. `done` runs once a rebuild it started is in.
+    /// The index as last built. `rescan`: build it again in the background (a text field became active), its folders
+    /// worked out again (`ExtensionSourceGate`'s `recheck`); it is rebuilt too when `config` names other folders. `done`
+    /// runs once a rebuild it started is in.
     static func current(_ config: Config, rescan: Bool = false, done: (() -> Void)? = nil) -> ExtensionIndex {
-        let folders = ExtensionSourceGate.folders(config, found: found)
+        let folders = ExtensionSourceGate.folders(config, found: found, recheck: rescan)
         if rescan || folders != indexed { rebuild(folders, done: done) }
         return index
     }
 
     /// The index built now, on this thread (the settings window, which shows what is there at once).
     static func load(_ config: Config) -> ExtensionIndex {
-        let folders = ExtensionSourceGate.folders(config, found: found)
+        let folders = ExtensionSourceGate.folders(config, found: found, recheck: true)
         var built = ExtensionStore.load(folders, cache: cache)
         built.generation = built == index ? index.generation : index.generation &+ 1
         index = built

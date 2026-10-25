@@ -583,6 +583,21 @@ final class SettingsModel: ObservableObject {
     /// Their last 4 characters, where kept ("bundle/name" → "a1b2").
     @Published private(set) var passwordEndings: [String: String] = [:]
     @Published private(set) var extensionError: String?
+    /// What was last read, off the main thread, of each script extension whose suggestions a change turns off (0.6.7.1
+    /// §2): its digest (`ExtensionDigest.of`; nil: it can't be read all), by `extensionReadKey`. Kept until the extensions
+    /// are read again, the window becomes key or its switch changes (`readExtensionDigests`); meanwhile what was read
+    /// before shows.
+    @Published var extensionDigests: [String: String?] = [:]
+    /// The latest read of each (by `extensionReadKey`: only its own result is taken), the latest press of each switch
+    /// being applied (a suggestions switch by `extensionReadKey`, "Trust its updates" by its source's address: only that
+    /// one is applied), and how many reads and presses are under way (the self-test waits for none).
+    var extensionReadSerials: [String: Int] = [:]
+    var extensionSwitchPresses: [String: Int] = [:]
+    var extensionSerial = 0
+    @Published var extensionWork = 0
+    /// How a script extension is read for its suggestions' pin, off the main thread (nil: `ExtensionDigest.of` with the
+    /// suggestions' own hashes; the self-test's own, to see where and when it runs).
+    var readExtension: (@Sendable (ScriptCommand, URL) -> String?)?
 
     /// Reads the folders again; `discover`: Spotlight looks for Raycast script folders first, in the background
     /// (not for a preview), and the list follows when it's done.
@@ -617,6 +632,8 @@ final class SettingsModel: ObservableObject {
                     .map { (bundle.name + "/" + preference.name, $0) }
             }
         }, uniquingKeysWith: { first, _ in first }) : [:]
+        // What the suggestions' switches show, read again off the main thread.
+        readExtensionDigests()
         if discover, persists { LiveExtensions.discoverIfDue(config, force: true) { [weak self] in self?.refreshExtensions() } }
     }
 
@@ -2362,6 +2379,7 @@ struct SettingsView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
             model.refreshJargon()  // the list may have been edited in the text editor
             model.reloadIfChanged()  // so may the settings, or the input method's menu changed one
+            model.readExtensionDigests()  // and an extension source's files, which its suggestions' switch shows
             model.refreshNotesFolder()  // a volume mounted or unmounted meanwhile
             model.refreshRecentQuestions()
             // Back from Terminal after `aws sso login`, say: the AWS profile's line read again.

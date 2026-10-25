@@ -150,7 +150,7 @@ if let tests = package.targets.first(where: { $0.name == "AllInOneIMECoreTests" 
     // ExtensionComposerTests' helpers. (ScriptFolder itself builds there: the tests that only load what it writes run.)
     tests.exclude += ["ExtensionTests.swift", "ExtensionRobustnessTests.swift", "ExtensionComposerTests.swift",
                       "ClickPickTests.swift", "ExtensionExamplesTests.swift", "Acceptance/QuestionHistoryAcceptanceTests.swift",
-                      "Acceptance/ExtensionCompletionsAcceptanceTests.swift"]
+                      "Acceptance/ExtensionCompletionsAcceptanceTests.swift", "ExtensionCompletionsReadingTests.swift"]
     #endif
 }
 #endif

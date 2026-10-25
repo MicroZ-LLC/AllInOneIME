@@ -393,7 +393,8 @@ bundle, others in a repository of their own.
   that is a link out of the repository, its preferences, the address and commit) and clicked Enable, which moves it into place as
   `~/Library/Application Support/AllInOneIME/Sources/<repository>-<hash>/` (the hash is of the address; in one step,
   swapped with any older clone there) and adds the bundle's folder to `extensionFolders`. Cancel deletes the staged
-  clone, never one in place. A bundle folder that leads out of the repository (a link) is refused. A command whose name
+  clone, never one in place. A bundle folder that leads out of the repository (a link) is refused; one that does after
+  an update loads nothing, and Settings says its folder leads out of the repository. A command whose name
   is taken follows §7, and the review says so. Two addresses can share the folder's short hash: an address whose clone
   would go in the folder of a source already added is refused, before anything is cloned ("Its folder, … is already
   another source's"): remove that source first.
@@ -523,10 +524,17 @@ then its last refresh, items, last error and Refresh Now). Turning it on pins th
   `../shared/common.sh` or a `lib` that links elsewhere in the clone: every file, hidden ones too, all but git's folder
   (`.git`) and the Finder's `.DS_Store`. A link, anywhere, is pinned as where it points (its text), never followed: what
   it leads to in the clone is pinned anyway, and what is outside isn't the source's.
-- **The size.** That repository can have at most 2,000 files (links count) and 20 MB in all: it is read again when a
-  text field takes the focus and before each run, never with a key, and past that it can't be cheap. Settings says "Its
-  repository is too large to check for changes (over 2,000 files or 20 MB)." under the command, and its switch can't be
-  turned on; one turned on before is turned off when the repository grows past it, as by a change.
+- **Where it comes from** is the folder it was loaded from, never where a link leads. A source's bundle folder is that
+  source's even when it is a link; any other folder in the sources folder is treated as a source's whose updates aren't
+  trusted. Only a folder outside the sources folder is your own.
+- **The size.** That repository can have at most 2,000 files (links count) and 20 MB in all, and at most 10,000 items
+  of any kind (folders and `.DS_Store` files count; what is in `.git` doesn't): it is read again when a text field takes
+  the focus and before each run, never with a key, and past that it can't be cheap. Settings says "Its repository is
+  too large to check for changes (over 2,000 files or 20 MB)." under the command, and its switch can't be turned on; one
+  turned on before is turned off when the repository grows past it, as by a change.
+- **What can't be read.** If a folder of the repository can't be listed, or a file in it can't be read, it can't be
+  pinned. Settings says "Some of its files can't be read, so it can't be checked for changes." under the command, and its
+  switch can't be turned on; one turned on before is turned off, as by a change.
 - **The terms** a plugin's source is pinned by: `query`, `prefix`, `queryMinChars` and `compare`.
 
 What a later change does depends on where the extension comes from:

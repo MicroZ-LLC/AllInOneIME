@@ -230,21 +230,23 @@ struct SourceBusy: LocalizedError {
 }
 
 /// What `LiveExtensions` loads (`ExtensionSources.loadFolders`): the config's folders less those of the sources folder
-/// that aren't a trusted source's bundle, a source's folder read only as its one bundle. sources.json is read again only
-/// when it changed (one stat a call), and the folders worked out again only when something they come from changed.
-/// Main thread only, as `LiveExtensions`.
+/// that aren't a trusted source's bundle and a source's bundle folder that leads out of its clone, a source's folder read
+/// only as its one bundle. sources.json is read again only when it changed (one stat a call), and the folders worked out
+/// again only when something they come from changed (an Update saves sources.json), or when asked to look again
+/// (`recheck`: as a text field takes the focus and Settings reads the extensions, never with a key), which sees a
+/// bundle folder that came to lead out of its clone otherwise. Main thread only, as `LiveExtensions`.
 enum ExtensionSourceGate {
     nonisolated(unsafe) private static var cachedStatuses: (url: URL, date: Date?, statuses: [String: ExtensionSourceStatus])?
     nonisolated(unsafe) private static var cachedFolders: (key: [String], folders: [ExtensionStore.Folder])?
     /// The sources folder (`ExtensionSourceController.root`, which sets it).
     nonisolated(unsafe) static var root = ExtensionSources.directory
 
-    static func folders(_ config: Config, found: [String]) -> [ExtensionStore.Folder] {
+    static func folders(_ config: Config, found: [String], recheck: Bool = false) -> [ExtensionStore.Folder] {
         let statuses = statuses(root)
         let key = [root.path, String(describing: cachedStatuses?.date), String(config.findRaycastScripts)]
             + config.extensionFolders + ["|"] + config.hiddenExtensionFolders + ["|"] + found
             + config.extensionSources.map { $0.url + "\u{0}" + ($0.path ?? "") }
-        if let cachedFolders, cachedFolders.key == key { return cachedFolders.folders }
+        if !recheck, let cachedFolders, cachedFolders.key == key { return cachedFolders.folders }
         let folders = ExtensionSources.loadFolders(config, found: found, statuses: statuses, root: root)
         cachedFolders = (key, folders)
         return folders

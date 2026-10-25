@@ -1,6 +1,7 @@
 import AllInOneIMECore
 import AllInOneIMEMac
 import AppKit
+import os
 import SwiftUI
 
 extension SelfTest {
@@ -422,6 +423,12 @@ extension SelfTest {
         }
         _ = NSApp.perform(NSSelectorFromString("accessibilitySetValue:forAttribute:"), with: true as NSNumber, with: "AXEnhancedUserInterface")
         defer { _ = NSApp.perform(NSSelectorFromString("accessibilitySetValue:forAttribute:"), with: false as NSNumber, with: "AXEnhancedUserInterface") }
+        // Its repository read off the main thread, as when the extensions are read again or the window becomes key.
+        func read() {
+            model.readExtensionDigests(only: [command])
+            _ = pump(timeout: 10) { model.extensionWork == 0 }
+        }
+        read()
         let large = shown()
         check(large.texts.contains { $0.contains(CompletionSource.repositoryTooLarge) } && large.switches.count == 1
               && large.switches.allSatisfy { !$0.isEnabled && $0.state == .off },
@@ -429,6 +436,7 @@ extension SelfTest {
         check(CompletionSource.repositoryTooLarge == "Its repository is too large to check for changes (over 2,000 files or 20 MB).",
               "…saying it is too large to check for changes")
         model.setCompletionSource(declared, of: command, enabled: true)
+        _ = pump(timeout: 10) { model.extensionWork == 0 }
         check(model.config.completionSources.isEmpty && ((try? Config.load(from: configURL))?.completionSources.isEmpty ?? false),
               "…and turning it on approves nothing")
         UIText.choice = "zh"
@@ -439,10 +447,12 @@ extension SelfTest {
         renderOffscreen(Form { ScriptCompletionView(model: model, command: command) }.formStyle(.grouped), size: NSSize(width: 640, height: 200), to: image)
         check(fm.fileExists(atPath: image.path), "the command's suggestions, too large, render (\(image.lastPathComponent))")
         try? fm.removeItem(at: data)
+        read()
         let small = shown()
         check(!small.texts.contains { $0.contains(CompletionSource.repositoryTooLarge) } && small.switches.allSatisfy(\.isEnabled),
               "under the limits: no such line, the switch enabled")
         model.setCompletionSource(declared, of: command, enabled: true)
+        _ = pump(timeout: 10) { model.extensionWork == 0 }
         check(model.config.completionSources.first?.scriptSHA256 == ExtensionDigest.of(command, root: sources.root),
               "…and turning it on pins its repository")
 
@@ -469,6 +479,208 @@ extension SelfTest {
         check(refused.status == 1 && refused.output.contains("Its folder, tools-4317a211, is already another source's (\(first))")
               && (try? Data(contentsOf: cliConfig)) == written && !fm.fileExists(atPath: cliRoot.path),
               "--add-source refuses it too, nothing cloned or written (\(refused.status): \(refused.output.trimmingCharacters(in: .newlines)))")
+        check((try? Data(contentsOf: Config.userURL)) == realBefore, "the real config file was not touched")
+    }
+
+    /// What Settings reads of an extension source for its suggestions, and where (0.6.7.1 §2), with a config file and a
+    /// clones folder of its own (never the user's): never on the main thread nor as a row is drawn, but off it, as the
+    /// extensions are read again, the window becomes key or a switch changes, the switch showing as it was meanwhile (a
+    /// slow read here). Turning suggestions on, and "Trust its updates" off, read first and only then save; a press undone
+    /// meanwhile isn't applied. A repository part of which can't be read says so under the command, its switch disabled,
+    /// and turning it on approves nothing. A source whose bundle folder an update turned into a link out of its clone loads
+    /// nothing, and its row says its folder leads out of the repository.
+    static func testExtensionSourceReading(snapshotDirectory: URL) {
+        section("extension sources: what Settings reads, and where")
+        let fm = FileManager.default
+        let dir = snapshotDirectory.appendingPathComponent("extension-source-reading", isDirectory: true)
+        try? fm.removeItem(at: dir)
+        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: dir) }
+        let realBefore = try? Data(contentsOf: Config.userURL)
+        let sources = ExtensionSourceController.shared
+        let before = (sources.root, sources.statuses, UIText.choice)
+        defer {
+            sources.root = before.0
+            sources.show(before.1)
+            UIText.choice = before.2
+        }
+        UIText.choice = "en"
+        sources.root = dir.appendingPathComponent("Sources", isDirectory: true)
+
+        // A reviewed source (its updates not trusted): its bundle in ext/, a command with suggestions.
+        let source = ExtensionSource(url: "https://git.example.com/team/reading.git", path: "ext")
+        let clone = ExtensionSources.cloneFolder(for: source.url, root: sources.root)
+        let bundle = ExtensionSources.bundleFolder(for: source, root: sources.root)
+        func write(_ url: URL, _ text: String, executable: Bool = false) {
+            try? fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? Data(text.utf8).write(to: url)
+            if executable { try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path) }
+        }
+        write(bundle.appendingPathComponent("extension.json"), #"""
+            {"schemaVersion": 1, "name": "selftestreading", "title": "Reading",
+             "commands": [{"script": "tickets.sh", "name": "selftestreading", "title": "Tickets",
+                           "completion": {"prefix": "TCK-", "list": true, "refresh": "1h"}}]}
+            """#)
+        write(bundle.appendingPathComponent("tickets.sh"), "#!/bin/sh\necho '{\"items\": []}'\n", executable: true)
+        write(clone.appendingPathComponent("README.md"), "Tickets.\n")
+        let statuses = [source.url: ExtensionSourceStatus(url: source.url, trusted: true, branch: "main",
+                                                          commit: "4f2a9c1e0b7d3a6f8e1c2b5d9a0f3e7c6b1d2a4f")]
+        try? ExtensionSourceStatus.save(statuses, to: sources.statusFile)
+        sources.show(statuses)
+        let configURL = dir.appendingPathComponent("config.json")
+        var fresh = Config.default
+        fresh.extensionFolders = []
+        fresh.findRaycastScripts = false
+        ExtensionSources.enable(source, in: &fresh, root: sources.root)
+        try? fresh.write(to: configURL)
+        func saved() -> Config? { try? Config.load(from: configURL) }
+        let model = SettingsModel(configURL: configURL)
+
+        // A slow read that notes where it runs.
+        let reads = OSAllocatedUnfairLock(initialState: (count: 0, onMain: 0, delay: 0.3))
+        model.readExtension = { command, root in
+            let delay = reads.withLock { state -> Double in
+                state.count += 1
+                if Thread.isMainThread { state.onMain += 1 }
+                return state.delay
+            }
+            Thread.sleep(forTimeInterval: delay)
+            return ExtensionDigest.of(command, root: root)
+        }
+        func slow(_ delay: Double) { reads.withLock { $0.delay = delay } }
+        func settled() -> Bool { pump(timeout: 15) { model.extensionWork == 0 } }
+        let started = Date()
+        model.refreshExtensions()
+        let took = Date().timeIntervalSince(started)
+        guard let command = model.extensionIndex.commands.first(where: { $0.name == "selftestreading" }),
+              case let .success(declared)? = command.completion else {
+            check(false, "the source's command with its suggestions loads (\(model.extensionIndex.commands.map(\.name)))")
+            return
+        }
+        check(model.extensionWork == 1 && took < 0.25, "the extensions read again: its repository read meanwhile, not waited for (\(took) s)")
+        check(settled() && reads.withLock { $0.count } == 1 && reads.withLock { $0.onMain } == 0,
+              "…once, off the main thread (\(reads.withLock { $0 }))")
+
+        // Its row as VoiceOver finds it.
+        func ax(_ node: NSObject, _ key: String) -> Any? { node.responds(to: NSSelectorFromString(key)) ? node.value(forKey: key) : nil }
+        func nodes(_ node: NSObject) -> [NSObject] { [node] + ((ax(node, "accessibilityChildren") as? [NSObject]) ?? []).flatMap(nodes) }
+        func appKitSwitches(_ view: NSView) -> [NSSwitch] { ((view as? NSSwitch).map { [$0] } ?? []) + view.subviews.flatMap(appKitSwitches) }
+        func shown<V: View>(_ view: V, height: CGFloat = 260, pumping: TimeInterval = 0.5) -> (texts: [String], switches: [NSSwitch]) {
+            let window = NSWindow(contentViewController: NSHostingController(rootView: Form { view }.formStyle(.grouped)))
+            window.setContentSize(NSSize(width: 640, height: height))
+            window.orderFront(nil)
+            defer { window.close() }
+            _ = pump(timeout: pumping) { false }
+            let texts = nodes(window).compactMap { (ax($0, "accessibilityValue") as? String) ?? (ax($0, "accessibilityLabel") as? String) }
+            return (texts, window.contentView.map(appKitSwitches) ?? [])
+        }
+        func row(pumping: TimeInterval = 0.5) -> (texts: [String], switches: [NSSwitch]) {
+            shown(ScriptCompletionView(model: model, command: command), pumping: pumping)
+        }
+        func enabledOff(_ shown: (texts: [String], switches: [NSSwitch])) -> Bool {
+            shown.switches.count == 1 && shown.switches[0].isEnabled && shown.switches[0].state == .off
+        }
+        _ = NSApp.perform(NSSelectorFromString("accessibilitySetValue:forAttribute:"), with: true as NSNumber, with: "AXEnhancedUserInterface")
+        defer { _ = NSApp.perform(NSSelectorFromString("accessibilitySetValue:forAttribute:"), with: false as NSNumber, with: "AXEnhancedUserInterface") }
+        let first = row()
+        check(reads.withLock { $0.count } == 1 && enabledOff(first) && !first.texts.contains(CompletionSource.repositoryTooLarge),
+              "drawing its row reads nothing: off, its switch enabled")
+
+        // Its repository grows past the limits; read again (as when the window becomes key): as it was meanwhile, then
+        // too large.
+        let data = clone.appendingPathComponent("data", isDirectory: true)
+        try? fm.createDirectory(at: data, withIntermediateDirectories: true)
+        for index in 0...ExtensionDigest.maxFiles { try? Data("\(index)\n".utf8).write(to: data.appendingPathComponent("file-\(index).txt")) }
+        slow(2)
+        model.readExtensionDigests()
+        let meanwhile = row(pumping: 0.3)
+        check(model.extensionWork == 1 && enabledOff(meanwhile) && !meanwhile.texts.contains(CompletionSource.repositoryTooLarge),
+              "while it is read again, the switch shows as it was")
+        _ = settled()
+        let large = row()
+        check(large.texts.contains(CompletionSource.repositoryTooLarge) && large.switches.allSatisfy { !$0.isEnabled },
+              "…then what was read: too large, its switch disabled")
+        try? fm.removeItem(at: data)
+        slow(0.3)
+        model.readExtensionDigests()
+        check(settled() && enabledOff(row()), "under the limits again, once read again")
+
+        // Turned on: nothing saved while it is read, the switch as it was; then on with what was read, and saved.
+        slow(1)
+        model.setCompletionSource(declared, of: command, enabled: true)
+        let pressed = row(pumping: 0.2)
+        check(model.config.completionSources.isEmpty && saved()?.completionSources.isEmpty == true && enabledOff(pressed),
+              "pressed on: nothing saved while its repository is read, the switch as it was")
+        let pinned = ExtensionDigest.of(command, root: sources.root)
+        check(settled() && model.config.completionSources.first?.scriptSHA256 == pinned && saved()?.completionSources.first?.scriptSHA256 == pinned
+              && pinned != nil && reads.withLock { $0.onMain } == 0, "…then on with what was read, and saved (read off the main thread)")
+        let on = row()
+        check(on.switches.first?.state == .on, "…and its switch shows it on")
+        // Off, on, off again before the read is done: off.
+        model.setCompletionSource(declared, of: command, enabled: false)
+        model.setCompletionSource(declared, of: command, enabled: true)
+        model.setCompletionSource(declared, of: command, enabled: false)
+        check(settled() && model.config.completionSources.isEmpty && saved()?.completionSources.isEmpty == true,
+              "pressed on and off again while it is read: off, the read not applied")
+
+        // Trust its updates: on (its suggestions follow, nothing read), turned on; off: what it pins read first, then saved.
+        slow(0.3)
+        model.setTrustUpdates(true, of: source, root: sources.root)
+        model.setCompletionSource(declared, of: command, enabled: true)
+        let count = reads.withLock { $0.count }
+        check(settled() && saved()?.extensionSources.first?.trustUpdates == true && saved()?.completionSources.first?.scriptSHA256 == ""
+              && reads.withLock { $0.count } == count, "trusted: turned on at once, nothing read")
+        slow(1)
+        model.setTrustUpdates(false, of: model.config.extensionSources[0], root: sources.root)
+        check(model.config.extensionSources.first?.trustUpdates == true && saved()?.extensionSources.first?.trustUpdates == true,
+              "Trust its updates pressed off: nothing saved while what it pins is read, the switch as it was")
+        check(settled() && saved()?.extensionSources.first?.trustUpdates == false && saved()?.completionSources.first?.scriptSHA256 == pinned
+              && reads.withLock { $0.count } > count && reads.withLock { $0.onMain } == 0,
+              "…then off and saved, its suggestions pinned to what was read (off the main thread)")
+
+        // Part of its repository can't be read: said under the command, its switch disabled, turning it on approves nothing.
+        slow(0)
+        model.setCompletionSource(declared, of: command, enabled: false)
+        let locked = clone.appendingPathComponent("private", isDirectory: true)
+        write(locked.appendingPathComponent("notes.txt"), "x\n")
+        try? fm.setAttributes([.posixPermissions: 0o000], ofItemAtPath: locked.path)
+        defer { try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: locked.path) }
+        model.readExtensionDigests()
+        _ = settled()
+        let unreadable = row()
+        check(unreadable.texts.contains(CompletionSource.repositoryUnreadable) && unreadable.switches.allSatisfy { !$0.isEnabled && $0.state == .off },
+              "a folder of its repository that can't be listed: said under the command, its switch disabled")
+        check(CompletionSource.repositoryUnreadable == "Some of its files can't be read, so it can't be checked for changes.",
+              "…saying some of its files can't be read")
+        model.setCompletionSource(declared, of: command, enabled: true)
+        check(settled() && model.config.completionSources.isEmpty && saved()?.completionSources.isEmpty == true, "…and turning it on approves nothing")
+        UIText.choice = "zh"
+        check(row().texts.contains("它有些文件读不了，没法检查改动。"), "…in Chinese too")
+        UIText.choice = "en"
+        try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: locked.path)
+
+        // An update turns its bundle folder into a link out of its clone: nothing of it loads, and its row says why.
+        let elsewhere = dir.appendingPathComponent("elsewhere/ext", isDirectory: true)
+        try? fm.createDirectory(at: elsewhere.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? fm.moveItem(at: bundle, to: elsewhere)
+        try? fm.createSymbolicLink(at: bundle, withDestinationURL: elsewhere)
+        model.refreshExtensions()
+        check(!model.extensionIndex.commands.contains { $0.name == "selftestreading" } && ExtensionSources.leavesClone(source, root: sources.root),
+              "its bundle folder a link out of its clone: nothing of it loads (\(model.extensionIndex.commands.map(\.name)))")
+        let sourceRow = shown(ExtensionSourcesSection(model: model), height: 400)
+        check(sourceRow.texts.contains("Nothing loaded: ext leads out of the repository.") && ExtensionSources.isEnabled(source, in: model.config, root: sources.root),
+              "…its row says its folder leads out of the repository, the source still enabled (\(sourceRow.texts.filter { $0.contains("loaded") }))")
+        UIText.choice = "zh"
+        let chinese = shown(ExtensionSourcesSection(model: model), height: 400)
+        check(chinese.texts.contains("没有加载：ext 指向仓库外面。"), "…in Chinese too (\(chinese.texts.filter { $0.contains("加载") }))")
+        UIText.choice = "en"
+        let climbing = ExtensionSource(url: source.url, path: "ext/../../elsewhere")
+        check(ExtensionSources.leavesClone(climbing, root: sources.root), "…as a path that climbs out is")
+        try? fm.removeItem(at: bundle)
+        try? fm.moveItem(at: elsewhere, to: bundle)
+        model.refreshExtensions()
+        check(model.extensionIndex.commands.contains { $0.name == "selftestreading" }, "put back (a Re-clone): it loads again")
+        _ = settled()
         check((try? Data(contentsOf: Config.userURL)) == realBefore, "the real config file was not touched")
     }
 

@@ -11,7 +11,8 @@ import Foundation
 // (`ExtensionOrigin`, owner 2026-10-24): the user's own, or one from an extension source whose updates they trust, keeps
 // it on (the approval follows it, said nowhere, nothing of it read); one from any other source turns it off again, said
 // once: that one is pinned by a digest of every file of its source's repository (`ExtensionDigest`), which can't be
-// over 2,000 files or 20 MB. What differs is where its items come from: its script, run as its commands run
+// over 2,000 files, 20 MB or 10,000 items, and must be read all. Where it comes from is where it was loaded from, never
+// where links lead. What differs is where its items come from: its script, run as its commands run
 // (`CommandRunner`) with `ALLINONEIME_COMPLETION` set (`ExtensionCompletionRunner`), a bundle's programs one at a time.
 
 extension CompletionDeclaration {
@@ -58,12 +59,15 @@ extension CompletionSourceKey {
 /// its bundle (`extension.json`, every script, `lib/`…) or a single script's file; one from an extension source, every
 /// file of its source's repository (a script may use files anywhere in it: `../shared/common.sh`, a link to a folder of
 /// the clone). Only an extension whose changes turn its source off is read for it (`ExtensionOrigin.followsChanges`
-/// false): the user's own and a trusted source's never are.
+/// false): the user's own and a trusted source's never are. What can't be read all (a folder that can't be listed, an
+/// item whose kind can't be told, a file that can't be read) has no digest: it can't be pinned.
 public enum ExtensionDigest {
-    /// The most files (links too) and bytes in all a source's repository may hold to be pinned: it is read again as a
-    /// field takes the focus and before each run, which past them can't be cheap.
+    /// The most files (links too) and bytes in all a source's repository may hold to be pinned, and the most items of any
+    /// kind (folders, `.DS_Store`s and the rest left out: never what is in `.git`, which isn't walked): it is read again as
+    /// a field takes the focus and before each run, which past them can't be cheap.
     public static let maxFiles = 2_000
     public static let maxBytes = 20_000_000
+    public static let maxEntries = 10_000
     /// What a repository past them reads as (`repository(_:sha256:)`): a digest no approval has. None can be turned on
     /// with it, and one approved holds no more, as after a change.
     public static let tooLarge = "too-large"
@@ -71,7 +75,7 @@ public enum ExtensionDigest {
     /// `command`'s, lowercase hex: one from an extension source (its folder in `root`, the extension sources' folder),
     /// its source's repository's (`repository(_:sha256:)`, `repositoryFolder(of:root:)`); else a bundle's command, its
     /// bundle folder's (`folder(_:sha256:)`); a single script, its file's SHA-256 (as a plugin's script is pinned). Nil:
-    /// nothing to read. `sha256`: a file's SHA-256 (nil: none).
+    /// not all of it can be read. `sha256`: a file's SHA-256 (nil: none).
     public static func of(_ command: ScriptCommand, root: URL = ExtensionSources.directory,
                           sha256: (URL) -> String? = PluginStore.sha256(of:)) -> String? {
         if let clone = repositoryFolder(of: command, root: root) { return repository(clone, sha256: sha256) }
@@ -80,49 +84,48 @@ public enum ExtensionDigest {
     }
 
     /// The repository `command` is pinned by when it comes from an extension source: the folder of `root` its folder is
-    /// in (a source's clone, `ExtensionSources.cloneFolder`, or one no source has: `ExtensionOrigin.unknownSource`). Nil:
-    /// not in `root` (the user's own).
+    /// in, by where it was loaded from (as written, `ExtensionSources.asWritten`), else by where its links lead (a
+    /// source's clone, `ExtensionSources.cloneFolder`, or one no source has: `ExtensionOrigin.unknownSource`). Nil: in
+    /// `root` neither way (the user's own).
     public static func repositoryFolder(of command: ScriptCommand, root: URL = ExtensionSources.directory) -> URL? {
-        let folder = ExtensionSources.comparable(command.extensionDirectory.path)
-        let base = ExtensionSources.comparable(root.path)
-        if folder == base { return root }
-        guard folder.hasPrefix(base + "/"), let first = folder.dropFirst(base.count + 1).split(separator: "/").first else { return nil }
-        return root.appendingPathComponent(String(first), isDirectory: true)
+        let folder = command.extensionDirectory.path
+        for (path, base) in [(ExtensionSources.asWritten(folder), ExtensionSources.asWritten(root.path)),
+                             (ExtensionSources.comparable(folder), ExtensionSources.comparable(root.path))] {
+            if path == base { return root }
+            if path.hasPrefix(base + "/"), let first = path.dropFirst(base.count + 1).split(separator: "/").first {
+                return root.appendingPathComponent(String(first), isDirectory: true)
+            }
+        }
+        return nil
     }
 
     /// The SHA-256 (lowercase hex) of every file under `folder`: each one's path in it with its own SHA-256, in the order
     /// of their paths, so a file added, removed, renamed or changed anywhere in it (a hidden one too) changes it. A link is
     /// read as the file it leads to; one to a folder, or to nothing, as where it leads (that folder isn't walked: it may be
-    /// anywhere). What is no file of an extension is left out (`isIgnored`). Nil: `folder` can't be read.
+    /// anywhere). What is no file of an extension is left out (`isIgnored`). `tooLarge` past the limits (`walk`). Nil: not
+    /// all of it can be read.
     public static func folder(_ folder: URL, sha256: (URL) -> String?) -> String? {
-        let fm = FileManager.default
-        guard (try? fm.contentsOfDirectory(atPath: folder.path)) != nil else { return nil }
+        let items: [Walk.Found]
+        switch walk(folder.path, skipping: isIgnored) {
+        case .unreadable: return nil
+        case .tooLarge: return tooLarge
+        case let .found(found): items = found
+        }
         var entries: [(path: String, content: String)] = []
-        func visit(_ url: URL, _ relative: String) {
-            guard let names = try? fm.contentsOfDirectory(atPath: url.path) else {
-                entries.append((relative + "/", "unreadable"))
-                return
-            }
-            for name in names where !isIgnored(name) {
-                let child = url.appendingPathComponent(name)
-                let path = relative.isEmpty ? name : relative + "/" + name
-                let kind = try? child.resourceValues(forKeys: [.isSymbolicLinkKey, .isDirectoryKey, .isRegularFileKey])
-                if kind?.isSymbolicLink == true {
-                    // The file it leads to, hashed by its own path (a hash kept by size and date then sees it change).
-                    let target = child.resolvingSymlinksInPath()
-                    if (try? target.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true {
-                        entries.append((path, sha256(target) ?? "unreadable"))
-                    } else {
-                        entries.append((path, "link " + ((try? fm.destinationOfSymbolicLink(atPath: child.path)) ?? "")))
-                    }
-                } else if kind?.isDirectory == true {
-                    visit(child, path)
-                } else if kind?.isRegularFile == true {
-                    entries.append((path, sha256(child) ?? "unreadable"))
+        for item in items {
+            var file = URL(fileURLWithPath: item.full)
+            if item.kind == .link {
+                // The file it leads to, hashed by its own path (a hash kept by its stamp then sees it change).
+                file = file.resolvingSymlinksInPath()
+                guard (try? file.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true else {
+                    guard let target = linkTarget(item.full) else { return nil }
+                    entries.append((item.path, "link " + target))
+                    continue
                 }
             }
+            guard let sha = sha256(file) else { return nil }
+            entries.append((item.path, sha))
         }
-        visit(folder, "")
         return digest(entries)
     }
 
@@ -130,54 +133,97 @@ public enum ExtensionDigest {
     /// bundle's but for two things: all but git's own folder (`.git`: a check for updates changes it) and the Finder's
     /// `.DS_Store` are in it, wherever they are (no other name is left out); and a link, anywhere, is pinned as where it
     /// points (its text), never followed: what it leads to in the clone is in the digest anyway, and outside it isn't the
-    /// source's. `tooLarge` past `maxFiles` files or `maxBytes` bytes, counted while walking (it stops there, nothing
-    /// read). Nil: `clone` can't be read.
+    /// source's. `tooLarge` past the limits, counted while walking (`walk`: it stops there, nothing read). Nil: not all of
+    /// it can be read.
     public static func repository(_ clone: URL, sha256: (URL) -> String?) -> String? {
-        enum Content { case file(String), link(String), unreadable }
-        var entries: [(path: String, content: Content)] = []
-        var (files, bytes) = (0, 0)
-        /// False: past the limits (read no further); nil: `folder` can't be read.
-        func visit(_ folder: String, _ relative: String) -> Bool? {
-            eachItem(in: folder) { item in
-                guard item.name != ".git", item.name != ".DS_Store" else { return true }
-                let (full, path) = (folder + "/" + item.name, relative.isEmpty ? item.name : relative + "/" + item.name)
+        switch walk(clone.path, skipping: { $0 == ".git" || $0 == ".DS_Store" }) {
+        case .unreadable: return nil
+        case .tooLarge: return tooLarge
+        case let .found(items):
+            var entries: [(path: String, content: String)] = []
+            for item in items {
+                if item.kind == .link {
+                    guard let target = linkTarget(item.full) else { return nil }
+                    entries.append((item.path, "link " + target))
+                } else {
+                    guard let sha = sha256(URL(fileURLWithPath: item.full)) else { return nil }
+                    entries.append((item.path, sha))
+                }
+            }
+            return digest(entries)
+        }
+    }
+
+    /// What a walk of a folder found (`walk`): its files and links, each with its path in the folder and its full path; or
+    /// why it stopped.
+    enum Walk: Equatable {
+        struct Found: Equatable {
+            var path: String
+            var full: String
+            var kind: Item.Kind
+        }
+        case found([Found])
+        /// Past `maxEntries` items, `maxFiles` files and links, or `maxBytes` bytes of files.
+        case tooLarge
+        /// A folder that can't be listed (or whose listing failed), or an item whose kind can't be told (`Item.Kind
+        /// .unreadable`).
+        case unreadable
+    }
+
+    /// Every file and link under `top`, its folders walked one after another (a list of those still to walk, never by
+    /// recursion; a link never followed), what `skipping` names left out (a folder so named isn't walked). Counted as it
+    /// goes, it stops past `maxEntries` items of any kind (folders and names left out too), `maxFiles` files and links or
+    /// `maxBytes` bytes of files: `tooLarge`, nothing more listed. Other items (a socket, a pipe) are counted, not kept.
+    static func walk(_ top: String, skipping skip: (String) -> Bool) -> Walk {
+        var found: [Walk.Found] = []
+        var (entries, files, bytes) = (0, 0, 0)
+        var folders = [(full: top, path: "")]
+        var stopped = Walk.unreadable
+        while let folder = folders.popLast() {
+            let all = eachItem(in: folder.full) { item in
+                entries += 1
+                guard entries <= maxEntries else {
+                    stopped = .tooLarge
+                    return false
+                }
+                guard !skip(item.name) else { return true }
+                let (full, path) = (folder.full + "/" + item.name, folder.path.isEmpty ? item.name : folder.path + "/" + item.name)
                 switch item.kind {
-                case .link:
-                    files += 1
-                    entries.append((path, .link((try? FileManager.default.destinationOfSymbolicLink(atPath: full)) ?? "")))
+                case .unreadable:
+                    stopped = .unreadable
+                    return false
                 case .folder:
-                    switch visit(full, path) {
-                    case false?: return false
-                    case nil: entries.append((path + "/", .unreadable))
-                    case true?: break
-                    }
-                case .file:
+                    folders.append((full, path))
+                case .file, .link:
                     files += 1
-                    bytes += item.size
-                    entries.append((path, .file(full)))
+                    if item.kind == .file { bytes += item.size }
+                    found.append(Walk.Found(path: path, full: full, kind: item.kind))
                 case .other:
                     break
                 }
-                return files <= maxFiles && bytes <= maxBytes
+                guard files <= maxFiles, bytes <= maxBytes else {
+                    stopped = .tooLarge
+                    return false
+                }
+                return true
+            }
+            switch all {
+            case true?: continue
+            case false?: return stopped
+            case nil: return .unreadable
             }
         }
-        switch visit(clone.path, "") {
-        case nil: return nil
-        case false?: return tooLarge
-        case true?: break
-        }
-        return digest(entries.map { entry in
-            switch entry.content {
-            case let .file(full): return (entry.path, sha256(URL(fileURLWithPath: full)) ?? "unreadable")
-            case let .link(target): return (entry.path, "link " + target)
-            case .unreadable: return (entry.path, "unreadable")
-            }
-        })
+        return .found(found)
+    }
+
+    /// Where the link at `path` points, as written in it (nil: it can't be read).
+    static func linkTarget(_ path: String) -> String? {
+        try? FileManager.default.destinationOfSymbolicLink(atPath: path)
     }
 
     /// An item of a folder of a repository: its name, what it is (a link as itself, never followed) and its size.
     struct Item {
-        enum Kind { case file, folder, link, other }
+        enum Kind { case file, folder, link, other, unreadable }
         var name: String
         var kind: Kind
         var size: Int
@@ -185,40 +231,49 @@ public enum ExtensionDigest {
 
     /// Each item of `folder` given to `body` as it is read, until `body` says to stop (false): every name as the file
     /// system has it (on the Mac the file manager leaves out AppleDouble `._` files, which are files of a repository like
-    /// any other, so they are read there as `ls -a` reads them). Whether all were read; nil: `folder` can't be read.
+    /// any other, so they are read there as `ls -a` reads them); one whose kind can't be told (`lstat` failed) as
+    /// `unreadable`. Whether all were read; nil: `folder` can't be listed, or its listing failed part way.
     static func eachItem(in folder: String, _ body: (Item) -> Bool) -> Bool? {
         #if canImport(Darwin)
         guard let dir = opendir(folder) else { return nil }
         defer { closedir(dir) }
-        while let entry = readdir(dir) {
+        while true {
+            // readdir says nothing more both at the end and on an error: told apart by errno, cleared before each.
+            errno = 0
+            guard let entry = readdir(dir) else { break }
             let name = withUnsafePointer(to: entry.pointee.d_name) {
                 $0.withMemoryRebound(to: CChar.self, capacity: MemoryLayout.size(ofValue: entry.pointee.d_name)) { String(cString: $0) }
             }
             guard name != ".", name != ".." else { continue }
             var info = stat()
-            var item = Item(name: name, kind: .other, size: 0)
+            var item = Item(name: name, kind: .unreadable, size: 0)
             if lstat(folder + "/" + name, &info) == 0 {
                 switch info.st_mode & S_IFMT {
                 case S_IFLNK: item.kind = .link
                 case S_IFDIR: item.kind = .folder
                 case S_IFREG: item.kind = .file
-                default: break
+                default: item.kind = .other
                 }
                 item.size = Int(info.st_size)
             }
             guard body(item) else { return false }
         }
-        return true
+        return errno == 0 ? true : nil
         #else
         let keys: [URLResourceKey] = [.isSymbolicLinkKey, .isDirectoryKey, .isRegularFileKey, .fileSizeKey]
         guard let children = try? FileManager.default.contentsOfDirectory(at: URL(fileURLWithPath: folder, isDirectory: true),
                                                                            includingPropertiesForKeys: keys, options: [])
         else { return nil }
         for child in children {
-            let values = try? child.resourceValues(forKeys: Set(keys))
-            let kind: Item.Kind = values?.isSymbolicLink == true ? .link : values?.isDirectory == true ? .folder
-                : values?.isRegularFile == true ? .file : .other
-            guard body(Item(name: child.lastPathComponent, kind: kind, size: values?.fileSize ?? 0)) else { return false }
+            let kind: Item.Kind
+            var size = 0
+            if let values = try? child.resourceValues(forKeys: Set(keys)) {
+                kind = values.isSymbolicLink == true ? .link : values.isDirectory == true ? .folder : values.isRegularFile == true ? .file : .other
+                size = values.fileSize ?? 0
+            } else {
+                kind = .unreadable
+            }
+            guard body(Item(name: child.lastPathComponent, kind: kind, size: size)) else { return false }
         }
         return true
         #endif
@@ -245,13 +300,15 @@ public enum ExtensionDigest {
 /// Where a script extension comes from, as its completion source's approval goes (0.6.7.1 §2, owner 2026-10-24).
 public enum ExtensionOrigin: Equatable, Sendable {
     /// The user's own: a folder of theirs (their extensions folder, one they added), not installed from an extension
-    /// source. Trusted: its changes never turn its source off.
+    /// source: no source's bundle folder and out of the extension sources' folder, as written and with links resolved.
+    /// Trusted: its changes never turn its source off.
     case own
     /// Installed from this extension source (`Config.extensionSources`): its updates keep its source on when the user
     /// trusts them (`ExtensionSource.trustUpdates`); else any change turns it off.
     case source(ExtensionSource)
-    /// In the extension sources' folder but no source's bundle (a config copied from another Mac), or in a folder two
-    /// configured sources would share (`ExtensionSources.sharingFolder`): as a source's not trusted.
+    /// In the extension sources' folder (as written, or with links resolved) but no source's bundle (a config copied from
+    /// another Mac, a link into a clone), or in a folder two configured sources would share (`ExtensionSources
+    /// .sharingFolder`): as a source's not trusted.
     case unknownSource
 
     /// Whether a change keeps its source on, the approval following it (`CompletionSourceApproval.followed`).
@@ -265,18 +322,21 @@ public enum ExtensionOrigin: Equatable, Sendable {
 }
 
 extension Config {
-    /// Where the script extension `command` comes from (`ExtensionOrigin`): its folder (`ScriptCommand.extensionDirectory`)
-    /// a source's bundle folder in `root`, the extension sources' folder (`ExtensionSources.bundleFolder`), or in it as
-    /// no source's (nor one whose folder another configured source would share: which one it is can't be told); anywhere
-    /// else, the user's own.
+    /// Where the script extension `command` comes from (`ExtensionOrigin`), by where it was loaded from, never by where
+    /// links lead: its folder (`ScriptCommand.extensionDirectory`) a configured source's bundle folder in `root`, the
+    /// extension sources' folder (`ExtensionSources.bundleFolder`; as written first, then with links resolved), asked
+    /// before anything else: that source's (no source's when another configured source would share its folder: which one
+    /// it is can't be told); else in `root` either way (`ExtensionSources.isIn`), no source's; only anywhere else, the
+    /// user's own.
     public func extensionOrigin(of command: ScriptCommand, root: URL = ExtensionSources.directory) -> ExtensionOrigin {
-        let folder = ExtensionSources.comparable(command.extensionDirectory.path)
-        let base = ExtensionSources.comparable(root.path)
-        guard folder == base || folder.hasPrefix(base + "/") else { return .own }
-        guard let source = extensionSources.first(where: { ExtensionSources.comparable(ExtensionSources.bundleFolder(for: $0, root: root).path) == folder }),
-              ExtensionSources.sharingFolder(with: source.url, in: self) == nil
-        else { return .unknownSource }
-        return .source(source)
+        let folder = command.extensionDirectory.path
+        let bundles = extensionSources.map { ($0, ExtensionSources.bundleFolder(for: $0, root: root).path) }
+        let (written, resolved) = (ExtensionSources.asWritten(folder), ExtensionSources.comparable(folder))
+        if let source = bundles.first(where: { ExtensionSources.asWritten($0.1) == written })?.0
+            ?? bundles.first(where: { ExtensionSources.comparable($0.1) == resolved })?.0 {
+            return ExtensionSources.sharingFolder(with: source.url, in: self) == nil ? .source(source) : .unknownSource
+        }
+        return ExtensionSources.isIn(folder, root: root) ? .unknownSource : .own
     }
 
     /// Whether a change to the script extension `command` keeps its completion source on (`ExtensionOrigin.followsChanges`).
@@ -285,25 +345,43 @@ extension Config {
     }
 
     /// The extension source of `url`'s "Trust its updates" switched `on`. Turned off, its extensions' approvals that hold
-    /// are first made what they are now (`follow`: their repository read then, by `sha256`), so turning it off turns
-    /// nothing off by itself: only a change after it does (one whose repository is too large to read, `ExtensionDigest
-    /// .tooLarge`, is turned off at the next check). `commands`: the script extensions as loaded; `root`: the extension
-    /// sources' folder. Whether it changed.
+    /// are first made what they are now (`follow`: their repository read then, by `sha256`, `pinsWithoutTrust`), so
+    /// turning it off turns nothing off by itself: only a change after it does (one whose repository is too large to read,
+    /// `ExtensionDigest.tooLarge`, or can't be read all, is turned off at the next check). `commands`: the script
+    /// extensions as loaded; `root`: the extension sources' folder. Whether it changed.
     @discardableResult
     public mutating func setTrustUpdates(_ on: Bool, of url: String, extensions commands: [ScriptCommand],
                                          root: URL = ExtensionSources.directory,
                                          sha256: (URL) -> String? = PluginStore.sha256(of:)) -> Bool {
+        guard extensionSources.contains(where: { $0.url == url && $0.trustUpdates != on }) else { return false }
+        return setTrustUpdates(on, of: url, pinning: on ? [] : pinsWithoutTrust(of: url, extensions: commands, root: root, sha256: sha256))
+    }
+
+    /// What turning "Trust its updates" of the extension source `url` off approves: its extensions' approvals that hold
+    /// (of `commands`, the script extensions as loaded), each made what it is now, its repository read (in `root`, by
+    /// `sha256`; one that can't be read or is too large is left as it was). It reads the repository: Settings calls it off
+    /// the main thread, then `setTrustUpdates(_:of:pinning:)` with what it found.
+    public func pinsWithoutTrust(of url: String, extensions commands: [ScriptCommand], root: URL = ExtensionSources.directory,
+                                 sha256: (URL) -> String? = PluginStore.sha256(of:)) -> [CompletionSourceApproval] {
+        pinsWithoutTrust(of: url, extensions: commands, root: root, digest: { ExtensionDigest.of($0, root: root, sha256: sha256) })
+    }
+
+    /// `pinsWithoutTrust(of:extensions:root:sha256:)`, each extension read by `digest` (`ExtensionDigest.of`).
+    public func pinsWithoutTrust(of url: String, extensions commands: [ScriptCommand], root: URL = ExtensionSources.directory,
+                                 digest: (ScriptCommand) -> String?) -> [CompletionSourceApproval] {
+        let own = commands.filter { if case let .source(source) = extensionOrigin(of: $0, root: root) { return source.url == url } else { return false } }
+        return withoutActuallyEscaping(digest) { digest in
+            CompletionSourceApproval.followed(completionSources, extensions: own, follows: { _ in true }, digest: digest)
+        }
+    }
+
+    /// The extension source of `url`'s "Trust its updates" switched `on`; turned off, `followed` (what `pinsWithoutTrust`
+    /// read) taken first (`follow`: those turned off or marked lapsed since are left so). Nothing read. Whether it changed.
+    @discardableResult
+    public mutating func setTrustUpdates(_ on: Bool, of url: String, pinning followed: [CompletionSourceApproval]) -> Bool {
         guard let index = extensionSources.firstIndex(where: { $0.url == url }), extensionSources[index].trustUpdates != on
         else { return false }
-        if !on {
-            let config = self
-            let own = commands.filter { if case let .source(source) = config.extensionOrigin(of: $0, root: root) { return source.url == url } else { return false } }
-            let followed = withoutActuallyEscaping(sha256) { sha256 in
-                CompletionSourceApproval.followed(completionSources, extensions: own, follows: { _ in true },
-                                                  digest: { ExtensionDigest.of($0, root: root, sha256: sha256) })
-            }
-            follow(followed)
-        }
+        if !on { follow(followed) }
         extensionSources[index].trustUpdates = on
         return true
     }
@@ -361,10 +439,11 @@ extension CompletionSourceApproval {
 
     /// The approvals of `enabled` not marked lapsed yet that no longer hold for the script extensions' `commands` as they
     /// are now: those pinned (`follows` false: from an extension source whose updates aren't trusted) whose extension,
-    /// query or terms changed since, or whose repository grew too large to pin (`ExtensionDigest.tooLarge`). One that
-    /// follows its changes never lapses (`followed`), and isn't read. One whose command isn't there, declares none or one
-    /// refused, or can't be read, has nothing to compare with: it doesn't lapse (it isn't on meanwhile). `digest`: an
-    /// extension's as it is now (`ExtensionDigest.of`; nil: none to read).
+    /// query or terms changed since, whose repository grew too large to pin (`ExtensionDigest.tooLarge`), or that can't be
+    /// read all any more (a folder that can't be listed, a file that can't be read: no digest). One that follows its
+    /// changes never lapses (`followed`), and isn't read. One whose command isn't there, or declares none or one refused,
+    /// has nothing to compare with: it doesn't lapse (it isn't on meanwhile). `digest`: an extension's as it is now
+    /// (`ExtensionDigest.of`; nil: it can't be read).
     public static func lapsed(_ enabled: [CompletionSourceApproval], extensions commands: [ScriptCommand],
                               follows: (ScriptCommand) -> Bool = { _ in false },
                               digest: (ScriptCommand) -> String? = { ExtensionDigest.of($0) }) -> [CompletionSourceApproval] {
@@ -372,8 +451,8 @@ extension CompletionSourceApproval {
         guard !extensionApprovals.isEmpty else { return [] }
         return extensionApprovals.filter { approval in
             guard let command = commands.first(where: { $0.id == approval.source }), case let .success(source)? = command.completion,
-                  !follows(command), let digest = digest(command) else { return false }
-            return !approval.holds(forScript: source, of: command, digest: digest, follows: false)
+                  !follows(command) else { return false }
+            return !approval.holds(forScript: source, of: command, digest: digest(command), follows: false)
         }
     }
 
@@ -410,32 +489,52 @@ extension Config {
 
     /// `source` of the script extension `command` turned on with what it is now, or off. One whose changes keep it on
     /// (`followsChanges`: the user's own, a trusted source's) is turned on with its query and terms, nothing of it read
-    /// (no digest); any other with its digest too (`CompletionSourceApproval(enabling:of:root:sha256:)`: not when it
-    /// can't be read, or its repository is too large to pin). `root`: the extension sources' folder; `sha256`: a file's.
+    /// (no digest); any other with its digest too (`ExtensionDigest.of`: not when it can't be read all, or its repository
+    /// is too large to pin). `root`: the extension sources' folder; `sha256`: a file's.
     public mutating func setCompletionSource(_ source: CompletionSource, of command: ScriptCommand, enabled: Bool,
                                              root: URL = ExtensionSources.directory,
                                              sha256: (URL) -> String? = PluginStore.sha256(of:)) {
+        let read = enabled && !followsChanges(of: command, root: root)
+        setCompletionSource(source, of: command, enabled: enabled,
+                            digest: read ? ExtensionDigest.of(command, root: root, sha256: sha256) : nil, root: root)
+    }
+
+    /// `setCompletionSource(_:of:enabled:root:sha256:)` with its extension read already (Settings reads it off the main
+    /// thread): `digest`, its `ExtensionDigest.of` (nil: it can't be read all). One whose changes keep it on is turned on
+    /// without it, whatever it is; any other only with a digest that pins it (not nil, not `ExtensionDigest.tooLarge`).
+    public mutating func setCompletionSource(_ source: CompletionSource, of command: ScriptCommand, enabled: Bool, digest: String?,
+                                             root: URL = ExtensionSources.directory) {
         let key = CompletionSourceKey(extension: command)
         completionSources.removeAll { $0.plugin == key.plugin && $0.source == key.source }
         guard enabled else { return }
         if followsChanges(of: command, root: root) {
             completionSources.append(CompletionSourceApproval(source, of: command, digest: ""))
-        } else if let approval = CompletionSourceApproval(enabling: source, of: command, root: root, sha256: sha256) {
-            completionSources.append(approval)
+        } else if let digest, digest != ExtensionDigest.tooLarge {
+            completionSources.append(CompletionSourceApproval(source, of: command, digest: digest))
         }
     }
 
     /// How `source` of the script extension `command` stands, as Settings shows it under the command
     /// (`ScriptCompletionState`): its extension read only when a change would turn it off (`followsChanges` false), by
-    /// `sha256` (Settings': a file read again only when it changed). `root`: the extension sources' folder.
+    /// `sha256` (Settings': a file read again only when it changed). `root`: the extension sources' folder. It may read a
+    /// whole repository: Settings calls it off the main thread.
     public func completionState(of source: CompletionSource, in command: ScriptCommand, root: URL = ExtensionSources.directory,
                                 sha256: (URL) -> String? = PluginStore.sha256(of:)) -> ScriptCompletionState {
-        let approval = approval(of: source, in: command)
         let follows = followsChanges(of: command, root: root)
-        let digest = follows ? nil : ExtensionDigest.of(command, root: root, sha256: sha256)
-        let tooLarge = digest == ExtensionDigest.tooLarge
+        return completionState(of: source, in: command, follows: follows,
+                               digest: follows ? nil : ExtensionDigest.of(command, root: root, sha256: sha256))
+    }
+
+    /// `completionState(of:in:root:sha256:)` from what was read already, nothing read here: `follows`, whether a change
+    /// keeps it on (`followsChanges`); `digest`, its extension's (`ExtensionDigest.of`; nil: it can't be read all; not
+    /// looked at for one that follows).
+    public func completionState(of source: CompletionSource, in command: ScriptCommand, follows: Bool, digest: String?) -> ScriptCompletionState {
+        let approval = approval(of: source, in: command)
+        let tooLarge = !follows && digest == ExtensionDigest.tooLarge
+        let unreadable = !follows && digest == nil
         let on = approval?.holds(forScript: source, of: command, digest: digest, follows: follows) ?? false
-        return ScriptCompletionState(on: on, changed: approval != nil && !on && !tooLarge, tooLarge: tooLarge)
+        return ScriptCompletionState(on: on, changed: approval != nil && !on && !tooLarge && !unreadable, tooLarge: tooLarge,
+                                     unreadable: unreadable)
     }
 
     /// The approvals `followed` found (`CompletionSourceApproval.followed`) in place of those of their sources: unless one
@@ -463,11 +562,20 @@ public struct ScriptCompletionState: Equatable, Sendable {
     /// Its source's repository is too large to check for changes (`ExtensionDigest.tooLarge`): it can't be turned on, and
     /// one turned on before it grew so is off (`CompletionSource.repositoryTooLarge`).
     public var tooLarge: Bool
+    /// Its extension can't be read all to check for changes (a folder that can't be listed, a file that can't be read: no
+    /// digest): it can't be turned on, and one turned on before is off (`CompletionSource.repositoryUnreadable`).
+    public var unreadable: Bool
 
-    public init(on: Bool, changed: Bool, tooLarge: Bool) {
+    public init(on: Bool, changed: Bool, tooLarge: Bool, unreadable: Bool = false) {
         self.on = on
         self.changed = changed
         self.tooLarge = tooLarge
+        self.unreadable = unreadable
+    }
+
+    /// Why it can't be turned on (its switch disabled while off), as said under it; nil: it can.
+    public var cantTurnOn: String? {
+        tooLarge ? CompletionSource.repositoryTooLarge : unreadable ? CompletionSource.repositoryUnreadable : nil
     }
 }
 
@@ -501,6 +609,13 @@ extension CompletionSource {
     public static var repositoryTooLarge: String {
         tr("它的仓库太大，没法检查改动（超过 2,000 个文件或 20 MB）。",
            "Its repository is too large to check for changes (over 2,000 files or 20 MB).")
+    }
+
+    /// What a script extension's source says when not all of its extension can be read to pin it (a folder that can't be
+    /// listed, a file that can't be read, a script gone; Settings → Commands, the Mac's and the settings document's): it
+    /// can't be turned on, and one turned on is off.
+    public static var repositoryUnreadable: String {
+        tr("它有些文件读不了，没法检查改动。", "Some of its files can't be read, so it can't be checked for changes.")
     }
 }
 

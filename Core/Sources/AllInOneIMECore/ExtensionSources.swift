@@ -359,15 +359,59 @@ public enum ExtensionSources {
         // A path that climbs out ("..", and on Windows "..\", "C:") or has a NUL in it (a URL with one names "/") names no
         // folder of the clone: a hidden name that never exists, so nothing loads.
         if path.contains("\0") || parts.contains(where: CorePaths.climbs) {
-            return clone.appendingPathComponent(".invalid-bundle-path", isDirectory: true)
+            return clone.appendingPathComponent(invalidBundleFolder, isDirectory: true)
         }
         return parts.isEmpty ? clone : clone.appendingPathComponent(parts.joined(separator: "/"), isDirectory: true)
+    }
+
+    /// What `bundleFolder` names for a path that climbs out of the clone: a hidden name that never exists.
+    static let invalidBundleFolder = ".invalid-bundle-path"
+
+    /// Whether `source`'s bundle folder leads out of its clone: its path climbs out (`bundleFolder`'s
+    /// `invalidBundleFolder`), or its real path (links resolved: the folder, or one it is in, is a link, maybe since an
+    /// update) isn't in its clone's real path. Nothing of it loads then (`loadFolders`), and Settings says so as for a path
+    /// that climbs out. A clone not there doesn't lead out (nothing of it loads anyway).
+    public static func leavesClone(_ source: ExtensionSource, root: URL = directory) -> Bool {
+        let clone = cloneFolder(for: source.url, root: root)
+        let bundle = bundleFolder(for: source, root: root)
+        if bundle == clone.appendingPathComponent(invalidBundleFolder, isDirectory: true) { return true }
+        return !isWithin(comparable(bundle.path), comparable(clone.path))
+    }
+
+    /// Whether the folders at `path` and `other` are one as where something was loaded from is told: their links resolved
+    /// (`comparable`), or as written (`asWritten`), either.
+    public static func sameFolder(_ path: String, _ other: String) -> Bool {
+        comparable(path) == comparable(other) || asWritten(path) == asWritten(other)
+    }
+
+    /// Whether the folder at `path` is `root` or in it, its links resolved (`comparable`) or as written (`asWritten`),
+    /// either: a folder written in the sources folder is in it wherever a link leads.
+    public static func isIn(_ path: String, root: URL) -> Bool {
+        isWithin(comparable(path), comparable(root.path)) || isWithin(asWritten(path), asWritten(root.path))
+    }
+
+    /// Whether `path` is `folder` or in it, both written the same way (`comparable`, `asWritten`).
+    static func isWithin(_ path: String, _ folder: String) -> Bool {
+        path == folder || path.hasPrefix(folder.hasSuffix("/") ? folder : folder + "/")
     }
 
     /// A folder's path as the load list is compared: "~" expanded, standardized, its existing part's links resolved,
     /// no trailing "/", in lower case on a volume that doesn't tell case apart (a folder gone compares the same as before).
     public static func comparable(_ path: String) -> String {
-        var path = ((path as NSString).expandingTildeInPath as NSString).standardizingPath
+        normalized(((path as NSString).expandingTildeInPath as NSString).standardizingPath, resolvingLinks: true)
+    }
+
+    /// A folder's path as written, for telling where something was loaded from whatever its links lead to: "~"
+    /// expanded, "." and ".." taken out by the parts alone, no trailing "/", in lower case on a volume that doesn't tell
+    /// case apart; no link resolved.
+    public static func asWritten(_ path: String) -> String {
+        normalized(URL(fileURLWithPath: (path as NSString).expandingTildeInPath).standardizedFileURL.path, resolvingLinks: false)
+    }
+
+    /// `path` (standardized) without a trailing "/", its existing part's links resolved if `resolvingLinks`, in lower case
+    /// on a volume that doesn't tell case apart.
+    private static func normalized(_ standardized: String, resolvingLinks: Bool) -> String {
+        var path = standardized
         while path.count > 1, path.hasSuffix("/") { path.removeLast() }
         // Its existing part with links resolved (/var → /private/var), the rest as written; on a volume that doesn't tell
         // case apart, in lower case.
@@ -381,10 +425,10 @@ public enum ExtensionSources {
         }
         #if os(Windows)
         // No realpath there: Foundation resolves the links. It doesn't say how the volume compares names: NTFS's way.
-        existing = URL(fileURLWithPath: existing).resolvingSymlinksInPath().path
+        if resolvingLinks { existing = URL(fileURLWithPath: existing).resolvingSymlinksInPath().path }
         let unsaid = false
         #else
-        if let real = realpath(existing, nil) {
+        if resolvingLinks, let real = realpath(existing, nil) {
             existing = String(cString: real)
             free(real)
         }
@@ -590,33 +634,33 @@ public enum ExtensionSources {
         config.extensionFolders.removeAll { comparable($0) == full }
     }
 
-    /// The load list's folders inside the sources folder (`root`) that aren't a trusted source's bundle: a config copied
-    /// from another Mac, a lost sources.json, a folder added by hand. Their code was never reviewed here: they aren't
-    /// loaded (`quarantine`, and the input method's own check before it loads extensions).
+    /// The load list's folders in the sources folder (`root`; links resolved or as written, `isIn`) that aren't a trusted
+    /// source's bundle (either way, `sameFolder`): a config copied from another Mac, a lost sources.json, a folder added
+    /// by hand. Their code was never reviewed here: they aren't loaded (`quarantine`, and the input method's own check
+    /// before it loads extensions).
     public static func untrustedFolders(in config: Config, statuses: [String: ExtensionSourceStatus], root: URL = directory) -> [String] {
-        let base = comparable(root.path)
-        let trusted = Set(config.extensionSources.filter { isTrusted($0, statuses[$0.url]) }
-            .map { comparable(bundleFolder(for: $0, root: root).path) })
+        let trusted = config.extensionSources.filter { isTrusted($0, statuses[$0.url]) }.map { bundleFolder(for: $0, root: root).path }
+        let (resolved, written) = (Set(trusted.map(comparable)), Set(trusted.map(asWritten)))
         return config.extensionFolders.filter { path in
-            let full = comparable(path)
-            return (full == base || full.hasPrefix(base + "/")) && !trusted.contains(full)
+            isIn(path, root: root) && !resolved.contains(comparable(path)) && !written.contains(asWritten(path))
         }
     }
 
     /// The folders extensions are loaded from (`ExtensionStore.folders`) as the input method loads them: less
-    /// `untrustedFolders`, and those of the sources folder read only as the one bundle each is (`Folder.bundleOnly`).
-    /// What an interrupted Enable or Re-clone left aside in the sources folder is put right first
-    /// (`FileOps.recoverInterruptedSwaps`).
+    /// `untrustedFolders` and a source's bundle folder that leads out of its clone (`leavesClone`), those of the sources
+    /// folder read only as the one bundle each is (`Folder.bundleOnly`). What an interrupted Enable or Re-clone left aside
+    /// in the sources folder is put right first (`FileOps.recoverInterruptedSwaps`).
     public static func loadFolders(_ config: Config, found: [String], statuses: [String: ExtensionSourceStatus],
                                    root: URL = directory) -> [ExtensionStore.Folder] {
         Platform.current.files.recoverInterruptedSwaps(in: root)
         let base = comparable(root.path)
         let untrusted = Set(untrustedFolders(in: config, statuses: statuses, root: root).map(comparable))
+        let outside = config.extensionSources.filter { leavesClone($0, root: root) }.map { bundleFolder(for: $0, root: root).path }
         return ExtensionStore.folders(config, found: found).compactMap { folder in
             let path = comparable(folder.path)
-            guard !untrusted.contains(path) else { return nil }
+            guard !untrusted.contains(path), !outside.contains(where: { sameFolder(folder.url.path, $0) }) else { return nil }
             var folder = folder
-            if path.hasPrefix(base + "/") { folder.bundleOnly = true }
+            if path != base, isIn(folder.url.path, root: root) { folder.bundleOnly = true }
             return folder
         }
     }

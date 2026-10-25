@@ -181,7 +181,7 @@ public final class SuggestionsStore: @unchecked Sendable {
 
     // MARK: - The script's hash
 
-    /// The SHA-256 (lowercase hex) of the file at `url`, read again when it changed (its size or date); nil: none.
+    /// The SHA-256 (lowercase hex) of the file at `url`, read again when it changed (`FileHashes.Stamp`); nil: none.
     public func sha256(of url: URL) -> String? { hashes.sha256(of: url) }
 
     // MARK: - Results
@@ -543,15 +543,20 @@ final class SuggestionsExecutor: TaskExecutor {
     }
 }
 
-/// Files' SHA-256s (lowercase hex), each read again only when its size or date changed: what pins a plugin's script or
+/// Files' SHA-256s (lowercase hex), each read again only when its stamp changed (`Stamp`): what pins a plugin's script or
 /// a script extension (`ExtensionDigest`), read as a field takes the focus and before each run, without reading every
 /// file each time.
 public final class FileHashes: @unchecked Sendable {
-    /// A file's size and date as the file system has them (to the nanosecond where it says).
+    /// What tells a file changed, as the file system has it: its size and date (to the nanosecond where it says), which a
+    /// program can set back after changing it, and where there is `lstat` its inode (another file put in its place) and
+    /// the time its status last changed (`st_ctimespec`: set by every write, rename and change of date, and never back).
     struct Stamp: Equatable {
         var size: Int
         var seconds: Int
         var nanoseconds: Int
+        var inode: UInt64 = 0
+        var changedSeconds: Int = 0
+        var changedNanoseconds: Int = 0
     }
 
     private let kept = Locked<[String: (stamp: Stamp, sha: String)]>(initialState: [:])
@@ -568,19 +573,23 @@ public final class FileHashes: @unchecked Sendable {
         return sha
     }
 
-    /// `path`'s size and date now, never a value kept (a URL keeps those it read): the item itself, a link not followed.
-    /// Where there is `lstat`, by it (a few microseconds; the file manager's attributes take ten times as long, which a
-    /// repository of 2,000 files read as a field takes the focus would feel).
+    /// `path`'s stamp now, never a value kept (a URL keeps those it read): the item itself, a link not followed. Where
+    /// there is `lstat`, by it (a few microseconds; the file manager's attributes take ten times as long, which a
+    /// repository of 2,000 files read as a field takes the focus would feel), with the inode and status-change time;
+    /// elsewhere its size, date and file number as the file manager has them.
     static func stamp(_ path: String) -> Stamp? {
         #if canImport(Darwin)
         var info = stat()
         guard lstat(path, &info) == 0 else { return nil }
-        return Stamp(size: Int(info.st_size), seconds: Int(info.st_mtimespec.tv_sec), nanoseconds: Int(info.st_mtimespec.tv_nsec))
+        return Stamp(size: Int(info.st_size), seconds: Int(info.st_mtimespec.tv_sec), nanoseconds: Int(info.st_mtimespec.tv_nsec),
+                     inode: UInt64(info.st_ino), changedSeconds: Int(info.st_ctimespec.tv_sec),
+                     changedNanoseconds: Int(info.st_ctimespec.tv_nsec))
         #else
         let attributes = try? FileManager.default.attributesOfItem(atPath: path)
         guard let size = (attributes?[.size] as? NSNumber)?.intValue else { return nil }
         let time = (attributes?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
-        return Stamp(size: size, seconds: Int(time.rounded(.down)), nanoseconds: Int((time - time.rounded(.down)) * 1_000_000_000))
+        return Stamp(size: size, seconds: Int(time.rounded(.down)), nanoseconds: Int((time - time.rounded(.down)) * 1_000_000_000),
+                     inode: (attributes?[.systemFileNumber] as? NSNumber)?.uint64Value ?? 0)
         #endif
     }
 }
