@@ -79,6 +79,8 @@ jobs:
   # runner's git has core.autocrlf on: the export's line ends are Core/.gitattributes's (git archive reads the archived
   # tree's attributes, not the root's), which keeps the goldens LF.
   windows:
+    # Off for now (owner, 2026-10-25): Windows work is on hold; turn it back on by removing this line.
+    if: false
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
