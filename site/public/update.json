@@ -1,15 +1,15 @@
 {
-  "build" : "14",
-  "generated" : "2026-10-24T21:55:35Z",
+  "build" : "15",
+  "generated" : "2026-10-25T05:15:48Z",
   "minimumSystemVersion" : "14.0",
-  "notesURL" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/tag/v0.6.7",
+  "notesURL" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/tag/v0.6.7.1",
   "schema" : 1,
-  "sha256" : "2facebfee5ed47afbb71b47d6cea36d0f968c744353348d8fdc6861b2b8351fd",
-  "size" : 27602761,
+  "sha256" : "fef05c2c11ed7e3ce293bfcf79eacaf225030813f577453981831ed61bf83f99",
+  "size" : 28032594,
   "summary" : {
-    "en" : "Simpler Settings (seven pages; search changes settings in a sentence; where each app starts is learned); autocomplete (beta) after a pause; suggestions as you type from plugins and your own programs (GitHub issues: #12 → #1234); Code, an input for writing code; the magic key; and fixes.",
-    "zh" : "更简单的设置（七页；搜索框里一句话改设置；每个 App 从哪种输入开始靠学）；停顿后的续写（Beta）；插件和你自己的程序提供的打字建议（GitHub issue：#12 → #1234）；写代码用的代码输入；魔法键；以及若干修复。"
+    "en" : "Suggestions from script extensions (a team's commands can complete #12 or PROJ-12 as you type, with trust by where the extension comes from); a suggestion can be put in as a Markdown link; fixes.",
+    "zh" : "脚本扩展也能给出打字建议（团队的命令可以补全 #12、PROJ-12，按扩展的来处决定是否信任）；建议可以插入成 Markdown 链接；以及若干修复。"
   },
-  "url" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/download/v0.6.7/AllInOneIME-0.6.7-update.zip",
-  "version" : "0.6.7"
+  "url" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/download/v0.6.7.1/AllInOneIME-0.6.7.1-update.zip",
+  "version" : "0.6.7.1"
 }
