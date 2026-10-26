@@ -14,7 +14,7 @@ public enum SessionEvent: Sendable {
     /// The app wants what's pending in now (a click elsewhere in it).
     case commit
     /// A row of the candidate panel clicked (its index in `PanelModel.rows`: the session picks its `choice`); its list
-    /// scrolled by `steps` rows.
+    /// scrolled by `steps` rows (down positive).
     case pick(Int)
     case scroll(Int)
     /// The clipboard as `SessionOutput.readClipboard` asked for it, for the draft's request `id`.
@@ -68,6 +68,11 @@ public enum SessionOutput: Equatable, Sendable {
     /// app may act on the key as well (Chromium's, where what goes in during the key is a replacement, one character or
     /// none) puts the row in so the app doesn't.
     case rowByKey
+    /// The rows took the key being answered, and it puts nothing in: ↓ or ↑ moved the choice, → or Esc hid them (whatever
+    /// a word Code held does with it follows). The key is the input method's: a shell whose app may act on such a key as
+    /// well (Chromium's, where nothing goes in during it: Slack's composer moved its caret, or the focus, on ↑) keeps it
+    /// from doing so, the field's text and its caret as they are (0.6.7.3).
+    case rowsTookKey
     /// The marked text: `text`, the caret `cursor` UTF-16 units into it, `converted` at level two. Empty: none of ours
     /// (leave the document alone if the shell set none).
     case marked(String, cursor: Int, converted: Bool)

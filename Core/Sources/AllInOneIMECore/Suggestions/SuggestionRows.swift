@@ -87,13 +87,28 @@ struct CompletionItems: Sendable {
     /// The first item from `start` on that answers `token` (normalized, in small letters) as `source` compares
     /// (`PluginRows.matches`); nil: none.
     func next(answering token: String, _ source: CompletionSource, from start: Int) -> Int? {
-        guard start < items.count else { return nil }
+        var found: Int?
+        each(answering: token, source, from: start) { index in
+            found = index
+            return false
+        }
+        return found
+    }
+
+    /// Each item from `start` on that answers `token` (normalized, in small letters) as `source` compares
+    /// (`PluginRows.matches`), in order, until `visit` says to stop (false): what `next` finds, the token's bytes read
+    /// once for all of them (a key may look for 100).
+    func each(answering token: String, _ source: CompletionSource, from start: Int = 0, _ visit: (Int) -> Bool) {
+        guard start < items.count else { return }
         // A token not in ASCII, or compared whole: as `matches` compares, item by item.
         let wanted = Array(token.utf8)
         guard source.compare == .prefix, wanted.allSatisfy({ $0 < 0x80 }) else {
-            return (start..<items.count).first { PluginRows.matches(lowered[$0], token, source) }
+            for index in start..<items.count where PluginRows.matches(lowered[index], token, source) {
+                guard visit(index) else { return }
+            }
+            return
         }
-        return bytes.withUnsafeBufferPointer { bytes in
+        bytes.withUnsafeBufferPointer { bytes in
             starts.withUnsafeBufferPointer { starts in
                 wanted.withUnsafeBufferPointer { wanted in
                     var index = start
@@ -107,11 +122,10 @@ struct CompletionItems: Sendable {
                         }
                         // What follows isn't ASCII: a mark could join the token's last character (`hasPrefix` says).
                         if same, length == wanted.count || bytes[from + wanted.count] < 0x80 || lowered[index].hasPrefix(token) {
-                            return index
+                            guard visit(index) else { return }
                         }
                         index += 1
                     }
-                    return nil
                 }
             }
         }
@@ -143,12 +157,42 @@ enum PluginRows {
 
     /// How many of `items` answer `token` (normalized, in small letters), counted up to `limit`.
     static func count(_ items: CompletionItems, answering lowered: String, _ source: CompletionSource, upTo limit: Int) -> Int {
-        var (count, start) = (0, 0)
-        while count < limit, let found = items.next(answering: lowered, source, from: start) {
+        var count = 0
+        guard limit > 0 else { return 0 }
+        items.each(answering: lowered, source) { _ in
             count += 1
-            start = found + 1
+            return count < limit
         }
         return count
+    }
+
+    /// How many rows `lists` (as `rows` takes them) may have for `token` (normalized, in small letters), up to `limit`:
+    /// the items that answer it, a match once, without a row made of any (one none of whose templates can go in here is
+    /// counted too). What a key counts past the rows it makes (`InputSession.suggestionsRows`).
+    static func matching(_ lowered: String, _ source: CompletionSource, in lists: [CompletionItems], upTo limit: Int) -> Int {
+        var count = 0
+        guard limit > 0 else { return 0 }
+        each(answering: lowered, source, in: lists) { _, _, _ in
+            count += 1
+            return count < limit
+        }
+        return count
+    }
+
+    /// Each item of `lists` that answers `lowered` (the token normalized, in small letters) as `source` compares, a match
+    /// once (its first), in order, with its list and place, until `visit` says to stop (false).
+    static func each(answering lowered: String, _ source: CompletionSource, in lists: [CompletionItems],
+                     _ visit: (Int, Int, CompletionItem) -> Bool) {
+        var going = true
+        for (number, list) in lists.enumerated() where going {
+            list.each(answering: lowered, source) { index in
+                // A match once: its first (which answers the token too) visited already.
+                guard list.firsts[index],
+                      number == 0 || !lists[..<number].contains(where: { $0.positions[list.lowered[index]] != nil }) else { return true }
+                going = visit(number, index, list.items[index])
+                return going
+            }
+        }
     }
 
     /// The templates of `source` for an app of `appClass` where the user chose `insert` (decision 28: the app's own, else
@@ -185,28 +229,34 @@ enum PluginRows {
         guard let maker = RowMaker(token, key: key, source: source, madeAt: madeAt, appClass: appClass, insert: insert,
                                    replacing: replacing, in: t)
         else { return [] }
-        // Where each row is: its list, then its place there.
-        var found: [(list: Int, index: Int, row: SuggestionRow)] = []
-        var (others, tried) = (0, 0)
+        // The rows in the order their items were visited, and where each is: its list, then its place there.
+        var rows: [SuggestionRow] = []
+        var places: [(list: Int, index: Int)] = []
+        rows.reserveCapacity(min(limit ?? 16, 16))
+        var tried = 0
         maker.each(in: lists) { number, index, item in
             // Picked before: looked up below, wherever it is.
             if picked.contains(item.match) { return true }
             tried += 1
             if let row = maker.row(item) {
-                found.append((number, index, row))
-                others += 1
+                rows.append(row)
+                places.append((number, index))
             }
             guard let limit else { return true }
-            return others < limit && tried < maxTried
+            return rows.count < limit && tried < maxTried
         }
+        let others = rows.count
         for match in picked {
             let key = match.lowercased()
             guard matches(key, maker.lowered, source),
                   let (number, index) = lists.enumerated().lazy.compactMap({ number, list in list.positions[key].map { (number, $0) } }).first,
                   lists[number].items[index].match == match, let row = maker.row(lists[number].items[index]) else { continue }
-            found.append((number, index, row))
+            rows.append(row)
+            places.append((number, index))
         }
-        return found.sorted { ($0.list, $0.index) < ($1.list, $1.index) }.map(\.row)
+        // Visited in order: only the rows picked before, added last, need their places.
+        guard rows.count > others else { return rows }
+        return places.indices.sorted { (places[$0].list, places[$0].index) < (places[$1].list, places[$1].index) }.map { rows[$0] }
     }
 
     /// What makes a source's rows for a token: its templates for the app's class and the choice made there, read once.
@@ -269,16 +319,7 @@ enum PluginRows {
         /// Each item of `lists` that answers the token, a match once (its first), in order, with its list and place,
         /// until `visit` says to stop (false).
         func each(in lists: [CompletionItems], _ visit: (Int, Int, CompletionItem) -> Bool) {
-            for (number, list) in lists.enumerated() {
-                var start = 0
-                while let index = list.next(answering: lowered, source, from: start) {
-                    start = index + 1
-                    // A match once: its first (which answers the token too) visited already.
-                    guard list.firsts[index],
-                          number == 0 || !lists[..<number].contains(where: { $0.positions[list.lowered[index]] != nil }) else { continue }
-                    guard visit(number, index, list.items[index]) else { return }
-                }
-            }
+            PluginRows.each(answering: lowered, source, in: lists, visit)
         }
     }
 

@@ -120,7 +120,8 @@ final class AllInOneIMEInputController: IMKInputController {
     /// to clear it: with nothing marked, NSTextView puts (empty) marked text in place of the selection,
     /// deleting the selected text (a Shift tap, a focus change).
     private var hasMarkedText = false
-    /// A suggestion row a key put in as marked text, to commit once the key is done (`markRow`).
+    /// What a key the rows took put in as marked text in a Chromium or Electron app (a row, or the token's last character
+    /// again), to commit once the key is done (`markRow`).
     private var markedRow: MarkedRow?
     private struct MarkedRow {
         let text: String
@@ -140,6 +141,14 @@ final class AllInOneIMEInputController: IMKInputController {
     /// The self-test's say whether the field is a password field, as autocomplete's read asks Accessibility
     /// (`passwordFieldByAccessibility`): its harness field is never the one focused. Nil: Accessibility's.
     var passwordField: (@MainActor () -> Bool)?
+    /// Whether an app (its bundle id) is built on Chromium or Electron (`ChromiumApps`): a key the rows take there is kept
+    /// from its page with marked text (`marksRow`). Each app told once, for every field (`chromiumApps`); the self-test's
+    /// say for its fake fields.
+    var chromiumApp: (String?) -> Bool = { AllInOneIMEInputController.chromiumApps.isChromium($0) }
+    static let chromiumApps = ChromiumApps.Known { id in
+        NSRunningApplication.runningApplications(withBundleIdentifier: id).first?.bundleURL
+            ?? NSWorkspace.shared.urlForApplication(withBundleIdentifier: id)
+    }
     /// The field's frame the suggestion is cut at (`placeGhost`), asked once a suggestion (nil: not yet; .some(nil): not
     /// known); the self-test's own (`fieldFrame`: its harness field isn't the one focused), else Accessibility's.
     var ghostField: NSRect??
@@ -724,14 +733,25 @@ final class AllInOneIMEInputController: IMKInputController {
         var check: ReplacementCheck?
         // A row the key being answered put in (`rowByKey`), until what puts it in: whether it goes in as marked text.
         var rowByKey: Bool?
+        // The rows took the key and put nothing in (`rowsTookKey`): whether the key is kept from the app (`markBeforeCaret`).
+        var keepKey = false
         for output in outputs {
             switch output {
             case .rowByKey:
                 rowByKey = marksRow(in: target)
+                if rowByKey == false {
+                    let why = target.map { Self.isTerminal($0) ? "a terminal" : hasMarkedText ? "marked text of ours in the field" : "an app that doesn't give it the key" } ?? "no field"
+                    log.notice("a row put in by a key: inserted, as 0.6.7.1 did (\(why, privacy: .public))")
+                }
+            case .rowsTookKey:
+                keepKey = marksRow(in: target)
             case let .commit(text):
                 if rowByKey == true, let target, text.utf16.count < 2 {
-                    markRow(text, replacing: nil, in: target)
+                    markRow(text, replacing: nil, in: target, for: "a row put in by a key")
                 } else {
+                    if rowByKey == true {
+                        log.notice("a row put in by a key in a Chromium or Electron app: inserted during the key (\(text.utf16.count, privacy: .public) UTF-16 units: the page has the key as the input method's)")
+                    }
                     insert(text, into: target)
                 }
                 rowByKey = nil
@@ -826,8 +846,10 @@ final class AllInOneIMEInputController: IMKInputController {
                 cancelVoiceSession(id: id)
             }
         }
-        // A row the key put in that adds nothing: the key is still the input method's.
-        if rowByKey == true, let target { markBeforeCaret(in: target) }
+        // A row the key put in that adds nothing, a key the rows took that puts nothing in (↓ ↑ → Esc): the key is still the
+        // input method's.
+        if rowByKey == true, let target { markBeforeCaret(in: target, for: "a row put in by a key, adding nothing") }
+        if keepKey, let target { markBeforeCaret(in: target, for: "a key the rows took") }
         keepAlive = session.waitsForPage ? self : nil
         if composer.translateMode != nil { scheduleChipRefresh() }  // Translate as You Type's chip follows the caret
     }
@@ -836,71 +858,59 @@ final class AllInOneIMEInputController: IMKInputController {
     /// replaced only where it is the token the session expects there; else (a click or a drag moved things since the
     /// key that told the range, a page that told its selection late) what a plain insertion would put in goes in at the
     /// caret. Only how long the range is, and which was done, are logged: never the text. `marking`: a row a key put in,
-    /// marked during the key (`markRow`; where the field marks it elsewhere, put in as when not marking).
+    /// in a Chromium or Electron app, marked during the key in the token's place (`markRow`); else inserted with its
+    /// range, as 0.6.7.1 did.
     @MainActor
     private func replaceToken(_ text: String, range: Range<Int>, check: ReplacementCheck, marking: Bool, in target: IMKTextInput) {
+        let what = "a row put in by a key"
         let replaced = check.apply(text, range: range,
                                    read: { target.attributedSubstring(from: NSRange(location: $0.lowerBound, length: $0.count))?.string },
                                    replace: { text, range in
                                        let range = NSRange(location: range.lowerBound, length: range.count)
-                                       if marking { markRow(text, replacing: range, in: target) } else { target.insertText(text, replacementRange: range) }
+                                       if marking { markRow(text, replacing: range, in: target, for: what) } else { target.insertText(text, replacementRange: range) }
                                    },
                                    insert: { text in
-                                       if marking, text.utf16.count < 2 { markRow(text, replacing: nil, in: target) } else { insert(text, into: target) }
+                                       if marking, text.utf16.count < 2 { markRow(text, replacing: nil, in: target, for: what) } else { insert(text, into: target) }
                                    })
         guard !replaced else { return }
-        if marking, check.otherwise.isEmpty { markBeforeCaret(in: target) }
+        if marking, check.otherwise.isEmpty { markBeforeCaret(in: target, for: what + ", adding nothing") }
         let instead = check.otherwise.isEmpty ? "nothing" : "its plain insertion"
         log.notice("a row didn't take the token's place: other text in its range now (\(range.count, privacy: .public) UTF-16 units); \(instead, privacy: .public) put in instead")
     }
 
-    /// Whether a row a key puts in in `client` goes in as marked text (`markRow`): not in a terminal (its keys go to a
-    /// shell, and it takes no marked text in place of a range), nor where marked text of ours is in the field before the
-    /// row goes in (Code's word: the app has the key as the input method's already).
+    /// Whether what a key the rows took puts in (`SessionOutput.rowByKey`: a row), or nothing (`rowsTookKey`: ↓ ↑ → Esc),
+    /// goes in as marked text during the key in `client` (`markRow`): only in an app built on Chromium or Electron
+    /// (`chromiumApp`), whose page would get the key as well; not in a terminal (its keys go to a shell, and it takes no
+    /// marked text in place of a range), nor where marked text of ours is in the field before the key (Code's word: the
+    /// page has the key as the input method's already). Everywhere else (AppKit's fields, WebKit's: Messages, Notes, Mail,
+    /// Safari) what the key puts in goes in as 0.6.7.1 put it, a row in the token's place with its range: those never act
+    /// on a key the input method took. The same keys and rows everywhere; only how they go in differs.
     @MainActor
     private func marksRow(in client: IMKTextInput?) -> Bool {
-        guard let client else { return false }
-        return !Self.isTerminal(client) && !hasMarkedText
+        guard let client, !Self.isTerminal(client), !hasMarkedText else { return false }
+        return chromiumApp(client.bundleIdentifier())
     }
 
-    /// A suggestion row a key put in (`SessionOutput.rowByKey`) in place of `range` (nil: at the caret), where the app
-    /// could act on the key as well: marked text during the key, committed once it's done (`commitRow`). Chromium's view
-    /// (Slack, Chrome, every Electron app) gives the page the key as the input method's ("Process", 229) only while there
-    /// is marked text, or when more than one character goes in during the key with no range; a replacement (text in with
-    /// its range) and a single character go in as they come, and the page gets the key itself: Return sent Slack's
-    /// message with the row in it. A longer plain insertion goes in as before; so does a click on a row (no key).
-    /// Where the field put the marked text is asked right after (`markedRange`; Chromium's view and an NSTextView tell it
-    /// at once): it must start where `range` does (with none, at the caret) and be as long as the text. Anywhere else (a
-    /// field that ignores the replacement range in setMarkedText, or tells no caret) it is taken out again, and what
-    /// 0.6.7.1 did goes in instead: the text with its range, or at the caret; nothing for a row that adds nothing
-    /// (`addsNothing`, `markBeforeCaret`). Only lengths are logged, never the text.
+    /// What a key the rows took puts in, in an app built on Chromium or Electron (`marksRow`): a row in place of `range`
+    /// (nil: at the caret), or the token's last character again in its own place (`markBeforeCaret`), as marked text
+    /// during the key, committed once it's done (`commitRow`). Chromium's view (Slack, Chrome, Google Docs, every Electron
+    /// app) gives the page the key as the input method's ("Process", 229) only while there is marked text, or when more
+    /// than one character goes in during the key with no range; a replacement (text in with its range), a single
+    /// character and nothing go in as they come, and the page gets the key itself: Return sent Slack's message with the
+    /// row in it, ↑ moved its caret into the conversation (the Electron harness measured each). A longer plain insertion
+    /// goes in as before; so does a click on a row (no key). Where the field then says its marked text is
+    /// (`markedRange`) isn't asked: Chromium's view tells another place during the key even where it marked the text as
+    /// asked, and 0.6.7.2, which took it out again for that and put the row in with its range, had Slack send the
+    /// message. Nothing is taken out during the key. `what` the log says it is; only lengths are logged, never the text.
     @MainActor
-    private func markRow(_ text: String, replacing range: NSRange?, in client: IMKTextInput, addsNothing: Bool = false) {
+    private func markRow(_ text: String, replacing range: NSRange?, in client: IMKTextInput, for what: String) {
         let length = (text as NSString).length
-        let start = range?.location ?? client.selectedRange().location
         client.setMarkedText(text, selectionRange: NSRange(location: length, length: 0), replacementRange: range ?? Self.notFound)
-        let marked = client.markedRange()
-        guard start != NSNotFound, marked.location == start, marked.length == length else {
-            client.setMarkedText("", selectionRange: NSRange(location: 0, length: 0), replacementRange: Self.notFound)
-            hasMarkedText = false
-            let instead: String
-            if addsNothing {
-                instead = "nothing"
-            } else if let range {
-                client.insertText(text, replacementRange: range)
-                instead = "its replacement"
-            } else {
-                insert(text, into: client)
-                instead = "its plain insertion"
-            }
-            let found = marked.location == NSNotFound ? "none" : "\(marked.length) UTF-16 units\(marked.location == start ? "" : ", elsewhere")"
-            log.notice("a row put in by a key: the field didn't mark it where asked (\(length, privacy: .public) UTF-16 units\(range == nil ? " at the caret" : " in place of \(range?.length ?? 0)", privacy: .public); its marked text: \(found, privacy: .public)); taken out, \(instead, privacy: .public) put in instead")
-            return
-        }
         hasMarkedText = true
         markedRow = MarkedRow(text: text, client: client, fieldSession: fieldSession)
         DispatchQueue.main.async { [weak self] in self?.commitRow() }
-        log.notice("a row put in by a key: marked until the key is done (\(length, privacy: .public) UTF-16 units\(range == nil ? "" : " in place of \(range?.length ?? 0)", privacy: .public))")
+        let place = range.map { " in place of \($0.length)" } ?? " at the caret"
+        log.notice("\(what, privacy: .public) in a Chromium or Electron app: marked until the key is done (\(length, privacy: .public) UTF-16 units\(place, privacy: .public))")
     }
 
     /// The row marked during its key (`markRow`) committed, and a snippet's caret moved in it (`moveCaret`): on the run
@@ -917,17 +927,25 @@ final class AllInOneIMEInputController: IMKInputController {
         if let caret = row.caret { moveCaret(back: caret.back, after: caret.after, in: row.client) }
     }
 
-    /// A row a key put in that adds nothing (it is what was typed): the character before the caret, the token's last, marked
-    /// in its own place and committed once the key is done (`markRow`), so the app doesn't act on the key either. Where
-    /// the field tells no caret or reads nothing back there, or marks it elsewhere, nothing.
+    /// A key the rows took that puts nothing in (↓ ↑ → Esc, a row that adds nothing: it is what was typed), in an app built
+    /// on Chromium or Electron (`marksRow`): the character before the caret, the token's last, marked in its own place
+    /// and committed as it was once the key is done (`markRow`), so the page doesn't act on the key either (the harness:
+    /// 229, its text, caret and selection as they were). Where the field tells no caret, has a selection or reads
+    /// nothing back there, nothing (said in the log, `what` the key).
     @MainActor
-    private func markBeforeCaret(in client: IMKTextInput) {
+    private func markBeforeCaret(in client: IMKTextInput, for what: String) {
         let caret = client.selectedRange()
-        guard caret.location != NSNotFound, caret.length == 0, caret.location > 0 else { return }
+        guard caret.location != NSNotFound, caret.length == 0, caret.location > 0 else {
+            log.notice("\(what, privacy: .public) in a Chromium or Electron app: nothing marked (the field tells no caret, or a selection)")
+            return
+        }
         let range = NSRange(location: caret.location - 1, length: 1)
         // Half of a character outside the Basic Multilingual Plane reads back as U+FFFD: left alone.
-        guard let before = client.attributedSubstring(from: range)?.string, before.utf16.count == 1, before != "\u{FFFD}" else { return }
-        markRow(before, replacing: range, in: client, addsNothing: true)
+        guard let before = client.attributedSubstring(from: range)?.string, before.utf16.count == 1, before != "\u{FFFD}" else {
+            log.notice("\(what, privacy: .public) in a Chromium or Electron app: nothing marked (no one character read back before the caret)")
+            return
+        }
+        markRow(before, replacing: range, in: client, for: what)
     }
 
     /// The marked text in `client`: nothing of ours (empty) leaves the document, and any selection in it, alone.

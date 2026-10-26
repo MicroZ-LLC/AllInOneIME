@@ -2,6 +2,17 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
+## 0.6.7.3 (unreleased)
+
+### Changed
+
+- Suggestion rows scroll. Every item that matches is a row, up to 100. The panel shows 5 at a time, and its footer says which ones (`6–10 / 23`). ↓ on the last row shown brings the next one in, and ↑ on the first goes back. The wheel or the trackpad over the panel scrolls them too. This is the same for every source: plugins, script extensions, Suggestions commands and Code.
+
+### Fixed
+
+- In Slack, Chrome, Google Docs and other Chromium and Electron apps, ↓ ↑ → and Esc on suggestion rows no longer also reach the app. Before, the caret or the focus moved into the conversation.
+- In these apps, ⏎ on a row that replaces what you typed (a Markdown link) no longer sends the Slack message. 0.6.7.2 checked where the app marked the text, and that check was wrong for these apps.
+
 ## 0.6.7.2 (2026-10-25)
 
 ### Changed

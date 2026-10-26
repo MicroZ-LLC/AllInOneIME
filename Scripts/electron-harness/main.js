@@ -2,8 +2,9 @@
 // Slack's (a contenteditable) and a textarea, the one named by HARNESS_FIELD focused. Its probe (probe.m, inserted with
 // DYLD_INSERT_LIBRARIES) drives the window and logs what reaches the input method. Built by `make electron-harness`.
 // The window is shown without taking the focus from the app in front. HARNESS_BUSY: milliseconds the page takes over
-// each key down, as a busy page (Slack's) does; none without it. HARNESS_USER_DATA: the folder Electron keeps its data
-// in (the self-test gives it a temporary one); without it, Electron's own under ~/Library/Application Support.
+// each key down, as a busy page (Slack's) does; none without it. HARNESS_AFTER: the field's text after the caret before
+// anything is typed. HARNESS_USER_DATA: the folder Electron keeps its data in (the self-test gives it a temporary one);
+// without it, Electron's own under ~/Library/Application Support.
 const { app, BrowserWindow } = require('electron');
 const path = require('path');
 
@@ -20,7 +21,8 @@ app.whenReady().then(() => {
     if (message.startsWith('PAGE ')) process.stdout.write(`${message}\n`);
   });
   win.loadFile(path.join(__dirname, 'index.html'),
-               { query: { field: process.env.HARNESS_FIELD || 'composer', busy: process.env.HARNESS_BUSY || '0' } });
+               { query: { field: process.env.HARNESS_FIELD || 'composer', busy: process.env.HARNESS_BUSY || '0',
+                          after: process.env.HARNESS_AFTER || '' } });
   win.webContents.once('did-finish-load', () => {
     win.showInactive();
     win.webContents.focus();

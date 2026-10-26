@@ -2687,6 +2687,8 @@ enum SelfTest {
         controller.recordApp = { _ in }  // the user's recent apps (Settings → Apps) left alone
         controller.services.takeRenameNotice = { _ in nil }  // the user's own rename notice left for them (the @reply section has its own)
         controller.warmsUpVision = false  // the real clipboard's types left alone (the @reply section reads its own)
+        // The fake fields are no Chromium page, whatever apps this Mac has (the Chromium section says which of them is).
+        controller.chromiumApp = { _ in false }
         giveUp = { for _ in 0..<4 where controller.composer.isComposing { _ = escape(controller, client) } }
         testTypingLag(controller, client)
         if typingLagOnly {
@@ -2745,6 +2747,7 @@ enum SelfTest {
             controller.ensureEngine()
             controller.applySettings()
             testSuggestions(controller, client, snapshotDirectory: snapshotDirectory)
+            testRowsScroll(controller, client, snapshotDirectory: snapshotDirectory)
             testRowKeysInChromium(controller, client, snapshotDirectory: snapshotDirectory)
             controller.deactivateServer(client)
             check((try? Data(contentsOf: Config.userURL)) == userConfig, "the user's config was left unchanged")
@@ -3227,6 +3230,7 @@ enum SelfTest {
         testAutocomplete(controller, client, snapshotDirectory: snapshotDirectory)
         testShiftHoldInElectron(controller, client)
         testSuggestions(controller, client, snapshotDirectory: snapshotDirectory)
+        testRowsScroll(controller, client, snapshotDirectory: snapshotDirectory)
         testRowKeysInChromium(controller, client, snapshotDirectory: snapshotDirectory)
         testCustomSuggestions(controller, client, snapshotDirectory: snapshotDirectory)
         testRecentQuestions(controller, client, snapshotDirectory: snapshotDirectory)

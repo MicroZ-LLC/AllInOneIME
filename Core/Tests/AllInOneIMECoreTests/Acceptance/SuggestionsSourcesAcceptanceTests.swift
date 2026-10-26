@@ -74,7 +74,10 @@ struct SuggestionsSourcesAcceptanceTests {
             world.runtime.query("700", items: [SuggestionsItems.issue(7007, "Seven")])
             let field = world.field()
             field.type("#70")
-            #expect(field.waitForIssues(["#7001", "#7002", "#7090", "#7060", "#7007"]), "5 rows at most: \(field.issuesShown)")
+            #expect(field.waitForIssues(["#7001", "#7002", "#7090", "#7060", "#7007"]), "5 rows shown: \(field.issuesShown)")
+            #expect(field.footer.contains("1–5 / 6"), "of 6, up to 100: \(field.footer)")
+            for _ in 1...5 { field.press(SuggestionKeys.down) }
+            #expect(field.issuesShown == ["#7002", "#7090", "#7060", "#7007", "#7099"], "↓ scrolls the sixth in: \(field.issuesShown)")
             field.type("0")
             #expect(field.issuesShown == ["#7001", "#7002", "#7007"], "filtered at once, before any answer: \(field.issuesShown)")
             field.idle()

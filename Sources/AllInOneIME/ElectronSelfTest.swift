@@ -1,4 +1,5 @@
 import AllInOneIMECore
+import AllInOneIMEMac
 import AppKit
 import InputMethodKit
 
@@ -6,14 +7,10 @@ import InputMethodKit
 /// marked text in its text, where a replacement range puts it; inserted text in place of the range given, else of the
 /// marked text, else at the caret; the caret after what went in, or where marked text puts it. Each call that puts text in
 /// is kept, with whether it came during the key being answered (`duringKey`, which the self-test sets): what the
-/// harness's probe plays into its page (`answer`). The keys the input method lets go by, the app types (`typed`). As a
-/// field that ignores the replacement range in setMarkedText, it puts marked text elsewhere (`marksAt`).
+/// harness's probe plays into its page (`answer`). The keys the input method lets go by, the app types (`typed`). With
+/// `tellsMarkedElsewhere`, it says its marked text is somewhere else than where it put it, as Chromium's view did during a
+/// key in the owner's Slack (0.6.7.2: "99 UTF-16 units, elsewhere", where it had marked them as asked).
 final class PageFieldClient: FakeTextClient {
-    /// Where setMarkedText puts its text: as Chromium's view does, in place of the replacement range given, else of the
-    /// marked text, else at the caret (`asked`); or, the range ignored, in place of the marked text, else at the caret
-    /// (`caret`) or at the end of the text, the caret left where it is (`end`).
-    enum MarksAt { case asked, caret, end }
-
     struct Call: Equatable {
         var duringKey: Bool
         var marks: Bool
@@ -27,7 +24,7 @@ final class PageFieldClient: FakeTextClient {
     private(set) var text = ""
     private(set) var calls: [Call] = []
     var duringKey = false
-    var marksAt = MarksAt.asked
+    var tellsMarkedElsewhere = false
     private var marking: NSRange?
     private var caretAt = 0
 
@@ -62,19 +59,17 @@ final class PageFieldClient: FakeTextClient {
         let s = Self.plain(string)
         calls.append(Call(duringKey: duringKey, marks: true, range: AllInOneIMEInputController.range(replacementRange),
                           selection: selectionRange.location, text: s))
-        let given = switch marksAt {
-        case .asked: replacementRange
-        case .caret: NSRange(location: NSNotFound, length: 0)
-        case .end: marking ?? NSRange(location: (text as NSString).length, length: 0)
-        }
-        let at = put(s, replacing: given)
+        let at = put(s, replacing: replacementRange)
         let length = (s as NSString).length
         marking = length == 0 ? nil : NSRange(location: at.location, length: length)
-        if marksAt != .end { caretAt = at.location + min(selectionRange.location, length) }
+        caretAt = at.location + min(selectionRange.location, length)
     }
 
     override func selectedRange() -> NSRange { NSRange(location: caretAt, length: 0) }
-    override func markedRange() -> NSRange { marking ?? NSRange(location: NSNotFound, length: 0) }
+    override func markedRange() -> NSRange {
+        guard let marking else { return NSRange(location: NSNotFound, length: 0) }
+        return tellsMarkedElsewhere ? NSRange(location: marking.location + 7, length: marking.length) : marking
+    }
     override func attributedSubstring(from range: NSRange) -> NSAttributedString! {
         let whole = text as NSString
         guard range.location != NSNotFound, NSMaxRange(range) <= whole.length else { return nil }
@@ -499,10 +494,12 @@ extension SelfTest {
     /// events go to its own window only, in its own process: the window is said to be key (`HARNESS_FAKE_KEY`; as it
     /// is while someone types in it) without taking the focus from the app in front. `busy`: milliseconds its page
     /// takes over each key down (`HARNESS_BUSY`). `userData`: the folder Electron keeps its data in
-    /// (`HARNESS_USER_DATA`). `typed` and `answer`: what the type-enter script types, and the probe's answer to its Return
-    /// (`HARNESS_TYPE`, `HARNESS_ANSWER`: the probe stands in for the input method, and the system's gets none of its keys).
+    /// (`HARNESS_USER_DATA`). `typed`, `keys` and `answer`: what the type-keys script types, the keys it presses then, and
+    /// the probe's answer to each of them (`HARNESS_TYPE`, `HARNESS_KEYS`, `HARNESS_ANSWER`: the probe stands in for the
+    /// input method, and the system's gets none of its keys); `after`, the page's text after the caret before
+    /// (`HARNESS_AFTER`).
     static func runElectronHarness(_ harness: URL, script: String, field: String, busy: Int? = nil, userData: URL,
-                                   typed: String? = nil, answer: String? = nil) -> String? {
+                                   typed: String? = nil, keys: String? = nil, answer: String? = nil, after: String? = nil) -> String? {
         let output = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-electron-\(script)-\(field).txt")
         guard FileManager.default.createFile(atPath: output.path, contents: nil),
               let handle = try? FileHandle(forWritingTo: output) else { return nil }
@@ -522,7 +519,8 @@ extension SelfTest {
         (environment["HARNESS_FAKE_KEY"], environment["HARNESS_DELAY"]) = ("1", "2")
         environment["HARNESS_BUSY"] = busy.map(String.init)
         environment["HARNESS_USER_DATA"] = userData.path
-        (environment["HARNESS_TYPE"], environment["HARNESS_ANSWER"]) = (typed, answer)
+        (environment["HARNESS_TYPE"], environment["HARNESS_KEYS"], environment["HARNESS_ANSWER"]) = (typed, keys, answer)
+        environment["HARNESS_AFTER"] = after
         process.environment = environment
         (process.standardOutput, process.standardError) = (handle, FileHandle.nullDevice)
         do { try process.run() } catch {
@@ -537,22 +535,33 @@ extension SelfTest {
     }
 }
 
-/// Return on a suggestion row in Slack's composer: Chromium's view gives the page a key as the input method's ("Process",
-/// 229) only while there is marked text, or when more than one character goes in during the key with no range; a
-/// replacement (inserted with its range) or a single character goes in at once, and the page gets the key itself. 0.6.7.1's
-/// Markdown link went in AND Slack sent the message. The Electron harness's page sends as Slack's does (a key down of
-/// Enter, 13, not composing), and the probe plays the input method's answer to Return.
+/// The keys suggestion rows take in Slack's composer, a web page's field in Chromium's view: Chromium gives the page a key
+/// the input method took as the input method's ("Process", 229) only while there is marked text, or when more than one
+/// character goes in during the key with no range; for a replacement (inserted with its range), a single character or
+/// nothing, the page gets the key itself. 0.6.7.1's Markdown link went in AND Slack sent the message; 0.6.7.2 took the link
+/// it had marked out again during the key (Chromium told its marked text elsewhere) and put it in with its range, and
+/// Slack sent it again; its ↓ and ↑ on the rows moved Slack's caret, or the focus. The Electron harness's page sends as
+/// Slack's does (a key down of Enter, 13, not composing) and acts on ↑ ↓ → ← and Esc as it does (said, and the key goes
+/// on: an arrow moves the caret); its probe plays the input method's answer to each key.
 extension SelfTest {
-    /// What the harness's page did with Return (index.html's "PAGE …" lines, the type-enter script) and how the probe
-    /// answered it ("REC … answer …", `PageFieldClient.recorded`): Return's key downs as the page got them (the keyCode,
-    /// "composing" if so), what it sent, its text in the end, whether marked text was left in the field.
+    /// What the harness's page did with the keys the probe answered (index.html's "PAGE …" lines, the type-keys script)
+    /// and how the probe answered them ("REC … answer …", `PageFieldClient.recorded`): their key downs as the page got
+    /// them (the keyCode, "composing" if so), what it sent and what it acted on, its text in the end, where its caret was
+    /// after the last key ([start, end], UTF-16; nil: none in the field) and whether it still had the focus, whether
+    /// marked text was left in the field.
     struct PageOutcome {
-        var enters: [String] = []
+        var keys: [String] = []
         var sent: [String] = []
+        var acted: [String] = []
         var text: String?
+        var caret: [Int]?
+        var focused: Bool?
         var markedLeft: Bool?
         var answered: [String] = []
     }
+
+    /// The keys the probe answers, as the page names them.
+    static let answeredKeys: Set<String> = ["Enter", "Tab", "ArrowDown", "ArrowUp", "ArrowRight", "ArrowLeft", "Escape"]
 
     static func pageOutcome(in recording: String) -> PageOutcome {
         var outcome = PageOutcome()
@@ -562,10 +571,14 @@ extension SelfTest {
                let value = try? JSONSerialization.jsonObject(with: Data(parts[2].utf8), options: .fragmentsAllowed) {
                 switch parts[1] {
                 case "keydown":
-                    guard let key = value as? [String: Any], key["key"] as? String == "Enter" else { break }
-                    outcome.enters.append("\(key["keyCode"] as? Int ?? 0)" + (key["isComposing"] as? Bool == true ? " composing" : ""))
+                    guard let key = value as? [String: Any], let name = key["key"] as? String, answeredKeys.contains(name) else { break }
+                    outcome.keys.append("\(key["keyCode"] as? Int ?? 0)" + (key["isComposing"] as? Bool == true ? " composing" : ""))
                 case "sent": outcome.sent.append(value as? String ?? "")
+                case "acted": outcome.acted.append(value as? String ?? "")
                 case "text": outcome.text = value as? String
+                case "caret":
+                    let caret = value as? [String: Any]
+                    (outcome.caret, outcome.focused) = (caret?["at"] as? [Int], caret?["focused"] as? Bool)
                 default: break
                 }
             } else if parts.first == "REC" {
@@ -577,83 +590,224 @@ extension SelfTest {
         return outcome
     }
 
-    /// Recorded by the Electron harness (Electron 44.9.0, Slack's composer, the probe standing in for the input method),
-    /// "#17" typed, then Return answered 0.6.7.1's way: the Markdown link inserted with the token's range during the key.
-    /// The page gets Return itself (13) and sends.
+    // Recorded by the Electron harness (Electron 44.9.0, Slack's composer, the probe standing in for the input method),
+    // "#17" typed (" tail" after it for the arrows and Esc), then the key answered: Return and Tab in 0.6.7.1's way (the
+    // Markdown link inserted with the token's range during the key), Return in 0.6.7.2's (marked, taken out again during
+    // the key, inserted with its range), Return and Tab in 0.6.7.3's (marked in the token's place during the key,
+    // committed on the run loop's next turn); one character (ID only, "#123": the "4" of #1234) and a row that adds nothing
+    // (its last character marked again); ↓ ↑ → Esc in 0.6.7.2's way (taken, nothing done) and in 0.6.7.3's (the token's
+    // last character marked again during the key, committed after). Only the lines from the key's on (and the text before
+    // it): `pageOutcome` reads them.
     static let electronLinkInserted = """
-        REC 0.0003 script type-enter com.github.Electron
+        REC 0.0000 script type-keys com.github.Electron
         PAGE text "#17"
-        REC 0.7807 keyDown 36 0x100 0.7767 %0D
-        REC 0.7809 answer key insert 0 3 0 75
+        REC 0.7936 keyDown 36 0x100 0.7903 %0D
+        REC 0.7938 answer key insert 0 3 0 75
         PAGE text "[Return sends the message](https://github.com/octo-org/octo-repo/issues/17)"
         PAGE keydown {"key":"Enter","keyCode":13,"isComposing":false}
         PAGE sent "[Return sends the message](https://github.com/octo-org/octo-repo/issues/17)"
-        REC 1.8759 hasMarkedText 0
-        REC 2.3875 end
+        PAGE caret {"at":[75,75],"focused":true}
+        REC 1.8951 hasMarkedText 0
+        REC 2.4003 end
         """
-    /// …0.6.7.2's: the link marked in the token's place during the key, committed on the run loop's next turn. The page
-    /// gets Return as the input method's (229) and sends nothing.
+    static let electronLinkTakenOut = """
+        REC 0.0001 script type-keys com.github.Electron
+        PAGE text "#17"
+        REC 0.8108 keyDown 36 0x100 0.8066 %0D
+        REC 0.8110 answer key mark 0 3 75 75
+        REC 0.8183 answer key mark none 0 0 0
+        REC 0.8184 answer key insert 0 3 0 75
+        PAGE text "[Return sends the message](https://github.com/octo-org/octo-repo/issues/17)"
+        PAGE keydown {"key":"Enter","keyCode":13,"isComposing":false}
+        PAGE sent "[Return sends the message](https://github.com/octo-org/octo-repo/issues/17)"
+        PAGE caret {"at":[75,75],"focused":true}
+        REC 1.8988 hasMarkedText 0
+        REC 2.4015 end
+        """
     static let electronLinkMarked = """
-        REC 0.0003 script type-enter com.github.Electron
+        REC 0.0000 script type-keys com.github.Electron
         PAGE text "#17"
-        REC 0.8042 keyDown 36 0x100 0.8011 %0D
-        REC 0.8043 answer key mark 0 3 75 75
-        REC 0.8126 answer after insert none 0 0 75
+        REC 0.7918 keyDown 36 0x100 0.7884 %0D
+        REC 0.7919 answer key mark 0 3 75 75
+        REC 0.8000 answer after insert none 0 0 75
         PAGE keydown {"key":"Enter","keyCode":229,"isComposing":false}
         PAGE text "[Return sends the message](https://github.com/octo-org/octo-repo/issues/17)"
         PAGE text "[Return sends the message](https://github.com/octo-org/octo-repo/issues/17)"
         PAGE text "[Return sends the message](https://github.com/octo-org/octo-repo/issues/17)"
-        REC 1.8851 hasMarkedText 0
-        REC 2.4020 end
+        PAGE caret {"at":[75,75],"focused":true}
+        REC 1.8815 hasMarkedText 0
+        REC 2.4051 end
         """
-    /// "#123" typed, Insert set to ID only: the "4" of #1234 marked at the caret during the key, committed after.
+    static let electronTabInserted = """
+        REC 0.0000 script type-keys com.github.Electron
+        PAGE text "#17"
+        REC 0.7976 keyDown 48 0x100 0.7943 %09
+        REC 0.7978 answer key insert 0 3 0 75
+        PAGE text "[Return sends the message](https://github.com/octo-org/octo-repo/issues/17)"
+        PAGE keydown {"key":"Tab","keyCode":9,"isComposing":false}
+        PAGE caret {"at":null,"focused":false}
+        REC 1.8826 hasMarkedText 0
+        REC 2.4057 end
+        """
+    static let electronTabMarked = """
+        REC 0.0000 script type-keys com.github.Electron
+        PAGE text "#17"
+        REC 0.7946 keyDown 48 0x100 0.7911 %09
+        REC 0.7947 answer key mark 0 3 75 75
+        REC 0.8030 answer after insert none 0 0 75
+        PAGE keydown {"key":"Tab","keyCode":229,"isComposing":false}
+        PAGE text "[Return sends the message](https://github.com/octo-org/octo-repo/issues/17)"
+        PAGE text "[Return sends the message](https://github.com/octo-org/octo-repo/issues/17)"
+        PAGE text "[Return sends the message](https://github.com/octo-org/octo-repo/issues/17)"
+        PAGE caret {"at":[75,75],"focused":true}
+        REC 1.8588 hasMarkedText 0
+        REC 2.3624 end
+        """
     static let electronOneMarked = """
-        REC 0.0002 script type-enter com.github.Electron
+        REC 0.0000 script type-keys com.github.Electron
         PAGE text "#123"
-        REC 0.9640 keyDown 36 0x100 0.9598 %0D
-        REC 0.9641 answer key mark none 0 1 1
-        REC 0.9708 answer after insert none 0 0 1
+        REC 0.9847 keyDown 36 0x100 0.9793 %0D
+        REC 0.9848 answer key mark none 0 1 1
+        REC 0.9931 answer after insert none 0 0 1
         PAGE keydown {"key":"Enter","keyCode":229,"isComposing":false}
         PAGE text "#1234"
         PAGE text "#1234"
         PAGE text "#1234"
-        REC 2.0209 hasMarkedText 0
-        REC 2.5325 end
+        PAGE caret {"at":[5,5],"focused":true}
+        REC 2.0744 hasMarkedText 0
+        REC 2.5980 end
         """
-    /// "#17" typed, ID only, ↓ to its own row (it adds nothing): its last character marked again, committed after.
     static let electronNothingMarked = """
-        REC 0.0002 script type-enter com.github.Electron
+        REC 0.0001 script type-keys com.github.Electron
         PAGE text "#17"
-        REC 0.7890 keyDown 36 0x100 0.7849 %0D
-        REC 0.7892 answer key mark 2 1 1 1
-        REC 0.7979 answer after insert none 0 0 1
+        REC 0.7785 keyDown 36 0x100 0.7751 %0D
+        REC 0.7786 answer key mark 2 1 1 1
+        REC 0.7863 answer after insert none 0 0 1
         PAGE keydown {"key":"Enter","keyCode":229,"isComposing":false}
         PAGE text "#17"
         PAGE text "#17"
         PAGE text "#17"
-        REC 1.8565 hasMarkedText 0
-        REC 2.3631 end
+        PAGE caret {"at":[3,3],"focused":true}
+        REC 1.8760 hasMarkedText 0
+        REC 2.3871 end
+        """
+    static let electronDownTaken = """
+        REC 0.0000 script type-keys com.github.Electron
+        PAGE text "#17 tail"
+        REC 0.8085 keyDown 125 0xa00100 0.8040 %EF%9C%81
+        PAGE keydown {"key":"ArrowDown","keyCode":40,"isComposing":false}
+        PAGE acted "ArrowDown"
+        PAGE caret {"at":[8,8],"focused":true}
+        REC 1.8657 hasMarkedText 0
+        REC 2.3726 end
+        """
+    static let electronDownKept = """
+        REC 0.0000 script type-keys com.github.Electron
+        PAGE text "#17 tail"
+        REC 0.7787 keyDown 125 0xa00100 0.7740 %EF%9C%81
+        REC 0.7789 answer key mark 2 1 1 1
+        REC 0.7850 answer after insert none 0 0 1
+        PAGE keydown {"key":"ArrowDown","keyCode":229,"isComposing":false}
+        PAGE text "#17 tail"
+        PAGE text "#17 tail"
+        PAGE text "#17 tail"
+        PAGE caret {"at":[3,3],"focused":true}
+        REC 1.8586 hasMarkedText 0
+        REC 2.3688 end
+        """
+    static let electronUpTaken = """
+        REC 0.0001 script type-keys com.github.Electron
+        PAGE text "#17 tail"
+        REC 0.7787 keyDown 126 0xa00100 0.7750 %EF%9C%80
+        PAGE keydown {"key":"ArrowUp","keyCode":38,"isComposing":false}
+        PAGE acted "ArrowUp"
+        PAGE caret {"at":[0,0],"focused":true}
+        REC 1.8433 hasMarkedText 0
+        REC 2.3443 end
+        """
+    static let electronUpKept = """
+        REC 0.0000 script type-keys com.github.Electron
+        PAGE text "#17 tail"
+        REC 0.7889 keyDown 126 0xa00100 0.7830 %EF%9C%80
+        REC 0.7890 answer key mark 2 1 1 1
+        REC 0.7966 answer after insert none 0 0 1
+        PAGE keydown {"key":"ArrowUp","keyCode":229,"isComposing":false}
+        PAGE text "#17 tail"
+        PAGE text "#17 tail"
+        PAGE text "#17 tail"
+        PAGE caret {"at":[3,3],"focused":true}
+        REC 1.8780 hasMarkedText 0
+        REC 2.3855 end
+        """
+    static let electronRightTaken = """
+        REC 0.0001 script type-keys com.github.Electron
+        PAGE text "#17 tail"
+        REC 0.8014 keyDown 124 0xa00100 0.7975 %EF%9C%83
+        PAGE keydown {"key":"ArrowRight","keyCode":39,"isComposing":false}
+        PAGE acted "ArrowRight"
+        PAGE caret {"at":[4,4],"focused":true}
+        REC 1.9001 hasMarkedText 0
+        REC 2.4235 end
+        """
+    static let electronRightKept = """
+        REC 0.0000 script type-keys com.github.Electron
+        PAGE text "#17 tail"
+        REC 0.8018 keyDown 124 0xa00100 0.7981 %EF%9C%83
+        REC 0.8019 answer key mark 2 1 1 1
+        REC 0.8076 answer after insert none 0 0 1
+        PAGE keydown {"key":"ArrowRight","keyCode":229,"isComposing":false}
+        PAGE text "#17 tail"
+        PAGE text "#17 tail"
+        PAGE text "#17 tail"
+        PAGE caret {"at":[3,3],"focused":true}
+        REC 1.8980 hasMarkedText 0
+        REC 2.4127 end
+        """
+    static let electronEscapeTaken = """
+        REC 0.0000 script type-keys com.github.Electron
+        PAGE text "#17 tail"
+        REC 0.7853 keyDown 53 0x100 0.7808 %1B
+        PAGE keydown {"key":"Escape","keyCode":27,"isComposing":false}
+        PAGE acted "Escape"
+        PAGE caret {"at":[3,3],"focused":true}
+        REC 1.8863 hasMarkedText 0
+        REC 2.4045 end
+        """
+    static let electronEscapeKept = """
+        REC 0.0001 script type-keys com.github.Electron
+        PAGE text "#17 tail"
+        REC 0.7939 keyDown 53 0x100 0.7900 %1B
+        REC 0.7941 answer key mark 2 1 1 1
+        REC 0.8032 answer after insert none 0 0 1
+        PAGE keydown {"key":"Escape","keyCode":229,"isComposing":false}
+        PAGE text "#17 tail"
+        PAGE text "#17 tail"
+        PAGE text "#17 tail"
+        PAGE caret {"at":[3,3],"focused":true}
+        REC 1.8886 hasMarkedText 0
+        REC 2.4053 end
         """
 
-    /// Return on a suggestion row in Slack's composer, a web page's field in Chromium's view (0.6.7.2; the GitHub plugin's
-    /// issues, a stand-in for api.github.com). A row a key puts in where the page would also get the key (a replacement,
-    /// one character, nothing) goes in as marked text during the key, committed once it's done (`markRow`): the Markdown
-    /// link in place of "#17" by Return and by Tab, one character ("#123" → "#1234", ID only), and a row that adds nothing
-    /// (its last character marked again); the next key, the field left or the app wanting everything in before the run
-    /// loop turns commit it first. A field that puts marked text elsewhere (one that ignores the replacement range in
-    /// setMarkedText) has it taken out again during the key, and gets 0.6.7.1's: the link with its range, the character
-    /// at the caret, nothing. As before: a longer insertion, a terminal, a click on a row. In an NSTextView (iMessage's
-    /// kind of field) the row is marked during the key, the text ends as 0.6.7.1's did, and one Undo leaves what it left;
-    /// a snippet's caret after one character so put in still lands. Then the controller's calls played into the Electron harness's page when it's there
-    /// (`ALLINONEIME_ELECTRON_HARNESS`), 0.6.7.1's way too, for what the page does; else what it recorded.
+    /// The keys suggestion rows take, in Slack's composer (a web page's field in Chromium's view; the GitHub plugin's
+    /// issues, a stand-in for api.github.com) and in other fields. In an app built on Chromium or Electron
+    /// (`AllInOneIMEInputController.chromiumApp`) what such a key puts in during it goes in as marked text, committed once
+    /// it's done (`markRow`): the Markdown link in place of "#17" by Return and by Tab, one character ("#123" → "#1234", ID
+    /// only), the token's last character again for a row that adds nothing and for ↓ ↑ → Esc (the text and its caret as
+    /// they were); where Chromium says its marked text is elsewhere (the owner's Slack) all the same, nothing taken out
+    /// during the key; the next key, the field left or the app wanting everything in before the run loop turns commit it
+    /// first. As before: a longer insertion, a terminal, a click on a row. Anywhere else (Messages' kind of field, an
+    /// NSTextView) what 0.6.7.1 put in, during the key, and nothing for ↓ ↑ → Esc; a snippet's caret lands either way.
+    /// Then the controller's calls played into the Electron harness's page when it's there (`ALLINONEIME_ELECTRON_HARNESS`),
+    /// 0.6.7.1's and 0.6.7.2's ways for contrast, or what it recorded; then how such apps are told (`checkChromiumApps`).
     static func testRowKeysInChromium(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
-        section("Suggestions: Return on a row in Slack's composer puts it in and sends nothing (Chromium's keys)", needs: .composing)
+        section("Suggestions: the rows' keys in Slack's composer put rows in and reach nothing of Slack's (Chromium's keys)", needs: .composing)
         typealias Call = PageFieldClient.Call
-        let saved = (services: controller.services.suggestions, plugins: controller.services.plugins, password: controller.passwordField)
+        let saved = (services: controller.services.suggestions, plugins: controller.services.plugins, password: controller.passwordField,
+                     chromium: controller.chromiumApp)
         let folder = snapshotDirectory.appendingPathComponent("suggestions-row-keys", isDirectory: true)
         defer {
             (controller.services.suggestions, controller.services.plugins) = (saved.services, saved.plugins)
-            controller.passwordField = saved.password
+            (controller.passwordField, controller.chromiumApp) = (saved.password, saved.chromium)
             try? FileManager.default.removeItem(at: folder)
             controller.activateServer(client)
             controller.composer.setInputMode(settings.defaultInput)
@@ -661,15 +815,20 @@ extension SelfTest {
         }
         guard let approval = useGitHubPlugin(controller, in: folder) else { return }
         controller.passwordField = { false }  // these fields are no password fields, whatever has the focus
+        let slack = "com.tinyspeck.slackmacgap"
+        // Slack is an Electron app wherever the self-test runs, installed or not; the other fakes are no Chromium pages.
+        controller.chromiumApp = { $0 == slack }
         func insert(_ choice: SuggestionsInsert) {
             controller.services.suggestions.settings = { SuggestionsSettings(enabled: [approval], insert: choice) }
         }
-        let slack = "com.tinyspeck.slackmacgap"
         let link = "[Return sends the message](https://github.com/\(GitHubStandIn.repository)/issues/17)"
-        let tab = ("\t", VirtualKey.tab)
+        let (returnKey, tab) = (("\r", VirtualKey.returnKey), ("\t", VirtualKey.tab))
+        let arrows = [("↓", ("", VirtualKey.down), true), ("↑", ("", VirtualKey.up), true), ("→", ("", VirtualKey.right), false),
+                      ("Esc", ("\u{1B}", VirtualKey.escape), false)]
 
         /// Into `field`, focused in English: `typed`, the app typing what the controller lets go by (`appTypes`); then the
-        /// rows, the first's text starting with `first`; then ↓ `moves` times. Whether the rows showed.
+        /// rows, the first's text starting with `first`; then ↓ `moves` times, each done (what it marked committed). Whether
+        /// the rows showed.
         func typeInto(_ field: IMKTextInput, _ typed: String, first: String, moves: Int = 0, appTypes: (String) -> Void) -> Bool {
             controller.activateServer(field)
             controller.composer.setInputMode(.english)
@@ -679,30 +838,37 @@ extension SelfTest {
                 if !controller.handle(key, client: field) { appTypes(text) }
             }
             let shown = pump(timeout: 5) { controller.session.panelModel().rows.first?.text.hasPrefix(first) == true }
-            for _ in 0..<moves { _ = controller.handle(event("", code: VirtualKey.down), client: field) }
+            for _ in 0..<moves {
+                _ = controller.handle(event("", code: VirtualKey.down), client: field)
+                _ = pump(timeout: 0.05) { false }
+            }
             return shown
         }
-        /// A Slack composer (another app's field: `app`) with `typed` in it, ↓ `moves` times, then `key`, and `then` before
-        /// the run loop turns: the calls made during the key and after, whether the field had marked text right after the
-        /// key, and the field.
-        /// `marksAt`: where it puts marked text; `after`: its text after the caret.
-        func inPage(_ typed: String, first: String, moves: Int = 0, key: (String, UInt16) = ("\r", VirtualKey.returnKey),
-                    app: String? = nil, marksAt: PageFieldClient.MarksAt = .asked, after: String = "",
-                    then: (PageFieldClient) -> Void = { _ in }) -> (handled: Bool, calls: [Call], markedDuring: Bool, page: PageFieldClient) {
+        /// A Slack composer (another app's field: `app`) with `typed` in it (`after` after the caret), ↓ `moves` times, then
+        /// `keys`, and `then` before the run loop turns after the last: the calls made during the keys and after, whether
+        /// the field had marked text right after the last key, the field, and whether the rows still showed. `elsewhere`:
+        /// the field says its marked text is elsewhere (`PageFieldClient.tellsMarkedElsewhere`).
+        func inPage(_ typed: String, first: String, moves: Int = 0, keys: [(String, UInt16)] = [("\r", VirtualKey.returnKey)],
+                    app: String? = nil, elsewhere: Bool = false, after: String = "", then: (PageFieldClient) -> Void = { _ in })
+            -> (handled: Bool, calls: [Call], markedDuring: Bool, page: PageFieldClient, rows: Bool) {
             let page = PageFieldClient()
             page.bundleIDOverride = app ?? slack
-            page.marksAt = marksAt
+            page.tellsMarkedElsewhere = elsewhere
             page.start(after, caret: 0)
             let shown = typeInto(page, typed, first: first, moves: moves, appTypes: page.typed)
             let count = page.calls.count
-            page.duringKey = true
-            let handled = shown && controller.handle(event(key.0, code: key.1), client: page)
-            page.duringKey = false
-            let markedDuring = page.hasMarked
-            then(page)
-            _ = pump(timeout: 0.2) { false }  // the run loop's next turns: what goes in once the key is done
+            var (handled, markedDuring) = (shown, false)
+            for (index, key) in keys.enumerated() {
+                page.duringKey = true
+                handled = controller.handle(event(key.0, code: key.1), client: page) && handled
+                page.duringKey = false
+                markedDuring = page.hasMarked
+                if index == keys.count - 1 { then(page) }
+                _ = pump(timeout: 0.2) { false }  // the run loop's next turns: what goes in once the key is done
+            }
+            let rows = !controller.session.panelModel().rows.isEmpty
             controller.deactivateServer(page)
-            return (handled, Array(page.calls.dropFirst(count)), markedDuring, page)
+            return (handled, Array(page.calls.dropFirst(count)), markedDuring, page, rows)
         }
         let said = { (calls: [Call]) in calls.map(PageFieldClient.recorded).joined(separator: "; ") }
 
@@ -715,8 +881,15 @@ extension SelfTest {
               && !viaReturn.page.hasMarked,
               "Slack, Markdown link: Return marks the link in place of \"#17\" during the key and commits it after "
               + "(\(said(viaReturn.calls))): \(viaReturn.page.text)")
-        let viaTab = inPage("#17", first: "#17", key: tab)
+        let viaTab = inPage("#17", first: "#17", keys: [tab])
         check(viaTab.handled && viaTab.calls == linkCalls && viaTab.page.text == link, "…Tab the same (\(said(viaTab.calls)))")
+        // Chromium saying its marked text is elsewhere during the key, where it marked it as asked (the owner's Slack:
+        // 0.6.7.2 took it out again then, put the link in with its range, and Slack sent the message): nothing asked of it.
+        let toldElsewhere = inPage("#17", first: "#17", elsewhere: true)
+        check(toldElsewhere.handled && toldElsewhere.markedDuring && toldElsewhere.calls == linkCalls && toldElsewhere.page.text == link
+              && !toldElsewhere.page.hasMarked,
+              "…where Chromium says its marked text is elsewhere during the key: marked and committed all the same, nothing "
+              + "taken out (\(said(toldElsewhere.calls))): \(toldElsewhere.page.text)")
         // Before the run loop turns, each commits it first: the next key, the field left, the app wanting everything in.
         let next = inPage("#17", first: "#17") { page in
             if !controller.handle(event("a", code: keyCodes["a"] ?? 0), client: page) { page.typed("a") }
@@ -736,35 +909,62 @@ extension SelfTest {
         check(one.handled && one.markedDuring && one.calls == oneCalls && one.page.text == "#1234",
               "…ID only, one character: marked at the caret during the key, committed after (\(said(one.calls))): \(one.page.text)")
         let nothing = inPage("#17", first: "#17", moves: 1)
-        let nothingCalls = [Call(duringKey: true, marks: true, range: 2..<3, selection: 1, text: "7"),
-                            Call(duringKey: false, marks: false, range: nil, text: "7")]
-        check(nothing.handled && nothing.markedDuring && nothing.calls == nothingCalls && nothing.page.text == "#17",
+        let again = [Call(duringKey: true, marks: true, range: 2..<3, selection: 1, text: "7"), Call(duringKey: false, marks: false, range: nil, text: "7")]
+        check(nothing.handled && nothing.markedDuring && nothing.calls == again && nothing.page.text == "#17",
               "…a row that adds nothing: its last character marked again during the key, committed after (\(said(nothing.calls))): "
               + nothing.page.text)
 
-        // A field that ignores the replacement range in setMarkedText (marked text at the caret, or at the end of its text):
-        // what it marked elsewhere taken out again during the key, then 0.6.7.1's way; one character at the caret stays so.
-        let unmark = Call(duringKey: true, marks: true, range: nil, selection: 0, text: "")
+        // ↓ ↑ → Esc on the rows: the token's last character marked again in its place during the key, committed as it was
+        // after, the text and its caret as they were; ↓ and ↑ move the choice (the rows stay), → and Esc hide the rows
+        // (the token as typed). The owner's ↓ ↓ ↑ ↑ the same, key by key.
         insert(.markdownLink)
-        let ignored = inPage("#17", first: "#17", marksAt: .caret)
-        check(ignored.handled && !ignored.markedDuring && ignored.page.text == link && !ignored.page.hasMarked
-              && ignored.calls == [linkCalls[0], unmark, Call(duringKey: true, marks: false, range: 0..<3, text: link)],
-              "a field that ignores the range in setMarkedText: the link marked at the caret is taken out again, and goes in "
-              + "with its range during the key as 0.6.7.1 did (\(said(ignored.calls))): \(ignored.page.text)")
+        var arrowCalls: [String: [Call]] = [:]
+        for (name, key, stay) in arrows {
+            let kept = inPage("#17", first: "#17", keys: [key], after: " tail")
+            arrowCalls[name] = kept.calls
+            check(kept.handled && kept.markedDuring && kept.calls == again && kept.page.text == "#17 tail"
+                  && kept.page.selectedRange() == NSRange(location: 3, length: 0) && !kept.page.hasMarked && kept.rows == stay,
+                  "Slack, \(name) on the rows: the token's last character marked again during the key, committed after "
+                  + "(\(said(kept.calls))); the text \"\(kept.page.text)\", the caret at \(kept.page.selectedRange().location), "
+                  + "the rows \(kept.rows ? "still shown" : "hidden")")
+        }
+        let owners = inPage("#17", first: "#17", keys: [arrows[0].1, arrows[0].1, arrows[1].1, arrows[1].1], after: " tail")
+        check(owners.handled && owners.calls == again + again + again + again && owners.page.text == "#17 tail"
+              && owners.page.selectedRange() == NSRange(location: 3, length: 0) && owners.rows,
+              "…↓ ↓ ↑ ↑ (the owner's): each key so (\(owners.calls.count) calls), the text and the caret as they were")
+        // Code's word held as marked text (the page has the key as the input method's already): nothing more is marked.
+        let held = PageFieldClient()
+        held.bundleIDOverride = slack
+        controller.activateServer(held)
+        controller.apply([.marked("pr", cursor: 2, converted: false)], client: held)
+        let heldBefore = held.calls.count
+        held.duringKey = true
+        controller.apply([.rowsTookKey], client: held)
+        held.duringKey = false
+        _ = pump(timeout: 0.1) { false }
+        let heldCalls = Array(held.calls.dropFirst(heldBefore))
+        check(heldCalls.isEmpty && held.text == "pr" && held.hasMarked,
+              "…with Code's word held as marked text: nothing more marked, the word as it was (\(heldCalls.isEmpty ? "no call" : said(heldCalls)))")
+        controller.apply([.marked("", cursor: 0, converted: false)], client: held)
+        controller.deactivateServer(held)
+
+        // A field of an app not built on Chromium (Messages' kind): what 0.6.7.1 put in, during the key; nothing for ↓ ↑ →
+        // Esc (such a field never acts on a key the input method took).
+        let messages = "com.apple.MobileSMS"
+        let nativeLink = inPage("#17", first: "#17", app: messages)
+        check(nativeLink.handled && nativeLink.calls == [Call(duringKey: true, marks: false, range: 0..<3, text: link)]
+              && nativeLink.page.text == link,
+              "Messages' kind of field (no Chromium): Return puts the link in with its range during the key, as 0.6.7.1 did (\(said(nativeLink.calls)))")
+        let nativeKeys = arrows.map { name, key, stay in
+            let native = inPage("#17", first: "#17", keys: [key], app: messages, after: " tail")
+            return (name, native.handled && native.calls.isEmpty && native.page.text == "#17 tail" && native.rows == stay)
+        }
         insert(.id)
-        let atCaret = inPage("#123", first: "#1234", marksAt: .caret)
-        check(atCaret.handled && atCaret.markedDuring && atCaret.calls == oneCalls && atCaret.page.text == "#1234",
-              "…one character: at the caret where it asked, marked and committed (\(said(atCaret.calls))): \(atCaret.page.text)")
-        let atEnd = inPage("#123", first: "#1234", marksAt: .end, after: " ok")
-        check(atEnd.handled && !atEnd.markedDuring && atEnd.page.text == "#1234 ok" && !atEnd.page.hasMarked
-              && atEnd.calls == [oneCalls[0], unmark, Call(duringKey: true, marks: false, range: nil, text: "4")],
-              "…one character marked at the end, not at the caret: taken out again, inserted at the caret as 0.6.7.1 did "
-              + "(\(said(atEnd.calls))): \(atEnd.page.text)")
-        let nothingIgnored = inPage("#17", first: "#17", moves: 1, marksAt: .caret)
-        check(nothingIgnored.handled && !nothingIgnored.markedDuring && nothingIgnored.page.text == "#17"
-              && nothingIgnored.calls == [nothingCalls[0], unmark],
-              "…a row that adds nothing marked at the caret: taken out again, nothing put in, as 0.6.7.1 did "
-              + "(\(said(nothingIgnored.calls))): \(nothingIgnored.page.text)")
+        let nativeOne = inPage("#123", first: "#1234", app: messages)
+        check(nativeOne.handled && nativeOne.calls == [Call(duringKey: true, marks: false, range: nil, text: "4")] && nativeOne.page.text == "#1234"
+              && nativeKeys.allSatisfy(\.1),
+              "…one character inserted during the key (\(said(nativeOne.calls))); ↓ ↑ → Esc taken, nothing put in "
+              + "(\(nativeKeys.map { "\($0.0) \($0.1 ? "✓" : "✗")" }.joined(separator: ", ")))")
 
         // As before: a longer insertion and a terminal's during the key, a click with its range.
         insert(.titleAndLink)
@@ -811,40 +1011,46 @@ extension SelfTest {
             view.textView.undoManager?.undo()
             return (text, caret, marked, view.text)
         }
-        // Marked during the key: the field put it where asked (where it would be taken out again, nothing is marked).
+        // Nothing marked during the key: no Chromium page.
         var markedByKey: String?
         let pressReturn = { (view: TextViewClient) in
             _ = controller.handle(event("\r", code: VirtualKey.returnKey), client: view)
             let marked = view.textView.markedRange()
-            markedByKey = marked.location == NSNotFound ? nil : (view.text as NSString).substring(with: marked)
+            markedByKey = marked.location == NSNotFound || marked.length == 0 ? nil : (view.text as NSString).substring(with: marked)
         }
         let linkBefore = inTextView("#17", first: "#17") { $0.insertText(link, replacementRange: NSRange(location: 0, length: 3)) }
         let linkNow = inTextView("#17", first: "#17", put: pressReturn)
-        check(linkNow.text == link && linkNow == linkBefore && markedByKey == link,
-              "an NSTextView: Return marks the link in place of \"#17\" during the key (\(markedByKey ?? "nothing marked")) and "
-              + "it ends as 0.6.7.1's did (\(linkNow.text), caret \(linkNow.caret), "
-              + "\(linkNow.marked ? "marked" : "nothing marked")); one Undo leaves \"\(linkNow.undone)\" (0.6.7.1's: \"\(linkBefore.undone)\")")
+        check(linkNow.text == link && linkNow == linkBefore && markedByKey == nil,
+              "an NSTextView: Return puts the link in place of \"#17\" as 0.6.7.1 did, \(markedByKey.map { "\"\($0)\" marked" } ?? "nothing marked") "
+              + "during the key (\(linkNow.text), caret \(linkNow.caret) as 0.6.7.1's \(linkBefore.caret), \(linkNow.marked ? "marked" : "nothing marked") after); "
+              + "one Undo leaves \"\(linkNow.undone)\" (0.6.7.1's: \"\(linkBefore.undone)\")")
         insert(.id)
         let oneBefore = inTextView("#123", first: "#1234") { $0.insertText("4", replacementRange: NSRange(location: NSNotFound, length: 0)) }
         markedByKey = nil
         let oneNow = inTextView("#123", first: "#1234", put: pressReturn)
-        check(oneNow.text == "#1234" && oneNow == oneBefore && markedByKey == "4",
-              "…one character marked at the caret (\(markedByKey ?? "nothing marked")), as before in the end (\(oneNow.text), "
-              + "caret \(oneNow.caret)); one Undo leaves \"\(oneNow.undone)\" (0.6.7.1's: \"\(oneBefore.undone)\")")
-        // A snippet's caret in one character so put in (")" with the caret before it): moved once it's committed.
-        let view = TextViewClient()
-        controller.activateServer(view)
-        view.textView.insertText("f(", replacementRange: NSRange(location: NSNotFound, length: 0))
-        controller.apply([.rowByKey, .commit(")"), .moveCaret(back: 1, after: ")")], client: view)
-        let markedThen = view.textView.hasMarkedText()
-        _ = pump(timeout: 0.2) { false }
-        check(markedThen && view.text == "f()" && view.caret == NSRange(location: 2, length: 0) && !view.textView.hasMarkedText(),
-              "…a snippet's caret after one character marked, then committed: \(view.text.debugDescription), the caret at \(view.caret.location)")
-        controller.deactivateServer(view)
-        view.close()
+        check(oneNow.text == "#1234" && oneNow == oneBefore && markedByKey == nil,
+              "…one character the same, \(markedByKey.map { "\"\($0)\" marked" } ?? "nothing marked") during the key (\(oneNow.text), caret "
+              + "\(oneNow.caret) as 0.6.7.1's \(oneBefore.caret)); one Undo leaves \"\(oneNow.undone)\" (0.6.7.1's: \"\(oneBefore.undone)\")")
+        // A snippet's caret in one character so put in (")" with the caret before it): moved at once here; in a Chromium
+        // page (the NSTextView taken for one) once what was marked is committed.
+        for chromium in [false, true] {
+            controller.chromiumApp = { chromium || $0 == slack }
+            let view = TextViewClient()
+            controller.activateServer(view)
+            view.textView.insertText("f(", replacementRange: NSRange(location: NSNotFound, length: 0))
+            controller.apply([.rowByKey, .commit(")"), .moveCaret(back: 1, after: ")")], client: view)
+            let markedThen = view.textView.hasMarkedText()
+            _ = pump(timeout: 0.2) { false }
+            check(markedThen == chromium && view.text == "f()" && view.caret == NSRange(location: 2, length: 0) && !view.textView.hasMarkedText(),
+                  "…a snippet's caret after one character \(chromium ? "marked, then committed (taken for a Chromium page)" : "inserted at once"): "
+                  + "\(view.text.debugDescription), the caret at \(view.caret.location)")
+            controller.deactivateServer(view)
+            view.close()
+        }
+        controller.chromiumApp = { $0 == slack }
 
-        // In the Electron harness's page: the controller's calls as the input method's answer to Return, 0.6.7.1's way for
-        // contrast; without the harness, what it recorded (the controller's calls the recorded ones).
+        // In the Electron harness's page: the controller's calls as the input method's answer to each key, 0.6.7.1's and
+        // 0.6.7.2's ways for contrast; without the harness, what it recorded (the controller's calls the recorded ones).
         var harness: URL?
         if let path = ProcessInfo.processInfo.environment["ALLINONEIME_ELECTRON_HARNESS"], !path.isEmpty {
             harness = URL(fileURLWithPath: path)
@@ -859,24 +1065,102 @@ extension SelfTest {
         let userData = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-electron-\(UUID().uuidString)")
         try? FileManager.default.createDirectory(at: userData, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: userData) }
-        let ways: [(what: String, typed: String, calls: [Call], text: String, sends: Bool, recorded: String)] = [
-            ("0.6.7.1's way, the link inserted with its range during the key", "#17",
-             [Call(duringKey: true, marks: false, range: 0..<3, text: link)], link, true, electronLinkInserted),
-            ("the link marked during the key, committed after", "#17", viaReturn.calls, link, false, electronLinkMarked),
-            ("one character marked during the key, committed after", "#123", one.calls, "#1234", false, electronOneMarked),
-            ("a row that adds nothing, its last character marked again", "#17", nothing.calls, "#17", false, electronNothingMarked),
+        struct Way {
+            var what: String, typed = "#17", keys = "return", after = ""
+            var calls: [PageFieldClient.Call]
+            var text: String, keyCode: String
+            var sent: [String] = [], acted: [String] = []
+            var caret: [Int]?, focused = true
+            var recorded: String
+        }
+        let tail = "#17 tail"
+        let taken: [String: (key: String, code: String, acted: String, caret: Int, recorded: String, kept: String)] = [
+            "↓": ("down", "40", "ArrowDown", 8, electronDownTaken, electronDownKept),
+            "↑": ("up", "38", "ArrowUp", 0, electronUpTaken, electronUpKept),
+            "→": ("right", "39", "ArrowRight", 4, electronRightTaken, electronRightKept),
+            "Esc": ("escape", "27", "Escape", 3, electronEscapeTaken, electronEscapeKept),
         ]
+        var ways = [
+            Way(what: "Return, 0.6.7.1's way: the link inserted with its range during the key", calls: [Call(duringKey: true, marks: false, range: 0..<3, text: link)],
+                text: link, keyCode: "13", sent: [link], caret: [75, 75], recorded: electronLinkInserted),
+            Way(what: "Return, 0.6.7.2's: the link marked, taken out again during the key (Chromium told it elsewhere), inserted with its range",
+                calls: [linkCalls[0], Call(duringKey: true, marks: true, range: nil, selection: 0, text: ""), Call(duringKey: true, marks: false, range: 0..<3, text: link)],
+                text: link, keyCode: "13", sent: [link], caret: [75, 75], recorded: electronLinkTakenOut),
+            Way(what: "Return, now: the link marked during the key, committed after", calls: viaReturn.calls, text: link, keyCode: "229",
+                caret: [75, 75], recorded: electronLinkMarked),
+            Way(what: "Tab, 0.6.7.1's way", keys: "tab", calls: [Call(duringKey: true, marks: false, range: 0..<3, text: link)], text: link,
+                keyCode: "9", caret: nil, focused: false, recorded: electronTabInserted),
+            Way(what: "Tab, now", keys: "tab", calls: viaTab.calls, text: link, keyCode: "229", caret: [75, 75], recorded: electronTabMarked),
+            Way(what: "Return, one character marked during the key, committed after", typed: "#123", calls: one.calls, text: "#1234",
+                keyCode: "229", caret: [5, 5], recorded: electronOneMarked),
+            Way(what: "Return on a row that adds nothing, its last character marked again", calls: nothing.calls, text: "#17", keyCode: "229",
+                caret: [3, 3], recorded: electronNothingMarked),
+        ]
+        for (name, _, _) in arrows {
+            guard let key = taken[name] else { continue }
+            ways.append(Way(what: "\(name), 0.6.7.2's way: taken, nothing done", keys: key.key, after: " tail", calls: [], text: tail,
+                            keyCode: key.code, acted: [key.acted], caret: [key.caret, key.caret], recorded: key.recorded))
+            ways.append(Way(what: "\(name), now: the token's last character marked again during the key, committed after", keys: key.key,
+                            after: " tail", calls: arrowCalls[name] ?? [], text: tail, keyCode: "229", caret: [3, 3], recorded: key.kept))
+        }
         for way in ways {
             let recording = harness.map {
-                runElectronHarness($0, script: "type-enter", field: "composer", userData: userData, typed: way.typed,
-                                   answer: PageFieldClient.answer(way.calls)) ?? ""
+                runElectronHarness($0, script: "type-keys", field: "composer", userData: userData, typed: way.typed, keys: way.keys,
+                                   answer: PageFieldClient.answer(way.calls), after: way.after) ?? ""
             } ?? way.recorded
             let outcome = pageOutcome(in: recording)
+            let moved = outcome.caret.map { "the caret at \($0)" } ?? "no caret in the field"
             check(outcome.answered == way.calls.map(PageFieldClient.recorded) && outcome.text == way.text && outcome.markedLeft == false
-                  && outcome.enters == [way.sends ? "13" : "229"] && outcome.sent == (way.sends ? [way.text] : []),
-                  "\(harness == nil ? "recorded" : "Electron harness"), Slack's composer, \(way.what): Return reached the page as "
-                  + "\(outcome.enters), it sent \(outcome.sent.isEmpty ? "nothing" : "\(outcome.sent)"), its text \(outcome.text ?? "-") "
-                  + "(\(outcome.answered.joined(separator: "; ")))")
+                  && outcome.keys == [way.keyCode] && outcome.sent == way.sent && outcome.acted == way.acted && outcome.caret == way.caret
+                  && outcome.focused == way.focused,
+                  "\(harness == nil ? "recorded" : "Electron harness"), Slack's composer, \(way.what): the key reached the page as "
+                  + "\(outcome.keys), it sent \(outcome.sent.isEmpty ? "nothing" : "\(outcome.sent)"), acted on "
+                  + "\(outcome.acted.isEmpty ? "nothing" : "\(outcome.acted)"), its text \(outcome.text.map { "\"\($0)\"" } ?? "-"), \(moved)"
+                  + "\(outcome.focused == false ? ", the focus gone" : "") (\(outcome.answered.joined(separator: "; ")))")
         }
+        checkChromiumApps(harness: harness)
+    }
+
+    /// How apps built on Chromium or Electron are told (`ChromiumApps`): by Electron's or a Chromium framework in their
+    /// bundle (bundles made here: Electron's, Chrome's, a Chromium browser's channel's, the Chromium Embedded Framework's
+    /// are; one with other frameworks or none isn't), the harness's own Electron where it is; by bundle id, a Chromium
+    /// browser (a web app of one too) without a look at its bundle; each app once. Then those in /Applications, said.
+    static func checkChromiumApps(harness: URL?) {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-chromium-apps-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        func bundle(_ name: String, _ frameworks: [String]) -> URL {
+            let app = folder.appendingPathComponent(name + ".app", isDirectory: true)
+            try? FileManager.default.createDirectory(at: app.appendingPathComponent("Contents/MacOS"), withIntermediateDirectories: true)
+            for framework in frameworks {
+                try? FileManager.default.createDirectory(at: app.appendingPathComponent("Contents/Frameworks/" + framework), withIntermediateDirectories: true)
+            }
+            return app
+        }
+        let made: [(name: String, frameworks: [String], chromium: Bool)] = [
+            ("Chat", ["Electron Framework.framework", "Squirrel.framework"], true), ("Browser", ["Google Chrome Framework.framework"], true),
+            ("Edge Beta", ["Microsoft Edge Beta Framework.framework"], true), ("Player", ["Chromium Embedded Framework.framework"], true),
+            ("Notes", ["Sparkle.framework", "Operations Framework.framework"], false), ("Plain", [], false),
+        ]
+        let told = made.map { ChromiumApps.hasChromium(bundle: bundle($0.name, $0.frameworks)) }
+        check(told == made.map(\.chromium),
+              "Chromium and Electron apps told by their bundle: \(zip(made, told).map { "\($0.0.name) \($0.1 ? "yes" : "no")" }.joined(separator: ", "))")
+        var looked: [String] = []
+        let known = ChromiumApps.Known { id in
+            looked.append(id)
+            return ["com.example.chat": folder.appendingPathComponent("Chat.app"), "com.example.notes": folder.appendingPathComponent("Notes.app")][id]
+        }
+        let ids: [String?] = ["com.example.chat", "com.example.chat", "com.example.notes", "com.google.Chrome", "com.google.Chrome.app.abcdefgh",
+                              "com.microsoft.edgemac.Beta", "com.example.gone", nil]
+        let answers = ids.map(known.isChromium)
+        check(answers == [true, true, false, true, true, true, false, false] && looked == ["com.example.chat", "com.example.notes", "com.example.gone"],
+              "…and by bundle id: the browsers (a web app of one too) without a look at a bundle, each app once (\(answers); looked for \(looked))")
+        if let harness {
+            let electron = electronBinary(in: harness).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            check(ChromiumApps.hasChromium(bundle: electron), "the Electron harness's \(electron.lastPathComponent) is told as one by its bundle")
+        }
+        let apps = ((try? FileManager.default.contentsOfDirectory(at: URL(fileURLWithPath: "/Applications"), includingPropertiesForKeys: nil)) ?? [])
+            .filter { $0.pathExtension == "app" }
+            .filter { app in Bundle(url: app)?.bundleIdentifier.map(ChromiumApps.isBrowser) == true || ChromiumApps.hasChromium(bundle: app) }
+        print("  Chromium and Electron apps in /Applications: \(apps.map { $0.deletingPathExtension().lastPathComponent }.sorted().joined(separator: ", "))")
     }
 }

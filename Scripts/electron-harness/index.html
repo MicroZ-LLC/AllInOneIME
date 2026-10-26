@@ -6,7 +6,8 @@
 <title>AllInOneIME Electron harness</title>
 <style>
   body { font: 14px -apple-system, sans-serif; margin: 16px; }
-  .composer { border: 1px solid #888; border-radius: 6px; min-height: 40px; padding: 8px; margin-bottom: 12px; }
+  .composer { border: 1px solid #888; border-radius: 6px; min-height: 40px; padding: 8px; margin-bottom: 12px;
+              white-space: pre-wrap; }
   textarea { width: 100%; height: 60px; }
 </style>
 </head>
@@ -35,21 +36,48 @@
     document.addEventListener('keydown', () => { const end = performance.now() + busy; while (performance.now() < end) {} });
   }
   // Like Slack's composer: a key down of Enter (keyCode 13, not composing, no Shift) sends the message. Its text stays
-  // (Slack's goes), so what the field ends with can be read. On the harness's stdout for the self-test, as "PAGE <what>
-  // <JSON>" lines: each key down's key, keyCode and isComposing, what was sent, and the field's text as it changes.
+  // (Slack's goes), so what the field ends with can be read. ↑, ↓, →, ← and Esc it acts on as well (Slack's ↑ edits a
+  // message, Esc leaves the composer …): said, and the key goes on (an arrow moves the caret). On the harness's stdout
+  // for the self-test, as "PAGE <what> <JSON>" lines: each key down's key, keyCode and isComposing, what was sent or
+  // acted on, the field's text as it changes, and after each key (its key up) where the caret is ([start, end], UTF-16)
+  // and whether the field still has the focus.
   const page = (what, value) => log('PAGE ' + what + ' ' + JSON.stringify(value));
   const target = query.get('field') || 'composer';
   const field = document.getElementById(target);
   const text = () => field.value ?? field.textContent;
+  // HARNESS_AFTER: text after the caret, the caret at the start.
+  const after = query.get('after') || '';
+  if (after) {
+    if (field.value !== undefined) { field.value = after; } else { field.textContent = after; }
+  }
+  const caret = () => {
+    if (field.selectionStart !== undefined) return [field.selectionStart, field.selectionEnd];
+    const selection = getSelection();
+    if (!selection.rangeCount || !field.contains(selection.anchorNode)) return null;
+    const range = selection.getRangeAt(0), before = document.createRange();
+    before.selectNodeContents(field);
+    before.setEnd(range.startContainer, range.startOffset);
+    const start = before.toString().length;
+    return [start, start + range.toString().length];
+  };
+  const acted = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Escape'];
   field.addEventListener('keydown', e => {
     page('keydown', { key: e.key, keyCode: e.keyCode, isComposing: e.isComposing });
     if (e.key === 'Enter' && e.keyCode === 13 && !e.isComposing && !e.shiftKey) {
       e.preventDefault();
       page('sent', text());
+    } else if (acted.includes(e.key) && e.keyCode !== 229 && !e.isComposing) {
+      page('acted', e.key);
     }
   });
+  document.addEventListener('keyup', () => page('caret', { at: caret(), focused: document.activeElement === field }));
   for (const type of ['input', 'compositionend']) field.addEventListener(type, () => page('text', text()));
   field.focus();
+  if (after && field.selectionStart !== undefined) {
+    field.setSelectionRange(0, 0);
+  } else if (after) {
+    getSelection().collapse(field.firstChild, 0);
+  }
   log('focused', document.activeElement.id, 'hasFocus', document.hasFocus());
 </script>
 </body>

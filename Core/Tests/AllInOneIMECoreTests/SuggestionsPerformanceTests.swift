@@ -4,8 +4,9 @@ import Testing
 import AllInOneIMETestSupport
 
 /// Suggestions with the largest list a plugin may return (20,000 items, `CompletionList.maxItems`): each key is handled
-/// on the session's thread (the main thread on the Mac), so its rows are made from what matches only, at most 5 of them
-/// and the rows picked before, never by making a row of every item first. The rig: Acceptance/SuggestionsAcceptanceTests.swift.
+/// on the session's thread (the main thread on the Mac), so its rows are made from what matches only, at most 100 of them
+/// (0.6.7.3: 5 shown, the rest scrolled in) and the rows picked before, never by making a row of every item first. The
+/// rig: Acceptance/SuggestionsAcceptanceTests.swift.
 @Suite(.serialized, SuggestionsOneAtATime())
 struct SuggestionsPerformanceTests {
     func inEnglish(_ body: () throws -> Void) async rethrows { try await withInterfaceLanguage("en", body) }
@@ -49,6 +50,10 @@ struct SuggestionsPerformanceTests {
             field.type("#1")
             #expect(field.settle { field.rows.count == 5 }, "\(field.rows.map(\.text))")
             #expect(field.issuesShown == ["#1500", "#19998", "#1", "#10", "#11"], "picked first: \(field.issuesShown)")
+            #expect(field.footer.hasSuffix("1–5 / 100"), "100 rows made, 5 shown: \(field.footer)")
+            // ↓ through the rows, scrolling, and around.
+            let moves = timed(Array(repeating: SuggestionKeys.down, count: 120), in: field)
+            #expect(field.footer.hasSuffix("17–21 / 100") && field.host.panel?.highlighted == 4, "the 21st chosen: \(field.footer)")
 
             // Many matching ("#1": 11,111; "#10": 1,111), then none ("#199999"), each key timed.
             var keys: [KeyEvent] = []
@@ -60,6 +65,7 @@ struct SuggestionsPerformanceTests {
             #expect(field.document == "#19999" && field.issuesShown == ["#19999"], "\(field.document): \(field.issuesShown)")
             func shown(_ durations: [Duration]) -> [String] { durations.map { $0.formatted(.units(allowed: [.milliseconds], fractionalPart: .show(length: 1))) } }
             #expect(Self.median(many) < Self.bound, "many matching: \(shown(many))")
+            #expect(Self.median(moves) < Self.bound, "↓: \(shown(moves))")
             #expect(Self.median(none) < Self.bound, "none matching: \(shown(none))")
         }
     }
@@ -83,8 +89,8 @@ struct SuggestionsPerformanceTests {
         }
     }
 
-    /// The rows over a list of 20,000 are those a list of all of them gives: the first 5 matching, in its order, after the
-    /// picked ones.
+    /// The rows over a list of 20,000 are those a list of all of them gives: the first matching, in its order, after the
+    /// picked ones (the first 5 shown).
     @Test func theRowsAreTheFirstFiveMatching() async throws {
         try await inEnglish {
             let world = SuggestionsWorld()
