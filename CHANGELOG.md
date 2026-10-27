@@ -16,6 +16,10 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 - With the interface in Traditional Chinese, Japanese, Korean, German, French, Spanish or Portuguese, the input method no longer gets slower the longer it runs, and no longer crashes after a while. Each text it showed in that language made every later one take longer to look up.
 
+### Development
+
+- The self-test exits 0 when every check passed, 1 when one failed and 2 when some were skipped (a locked screen ends it at once); its last line is a SELFTEST-RESULT summary. Self-test checks that ordinary tests already cover were removed. CI now runs the core's tests on macOS and Linux.
+
 ## 0.6.7.3 (2026-10-26)
 
 ### Changed
