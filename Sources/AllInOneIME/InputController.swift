@@ -105,6 +105,10 @@ final class AllInOneIMEInputController: IMKInputController {
     /// the key is answered and never during secure input (the self-test supplies its own and never reads the real
     /// clipboard).
     var readClipboard: () -> ClipboardContent = { AllInOneIMEInputController.clipboardContent(NSPasteboard.general) }
+    /// ⌃V opening clipboard history (a read with an id below 0): the clipboard's text, or that it has an image, told by its
+    /// types (`.image` with no data: the panel's first row says so, and what is chosen there never needs it; in a command
+    /// that row reads the clipboard again, with `readClipboard`). The self-test supplies its own.
+    var peekClipboard: () -> ClipboardContent = { AllInOneIMEInputController.clipboardContent(NSPasteboard.general, imageData: false) }
     /// Whether a draft started with an image on the clipboard warms Vision up (`warmUpScreenshotReading`; not in the
     /// self-test: it would look at the real clipboard's types).
     var warmsUpVision = true
@@ -842,7 +846,7 @@ final class AllInOneIMEInputController: IMKInputController {
                 DispatchQueue.main.async { [weak self] in
                     guard let self else { return }
                     // Nothing is read during secure input.
-                    let content = self.services.secureInputActive() ? .none : self.readClipboard()
+                    let content = self.services.secureInputActive() ? .none : id < 0 ? self.peekClipboard() : self.readClipboard()
                     // Only how much: never the text or the image itself.
                     log.notice("clipboard for \(id < 0 ? "clipboard history" : "a command", privacy: .public): \(Self.logged(content), privacy: .public)")
                     self.received(.clipboard(content, id: id))

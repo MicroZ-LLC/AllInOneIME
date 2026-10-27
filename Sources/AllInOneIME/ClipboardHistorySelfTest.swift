@@ -38,10 +38,11 @@ extension SelfTest {
                 needs: .composing)
         typealias Call = PageFieldClient.Call
         let saved = (history: controller.services.clipboardHistory, read: controller.readClipboard, chromium: controller.chromiumApp,
-                     pass: controller.passPasteKey, override: controller.clientOverride)
+                     pass: controller.passPasteKey, override: controller.clientOverride, peek: controller.peekClipboard)
         defer {
             controller.services.clipboardHistory = saved.history
             (controller.readClipboard, controller.chromiumApp, controller.passPasteKey) = (saved.read, saved.chromium, saved.pass)
+            controller.peekClipboard = saved.peek
             controller.clientOverride = saved.override
             controller.activateServer(client)
             controller.composer.setInputMode(settings.defaultInput)
@@ -52,7 +53,10 @@ extension SelfTest {
         let history = [ClipboardHistoryItem(text: item, copiedAt: now - 120), ClipboardHistoryItem(text: "an older copy", copiedAt: now - 3600)]
         controller.services.clipboardHistory = ClipboardHistoryServices(state: { .recording }, items: { history }, canPassPasteKey: { false },
                                                                        firstShowing: { false }, now: { now })
-        controller.readClipboard = { .text(item) }  // what ⌃V reads: the self-test's, never the clipboard
+        // What ⌃V reads: the self-test's, never the clipboard; for the panel, only what it has (`peekClipboard`).
+        var (peeks, reads) = (0, 0)
+        controller.peekClipboard = { peeks += 1; return .text(item) }
+        controller.readClipboard = { reads += 1; return .text(item) }
         var pasteKeys = 0
         controller.passPasteKey = { pasteKeys += 1 }
         let slack = "com.tinyspeck.slackmacgap"
@@ -87,6 +91,21 @@ extension SelfTest {
         check(inView.taken && view.text == item && !view.textView.hasMarkedText() && !panel.isShowing,
               "an NSTextView: ⏎ puts the two lines in (\(view.text.debugDescription)), nothing marked, the panel gone")
         view.close()
+        check(peeks == 1 && reads == 0, "⌃V opening the panel: the clipboard looked at for it (\(peeks)), not read as a command reads it (\(reads))")
+
+        // An image on the clipboard: the panel only looks at its types; its data is read for a command (a private
+        // pasteboard, its PNG given only when asked).
+        let board = NSPasteboard.withUniqueName()
+        let image = PromisedImage(), boardItem = NSPasteboardItem()
+        boardItem.setDataProvider(image, forTypes: [.png])
+        board.clearContents()
+        board.writeObjects([boardItem])
+        let peeked = AllInOneIMEInputController.clipboardContent(board, imageData: false)
+        let askedPeeking = image.asked
+        let read = AllInOneIMEInputController.clipboardContent(board)
+        board.releaseGlobally()
+        check(peeked == .image(Data()) && askedPeeking == 0 && read == .image(Data([0x89, 0x50, 0x4E, 0x47])) && image.asked == 1,
+              "an image on the clipboard: its data not read for the panel (asked \(askedPeeking) times), read for a command")
 
         // An NSTextView with a selection: ⌃V ↓ ⏎ puts the row chosen in its place, as a paste over a selection does.
         let selectedView = TextViewClient()
@@ -260,5 +279,15 @@ extension SelfTest {
                   + "\(page.sent.isEmpty ? "nothing" : "\(page.sent)") and acted on \(page.acted.isEmpty ? "nothing" : "\(page.acted)"), "
                   + "its text \((page.text ?? "-").debugDescription) (\(page.answered.joined(separator: "; ")))")
         }
+    }
+}
+
+/// An image on a pasteboard, its data given only when asked, counted.
+private final class PromisedImage: NSObject, NSPasteboardItemDataProvider {
+    var asked = 0
+
+    func pasteboard(_ pasteboard: NSPasteboard?, item: NSPasteboardItem, provideDataForType type: NSPasteboard.PasteboardType) {
+        asked += 1
+        item.setData(Data([0x89, 0x50, 0x4E, 0x47]), forType: type)
     }
 }
