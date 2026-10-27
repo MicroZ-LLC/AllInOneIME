@@ -1387,7 +1387,7 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack {
                         IconTile(icon: CommandIcons.icon(for: command))
-                        Text(model.config.commandTrigger + command.name).font(.body.monospaced())
+                        Text(command.shownName(trigger: model.config.commandTrigger)).font(.body.monospaced())
                         Text(UIText.customKind(command)).foregroundStyle(.secondary)
                         if let summary = command.summary {
                             Text(summary).foregroundStyle(.secondary).lineLimit(1)
@@ -2314,7 +2314,7 @@ struct SettingsView: View {
                 commandToDelete = nil
             }
         } message: {
-            if let command = commandToDelete { Text(model.config.commandTrigger + command.name) }
+            if let command = commandToDelete { Text(command.shownName(trigger: model.config.commandTrigger)) }
         }
         .confirmationDialog(tr("移除这个命令？", "Remove this command?"),
                             isPresented: Binding(get: { refusedToDelete != nil }, set: { if !$0 { refusedToDelete = nil } })) {

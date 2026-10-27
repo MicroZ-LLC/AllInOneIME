@@ -526,6 +526,10 @@ public struct CustomCommand: Codable, Hashable, Sendable {
 }
 
 extension CustomCommand {
+    /// Its name as Settings shows it: after the magic key (`@issues`), except a Suggestions command's, which is no @
+    /// command (0.6.8): used by its prefix, it is shown by its name alone.
+    public func shownName(trigger: String) -> String { type == .suggestions ? name : trigger + name }
+
     /// What keeps a definition from being saved, for the settings' editor.
     public enum Problem: Equatable, Sendable {
         case emptyName

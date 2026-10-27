@@ -703,7 +703,7 @@ struct SettingsSchema {
                 + (state.map { "\n" + $0.text } ?? "")
                 + (Command.builtins.contains { $0.name == command.name.lowercased() }
                    ? "\n" + tr("和内置命令重名，不会生效，请改名", "Same name as a built-in command: rename it to use it") : "")
-            return SettingsDocument.Item(id: command.name, title: config.commandTrigger + command.name, detail: detail, value: value,
+            return SettingsDocument.Item(id: command.name, title: command.shownName(trigger: config.commandTrigger), detail: detail, value: value,
                                          actions: [SettingsAction.save, SettingsAction.delete])
         }
         // Those config.json has that can't be read (decision 25): why, and Delete only (no editor reads them).

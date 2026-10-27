@@ -89,6 +89,12 @@ struct CommandListTests {
 
     /// Names as before (owner): it is a custom command, its name unique among them, the built-ins and the plugins, and
     /// still taken: a script extension of its name stays left out (Settings says by which), so no command changes name.
+    /// Settings shows it by its name alone: it is no @ command. Other custom commands keep the magic key before theirs.
+    @Test func settingsShowsItWithoutTheMagicKey() {
+        #expect(Self.jira().shownName(trigger: "@") == "Jira")
+        #expect(CustomCommand(name: "python", type: .run, argv: ["python3"]).shownName(trigger: "~") == "~python")
+    }
+
     @Test func itsNameIsTakenAsBefore() throws {
         let jira = Self.jira()
         #expect(jira.problem(among: []) == nil)
