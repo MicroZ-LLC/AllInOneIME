@@ -132,6 +132,29 @@ extension UIText {
                  "The program runs on this PC: for its list when a text field gets the focus (it may be a password field: nothing of the field is given to it), then at the refresh interval; with Look up as you type, with what you type after the prefix as one argument, never in a password field. Add only programs you wrote and trust.")
     }
 
+    /// "Show in the @ list", the switch under a plugin or script extension command with suggestions, next to their
+    /// switch (`Config.hiddenFromCommandList`): the commands named with `trigger` (a window's own settings').
+    public static func showInCommandList(trigger: String = UIText.commandTrigger) -> String {
+        triggered(tr("在 @ 列表里显示", "Show in the @ list"), trigger: trigger)
+    }
+
+    /// What "Show in the @ list" does, under it: off, the command is out of the list and its name after the magic key is
+    /// text like any other; its suggestions are as they were.
+    public static func showInCommandListHelp(trigger: String = UIText.commandTrigger) -> String {
+        triggered(tr("关掉后，它不在 @ 命令列表里，打 @ 加它的名字也只是普通文字；它的建议照常出现。",
+                     "Off: it isn't in the @ command list, and @ with its name is just text; its suggestions still show."), trigger: trigger)
+    }
+
+    /// Clipboard history's switch (Settings → General, `Config.clipboardHistory`), under its name: what ⌃V does with it,
+    /// what is kept and where, and that off, ⌃V is as before.
+    public static func clipboardHistoryHelp(terms: PlatformTerms = Platform.current.terms) -> String {
+        tr("按 \(terms.paste) 列出最近复制的文字，选一条就放进去；⇧↓ ⇧↑ 多选，\(terms.enter) 一行一条放进去。只记文字，只存在这台 Mac 上，密码管理器标成隐藏的内容不记。关掉后 \(terms.paste) 和以前一样。",
+           "\(terms.paste) lists the text you copied lately and puts in the one you choose; ⇧↓ ⇧↑ choose several, and \(terms.enter) puts them in one per line. Text only, kept on this Mac only, never what a password manager marks as concealed. Off, \(terms.paste) works as before.")
+    }
+
+    /// How many texts clipboard history keeps (`Config.clipboardHistoryLimit`), the label of its number.
+    public static var clipboardHistoryLimitLabel: String { tr("保留最近几条", "Keep the last") }
+
     /// Why a custom command in config.json isn't used (`CustomCommand.Refused`), as Settings → Custom Commands says it
     /// under its name: "This command isn't used: “minChars” should be a whole number".
     public static func describe(_ refused: CustomCommand.Refused) -> String {

@@ -1387,7 +1387,7 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack {
                         IconTile(icon: CommandIcons.icon(for: command))
-                        Text(model.config.commandTrigger + command.name).font(.body.monospaced())
+                        Text(command.shownName(trigger: model.config.commandTrigger)).font(.body.monospaced())
                         Text(UIText.customKind(command)).foregroundStyle(.secondary)
                         if let summary = command.summary {
                             Text(summary).foregroundStyle(.secondary).lineLimit(1)
@@ -1596,9 +1596,11 @@ struct SettingsView: View {
                 Label(tr("没有加载：", "Not loaded: ") + UIText.describe(hidden, file: command.file), systemImage: "exclamationmark.triangle")
                     .font(.caption).foregroundStyle(.orange).padding(.leading, 28)
             }
-            // The completion source it declares (suggestions as you type), with its own switch.
+            // The completion source it declares (suggestions as you type), with its own switch; then, for one that is a
+            // source, whether it is in the @ list.
             if command.completion != nil, model.isEnabled(command.id) {
                 ScriptCompletionView(model: model, command: command).padding(.top, 2)
+                if command.hasSuggestions { CommandListSwitch(model: model, id: command.id, name: name).padding(.top, 4) }
             }
         }
         .help(ExtensionStore.abbreviated(command.file.path))
@@ -2254,6 +2256,7 @@ struct SettingsView: View {
                         writingSection
                         autocompleteSection
                         SuggestionsSection(model: model)
+                        ClipboardHistorySection(model: model)
                         ICloudSyncSection(model: model)
                         PreviousAppSettingsSection(model: model)
                     case .input:
@@ -2311,7 +2314,7 @@ struct SettingsView: View {
                 commandToDelete = nil
             }
         } message: {
-            if let command = commandToDelete { Text(model.config.commandTrigger + command.name) }
+            if let command = commandToDelete { Text(command.shownName(trigger: model.config.commandTrigger)) }
         }
         .confirmationDialog(tr("移除这个命令？", "Remove this command?"),
                             isPresented: Binding(get: { refusedToDelete != nil }, set: { if !$0 { refusedToDelete = nil } })) {

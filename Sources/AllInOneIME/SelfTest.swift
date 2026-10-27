@@ -155,11 +155,7 @@ enum SelfTest {
 
     /// Counts a check, or, while this Mac can't give the section what it needs (`needing`), reports it skipped.
     static func check(_ condition: Bool, _ message: String) {
-        if let skipping {
-            print("– \(message) — skipped: \(skipping)")
-            skipped[skipping, default: 0] += 1
-            return
-        }
+        if let skipping { return skip(message, skipping) }
         print("\(condition ? "✓" : "✗") \(message)")
         if condition { passed += 1 } else { failures += 1 }
         if !needs.isEmpty { checkedWithNeeds += 1 }
@@ -976,12 +972,11 @@ enum SelfTest {
                           snapshotDirectory: URL) {
         section("voice input (on-device recognition of synthesized speech)", needs: .composing)
         guard Features.voiceInput else {
-            print("  voice input is off for now (Features.voiceInput); skipped")
+            print("  voice input is off in this version (Features.voiceInput): no voice checks to run")
             return
         }
         guard #available(macOS 26.0, *), VoiceInput.isSupported else {
-            print("  SpeechAnalyzer not available on this macOS; skipped")
-            return
+            return skip("voice input", "SpeechAnalyzer not available on this macOS")
         }
         settings.rewriteStyles = RewriteStyle.defaultNames
         controller.services.loadSettings = { SelfTest.settings }
@@ -2403,6 +2398,8 @@ enum SelfTest {
                 check(failure()?.contains("ZeroDivisionError") == true, "@py shows Python's error (\(failure() ?? "no error"))")
             }
             clear()
+        } else {
+            skip("@py's value and its error", "no python3 on this Mac")
         }
         check(insertsResult("js", "6*7", "42"), "@js 6*7 inserts 42 from the JavaScriptCore child process (\(client.inserted.last ?? ""))")
 
@@ -2422,8 +2419,11 @@ enum SelfTest {
                 client.bundleIDOverride = nil
                 controller.activateServer(client)
             } else {
-                print("  secure input is on (\(SecureInput.ownerDescription())): no terminal check")
+                print("  secure input is on (\(SecureInput.ownerDescription()))")
+                skip("@py output and an answer's lines in a terminal", secureInputOn)
             }
+        } else {
+            skip("@py output's lines, in other apps and in a terminal", "no python3 on this Mac")
         }
 
         testExtensions(controller, client, start: start, typeText: typeText, waitForEnd: waitForEnd, clear: clear)
@@ -2586,8 +2586,9 @@ enum SelfTest {
         uniquingKeysWith: { first, _ in first })
 
     static func run(snapshotDirectory: URL, typingLagOnly: Bool = false, autocompleteOnly: Bool = false, settingsOnly: Bool = false,
-                    suggestionsOnly: Bool = false) -> Int32 {
+                    suggestionsOnly: Bool = false, clipboardOnly: Bool = false) -> Int32 {
         waitForOtherSelfTests()
+        endIfScreenLocked()
         _ = NSApplication.shared
         // The recent @questions in a file of the self-test's own: the user's are neither listed nor changed.
         QuestionHistoryStore.url = snapshotDirectory.appendingPathComponent("recent-questions.json")
@@ -2612,6 +2613,7 @@ enum SelfTest {
         ICloudSyncController.shared.keys = nil
         // Suggestions keep nothing where the user's are (the lists' cache, the coding packs).
         isolateSuggestions(in: snapshotDirectory)
+        ClipboardHistoryShared.isolated = true  // no history but a check's own: never the user's clipboard or file
         // Autocomplete learns and counts in memory, never in the input method's defaults; its suggestion is drawn
         // invisible, and the user's clicks don't take it down.
         AutocompleteSwitch.store = AutocompleteStore()
@@ -2630,8 +2632,8 @@ enum SelfTest {
         // Level one: the Chinese data (`--rime-data`, which `make selftest` passes, else the installed pack)
         // with a throw-away user directory.
         guard let shared = RimeDirectories.shared, FileManager.default.fileExists(atPath: shared.path) else {
-            print("✗ no Rime data: pass --rime-data ThirdParty/rime-data or install the Chinese pack")
-            return 1
+            check(false, "no Rime data: pass --rime-data ThirdParty/rime-data or install the Chinese pack")
+            return summary()
         }
         // A downloaded pack has no Lua of its own: the app's is linked in, as at launch.
         if FileManager.default.fileExists(atPath: shared.appendingPathComponent("install.json").path) {
@@ -2649,8 +2651,8 @@ enum SelfTest {
         do {
             try RimeService.shared.start(sharedDataDir: shared, userDataDir: userDir, logDir: logDir)
         } catch {
-            print("✗ Rime did not start: \(error)")
-            return 1
+            check(false, "Rime did not start: \(error)")
+            return summary()
         }
         check(RimeService.shared.waitUntilReady(timeout: 60),
               String(format: "Rime deployed in %.2fs (librime %@)", Date().timeIntervalSince(deployStart), RimeService.shared.version))
@@ -2659,13 +2661,13 @@ enum SelfTest {
             name: "com.aipinyin.inputmethod.AIPinyin_SelfTest_Connection",
             bundleIdentifier: Bundle.main.bundleIdentifier)
         else {
-            print("✗ IMKServer could not be created (run from inside AllInOneIME.app)")
-            return 1
+            check(false, "IMKServer could not be created (run from inside AllInOneIME.app)")
+            return summary()
         }
         let client = FakeTextClient()
         guard let controller = AllInOneIMEInputController(server: server, delegate: nil, client: nil) else {
-            print("✗ could not create AllInOneIMEInputController")
-            return 1
+            check(false, "could not create AllInOneIMEInputController")
+            return summary()
         }
         // The self-test's config, but results inserted at once: checks read what went in right away (the
         // typing-out section turns it on for itself).
@@ -2690,8 +2692,10 @@ enum SelfTest {
         // The fake fields are no Chromium page, whatever apps this Mac has (the Chromium section says which of them is).
         controller.chromiumApp = { _ in false }
         giveUp = { for _ in 0..<4 where controller.composer.isComposing { _ = escape(controller, client) } }
+        if clipboardOnly { return SelfTest.clipboardOnly(controller, client, snapshotDirectory: snapshotDirectory, userConfig: userConfig) }
         testTypingLag(controller, client)
         if typingLagOnly {
+            needing([])  // read whatever the last section needed
             check((try? Data(contentsOf: Config.userURL)) == userConfig, "the user's config was left unchanged")
             return summary()
         }
@@ -2705,6 +2709,7 @@ enum SelfTest {
             controller.applySettings()
             testAutocomplete(controller, client, snapshotDirectory: snapshotDirectory)
             controller.deactivateServer(client)
+            needing([])  // read whatever the last section needed
             check((try? Data(contentsOf: Config.userURL)) == userConfig, "the user's config was left unchanged")
             return summary()
         }
@@ -2733,13 +2738,14 @@ enum SelfTest {
             testExtensionSourceReading(snapshotDirectory: snapshotDirectory)
             testSuggestionsOnByDefault(snapshotDirectory: snapshotDirectory)
             controller.deactivateServer(client)
+            needing([])  // read whatever the last section needed
             check((try? Data(contentsOf: Config.userURL)) == userConfig, "the user's config was left unchanged")
             return summary()
         }
         if suggestionsOnly {
             // Suggestions' checks that ask no AI (the GitHub plugin with a stand-in for api.github.com, Code's packs,
-            // Return on a row in Slack's composer with the Electron harness where there is one), the results inserted at
-            // once.
+            // Return on a row in Slack's composer with the Electron harness where there is one, a Suggestions command's
+            // program of the self-test's own and its name no @ command), the results inserted at once.
             (settings.typeOut, settings.typeOutMistakes) = (false, false)
             controller.services.loadSettings = { SelfTest.settings }
             CandidatePanel.shared.alphaValue = 0
@@ -2749,7 +2755,9 @@ enum SelfTest {
             testSuggestions(controller, client, snapshotDirectory: snapshotDirectory)
             testRowsScroll(controller, client, snapshotDirectory: snapshotDirectory)
             testRowKeysInChromium(controller, client, snapshotDirectory: snapshotDirectory)
+            testCustomSuggestions(controller, client, snapshotDirectory: snapshotDirectory)
             controller.deactivateServer(client)
+            needing([])  // read whatever the last section needed
             check((try? Data(contentsOf: Config.userURL)) == userConfig, "the user's config was left unchanged")
             return summary()
         }
@@ -2851,8 +2859,11 @@ enum SelfTest {
             _ = EnableSecureEventInput()
             if SecureInput.ownerPID() != getpid() {
                 // While the lock screen is up, macOS attributes secure input to loginwindow.
-                print("  macOS attributes secure input to \(SecureInput.ownerDescription()), not this process; "
-                      + "skipping the owner checks")
+                print("  macOS attributes secure input to \(SecureInput.ownerDescription()), not this process")
+                for what in ["letters pass through in the app holding secure input", "nothing is composed",
+                             "key passes through when secure input turns on mid-composition", "pending letters committed as typed"] {
+                    skip(what, secureInputOn)
+                }
             } else {
                 check(!press(controller, client, "a", code: 0x00), "letters pass through in the app holding secure input")
                 check(client.marked.isEmpty && !controller.composer.isComposing, "nothing is composed")
@@ -3089,7 +3100,7 @@ enum SelfTest {
         check(finished, String(format: "translation finished in %.2fs", Date().timeIntervalSince(started)))
         if case let .failed(message) = controller.composer.phase {
             check(false, "translation failed: \(message)")
-            if skipping == nil { return 1 }  // what follows reads its results (skipped, it runs on, counting nothing)
+            if skipping == nil { return summary() }  // what follows reads its results (skipped, it runs on, counting nothing)
         }
         let choices = controller.composer.choices
         for choice in choices { print("  \(choice.label) \(choice.text)") }
@@ -3235,7 +3246,7 @@ enum SelfTest {
         testCustomSuggestions(controller, client, snapshotDirectory: snapshotDirectory)
         testRecentQuestions(controller, client, snapshotDirectory: snapshotDirectory)
         testQuestionChat(controller, client, snapshotDirectory: snapshotDirectory)
-        testContinueListKeepsAgentsNotInstalled(snapshotDirectory: snapshotDirectory)
+        testContinueListOffersAtAgentAgain(snapshotDirectory: snapshotDirectory)
         testAppleModel(controller, client, snapshotDirectory: snapshotDirectory)
         testRedaction(controller, client, snapshotDirectory: snapshotDirectory)
         testReply(controller, client)

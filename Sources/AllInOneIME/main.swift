@@ -14,15 +14,20 @@ let usage = """
       --status          show registration, process and configuration status
       --settings        run as the input method and open the settings window
       --selftest [DIR] [--rime-data DATA] [--typing-lag-only | --autocomplete-only | --settings-only |
-                 --suggestions-only]
+                 --suggestions-only | --clipboard-only]
                         drive the input controller (real Rime engine on DATA, else the installed
                         Chinese pack; live Bedrock call) with a fake text field; writes panel snapshots
                         to DIR (default /tmp/allinoneime-selftest); --typing-lag-only runs just the
-                        offline window lifecycle, menu cache and rapid pinyin checks; --autocomplete-only
+                        offline window reuse, config cache and rapid pinyin checks; --autocomplete-only
                         just autocomplete's (a harness window, stand-in models, no AI requests);
                         --settings-only just the settings window's (stand-ins, no AI requests);
                         --suggestions-only just suggestions' (a stand-in for api.github.com, the
-                        Electron harness where ALLINONEIME_ELECTRON_HARNESS names it; no AI requests)
+                        Electron harness where ALLINONEIME_ELECTRON_HARNESS names it; no AI requests);
+                        --clipboard-only just clipboard history's (a history of its own, never the
+                        clipboard's; the Electron harness as for suggestions).
+                        Exits 0 when every check ran and passed, 1 when one failed, 2 when none failed
+                        but some were skipped or couldn't run (a locked screen ends it at once); the
+                        last line is SELFTEST-RESULT {"passed":N,"failed":N,"skipped":N,"status":…}
       --install-pack ID [--library URL] [--key BASE64] [--packs-dir DIR]
                         download and install a language pack (zh-pinyin) as Settings does; plain http
                         is allowed to this Mac only, for a test server
@@ -179,6 +184,8 @@ func runServer(showSettings: Bool = false) -> Never {
     MainActor.assumeIsolated { TranslateModeShared.watchApps() }
     // Sync through iCloud, if it is on: a first run in a moment, then as files change.
     MainActor.assumeIsolated { ICloudSyncController.shared.start() }
+    // Clipboard history: a look at the clipboard's change count each second (⌃V lists what was copied).
+    MainActor.assumeIsolated { ClipboardHistoryShared.start() }
     withExtendedLifetime(server) { app.run() }
     exit(0)
 }
@@ -484,7 +491,7 @@ case "--selftest":
     exit(MainActor.assumeIsolated {
         SelfTest.run(snapshotDirectory: directory, typingLagOnly: arguments.contains("--typing-lag-only"),
                      autocompleteOnly: arguments.contains("--autocomplete-only"), settingsOnly: arguments.contains("--settings-only"),
-                     suggestionsOnly: arguments.contains("--suggestions-only"))
+                     suggestionsOnly: arguments.contains("--suggestions-only"), clipboardOnly: arguments.contains("--clipboard-only"))
     })
 case "--showcase":
     let directory = URL(fileURLWithPath: arguments.count > 1 ? arguments[1] : "/tmp/allinoneime-showcase")

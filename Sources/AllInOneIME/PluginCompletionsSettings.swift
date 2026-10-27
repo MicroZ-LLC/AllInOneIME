@@ -142,6 +142,14 @@ extension SettingsModel {
         if store.persists { SuggestionsShared.settingsChanged() }
     }
 
+    /// "Show in the @ list" for a plugin or script extension command with suggestions (`id`: a plugin's name, a command's
+    /// id; `Config.hiddenFromCommandList`) turned on or off, and saved; a text field takes it from its next sentence, as it
+    /// takes any change of the commands. Its suggestions stay as they are.
+    func setShownInCommandList(_ id: String, _ shown: Bool) {
+        config.setShownInCommandList(id, shown)
+        save()
+    }
+
     /// What a suggestion row inserts everywhere (decision 28; nil: the source's own), and saved; the field being typed in
     /// takes it with its next key.
     func setSuggestionsInsert(_ insert: SuggestionsInsert?) {
@@ -202,9 +210,9 @@ extension SettingsModel {
 /// (on once the plugin is installed, approved as it was then: 0.6.7.2; turned off, kept off), what it does and, for one
 /// that queries, what it sends where; how it is doing (its items,
 /// when its list was loaded, its last error) and Refresh Now; one turned on before an update that changed its hosts,
-/// prefix, queries or script says it needs turning on again, and one the command trigger shadows says why it can't show. The
-/// completion entries the plugin.json declares that were refused, with why. Its preferences: text in the config file,
-/// passwords in the keychain.
+/// prefix, queries or script says it needs turning on again, and one the command trigger shadows says why it can't show.
+/// Then Show in the @ list (`CommandListSwitch`). The completion entries the plugin.json declares that were refused, with
+/// why. Its preferences: text in the config file, passwords in the keychain.
 struct PluginCompletionsView: View {
     @ObservedObject var model: SettingsModel
     let plugin: InstalledPlugin
@@ -221,6 +229,7 @@ struct PluginCompletionsView: View {
         if !manifest.completions.isEmpty || !manifest.refusedCompletions.isEmpty || !manifest.preferences.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
                 ForEach(manifest.completions, id: \.name) { source in sourceRow(source) }
+                if plugin.hasSuggestions { CommandListSwitch(model: model, id: plugin.name, name: plugin.name) }
                 ForEach(manifest.refusedCompletions, id: \.self) { refused in
                     Label((refused.name.map { tr("补全 \($0) 没有加载：", "Completion \($0) not loaded: ") }
                            ?? tr("补全没有加载：", "Completions not loaded: ")) + refused.reason,
@@ -387,8 +396,8 @@ private struct PluginPreferenceField: View {
 /// what you type after its prefix), Refresh Now while its list is on, how it is doing (its items, last refresh, last
 /// error); one turned on before its repository, prefix, query or terms changed says it needs turning on again, one the
 /// command trigger shadows why it can't show, one whose source's repository is too large, or can't be read all, to check
-/// for changes that it can't be turned on (its switch disabled). A declaration refused says why (the command loads all the
-/// same).
+/// for changes that it can't be turned on (its switch disabled); Show in the @ list comes after it (`CommandListSwitch`,
+/// in its command's row). A declaration refused says why (the command loads all the same).
 struct ScriptCompletionView: View {
     @ObservedObject var model: SettingsModel
     let command: ScriptCommand
@@ -462,5 +471,34 @@ struct ScriptCompletionView: View {
     private func readStatus() {
         let key = CompletionSourceKey(extension: command)
         status = SuggestionsShared.store.status(key)
+    }
+}
+
+/// Show in the @ list, under a plugin or script extension command with suggestions, after their switch (as the settings
+/// document has it: `SettingsSchema.commandListSwitch`): on by default; off (`Config.hiddenFromCommandList`), the command
+/// is out of the @ command list and its name after the magic key is text like any other, its suggestions as they were.
+struct CommandListSwitch: View {
+    @ObservedObject var model: SettingsModel
+    /// A plugin's name, a script extension command's id: what `hiddenFromCommandList` keeps.
+    let id: String
+    /// The command's name, for VoiceOver ("@github Show in the @ list").
+    let name: String
+
+    var body: some View {
+        let trigger = model.config.commandTrigger
+        let title = UIText.showInCommandList(trigger: trigger)
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Image(systemName: "list.bullet").foregroundStyle(.secondary).frame(width: 20)
+                Text(title).fontWeight(.medium)
+                Spacer()
+                Toggle("", isOn: Binding(get: { model.config.showsInCommandList(id) }, set: { model.setShownInCommandList(id, $0) }))
+                    .labelsHidden().toggleStyle(.switch).controlSize(.small)
+                    .accessibilityLabel(trigger + name + " " + title)
+            }
+            Text(UIText.showInCommandListHelp(trigger: trigger)).foregroundStyle(.secondary)
+                .font(.caption).fixedSize(horizontal: false, vertical: true).padding(.leading, 28)
+        }
+        .padding(.leading, 28)
     }
 }

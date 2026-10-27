@@ -24,7 +24,7 @@ import AllInOneIMETestSupport
 /// - no approval, on while it exists, the switches: `noApprovalAndOnWhileItExists`, `theMasterSwitchOffMeansItNeverRuns`,
 ///   `anAppsSuggestionsOffMeansNoRowsThere`, `aPrefixStartingWithTheMagicKeyIsNeverUsed`
 /// - failures, back-off, pause and resume: `aFailedRunKeepsTheOldListAndBacksOff`, `theFifthFailureInARowPausesUntilAnEdit`
-/// - the command itself: `typingTheCommandOnlySaysWhatItIs`
+/// - the command itself (0.6.8: no @ command, used by its prefix): `typingTheCommandIsTypingAName`
 /// - the cache on disk: `itsListIsCachedForTheUserOnlyAndGoesWithTheCommand`
 @Suite(.serialized, SuggestionsOneAtATime())
 struct SuggestionsCustomCommandsAcceptanceTests {
@@ -944,39 +944,52 @@ struct SuggestionsCustomCommandsAcceptanceTests {
 
     // MARK: - The command itself
 
-    /// Typed as a command (`~jira` with the magic key ~, `@jira` with @), it only says what it is, its summary: nothing
-    /// runs, nothing goes in.
+    /// Typed after the magic key (`~jira` with the magic key ~, `@jira` with @), its name is no command's (0.6.8: a
+    /// Suggestions command is no @ command, used by its prefix): never in the command list, and the field ends up as it does
+    /// with no such command (a name no command has); its summary isn't said, nothing runs.
     @Test(arguments: ["~", "@"])
-    func typingTheCommandOnlySaysWhatItIs(_ trigger: String) async throws {
+    func typingTheCommandIsTypingAName(_ trigger: String) async throws {
         try await inEnglish {
             let program = try UserProgram(Self.printsTheList)
             try program.write("list.tsv", Self.listLines)
             let command = try Self.jira(program)
-            let world = SuggestionsWorld()
-            world.config.commandTrigger = trigger
             defer { UIText.commandTrigger = "@" }  // the process's, which the session sets
-            world.config.customCommands = [command]
-            world.switches = world.config.suggestionsSettings()
-            let field = world.field()
-            field.idle(0.5)
-            let calls = program.calls.count
-            var said: [String] = []
-            func look() {
-                said += field.rows.map { $0.text + " " + $0.comment }
-                said += [field.footer, field.host.noticeAlone ?? ""]
+            func typed(_ commands: [CustomCommand]) -> (said: [String], document: String, offered: Bool, ran: Bool, acted: Bool) {
+                let world = SuggestionsWorld()
+                world.config.commandTrigger = trigger
+                world.config.customCommands = commands
+                world.switches = world.config.suggestionsSettings()
+                let field = world.field()
+                field.idle(0.5)
+                let calls = program.calls.count
+                var said: [String] = []
+                var offered = false
+                func look() {
+                    said += field.rows.map { $0.text + " " + $0.comment }
+                    said += [field.footer, field.host.noticeAlone ?? ""]
+                    offered = offered || field.host.session.composer.paletteMatches.contains { $0.name == "jira" }
+                }
+                for character in "\(trigger)jira" {
+                    field.press(SuggestionKeys.key(character))
+                    look()
+                }
+                field.press(SuggestionKeys.enter)
+                field.idle(0.3)
+                look()
+                field.press(SuggestionKeys.enter)
+                field.idle(0.5)
+                look()
+                let ran = program.calls.count != calls || !program.calls.allSatisfy { $0.isEmpty }
+                return (said, field.document, offered, ran, !field.host.opened.isEmpty || !field.host.typedOut.isEmpty)
             }
-            field.type("\(trigger)jira")
-            look()
-            field.press(SuggestionKeys.enter)
-            field.idle(0.3)
-            look()
-            field.press(SuggestionKeys.enter)
-            field.idle(0.5)
-            look()
-            #expect(said.contains { $0.contains("Jira issues") }, "its summary: \(said)")
-            #expect(field.document.isEmpty, "nothing goes in: \(field.document)")
-            #expect(field.host.opened.isEmpty && field.host.typedOut.isEmpty)
-            #expect(program.calls.count == calls && program.calls.allSatisfy { $0.isEmpty }, "nothing runs: \(program.calls)")
+            let with = typed([command]), without = typed([])
+            #expect(!with.offered, "never in the command list")
+            #expect(!with.said.contains { $0.contains("Jira issues") }, "its summary isn't said: \(with.said)")
+            #expect(with.document == without.document && with.said == without.said,
+                    "as with no such command: \(with.document.debugDescription) / \(without.document.debugDescription)")
+            #expect(with.document.hasPrefix("\(trigger)jira"), "the name goes in as typed: \(with.document)")
+            #expect(!with.acted)
+            #expect(!with.ran, "nothing runs: \(program.calls)")
         }
     }
 

@@ -233,7 +233,8 @@ enum ExtensionSourceCommands {
         return failed == 0 ? 0 : 1
     }
 
-    /// `--list-extensions`: the commands the extensions give (name, where from, output), then those left out and why.
+    /// `--list-extensions`: the commands the extensions give (name, where from, output), then those left out and why; one
+    /// with suggestions taken out of the @ list (Show in the @ list) is listed, marked so.
     static func list(_ arguments: [String]) -> Int32 {
         let options = options(arguments)
         if let problem = options.problem ?? (options.positional.isEmpty ? nil : "unexpected \(options.positional[0])") {
@@ -277,6 +278,8 @@ enum ExtensionSourceCommands {
             var note = ""
             if !enabled.contains(command) { note = "  [off]" } else if let problem = hidden[command.id] {
                 note = "  [left out: " + UIText.describe(problem, file: command.file) + "]"
+            } else if command.hidesFromCommandList(config.hiddenFromCommandList) {
+                note = "  [not in the \(config.commandTrigger) list: suggestions only]"
             }
             print("\(shown)\t\(command.output.rawValue)\t\(origin(command.extensionDirectory))\(note)")
         }

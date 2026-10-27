@@ -11,7 +11,9 @@ extension SelfTest {
     /// source added (Settings' Enable, then `--add-source` from a local bare repository) has its suggestions on, pinned to
     /// its repository as it is then. A plugin found in the plugins folder for the first time has its source on, approved
     /// as it is; turned off, it stays off as the folder is read again, in a new window, and once removed in Settings and
-    /// put in the folder again. Drawn (settings-extension-completion-on.png).
+    /// put in the folder again. Under each, Show in the @ list: on by default; off, saved (`hiddenFromCommandList`), the
+    /// command out of the list a text field gets, its suggestions' switch as it was; on again, back. Drawn
+    /// (settings-extension-completion-on.png).
     static func testSuggestionsOnByDefault(snapshotDirectory: URL) {
         section("suggestions: on by default, turned off kept")
         let fm = FileManager.default
@@ -44,16 +46,34 @@ extension SelfTest {
             write(folder.appendingPathComponent("notes.sh"), "#!/bin/sh\necho '{\"items\": []}'\n", executable: true)
         }
 
-        // A switch as VoiceOver finds it: whether it can be pressed, and how it stands.
+        // The switches as VoiceOver finds them, in order (the suggestions', then Show in the @ list): how each stands, nil
+        // for one that can't be pressed.
         func appKitSwitches(_ view: NSView) -> [NSSwitch] { ((view as? NSSwitch).map { [$0] } ?? []) + view.subviews.flatMap(appKitSwitches) }
-        func shown<V: View>(_ view: V) -> NSControl.StateValue? {
+        func switches<V: View>(_ view: V) -> [NSControl.StateValue?] {
             let window = NSWindow(contentViewController: NSHostingController(rootView: Form { view }.formStyle(.grouped)))
-            window.setContentSize(NSSize(width: 640, height: 220))
+            window.setContentSize(NSSize(width: 640, height: 300))
             window.orderFront(nil)
             defer { window.close() }
             _ = pump(timeout: 0.5) { false }
-            let switches = window.contentView.map(appKitSwitches) ?? []
-            return switches.count == 1 && switches[0].isEnabled ? switches[0].state : nil
+            return (window.contentView.map(appKitSwitches) ?? []).map { $0.isEnabled ? $0.state : nil }
+        }
+        /// The first switch of `view`, which has `count` (an extension's suggestions: 1; a plugin's one source and Show in
+        /// the @ list after it: 2).
+        func shown<V: View>(_ view: V, of count: Int = 1) -> NSControl.StateValue? {
+            let states = switches(view)
+            return states.count == count ? states[0] : nil
+        }
+        /// A plugin's Show in the @ list, after its one source's switch.
+        func listed<V: View>(_ view: V) -> NSControl.StateValue? {
+            let states = switches(view)
+            return states.count == 2 ? states[1] : nil
+        }
+        /// Whether a text field's command list (`Command.catalog` with the saved config's `hiddenFromCommandList`) has `name`.
+        func offered(_ name: String, plugins: [InstalledPlugin] = []) -> Bool {
+            guard let config = saved() else { return false }
+            let index = LiveExtensions.load(config)
+            return Command.catalog(config.customCommands, plugins: plugins, scripts: index.enabled(config.disabledExtensions),
+                                   hidden: config.hiddenFromCommandList).contains { $0.name == name }
         }
 
         // An extension of the user's own.
@@ -89,6 +109,16 @@ extension SelfTest {
         check(row() == .off, "…and in a new window (a restart)")
         model.setCompletionSource(declared, of: command, enabled: true)
         check(saved()?.completionSourcesOff.isEmpty == true && row() == .on, "turned on again: off the list, its switch on")
+        // Show in the @ list, under its suggestions' switch: on by default; off, out of the @ list, its suggestions on.
+        func listedRow() -> NSControl.StateValue? { shown(CommandListSwitch(model: model, id: command.id, name: command.name)) }
+        check(listedRow() == .on && offered("selftestownnotes") && saved()?.hiddenFromCommandList.isEmpty == true,
+              "Show in the @ list: on by default, the command in the list")
+        model.setShownInCommandList(command.id, false)
+        check(saved()?.hiddenFromCommandList == [command.id] && listedRow() == .off && row() == .on && !offered("selftestownnotes")
+              && saved()?.completionSourcesOff.isEmpty == true,
+              "…off: saved (hiddenFromCommandList), out of the @ list, its suggestions' switch still on (\(saved()?.hiddenFromCommandList ?? []))")
+        model.setShownInCommandList(command.id, true)
+        check(saved()?.hiddenFromCommandList.isEmpty == true && listedRow() == .on && offered("selftestownnotes"), "…on again: back in the list")
 
         // A source added in Settings (its updates not trusted): its suggestions on, its repository read off the main thread.
         let source = ExtensionSource(url: "https://git.example.com/team/notes.git", path: "ext")
@@ -164,10 +194,19 @@ extension SelfTest {
             check(false, "the plugin with its suggestions loads (\(model.plugins.map(\.name)), \(model.skippedPlugins))")
             return
         }
-        func pluginRow() -> NSControl.StateValue? { shown(PluginCompletionsView(model: model, plugin: plugin)) }
+        func pluginRow() -> NSControl.StateValue? { shown(PluginCompletionsView(model: model, plugin: plugin), of: 2) }
         check(saved()?.pluginsSeen == ["selftestnotes"]
               && saved()?.completionSources.first(where: { $0.plugin == "selftestnotes" }) == CompletionSourceApproval(enabling: pages, of: plugin)
               && pluginRow() == .on, "a plugin found for the first time: its suggestions on, approved as it is (its hosts, script, terms)")
+        func pluginListed() -> NSControl.StateValue? { listed(PluginCompletionsView(model: model, plugin: plugin)) }
+        check(pluginListed() == .on && offered("selftestnotes", plugins: [plugin]), "the plugin: Show in the @ list on, in the list")
+        model.setShownInCommandList(plugin.name, false)
+        check(saved()?.hiddenFromCommandList == ["selftestnotes"] && pluginListed() == .off && pluginRow() == .on
+              && !offered("selftestnotes", plugins: [plugin]),
+              "…off: saved, out of the @ list, its suggestions still on")
+        model.setShownInCommandList(plugin.name, true)
+        check(saved()?.hiddenFromCommandList.isEmpty == true && pluginListed() == .on && offered("selftestnotes", plugins: [plugin]),
+              "…on again: back in the list")
         let pagesKey = CompletionSourceKey(plugin: "selftestnotes", source: "pages")
         model.setCompletionSource(pages, of: plugin, enabled: false)
         check(saved()?.completionSourcesOff.contains(pagesKey) == true && pluginRow() == .off, "turned off: saved, its switch off")
@@ -186,7 +225,7 @@ extension SelfTest {
         writePlugin()
         model.refreshPlugins()
         let again = model.plugins.first { $0.name == "selftestnotes" }
-        check(again.flatMap { shown(PluginCompletionsView(model: model, plugin: $0)) } == .off && saved()?.pluginsSeen == ["selftestnotes"]
+        check(again.flatMap { shown(PluginCompletionsView(model: model, plugin: $0), of: 2) } == .off && saved()?.pluginsSeen == ["selftestnotes"]
               && saved()?.completionSources.contains(where: { $0.plugin == "selftestnotes" }) == false,
               "…put in the folder again: found anew, its suggestions still off")
         check((try? Data(contentsOf: Config.userURL)) == realBefore, "the real config file was not touched")

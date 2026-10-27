@@ -22,8 +22,19 @@ public final class FakeHost: @unchecked Sendable {
     public var selection: Range<Int>?
     /// The app took the marked text on its own (`FieldContext.markedTextTaken`), once.
     public var appTakesMarkedText = false
-    /// What ⌘V or ⌃V finds on the clipboard.
+    /// What ⌘V or ⌃V finds on the clipboard (clipboard history's read of it with ⌃V too).
     public var clipboard = ClipboardContent.none
+    /// Clipboard history as a shell keeps it (`ClipboardHistoryServices`), asked by the session once `keepClipboardHistory()`
+    /// is called (the services given at `init` are used until then): the texts kept, newest first; whether it records
+    /// (`.recording`) or may not read the clipboard (`.notAllowed`); whether the paste key can go to the app as it is (the
+    /// Mac's Accessibility); that the next panel is the first on the device (said once, then false); the time now.
+    public var clipboardHistory: [ClipboardHistoryItem] = []
+    public var clipboardHistoryState = ClipboardHistoryState.recording
+    public var passesPasteKey = true
+    public var firstClipboardPanel = false
+    public var clipboardNow = Date()
+    /// How many times the session opened where a history can be allowed (`ClipboardHistoryServices.openPermission`).
+    public private(set) var permissionOpened = 0
     /// A key the session lets through types its text into the document, as the app does (off: the document has only what
     /// the session put in).
     public var appTypesKeys = false
@@ -77,6 +88,22 @@ public final class FakeHost: @unchecked Sendable {
     }
 
     public var composer: Composer { session.composer }
+
+    /// The session asks this host for clipboard history (`clipboardHistory`, `clipboardHistoryState`, `passesPasteKey`,
+    /// `firstClipboardPanel`, `clipboardNow`), as the Mac's shell answers it.
+    public func keepClipboardHistory() {
+        session.services.clipboardHistory = ClipboardHistoryServices(
+            state: { [unowned self] in clipboardHistoryState }, items: { [unowned self] in clipboardHistory },
+            canPassPasteKey: { [unowned self] in passesPasteKey },
+            firstShowing: { [unowned self] in
+                defer { firstClipboardPanel = false }
+                return firstClipboardPanel
+            },
+            openPermission: { [unowned self] in permissionOpened += 1 }, now: { [unowned self] in clipboardNow })
+    }
+
+    /// Times `PlatformAction.passPasteKey` was asked for: ⌃V given to the app as it is (clipboard history's image row).
+    public var pasteKeysPassed: Int { platformActions.filter { $0 == .passPasteKey }.count }
 
     /// The caret: where the selection starts, else the end of the document.
     public var caret: Int { selection?.lowerBound ?? (document as NSString).length }
@@ -315,4 +342,9 @@ public final class FakeHost: @unchecked Sendable {
     public static let space = KeyEvent(keyCode: VirtualKey.space, characters: " ")
     public static let escape = KeyEvent(keyCode: VirtualKey.escape, characters: "\u{1B}")
     public static let controlV = KeyEvent(keyCode: 0x09, characters: "\u{16}", charactersIgnoringModifiers: "v", modifiers: .control)
+    public static let down = KeyEvent(keyCode: VirtualKey.down, characters: "\u{F701}")
+    public static let up = KeyEvent(keyCode: VirtualKey.up, characters: "\u{F700}")
+    public static let right = KeyEvent(keyCode: VirtualKey.right, characters: "\u{F703}")
+    public static let shiftDown = KeyEvent(keyCode: VirtualKey.down, characters: "\u{F701}", modifiers: .shift)
+    public static let shiftUp = KeyEvent(keyCode: VirtualKey.up, characters: "\u{F700}", modifiers: .shift)
 }

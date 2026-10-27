@@ -162,6 +162,11 @@ public struct Config: Codable, Equatable, Sendable {
     public var hiddenExtensionFolders: [String]
     /// Extension commands turned off: a command's id (`ScriptCommand.id`) or a bundle's name.
     public var disabledExtensions: [String]
+    /// The plugins and script extension commands with suggestions taken out of the @ command list ("Show in the @ list"
+    /// off in Settings → Commands): a plugin's name, a command's id (`ScriptCommand.id`). Their suggestions are as they
+    /// were; one without a suggestion source is in the list whatever this says (`Command.catalog`). This Mac's own, as
+    /// its plugins and extensions are: never synced.
+    public var hiddenFromCommandList: [String] = []
     /// The bundles' preferences that aren't passwords (those are in the keychain): bundle name → name → value.
     public var extensionPreferences: [String: [String: String]]
     /// Git repositories extension bundles are installed from (`ExtensionSource`); an enabled one's bundle folder is in
@@ -266,6 +271,11 @@ public struct Config: Codable, Equatable, Sendable {
     /// General, decision 28): ID only, with title, with title and link; nil: the source's own (a plugin's `insert`, a
     /// custom command's Insert). Synced as the other settings are: what goes in is the same on every Mac.
     public var suggestionsInsert: SuggestionsInsert?
+    /// Clipboard history (ClipboardHistory.swift): ⌃V lists the text copied lately (Settings → General); nil: on. Off, ⌃V
+    /// is as before 0.6.8 and the history is deleted. This Mac's own, never synced.
+    public var clipboardHistory: Bool?
+    /// How many texts it keeps (`clipboardHistoryKept`: 5…100); nil: 20. This Mac's own, never synced.
+    public var clipboardHistoryLimit: Int?
 
     /// The settings of an API-key provider, with its defaults filled in.
     public func settings(for provider: Provider) -> ProviderSettings {
@@ -385,7 +395,7 @@ public struct Config: Codable, Equatable, Sendable {
     enum CodingKeys: String, CodingKey, CaseIterable {
         case awsProfile, region, modelId, maxTokens, temperature, timeoutSeconds, rewriteStyles
         case outputLanguage, outputLanguages, inputLanguages, defaultInput, codingLanguage, improveTranslates, voiceInput, jargonFile, actionKey, commandTrigger, uiLanguage, customCommands, claudeInBackground, agent, agentCommand, agentPageContext
-        case extensionFolders, findRaycastScripts, hiddenExtensionFolders, disabledExtensions, extensionPreferences
+        case extensionFolders, findRaycastScripts, hiddenExtensionFolders, disabledExtensions, hiddenFromCommandList, extensionPreferences
         case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutMistakes, typeOutSpeed, fuzzyPinyin, keyboardLayouts, candidateLayout
         case englishWords, addedEnglishWords, learnsEnglishWords
         case checkForUpdates, useSelection, appProfiles
@@ -395,6 +405,7 @@ public struct Config: Codable, Equatable, Sendable {
         case iCloudSync
         case notes
         case suggestions, completionSources, completionSourcesOff, pluginsSeen, pluginPreferences, unconfirmedCommands, suggestionsInsert
+        case clipboardHistory, clipboardHistoryLimit
         case extensionSources
         case provider, anthropic, gemini, openai
     }
@@ -459,6 +470,8 @@ public struct Config: Codable, Equatable, Sendable {
         findRaycastScripts = try c.decodeIfPresent(Bool.self, forKey: .findRaycastScripts) ?? d.findRaycastScripts
         hiddenExtensionFolders = try c.decodeIfPresent([String].self, forKey: .hiddenExtensionFolders) ?? d.hiddenExtensionFolders
         disabledExtensions = try c.decodeIfPresent([String].self, forKey: .disabledExtensions) ?? d.disabledExtensions
+        // A value of the wrong type reads as none, not an error.
+        hiddenFromCommandList = (try? c.decodeIfPresent([String].self, forKey: .hiddenFromCommandList)).flatMap { $0 } ?? []
         extensionPreferences = try c.decodeIfPresent([String: [String: String]].self, forKey: .extensionPreferences)
             ?? d.extensionPreferences
         // A kind this version doesn't know (a later one's) is Claude Code, not an error.
@@ -506,6 +519,9 @@ public struct Config: Codable, Equatable, Sendable {
         unconfirmedCommands = (try? c.decodeIfPresent([CustomCommand.Unconfirmed].self, forKey: .unconfirmedCommands)).flatMap { $0 } ?? []
         // A value of the wrong type, or one this version doesn't know, reads as none.
         suggestionsInsert = (try? c.decodeIfPresent(String.self, forKey: .suggestionsInsert)).flatMap { $0 }.flatMap(SuggestionsInsert.init(rawValue:))
+        // A value of the wrong type reads as none (on, 20), not an error.
+        clipboardHistory = (try? c.decodeIfPresent(Bool.self, forKey: .clipboardHistory)).flatMap { $0 }
+        clipboardHistoryLimit = (try? c.decodeIfPresent(Int.self, forKey: .clipboardHistoryLimit)).flatMap { $0 }
         provider = try c.decodeIfPresent(Provider.self, forKey: .provider) ?? d.provider
         anthropic = try c.decodeIfPresent(ProviderSettings.self, forKey: .anthropic) ?? d.anthropic
         gemini = try c.decodeIfPresent(ProviderSettings.self, forKey: .gemini) ?? d.gemini
@@ -648,6 +664,8 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(findRaycastScripts, forKey: .findRaycastScripts)
         try c.encode(hiddenExtensionFolders, forKey: .hiddenExtensionFolders)
         try c.encode(disabledExtensions, forKey: .disabledExtensions)
+        // Only once one is taken out: a file from before the setting doesn't gain the key.
+        if !hiddenFromCommandList.isEmpty { try c.encode(hiddenFromCommandList, forKey: .hiddenFromCommandList) }
         try c.encode(extensionPreferences, forKey: .extensionPreferences)
         try c.encode(agent, forKey: .agent)
         try c.encode(agentCommand, forKey: .agentCommand)
@@ -691,6 +709,9 @@ public struct Config: Codable, Equatable, Sendable {
         if !pluginPreferences.isEmpty { try c.encode(pluginPreferences, forKey: .pluginPreferences) }
         if !unconfirmedCommands.isEmpty { try c.encode(unconfirmedCommands, forKey: .unconfirmedCommands) }
         try c.encodeIfPresent(suggestionsInsert?.rawValue, forKey: .suggestionsInsert)
+        // Only once set: a file from before clipboard history doesn't gain the keys.
+        try c.encodeIfPresent(clipboardHistory, forKey: .clipboardHistory)
+        try c.encodeIfPresent(clipboardHistoryLimit, forKey: .clipboardHistoryLimit)
         try c.encode(provider, forKey: .provider)
         try c.encode(anthropic, forKey: .anthropic)
         try c.encode(gemini, forKey: .gemini)

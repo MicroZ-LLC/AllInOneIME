@@ -9,7 +9,9 @@ import InputMethodKit
 /// is kept, with whether it came during the key being answered (`duringKey`, which the self-test sets): what the
 /// harness's probe plays into its page (`answer`). The keys the input method lets go by, the app types (`typed`). With
 /// `tellsMarkedElsewhere`, it says its marked text is somewhere else than where it put it, as Chromium's view did during a
-/// key in the owner's Slack (0.6.7.2: "99 UTF-16 units, elsewhere", where it had marked them as asked).
+/// key in the owner's Slack (0.6.7.2: "99 UTF-16 units, elsewhere", where it had marked them as asked). Text selected
+/// (`start`) is what goes in takes the place of, as a page's selection; with `tellsNoCaret`, it tells no caret and reads
+/// nothing back.
 final class PageFieldClient: FakeTextClient {
     struct Call: Equatable {
         var duringKey: Bool
@@ -25,26 +27,31 @@ final class PageFieldClient: FakeTextClient {
     private(set) var calls: [Call] = []
     var duringKey = false
     var tellsMarkedElsewhere = false
+    var tellsNoCaret = false
     private var marking: NSRange?
     private var caretAt = 0
+    /// How much is selected from the caret on (UTF-16).
+    private var selected = 0
 
     var hasMarked: Bool { marking != nil }
 
     private static func plain(_ value: Any?) -> String { (value as? NSAttributedString)?.string ?? value as? String ?? "" }
 
-    /// `text` in the field, the caret at `caret` (UTF-16), before anything is typed.
-    func start(_ text: String, caret: Int) { (self.text, caretAt) = (text, caret) }
+    /// `text` in the field, the caret at `caret` (UTF-16) and `selected` units after it selected, before anything is typed.
+    func start(_ text: String, caret: Int, selected: Int = 0) { (self.text, caretAt, self.selected) = (text, caret, selected) }
 
-    /// The app types `characters` at the caret: a key the input method let go by.
+    /// The app types `characters` at the caret, in place of the selection: a key the input method let go by.
     func typed(_ characters: String) {
-        text = (text as NSString).replacingCharacters(in: NSRange(location: caretAt, length: 0), with: characters)
+        text = (text as NSString).replacingCharacters(in: NSRange(location: caretAt, length: selected), with: characters)
         caretAt += (characters as NSString).length
+        selected = 0
     }
 
-    /// `string` in place of `given`, else of the marked text, else at the caret: where it went.
+    /// `string` in place of `given`, else of the marked text, else of the selection (at the caret): where it went.
     private func put(_ string: String, replacing given: NSRange) -> NSRange {
-        let range = given.location != NSNotFound ? given : marking ?? NSRange(location: caretAt, length: 0)
+        let range = given.location != NSNotFound ? given : marking ?? NSRange(location: caretAt, length: selected)
         text = (text as NSString).replacingCharacters(in: range, with: string)
+        selected = 0
         return range
     }
 
@@ -65,17 +72,22 @@ final class PageFieldClient: FakeTextClient {
         caretAt = at.location + min(selectionRange.location, length)
     }
 
-    override func selectedRange() -> NSRange { NSRange(location: caretAt, length: 0) }
+    override func selectedRange() -> NSRange {
+        tellsNoCaret ? NSRange(location: NSNotFound, length: 0) : NSRange(location: caretAt, length: selected)
+    }
     override func markedRange() -> NSRange {
         guard let marking else { return NSRange(location: NSNotFound, length: 0) }
         return tellsMarkedElsewhere ? NSRange(location: marking.location + 7, length: marking.length) : marking
     }
     override func attributedSubstring(from range: NSRange) -> NSAttributedString! {
         let whole = text as NSString
-        guard range.location != NSNotFound, NSMaxRange(range) <= whole.length else { return nil }
+        guard !tellsNoCaret, range.location != NSNotFound, NSMaxRange(range) <= whole.length else { return nil }
         return NSAttributedString(string: whole.substring(with: range))
     }
     override func length() -> Int { (text as NSString).length }
+
+    /// The answers to several keys, one after another (HARNESS_ANSWER, separated by ";").
+    static func answer(eachOf keys: [[Call]]) -> String { keys.map(answer).joined(separator: ";") }
 
     /// `calls` as the harness's probe plays them (HARNESS_ANSWER, `standIn` in probe.m).
     static func answer(_ calls: [Call]) -> String {
@@ -426,8 +438,8 @@ extension SelfTest {
     /// each key down reaches the input method (`checkKeyDowns`, about 4 s each). Skipped, and said so, without it.
     static func testElectronHarness(_ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
         guard let folder = ProcessInfo.processInfo.environment["ALLINONEIME_ELECTRON_HARNESS"], !folder.isEmpty else {
-            print("  the Electron harness: not run (make electron-harness, then make selftest ELECTRON_HARNESS=build/electron-harness)")
-            return
+            print("  the Electron harness: make electron-harness, then make selftest ELECTRON_HARNESS=build/electron-harness")
+            return skip("the Electron harness's scripts in Slack's composer and a textarea", noElectronHarness)
         }
         let harness = URL(fileURLWithPath: folder)
         guard FileManager.default.isExecutableFile(atPath: electronBinary(in: harness).path),
@@ -497,9 +509,11 @@ extension SelfTest {
     /// (`HARNESS_USER_DATA`). `typed`, `keys` and `answer`: what the type-keys script types, the keys it presses then, and
     /// the probe's answer to each of them (`HARNESS_TYPE`, `HARNESS_KEYS`, `HARNESS_ANSWER`: the probe stands in for the
     /// input method, and the system's gets none of its keys); `after`, the page's text after the caret before
-    /// (`HARNESS_AFTER`).
+    /// (`HARNESS_AFTER`); `start`, its text before, the caret where "|" is, what is between two "|" selected
+    /// (`HARNESS_START`).
     static func runElectronHarness(_ harness: URL, script: String, field: String, busy: Int? = nil, userData: URL,
-                                   typed: String? = nil, keys: String? = nil, answer: String? = nil, after: String? = nil) -> String? {
+                                   typed: String? = nil, keys: String? = nil, answer: String? = nil, after: String? = nil,
+                                   start: String? = nil) -> String? {
         let output = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-electron-\(script)-\(field).txt")
         guard FileManager.default.createFile(atPath: output.path, contents: nil),
               let handle = try? FileHandle(forWritingTo: output) else { return nil }
@@ -520,7 +534,7 @@ extension SelfTest {
         environment["HARNESS_BUSY"] = busy.map(String.init)
         environment["HARNESS_USER_DATA"] = userData.path
         (environment["HARNESS_TYPE"], environment["HARNESS_KEYS"], environment["HARNESS_ANSWER"]) = (typed, keys, answer)
-        environment["HARNESS_AFTER"] = after
+        (environment["HARNESS_AFTER"], environment["HARNESS_START"]) = (after, start)
         process.environment = environment
         (process.standardOutput, process.standardError) = (handle, FileHandle.nullDevice)
         do { try process.run() } catch {
@@ -560,8 +574,8 @@ extension SelfTest {
         var answered: [String] = []
     }
 
-    /// The keys the probe answers, as the page names them.
-    static let answeredKeys: Set<String> = ["Enter", "Tab", "ArrowDown", "ArrowUp", "ArrowRight", "ArrowLeft", "Escape"]
+    /// The keys the probe answers, as the page names them (⌃V's: "v").
+    static let answeredKeys: Set<String> = ["Enter", "Tab", "ArrowDown", "ArrowUp", "ArrowRight", "ArrowLeft", "Escape", "v"]
 
     static func pageOutcome(in recording: String) -> PageOutcome {
         var outcome = PageOutcome()
@@ -1060,7 +1074,8 @@ extension SelfTest {
                 harness = nil
             }
         } else {
-            print("  the Electron harness: not run (make electron-harness, then ELECTRON_HARNESS=build/electron-harness); what it recorded is checked")
+            print("  the Electron harness: make electron-harness, then ELECTRON_HARNESS=build/electron-harness; what it recorded is checked")
+            skip("the rows' keys in the Electron harness's page, and its Electron told by its bundle", noElectronHarness)
         }
         let userData = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-electron-\(UUID().uuidString)")
         try? FileManager.default.createDirectory(at: userData, withIntermediateDirectories: true)
@@ -1121,39 +1136,9 @@ extension SelfTest {
         checkChromiumApps(harness: harness)
     }
 
-    /// How apps built on Chromium or Electron are told (`ChromiumApps`): by Electron's or a Chromium framework in their
-    /// bundle (bundles made here: Electron's, Chrome's, a Chromium browser's channel's, the Chromium Embedded Framework's
-    /// are; one with other frameworks or none isn't), the harness's own Electron where it is; by bundle id, a Chromium
-    /// browser (a web app of one too) without a look at its bundle; each app once. Then those in /Applications, said.
+    /// The Electron harness's own Electron told as one by its bundle (`ChromiumApps`), where the harness is; then the
+    /// Chromium and Electron apps in /Applications, said. (Bundles made up, and bundle ids: ChromiumAppsTests.)
     static func checkChromiumApps(harness: URL?) {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-chromium-apps-\(UUID().uuidString)")
-        defer { try? FileManager.default.removeItem(at: folder) }
-        func bundle(_ name: String, _ frameworks: [String]) -> URL {
-            let app = folder.appendingPathComponent(name + ".app", isDirectory: true)
-            try? FileManager.default.createDirectory(at: app.appendingPathComponent("Contents/MacOS"), withIntermediateDirectories: true)
-            for framework in frameworks {
-                try? FileManager.default.createDirectory(at: app.appendingPathComponent("Contents/Frameworks/" + framework), withIntermediateDirectories: true)
-            }
-            return app
-        }
-        let made: [(name: String, frameworks: [String], chromium: Bool)] = [
-            ("Chat", ["Electron Framework.framework", "Squirrel.framework"], true), ("Browser", ["Google Chrome Framework.framework"], true),
-            ("Edge Beta", ["Microsoft Edge Beta Framework.framework"], true), ("Player", ["Chromium Embedded Framework.framework"], true),
-            ("Notes", ["Sparkle.framework", "Operations Framework.framework"], false), ("Plain", [], false),
-        ]
-        let told = made.map { ChromiumApps.hasChromium(bundle: bundle($0.name, $0.frameworks)) }
-        check(told == made.map(\.chromium),
-              "Chromium and Electron apps told by their bundle: \(zip(made, told).map { "\($0.0.name) \($0.1 ? "yes" : "no")" }.joined(separator: ", "))")
-        var looked: [String] = []
-        let known = ChromiumApps.Known { id in
-            looked.append(id)
-            return ["com.example.chat": folder.appendingPathComponent("Chat.app"), "com.example.notes": folder.appendingPathComponent("Notes.app")][id]
-        }
-        let ids: [String?] = ["com.example.chat", "com.example.chat", "com.example.notes", "com.google.Chrome", "com.google.Chrome.app.abcdefgh",
-                              "com.microsoft.edgemac.Beta", "com.example.gone", nil]
-        let answers = ids.map(known.isChromium)
-        check(answers == [true, true, false, true, true, true, false, false] && looked == ["com.example.chat", "com.example.notes", "com.example.gone"],
-              "…and by bundle id: the browsers (a web app of one too) without a look at a bundle, each app once (\(answers); looked for \(looked))")
         if let harness {
             let electron = electronBinary(in: harness).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             check(ChromiumApps.hasChromium(bundle: electron), "the Electron harness's \(electron.lastPathComponent) is told as one by its bundle")

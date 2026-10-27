@@ -105,6 +105,10 @@ final class AllInOneIMEInputController: IMKInputController {
     /// the key is answered and never during secure input (the self-test supplies its own and never reads the real
     /// clipboard).
     var readClipboard: () -> ClipboardContent = { AllInOneIMEInputController.clipboardContent(NSPasteboard.general) }
+    /// ⌃V opening clipboard history (a read with an id below 0): the clipboard's text, or that it has an image, told by its
+    /// types (`.image` with no data: the panel's first row says so, and what is chosen there never needs it; in a command
+    /// that row reads the clipboard again, with `readClipboard`). The self-test supplies its own.
+    var peekClipboard: () -> ClipboardContent = { AllInOneIMEInputController.clipboardContent(NSPasteboard.general, imageData: false) }
     /// Whether a draft started with an image on the clipboard warms Vision up (`warmUpScreenshotReading`; not in the
     /// self-test: it would look at the real clipboard's types).
     var warmsUpVision = true
@@ -128,9 +132,15 @@ final class AllInOneIMEInputController: IMKInputController {
         let client: IMKTextInput
         /// The field session it went into (`fieldSession`): committed only while that one is on.
         let fieldSession: Int
+        /// Taken out again rather than committed: a space marked at the start of an empty field (`markBeforeCaret`).
+        var takenOut = false
         /// A snippet's caret, moved once it's in (`moveCaret`).
         var caret: (back: Int, after: String?)?
     }
+    /// The selection clipboard history's panel opened over in a Chromium or Electron app: marked during ⌃V and committed
+    /// back as it was (`markBeforeCaret`), so the caret is after it while the panel shows; what a row of the panel puts in
+    /// goes in its place, as a paste over a selection does (`takePastedOver`). Only while that panel shows, in that field.
+    private var pastedOver: (range: NSRange, text: String, fieldSession: Int)?
     /// Kept while the session waits for a web page a request takes along (`InputSession.waitsForPage`): the request
     /// starts even if the field is gone by then.
     private var keepAlive: AllInOneIMEInputController?
@@ -182,6 +192,8 @@ final class AllInOneIMEInputController: IMKInputController {
         // Suggestions: one store for every field, the coding packs installed, and Translate as You Type the input method's
         // (this field turns it on and off for the session's long press of Shift).
         services.suggestions = MainActor.assumeIsolated { MainThreadBox(SuggestionsShared.services(field: box)) }.value
+        // Clipboard history: one for every field (⌃V shows it).
+        services.clipboardHistory = MainActor.assumeIsolated { MainThreadBox(ClipboardHistoryShared.services) }.value
         services.appName = { app in MainActor.assumeIsolated { AppNames.name(for: app) } }
         services.page = { app in
             MainActor.assumeIsolated { () -> MainThreadBox<PageSource?> in
@@ -312,17 +324,20 @@ final class AllInOneIMEInputController: IMKInputController {
     /// self-test supplies its own and never posts keys or touches the clipboard).
     var canPasteInTerminal: @MainActor () -> Bool = { TerminalPaste.isAllowed() }
     var pasteInTerminal: @MainActor (String) async -> Void = { await TerminalPaste.paste($0) }
+    /// ⌃V to the app as it is, marked as ours (clipboard history's image row: `TerminalPaste.postControlV`; the self-test
+    /// counts it instead).
+    var passPasteKey: @MainActor () -> Void = { TerminalPaste.postControlV() }
 
     /// Inserts `text` into `client`; into a terminal, text with line breaks goes in as a paste, so the
     /// line breaks don't run (or send) anything.
     @MainActor
-    private func insert(_ text: String, into client: IMKTextInput?) {
+    private func insert(_ text: String, into client: IMKTextInput?, replacing range: NSRange = AllInOneIMEInputController.notFound) {
         commitRow()  // a row marked during the key goes in first: the text would take its place
         if text.contains("\n"), Self.isTerminal(client), canPasteInTerminal() {
             let paste = pasteInTerminal
             Task { @MainActor in await paste(text) }
         } else {
-            client?.insertText(text, replacementRange: Self.notFound)
+            client?.insertText(text, replacementRange: range)
             hasMarkedText = false  // the inserted text took the marked text's place
         }
     }
@@ -574,6 +589,9 @@ final class AllInOneIMEInputController: IMKInputController {
         // Translate as You Type's target removed from the settings: the first output language typed text is translated
         // into (else off), before the key.
         if !context.secure, !composer.isComposing { translateModeFollow(services.loadSettings()) }
+        if !session.clipboardShown { pastedOver = nil }
+        // ⌃V's panel only where the keys it takes can be kept from the app.
+        if !context.secure, session.isPasteAnywhere(key) { session.clipboardPanelAllowed = clipboardPanelFits(in: target) }
         let response = session.handle(.key(key, context))
         apply(response.outputs, client: client)
         if !context.secure { warmUpScreenshotReading() }  // a command picked with an image on the clipboard: Vision loaded for it
@@ -735,6 +753,9 @@ final class AllInOneIMEInputController: IMKInputController {
         var rowByKey: Bool?
         // The rows took the key and put nothing in (`rowsTookKey`): whether the key is kept from the app (`markBeforeCaret`).
         var keepKey = false
+        // ⌃V opening clipboard history's panel (its read of the clipboard), and whether the panel changed yet: a row of it
+        // goes in before it hides; a key that hides it and goes on puts its text in after.
+        var opensHistory = false, panelChanged = false
         for output in outputs {
             switch output {
             case .rowByKey:
@@ -746,7 +767,14 @@ final class AllInOneIMEInputController: IMKInputController {
             case .rowsTookKey:
                 keepKey = marksRow(in: target)
             case let .commit(text):
-                if rowByKey == true, let target, text.utf16.count < 2 {
+                if !panelChanged, let target, let range = takePastedOver(in: target) {
+                    // A row of clipboard history's panel in place of the selection it opened over, marked during its key.
+                    if rowByKey == true {
+                        markRow(text, replacing: range, in: target, for: "a row put in by a key over a selection")
+                    } else {
+                        insert(text, into: target, replacing: range)
+                    }
+                } else if rowByKey == true, let target, text.utf16.count < 2 {
                     markRow(text, replacing: nil, in: target, for: "a row put in by a key")
                 } else {
                     if rowByKey == true {
@@ -785,6 +813,7 @@ final class AllInOneIMEInputController: IMKInputController {
                     moveCaret(back: back, after: inserted, in: target)
                 }
             case let .panel(model):
+                panelChanged = true
                 showPanel(model, target)
             case let .notice(text):
                 // Its own small panel, under Translate as You Type's chip if it's on here.
@@ -811,14 +840,15 @@ final class AllInOneIMEInputController: IMKInputController {
             case let .copy(text):
                 copyText(text)
             case let .readClipboard(id):
+                if id < 0 { opensHistory = true }
                 // After the key has been answered: if macOS asks whether this may read the clipboard, the app isn't left
                 // waiting for the key (and doesn't paste on its own meanwhile).
                 DispatchQueue.main.async { [weak self] in
                     guard let self else { return }
                     // Nothing is read during secure input.
-                    let content = self.services.secureInputActive() ? .none : self.readClipboard()
+                    let content = self.services.secureInputActive() ? .none : id < 0 ? self.peekClipboard() : self.readClipboard()
                     // Only how much: never the text or the image itself.
-                    log.notice("clipboard for a command: \(Self.logged(content), privacy: .public)")
+                    log.notice("clipboard for \(id < 0 ? "clipboard history" : "a command", privacy: .public): \(Self.logged(content), privacy: .public)")
                     self.received(.clipboard(content, id: id))
                 }
             case .keyboardLayout:
@@ -844,12 +874,19 @@ final class AllInOneIMEInputController: IMKInputController {
                 stopVoice(id: id)
             case let .platform(.cancelVoice(id)):
                 cancelVoiceSession(id: id)
+            case .platform(.passPasteKey):
+                // Once this key is done: ⌃V reaches the app as it is (clipboard history's image row).
+                let pass = passPasteKey
+                DispatchQueue.main.async { pass() }
             }
         }
         // A row the key put in that adds nothing, a key the rows took that puts nothing in (↓ ↑ → Esc): the key is still the
         // input method's.
         if rowByKey == true, let target { markBeforeCaret(in: target, for: "a row put in by a key, adding nothing") }
-        if keepKey, let target { markBeforeCaret(in: target, for: "a key the rows took") }
+        if keepKey, let target, case let .selection(range, text)? = markBeforeCaret(in: target, for: "a key the rows took"),
+           opensHistory {
+            pastedOver = (range, text, fieldSession)
+        }
         keepAlive = session.waitsForPage ? self : nil
         if composer.translateMode != nil { scheduleChipRefresh() }  // Translate as You Type's chip follows the caret
     }
@@ -903,11 +940,11 @@ final class AllInOneIMEInputController: IMKInputController {
     /// asked, and 0.6.7.2, which took it out again for that and put the row in with its range, had Slack send the
     /// message. Nothing is taken out during the key. `what` the log says it is; only lengths are logged, never the text.
     @MainActor
-    private func markRow(_ text: String, replacing range: NSRange?, in client: IMKTextInput, for what: String) {
+    private func markRow(_ text: String, replacing range: NSRange?, in client: IMKTextInput, for what: String, takenOut: Bool = false) {
         let length = (text as NSString).length
         client.setMarkedText(text, selectionRange: NSRange(location: length, length: 0), replacementRange: range ?? Self.notFound)
         hasMarkedText = true
-        markedRow = MarkedRow(text: text, client: client, fieldSession: fieldSession)
+        markedRow = MarkedRow(text: text, client: client, fieldSession: fieldSession, takenOut: takenOut)
         DispatchQueue.main.async { [weak self] in self?.commitRow() }
         let place = range.map { " in place of \($0.length)" } ?? " at the caret"
         log.notice("\(what, privacy: .public) in a Chromium or Electron app: marked until the key is done (\(length, privacy: .public) UTF-16 units\(place, privacy: .public))")
@@ -922,30 +959,74 @@ final class AllInOneIMEInputController: IMKInputController {
         guard let row = markedRow else { return }
         markedRow = nil
         guard row.fieldSession == fieldSession else { return }
-        row.client.insertText(row.text, replacementRange: Self.notFound)
+        if row.takenOut {
+            row.client.setMarkedText("", selectionRange: NSRange(location: 0, length: 0), replacementRange: Self.notFound)
+        } else {
+            row.client.insertText(row.text, replacementRange: Self.notFound)
+        }
         hasMarkedText = false
         if let caret = row.caret { moveCaret(back: caret.back, after: caret.after, in: row.client) }
     }
 
-    /// A key the rows took that puts nothing in (↓ ↑ → Esc, a row that adds nothing: it is what was typed), in an app built
-    /// on Chromium or Electron (`marksRow`): the character before the caret, the token's last, marked in its own place
-    /// and committed as it was once the key is done (`markRow`), so the page doesn't act on the key either (the harness:
-    /// 229, its text, caret and selection as they were). Where the field tells no caret, has a selection or reads
-    /// nothing back there, nothing (said in the log, `what` the key).
+    /// A key the rows took that puts nothing in (↓ ↑ → Esc, ⌃V opening clipboard history, a row that adds nothing: it is
+    /// what was typed), in an app built on Chromium or Electron (`marksRow`): what is there marked in its own place and
+    /// committed as it was once the key is done (`markRow`), so the page doesn't act on the key either (the harness: 229,
+    /// its text as it was), as `ChromiumApps.keyMark` tells it. The selection itself (clipboard history opens with nothing
+    /// composed, over a selection to replace: the caret is after it then, `pastedOver`); else the character before the
+    /// caret, the token's last, whole (an emoji's surrogate pair, a letter with its accents); with nothing before the caret
+    /// (an empty field, where clipboard history's panel shows: Slack's ↑ there edits the last message), a space marked at
+    /// the caret and taken out again once the key is done (the harness: 229, nothing acted on, the field as it was). Where
+    /// the field tells no caret or reads nothing back, nothing (said in the log, `what` the key): ⌃V doesn't open the panel
+    /// there (`clipboardPanelFits`).
+    @MainActor @discardableResult
+    private func markBeforeCaret(in client: IMKTextInput, for what: String) -> ChromiumApps.KeyMark? {
+        let mark = Self.keyMark(in: client)
+        switch mark {
+        case let .selection(range, text)?:
+            markRow(text, replacing: range, in: client, for: what + " over a selection")
+        case let .character(range, text)?:
+            markRow(text, replacing: range, in: client, for: what)
+        case .space?:
+            markRow(" ", replacing: nil, in: client, for: what + " at the field's start", takenOut: true)
+        case nil:
+            log.notice("\(what, privacy: .public) in a Chromium or Electron app: nothing marked (the field tells no caret, or doesn't read back what is there)")
+        }
+        return mark
+    }
+
+    /// What a key would be marked with in `client` (`ChromiumApps.keyMark`), read through IMK.
     @MainActor
-    private func markBeforeCaret(in client: IMKTextInput, for what: String) {
+    static func keyMark(in client: IMKTextInput) -> ChromiumApps.KeyMark? {
+        ChromiumApps.keyMark(caret: client.selectedRange(), read: { client.attributedSubstring(from: $0)?.string })
+    }
+
+    /// Whether clipboard history's panel may open in `client` (`InputSession.clipboardPanelAllowed`): everywhere but in an
+    /// app built on Chromium or Electron (`marksRow`) whose field tells no caret or doesn't read back what is before it,
+    /// where nothing could keep the panel's keys from the page (`markBeforeCaret`); ⌃V is as before 0.6.8 there. Other
+    /// fields never needed it.
+    @MainActor
+    private func clipboardPanelFits(in client: IMKTextInput?) -> Bool {
+        guard let client, marksRow(in: client) else { return true }
+        guard Self.keyMark(in: client) != nil else {
+            log.notice("⌃V in a Chromium or Electron app: no clipboard history here (the field tells no caret, or doesn't read back what is there)")
+            return false
+        }
+        return true
+    }
+
+    /// The selection clipboard history's panel opened over (`pastedOver`), once: its range, where it is still right before
+    /// the caret as it was (else nil, and the row goes in at the caret).
+    @MainActor
+    private func takePastedOver(in client: IMKTextInput) -> NSRange? {
+        guard let over = pastedOver else { return nil }
+        pastedOver = nil
         let caret = client.selectedRange()
-        guard caret.location != NSNotFound, caret.length == 0, caret.location > 0 else {
-            log.notice("\(what, privacy: .public) in a Chromium or Electron app: nothing marked (the field tells no caret, or a selection)")
-            return
+        guard over.fieldSession == fieldSession, caret.location == NSMaxRange(over.range), caret.length == 0,
+              client.attributedSubstring(from: over.range)?.string == over.text else {
+            log.notice("a row of clipboard history: the selection its panel opened over changed since; at the caret instead")
+            return nil
         }
-        let range = NSRange(location: caret.location - 1, length: 1)
-        // Half of a character outside the Basic Multilingual Plane reads back as U+FFFD: left alone.
-        guard let before = client.attributedSubstring(from: range)?.string, before.utf16.count == 1, before != "\u{FFFD}" else {
-            log.notice("\(what, privacy: .public) in a Chromium or Electron app: nothing marked (no one character read back before the caret)")
-            return
-        }
-        markRow(before, replacing: range, in: client, for: what)
+        return over.range
     }
 
     /// The marked text in `client`: nothing of ours (empty) leaves the document, and any selection in it, alone.

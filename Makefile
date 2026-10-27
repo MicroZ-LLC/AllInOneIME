@@ -432,13 +432,22 @@ status:
 	"$(INSTALLED_APP)/Contents/MacOS/$(APP_NAME)" --status
 
 # Drives the input controller (real Rime engine on this checkout's data, live Bedrock call) with a fake text field.
-# ELECTRON_HARNESS: the Electron harness's folder (`make electron-harness`), run by the self-test too; without it, that
-# check says it didn't run (what the harness recorded is played anyway).
+# ELECTRON_HARNESS: the Electron harness's folder (`make electron-harness`), run by the self-test too; without it, those
+# checks are skipped (what the harness recorded is played anyway). The self-test's exit status: 0 when every check ran
+# and passed, 1 when one failed, 2 when none failed but some were skipped or couldn't run (a locked screen, secure input,
+# no Bedrock credentials, no Electron harness, no on-device model): 2 isn't a pass, and fails this target (and
+# `screenshots`) as 1 does, saying which. Its last line, SELFTEST-RESULT {...}, has the counts and the outcome as JSON.
 OUT ?= /tmp/allinoneime-selftest
 ELECTRON_HARNESS ?=
 selftest: app
-	$(if $(ELECTRON_HARNESS),ALLINONEIME_ELECTRON_HARNESS="$(abspath $(ELECTRON_HARNESS))") \
-		"$(APP)/Contents/MacOS/$(APP_NAME)" --selftest "$(OUT)" --rime-data "$(abspath $(RIME_DATA))"
+	@status=0; $(if $(ELECTRON_HARNESS),ALLINONEIME_ELECTRON_HARNESS="$(abspath $(ELECTRON_HARNESS))") \
+		"$(APP)/Contents/MacOS/$(APP_NAME)" --selftest "$(OUT)" --rime-data "$(abspath $(RIME_DATA))" || status=$$?; \
+	case $$status in \
+		0) ;; \
+		2) echo "selftest: incomplete (exit 2): no check failed, but some were skipped or couldn't run" >&2 ;; \
+		*) echo "selftest: failed (exit $$status)" >&2 ;; \
+	esac; \
+	exit $$status
 
 # The Electron harness (Scripts/electron-harness/): a composer like Slack's and a textarea in a pinned Electron, and a
 # probe that drives its window and logs what reaches the input method (Sources/AllInOneIME/ElectronSelfTest.swift). In
@@ -488,15 +497,19 @@ realtest-build:
 	swiftc -O -o "$(REALTEST_BIN)" Scripts/realapp-test.swift -framework AppKit -framework Carbon
 	codesign --force --sign - "$(REALTEST)"
 
-# Runs the already built harness; the input source is restored here too in case the test hung. Only failures fail it:
-# checks skipped for secure input (a password field, the lock screen) don't, and the last line says what was skipped.
+# Runs the already built harness; the input source is restored here too in case the test hung. Only PASSED passes:
+# INCOMPLETE, SKIPPED or BLOCKED (checks skipped for secure input: a password field, the lock screen) is reported as
+# incomplete and exits 2, as the self-test's skips do; FAILED, or no result, exits 1.
 realtest-run:
 	rm -rf "$(REALTEST_OUT)"
 	mkdir -p "$(REALTEST_OUT)"
 	open -W -n --stdout "$(REALTEST_OUT)/output.txt" --stderr "$(REALTEST_OUT)/stderr.txt" "$(REALTEST)" --args "$(REALTEST_OUT)"
 	@"$(REALTEST_BIN)" --restore-input-source "$(REALTEST_OUT)"
 	@cat "$(REALTEST_OUT)/output.txt"
-	@grep -qE '^REALTEST (PASSED|INCOMPLETE|SKIPPED|BLOCKED)' "$(REALTEST_OUT)/output.txt"
+	@if grep -qE '^REALTEST PASSED' "$(REALTEST_OUT)/output.txt"; then exit 0; \
+	elif grep -qE '^REALTEST (INCOMPLETE|SKIPPED|BLOCKED)' "$(REALTEST_OUT)/output.txt"; then \
+		echo "realtest: incomplete (exit 2): no check failed, but some were skipped" >&2; exit 2; \
+	else echo "realtest: failed (exit 1)" >&2; exit 1; fi
 
 # Runs the real-app test automatically once the screen is unlocked (temporary launchd job, not
 # persisted across logins; it removes itself when done). Log: ~/Library/Logs/AllInOneIME/realtest-watch.log

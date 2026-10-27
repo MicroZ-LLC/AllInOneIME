@@ -886,3 +886,40 @@ final class GitRecorder: GitRunning, @unchecked Sendable {
         #expect(ExtensionSources.bundleFolder(for: climbing, root: root).lastPathComponent == ".invalid-bundle-path")
     }
 }
+
+/// The app binary the command line's tests run: `ALLINONEIME_TEST_BINARY`, else this package's debug build.
+enum ExtensionSourceCommandLine {
+    static let binary: String? = {
+        if let given = ProcessInfo.processInfo.environment["ALLINONEIME_TEST_BINARY"], FileManager.default.isExecutableFile(atPath: given) {
+            return given
+        }
+        let package = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let built = package.appendingPathComponent(".build/debug/AllInOneIME").path
+        return FileManager.default.isExecutableFile(atPath: built) ? built : nil
+    }()
+}
+
+/// The command line (`--add-source`, as the app binary runs it) refuses an option it doesn't take: status 2, the option
+/// named, before anything is cloned or written.
+@Suite(.enabled(if: ExtensionSourceCommandLine.binary != nil, "needs the built app binary (swift build)"))
+struct ExtensionSourceCommandLineTests {
+    @Test func anUnknownOptionIsRefused() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("extension-cli-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let config = folder.appendingPathComponent("config.json"), sources = folder.appendingPathComponent("Sources")
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: try #require(ExtensionSourceCommandLine.binary))
+        process.arguments = ["--add-source", "file://" + folder.appendingPathComponent("remote.git").path, "--bogus", "x",
+                             "--config", config.path, "--sources-dir", sources.path]
+        // The binary finds librime by its own rpath; an inherited DYLD_LIBRARY_PATH would be searched first.
+        process.environment = ProcessInfo.processInfo.environment.filter { $0.key != "DYLD_LIBRARY_PATH" }
+        let errors = Pipe()
+        (process.standardInput, process.standardOutput, process.standardError) = (FileHandle.nullDevice, FileHandle.nullDevice, errors)
+        try process.run()
+        let said = String(decoding: errors.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        process.waitUntilExit()
+        #expect(process.terminationStatus == 2 && said.contains("unknown option --bogus"), "\(process.terminationStatus): \(said)")
+        #expect(!FileManager.default.fileExists(atPath: config.path) && !FileManager.default.fileExists(atPath: sources.path))
+    }
+}

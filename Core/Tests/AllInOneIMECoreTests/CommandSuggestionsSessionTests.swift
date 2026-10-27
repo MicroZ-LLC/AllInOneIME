@@ -7,7 +7,7 @@ import AllInOneIMETestSupport
 /// a real sh script in a temporary folder, run as `run` commands run (`CommandCompletionRunner`): its list and its
 /// queries, printed as lines or as the plugins' JSON; a bad line dropped; a timeout and the back-off and pause after
 /// failures; what is typed after the prefix arriving as one argument, never through a shell nor in the environment; the
-/// master and per-app switches; the insert presets; its cached list; the command itself only saying what it is. The rig
+/// master and per-app switches; the insert presets; its cached list; the command itself no @ command. The rig
 /// is the acceptance tests' (Acceptance/SuggestionsAcceptanceTests.swift): a world with its clock, fields that type.
 @Suite(.serialized, SuggestionsOneAtATime())
 struct CommandSuggestionsSessionTests {
@@ -406,23 +406,38 @@ struct CommandSuggestionsSessionTests {
 
     // MARK: - The command itself
 
-    /// `@jira` is a source, not an action: picked or run, it says what it is; nothing runs, nothing goes in.
-    @Test func theCommandItselfOnlySaysWhatItIs() async throws {
+    /// `@jira` is no @ command (0.6.8): not in the field's command list, and "@jira" ⏎ ⏎ does what it does in a field
+    /// with no such command (a name no command has): the same text in the field, nothing said, nothing typed goes to its
+    /// program. Its rows show with its prefix all the same.
+    @Test func theCommandItselfIsNoAtCommand() async throws {
         try await inEnglish {
             let program = try Program(Self.tickets)
-            let world = SuggestionsWorld()
+            func typed(_ commands: [CustomCommand]) -> (document: String, said: String, offered: Bool) {
+                let world = SuggestionsWorld()
+                world.config.customCommands = commands
+                world.switches.commands = commands
+                let field = world.field()
+                let offered = field.host.session.composer.commands.contains { $0.name == "jira" }
+                field.type("@jira")
+                field.press(SuggestionKeys.enter)
+                field.press(SuggestionKeys.enter)
+                field.idle(0.3)
+                return (field.document, field.host.noticeAlone ?? field.host.panel?.detail ?? "", offered)
+            }
             let command = Self.jira(program)
+            let with = typed([command]), without = typed([])
+            #expect(!with.offered && with.document == without.document && with.said == without.said,
+                    "\(with.document.debugDescription) / \(without.document.debugDescription), said \(with.said.debugDescription)")
+            #expect(with.document.hasPrefix("@jira") && !with.said.contains("suggestion source"), "\(with)")
+            // Its list may load (a field took the focus), as a plugin's; nothing typed goes to it.
+            #expect(program.calls.allSatisfy { $0.isEmpty }, "\(program.calls)")
+            // Its prefix: its rows.
+            let world = SuggestionsWorld()
             world.config.customCommands = [command]
             world.switches.commands = [command]
             let field = world.field()
-            field.type("@jira")
-            field.press(SuggestionKeys.enter)
-            field.press(SuggestionKeys.enter)
-            field.idle(0.3)
-            let said = field.host.noticeAlone ?? field.host.panel?.detail ?? ""
-            #expect(said.contains("suggestion source") && said.contains("JIRA-"), "\(said)")
-            // Its list may load (a field took the focus), as a plugin's; nothing typed goes to it.
-            #expect(field.document.isEmpty && program.calls.allSatisfy(\.isEmpty), "\(field.document), \(program.calls)")
+            field.type("JIRA-1")
+            #expect(field.settle(timeout: Self.wait) { field.rows.map(\.text) == ["JIRA-12", "JIRA-123", "JIRA-17"] }, "\(field.rows.map(\.text))")
         }
     }
 }

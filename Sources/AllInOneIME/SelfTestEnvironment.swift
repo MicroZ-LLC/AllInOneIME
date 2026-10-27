@@ -8,10 +8,14 @@ import AppKit
 /// the provider, model, languages or styles they picked change no check. Without Bedrock credentials for that profile
 /// the live Bedrock checks are skipped, not failed.
 ///
-/// Secure input held by another process (the lock screen, a password field) stops composing in the fake field when its
-/// owner can't be told, and refuses every request: before a section that composes, the self-test waits a while for it
-/// to go, then skips that section's checks. The summary counts passed, failed and skipped checks; only failures fail
-/// the run, and a run that checked nothing that composes or asks the AI says so, never that it passed.
+/// Secure input held by another process (a password field) stops composing in the fake field when its owner can't be
+/// told, and refuses every request: before a section that composes, the self-test waits a while for it to go, then
+/// skips that section's checks. A locked screen ends the run at once (`endIfScreenLocked`). What this Mac can't give a
+/// check (credentials, the on-device model, the Electron harness …) skips it, counted and said why (`skip`).
+///
+/// The summary counts passed, failed and skipped checks, and its exit status (`summary`): 0 when every check ran and
+/// passed, 1 when any failed, 2 when none failed but some were skipped or couldn't run. Its last line is for scripts:
+/// `SELFTEST-RESULT {"passed":N,"failed":N,"skipped":N,"status":"pass|fail|incomplete"}`.
 extension SelfTest {
     /// What a section needs from this Mac.
     struct Needs: OptionSet {
@@ -23,7 +27,10 @@ extension SelfTest {
     }
 
     static let noCredentials = "no Bedrock credentials"
-    static let secureInputOn = "secure input (screen locked?)"
+    static let secureInputOn = "secure input (a password field?)"
+    static let screenLocked = "the screen is locked"
+    static let noOnDeviceModel = "the on-device model isn't available here"
+    static let noElectronHarness = "no Electron harness (ALLINONEIME_ELECTRON_HARNESS)"
     /// How long a section waits for secure input held elsewhere to go before its checks are skipped.
     static let secureInputWait: TimeInterval = 30
 
@@ -68,6 +75,13 @@ extension SelfTest {
               + "\(config.region ?? "the profile's"); \(bedrockReady ? "credentials found" : "no credentials: live Bedrock checks skipped"))")
     }
 
+    /// Counts what this Mac can't run now (a check, or a part of a section that can't start) as skipped, saying why:
+    /// skipped is never passed (`summary`).
+    static func skip(_ what: String, _ reason: String) {
+        print("– \(what) — skipped: \(reason)")
+        skipped[reason, default: 0] += 1
+    }
+
     /// Starts a section: its title, and what its checks need (`needing`).
     static func section(_ title: String, needs: Needs = []) {
         print("— \(title)")
@@ -94,20 +108,35 @@ extension SelfTest {
     }
 
     /// Whether secure input is off, or goes within `secureInputWait` seconds; while it stays on after a wait, the next
-    /// sections don't wait again (a locked screen stays locked).
+    /// sections don't wait again. A locked screen (or one locked while waiting) ends the run instead.
     static func secureInputGoes() -> Bool {
         guard SecureInput.isOn else {
             secureInputStayed = false
             return true
         }
+        endIfScreenLocked()
         guard !secureInputStayed else { return false }
-        let session = CGSessionCopyCurrentDictionary() as? [String: Any]
-        let locked = (session?["CGSSessionScreenIsLocked"] as? Bool) == true || (session?["CGSSessionScreenIsLocked"] as? Int) == 1
-        print("  secure input is on (\(SecureInput.ownerDescription())\(locked ? ", the screen is locked" : "")): "
-              + "waiting up to \(Int(secureInputWait)) s for it to go")
-        let gone = pump(timeout: secureInputWait) { !SecureInput.isOn }
+        print("  secure input is on (\(SecureInput.ownerDescription())): waiting up to \(Int(secureInputWait)) s for it to go")
+        let gone = pump(timeout: secureInputWait) { !SecureInput.isOn || isScreenLocked }
+        endIfScreenLocked()
         secureInputStayed = !gone
         return gone
+    }
+
+    /// Whether this login session's screen is locked, as CoreGraphics tells it.
+    static var isScreenLocked: Bool {
+        let session = CGSessionCopyCurrentDictionary() as? [String: Any]
+        return (session?["CGSSessionScreenIsLocked"] as? Bool) == true || (session?["CGSSessionScreenIsLocked"] as? Int) == 1
+    }
+
+    /// A locked screen ends the run here (at its start, or as a section that composes finds it locked): nothing that
+    /// types can run until it's unlocked, so the run can't be complete, and going on would only wait on secure input
+    /// section after section. What wasn't run counts as one skipped check; the summary ends it (2, or 1 after a failure).
+    static func endIfScreenLocked() {
+        guard isScreenLocked else { return }
+        print("  the screen is locked: the run ends here (unlock it and run again)")
+        skip("everything from here on", screenLocked)
+        exit(summary())
     }
 
     /// One self-test at a time on this Mac: two at once (from two checkouts, say) share the output folder's files (its
@@ -131,24 +160,30 @@ extension SelfTest {
         _ = pid.withCString { pwrite(fd, $0, strlen($0), 0) }
     }
 
-    /// The last lines: passed, failed and skipped checks. Only failures fail the run; skipped checks never make it
-    /// pass, and a run that checked nothing that composes or asks the AI says so.
+    /// The last lines: passed, failed and skipped checks, each reason for a skip, the outcome, and the same as one line of
+    /// JSON for scripts. The exit status: 0 when every check ran and passed, 1 when any failed, 2 when none failed but
+    /// some were skipped or couldn't run (never a pass); a run that checked nothing that composes or asks the AI says so.
     static func summary() -> Int32 {
         let skippedCount = skipped.values.reduce(0, +)
         let counts = "\(passed) passed, \(failures) failed, \(skippedCount) skipped"
         let reasons = skipped.sorted { $0.key < $1.key }.map { "\($0.key): \($0.value)" }.joined(separator: ", ")
+        let status: Int32
         if failures > 0 {
             print("SELFTEST FAILED (\(failures)): \(counts)\(reasons.isEmpty ? "" : " (\(reasons))")")
-            return 1
-        }
-        if skippedCount == 0 {
+            status = 1
+        } else if skippedCount == 0 {
             print("SELFTEST PASSED: \(counts)")
+            status = 0
         } else if checkedWithNeeds == 0 {
             print("Everything that composes in the field or asks the AI was skipped (\(reasons)): this run doesn't show the input method works.")
             print("SELFTEST SKIPPED: \(counts) (\(reasons))")
+            status = 2
         } else {
             print("SELFTEST INCOMPLETE: \(counts) (\(reasons))")
+            status = 2
         }
-        return 0
+        let outcome = status == 0 ? "pass" : status == 1 ? "fail" : "incomplete"
+        print(#"SELFTEST-RESULT {"passed":\#(passed),"failed":\#(failures),"skipped":\#(skippedCount),"status":"\#(outcome)"}"#)
+        return status
     }
 }

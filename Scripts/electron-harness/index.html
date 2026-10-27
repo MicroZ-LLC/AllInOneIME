@@ -45,10 +45,19 @@
   const target = query.get('field') || 'composer';
   const field = document.getElementById(target);
   const text = () => field.value ?? field.textContent;
-  // HARNESS_AFTER: text after the caret, the caret at the start.
+  // HARNESS_AFTER: text after the caret, the caret at the start. HARNESS_START: the text, the caret where "|" is (at its
+  // end without one), what is between two "|" selected (UTF-16 offsets, as the input method has them).
   const after = query.get('after') || '';
   if (after) {
     if (field.value !== undefined) { field.value = after; } else { field.textContent = after; }
+  }
+  const start = query.get('start') || '';
+  const startParts = start.split('|');
+  const startText = startParts.join('');
+  const startCaret = startParts.length > 1 ? startParts[0].length : startText.length;
+  const startEnd = startParts.length > 2 ? startCaret + startParts[1].length : startCaret;
+  if (start) {
+    if (field.value !== undefined) { field.value = startText; } else { field.textContent = startText; }
   }
   const caret = () => {
     if (field.selectionStart !== undefined) return [field.selectionStart, field.selectionEnd];
@@ -77,6 +86,10 @@
     field.setSelectionRange(0, 0);
   } else if (after) {
     getSelection().collapse(field.firstChild, 0);
+  } else if (start && field.selectionStart !== undefined) {
+    field.setSelectionRange(startCaret, startEnd);
+  } else if (start) {
+    getSelection().setBaseAndExtent(field.firstChild, startCaret, field.firstChild, startEnd);
   }
   log('focused', document.activeElement.id, 'hasFocus', document.hasFocus());
 </script>

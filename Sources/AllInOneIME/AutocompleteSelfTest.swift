@@ -609,8 +609,7 @@ extension SelfTest {
         let availability = AppleModel.system.availability
         section("autocomplete: Apple's on-device model (\(availability.rawValue))", needs: .composing)
         guard availability == .available else {
-            print("  skipped: the on-device model isn't available here")
-            return
+            return skip("autocomplete with Apple's on-device model", noOnDeviceModel)
         }
         let store = AutocompleteSwitch.store
         let (failed, shown) = (store.metrics.failed, store.metrics.shown)

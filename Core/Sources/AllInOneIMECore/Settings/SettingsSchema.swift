@@ -254,6 +254,18 @@ struct SettingsSchema {
         add(suggestionsInsert(), to: &fields) { value in
             store.config.suggestionsInsert = value.string.flatMap(SuggestionsInsert.init(rawValue:))
         }
+        // Clipboard history (the Mac's: its window has Clear History and the permission's state too), and how many it keeps.
+        add(toggle("clipboardHistory", tr("剪贴板历史", "Clipboard history"), UIText.clipboardHistoryHelp(terms: terms),
+                   config.clipboardHistoryOn, platforms: [.mac]), to: &fields) { store.config.clipboardHistory = Self.bool($0) ? nil : false }
+        if config.clipboardHistoryOn {
+            var limit = integer("clipboardHistoryLimit", UIText.clipboardHistoryLimitLabel, value: config.clipboardHistoryKept,
+                                in: Config.clipboardHistoryLimits, step: 1)
+            limit.platforms = [.mac]
+            add(limit, to: &fields) { value in
+                let kept = min(max(Self.int(value), Config.clipboardHistoryLimits.lowerBound), Config.clipboardHistoryLimits.upperBound)
+                store.config.clipboardHistoryLimit = kept == Config.defaultClipboardHistoryLimit ? nil : kept
+            }
+        }
         add(toggle("menuBarIcon", tr("在菜单栏显示图标", "Show in Menu Bar"),
                    tr("笔记、提醒和后台的 Claude 任务，点一下就下拉出来", "Your notes, reminders and Claude tasks, a click away"),
                    config.menuBarIcon, platforms: [.mac]), to: &fields) { store.setMenuBarIcon(Self.bool($0)) }
@@ -691,7 +703,7 @@ struct SettingsSchema {
                 + (state.map { "\n" + $0.text } ?? "")
                 + (Command.builtins.contains { $0.name == command.name.lowercased() }
                    ? "\n" + tr("和内置命令重名，不会生效，请改名", "Same name as a built-in command: rename it to use it") : "")
-            return SettingsDocument.Item(id: command.name, title: config.commandTrigger + command.name, detail: detail, value: value,
+            return SettingsDocument.Item(id: command.name, title: command.shownName(trigger: config.commandTrigger), detail: detail, value: value,
                                          actions: [SettingsAction.save, SettingsAction.delete])
         }
         // Those config.json has that can't be read (decision 25): why, and Delete only (no editor reads them).

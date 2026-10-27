@@ -17,7 +17,8 @@ public enum SessionEvent: Sendable {
     /// scrolled by `steps` rows (down positive).
     case pick(Int)
     case scroll(Int)
-    /// The clipboard as `SessionOutput.readClipboard` asked for it, for the draft's request `id`.
+    /// The clipboard as `SessionOutput.readClipboard` asked for it, for the draft's request `id` (below 0: clipboard
+    /// history's, whose image row needs only that there is one).
     case clipboard(ClipboardContent, id: Int)
     /// What the field says as `SessionOutput.readField` asked for it (its `id`: autocomplete's pause, or below 0 coding
     /// mode's): whether secure input is on, the selection, the text around the caret (what wasn't read,
@@ -151,6 +152,9 @@ public enum PlatformAction: Equatable, Sendable {
     case startVoice(id: Int, language: Language)
     case stopVoice(id: Int)
     case cancelVoice(id: Int)
+    /// The paste-anywhere key (⌃V) to the app as it is, once the key being answered is done: posted marked as the input
+    /// method's own, so it goes through (clipboard history's image row: `ClipboardHistoryServices.canPassPasteKey`).
+    case passPasteKey
 }
 
 /// Dictation `id`, as the platform hears it.

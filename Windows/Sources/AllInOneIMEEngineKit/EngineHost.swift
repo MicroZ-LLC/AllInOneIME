@@ -278,11 +278,13 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         composer.outputLanguages = config.outputLanguages
         composer.provider = config.provider
         // Script extensions from the folders the settings name, each on or off as they say (the Settings app's
-        // switches); their programs run through the core's runner (`startScript`).
+        // switches); their programs run through the core's runner (`startScript`). Those with suggestions taken out of
+        // the @ list (Show in the @ list) aren't offered.
         let extensions = ExtensionStore.load(ExtensionStore.folders(config, found: []), cache: extensionCache)
         composer.commands = Command.catalog(config.customCommands, plugins: plugins.current,
                                             scripts: extensions.enabled(config.disabledExtensions),
-                                            snippets: extensions.enabledSnippets(config.disabledExtensions))
+                                            snippets: extensions.enabledSnippets(config.disabledExtensions),
+                                            hidden: config.hiddenFromCommandList)
         let language = settings.interfaceLanguage(config)
         var messages = Composer.Messages.make(language: language, terms: Self.terms)
         messages.actionKeyName = InterfaceWords(language: language).name(config.actionKey, terms: Self.terms)

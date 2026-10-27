@@ -9,8 +9,10 @@ import InputMethodKit
 extension AllInOneIMEInputController {
     /// The clipboard as a draft takes it (`ClipboardContent`): its text first, else a PNG or TIFF image; nothing for what
     /// password managers mark as concealed or transient (nspasteboard.org, and the older markers), and when pasting from
-    /// other apps is denied to this one. (Nothing is read during secure input: `Effect.readClipboard`.)
-    static func clipboardContent(_ pasteboard: NSPasteboard) -> ClipboardContent {
+    /// other apps is denied to this one. (Nothing is read during secure input: `Effect.readClipboard`.) Without
+    /// `imageData`, an image is told by the clipboard's types alone, its data never read (`.image` with none: clipboard
+    /// history's first row).
+    static func clipboardContent(_ pasteboard: NSPasteboard, imageData: Bool = true) -> ClipboardContent {
         if #available(macOS 15.4, *), pasteboard.accessBehavior == .alwaysDeny { return .none }
         let types = pasteboard.types ?? []
         let hidden = ["org.nspasteboard.ConcealedType", "org.nspasteboard.TransientType", "com.agilebits.onepassword",
@@ -19,6 +21,7 @@ extension AllInOneIMEInputController {
         guard hidden.allSatisfy({ !types.contains($0) }) else { return .none }
         if types.contains(.string), let text = pasteboard.string(forType: .string) { return .text(text) }
         for type in [NSPasteboard.PasteboardType.png, .tiff] where types.contains(type) {
+            guard imageData else { return .image(Data()) }
             // Larger than a draft takes: the composer says so (`Composer.maxImageBytes`).
             if let image = pasteboard.data(forType: type) { return .image(image) }
         }
@@ -29,7 +32,7 @@ extension AllInOneIMEInputController {
     static func logged(_ content: ClipboardContent) -> String {
         switch content {
         case let .text(text): return "\(text.count) chars"
-        case let .image(image): return "an image of \(image.count / 1024) KB"
+        case let .image(image): return image.isEmpty ? "an image (its data not read)" : "an image of \(image.count / 1024) KB"
         case .none: return "nothing usable"
         }
     }

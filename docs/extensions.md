@@ -293,7 +293,8 @@ reached through `ALLINONEIME_EXTENSION_DIR`) and settings. One folder to install
   marked in its extension source's "Loaded" line and review, and in `--list-extensions`.
 - **Turning things off.** Each command, and each bundle as a whole, has a switch in Settings (`disabledExtensions` in
   the config: a command's id, or a bundle's name). A command turned off frees its name. A snippet is turned off with
-  `"<bundle>/<name>"` there.
+  `"<bundle>/<name>"` there. A command with suggestions (§11) can also stay out of the @ list alone, its suggestions kept:
+  **Show in the @ list** under it (`hiddenFromCommandList`: its id); its name stays its own.
 - **The command list** ranks by use. Typing finds names starting with the letters, then names containing them, then
   commands with a word of their title or a keyword starting with them. A digit right after letters is part of a name
   when a command's name goes on that way (`@base6` → `@base64`); otherwise digits pick a row.
@@ -329,6 +330,7 @@ Raycast's keys are read as they are, and mean:
 | `findRaycastScripts` | `true` | also the folders Spotlight finds holding Raycast scripts |
 | `hiddenExtensionFolders` | `[]` | found folders not used |
 | `disabledExtensions` | `[]` | commands (ids) and bundles (names) turned off |
+| `hiddenFromCommandList` | `[]` | commands (ids) with suggestions out of the @ command list, their suggestions kept (plugins' names too); this Mac's own, never synced |
 | `extensionPreferences` | `{}` | bundle → preference → value (not passwords) |
 | `extensionSources` | `[]` | Git repositories bundles are installed from (§10) |
 | `completionSources` | `[]` | the completion sources turned on (§11), plugins' too: for a command, `"plugin": "script-extensions"` and its id as `source`, with what was approved (its script's SHA-256, `query`, and its `terms`: prefix, `queryMinChars`, `compare`); this Mac's own, never synced |
@@ -523,6 +525,8 @@ then. Settings → Commands shows its switch under the command, with what it doe
 background, and with `query` it also gets what you type after the prefix; then its last refresh, items, last error and
 Refresh Now). One you turn off there stays off, through updates, restarts, the extensions read again and its folder or
 source removed and added again, until you turn it on again (`completionSourcesOff` in the config, this Mac's own).
+Next to it, **Show in the @ list** (on by default): off, the command is out of the @ command list and its name after
+the magic key is just text, while its suggestions work as before (§7).
 Being on pins the whole extension and its terms:
 
 - **The extension.** Your own extension, a bundle or a single script (its `completion` line is part of it), is never

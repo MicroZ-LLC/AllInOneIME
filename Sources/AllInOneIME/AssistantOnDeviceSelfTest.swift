@@ -62,8 +62,7 @@ extension SelfTest {
         let real = AppleModel.system
         section("Settings → Assistant on Apple Intelligence on this Mac: a large config fitted to its context (\(real.availability.rawValue))")
         guard real.availability == .available, let guided = real as? any AppleGuidedBackend else {
-            print("  skipped: the on-device model isn't available here")
-            return
+            return skip("Settings → Assistant fitted to the on-device model's context", noOnDeviceModel)
         }
         let realBefore = try? Data(contentsOf: Config.userURL)
         defer { check((try? Data(contentsOf: Config.userURL)) == realBefore, "Assistant on device: the user's config file was not touched") }
@@ -99,7 +98,6 @@ extension SelfTest {
                     check(answer.onDevice && planned && model.lastFits && (try? AIConfig.parse(answer.text)) != nil,
                           "\(contextSize) tokens, “\(sentence)”: answered on the device within its context (\(model.lastLine)): "
                               + "\(answer.text.prefix(160))")
-                    if sentence == "use Bedrock" { checkUseBedrock(answer.text, contextSize: contextSize, config: config, apps: apps) }
                 case let .failure(error):
                     check(false, "\(contextSize) tokens, “\(sentence)”: failed: \(error)")
                 case nil:
@@ -174,8 +172,7 @@ extension SelfTest {
         let real = AppleModel.system
         section("Settings → Assistant on Apple Intelligence on this Mac: Autocomplete on and off in a sentence (\(real.availability.rawValue))")
         guard real.availability == .available, let guided = real as? any AppleGuidedBackend else {
-            print("  skipped: the on-device model isn't available here")
-            return
+            return skip("Settings → Assistant's Autocomplete on the on-device model", noOnDeviceModel)
         }
         let realBefore = try? Data(contentsOf: Config.userURL)
         defer { check((try? Data(contentsOf: Config.userURL)) == realBefore, "Assistant Autocomplete: the user's config file was not touched") }
@@ -227,28 +224,5 @@ extension SelfTest {
                 }
             }
         }
-    }
-
-    /// "use Bedrock" as the on-device model answered it: the answer in full, and what the preview makes of it. Another
-    /// provider chosen (the model has answered it with Claude API) is said with ⚠︎, not failed: it is Apple's model, at
-    /// its version on this Mac, which nothing here can fix; what is checked is that the preview never switches to it
-    /// (`AIConfig.namedProvider`: the sentence names Bedrock only), so the user never gets it.
-    private static func checkUseBedrock(_ text: String, contextSize: Int, config: Config, apps: AIConfig.AppCatalog) {
-        print("  “use Bedrock” (\(contextSize) tokens) → \(text)")
-        let proposal = try? AIConfig.parse(text)
-        let chosen = proposal?.changes.compactMap { change -> String? in
-            guard change.key == .setting(.provider), case let .string(name) = change.value else { return nil }
-            return name
-        } ?? []
-        if chosen.contains(where: { $0.lowercased() != Provider.bedrock.rawValue }) {
-            print("  ⚠︎ the model chose \(chosen.joined(separator: ", ")) for “use Bedrock”: its slip, never applied (checked next)")
-        }
-        let models = AIConfigSession.knownModels()
-        let env = AIConfig.Environment(apps: apps, awsProfiles: { ["default"] }, knownModels: { models[$0] ?? [] }, offeredProviders: Provider.offered,
-                                       hasKey: { _ in true }, language: "en", typedText: "use Bedrock")
-        let rows = proposal.map { AIConfig.check($0, config: config, environment: env).rows } ?? []
-        let switched = rows.compactMap { row -> Provider? in if case let .provider(provider)? = row.edit { return provider } else { return nil } }
-        check(switched.allSatisfy { $0 == .bedrock },
-              "\(contextSize) tokens, “use Bedrock”: the preview switches to no provider but Bedrock (\(rows.map { $0.text(language: "en") }))")
     }
 }

@@ -419,5 +419,12 @@ struct AppleModelTests {
     @Test func refusalReadsNaturally() {
         #expect(ProviderError.refused(.apple).errorDescription == "Apple Intelligence declined this request")
         #expect(ProviderError.refused(.gemini).errorDescription == "The Gemini API declined this request")
+        // As the panel and the settings say it, in the interface language.
+        UIText.$scopedLanguage.withValue("en") {
+            #expect(UIText.describe(ProviderError.refused(.apple)) == "Apple Intelligence declined this request")
+        }
+        UIText.$scopedLanguage.withValue("zh-Hans") {
+            #expect(UIText.describe(ProviderError.refused(.apple)) == "Apple Intelligence 拒绝了这个请求")
+        }
     }
 }

@@ -62,7 +62,8 @@ public enum ICloudSync {
 
     /// Never synced, whatever the switches: each Mac decides for itself. The keys and tokens aren't in the config at all
     /// (they're in the keychain); extension sources and their clones run code; extension folders and plugins are paths on
-    /// this Mac, and so is where `@note` saves (`notes`: a folder's path); the sync setting itself is per Mac, and so is
+    /// this Mac, and so are which of their commands are on (`disabledExtensions`) and in the @ list (`hiddenFromCommandList`),
+    /// and so is where `@note` saves (`notes`: a folder's path); the sync setting itself is per Mac, and so is
     /// autocomplete's switch (`autocomplete`: it sends text to the provider picked once it's turned on, on this Mac), and so
     /// is its choice for an app (`thisMacsOwnAppFields`); `typeOutSpeed` is only read (from older files); `outputLanguage` and
     /// `defaultInput` come with their lists. `@agent`'s agent and its program are what this Mac has installed, and
@@ -71,13 +72,15 @@ public enum ICloudSync {
     /// plugins' and extensions' (`suggestions`, `completionSources`, `completionSourcesOff`, `pluginsSeen`,
     /// `pluginPreferences`), and so is Suggestions' choice for an app (`thisMacsOwnAppFields`); and so
     /// are the custom commands from another Mac not confirmed here (`unconfirmedCommands`: what this Mac allows to run is
-    /// its own, decision 26). Apps without typos and the recent apps aren't config keys either: named so that no later
-    /// version adds them.
+    /// its own, decision 26). Clipboard history's switch and how many it keeps (`clipboardHistory`,
+    /// `clipboardHistoryLimit`) are this Mac's, as its history is. Apps without typos and the recent apps aren't config
+    /// keys either: named so that no later version adds them.
     public static let neverSynced: Set<String> = [
         "extensionSources", "extensionFolders", "hiddenExtensionFolders", "findRaycastScripts", "disabledExtensions",
-        "extensionPreferences", "jargonFile", "iCloudSync", "typeOutSpeed", "outputLanguage", "defaultInput",
-        "typeOutNoTyposApps", "recentApps", "notes", "agent", "agentCommand", "agentPageContext", "autocomplete",
+        "hiddenFromCommandList", "extensionPreferences", "jargonFile", "iCloudSync", "typeOutSpeed", "outputLanguage",
+        "defaultInput", "typeOutNoTyposApps", "recentApps", "notes", "agent", "agentCommand", "agentPageContext", "autocomplete",
         "suggestions", "completionSources", "completionSourcesOff", "pluginsSeen", "pluginPreferences", "unconfirmedCommands",
+        "clipboardHistory", "clipboardHistoryLimit",
     ]
 
     /// The category `key` (a key of `settings.json`) is synced under; nil for a key this version doesn't sync (one a newer

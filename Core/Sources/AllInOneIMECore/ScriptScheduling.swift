@@ -50,13 +50,14 @@ public enum BackgroundRuns {
 }
 
 /// The command list for the settings, built again only when what it's made of changed (the custom commands,
-/// the plugins, the extensions' index generation, what's turned off), not on each key.
+/// the plugins, the extensions' index generation, what's turned off, what's taken out of the list), not on each key.
 public struct CatalogCache: Sendable {
     struct Key: Equatable, Sendable {
         var custom: [CustomCommand]
         var plugins: [InstalledPlugin]
         var generation: Int
         var disabled: [String]
+        var hidden: [String]
     }
 
     private var key: Key?
@@ -64,13 +65,15 @@ public struct CatalogCache: Sendable {
 
     public init() {}
 
-    /// The catalog (`Command.catalog`), and whether it's another than last time.
+    /// The catalog (`Command.catalog`, less `hidden`: `Config.hiddenFromCommandList`), and whether it's another than last
+    /// time.
     public mutating func catalog(_ custom: [CustomCommand], plugins: [InstalledPlugin], index: ExtensionIndex,
-                                 disabled: [String]) -> (commands: [Command], changed: Bool) {
-        let new = Key(custom: custom, plugins: plugins, generation: index.generation, disabled: disabled)
+                                 disabled: [String], hidden: [String] = []) -> (commands: [Command], changed: Bool) {
+        let new = Key(custom: custom, plugins: plugins, generation: index.generation, disabled: disabled, hidden: hidden)
         guard new != key else { return (commands, false) }
         key = new
-        commands = Command.catalog(custom, plugins: plugins, scripts: index.enabled(disabled), snippets: index.enabledSnippets(disabled))
+        commands = Command.catalog(custom, plugins: plugins, scripts: index.enabled(disabled), snippets: index.enabledSnippets(disabled),
+                                   hidden: hidden)
         return (commands, true)
     }
 }

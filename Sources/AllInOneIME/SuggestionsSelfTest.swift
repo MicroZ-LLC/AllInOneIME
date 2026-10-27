@@ -393,8 +393,9 @@ extension SelfTest {
     /// candidate panel: a temporary sh script of the self-test's own as its program (lines "match⇥title⇥url" with no
     /// argument; with one, a query's answer), run as `run` commands run (`CommandCompletionRunner`). "tk-1" shows its
     /// list's rows, "tk-12" asks it with "12" as its one argument, Tab inserts the row with its title; in Code its rows
-    /// take the same keys as every row (decision 31: the first chosen from the start, Return takes it); "@tk" only says
-    /// what it is. Nothing of the user's is run; everything left as it was found.
+    /// take the same keys as every row (decision 31: the first chosen from the start, Return takes it); "@tk" is no @
+    /// command: not in the list, a word as "@tz" (no command's name) is. Nothing of the user's is run; everything left as it
+    /// was found.
     static func testCustomSuggestions(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
         section("Suggestions: a custom command's program as a source (a temporary sh script)", needs: .composing)
         let saved = (services: controller.services.suggestions, settings: settings)
@@ -486,19 +487,36 @@ extension SelfTest {
             check(false, "the Python pack from Core/CodingPacks")
         }
 
-        // "@tk": a source, not an action: what it is said, nothing runs, nothing goes in.
-        controller.commitComposition(client)
-        controller.activateServer(client)
-        controller.composer.setInputMode(.english)
-        client.inserted.removeAll()
+        // "@tk": no @ command (a Suggestions command is used by its prefix alone): never in the list, and "@tk" ⏎ ⏎ does
+        // what "@tz" ⏎ ⏎ does (no command has that name; "@t" is the start of others' as with "@tk"): what reaches the app
+        // (put in, or the keys it gets) is the same, nothing runs, nothing is said.
+        func typedAfterTheMagicKey(_ name: String) -> (listed: Bool, app: String, said: String) {
+            controller.commitComposition(client)
+            controller.activateServer(client)
+            controller.composer.setInputMode(.english)
+            client.inserted.removeAll()
+            if let notice = controller.notice { controller.endNotice(notice) }
+            var (listed, app) = (false, "")
+            func key(_ characters: String, code: UInt16, flags: NSEvent.ModifierFlags = []) {
+                let count = client.inserted.count
+                let handled = press(controller, client, characters, code: code, flags: flags)
+                app += client.inserted.dropFirst(count).joined() + (handled ? "" : characters)
+                listed = listed || controller.composer.paletteMatches.contains { $0.name == "tk" }
+            }
+            key("@", code: 0x13, flags: .shift)
+            for letter in name { key(String(letter), code: keyCodes[letter] ?? 0) }
+            key("\r", code: VirtualKey.returnKey)
+            key("\r", code: VirtualKey.returnKey)
+            let said = controller.notice ?? ""
+            controller.commitComposition(client)
+            return (listed, app, said)
+        }
         let before = calls().count
-        _ = press(controller, client, "@", code: 0x13, flags: .shift)
-        type("tk", controller, client)
-        press(controller, client, "\r", code: VirtualKey.returnKey)
-        press(controller, client, "\r", code: VirtualKey.returnKey)
-        let said = controller.panelModel().detail ?? controller.notice ?? ""
-        check(said.contains("tk-") && client.inserted.isEmpty && calls().count == before,
-              "\"@tk\" ⏎ only says what it is: \"\(said)\", nothing inserted (\(client.inserted)), nothing run")
+        let tk = typedAfterTheMagicKey("tk"), tz = typedAfterTheMagicKey("tz")
+        check(!tk.listed && tk.app.hasPrefix("@tk") && tk.app == tz.app.replacingOccurrences(of: "tz", with: "tk") && tk.said == tz.said
+              && calls().count == before,
+              "\"@tk\" ⏎ ⏎ is not in the list and does what \"@tz\" does: \(tk.app.debugDescription) (\(tz.app.debugDescription)), "
+                  + "said \(tk.said.debugDescription), nothing run (\(calls().count - before))")
         for _ in 0..<3 { press(controller, client, "\u{1B}", code: VirtualKey.escape) }
     }
 }

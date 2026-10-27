@@ -2,6 +2,24 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
+## 0.6.8 (2026-10-27)
+
+### Added
+
+- Clipboard history: ⌃V shows the text you copied lately (the last 20; 5 to 100 in Settings → General) and puts in the one you choose. ⇧↓ and ⇧↑ choose several, and ⏎ puts them in one per line. ⌃V ⏎ is the ⌃V you had, and ⌃V twice gives ⌃V to the app (vim, the shell). Text only, kept on this Mac only, never what a password manager marks as concealed. It needs Paste from Other Apps set to Allow for AllInOneIME in Privacy & Security. Turn it off in Settings → General → Clipboard history: ⌃V then works as before.
+
+### Changed
+
+- A Suggestions command (a custom command of type `suggestions`) is no longer in the @ command list: you use it by typing its prefix, and you manage it in Settings → Commands. A plugin or script extension command with suggestions can be taken out of the @ list too, its suggestions kept: turn off Show in the @ list under it in Settings → Commands.
+
+### Fixed
+
+- With the interface in Traditional Chinese, Japanese, Korean, German, French, Spanish or Portuguese, the input method no longer gets slower the longer it runs, and no longer crashes after a while. Each text it showed in that language made every later one take longer to look up.
+
+### Development
+
+- The self-test exits 0 when every check passed, 1 when one failed and 2 when some were skipped (a locked screen ends it at once); its last line is a SELFTEST-RESULT summary. Self-test checks that ordinary tests already cover were removed.
+
 ## 0.6.7.3 (2026-10-26)
 
 ### Changed

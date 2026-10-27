@@ -50,9 +50,10 @@ while :; do
     echo "--- input method log during the test ---"
     log show --start "$start" --style compact --info --predicate 'subsystem == "com.aipinyin.inputmethod.AIPinyin"' 2>/dev/null \
         | cut -c1-200 | tail -60
+    # make exits non-zero for an incomplete run too (realtest-run): the last line tells it from a failure.
     if [ "$rc" -eq 0 ] && grep -q '^REALTEST PASSED' "$OUT/output.txt"; then
         osascript -e 'display notification "真实 App 打字测试全部通过" with title "AllInOneIME 测试通过"' || true
-    elif [ "$rc" -eq 0 ]; then
+    elif grep -qE '^REALTEST (INCOMPLETE|SKIPPED)' "$OUT/output.txt" 2>/dev/null; then
         osascript -e 'display notification "没有失败，但有检查因为安全输入跳过了：详情见 ~/Library/Logs/AllInOneIME/realtest/output.txt" with title "AllInOneIME 测试未全部运行"' || true
     else
         osascript -e 'display notification "详情见 ~/Library/Logs/AllInOneIME/realtest/output.txt" with title "AllInOneIME 测试未通过"' || true
