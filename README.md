@@ -1027,6 +1027,12 @@ suggestions use, and puts in the one you choose.
 - **What goes in:** the text as you copied it, typed in (the clipboard is unchanged), the way suggestion rows go in, so
   ⏎ in Slack, Chrome and other apps built on Chromium or Electron doesn't send the message. In a terminal, text of more
   than one line goes in as one paste (with Accessibility allowed), never line by line; without it, on one line.
+- **The keys stay with the panel, in every app (0.6.8.1):** with Accessibility allowed, the input method takes the keys
+  the panel uses (↓ ↑ → Esc ⏎ Tab, and ⌃V that opens it) before any app sees them, so no app acts on them: not Slack's
+  page, not a terminal's shell, whatever the app is built with. Without Accessibility, apps built on Chromium or
+  Electron and terminals are kept from them by marked text during the key instead (macOS asks for Accessibility once,
+  the first time that's needed).
+  Suggestion rows are the same.
 - **In a command:** ⌃V after `@improve ` (or any command) shows the history too, and the row you choose is appended to
   the command, as ⌃V appended the clipboard before: lines made one, up to 2000 characters; `@note` keeps them, up to
   20000. `@reply` takes it as the message to answer. ⌘V in a command is still a direct paste of the clipboard.
@@ -1088,8 +1094,8 @@ Updating to 0.6.3 from an earlier version: 0.6.3 is the first version signed wit
 doesn't yet know it as the app that saved your keys. The first time it needs each key it saved (an API key, the
 AllInOneIME Cloud sign-in, an extension's password), macOS asks for your login password: enter it and click "Always
 Allow". It doesn't ask again, also after later updates. Amazon Bedrock's keys are in `~/.aws/credentials`, which
-isn't affected. Accessibility (System Settings → Privacy & Security → Accessibility), which pasting into terminals and
-reading the selection use, needs one step too: if AllInOneIME is listed, remove it and turn it on again when asked.
+isn't affected. Accessibility (System Settings → Privacy & Security → Accessibility), which pasting into terminals,
+reading the selection and keeping a panel's keys from apps use, needs one step too: if AllInOneIME is listed, remove it and turn it on again when asked.
 
 If you had AIPinyin installed (AllInOneIME's earlier name), just install: the old AIPinyin.app and its settings launcher are removed,
 and the entry in your input sources gets the new name, with no need to add it again. Settings, the jargon list and learned words move to the new folders
@@ -1264,6 +1270,9 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 
 ## Privacy
 
+- Keys (0.6.8.1, with Accessibility allowed): while AllInOneIME is the input method you type with, it looks at each key
+  press before the app does, to take the keys a panel of ours shows for (↓ ↑ → Esc ⏎ Tab) and ⌃V; every other key goes
+  on to the app untouched. No key is kept, logged or sent anywhere; with another input method in use it looks at none.
 - Typing (English and pinyin) and the `@calculator` plugin's calculations are entirely local. Only when you press the action key on `@improve`, `@translate` or `@question` is that sentence sent to the AI provider you chose (your own Bedrock, or the service whose key you added). With "Jargon" checked and a jargon list set, the list is sent along with it. Refining the results (an instruction typed after them, then ⇧⏎) sends the same request again with the results shown and your instruction; a follow-up question (⇧⏎) sends the conversation so far with it.
 - Settings sends text to a model only when you pick the search's last row, Change: …, or ask Troubleshoot a question with Check: Apple Intelligence on this Mac whenever it's available (nothing leaves the Mac), else your provider. The search itself sends nothing. A request sends your sentence (a key typed into it is taken out first) with the current values of the settings it may change: never a key, nor the words you hide from the AI (only how many there are), and your AWS profiles' names only when the sentence is about AWS or Bedrock. A question sends itself with the check results, masked: no paths beyond `~`, no keys, log lines as fixed phrases. Hiding sensitive information applies to both, as to any request. The checks alone send nothing; Check sends only the Test Connection request, and that only when the provider has a key or credentials to test.
 - Continuing an `@question` conversation elsewhere (⌘1 … after the last round, or ⌘⏎) sends it, with what you typed, to the service you pick: a coding agent on this Mac (Claude Code, Gemini CLI, Kiro CLI or your own, each with its own account and service), claude.ai, chatgpt.com or gemini.google.com, in the web address or through the clipboard. It goes as you saw it: values hidden from the AI's requests (see below) are in it as they are, since you choose to send it there. Nothing goes anywhere until you pick one; "Copy the conversation" only puts it on the clipboard.
