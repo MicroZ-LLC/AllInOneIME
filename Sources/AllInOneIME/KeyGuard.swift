@@ -14,6 +14,9 @@ import os
 /// the controller took it (and its key up neither), and on as usual when it didn't (the controller answers the same key
 /// handed over again by the app as it did here: `KeyEchoes`). Every app, whatever it's built with, the same.
 ///
+/// The tap is on only while this input method is in use (a field of its own attached): with another input method no key
+/// of any app waits on this process.
+///
 /// The tap needs the Accessibility permission (as terminal paste does). Without it there is none, and what keeps the
 /// keys is the marked text of 0.6.7.3 and 0.6.8.1 (Chromium and Electron apps: `ChromiumApps`; terminals:
 /// `keepFromTerminal`). Keys we post ourselves (`TerminalPaste.marker`) pass untouched.
@@ -42,7 +45,7 @@ final class KeyGuard {
         guard !disabled else { return }
         self.owner = owner
         self.handler = handler
-        if tap == nil { makeTap() }
+        if let tap { CGEvent.tapEnable(tap: tap, enable: true) } else { makeTap() }
     }
 
     /// Whether `owner`'s handler is the one asked (a field typed in without an activation of its own first: the input
@@ -55,6 +58,8 @@ final class KeyGuard {
         self.owner = nil
         handler = nil
         takenKeys.removeAll()
+        // Off while another input method (or none) is in use: no key of any app waits on this process then.
+        if let tap { CGEvent.tapEnable(tap: tap, enable: false) }
     }
 
     private func makeTap() {
@@ -92,9 +97,9 @@ final class KeyGuard {
         log.notice("Accessibility asked for, once: keys a panel takes are kept from apps by marked text until it's allowed")
     }
 
-    /// The tap turned off by macOS (a callback too slow, or secure input's user input): on again.
+    /// The tap turned off by macOS (a callback too slow, or secure input's user input): on again, while it's wanted.
     fileprivate func reenable() {
-        if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
+        if let tap, handler != nil { CGEvent.tapEnable(tap: tap, enable: true) }
     }
 
     /// Whether the tap takes `event` (true: it goes no further).
