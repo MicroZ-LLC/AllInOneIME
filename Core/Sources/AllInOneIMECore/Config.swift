@@ -162,6 +162,11 @@ public struct Config: Codable, Equatable, Sendable {
     public var hiddenExtensionFolders: [String]
     /// Extension commands turned off: a command's id (`ScriptCommand.id`) or a bundle's name.
     public var disabledExtensions: [String]
+    /// The plugins and script extension commands with suggestions taken out of the @ command list ("Show in the @ list"
+    /// off in Settings → Commands): a plugin's name, a command's id (`ScriptCommand.id`). Their suggestions are as they
+    /// were; one without a suggestion source is in the list whatever this says (`Command.catalog`). This Mac's own, as
+    /// its plugins and extensions are: never synced.
+    public var hiddenFromCommandList: [String] = []
     /// The bundles' preferences that aren't passwords (those are in the keychain): bundle name → name → value.
     public var extensionPreferences: [String: [String: String]]
     /// Git repositories extension bundles are installed from (`ExtensionSource`); an enabled one's bundle folder is in
@@ -385,7 +390,7 @@ public struct Config: Codable, Equatable, Sendable {
     enum CodingKeys: String, CodingKey, CaseIterable {
         case awsProfile, region, modelId, maxTokens, temperature, timeoutSeconds, rewriteStyles
         case outputLanguage, outputLanguages, inputLanguages, defaultInput, codingLanguage, improveTranslates, voiceInput, jargonFile, actionKey, commandTrigger, uiLanguage, customCommands, claudeInBackground, agent, agentCommand, agentPageContext
-        case extensionFolders, findRaycastScripts, hiddenExtensionFolders, disabledExtensions, extensionPreferences
+        case extensionFolders, findRaycastScripts, hiddenExtensionFolders, disabledExtensions, hiddenFromCommandList, extensionPreferences
         case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutMistakes, typeOutSpeed, fuzzyPinyin, keyboardLayouts, candidateLayout
         case englishWords, addedEnglishWords, learnsEnglishWords
         case checkForUpdates, useSelection, appProfiles
@@ -459,6 +464,8 @@ public struct Config: Codable, Equatable, Sendable {
         findRaycastScripts = try c.decodeIfPresent(Bool.self, forKey: .findRaycastScripts) ?? d.findRaycastScripts
         hiddenExtensionFolders = try c.decodeIfPresent([String].self, forKey: .hiddenExtensionFolders) ?? d.hiddenExtensionFolders
         disabledExtensions = try c.decodeIfPresent([String].self, forKey: .disabledExtensions) ?? d.disabledExtensions
+        // A value of the wrong type reads as none, not an error.
+        hiddenFromCommandList = (try? c.decodeIfPresent([String].self, forKey: .hiddenFromCommandList)).flatMap { $0 } ?? []
         extensionPreferences = try c.decodeIfPresent([String: [String: String]].self, forKey: .extensionPreferences)
             ?? d.extensionPreferences
         // A kind this version doesn't know (a later one's) is Claude Code, not an error.
@@ -648,6 +655,8 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(findRaycastScripts, forKey: .findRaycastScripts)
         try c.encode(hiddenExtensionFolders, forKey: .hiddenExtensionFolders)
         try c.encode(disabledExtensions, forKey: .disabledExtensions)
+        // Only once one is taken out: a file from before the setting doesn't gain the key.
+        if !hiddenFromCommandList.isEmpty { try c.encode(hiddenFromCommandList, forKey: .hiddenFromCommandList) }
         try c.encode(extensionPreferences, forKey: .extensionPreferences)
         try c.encode(agent, forKey: .agent)
         try c.encode(agentCommand, forKey: .agentCommand)

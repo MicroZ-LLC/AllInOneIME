@@ -62,7 +62,8 @@ public enum ICloudSync {
 
     /// Never synced, whatever the switches: each Mac decides for itself. The keys and tokens aren't in the config at all
     /// (they're in the keychain); extension sources and their clones run code; extension folders and plugins are paths on
-    /// this Mac, and so is where `@note` saves (`notes`: a folder's path); the sync setting itself is per Mac, and so is
+    /// this Mac, and so are which of their commands are on (`disabledExtensions`) and in the @ list (`hiddenFromCommandList`),
+    /// and so is where `@note` saves (`notes`: a folder's path); the sync setting itself is per Mac, and so is
     /// autocomplete's switch (`autocomplete`: it sends text to the provider picked once it's turned on, on this Mac), and so
     /// is its choice for an app (`thisMacsOwnAppFields`); `typeOutSpeed` is only read (from older files); `outputLanguage` and
     /// `defaultInput` come with their lists. `@agent`'s agent and its program are what this Mac has installed, and
@@ -75,8 +76,8 @@ public enum ICloudSync {
     /// version adds them.
     public static let neverSynced: Set<String> = [
         "extensionSources", "extensionFolders", "hiddenExtensionFolders", "findRaycastScripts", "disabledExtensions",
-        "extensionPreferences", "jargonFile", "iCloudSync", "typeOutSpeed", "outputLanguage", "defaultInput",
-        "typeOutNoTyposApps", "recentApps", "notes", "agent", "agentCommand", "agentPageContext", "autocomplete",
+        "hiddenFromCommandList", "extensionPreferences", "jargonFile", "iCloudSync", "typeOutSpeed", "outputLanguage",
+        "defaultInput", "typeOutNoTyposApps", "recentApps", "notes", "agent", "agentCommand", "agentPageContext", "autocomplete",
         "suggestions", "completionSources", "completionSourcesOff", "pluginsSeen", "pluginPreferences", "unconfirmedCommands",
     ]
 

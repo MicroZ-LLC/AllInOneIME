@@ -132,6 +132,19 @@ extension UIText {
                  "The program runs on this PC: for its list when a text field gets the focus (it may be a password field: nothing of the field is given to it), then at the refresh interval; with Look up as you type, with what you type after the prefix as one argument, never in a password field. Add only programs you wrote and trust.")
     }
 
+    /// "Show in the @ list", the switch under a plugin or script extension command with suggestions, next to their
+    /// switch (`Config.hiddenFromCommandList`): the commands named with `trigger` (a window's own settings').
+    public static func showInCommandList(trigger: String = UIText.commandTrigger) -> String {
+        triggered(tr("在 @ 列表里显示", "Show in the @ list"), trigger: trigger)
+    }
+
+    /// What "Show in the @ list" does, under it: off, the command is out of the list and its name after the magic key is
+    /// text like any other; its suggestions are as they were.
+    public static func showInCommandListHelp(trigger: String = UIText.commandTrigger) -> String {
+        triggered(tr("关掉后，它不在 @ 命令列表里，打 @ 加它的名字也只是普通文字；它的建议照常出现。",
+                     "Off: it isn't in the @ command list, and @ with its name is just text; its suggestions still show."), trigger: trigger)
+    }
+
     /// Why a custom command in config.json isn't used (`CustomCommand.Refused`), as Settings → Custom Commands says it
     /// under its name: "This command isn't used: “minChars” should be a whole number".
     public static func describe(_ refused: CustomCommand.Refused) -> String {

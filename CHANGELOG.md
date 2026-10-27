@@ -2,6 +2,12 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
+## 0.6.8 (unreleased)
+
+### Changed
+
+- A Suggestions command (a custom command of type `suggestions`) is no longer in the @ command list: you use it by typing its prefix, and you manage it in Settings → Commands. A plugin or script extension command with suggestions can be taken out of the @ list too, its suggestions kept: turn off Show in the @ list under it in Settings → Commands.
+
 ## 0.6.7.3 (2026-10-26)
 
 ### Changed

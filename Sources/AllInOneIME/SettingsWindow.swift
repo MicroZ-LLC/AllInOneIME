@@ -1596,9 +1596,11 @@ struct SettingsView: View {
                 Label(tr("没有加载：", "Not loaded: ") + UIText.describe(hidden, file: command.file), systemImage: "exclamationmark.triangle")
                     .font(.caption).foregroundStyle(.orange).padding(.leading, 28)
             }
-            // The completion source it declares (suggestions as you type), with its own switch.
+            // The completion source it declares (suggestions as you type), with its own switch; then, for one that is a
+            // source, whether it is in the @ list.
             if command.completion != nil, model.isEnabled(command.id) {
                 ScriptCompletionView(model: model, command: command).padding(.top, 2)
+                if command.hasSuggestions { CommandListSwitch(model: model, id: command.id, name: name).padding(.top, 4) }
             }
         }
         .help(ExtensionStore.abbreviated(command.file.path))

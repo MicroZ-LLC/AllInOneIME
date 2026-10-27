@@ -448,7 +448,7 @@ public final class InputSession {
         (typeOutRate, typeOutVaries, typeOutMistakes) = (config.typeOutRate, config.typeOutVaries, config.typeOutMistakes)
         applyAgent(config)  // before the program check: it's the agent's program `@agent` needs
         setCommandList(catalog.catalog(config.customCommands, plugins: services.plugins(true), index: services.loadExtensions(config, true),
-                                       disabled: config.disabledExtensions).commands, recheck: true)
+                                       disabled: config.disabledExtensions, hidden: config.hiddenFromCommandList).commands, recheck: true)
         // The interface language (config `uiLanguage`, else the system's) for the panel, notices and menu.
         UIText.choice = config.uiLanguage
         composer.messages = .make(language: UIText.language, terms: terms)
@@ -667,7 +667,8 @@ public final class InputSession {
             composer.commandTrigger = config.commandTrigger
             UIText.commandTrigger = config.commandTrigger
             let (commands, changed) = catalog.catalog(config.customCommands, plugins: services.plugins(false),
-                                                      index: services.loadExtensions(config, false), disabled: config.disabledExtensions)
+                                                      index: services.loadExtensions(config, false), disabled: config.disabledExtensions,
+                                                      hidden: config.hiddenFromCommandList)
             applyAgent(config)
             // Another agent picked in the settings: its program is checked (`setCommands` sees it changed).
             if changed || agentChanged && !checkedCommands.isEmpty {

@@ -229,12 +229,11 @@ struct CommandSuggestionsTests {
         }
     }
 
-    /// In the command list it is a source: no program run from there, an icon of its own, what it is said.
-    @Test func inTheCommandListItIsASource() {
-        let catalog = Command.catalog([Self.jira()])
-        let command = catalog.first { $0.name == "jira" }
-        #expect(command?.kind == .suggestions && command?.needsChildProcess == true)
-        #expect(command.map { !Composer.usesSelection($0) } == true)
+    /// It is no @ command (0.6.8): not in the command list, valid or refused, its name taken all the same (the rest:
+    /// CommandListTests).
+    @Test func itIsNotInTheCommandList() {
+        #expect(Self.jira().isValid && !Command.catalog([Self.jira()]).contains { $0.name == "jira" })
         #expect(Command.catalog([Self.jira { $0.refresh = "1m" }]).contains { $0.name == "jira" } == false, "refused: not offered")
+        #expect(CustomCommand(name: "jira", type: .snippet, text: "x").problem(among: [Self.jira()]) == .nameTaken)
     }
 }

@@ -2738,8 +2738,8 @@ enum SelfTest {
         }
         if suggestionsOnly {
             // Suggestions' checks that ask no AI (the GitHub plugin with a stand-in for api.github.com, Code's packs,
-            // Return on a row in Slack's composer with the Electron harness where there is one), the results inserted at
-            // once.
+            // Return on a row in Slack's composer with the Electron harness where there is one, a Suggestions command's
+            // program of the self-test's own and its name no @ command), the results inserted at once.
             (settings.typeOut, settings.typeOutMistakes) = (false, false)
             controller.services.loadSettings = { SelfTest.settings }
             CandidatePanel.shared.alphaValue = 0
@@ -2749,6 +2749,7 @@ enum SelfTest {
             testSuggestions(controller, client, snapshotDirectory: snapshotDirectory)
             testRowsScroll(controller, client, snapshotDirectory: snapshotDirectory)
             testRowKeysInChromium(controller, client, snapshotDirectory: snapshotDirectory)
+            testCustomSuggestions(controller, client, snapshotDirectory: snapshotDirectory)
             controller.deactivateServer(client)
             check((try? Data(contentsOf: Config.userURL)) == userConfig, "the user's config was left unchanged")
             return summary()

@@ -2,9 +2,9 @@ import Foundation
 
 /// Suggestions in the settings document (spec 3): their switch and what a row inserts, in General (plugins' completions
 /// and Code's rows alike); a plugin's completion sources (a switch each, saying what it does and sends where, why it is
-/// inactive, needs enabling again or shows nothing; the entries refused, with their reasons) and its preferences (texts,
-/// passwords in the secret store); the Code input, in Input (decision 22): its coding language, the packs installed and
-/// the library's.
+/// inactive, needs enabling again or shows nothing; then whether the plugin is in the @ list; the entries refused, with
+/// their reasons) and its preferences (texts, passwords in the secret store); the Code input, in Input (decision 22): its
+/// coding language, the packs installed and the library's.
 extension SettingsSchema {
     // MARK: Suggestions' switch
 
@@ -60,6 +60,7 @@ extension SettingsSchema {
             }
             add(field, to: &fields) { store.config.setCompletionSource(source, of: plugin, enabled: Self.bool($0)) }
         }
+        if plugin.hasSuggestions { commandListSwitch("plugins.commandList." + plugin.name, id: plugin.name, to: &fields) }
         if !plugin.manifest.refusedCompletions.isEmpty {
             var refused = Field(id: "plugins.refused." + plugin.name, kind: .info, label: tr("没有用上的补全", "Completions not used"))
             refused.help = plugin.manifest.refusedCompletions.map { ($0.name.map { $0 + tr("：", ": ") } ?? "") + $0.reason }
@@ -98,6 +99,19 @@ extension SettingsSchema {
             }
         }
         return fields
+    }
+
+    /// "Show in the @ list" (`UIText.showInCommandList`) under a plugin or script extension command with suggestions,
+    /// after their switch: its `id` (a plugin's name, a command's id) kept in `Config.hiddenFromCommandList` while off. On
+    /// by default; off, the command is out of the @ command list and its name after the magic key is text like any other,
+    /// its suggestions as they were (`Command.catalog`). None for a command without a suggestion source, a custom one or
+    /// a built-in.
+    mutating func commandListSwitch(_ fieldID: String, id: String, to fields: inout [Field]) {
+        let store = store
+        add(toggle(fieldID, UIText.showInCommandList(trigger: config.commandTrigger),
+                   UIText.showInCommandListHelp(trigger: config.commandTrigger), config.showsInCommandList(id)), to: &fields) {
+            store.config.setShownInCommandList(id, Self.bool($0))
+        }
     }
 
     // MARK: Code

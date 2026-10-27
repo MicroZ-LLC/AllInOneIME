@@ -48,9 +48,6 @@ public struct Command: Hashable, Sendable {
         case report
         /// Inserts a saved text (`custom.text`, `SnippetTemplate`) with its placeholders filled: no AI, no program.
         case snippet
-        /// A suggestion source (a custom command of type `suggestions`): its rows show as its prefix is typed in any
-        /// field; picked or run here, it only says what it is.
-        case suggestions
     }
 
     init(name: String, kind: Kind, custom: CustomCommand? = nil, plugin: InstalledPlugin? = nil, script: ScriptCommand? = nil,
@@ -186,8 +183,12 @@ public struct Command: Hashable, Sendable {
     /// extension; a plugin or custom command hidden by a built-in is logged (`logHidden`), an extension's
     /// shows in Settings (`hiddenScripts`). The bundles' snippets (`ExtensionIndex.snippets`) are extensions too: after
     /// the bundles' commands, before single scripts and Raycast's.
+    /// What is no @ command takes its name all the same, so that no other command changes name with it, and isn't
+    /// offered: a custom command of type `suggestions` (used by its prefix alone, its source read from the config:
+    /// `SuggestionsSettings.commands`), and a plugin or script extension with suggestions taken out of the list
+    /// (`hidden`: `Config.hiddenFromCommandList`, `hidesFromCommandList`), its suggestions as they were.
     public static func catalog(_ custom: [CustomCommand], plugins: [InstalledPlugin] = [],
-                               scripts: [ScriptCommand] = [], snippets: [BundleSnippet] = []) -> [Command] {
+                               scripts: [ScriptCommand] = [], snippets: [BundleSnippet] = [], hidden: [String] = []) -> [Command] {
         let builtinNames = Set(builtins.map(\.name))
         var taken = builtinNames
         let fromPlugins = plugins.compactMap { plugin -> Command? in
@@ -195,6 +196,7 @@ public struct Command: Hashable, Sendable {
                 if builtinNames.contains(plugin.name) { logHidden("plugin", plugin.name) }
                 return nil
             }
+            if plugin.hidesFromCommandList(hidden) { return nil }
             switch plugin.manifest.type {
             case .script:
                 return Command(name: plugin.name, kind: .run, plugin: plugin)
@@ -222,13 +224,16 @@ public struct Command: Hashable, Sendable {
             case .terminal: kind = .terminal
             case .link: kind = .link
             case .snippet: kind = .snippet
-            case .suggestions: kind = .suggestions
+            case .suggestions: return nil
             }
             return Command(name: name, kind: kind, custom: definition)
         } + extensionTier(scripts, snippets).compactMap { item in
             switch item {
             case let .script(script):
-                return script.names.first { taken.insert($0).inserted }.map { Command(name: $0, kind: .run, script: script) }
+                guard let name = script.names.first(where: { taken.insert($0).inserted }), !script.hidesFromCommandList(hidden) else {
+                    return nil
+                }
+                return Command(name: name, kind: .run, script: script)
             case let .snippet(snippet):
                 return snippet.names.first { taken.insert($0).inserted }.map {
                     Command(name: $0, kind: .snippet, custom: snippet.definition, bundle: snippet.bundle)
@@ -259,9 +264,9 @@ public struct Command: Hashable, Sendable {
     }
 
     /// It runs a program in a child process (`ProcessLauncher`): `@py`, `@js`, a custom `run` command, a script
-    /// extension, a plugin's script; a custom suggestion source's program, as its prefix is typed.
+    /// extension, a plugin's script.
     public var needsChildProcess: Bool {
-        isCode || kind == .run && (custom != nil || script != nil || plugin != nil) || kind == .suggestions
+        isCode || kind == .run && (custom != nil || script != nil || plugin != nil)
     }
 
     /// The extensions `catalog` leaves out because another command has their name (and alias), and which.
@@ -333,6 +338,45 @@ public struct Command: Hashable, Sendable {
     }
 }
 
+// MARK: - Show in the @ list
+
+// A plugin or script extension command with suggestions can be taken out of the command list (Settings → Commands,
+// "Show in the @ list" under it, on by default), its suggestions as they are: kept in `Config.hiddenFromCommandList` by
+// a plugin's name or a command's id (`ScriptCommand.id`, which has a "/": never a plugin's name). Only while it has a
+// suggestion source: one that has none any more is in the list again, whatever the config says. A custom command of
+// type `suggestions` is never in it, and a built-in always is.
+
+extension InstalledPlugin {
+    /// It has a suggestion source: its plugin.json declares completions that were read (not only refused ones).
+    public var hasSuggestions: Bool { !manifest.completions.isEmpty }
+
+    /// Left out of the command list (`Command.catalog`): it has suggestions and its name is in `hidden`.
+    public func hidesFromCommandList(_ hidden: [String]) -> Bool { hasSuggestions && hidden.contains(name) }
+}
+
+extension ScriptCommand {
+    /// It has a suggestion source: a completion it declares that was read (not refused).
+    public var hasSuggestions: Bool {
+        if case .success? = completion { return true }
+        return false
+    }
+
+    /// Left out of the command list (`Command.catalog`): it has suggestions and its id is in `hidden`.
+    public func hidesFromCommandList(_ hidden: [String]) -> Bool { hasSuggestions && hidden.contains(id) }
+}
+
+extension Config {
+    /// Whether the plugin or script extension command `id` (a plugin's name, a command's id) is shown in the command list
+    /// as far as "Show in the @ list" goes (`hiddenFromCommandList`): what its switch shows.
+    public func showsInCommandList(_ id: String) -> Bool { !hiddenFromCommandList.contains(id) }
+
+    /// "Show in the @ list" for `id` turned on (taken off `hiddenFromCommandList`) or off (put on it once).
+    public mutating func setShownInCommandList(_ id: String, _ shown: Bool) {
+        hiddenFromCommandList.removeAll { $0 == id }
+        if !shown { hiddenFromCommandList.append(id) }
+    }
+}
+
 /// A command the user added in the config (`customCommands`), e.g.
 ///
 ///     { "name": "python", "type": "run", "argv": ["python3", "-c", "{input}"] }
@@ -347,8 +391,9 @@ public struct Command: Hashable, Sendable {
 ///   `{ "name": "sig", "type": "snippet", "summary": "Email signature", "text": "Best,\nWei\n{cursor}" }`.
 /// - `suggestions`: a suggestion source, as a plugin's `completions` entry is (spec Suggestions v1, decision 24): typing
 ///   `prefix` in any text field shows rows of what `argv` prints (its list, run with no input; with `query`, also run
-///   with what follows the prefix), Tab inserts one. Typed itself (`@jira`), it only says what it is
-///   (`suggestionSource`, CommandSuggestions.swift):
+///   with what follows the prefix), Tab inserts one (`suggestionSource`, CommandSuggestions.swift). It is no @ command:
+///   never in the command list, its name after the magic key a word like any other (`Command.catalog`); its name is a
+///   custom command's all the same, unique among them, the built-ins' and the plugins':
 ///   `{ "name": "jira", "type": "suggestions", "summary": "Jira issues", "prefix": "JIRA-", "argv": ["jira-list"] }`.
 ///
 /// `{input}` always stays inside the one argument it is written in: the text is never parsed by a

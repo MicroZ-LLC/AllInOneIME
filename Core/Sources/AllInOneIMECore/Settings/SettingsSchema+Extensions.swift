@@ -4,7 +4,8 @@ import Foundation
 /// its path, one removed; a folder found by the Mac's Spotlight hidden or shown again), and what is in them, each bundle
 /// and script an item with its own fields: its switch (`Config.disabledExtensions`), a bundle's preferences
 /// (`Config.extensionPreferences`; a password in the secret store, as a key is), its commands' switches, and under a
-/// command that declares a completion source its switch (0.6.7.1 §2), or why it is refused.
+/// command that declares a completion source its switch (0.6.7.1 §2) and whether it is in the @ list, or why it is
+/// refused.
 extension SettingsSchema {
     mutating func scriptExtensions() -> [Field] {
         var fields: [Field] = []
@@ -139,7 +140,8 @@ extension SettingsSchema {
     /// why it can't show
     /// (the magic key), that it changed since it was turned on (an update of an extension source whose updates aren't
     /// trusted: off until turned on again), that Suggestions are off, or how it is doing (its items, last refresh, last
-    /// error); or why its declaration is refused. None for a command that declares none.
+    /// error); then "Show in the @ list" (`commandListSwitch`); or why its declaration is refused. None for a command that
+    /// declares none.
     mutating func extensionCompletionFields(_ command: ScriptCommand) -> [Field] {
         var fields: [Field] = []
         switch command.completion {
@@ -174,6 +176,7 @@ extension SettingsSchema {
                 if on, let cantTurnOn = state.cantTurnOn { throw SettingsProblem(.badValue, field: id, message: cantTurnOn) }
                 store.config.setCompletionSource(source, of: command, enabled: on, root: root, sha256: sha256)
             }
+            commandListSwitch("extensions.commandList." + command.id, id: command.id, to: &fields)
         }
         return fields
     }

@@ -270,7 +270,7 @@ They're kept in `customCommands` in the config file (`~/.config/allinoneime/conf
 | `terminal` | Runs `argv` in a new Terminal window; nothing is inserted |
 | `link` | Puts the text into the web address `url` and opens it in the default browser; nothing is inserted |
 | `snippet` | Inserts `text` at once, with its placeholders filled in (below); no AI, no program |
-| `suggestions` | A source of [suggestions](#suggestions-and-code-new): type its `prefix` in any text field and the items `argv` prints show as rows, Tab inserts one ([below](#suggestions-from-a-program-of-your-own-new)); `@issues` itself only says what it is |
+| `suggestions` | A source of [suggestions](#suggestions-and-code-new): type its `prefix` in any text field and the items `argv` prints show as rows, Tab inserts one ([below](#suggestions-from-a-program-of-your-own-new)). It's not an @ command: it isn't in the command list, and `@issues` is just text; you use it by its prefix |
 
 - `{input}` becomes what you wrote after the command, and it always stays within the one argument it's in: no shell is involved. For a shell, say so, like `sh` above (`zsh -c`).
 - `stdin`: what goes to the program's standard input, with `{input}` replaced too.
@@ -286,11 +286,13 @@ They're kept in `customCommands` in the config file (`~/.config/allinoneime/conf
 
 A `suggestions` command ("Suggestions" in the editor) makes a program of yours a source of suggestions, like a plugin's
 completions but without writing a plugin: type its prefix (`#`, `PROJ-`) in any text field and the rows that match show
-under the caret; Tab inserts one. The program runs as a `run` command's does (in your home folder, with your login
-shell's PATH, never through a shell unless `argv` starts one). Run with no input, it prints every item, one a line,
-`match⇥title⇥url` (a tab between them; title and url may be left out), or the plugins' JSON (`{"items": [...]}`,
-[docs/plugins.md](docs/plugins.md#completions-suggestions)). A line that isn't one (a match with a space, say) is skipped
-on its own. This one lists a GitHub repository's issues with GitHub's `gh` (which keeps its own sign-in):
+under the caret; Tab inserts one. You use it by its prefix alone: it isn't in the @ command list, and `@issues` typed is
+just text, as a name no command has is; you manage it in Settings → Commands → Your Commands. The program runs as a
+`run` command's does (in your home folder, with your login shell's PATH, never through a shell unless `argv` starts
+one). Run with no input, it prints every item, one a line, `match⇥title⇥url` (a tab between them; title and url may be
+left out), or the plugins' JSON (`{"items": [...]}`, [docs/plugins.md](docs/plugins.md#completions-suggestions)). A line
+that isn't one (a match with a space, say) is skipped on its own. This one lists a GitHub repository's issues with
+GitHub's `gh` (which keeps its own sign-in):
 
 ```sh
 #!/bin/sh
@@ -326,7 +328,10 @@ fi
 - Rows, keys, the rows you picked first, the list's cache (`~/Library/Caches/AllInOneIME/suggestions/`, readable only by
   you, deleted with the command), back-off and pause are a plugin's. It's yours: no switch to turn on, it's on while it
   exists; the **Suggestions** switch (Settings → General, the input menu) applies. The editor shows
-  how it's doing (last updated, items, last error) and Refresh Now; the command list shows it too.
+  how it's doing (last updated, items, last error) and Refresh Now, and so does its row in Settings → Commands → Your
+  Commands.
+- Its name is a custom command's as before: letters only, and no other custom command, built-in command or plugin may
+  have it (a script extension of that name stays left out, as before).
 - Custom commands sync through iCloud as they do; a program missing on another Mac is that source's error there. One
   that comes from another Mac runs nothing on this Mac until you allow it here once: Settings → Commands → Your Commands shows it
   as from another Mac, with the program it would run, and **Allow** or **Remove** (a notice says when one comes).
@@ -554,7 +559,8 @@ Settings has seven pages, in this order in the sidebar, and opens on General:
 - **Privacy**: hiding sensitive information before sending, the words to hide, Apps without AI, what `@agent` and
   `@reply` take from Chrome, remembering recent questions (with Forget), and learning English words.
 - **Commands**: your commands, the agent `@agent` hands to, where an `@question` conversation continues, `@note` and
-  `@search`, plugins, script extensions (folders that bring no new commands fold into one row) and extension sources.
+  `@search`, plugins, script extensions (folders that bring no new commands fold into one row) and extension sources. A
+  plugin or script extension command with suggestions has their switch under it, and **Show in the @ list** next to it.
 - **Advanced**: typing results out (speed, typos), the candidate layout, "Use the selected text", the config file and
   the Rime folder.
 - **About**: the version, updates and "Check for updates automatically", Troubleshoot…, Report an Issue… and links.
@@ -910,6 +916,7 @@ They take the place of [autocomplete](#autocomplete-beta-new)'s gray text while 
 
 - **Your own program:** a custom command of type `suggestions` is a source too, its prefix and its items yours: a program
   that prints `match⇥title⇥url` lines ([Suggestions from a program of your own](#suggestions-from-a-program-of-your-own-new)).
+  It's used by its prefix alone, never from the @ command list.
 - **Script extensions (0.6.7.1):** a script extension's command can be a source as a plugin's completions are: one line
   in its script, `# @allinoneime.completion {"prefix": "TCK-", "list": true}`, or `"completion"` in its bundle's
   `extension.json`. Its script prints the items, run in the background with `ALLINONEIME_COMPLETION=load` (and, with
@@ -960,6 +967,11 @@ They take the place of [autocomplete](#autocomplete-beta-new)'s gray text while 
   (Settings says so under it); a source an update adds is off until you turn it on. **Suggestions** in the input menu turns them all off
   or on; an app at Off under "In these apps" has none (see [Per-app settings](#per-app-settings-new)). An app with No AI still has them: no AI is involved (a plugin's lookup still goes to
   its hosts there). With `#` as the magic key, a source after `#` can't work (Settings says so).
+- **In the @ list or not:** a plugin or a script extension command with suggestions (`@github`) is an @ command too.
+  To keep only its suggestions, turn off **Show in the @ list** under it in Settings → Commands, next to its suggestions
+  switch (on by default; shown only for one that has suggestions): it's then out of the @ command list, and `@github`
+  typed is just text, as a name no command has is; its suggestions are as before, with their own switch. Its name stays
+  its own. In the config: `hiddenFromCommandList`, this Mac's own. A Suggestions command is never in the list.
 - **What a row inserts:** what its source says (a plugin's `insert`, per class of app: `@github` puts in `#1234 Fix
   login` in documents and the link too in chat apps; a custom command's Insert), unless you choose otherwise in Settings
   → General → **Insert**, under the Suggestions switch, for every source: **Default** (each source's own), **With title**
@@ -1195,6 +1207,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 | `suggestionsInsert` | What a suggestion row inserts in every app without a choice of its own (Settings → General → Insert): `"title"`, `"titleAndLink"` or `"markdownLink"`; `"id"` still works but is no longer offered; absent: what its source says; syncs with the settings | absent |
 | `completionSources` | The completion sources approved, each by `plugin` and `source` with what was approved: `hosts`, `query`, `scriptSHA256` (its script's) and `terms` (its `prefix`, `queryMinChars`, `compare`); a plugin's as it was installed (or first found by 0.6.7.2) or turned on in Settings → Commands → Plugins; `"lapsed": true` once an update changed one of them, off until turned on again. A script extension command's source too: `"plugin": "script-extensions"` and the command's id as `source`, approved as its extension source was added or turned on in Settings → Commands. One from an extension source is lapsed once a file of the source's repository (`scriptSHA256` is its digest), `query`, prefix, `queryMinChars` or `compare` changed; one of your own, or from a source marked Trust its updates, never lapses and nothing of it is read (`scriptSHA256` empty), and is on with no entry here. Written by Settings and as plugins and sources are added; this Mac's own, never synced | `[]` |
 | `completionSourcesOff` | The completion sources you turned off in Settings, each by `plugin` and `source` (as above): off whatever else, through updates and restarts, until you turn one on again; this Mac's own, never synced | `[]` |
+| `hiddenFromCommandList` | The plugins and script extension commands with suggestions you took out of the @ command list (**Show in the @ list** off under one in Settings → Commands): a plugin's name, a script extension command's id. Their suggestions are as before; one that no longer has a suggestion source is in the list again. This Mac's own, never synced (as `disabledExtensions`) | `[]` |
 | `pluginsSeen` | The plugins this Mac has found installed, by name: one found that isn't listed has its completion sources turned on as it is then; a source a later update adds stays off until you turn it on. Written by AllInOneIME; this Mac's own, never synced | `[]` |
 | `pluginPreferences` | Plugins' preferences other than passwords, by plugin and name: `{"github": {"repos": "octo-org/octo-repo"}}`; never synced through iCloud Drive (a password preference is in the keychain, and goes through iCloud Keychain only with "API keys and passwords" on) | `{}` |
 | `unconfirmedCommands` | The `suggestions` custom commands that came from another Mac through iCloud and still await Allow on this one, each by its `name` and the `argv` it came with: none of them runs here. Allow (or editing or deleting it here) takes it off the list; its program changed on another Mac puts it back. Written by sync and Settings; this Mac's own, never synced | `[]` |

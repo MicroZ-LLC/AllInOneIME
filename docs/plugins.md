@@ -247,6 +247,9 @@ after the prefix goes; one the user turns off stays off (`completionSourcesOff`)
 plugin is removed and installed again (removing it forgets its approvals, not that). An update that changes `hosts`,
 `query`, the script, or the source's `prefix`, `queryMinChars` or `compare` needs turning on again, and a source an
 update adds is off until turned on.
+A plugin with completions is an @ command too (`@github`); next to its sources' switches, **Show in the @ list** (on by
+default) takes it out of the command list while its completions keep working: `@github` typed is then just text, as a
+name no command has is, and its name stays its own (`hiddenFromCommandList` in the config, this Mac's own).
 [Core/Plugins/github](../Core/Plugins/github/) is the example.
 
 ### Without a plugin: a custom command
@@ -260,7 +263,10 @@ command's does, with no input for the list and, with `query`, what follows the p
 while it exists, but one that came from another Mac through iCloud runs nothing until the user allows it on this Mac
 once (Settings → Commands → Your Commands shows the program it would run; its program changed there asks again); rows, keys,
 picks, the cache, back-off and pause are a plugin source's. An entry that breaks the rules
-isn't a source, and Settings → Commands → Your Commands says why.
+isn't a source, and Settings → Commands → Your Commands says why. It is no @ command (0.6.8): it is used by its prefix
+alone, never in the command list, and `@jira` typed is just text, as a name no command has is. Its name is still a
+custom command's: unique among them, the built-in commands and the plugins (it is its source's key), and a script
+extension of that name stays left out.
 
 ```json
 { "name": "jira", "type": "suggestions", "summary": "Jira issues", "prefix": "PROJ-",
@@ -276,7 +282,8 @@ A script extension's command may declare one source too (0.6.7.1), with the keys
 source is the command's), in its script (`# @allinoneime.completion {…}`) or in its bundle's `extension.json`. Its
 script runs as its commands run, with `ALLINONEIME_COMPLETION=load` or `query`, and prints the `{ items }` above; it is
 on by default (0.6.7.2: the user's own as it loads, an extension source's as the source is added) and has its switch in
-Settings → Commands, under the command. The protocol: [docs/extensions.md §11](extensions.md#11-completions).
+Settings → Commands, under the command, with **Show in the @ list** next to it, as a plugin's. The protocol:
+[docs/extensions.md §11](extensions.md#11-completions).
 
 ## Milestones
 

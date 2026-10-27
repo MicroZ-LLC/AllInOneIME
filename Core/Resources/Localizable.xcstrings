@@ -5647,6 +5647,7 @@
     },
     "%@%@ is a suggestion source, not a command: type %@ in any text field to see its rows, Tab inserts" : {
       "comment" : "%@%@ 是建议来源，不是命令：在任何输入框里打 %@，就会列出它的行，按 Tab 插入 — Sources/AllInOneIMECore/UIText+Names.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -28176,6 +28177,53 @@
         }
       }
     },
+    "Off: it isn't in the @ command list, and @ with its name is just text; its suggestions still show." : {
+      "comment" : "关掉后，它不在 @ 命令列表里，打 @ 加它的名字也只是普通文字；它的建议照常出现。 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aus: Der Befehl steht nicht in der @-Befehlsliste, und @ mit seinem Namen ist einfach Text; seine Vorschläge erscheinen weiterhin."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desactivado: no aparece en la lista de comandos @ y @ con su nombre es solo texto; sus sugerencias siguen apareciendo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Désactivé : la commande n’est pas dans la liste des commandes @, et @ suivi de son nom n’est que du texte ; ses suggestions s’affichent toujours."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オフにすると@コマンド一覧に表示されず、@に続けて名前を入力してもただの文字になります。候補はこれまでどおり表示されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "끄면 @ 명령 목록에 나타나지 않고, @와 이름을 입력해도 일반 텍스트가 됩니다. 제안은 그대로 표시됩니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desativado: não aparece na lista de comandos @, e @ com o nome dele é só texto; as sugestões continuam aparecendo."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關掉後，它不在 @ 指令列表裡，打 @ 加上它的名稱也只是一般文字；它的建議照常出現。"
+          }
+        }
+      }
+    },
     "Offline: not saved to Notion" : {
       "comment" : "没有联网：没有存到 Notion — Sources/AllInOneIMECore/NoteDestination.swift",
       "localizations" : {
@@ -37172,6 +37220,7 @@
     },
     "see what it is" : {
       "comment" : "看看它是什么 — Sources/AllInOneIMECore/UIText+Names.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -38344,6 +38393,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在選單列中顯示"
+          }
+        }
+      }
+    },
+    "Show in the @ list" : {
+      "comment" : "在 @ 列表里显示 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In der @-Liste anzeigen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar en la lista @"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Afficher dans la liste @"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@リストに表示"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@ 목록에 표시"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar na lista @"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 @ 列表中顯示"
           }
         }
       }
