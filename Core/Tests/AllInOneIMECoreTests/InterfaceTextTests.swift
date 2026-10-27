@@ -21,6 +21,23 @@ struct InterfaceTextTests {
 
     static func lproj(_ app: Bundle, _ code: String) throws -> Bundle { try #require(InterfaceText.bundle(code, app: app)) }
 
+    /// Reading the lookup leaves it as it was (0.6.8): it used to wrap the stored function in two more thunks at each
+    /// read, so a long session in a translated interface went deeper with every text until the stack ran out. After
+    /// 200,000 reads the lookup still runs on a thread with a small stack.
+    @Test func readingTheLookupDoesntDeepenIt() {
+        _ = UIText.app  // the first read of UIText installs the app's lookup, as it does in the input method
+        var lookup = InterfaceText.lookup
+        for _ in 0..<200_000 { lookup = InterfaceText.lookup }
+        let done = DispatchSemaphore(value: 0)
+        let thread = Thread { [lookup] in
+            _ = lookup("Done", "fr")
+            done.signal()
+        }
+        thread.stackSize = 256 * 1024
+        thread.start()
+        #expect(done.wait(timeout: .now() + 10) == .success)
+    }
+
     // MARK: UIString
 
     @Test func literalsBecomeFormats() {
