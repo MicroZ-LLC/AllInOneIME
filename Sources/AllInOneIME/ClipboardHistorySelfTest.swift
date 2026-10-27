@@ -217,8 +217,8 @@ extension SelfTest {
         // runs on a locked screen too: it needs nothing composed here.
         section("Clipboard history: the two lines into Slack's composer in the Electron harness, ⏎ not sent")
         guard let path = ProcessInfo.processInfo.environment["ALLINONEIME_ELECTRON_HARNESS"], !path.isEmpty else {
-            print("  the Electron harness: not run (make electron-harness, then ELECTRON_HARNESS=build/electron-harness)")
-            return
+            return skip("clipboard history's keys in the Electron harness's composer (make electron-harness, then "
+                        + "ELECTRON_HARNESS=build/electron-harness)", noElectronHarness)
         }
         let harness = URL(fileURLWithPath: path)
         guard FileManager.default.isExecutableFile(atPath: electronBinary(in: harness).path),
