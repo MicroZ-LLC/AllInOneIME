@@ -2,7 +2,7 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
-## 0.6.8 (unreleased)
+## 0.6.8 (2026-10-27)
 
 ### Added
 
