@@ -18,7 +18,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ### Development
 
-- The self-test exits 0 when every check passed, 1 when one failed and 2 when some were skipped (a locked screen ends it at once); its last line is a SELFTEST-RESULT summary. Self-test checks that ordinary tests already cover were removed. CI now runs the core's tests on macOS and Linux.
+- The self-test exits 0 when every check passed, 1 when one failed and 2 when some were skipped (a locked screen ends it at once); its last line is a SELFTEST-RESULT summary. Self-test checks that ordinary tests already cover were removed.
 
 ## 0.6.7.3 (2026-10-26)
 
