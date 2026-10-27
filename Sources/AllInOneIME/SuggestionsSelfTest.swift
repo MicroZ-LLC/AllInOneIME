@@ -375,14 +375,15 @@ extension SelfTest {
               && controller.session.panelModel().rows.isEmpty,
               "Return after the wheel puts in the row chosen, shown (\(chosen.rows), \(String(describing: chosen.highlighted)): "
               + "\(client.inserted.last.map { "\"\($0)\"" } ?? "nothing")), the rows go")
+        // #7021, just picked, comes first now (picked rows first), then #7001 on.
         type(" #70", controller, client)
-        let again = pump(timeout: 5) { shown().rows == numbers(7001...7005) }
+        let again = pump(timeout: 5) { shown().rows == ["#7021"] + numbers(7001...7004) }
         wheel(7)
         let clicked = shown()
         panel.view.onSelect?(1)
         _ = pump(timeout: 0.2) { false }
-        check(again && clicked.rows == numbers(7004...7008) && client.inserted.last == "05" && controller.session.panelModel().rows.isEmpty,
-              "\" #70\", the wheel to #7008 (\(clicked.rows)), a click on the second row shown puts #7005 in "
+        check(again && clicked.rows == numbers(7003...7007) && client.inserted.last == "04" && controller.session.panelModel().rows.isEmpty,
+              "\" #70\" (#7021, picked, first), the wheel to #7007 (\(clicked.rows)), a click on the second row shown puts #7004 in "
               + "(\(client.inserted.last.map { "\"\($0)\"" } ?? "nothing")), the rows go")
     }
 }
