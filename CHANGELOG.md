@@ -4,6 +4,10 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ## 0.6.8 (unreleased)
 
+### Added
+
+- Clipboard history: ⌃V shows the text you copied lately (the last 20; 5 to 100 in Settings → General) and puts in the one you choose. ⇧↓ and ⇧↑ choose several, and ⏎ puts them in one per line. ⌃V ⏎ is the ⌃V you had, and ⌃V twice gives ⌃V to the app (vim, the shell). Text only, kept on this Mac only, never what a password manager marks as concealed. It needs Paste from Other Apps set to Allow for AllInOneIME in Privacy & Security. Turn it off in Settings → General → Clipboard history: ⌃V then works as before.
+
 ### Changed
 
 - A Suggestions command (a custom command of type `suggestions`) is no longer in the @ command list: you use it by typing its prefix, and you manage it in Settings → Commands. A plugin or script extension command with suggestions can be taken out of the @ list too, its suggestions kept: turn off Show in the @ list under it in Settings → Commands.

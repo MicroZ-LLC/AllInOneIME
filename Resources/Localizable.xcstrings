@@ -9071,6 +9071,53 @@
         }
       }
     },
+    "Clear History" : {
+      "comment" : "清除历史 — Sources/AllInOneIME/ClipboardHistorySettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verlauf löschen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Borrar historial"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Effacer l’historique"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "履歴を消去"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기록 지우기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Limpar Histórico"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清除歷史"
+          }
+        }
+      }
+    },
     "Clear the search" : {
       "comment" : "清除搜索 — Sources/AllInOneIME/FloatingPanel.swift",
       "localizations" : {
@@ -9114,6 +9161,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "清除搜尋"
+          }
+        }
+      }
+    },
+    "Cleared" : {
+      "comment" : "已清除 — Sources/AllInOneIME/ClipboardHistorySettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gelöscht"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Borrado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Effacé"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "消去しました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "지움"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Limpo"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已清除"
           }
         }
       }
@@ -9349,6 +9443,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "按一下，再按下新的按鍵"
+          }
+        }
+      }
+    },
+    "Clipboard History" : {
+      "comment" : "剪贴板历史 — Sources/AllInOneIME/ClipboardHistorySettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verlauf der Zwischenablage"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Historial del portapapeles"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Historique du presse-papiers"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クリップボード履歴"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "클립보드 기록"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Histórico da Área de Transferência"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "剪貼簿歷史"
           }
         }
       }
@@ -16114,6 +16255,53 @@
         }
       }
     },
+    "Keep the last %@" : {
+      "comment" : "保留最近 %@ 条 — Sources/AllInOneIME/ClipboardHistorySettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die letzten %@ behalten"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guardar los últimos %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Garder les %@ derniers"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最新の %@ 件を保存"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "최근 %@개 보관"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guardar os últimos %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保留最近 %@ 條"
+          }
+        }
+      }
+    },
     "Kept on this Mac only, never synced, and never what you type: only apps, inputs, counts and models. What you forget can be learned again." : {
       "comment" : "只存在这台 Mac 上，不同步，也不存你打的字：只有 App、输入、次数和模型。忘掉的以后还会再学。 — Sources/AllInOneIME/LearnedSettings.swift",
       "localizations" : {
@@ -16157,6 +16345,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "只存在這台 Mac 上，不同步，也不存你打的字：只有 App、輸入、次數和模型。忘掉的以後還會再學。"
+          }
+        }
+      }
+    },
+    "Kept on this Mac only: never synced, never sent to an AI." : {
+      "comment" : "只存在这台 Mac 上，不同步，也不发给 AI。 — Sources/AllInOneIME/ClipboardHistorySettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nur auf diesem Mac: nie synchronisiert, nie an eine KI gesendet."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Solo en este Mac: nunca se sincroniza ni se envía a una IA."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sur ce Mac seulement : jamais synchronisé, jamais envoyé à une IA."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この Mac にだけ保存：同期せず、AI にも送りません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Mac에만 보관: 동기화하지 않고 AI에도 보내지 않습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Só neste Mac: nunca sincronizado, nunca enviado a uma IA."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只存在這台 Mac 上，不同步，也不發給 AI。"
           }
         }
       }
@@ -19610,6 +19845,53 @@
         }
       }
     },
+    "Not recording: macOS asks before each read of the clipboard. In Privacy & Security → Paste from Other Apps, set AllInOneIME to Allow; if it isn't listed yet, press %@ in a text field once and allow it when macOS asks." : {
+      "comment" : "没在记录：macOS 每次读剪贴板都要问。在「隐私与安全性」→「从其他App粘贴」里把 AllInOneIME 设成「允许」；还没列出它的话，先在输入框里按一次 %@，macOS 问的时候允许。 — Sources/AllInOneIME/ClipboardHistorySettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Aufzeichnung: macOS fragt vor jedem Lesen der Zwischenablage. Stelle unter „Datenschutz & Sicherheit“ → „Aus anderen Apps einsetzen“ AllInOneIME auf „Erlauben“; ist es noch nicht aufgeführt, drücke einmal %@ in einem Textfeld und erlaube es, wenn macOS fragt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sin registrar: macOS pregunta antes de cada lectura del portapapeles. En Privacidad y seguridad → Pegar desde otras apps, pon AllInOneIME en Permitir; si aún no aparece, pulsa %@ una vez en un campo de texto y permítelo cuando macOS pregunte."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pas d’enregistrement : macOS demande avant chaque lecture du presse-papiers. Dans Confidentialité et sécurité → Coller depuis d’autres apps, réglez AllInOneIME sur Autoriser ; s’il n’est pas encore listé, appuyez une fois sur %@ dans un champ de texte et autorisez-le quand macOS le demande."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記録していません：macOS がクリップボードを読むたびに確認します。「プライバシーとセキュリティ」→「ほかのアプリからペースト」で AllInOneIME を「許可」にしてください。まだ一覧にない場合は、テキストフィールドで一度 %@ を押し、macOS に聞かれたら許可してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기록하지 않음: macOS가 클립보드를 읽을 때마다 묻습니다. ‘개인정보 보호 및 보안’ → ‘다른 앱에서 붙여넣기’에서 AllInOneIME를 ‘허용’으로 설정하세요. 아직 목록에 없으면 텍스트 필드에서 %@를 한 번 누르고 macOS가 물을 때 허용하세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sem registrar: o macOS pergunta antes de cada leitura da área de transferência. Em Privacidade e Segurança → Colar de Outros Apps, ponha o AllInOneIME em Permitir; se ainda não estiver na lista, pressione %@ uma vez em um campo de texto e permita quando o macOS perguntar."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒在記錄：macOS 每次讀剪貼簿都要問。在「隱私權與安全性」→「從其他App貼上」裡把 AllInOneIME 設成「允許」；還沒列出它的話，先在輸入框裡按一次 %@，macOS 問的時候允許。"
+          }
+        }
+      }
+    },
     "Not reviewed and enabled yet: its commands don't load" : {
       "comment" : "还没有检查并启用：它的命令不会加载 — Sources/AllInOneIME/ExtensionSourcesSettings.swift",
       "localizations" : {
@@ -20923,6 +21205,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "打開外掛檔案夾"
+          }
+        }
+      }
+    },
+    "Open Privacy & Security…" : {
+      "comment" : "打开「隐私与安全性」… — Sources/AllInOneIME/ClipboardHistorySettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„Datenschutz & Sicherheit“ öffnen …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir Privacidad y seguridad…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrir Confidentialité et sécurité…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「プライバシーとセキュリティ」を開く…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "‘개인정보 보호 및 보안’ 열기…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir Privacidade e Segurança…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打開「隱私權與安全性」…"
           }
         }
       }
@@ -23959,6 +24288,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "錄製⋯"
+          }
+        }
+      }
+    },
+    "Recording: Paste from Other Apps allows AllInOneIME" : {
+      "comment" : "在记录：「从其他App粘贴」里 AllInOneIME 是「允许」 — Sources/AllInOneIME/ClipboardHistorySettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aufzeichnung: „Aus anderen Apps einsetzen“ erlaubt AllInOneIME"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Registrando: Pegar desde otras apps permite AllInOneIME"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrement : Coller depuis d’autres apps autorise AllInOneIME"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記録中：「ほかのアプリからペースト」で AllInOneIME は「許可」"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기록 중: ‘다른 앱에서 붙여넣기’에서 AllInOneIME 허용됨"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Registrando: Colar de Outros Apps permite o AllInOneIME"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在記錄：「從其他App貼上」裡 AllInOneIME 是「允許」"
           }
         }
       }

@@ -26,9 +26,29 @@ enum TerminalPaste {
 
     @MainActor private static var asked = false
 
-    /// Whether `event` is a ⌘V posted by `paste`.
+    /// Whether `event` is a ⌘V posted by `paste`, or a ⌃V by `postControlV`.
     static func isOurs(_ event: NSEvent) -> Bool {
         event.cgEvent?.getIntegerValueField(.eventSourceUserData) == marker
+    }
+
+    /// ⌃V to the frontmost app as it is, marked as ours so the input method lets it through: clipboard history's image
+    /// row (a screenshot pasted the app's way: Claude Code's in a terminal). Needs Accessibility (asked without asking:
+    /// `AXIsProcessTrusted`, before the row offers it).
+    @MainActor
+    static func postControlV() {
+        postV(.maskControl)
+    }
+
+    /// V with `flags` down and up, marked as ours (`isOurs`).
+    @MainActor
+    private static func postV(_ flags: CGEventFlags) {
+        let source = CGEventSource(stateID: .privateState)
+        for down in [true, false] {
+            let event = CGEvent(keyboardEventSource: source, virtualKey: 0x09, keyDown: down)  // V
+            event?.flags = flags
+            event?.setIntegerValueField(.eventSourceUserData, value: marker)
+            event?.post(tap: .cghidEventTap)
+        }
     }
 
     /// Pastes `text` into the frontmost app, then puts the clipboard back once the app has read it.
@@ -44,13 +64,7 @@ enum TerminalPaste {
         pasteboard.setData(Data(), forType: NSPasteboard.PasteboardType("org.nspasteboard.TransientType"))
         let ours = pasteboard.changeCount
 
-        let source = CGEventSource(stateID: .privateState)
-        for down in [true, false] {
-            let event = CGEvent(keyboardEventSource: source, virtualKey: 0x09, keyDown: down)  // V
-            event?.flags = .maskCommand
-            event?.setIntegerValueField(.eventSourceUserData, value: marker)
-            event?.post(tap: .cghidEventTap)
-        }
+        postV(.maskCommand)
         // The app reads the clipboard when the ⌘V reaches it: wait for that before typing on or putting it back.
         try? await Task.sleep(nanoseconds: 150_000_000)
         Task { @MainActor in

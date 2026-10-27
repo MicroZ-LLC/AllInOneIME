@@ -63,8 +63,8 @@ A new install writes English; to type Chinese (pinyin), French, Korean or Hindi 
 | Space, ⏎ / digits | Once the results are up: insert the highlighted / numbered one; 0 is the original. ⏎ inserts even with a follow-up half typed (it's dropped) |
 | ⇧⏎ | With a follow-up typed after AI results: sends it (the next question of an `@question` conversation, or a refine). While a command is typed, or on AI results with nothing typed: inserts what you typed as is, `@command` included. On other results (`@open`, a reminder …) it inserts the highlighted row, as ⏎ does |
 | ⌘C | Copies the highlighted result (for `@open`, the path); the candidate panel stays open |
-| ⌃V | In a command (e.g. after `@improve `): appends the clipboard text after what you've typed instead of pasting it into the app. Multiple lines become one, up to 2000 characters at a time (`@note` keeps the line breaks and takes up to 20000). Works in any app; without a command, the key goes to the app as usual |
-| ⌘V | Like ⌃V, but some apps handle ⌘V themselves (terminals such as Ghostty, iTerm2 and Terminal, and Notes) and paste into the app as usual; use ⌃V there |
+| ⌃V | Shows [clipboard history](#clipboard-history-new), the text you copied lately, newest first: ⏎ or Tab puts in the one chosen, ↓ ↑ choose, ⇧↓ ⇧↑ choose several (⏎ puts them in one per line, oldest first), → or Esc hides it. ⌃V ⏎ is the ⌃V you had, and ⌃V twice gives ⌃V to the app (vim, the shell). In a command (e.g. after `@improve `) the one you choose is appended after what you've typed instead of being pasted into the app: multiple lines become one, up to 2000 characters at a time (`@note` keeps the line breaks and takes up to 20000). Works in any app, terminals too. With clipboard history off, ⌃V in a command appends the clipboard text at once, and without a command it goes to the app as usual |
+| ⌘V | The app's Paste. In a command it appends the clipboard text at once, no history, except where the app handles ⌘V itself (terminals such as Ghostty, iTerm2 and Terminal, and Notes) and pastes into the app as usual; use ⌃V there |
 | Esc, ⌫ | Back to the sentence to keep editing; typing punctuation or digits after the results continues it. After a refine: back to the results before it |
 | Letters, once AI results are up | A follow-up: after `@question` the next question (see [Conversations](#conversations-with-question-new)), after `@improve` or a prompt command an instruction such as `shorter` (see [Refining the results](#refining-the-results-new)); ⇧⏎ sends it. After `@translate` letters continue the sentence, and ⏎ translates it again |
 | ⌘⏎, ⌘1–⌘9 | In an `@question` conversation: shows where to continue it (the coding agents installed, the one `@agent` hands to first; Claude, ChatGPT, Gemini; or copy it); ⌘1, ⌘2 … pick one |
@@ -81,7 +81,7 @@ commands below start with it (`~improve`), and so does the app's own text that n
 | `@improve` | Polish: 1–3 are three versions in the sentence's own language, 4 onward the rewrite styles (added and ordered in the settings), 0 is the original. No translation; with "@improve also translates" on, it works like `@translate @improve` |
 | `@translate` | Translate into the languages you added (Settings → General → Translate to, drag to reorder), a line each, three versions with only one; the sentence's own language is skipped. `@translate @improve` together translates and rewrites in one request |
 | `@question` | Ask a question; the answer appears in the candidates, ⏎ or Space inserts it, ⌘C copies it. Type on and ⇧⏎ asks a follow-up: the panel becomes a conversation of up to 5 rounds, then offers to continue in Claude or another AI. With nothing typed after it, it lists your last 5 questions, newest first; typing narrows them down (words anywhere in the question, any case, Chinese too). A digit, ↑↓ then ⏎, or a click shows a question's saved answer at once, offline, to insert or copy as usual; ⌘R there asks it again for a fresh answer. With no match, or nothing picked, ⏎ asks what you typed |
-| `@reply` | Writes three replies to the message you're answering, in the other party's language and the tone of the app (casual in chat apps, formal in mail, where each reply is a whole email body; or the first of the app's own rewrite styles, set in an earlier version). Give it the message by selecting it, copying it and pressing ⌃V in the draft, or taking a screenshot (⌃⇧⌘4, or WeChat's own) and pressing ⌃V; what you type after it says what to reply: `@reply politely decline`. ⌘R writes three more; see [Replying](#replying-with-reply-new) |
+| `@reply` | Writes three replies to the message you're answering, in the other party's language and the tone of the app (casual in chat apps, formal in mail, where each reply is a whole email body; or the first of the app's own rewrite styles, set in an earlier version). Give it the message by selecting it, copying it and pressing ⌃V ⏎ in the draft, or taking a screenshot (⌃⇧⌘4, or WeChat's own) and pressing ⌃V ⏎; what you type after it says what to reply: `@reply politely decline`. ⌘R writes three more; see [Replying](#replying-with-reply-new) |
 | `@agent` | Hands the task to a coding agent on your Mac, picked in Settings → Commands → Agent (@agent): Claude Code (the default), Gemini CLI, Kiro CLI, or a command of your own (what you typed is added as its last argument). The page also shows whether each is installed and how it starts. Claude Code runs in the background by default, with a notification when it's done (click it to open the session in Terminal and go on), or see `@tasks`; turn off "Claude Code runs in the background and notifies me" there to open it in Terminal. The other agents open in Terminal with what you typed as their first message. Each uses its own sign-in and settings. In Google Chrome it takes the page along: the address and title, the field you typed in with its form or section (★ marks where you are), the selected text and what's visible in the window — never a password field, never the whole page — so `@agent why doesn't this work` in a sign-in form's username field is about that field, and `@agent why is this blocked` on a pipeline page is about that page; the agent judges which. The page's text goes to the agent as read, marked as coming from the web (not as instructions from you). It needs Accessibility; Chrome builds its page tree for it only while `@agent` is being written there, turned back off after (Settings → Privacy → "@agent and @reply take the Chrome page along" turns it all off). The first time it opens Terminal, macOS asks whether AllInOneIME may control Terminal: click OK. (It was `@claude` before 0.6.4.) |
 | `@tasks` | Lists the background Claude tasks (working / done / waiting for you) with their last replies; ⏎ opens one in Terminal, ⌘C copies the reply |
 | `@settings` | Opens the settings window right away (picking it is enough) |
@@ -139,8 +139,8 @@ terminal. Turn it off under Settings → Advanced → "Use the selected text" if
 then press ⏎:
 
 - **Select it** in the field, then type `@reply` (the reply you pick goes in after it, on a line of its own).
-- **Copy it**, type `@reply` and press ⌃V: the panel shows "Copied message · N characters", and the draft stays as it is.
-- **Take a screenshot** to the clipboard (⌃⇧⌘4, or WeChat's own screenshot), type `@reply` and press ⌃V: the panel
+- **Copy it**, type `@reply` and press ⌃V ⏎ (⌃V shows [clipboard history](#clipboard-history-new), what you copied last chosen first): the panel shows "Copied message · N characters", and the draft stays as it is.
+- **Take a screenshot** to the clipboard (⌃⇧⌘4, or WeChat's own screenshot), type `@reply` and press ⌃V ⏎: the panel
   shows "Screenshot · N lines (read on this Mac)". The screenshot is read on this Mac (Apple's Vision, the first time a
   little slower) and only its text is sent; the image goes nowhere and isn't kept. Lines on the left are the other
   party's and on the right yours, as chat apps show them; the times between messages are left out. Use it for WeChat,
@@ -156,8 +156,8 @@ Privacy → "@agent and @reply take the Chrome page along"). With nothing to rep
 needs. Hiding sensitive information covers the screenshot's text too; during secure input the clipboard isn't read
 and nothing is sent. A custom command you had named `reply` is now `@myreply`.
 
-A screenshot pasted into any other command works too: `@translate` ⌃V translates it (into the caret), `@question what
-does this say` ⌃V asks about it, and commands without AI get its text as if it had been copied (`@note` keeps its lines).
+A screenshot pasted into any other command works too: `@translate` ⌃V ⏎ translates it (into the caret), `@question what
+does this say` ⌃V ⏎ asks about it, and commands without AI get its text as if it had been copied (`@note` keeps its lines).
 With text selected, `@improve` and `@translate` keep working on the selection, and a notice says the screenshot wasn't
 used.
 
@@ -224,7 +224,7 @@ that goes on, replaces the saved one.
 
 ### Notes and reminders
 
-`@note` makes a new note; its first line is the title. After copying some text, ⌃V after `@note ` (or ⌘V, outside terminals) saves it with its line breaks, shown as ↵ in the command.
+`@note` makes a new note; its first line is the title. After copying some text, ⌃V ⏎ after `@note ` (or ⌘V, outside terminals) saves it with its line breaks, shown as ↵ in the command.
 Where it goes is Settings → Commands → Notes (@note) → Save to:
 
 - **Notes** (as before): a new note in the AllInOneIME folder.
@@ -546,8 +546,8 @@ Settings has seven pages, in this order in the sidebar, and opens on General:
 
 - **General**, from the top: the magic key and the action key; Show in Menu Bar and the interface language; Translate
   to, the rewrite styles, "@improve also translates" and the jargon list (shown with the Jargon style, or once a list
-  is set); Autocomplete (Beta); Suggestions, with Insert and "In these apps"; Sync through iCloud; and Previous per-app
-  settings, only while an app has one.
+  is set); Autocomplete (Beta); Suggestions, with Insert and "In these apps"; Clipboard history, with Keep the last, whether
+  macOS lets it record and Clear History; Sync through iCloud; and Previous per-app settings, only while an app has one.
 - **Input**: the input languages as chips at the top: drag to reorder, ⊗ removes one, Add… adds one; the first is the
   default, and Code comes after them ("Code · Python"). Under the chips, each input has its options in a section under
   its name, always shown, with nothing to click. English has its words; Chinese (pinyin) its language pack and fuzzy
@@ -705,7 +705,8 @@ the input method starts, every 30 minutes (after a pause in typing) and on Sync 
   extension folders and plugins (paths on each Mac), what the input method learned on this Mac (see Privacy) and the
   recent apps, window state, Autocomplete (its switch and each app's choice: each Mac's own), Suggestions' switches (General's and each app's), the plugins'
   completions turned on and their preferences (`completionSources`, `pluginPreferences`), the custom commands from
-  another Mac still awaiting Allow (`unconfirmedCommands`), and the sync switches themselves (each Mac's own). What a
+  another Mac still awaiting Allow (`unconfirmedCommands`), clipboard history and its settings (`clipboardHistory`,
+  `clipboardHistoryLimit`), and the sync switches themselves (each Mac's own). What a
   suggestion row inserts and Code's language do sync, with the settings.
 - Turning it off stops syncing and leaves everything as it is, on this Mac and in iCloud; **Remove from iCloud…** in the ⋯
   menu (asked first) moves the folder to the Trash and turns sync off on this Mac.
@@ -1011,6 +1012,48 @@ They take the place of [autocomplete](#autocomplete-beta-new)'s gray text while 
   only by you) and deleted when you turn their source off. The rows you pick are remembered on this Mac only, without
   the field's own words. Never in password fields or during secure input.
 
+## Clipboard history (new)
+
+**⌃V** shows the text you copied lately, the last 20 (5 to 100 in Settings → General), in the rows panel the
+suggestions use, and puts in the one you choose.
+
+- **The rows:** newest first, the first chosen: it's what's on the clipboard now, so ⌃V ⏎ is the ⌃V you had. Each row
+  is the text's first line, with "+3 lines" or its length and how long ago you copied it. 5 show at a time; with more,
+  the footer says which (`Clipboard · 1–5 / 20`). The same text copied again moves to the top, once.
+- **Keys:** the same in every app and input, as on suggestion rows: ↓ ↑ choose (the wheel or the trackpad too), ⏎ or
+  Tab puts the chosen one in, → or Esc hides the panel. Digits are typed, never pick. A click puts in the row clicked.
+- **Several at once:** ⇧↓ and ⇧↑ choose more from the row you're on; the rows chosen are marked ✓, and ⏎ puts them all
+  in, one per line, in the order you copied them (oldest first).
+- **What goes in:** the text as you copied it, typed in (the clipboard is unchanged), the way suggestion rows go in, so
+  ⏎ in Slack, Chrome and other apps built on Chromium or Electron doesn't send the message. In a terminal, text of more
+  than one line goes in as one paste (with Accessibility allowed), never line by line; without it, on one line.
+- **In a command:** ⌃V after `@improve ` (or any command) shows the history too, and the row you choose is appended to
+  the command, as ⌃V appended the clipboard before: lines made one, up to 2000 characters; `@note` keeps them, up to
+  20000. `@reply` takes it as the message to answer. ⌘V in a command is still a direct paste of the clipboard.
+- **An image on the clipboard** (a screenshot) is the first row, "Image on the clipboard": ⏎ gives ⌃V to the app as it
+  is, so ⌃V ⏎ pastes the image where the app takes one on ⌃V (Claude Code in a terminal). That needs Accessibility
+  (System Settings → Privacy & Security → Accessibility); without it the row says "⌃V again pastes it". In a command,
+  ⏎ on it reads the screenshot as ⌃V did before (`@reply`).
+- **⌃V again** while the panel shows gives ⌃V to the app as it is: ⌃V ⌃V is vim's block selection, the shell's "type
+  the next key as is". In a command, ⌃V ⌃V appends the clipboard at once.
+- **Text only:** the plain text of what you copy (rich text's too); never images, files or colours, never what a password
+  manager or clipboard tool marks as concealed, transient or auto-generated, nothing copied during secure input (a
+  password field), nothing blank, nothing over 100,000 characters.
+- **Paste from Other Apps:** recent macOS asks before an app reads the clipboard. AllInOneIME records a copy only while
+  it may read the clipboard without asking: System Settings → Privacy & Security → **Paste from Other Apps** → set
+  AllInOneIME to **Allow**. AllInOneIME is listed there once macOS has asked about it: press ⌃V in a text field once and
+  allow it. Until then nothing is recorded and macOS is never asked in the background; ⌃V still shows what's on the
+  clipboard now (read then, so macOS may ask), with a row saying how to keep a history (⏎ on it opens that page), and in
+  a command ⌃V is as before. Settings → General → Clipboard history says whether it's recording, with a button to that
+  page.
+- **Where it's kept:** on this Mac only, in `~/Library/Application Support/AllInOneIME/clipboard-history.json`, readable
+  only by your user account and left out of backups. Never synced, never sent to an AI or anywhere. **Clear History** in
+  Settings → General deletes it. The first time the panel shows, its footer says so.
+- **Turning it off:** Settings → General → **Clipboard history** (on by default; there's no input-menu item). Off, ⌃V is
+  as before 0.6.8 (in a command it appends the clipboard, elsewhere it goes to the app) and the history is deleted.
+  **Keep the last** sets how many it keeps, 5 to 100; a lower number drops the oldest at once. In the config:
+  `clipboardHistory` and `clipboardHistoryLimit`, this Mac's own (never synced).
+
 ## Installation
 
 Running it needs macOS 14 or later. The installer is universal: it works on Macs with
@@ -1205,6 +1248,8 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 | `autocomplete` | Autocomplete: the rest of the sentence in gray after the caret, Tab puts it in; it asks your AI provider (see Autocomplete); never synced | `false` |
 | `suggestions` | Suggestions (Settings → General, the input menu): `false` turns off every suggestion row, plugins', Suggestions commands' and Code's; this Mac's own, never synced (see Suggestions and Code) | absent (on) |
 | `suggestionsInsert` | What a suggestion row inserts in every app without a choice of its own (Settings → General → Insert): `"title"`, `"titleAndLink"` or `"markdownLink"`; `"id"` still works but is no longer offered; absent: what its source says; syncs with the settings | absent |
+| `clipboardHistory` | Clipboard history (Settings → General): `false` turns it off (⌃V as before 0.6.8) and deletes the history; this Mac's own, never synced (see Clipboard history) | absent (on) |
+| `clipboardHistoryLimit` | How many texts clipboard history keeps (Settings → General → Keep the last), 5–100; a lower number drops the oldest at once; this Mac's own, never synced | absent (20) |
 | `completionSources` | The completion sources approved, each by `plugin` and `source` with what was approved: `hosts`, `query`, `scriptSHA256` (its script's) and `terms` (its `prefix`, `queryMinChars`, `compare`); a plugin's as it was installed (or first found by 0.6.7.2) or turned on in Settings → Commands → Plugins; `"lapsed": true` once an update changed one of them, off until turned on again. A script extension command's source too: `"plugin": "script-extensions"` and the command's id as `source`, approved as its extension source was added or turned on in Settings → Commands. One from an extension source is lapsed once a file of the source's repository (`scriptSHA256` is its digest), `query`, prefix, `queryMinChars` or `compare` changed; one of your own, or from a source marked Trust its updates, never lapses and nothing of it is read (`scriptSHA256` empty), and is on with no entry here. Written by Settings and as plugins and sources are added; this Mac's own, never synced | `[]` |
 | `completionSourcesOff` | The completion sources you turned off in Settings, each by `plugin` and `source` (as above): off whatever else, through updates and restarts, until you turn one on again; this Mac's own, never synced | `[]` |
 | `hiddenFromCommandList` | The plugins and script extension commands with suggestions you took out of the @ command list (**Show in the @ list** off under one in Settings → Commands): a plugin's name, a script extension command's id. Their suggestions are as before; one that no longer has a suggestion source is in the list again. This Mac's own, never synced (as `disabledExtensions`) | `[]` |
@@ -1238,7 +1283,8 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
   typed after its prefix. Code's rows come from its language's pack and the field's text, on this Mac. The
   lists, the tokens and the lookups are never logged, sent to the AI, learned or synced; see
   [Suggestions and Code](#suggestions-and-code-new).
-- The input method reads the clipboard text, once, only when you press ⌃V or ⌘V in a command; content that password managers mark as concealed isn't read. The text is shown in the command first and, again, is sent only when you press the action key. Recent macOS versions ask whether AllInOneIME may read the clipboard: allow it. To stop being asked every time, set AllInOneIME's paste permission to always allow in System Settings → Privacy & Security.
+- The input method reads the clipboard text when you press ⌃V (the history's panel shows what's on it) or ⌘V in a command; content that password managers mark as concealed isn't read. Text appended to a command is shown in it first and, again, is sent only when you press the action key. Recent macOS versions ask whether AllInOneIME may read the clipboard: allow it. To stop being asked every time, set AllInOneIME to Allow in System Settings → Privacy & Security → Paste from Other Apps.
+- Clipboard history (on by default, Settings → General): after each copy, the input method reads the plain text copied, only while macOS lets it without asking (Paste from Other Apps: Allow; it never makes macOS ask in the background), and keeps the last 20 (5–100) in `~/Library/Application Support/AllInOneIME/clipboard-history.json`, readable only by your user account and excluded from backups. Never what a password manager or clipboard tool marks as concealed, transient or auto-generated, nothing copied during secure input, no images or files. It stays on this Mac: never synced, never sent to an AI or anywhere, never logged (only how many). Clear History deletes it, and so does turning it off.
 - In password fields macOS switches to its own keyboard (U.S. or ABC) and back when you leave them. Whenever the app you type in holds secure input, AllInOneIME doesn't compose text: keys go in as typed. And while the system is in secure input (password fields, Terminal's Secure Keyboard Entry, etc.), nothing is sent to the AI.
 - `@note` and `@reminder` don't go to the AI: AllInOneIME hands the text only to Notes and Reminders on this Mac, and reads the reminder's time on the Mac too (whether those apps sync it to your other devices depends on their accounts, such as iCloud). So they work during secure input as well. `@note` to a folder writes a file on this Mac (it syncs if the folder does, as an iCloud Drive or Obsidian Sync folder would). `@note` to Notion sends the note to Notion (api.notion.com, with your integration's token, kept in the keychain), and only then: not during secure input.
 - `@reportissue` (and "Report an Issue…") sends nothing itself: it opens GitHub's new-issue page in your browser with the title you typed and the versions, languages, provider kind and counts listed above, shown in the candidate panel first. Nothing reaches GitHub unless you click Submit there.
@@ -1260,7 +1306,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
   if you turn them on, the words you hide from the AI (in `settings.json`) and `questions.json` (recent questions and
   answers, readable only by your user account). Turning those two off leaves them in iCloud until you remove them
   ("Remove Hidden Words from iCloud…", "Remove Recent Questions from iCloud…" in the ⋯ menu). Never: API keys, tokens or passwords, extension sources, extension folders and plugins, what
-  the input method learned on this Mac, the recent apps, window state, the sync switches. iCloud Drive is end-to-end encrypted only with
+  the input method learned on this Mac, clipboard history and its settings, the recent apps, window state, the sync switches. iCloud Drive is end-to-end encrypted only with
   Advanced Data Protection. This Mac's own record of what it synced is in
   `~/Library/Application Support/AllInOneIME/iCloudSync/state.json`.
 - Logs don't record what you type. For every third-party input method, macOS warns "The developer can access anything you type with this input source"; it's a generic system warning.

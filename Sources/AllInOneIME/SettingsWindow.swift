@@ -2256,6 +2256,7 @@ struct SettingsView: View {
                         writingSection
                         autocompleteSection
                         SuggestionsSection(model: model)
+                        ClipboardHistorySection(model: model)
                         ICloudSyncSection(model: model)
                         PreviousAppSettingsSection(model: model)
                     case .input:

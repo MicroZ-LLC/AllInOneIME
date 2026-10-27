@@ -128,6 +128,8 @@ final class AllInOneIMEInputController: IMKInputController {
         let client: IMKTextInput
         /// The field session it went into (`fieldSession`): committed only while that one is on.
         let fieldSession: Int
+        /// Taken out again rather than committed: a space marked at the start of an empty field (`markBeforeCaret`).
+        var takenOut = false
         /// A snippet's caret, moved once it's in (`moveCaret`).
         var caret: (back: Int, after: String?)?
     }
@@ -182,6 +184,8 @@ final class AllInOneIMEInputController: IMKInputController {
         // Suggestions: one store for every field, the coding packs installed, and Translate as You Type the input method's
         // (this field turns it on and off for the session's long press of Shift).
         services.suggestions = MainActor.assumeIsolated { MainThreadBox(SuggestionsShared.services(field: box)) }.value
+        // Clipboard history: one for every field (⌃V shows it).
+        services.clipboardHistory = MainActor.assumeIsolated { MainThreadBox(ClipboardHistoryShared.services) }.value
         services.appName = { app in MainActor.assumeIsolated { AppNames.name(for: app) } }
         services.page = { app in
             MainActor.assumeIsolated { () -> MainThreadBox<PageSource?> in
@@ -312,6 +316,9 @@ final class AllInOneIMEInputController: IMKInputController {
     /// self-test supplies its own and never posts keys or touches the clipboard).
     var canPasteInTerminal: @MainActor () -> Bool = { TerminalPaste.isAllowed() }
     var pasteInTerminal: @MainActor (String) async -> Void = { await TerminalPaste.paste($0) }
+    /// ⌃V to the app as it is, marked as ours (clipboard history's image row: `TerminalPaste.postControlV`; the self-test
+    /// counts it instead).
+    var passPasteKey: @MainActor () -> Void = { TerminalPaste.postControlV() }
 
     /// Inserts `text` into `client`; into a terminal, text with line breaks goes in as a paste, so the
     /// line breaks don't run (or send) anything.
@@ -818,7 +825,7 @@ final class AllInOneIMEInputController: IMKInputController {
                     // Nothing is read during secure input.
                     let content = self.services.secureInputActive() ? .none : self.readClipboard()
                     // Only how much: never the text or the image itself.
-                    log.notice("clipboard for a command: \(Self.logged(content), privacy: .public)")
+                    log.notice("clipboard for \(id < 0 ? "clipboard history" : "a command", privacy: .public): \(Self.logged(content), privacy: .public)")
                     self.received(.clipboard(content, id: id))
                 }
             case .keyboardLayout:
@@ -844,6 +851,10 @@ final class AllInOneIMEInputController: IMKInputController {
                 stopVoice(id: id)
             case let .platform(.cancelVoice(id)):
                 cancelVoiceSession(id: id)
+            case .platform(.passPasteKey):
+                // Once this key is done: ⌃V reaches the app as it is (clipboard history's image row).
+                let pass = passPasteKey
+                DispatchQueue.main.async { pass() }
             }
         }
         // A row the key put in that adds nothing, a key the rows took that puts nothing in (↓ ↑ → Esc): the key is still the
@@ -903,11 +914,11 @@ final class AllInOneIMEInputController: IMKInputController {
     /// asked, and 0.6.7.2, which took it out again for that and put the row in with its range, had Slack send the
     /// message. Nothing is taken out during the key. `what` the log says it is; only lengths are logged, never the text.
     @MainActor
-    private func markRow(_ text: String, replacing range: NSRange?, in client: IMKTextInput, for what: String) {
+    private func markRow(_ text: String, replacing range: NSRange?, in client: IMKTextInput, for what: String, takenOut: Bool = false) {
         let length = (text as NSString).length
         client.setMarkedText(text, selectionRange: NSRange(location: length, length: 0), replacementRange: range ?? Self.notFound)
         hasMarkedText = true
-        markedRow = MarkedRow(text: text, client: client, fieldSession: fieldSession)
+        markedRow = MarkedRow(text: text, client: client, fieldSession: fieldSession, takenOut: takenOut)
         DispatchQueue.main.async { [weak self] in self?.commitRow() }
         let place = range.map { " in place of \($0.length)" } ?? " at the caret"
         log.notice("\(what, privacy: .public) in a Chromium or Electron app: marked until the key is done (\(length, privacy: .public) UTF-16 units\(place, privacy: .public))")
@@ -922,7 +933,11 @@ final class AllInOneIMEInputController: IMKInputController {
         guard let row = markedRow else { return }
         markedRow = nil
         guard row.fieldSession == fieldSession else { return }
-        row.client.insertText(row.text, replacementRange: Self.notFound)
+        if row.takenOut {
+            row.client.setMarkedText("", selectionRange: NSRange(location: 0, length: 0), replacementRange: Self.notFound)
+        } else {
+            row.client.insertText(row.text, replacementRange: Self.notFound)
+        }
         hasMarkedText = false
         if let caret = row.caret { moveCaret(back: caret.back, after: caret.after, in: row.client) }
     }
@@ -930,13 +945,19 @@ final class AllInOneIMEInputController: IMKInputController {
     /// A key the rows took that puts nothing in (↓ ↑ → Esc, a row that adds nothing: it is what was typed), in an app built
     /// on Chromium or Electron (`marksRow`): the character before the caret, the token's last, marked in its own place
     /// and committed as it was once the key is done (`markRow`), so the page doesn't act on the key either (the harness:
-    /// 229, its text, caret and selection as they were). Where the field tells no caret, has a selection or reads
-    /// nothing back there, nothing (said in the log, `what` the key).
+    /// 229, its text, caret and selection as they were). With nothing before the caret (an empty field, where clipboard
+    /// history's panel shows: Slack's ↑ there edits the last message), a space marked at the caret and taken out again
+    /// once the key is done (the harness: 229, nothing acted on, the field as it was). Where the field tells no caret, has
+    /// a selection or reads nothing back there, nothing (said in the log, `what` the key).
     @MainActor
     private func markBeforeCaret(in client: IMKTextInput, for what: String) {
         let caret = client.selectedRange()
-        guard caret.location != NSNotFound, caret.length == 0, caret.location > 0 else {
+        guard caret.location != NSNotFound, caret.length == 0 else {
             log.notice("\(what, privacy: .public) in a Chromium or Electron app: nothing marked (the field tells no caret, or a selection)")
+            return
+        }
+        guard caret.location > 0 else {
+            markRow(" ", replacing: nil, in: client, for: what + " at the field's start", takenOut: true)
             return
         }
         let range = NSRange(location: caret.location - 1, length: 1)

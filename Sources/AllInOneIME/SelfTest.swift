@@ -2586,7 +2586,7 @@ enum SelfTest {
         uniquingKeysWith: { first, _ in first })
 
     static func run(snapshotDirectory: URL, typingLagOnly: Bool = false, autocompleteOnly: Bool = false, settingsOnly: Bool = false,
-                    suggestionsOnly: Bool = false) -> Int32 {
+                    suggestionsOnly: Bool = false, clipboardOnly: Bool = false) -> Int32 {
         waitForOtherSelfTests()
         endIfScreenLocked()
         _ = NSApplication.shared
@@ -2613,6 +2613,7 @@ enum SelfTest {
         ICloudSyncController.shared.keys = nil
         // Suggestions keep nothing where the user's are (the lists' cache, the coding packs).
         isolateSuggestions(in: snapshotDirectory)
+        ClipboardHistoryShared.isolated = true  // no history but a check's own: never the user's clipboard or file
         // Autocomplete learns and counts in memory, never in the input method's defaults; its suggestion is drawn
         // invisible, and the user's clicks don't take it down.
         AutocompleteSwitch.store = AutocompleteStore()
@@ -2691,6 +2692,7 @@ enum SelfTest {
         // The fake fields are no Chromium page, whatever apps this Mac has (the Chromium section says which of them is).
         controller.chromiumApp = { _ in false }
         giveUp = { for _ in 0..<4 where controller.composer.isComposing { _ = escape(controller, client) } }
+        if clipboardOnly { return SelfTest.clipboardOnly(controller, client, snapshotDirectory: snapshotDirectory, userConfig: userConfig) }
         testTypingLag(controller, client)
         if typingLagOnly {
             needing([])  // read whatever the last section needed
