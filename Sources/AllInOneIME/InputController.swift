@@ -142,8 +142,8 @@ final class AllInOneIMEInputController: IMKInputController {
     /// (`passwordFieldByAccessibility`): its harness field is never the one focused. Nil: Accessibility's.
     var passwordField: (@MainActor () -> Bool)?
     /// Whether an app (its bundle id) is built on Chromium or Electron (`ChromiumApps`): a key the rows take there is kept
-    /// from its page with marked text (`marksRow`). Each app told once, for every field (`chromiumApps`); the self-test's
-    /// say for its fake fields.
+    /// from its page with marked text (`marksRow`). Each app told once found, for every field (`chromiumApps`); the
+    /// self-test's say for its fake fields.
     var chromiumApp: (String?) -> Bool = { AllInOneIMEInputController.chromiumApps.isChromium($0) }
     static let chromiumApps = ChromiumApps.Known { id in
         NSRunningApplication.runningApplications(withBundleIdentifier: id).first?.bundleURL

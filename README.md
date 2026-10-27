@@ -941,8 +941,9 @@ They take the place of [autocomplete](#autocomplete-beta-new)'s gray text while 
   input (English, pinyin when nothing is being composed, Code), as in the command list: while the rows show, the keys
   are AllInOneIME's first. The first row that puts something in is chosen from the start, drawn selected; ↓ ↑ move it,
   and past the last row shown (or the first) the rows scroll by one, round from the last to the first; the wheel or the
-  trackpad over the panel scrolls them without choosing, and a click inserts the row clicked; ⏎ or Tab inserts the
-  chosen one. → or Esc hides the rows (nothing else happens; in Code the word you're typing goes in as typed),
+  trackpad over the panel moves the chosen row too, as in the command list (it stops at the first and the last row),
+  and a click inserts the row clicked; ⏎ or Tab inserts the chosen one, always a row you can see.
+  → or Esc hides the rows (nothing else happens; in Code the word you're typing goes in as typed),
   and keys are the app's again until what you type
   changes: in Slack, `#12` then ⏎ inserts the issue, and `#12` → ⏎ sends `#12` as typed. Digits never pick a row: they
   go on typing (`#7` then `1` is `#71`). A key the rows take never reaches the app too, in Slack, Chrome, Google Docs,

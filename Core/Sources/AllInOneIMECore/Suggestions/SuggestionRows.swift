@@ -166,35 +166,6 @@ enum PluginRows {
         return count
     }
 
-    /// How many rows `lists` (as `rows` takes them) may have for `token` (normalized, in small letters), up to `limit`:
-    /// the items that answer it, a match once, without a row made of any (one none of whose templates can go in here is
-    /// counted too). What a key counts past the rows it makes (`InputSession.suggestionsRows`).
-    static func matching(_ lowered: String, _ source: CompletionSource, in lists: [CompletionItems], upTo limit: Int) -> Int {
-        var count = 0
-        guard limit > 0 else { return 0 }
-        each(answering: lowered, source, in: lists) { _, _, _ in
-            count += 1
-            return count < limit
-        }
-        return count
-    }
-
-    /// Each item of `lists` that answers `lowered` (the token normalized, in small letters) as `source` compares, a match
-    /// once (its first), in order, with its list and place, until `visit` says to stop (false).
-    static func each(answering lowered: String, _ source: CompletionSource, in lists: [CompletionItems],
-                     _ visit: (Int, Int, CompletionItem) -> Bool) {
-        var going = true
-        for (number, list) in lists.enumerated() where going {
-            list.each(answering: lowered, source) { index in
-                // A match once: its first (which answers the token too) visited already.
-                guard list.firsts[index],
-                      number == 0 || !lists[..<number].contains(where: { $0.positions[list.lowered[index]] != nil }) else { return true }
-                going = visit(number, index, list.items[index])
-                return going
-            }
-        }
-    }
-
     /// The templates of `source` for an app of `appClass` where the user chose `insert` (decision 28: the app's own, else
     /// the one everywhere): the source's own for the class, the terminal and code editor class's `{match}` (spec 6.10),
     /// or the choice's in every class. Nil: none there (`null`), whatever is chosen. The one place a row's templates are
@@ -319,7 +290,16 @@ enum PluginRows {
         /// Each item of `lists` that answers the token, a match once (its first), in order, with its list and place,
         /// until `visit` says to stop (false).
         func each(in lists: [CompletionItems], _ visit: (Int, Int, CompletionItem) -> Bool) {
-            PluginRows.each(answering: lowered, source, in: lists, visit)
+            var going = true
+            for (number, list) in lists.enumerated() where going {
+                list.each(answering: lowered, source) { index in
+                    // A match once: its first (which answers the token too) visited already.
+                    guard list.firsts[index],
+                          number == 0 || !lists[..<number].contains(where: { $0.positions[list.lowered[index]] != nil }) else { return true }
+                    going = visit(number, index, list.items[index])
+                    return going
+                }
+            }
         }
     }
 

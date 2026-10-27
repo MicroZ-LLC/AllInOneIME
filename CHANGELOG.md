@@ -6,7 +6,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ### Changed
 
-- Suggestion rows scroll. Every item that matches is a row, up to 100. The panel shows 5 at a time, and its footer says which ones (`6–10 / 23`). ↓ on the last row shown brings the next one in, and ↑ on the first goes back. The wheel or the trackpad over the panel scrolls them too. This is the same for every source: plugins, script extensions, Suggestions commands and Code.
+- Suggestion rows scroll. Every item that matches is a row, up to 100. The panel shows 5 at a time, and its footer says which ones (`6–10 / 23`). ↓ on the last row shown brings the next one in, and ↑ on the first goes back. The wheel or the trackpad over the panel moves the chosen row too, as in the command list. This is the same for every source: plugins, script extensions, Suggestions commands and Code.
 
 ### Fixed
 

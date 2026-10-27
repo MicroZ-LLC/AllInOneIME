@@ -3,12 +3,12 @@ import Testing
 @testable import AllInOneIMECore
 import AllInOneIMETestSupport
 
-/// Suggestion rows scroll (0.6.7.3): the rows are every item that matches (picked first, then the source's order), up to
-/// 100; the panel shows 5 at a time (a key makes those and counts the rest; going past them makes them all). ↓ on the
-/// last row shown moves the choice to the next and the rows shown by one, ↑ on the first the same way back, around the
-/// ends too (to the last rows, or the first); the scroll wheel moves the rows shown without choosing, until a row is
-/// clicked (what a click puts in is the row clicked) or a key moves the choice; the footer's right says which rows are
-/// shown ("6–10 / 23", as the command list says it). The same for every source: a
+/// Suggestion rows scroll (0.6.7.3): the rows are every item that matches and can go in here (picked first, then the
+/// source's order), up to 100, all made with each change of the token; the panel shows 5 at a time. ↓ on the last row
+/// shown moves the choice to the next and the rows shown by one, ↑ on the first the same way back, around the ends too
+/// (to the last rows, or the first); the scroll wheel moves the choice the same way, as the command list's does, but
+/// stops at the ends; a click puts in the row clicked; the footer's right says which rows are shown, of how many
+/// ("6–10 / 23", as the command list says it), the count right from the first key. The same for every source: a
 /// plugin's, a custom command's, Code's. A key the rows take that puts nothing in (↓ ↑ → Esc) says so
 /// (`SessionOutput.rowsTookKey`), for a shell whose app would act on it as well. The rig is the acceptance tests'
 /// (Acceptance/SuggestionsAcceptanceTests.swift).
@@ -109,10 +109,9 @@ struct SuggestionsScrollTests {
         }
     }
 
-    /// A key makes the rows shown and counts the rest by their items: one whose templates can't go in here is counted
-    /// until ↓ goes past the rows made, which makes them all and counts them (a `{url}` template, 4 of 12 issues without
-    /// one).
-    @Test func theRestAreCountedByTheirItemsUntilMade() async throws {
+    /// The count is the rows there are from the first key, and stays as ↓ and the wheel go through them: an item none of
+    /// whose templates can go in here is no row and isn't counted (a `{url}` template, 4 of 12 issues without one: 8 rows).
+    @Test func theCountIsTheRowsThereAreFromTheFirstKey() async throws {
         try await inEnglish {
             let world = SuggestionsWorld()
             let items = Self.issues(12).enumerated().map { index, item in
@@ -123,61 +122,97 @@ struct SuggestionsScrollTests {
             let field = world.field()
             field.type("#7")
             #expect(field.settle { field.issuesShown == ["#7001", "#7002", "#7004", "#7005", "#7007"] }, "\(field.issuesShown)")
-            #expect(Self.state(field) == (0, "1–5 / 12"), "counted by the items: \(Self.state(field))")
+            #expect(Self.state(field) == (0, "1–5 / 8"), "the rows there are, from the first key: \(Self.state(field))")
             for _ in 1...5 { field.press(SuggestionKeys.down) }
             #expect(field.issuesShown == ["#7002", "#7004", "#7005", "#7007", "#7008"] && Self.state(field) == (4, "2–6 / 8"),
-                    "made, counted: \(field.issuesShown) \(Self.state(field))")
-            for _ in 1...2 { field.press(SuggestionKeys.down) }
-            #expect(Self.state(field) == (4, "4–8 / 8"), "the eighth: \(Self.state(field))")
+                    "↓: \(field.issuesShown) \(Self.state(field))")
+            field.host.send(.scroll(100))
+            #expect(field.issuesShown == ["#7005", "#7007", "#7008", "#7010", "#7011"] && Self.state(field) == (4, "4–8 / 8"),
+                    "the wheel to the eighth: \(field.issuesShown) \(Self.state(field))")
             field.press(SuggestionKeys.down)
             #expect(Self.state(field) == (0, "1–5 / 8"), "around from the eighth: \(Self.state(field))")
+            field.type("0")
+            #expect(field.settle { Self.state(field) == (0, "1–5 / 8") }, "\"#70\": the same 8: \(Self.state(field))")
+            field.type("1")
+            #expect(field.settle { field.issuesShown == ["#7010", "#7011"] } && Self.state(field) == (0, nil),
+                    "\"#701\": 2 rows of 3 items, no count: \(field.issuesShown) \(Self.state(field))")
         }
     }
 
     // MARK: - The wheel
 
-    /// The wheel over the panel moves the rows shown, as far as the ends, the choice staying (not shown: nothing drawn
-    /// selected); Return puts in the row chosen. A key then moves the choice and brings it into view.
-    @Test func theWheelScrollsWithoutChoosing() async throws {
+    /// The wheel over the panel moves the choice by its steps as ↓ and ↑ do, the rows shown following it, but stops at
+    /// the last and the first, never around, as the command list's wheel does (`Composer.scrollPalette`); ↑ goes on from
+    /// the row it chose, and Return puts that row in: one shown.
+    @Test func theWheelMovesTheChoice() async throws {
         try await inEnglish {
             let field = try Self.typedHash7(23)
             #expect(field.settle { field.issuesShown == Self.shown(1...5) }, "\(field.issuesShown)")
             field.host.send(.scroll(3))
-            #expect(field.issuesShown == Self.shown(4...8) && Self.state(field) == (nil, "4–8 / 23"), "\(field.issuesShown) \(Self.state(field))")
+            #expect(field.issuesShown == Self.shown(1...5) && Self.state(field) == (3, "1–5 / 23"), "\(field.issuesShown) \(Self.state(field))")
+            field.host.send(.scroll(4))
+            #expect(field.issuesShown == Self.shown(4...8) && Self.state(field) == (4, "4–8 / 23"),
+                    "past the last row shown: the rows follow the choice (\(field.issuesShown), \(Self.state(field)))")
             field.host.send(.scroll(100))
-            #expect(field.issuesShown == Self.shown(19...23) && Self.state(field) == (nil, "19–23 / 23"), "\(Self.state(field))")
+            #expect(field.issuesShown == Self.shown(19...23) && Self.state(field) == (4, "19–23 / 23"), "to the last: \(Self.state(field))")
+            field.host.send(.scroll(1))
+            #expect(field.issuesShown == Self.shown(19...23) && Self.state(field) == (4, "19–23 / 23"),
+                    "not around from the last: \(field.issuesShown) \(Self.state(field))")
+            field.host.send(.scroll(-2))
+            #expect(field.issuesShown == Self.shown(19...23) && Self.state(field) == (2, "19–23 / 23"), "\(Self.state(field))")
             field.host.send(.scroll(-100))
-            #expect(field.issuesShown == Self.shown(1...5) && Self.state(field) == (0, "1–5 / 23"), "\(Self.state(field))")
-            field.host.send(.scroll(2))
-            #expect(field.press(SuggestionKeys.down))
-            #expect(field.issuesShown == Self.shown(2...6) && Self.state(field) == (0, "2–6 / 23"),
-                    "↓ after the wheel: #7002 chosen, brought into view (\(field.issuesShown), \(Self.state(field)))")
-            field.host.send(.scroll(10))
+            #expect(field.issuesShown == Self.shown(1...5) && Self.state(field) == (0, "1–5 / 23"), "to the first: \(Self.state(field))")
+            field.host.send(.scroll(-1))
+            #expect(field.issuesShown == Self.shown(1...5) && Self.state(field) == (0, "1–5 / 23"),
+                    "not around from the first: \(field.issuesShown) \(Self.state(field))")
+            field.host.send(.scroll(9))
+            #expect(field.issuesShown == Self.shown(6...10) && Self.state(field) == (4, "6–10 / 23"), "\(Self.state(field))")
+            #expect(field.press(SuggestionKeys.up))
+            #expect(field.issuesShown == Self.shown(6...10) && Self.state(field) == (3, "6–10 / 23"),
+                    "↑ from the row the wheel chose: \(Self.state(field))")
             #expect(field.press(SuggestionKeys.enter))
-            #expect(field.document == "#7002", "the row chosen, not one shown: \(field.document)")
+            #expect(field.document == "#7009", "the row chosen, shown: \(field.document)")
         }
     }
 
-    /// A row clicked once the wheel moved the rows is the one clicked.
+    /// None chosen (the one row is what was typed, so it puts nothing in): the wheel chooses as ↓ and ↑ do, down the first
+    /// row, up the last.
+    @Test func theWheelChoosesWhereNoneIsChosen() async throws {
+        try await inEnglish {
+            for steps in [1, -1] {
+                let world = SuggestionsWorld()
+                try world.github(items: Self.issues(23), manifest: SuggestionsPlugins.githubManifest(query: false))
+                let field = world.field()
+                field.type("#7001")
+                #expect(field.settle { field.issuesShown == ["#7001"] }, "\(field.issuesShown)")
+                #expect(Self.state(field) == (nil, nil), "\(Self.state(field))")
+                field.host.send(.scroll(steps))
+                #expect(Self.state(field) == (0, nil), "\(steps): \(Self.state(field))")
+            }
+        }
+    }
+
+    /// A row clicked once the wheel moved the choice (and the rows shown with it) is the one clicked.
     @Test func aClickAfterTheWheelPutsInTheRowClicked() async throws {
         try await inEnglish {
             let field = try Self.typedHash7(23)
             #expect(field.settle { field.issuesShown == Self.shown(1...5) }, "\(field.issuesShown)")
             field.host.send(.scroll(7))
-            #expect(field.issuesShown == Self.shown(8...12))
+            #expect(field.issuesShown == Self.shown(4...8) && Self.state(field) == (4, "4–8 / 23"), "\(field.issuesShown) \(Self.state(field))")
             field.host.send(.pick(1))
-            #expect(field.document == "#7009", "\(field.document)")
+            #expect(field.document == "#7005", "\(field.document)")
         }
     }
 
-    /// The rows made again for the same token (a query's answer, the list come back) stay where the wheel put them; a new
-    /// token starts at the first.
+    /// A new token starts at the first row, the first chosen, wherever ↓, ↑ and the wheel had gone for the one before.
     @Test func aNewTokenStartsAtTheFirstRow() async throws {
         try await inEnglish {
             let field = try Self.typedHash7(23)
             #expect(field.settle { field.issuesShown == Self.shown(1...5) }, "\(field.issuesShown)")
             for _ in 1...7 { field.press(SuggestionKeys.down) }
             #expect(Self.state(field) == (4, "4–8 / 23"), "\(Self.state(field))")
+            field.host.send(.scroll(3))
+            #expect(Self.state(field) == (4, "7–11 / 23"), "\(Self.state(field))")
             field.type("01")
             #expect(field.settle { field.issuesShown == Self.shown(10...14) } && Self.state(field) == (0, "1–5 / 10"),
                     "\"#701\": \(field.issuesShown) \(Self.state(field))")

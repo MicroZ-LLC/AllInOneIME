@@ -302,10 +302,12 @@ extension SelfTest {
     /// Suggestion rows scroll (0.6.7.3), in the fake field with the candidate panel: the GitHub plugin's 23 issues
     /// "#7001" … "#7023" (a stand-in for api.github.com), "#70" typed. The panel shows 5 of them, the first chosen, its
     /// footer's right saying which ("1–5 / 23", as the command list says it); ↓ past the fifth chooses the sixth and moves
-    /// the rows shown by one, the panel as high; the wheel over the panel moves the rows shown without choosing, as far as
-    /// the last; a click puts in the row clicked. Snapshots: suggestions-scrolled (after ↓), suggestions-wheel.
+    /// the rows shown by one, the panel as high; the wheel over the panel moves the choice as ↓ and ↑ do, the rows shown
+    /// following it, as the command list's wheel does (it stops at the last and the first, never around); Return puts in
+    /// the row chosen, one shown; in the next token's rows, a click puts in the row clicked. Snapshots:
+    /// suggestions-scrolled (after ↓), suggestions-wheel.
     static func testRowsScroll(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
-        section("Suggestions: 5 rows shown of up to 100, ↓ and the wheel scroll them", needs: .composing)
+        section("Suggestions: 5 rows shown of up to 100, ↓ and the wheel move the choice through them", needs: .composing)
         let saved = (services: controller.services.suggestions, plugins: controller.services.plugins)
         let folder = snapshotDirectory.appendingPathComponent("suggestions-scroll", isDirectory: true)
         defer {
@@ -355,14 +357,33 @@ extension SelfTest {
         wheel(100)
         let last = shown()
         snapshot("suggestions-wheel", in: snapshotDirectory)
-        check(wheeled.rows == numbers(7005...7009) && wheeled.highlighted == 1 && wheeled.detail.hasSuffix("5–9 / 23")
-              && last.rows == numbers(7019...7023) && last.highlighted == nil && last.detail.hasSuffix("19–23 / 23") && panel.frame.height == height,
-              "the wheel moves the rows shown, the choice kept (#7006: \(wheeled.rows), \(String(describing: wheeled.highlighted))), "
-              + "as far as the last (\(last.rows), nothing drawn selected, \"\(last.detail)\")")
-        panel.view.onSelect?(2)
+        check(wheeled.rows == numbers(7005...7009) && wheeled.highlighted == 4 && wheeled.detail.hasSuffix("5–9 / 23")
+              && last.rows == numbers(7019...7023) && last.highlighted == 4 && last.detail.hasSuffix("19–23 / 23") && panel.frame.height == height,
+              "the wheel moves the choice as ↓ does, the rows shown following it (#7009: \(wheeled.rows), \(String(describing: wheeled.highlighted)), "
+              + "\"\(wheeled.detail)\"), stopping at the last (\(last.rows), \(String(describing: last.highlighted)), \"\(last.detail)\")")
+        wheel(-100)
+        let top = shown()
+        wheel(-1)
+        let still = shown()
+        check(top.rows == numbers(7001...7005) && top.highlighted == 0 && top.detail.hasSuffix("1–5 / 23") && still == top,
+              "the wheel up stops at the first, never around to the last (\(top.rows), \(String(describing: top.highlighted)), \"\(top.detail)\"; "
+              + "once more: \(still.rows), \(String(describing: still.highlighted)))")
+        wheel(20)
+        let chosen = shown()
+        let entered = press(controller, client, "\r", code: VirtualKey.returnKey)
+        check(chosen.rows == numbers(7017...7021) && chosen.highlighted == 4 && entered && client.inserted.last == "21"
+              && controller.session.panelModel().rows.isEmpty,
+              "Return after the wheel puts in the row chosen, shown (\(chosen.rows), \(String(describing: chosen.highlighted)): "
+              + "\(client.inserted.last.map { "\"\($0)\"" } ?? "nothing")), the rows go")
+        type(" #70", controller, client)
+        let again = pump(timeout: 5) { shown().rows == numbers(7001...7005) }
+        wheel(7)
+        let clicked = shown()
+        panel.view.onSelect?(1)
         _ = pump(timeout: 0.2) { false }
-        check(client.inserted.last == "21" && controller.session.panelModel().rows.isEmpty,
-              "a click on the third row shown puts #7021 in (\(client.inserted.last.map { "\"\($0)\"" } ?? "nothing")), the rows go")
+        check(again && clicked.rows == numbers(7004...7008) && client.inserted.last == "05" && controller.session.panelModel().rows.isEmpty,
+              "\" #70\", the wheel to #7008 (\(clicked.rows)), a click on the second row shown puts #7005 in "
+              + "(\(client.inserted.last.map { "\"\($0)\"" } ?? "nothing")), the rows go")
     }
 }
 
