@@ -67,15 +67,20 @@ public enum InterfaceText {
     /// that take a language code. Set by the shell when it starts (the input method: `bundleLookup(app:)` on its bundle).
     /// Until then there are none, and every language but Simplified Chinese shows English.
     public static var lookup: Lookup {
-        get { current.withLock { $0 } ?? { _, _ in nil } }
-        set { current.withLock { $0 = newValue } }
+        get { current.withLock { $0 }?.lookup ?? { _, _ in nil } }
+        set { current.withLock { $0 = Installed(lookup: newValue) } }
     }
 
     /// Whether a shell (or `UIText`) has set `lookup`: `UIText` hands it the app's `.lproj` bundles on its first read
     /// unless one is set already (a shell that has tables instead, `tableLookup`).
     public static var lookupInstalled: Bool { current.withLock { $0 != nil } }
 
-    private static let current = Locked<Lookup?>(initialState: nil)
+    /// `lookup` in a struct: a function kept in the generic `Locked` as it is would be stored at its most general
+    /// abstraction, and every `withLock` (an inout) would wrap it in two more reabstraction thunks and write that back,
+    /// so each text read made every later lookup deeper, until a long-running process ran out of stack.
+    private struct Installed { let lookup: Lookup }
+
+    private static let current = Locked<Installed?>(initialState: nil)
 
     /// The translation of `english` in `bundle` (a `<code>.lproj` bundle, or a bundle whose localization is
     /// already chosen), filled in with english's arguments; nil when the bundle has no entry for english.format.

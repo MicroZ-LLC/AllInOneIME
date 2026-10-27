@@ -12,6 +12,10 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 - A Suggestions command (a custom command of type `suggestions`) is no longer in the @ command list: you use it by typing its prefix, and you manage it in Settings → Commands. A plugin or script extension command with suggestions can be taken out of the @ list too, its suggestions kept: turn off Show in the @ list under it in Settings → Commands.
 
+### Fixed
+
+- With the interface in Traditional Chinese, Japanese, Korean, German, French, Spanish or Portuguese, the input method no longer gets slower the longer it runs, and no longer crashes after a while. Each text it showed in that language made every later one take longer to look up.
+
 ## 0.6.7.3 (2026-10-26)
 
 ### Changed
