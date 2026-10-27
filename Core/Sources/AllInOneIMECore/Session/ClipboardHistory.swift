@@ -18,7 +18,9 @@ import Foundation
 //   false), the shell keeps one (`state` not `.unavailable`), there's no secure input, and either nothing is composed (Code's
 //   word held as marked text goes in as typed first; suggestion rows showing go: a paste ends the token) or a command's
 //   text takes ⌃V (`Composer.takesPasteAnywhere`: a draft, not level two, no voice, no "@" alone). In a command with
-//   `state` `.notAllowed`, and anywhere with the history off or `.unavailable`, ⌃V is as before 0.6.8 (the composer's).
+//   `state` `.notAllowed`, and anywhere with the history off or `.unavailable`, ⌃V is as before 0.6.8 (the composer's);
+//   so it is in a field where the shell couldn't keep the panel's keys from the app (`InputSession.clipboardPanelAllowed`
+//   false, told before ⌃V: the Mac's Chromium and Electron pages where nothing can be marked).
 // - ⌃V is taken (handled) and the clipboard read: `SessionOutput.readClipboard(id:)` with an id below 0, answered with
 //   `SessionEvent.clipboard(content, id:)` (FakeHost answers it with its `clipboard` once the key is done, as the Mac
 //   does). Outside a command ⌃V also says `rowsTookKey` (a Chromium page keeps none of it). Then the panel

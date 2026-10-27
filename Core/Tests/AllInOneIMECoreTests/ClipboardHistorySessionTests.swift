@@ -313,6 +313,27 @@ struct ClipboardHistorySessionTests {
         }
     }
 
+    /// A field where the shell can't keep the panel's keys from the app (`clipboardPanelAllowed` false: the Mac's Chromium
+    /// page that tells no caret): ⌃V as before 0.6.8 there, the app's with nothing composed, the composer's in a command
+    /// (the clipboard read for it, joined); allowed again, the panel.
+    @Test func controlVAsBeforeWhereThePanelIsNotAllowed() async {
+        await inEnglish {
+            let host = host()
+            host.session.clipboardPanelAllowed = false
+            #expect(!host.press(FakeHost.controlV) && host.panel == nil && readsWithin(host.outputs[...]).isEmpty)
+            #expect(!host.outputs.contains(.rowsTookKey), "the key is the app's: nothing to keep from it")
+            let command = self.host(clipboard: .text("from the clipboard"))
+            pickImprove(command)
+            command.session.clipboardPanelAllowed = false
+            let before = command.outputs.count
+            #expect(command.press(FakeHost.controlV))
+            #expect(readsWithin(command.outputs[before...]).allSatisfy { $0 > 0 } && command.composer.draft == "@improve from the clipboard"
+                    && !texts(command).contains("gamma"), "\(command.composer.draft)")
+            host.session.clipboardPanelAllowed = true
+            #expect(host.press(FakeHost.controlV) && texts(host) == ["gamma", "beta", "alpha"], "\(texts(host))")
+        }
+    }
+
     // MARK: - Inside a command
 
     /// In a command's text ⌃V shows the history too; the row chosen joins the text as ⌃V's clipboard does (its lines made

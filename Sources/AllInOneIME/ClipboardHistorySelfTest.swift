@@ -5,8 +5,10 @@ import InputMethodKit
 /// Clipboard history in the self-test (`--selftest DIR --clipboard-only`): its logic is the core's unit tests'
 /// (ClipboardHistorySessionTests) and the recording's the Mac's (ClipboardHistoryRecordingTests); here the real panel
 /// shows on ⌃V, and ⏎ puts a two-line row in through IMK, into an NSTextView and into Slack's composer in the Electron
-/// harness (where `ALLINONEIME_ELECTRON_HARNESS` names it), nothing sent. The history is the self-test's own, and so is
-/// what ⌃V reads of the clipboard: the user's clipboard and history file are never read or written.
+/// harness (where `ALLINONEIME_ELECTRON_HARNESS` names it), nothing sent; over a selection there it takes the selection's
+/// place, and with an emoji before the caret the keys the panel takes leave the text as it was; where the page tells no
+/// caret, ⌃V is the app's. The history is the self-test's own, and so is what ⌃V reads of the clipboard: the user's
+/// clipboard and history file are never read or written.
 extension SelfTest {
     /// The run of `--clipboard-only`, from `run` once the controller is made: this step only, the user's config checked
     /// as it was (`userConfig`).
@@ -86,6 +88,23 @@ extension SelfTest {
               "an NSTextView: ⏎ puts the two lines in (\(view.text.debugDescription)), nothing marked, the panel gone")
         view.close()
 
+        // An NSTextView with a selection: ⌃V ↓ ⏎ puts the row chosen in its place, as a paste over a selection does.
+        let selectedView = TextViewClient()
+        selectedView.textView.string = "Hello world"
+        selectedView.textView.setSelectedRange(NSRange(location: 6, length: 5))
+        controller.activateServer(selectedView)
+        controller.composer.setInputMode(.english)
+        controller.clientOverride = selectedView
+        _ = controller.handle(controlV, client: selectedView)
+        let viewShown = pump(timeout: 3) { panel.isShowing && panel.view.model.rows.first?.text == "First line of the copy" }
+        let viewTaken = controller.handle(event("", code: VirtualKey.down), client: selectedView)
+            && controller.handle(event("\r", code: VirtualKey.returnKey), client: selectedView)
+        _ = pump(timeout: 0.3) { false }
+        controller.deactivateServer(selectedView)
+        check(viewShown && viewTaken && selectedView.text == "Hello an older copy" && !selectedView.textView.hasMarkedText(),
+              "an NSTextView with \"world\" selected: ⌃V ↓ ⏎ puts the row in its place (\(selectedView.text.debugDescription))")
+        selectedView.close()
+
         // Slack's composer (a Chromium page): ⏎ puts the two lines in during the key, more than one character with no
         // range, so the page has the key as the input method's (229) and sends nothing.
         let page = PageFieldClient()
@@ -126,6 +145,73 @@ extension SelfTest {
               "an empty Slack composer: ↑ on the panel marks a space during the key and takes it out after "
               + "(\(upCalls.map(PageFieldClient.recorded))): \(empty.text.debugDescription)")
 
+        /// ⌃V in `field` (a page's, focused in English), the panel waited for, then `keys`: whether the panel showed, what
+        /// went in during and after each key, ⌃V's first, and whether each was taken.
+        func keysInPage(_ field: PageFieldClient, _ keys: [NSEvent]) -> (shown: Bool, calls: [[Call]], taken: [Bool]) {
+            controller.activateServer(field)
+            controller.composer.setInputMode(.english)
+            controller.clientOverride = field
+            var (calls, taken) = ([[Call]](), [Bool]())
+            func press(_ key: NSEvent) {
+                let start = field.calls.count
+                field.duringKey = true
+                taken.append(controller.handle(key, client: field))
+                field.duringKey = false
+                _ = pump(timeout: 0.3) { false }  // what goes in once the key is done; ⌃V's read of the clipboard
+                calls.append(Array(field.calls.dropFirst(start)))
+            }
+            press(controlV)
+            let shown = pump(timeout: 3) { panel.isShowing && panel.view.model.rows.first?.text == "First line of the copy" }
+            keys.forEach(press)
+            if panel.isShowing { _ = escape(controller, field) }
+            controller.deactivateServer(field)
+            return (shown, calls, taken)
+        }
+        func marked(_ range: Range<Int>, _ text: String) -> [Call] {
+            [Call(duringKey: true, marks: true, range: range, selection: (text as NSString).length, text: text),
+             Call(duringKey: false, marks: false, range: nil, text: text)]
+        }
+
+        // A selection in Slack's composer (a word selected, ⌃V to put an older copy in its place): ⌃V marks the selected
+        // text itself in its place during the key and commits it back (the page has the key as the input method's, its
+        // text as it was, the caret after it); ↓ marks the character before the caret; ⏎ marks the row chosen in the
+        // selection's place, committed after: the selection replaced, nothing sent.
+        let selected = PageFieldClient()
+        selected.bundleIDOverride = slack
+        selected.start("Hello world", caret: 6, selected: 5)
+        let over = keysInPage(selected, [event("", code: VirtualKey.down), event("\r", code: VirtualKey.returnKey)])
+        let overExpected = [marked(6..<11, "world"), marked(10..<11, "d"), marked(6..<11, "an older copy")]
+        check(over.shown && over.taken == [true, true, true] && over.calls == overExpected && selected.text == "Hello an older copy"
+              && !selected.hasMarked,
+              "Slack's composer with \"world\" selected: ⌃V ↓ ⏎ (\(over.calls.map { $0.map(PageFieldClient.recorded) })): "
+              + selected.text.debugDescription)
+
+        // An emoji before the caret (a surrogate pair): ⌃V, ↑ and Esc each mark the whole emoji in its place during the key
+        // and commit it back: the text as it was.
+        let emoji = PageFieldClient()
+        emoji.bundleIDOverride = slack
+        emoji.start("ok 👍", caret: 5)
+        let around = keysInPage(emoji, [event("", code: VirtualKey.up), event("\u{1B}", code: VirtualKey.escape)])
+        let aroundExpected = Array(repeating: marked(3..<5, "👍"), count: 3)
+        check(around.shown && around.taken == [true, true, true] && around.calls == aroundExpected && emoji.text == "ok 👍"
+              && !emoji.hasMarked && !panel.isShowing,
+              "Slack's composer with an emoji before the caret: ⌃V ↑ Esc mark it whole (\(around.calls.map { $0.map(PageFieldClient.recorded) })): "
+              + emoji.text.debugDescription)
+
+        // A page that tells no caret: nothing could keep the panel's keys from it, so ⌃V is the app's there, no panel.
+        let noCaret = PageFieldClient()
+        noCaret.bundleIDOverride = slack
+        noCaret.start("text", caret: 4)
+        noCaret.tellsNoCaret = true
+        controller.activateServer(noCaret)
+        controller.composer.setInputMode(.english)
+        controller.clientOverride = noCaret
+        let noCaretTook = controller.handle(controlV, client: noCaret)
+        let noCaretShown = pump(timeout: 1) { panel.isShowing }
+        controller.deactivateServer(noCaret)
+        check(!noCaretTook && !noCaretShown && noCaret.calls.isEmpty,
+              "Slack's composer telling no caret: ⌃V is the app's (\(noCaretTook ? "taken" : "not taken")), \(noCaretShown ? "a panel" : "no panel")")
+
         // In the Electron harness's composer, that answer to ⏎ (the input method's as above; as it answers where the keys
         // couldn't be composed here, a locked screen): the text in, the key the input method's, nothing sent. The harness
         // runs on a locked screen too: it needs nothing composed here.
@@ -159,5 +245,20 @@ extension SelfTest {
               && up.markedLeft == false,
               "Electron harness, an empty composer: ↑ reached the page as \(up.keys), it acted on \(up.acted.isEmpty ? "nothing" : "\(up.acted)"), "
               + "its text \((up.text ?? "-").debugDescription) (\(up.answered.joined(separator: "; ")))")
+        // A selection, then ⌃V ↓ ⏎; an emoji before the caret, then ⌃V ↑ Esc: each key the input method's, nothing sent or
+        // acted on; the selection replaced by the row, the emoji's text as it was.
+        for (what, start, keys, answers, result) in [
+            ("\"world\" selected: ⌃V ↓ ⏎", "Hello |world|", "control-v,down,return", over.calls.isEmpty ? overExpected : over.calls,
+             "Hello an older copy"),
+            ("an emoji before the caret: ⌃V ↑ Esc", "ok 👍", "control-v,up,escape", around.calls.isEmpty ? aroundExpected : around.calls, "ok 👍"),
+        ] {
+            let page = pageOutcome(in: runElectronHarness(harness, script: "type-keys", field: "composer", userData: userData, typed: "",
+                                                          keys: keys, answer: PageFieldClient.answer(eachOf: answers), start: start) ?? "")
+            check(page.answered == answers.flatMap { $0.map(PageFieldClient.recorded) } && page.keys == ["229", "229", "229"]
+                  && page.sent.isEmpty && page.acted.isEmpty && page.text == result && page.markedLeft == false,
+                  "Electron harness, Slack's composer with \(what): the keys reached the page as \(page.keys), it sent "
+                  + "\(page.sent.isEmpty ? "nothing" : "\(page.sent)") and acted on \(page.acted.isEmpty ? "nothing" : "\(page.acted)"), "
+                  + "its text \((page.text ?? "-").debugDescription) (\(page.answered.joined(separator: "; ")))")
+        }
     }
 }

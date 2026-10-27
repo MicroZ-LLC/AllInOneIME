@@ -36,18 +36,20 @@ extension InputSession {
     // MARK: - Opening
 
     /// Whether `event` is the paste-anywhere key (`ModifierRoles.pasteAnywhere` with V: ⌃V on the Mac), nothing else held.
-    func isPasteAnywhere(_ event: KeyEvent) -> Bool {
+    public func isPasteAnywhere(_ event: KeyEvent) -> Bool {
         guard let paste = composer.modifierRoles.pasteAnywhere else { return false }
         return event.modifiers.subtracting(.capsLock).subtracting(.sides) == Modifiers.kind(paste)
             && event.charactersIgnoringModifiers.lowercased() == "v"
     }
 
-    /// Where ⌃V opens the panel: the history on and kept by the shell, no secure input, no voice, and a command's text
-    /// that takes ⌃V (true; not while the history isn't allowed: there ⌃V is as before) or nothing composed but Code's
-    /// word (false). Nil: ⌃V is as before 0.6.8.
+    /// Where ⌃V opens the panel: the history on and kept by the shell, the panel allowed in this field
+    /// (`clipboardPanelAllowed`), no secure input, no voice, and a command's text that takes ⌃V (true; not while the
+    /// history isn't allowed: there ⌃V is as before) or nothing composed but Code's word (false). Nil: ⌃V is as before
+    /// 0.6.8.
     func clipboardOpensIn() -> Bool? {
         let state = services.clipboardHistory.state()
-        guard services.loadSettings().clipboardHistoryOn, state != .unavailable, !secureInputActive(), composer.voice == .off
+        guard services.loadSettings().clipboardHistoryOn, state != .unavailable, clipboardPanelAllowed, !secureInputActive(),
+              composer.voice == .off
         else { return nil }
         if composer.codeWord == nil, composer.takesPasteAnywhere { return state == .notAllowed ? nil : true }
         return composesBesidesCodeWord ? nil : false
@@ -121,6 +123,9 @@ extension InputSession {
         if history.state() == .notAllowed { rows.append(.permission) }
         return rows
     }
+
+    /// Whether the panel shows (from the clipboard's read for ⌃V until it is hidden or a row goes in).
+    public var clipboardShown: Bool { clipboard.shown }
 
     // MARK: - Keys
 

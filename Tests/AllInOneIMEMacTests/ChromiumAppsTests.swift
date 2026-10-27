@@ -113,4 +113,41 @@ struct ChromiumAppsTests {
         world.now += 1
         #expect(!known.isChromium("com.example.other") && world.looked == 3)
     }
+
+    /// What a key the rows took is marked with during it in a Chromium page (`ChromiumApps.keyMark`), `text` the field's,
+    /// read back as Chromium's view does (nil past its end, half of a surrogate pair as U+FFFD): the selection itself; the
+    /// whole character before the caret, an emoji's surrogate pair, a letter with its accent, an emoji with its skin tone or
+    /// a family's joiners, a flag; a space at the field's start; nothing where the field tells no caret or reads nothing
+    /// back.
+    @Test func whatAKeyIsMarkedWith() {
+        func reader(_ text: String) -> (NSRange) -> String? {
+            { range in
+                let units = Array(text.utf16)
+                guard range.location >= 0, NSMaxRange(range) <= units.count else { return nil }
+                return String(decoding: units[range.location..<NSMaxRange(range)], as: UTF16.self)
+            }
+        }
+        func mark(_ text: String, caret: Int, selected: Int = 0) -> ChromiumApps.KeyMark? {
+            ChromiumApps.keyMark(caret: NSRange(location: caret, length: selected), read: reader(text))
+        }
+        #expect(mark("Hello world", caret: 6, selected: 5) == .selection(NSRange(location: 6, length: 5), "world"))
+        #expect(mark("ab 👍", caret: 0, selected: 5) == .selection(NSRange(location: 0, length: 5), "ab 👍"), "from the start")
+        #expect(mark("#17", caret: 3) == .character(NSRange(location: 2, length: 1), "7"))
+        #expect(mark("ok 👍", caret: 5) == .character(NSRange(location: 3, length: 2), "👍"), "a surrogate pair")
+        #expect(mark("👍", caret: 2) == .character(NSRange(location: 0, length: 2), "👍"), "the field's only character")
+        #expect(mark("cafe\u{301}", caret: 5) == .character(NSRange(location: 3, length: 2), "e\u{301}"), "a letter and its accent")
+        #expect(mark("hi 👍🏽", caret: 7) == .character(NSRange(location: 3, length: 4), "👍🏽"), "a skin tone")
+        let family = "👨‍👩‍👧‍👦"
+        #expect(mark("a" + family, caret: 12) == .character(NSRange(location: 1, length: 11), family), "joined by ZWJ")
+        #expect(mark("flags 🇯🇵", caret: 10) == .character(NSRange(location: 6, length: 4), "🇯🇵"))
+        #expect(mark("", caret: 0) == .space && mark("tail", caret: 0) == .space, "the field's start")
+        // A character longer than the window read back: nothing.
+        let long = "a" + String(repeating: "\u{301}", count: 40)
+        #expect(mark(long, caret: 41) == nil)
+        #expect(ChromiumApps.keyMark(caret: NSRange(location: NSNotFound, length: 0), read: reader("abc")) == nil, "no caret")
+        #expect(ChromiumApps.keyMark(caret: NSRange(location: 3, length: 0), read: { _ in nil }) == nil, "nothing read back")
+        #expect(ChromiumApps.keyMark(caret: NSRange(location: 1, length: 2), read: { _ in "a" }) == nil, "the selection cut short")
+        // Half of a surrogate pair before the caret reads back as U+FFFD.
+        #expect(ChromiumApps.keyMark(caret: NSRange(location: 1, length: 0), read: { _ in "\u{FFFD}" }) == nil)
+    }
 }

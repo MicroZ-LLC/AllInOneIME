@@ -77,6 +77,11 @@ public final class InputSession {
     var suggesting = SuggestionsField()
     /// Clipboard history's panel in this field (InputSession+ClipboardHistory.swift).
     var clipboard = ClipboardHistoryField()
+    /// Whether ⌃V's panel may open in the field of the key, as the shell tells it before it hands the paste-anywhere key
+    /// on (`isPasteAnywhere`): false where it couldn't keep the keys the panel takes from the app (the Mac: a Chromium or
+    /// Electron page that tells no caret, or doesn't read back what is before it, where nothing can be marked during
+    /// them). False: ⌃V is as before 0.6.8 there (`clipboardOpensIn`).
+    public var clipboardPanelAllowed = true
     /// The field that has the focus is a password field where secure input isn't on, as the shell told it
     /// (`FieldContext.Parts.passwordField`: the Mac asks Accessibility once a field, and with each read autocomplete's
     /// pause makes); nil until told. Autocomplete and suggestions both go by it; one told stays one until another field

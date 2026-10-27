@@ -94,3 +94,44 @@ public enum ChromiumApps {
         }
     }
 }
+
+extension ChromiumApps {
+    /// What a key the input method takes and puts nothing in (↓ ↑ → Esc on the rows, ⌃V opening clipboard history) is
+    /// marked with during it in such an app's field, so its page gets the key as the input method's (229) and acts on none
+    /// of it (`AllInOneIMEInputController.markBeforeCaret`): text that is there marked in its own place and committed as it
+    /// was once the key is done, or a space taken out again.
+    public enum KeyMark: Equatable, Sendable {
+        /// The selection, its text as read back: committed, it is the same text with the caret after it.
+        case selection(NSRange, String)
+        /// The character before the caret, whole: a surrogate pair (an emoji), a letter with its accents, an emoji with
+        /// its modifiers (the composed character sequence that ends at the caret).
+        case character(NSRange, String)
+        /// Nothing before the caret (the field's start): a space marked at the caret.
+        case space
+    }
+
+    /// The most UTF-16 units read back before the caret for the character there: an emoji family takes 11, a region's
+    /// flag 14; Chromium's view reads back 100 characters around the selection.
+    static let characterWindow = 32
+
+    /// What a key is marked with in a field whose selection (or caret) is `caret`, `read` giving its text in a range back
+    /// (nil: it doesn't). Nil where nothing can be marked safely: the field tells no caret, or doesn't read back the
+    /// selection or the whole character before the caret (half of one outside the Basic Multilingual Plane reads back as
+    /// U+FFFD).
+    public static func keyMark(caret: NSRange, read: (NSRange) -> String?) -> KeyMark? {
+        guard caret.location != NSNotFound, caret.length != NSNotFound else { return nil }
+        if caret.length > 0 {
+            guard let text = read(caret), (text as NSString).length == caret.length else { return nil }
+            return .selection(caret, text)
+        }
+        guard caret.location > 0 else { return .space }
+        let window = NSRange(location: max(caret.location - characterWindow, 0), length: min(caret.location, characterWindow))
+        guard let text = read(window).map({ $0 as NSString }), text.length == window.length else { return nil }
+        let last = text.rangeOfComposedCharacterSequence(at: text.length - 1)
+        // One that starts where the window does may start further back.
+        guard last.location > 0 || window.location == 0 else { return nil }
+        let character = text.substring(with: last)
+        guard character != "\u{FFFD}" else { return nil }
+        return .character(NSRange(location: window.location + last.location, length: last.length), character)
+    }
+}
