@@ -1121,39 +1121,9 @@ extension SelfTest {
         checkChromiumApps(harness: harness)
     }
 
-    /// How apps built on Chromium or Electron are told (`ChromiumApps`): by Electron's or a Chromium framework in their
-    /// bundle (bundles made here: Electron's, Chrome's, a Chromium browser's channel's, the Chromium Embedded Framework's
-    /// are; one with other frameworks or none isn't), the harness's own Electron where it is; by bundle id, a Chromium
-    /// browser (a web app of one too) without a look at its bundle; each app once. Then those in /Applications, said.
+    /// The Electron harness's own Electron told as one by its bundle (`ChromiumApps`), where the harness is; then the
+    /// Chromium and Electron apps in /Applications, said. (Bundles made up, and bundle ids: ChromiumAppsTests.)
     static func checkChromiumApps(harness: URL?) {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-chromium-apps-\(UUID().uuidString)")
-        defer { try? FileManager.default.removeItem(at: folder) }
-        func bundle(_ name: String, _ frameworks: [String]) -> URL {
-            let app = folder.appendingPathComponent(name + ".app", isDirectory: true)
-            try? FileManager.default.createDirectory(at: app.appendingPathComponent("Contents/MacOS"), withIntermediateDirectories: true)
-            for framework in frameworks {
-                try? FileManager.default.createDirectory(at: app.appendingPathComponent("Contents/Frameworks/" + framework), withIntermediateDirectories: true)
-            }
-            return app
-        }
-        let made: [(name: String, frameworks: [String], chromium: Bool)] = [
-            ("Chat", ["Electron Framework.framework", "Squirrel.framework"], true), ("Browser", ["Google Chrome Framework.framework"], true),
-            ("Edge Beta", ["Microsoft Edge Beta Framework.framework"], true), ("Player", ["Chromium Embedded Framework.framework"], true),
-            ("Notes", ["Sparkle.framework", "Operations Framework.framework"], false), ("Plain", [], false),
-        ]
-        let told = made.map { ChromiumApps.hasChromium(bundle: bundle($0.name, $0.frameworks)) }
-        check(told == made.map(\.chromium),
-              "Chromium and Electron apps told by their bundle: \(zip(made, told).map { "\($0.0.name) \($0.1 ? "yes" : "no")" }.joined(separator: ", "))")
-        var looked: [String] = []
-        let known = ChromiumApps.Known { id in
-            looked.append(id)
-            return ["com.example.chat": folder.appendingPathComponent("Chat.app"), "com.example.notes": folder.appendingPathComponent("Notes.app")][id]
-        }
-        let ids: [String?] = ["com.example.chat", "com.example.chat", "com.example.notes", "com.google.Chrome", "com.google.Chrome.app.abcdefgh",
-                              "com.microsoft.edgemac.Beta", "com.example.gone", nil]
-        let answers = ids.map(known.isChromium)
-        check(answers == [true, true, false, true, true, true, false, false] && looked == ["com.example.chat", "com.example.notes", "com.example.gone"],
-              "…and by bundle id: the browsers (a web app of one too) without a look at a bundle, each app once (\(answers); looked for \(looked))")
         if let harness {
             let electron = electronBinary(in: harness).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             check(ChromiumApps.hasChromium(bundle: electron), "the Electron harness's \(electron.lastPathComponent) is told as one by its bundle")

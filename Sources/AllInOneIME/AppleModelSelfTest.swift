@@ -5,19 +5,10 @@ extension SelfTest {
     /// Apple Intelligence on this Mac (`Provider.apple`), only where the model is available: @improve on English and on
     /// pinyin through the controller with the on-device model, Test Connection with it chosen, and its settings page
     /// rendered (`apple-settings*.png`). Elsewhere it says why it was skipped. Nothing is written to the config file.
+    /// (Where it's offered, and how a refusal reads: AppleModelTests.)
     static func testAppleModel(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
         let availability = AppleModel.system.availability
         section("Apple Intelligence on this Mac (\(availability.rawValue))")
-        check(Provider.offered.contains(.apple) == availability.isOffered,
-              "the provider list has it on macOS 26 and later (\(Provider.offered.map(\.rawValue)))")
-        let pickedBefore = UIText.choice
-        UIText.choice = "en"
-        let refusedEnglish = UIText.describe(ProviderError.refused(.apple))
-        UIText.choice = "zh"
-        let refusedChinese = UIText.describe(ProviderError.refused(.apple))
-        UIText.choice = pickedBefore
-        check(refusedEnglish == "Apple Intelligence declined this request" && refusedChinese == "Apple Intelligence 拒绝了这个请求",
-              "a refusal reads naturally (\(refusedEnglish) / \(refusedChinese))")
         guard availability == .available else {
             print("  skipped: the on-device model isn't available here")
             return
@@ -71,6 +62,7 @@ extension SelfTest {
 
         // The settings window with it chosen: Test Connection asks the on-device model; the page as the README shows it.
         needing([])
+        let pickedBefore = UIText.choice
         defer { UIText.choice = pickedBefore }
         for chinese in [true, false] {
             UIText.choice = chinese ? "zh" : "en"

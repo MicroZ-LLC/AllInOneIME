@@ -29,12 +29,11 @@ final class CannedChatModel: AppleModelBackend, @unchecked Sendable {
 }
 
 extension SelfTest {
-    /// Settings → General → "Continue a conversation in" with an agent that isn't installed right now (Kiro CLI here): its
-    /// entry is no chip, and an edit (a drag, a chip taken out) keeps it where it was in the file. "@agent's agent" is a
-    /// chip by that agent's name, standing for its own entry; taken out, it takes that entry with it, and is offered to
-    /// add again.
-    static func testContinueListKeepsAgentsNotInstalled(snapshotDirectory: URL) {
-        section("Continue a conversation in: an agent not installed keeps its place")
+    /// Settings → General → "Continue a conversation in", with an agent that isn't installed right now (Kiro CLI here) in
+    /// the list: "@agent's agent" taken out is offered to add again (`missingContinueChoices`). (Which entries are chips,
+    /// and where an edit puts them: QuestionChatTests.)
+    static func testContinueListOffersAtAgentAgain(snapshotDirectory: URL) {
+        section("Continue a conversation in: @agent's agent taken out is offered again")
         let url = snapshotDirectory.appendingPathComponent("continue-config.json")
         defer {
             try? FileManager.default.removeItem(at: url)
@@ -48,19 +47,9 @@ extension SelfTest {
         config.questionContinueIn = [.atAgent, .kiroCLI, .geminiCLI, .claudeCode, .chatgpt, .copy]
         try? config.write(to: url)
         let model = SettingsModel(configURL: url)
-        let chips = model.continueChoices
-        let names = chips.map { AllInOneIMEInputController.shortName($0, picked: model.config.agent) }
-        check(chips == [.atAgent, .geminiCLI, .chatgpt, .copy] && names.first == tr("@agent 的 agent（Claude Code）", "@agent's agent (Claude Code)"),
-              "the chips: @agent's agent by its name, standing for Claude Code's own; Kiro CLI not installed, no chip (\(names))")
-        model.setContinueIn([.copy, .atAgent, .geminiCLI, .chatgpt])  // dragged
-        let dragged = (try? Config.load(from: url))?.questionContinueIn ?? []
-        check(dragged == [.copy, .kiroCLI, .atAgent, .claudeCode, .geminiCLI, .chatgpt],
-              "a drag keeps Kiro CLI and Claude Code's own entry where they were (\(dragged.map(\.rawValue)))")
         model.removeContinueIn(.atAgent)
-        let removed = (try? Config.load(from: url))?.questionContinueIn ?? []
-        check(removed == [.copy, .kiroCLI, .geminiCLI, .chatgpt] && model.continueChoices == [.copy, .geminiCLI, .chatgpt]
-              && model.missingContinueChoices.first == .atAgent,
-              "taken out, @agent's agent takes Claude Code's own entry with it, and is offered to add (\(removed.map(\.rawValue)))")
+        check(model.missingContinueChoices.first == .atAgent,
+              "taken out, @agent's agent is offered to add again (\(model.missingContinueChoices.map(\.rawValue)))")
     }
 
     /// An @question conversation through the controller, with canned answers (`CannedChatModel`): typing after the

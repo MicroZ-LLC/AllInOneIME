@@ -5,11 +5,12 @@ import os
 import SwiftUI
 
 extension SelfTest {
-    /// Extension sources end to end, against a bare repository made here (file://, never the network), with a config
-    /// file and a clones folder of their own (never the user's sources or config): add, review, enable, a new commit
-    /// upstream, check, update, a pin, the command line (`--add-source`, `--list-extensions`, `--update-sources`) and a
-    /// settings model picking up what it wrote, then remove. Settings → Custom Commands and the review are drawn
-    /// (settings-commands-sources*.png, extension-source-review*.png).
+    /// Extension sources drawn, against a bare repository made here (file://, never the network), with a config file and
+    /// a clones folder of their own (never the user's sources or config): the Add from Link sheet and the review with its
+    /// warning (extension-source-add*.png, extension-source-review*.png), then the source enabled with a new commit
+    /// upstream on Settings → Custom Commands (settings-commands-sources*.png) and in the menu bar panel's line
+    /// (panel-extension-sources.png); and Remove when the Trash refuses. Adding, the review, Enable, checks, updates,
+    /// pins, a force push, the command line and Remove themselves: ExtensionSourcesTests and ExtensionSourcesAcceptanceTests.
     static func testExtensionSources(snapshotDirectory: URL) {
         section("extension sources (a local bare repository)")
         let fm = FileManager.default
@@ -17,7 +18,6 @@ extension SelfTest {
         try? fm.removeItem(at: dir)
         try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? fm.removeItem(at: dir) }
-        let realBefore = try? Data(contentsOf: Config.userURL)
         let sources = ExtensionSourceController.shared
         let before = (sources.root, sources.git, sources.statuses, sources.trashItem)
         defer {
@@ -78,25 +78,16 @@ extension SelfTest {
         try? fresh.write(to: configURL)
         let model = SettingsModel(configURL: configURL)
 
-        // Add: cloned into staging for the review; nothing is in place or loads yet.
+        // Added: cloned into staging for the review.
         var source = ExtensionSource(url: url)
         guard let clone = runAsync(60, { try await sources.stageForReview(source) }) else {
             check(false, "cloned the local repository")
             return
         }
-        let installed = ExtensionSources.cloneFolder(for: url, root: sources.root)
-        check(clone.bundles == ["ext"] && clone.status.commit?.count == 40 && !clone.status.trusted
-              && clone.folder.path.contains("/.staging/") && !fm.fileExists(atPath: installed.path),
-              "cloned (shallow) into staging, not in place; the bundle found in ext/")
         source.path = "ext"
         let review = ExtensionSourceReview.make(bundleFolder: clone.folder.appendingPathComponent("ext"), path: "ext",
                                                 url: url, commit: clone.status.commit, commitDate: clone.status.commitDate, config: model.config,
                                                 repository: clone.folder)
-        check(review.bundle?.title == "Greetings" && review.commands.map(\.name) == ["selftesthello"] && review.programs == ["hello.sh"]
-              && review.preferences.map(\.name) == ["greeting"],
-              "the review: the bundle, its command, the program it runs, its preference")
-        check(Command.catalog(model.config.customCommands, scripts: LiveExtensions.load(model.config).commands).allSatisfy { $0.name != "selftesthello" },
-              "nothing of it loads before Enable")
         for chinese in [false, true] {
             UIText.choice = chinese ? "zh" : "en"
             let image = snapshotDirectory.appendingPathComponent("extension-source-add\(chinese ? "-zh" : "").png")
@@ -113,37 +104,16 @@ extension SelfTest {
         UIText.choice = "en"
         check(ExtensionSourceText.unsigned(url).hasPrefix("This source isn't signed: it will run programs from file://"), "…with its warning")
 
-        // A config that names the folder before it's reviewed (copied from another Mac): it isn't loaded.
-        var copied = model.config
-        ExtensionSources.enable(source, in: &copied, root: sources.root)
-        try? fm.createDirectory(at: installed, withIntermediateDirectories: true)
-        try? fm.copyItem(at: clone.folder.appendingPathComponent("ext"), to: installed.appendingPathComponent("ext"))
-        check(!LiveExtensions.load(copied).commands.contains { $0.name == "selftesthello" }
-              && ExtensionSources.untrustedFolders(in: copied, statuses: sources.statuses, root: sources.root).count == 1,
-              "an unreviewed source's folder in the load list doesn't load")
-        try? fm.removeItem(at: installed)
-
-        // Enable: the staged clone in place, trusted, the bundle's folder in the load list (saved), and its command loads.
-        check((try? sources.install(clone)) != nil && fm.fileExists(atPath: installed.appendingPathComponent("ext/hello.sh").path)
-              && !fm.fileExists(atPath: clone.folder.path), "Enable moves the clone into place")
+        // Enabled: the staged clone in place, trusted, the bundle's folder in the load list (saved).
+        _ = try? sources.install(clone)
         ExtensionSources.enable(source, in: &model.config, root: sources.root)
         model.save()
         model.refreshExtensions()
-        let stored = try? Config.load(from: configURL)
-        check(stored?.extensionSources.map(\.url) == [url] && stored.map { ExtensionSources.isEnabled(source, in: $0, root: sources.root) } == true,
-              "Enable saves the source and its folder in the load list")
-        check(model.extensionIndex.commands.map(\.name) == ["selftesthello"], "…and its command loads (\(model.extensionIndex.commands.map(\.name)))")
-        check(ExtensionSourceStatus.load(from: sources.statusFile)[url]?.trusted == true, "…trusted, with its address, in sources.json")
 
-        // A new commit upstream: a check lists it; nothing changes until Update.
+        // A new commit upstream, found by a check: the update Custom Commands and the panel show.
         write("ext/hello.sh", "#!/bin/sh\necho hello there\n", executable: true)
         _ = commit("Say more")
         _ = runAsync(60) { await sources.check(source) }
-        let status = sources.statuses[url]
-        check(status?.updates.map(\.subject) == ["Say more"] && status?.fastForward == true && sources.updateCount(for: model.config.extensionSources) == 1,
-              "a check finds the new commit (\(status?.updates.map(\.subject) ?? []), error \(status?.error ?? "none"))")
-        let script = installed.appendingPathComponent("ext/hello.sh")
-        check((try? String(contentsOf: script, encoding: .utf8))?.contains("echo hi") == true, "…and doesn't apply it")
         for chinese in [false, true] {
             UIText.choice = chinese ? "zh" : "en"
             let image = snapshotDirectory.appendingPathComponent("settings-commands-sources\(chinese ? "-zh" : "").png")
@@ -158,59 +128,6 @@ extension SelfTest {
                         size: NSSize(width: 360, height: 40), to: notice)
         check(fm.fileExists(atPath: notice.path) && sources.updateCount(for: [source]) == 1,
               "the menu bar panel's line says there is 1 update (\(notice.lastPathComponent))")
-        UIText.choice = "en"
-        _ = runAsync(60) { await sources.update(source) }
-        check(sources.statuses[url]?.updates.isEmpty == true && sources.statuses[url]?.commit != clone.status.commit
-              && (try? String(contentsOf: script, encoding: .utf8))?.contains("hello there") == true,
-              "Update fast-forwards the clone")
-
-        // Pinned: not checked, by itself or with Check Now.
-        source.pin = clone.status.commit
-        check(!ExtensionSources.shouldCheck(source, status: sources.statuses[url], automatic: true)
-              && !ExtensionSources.shouldCheck(source, status: sources.statuses[url], automatic: false), "a pinned source isn't checked")
-        let head = sources.statuses[url]?.commit
-        _ = runAsync(60) { await sources.pin(source, to: clone.status.commit) }
-        check(sources.statuses[url]?.commit == clone.status.commit, "changing the pin checks that commit out")
-        source.pin = nil
-        let unpinned = runAsync(60) { await sources.pin(source, to: nil) }
-        check(unpinned.map { $0 == nil } == true && sources.statuses[url]?.commit == head, "Unpin goes back to the branch's newest commit")
-
-        // A force push: Update is refused; the rewritten history is reviewed (staged) before it replaces the clone.
-        write("ext/hello.sh", "#!/bin/sh\necho rewritten\n", executable: true)
-        _ = git(["add", "-A"]) && git(["commit", "-q", "--amend", "-m", "Rewritten"]) && git(["push", "-q", "-f", "origin", "main"])
-        _ = runAsync(60) { await sources.check(source) }
-        check(sources.statuses[url]?.fastForward == false, "a force push is found by a check")
-        _ = runAsync(60) { await sources.update(source) }
-        check((try? String(contentsOf: script, encoding: .utf8))?.contains("hello there") == true, "…and Update doesn't apply it")
-        if let restaged = runAsync(60, { try await sources.stageForReview(source) }) {
-            check((try? String(contentsOf: script, encoding: .utf8))?.contains("hello there") == true, "…its review leaves the clone in place as it was")
-            _ = try? sources.install(restaged)
-            check((try? String(contentsOf: script, encoding: .utf8))?.contains("rewritten") == true
-                  && ExtensionSources.isTrusted(source, sources.statuses[url]) && sources.statuses[url]?.fastForward == true,
-                  "…and Enable after it puts the new history in place")
-        } else {
-            check(false, "re-cloned the rewritten history for its review")
-        }
-
-        // The command line, on another config: the review printed, enabled; a settings model reading that file follows.
-        let cliConfig = dir.appendingPathComponent("cli-config.json")
-        try? fresh.write(to: cliConfig)
-        let watching = SettingsModel(configURL: cliConfig)
-        let options = ["--config", cliConfig.path, "--sources-dir", dir.appendingPathComponent("CLI").path]
-        let added = runSelf(["--add-source", url] + options)
-        check(added.status == 0 && added.output.contains("WARNING:     This source isn't signed") && added.output.contains("@selftesthello"),
-              "--add-source prints the review and enables it (\(added.status))")
-        watching.reloadIfChanged()
-        check(watching.config.extensionSources.map(\.url) == [url] && watching.config.extensionFolders.count == 1,
-              "…and an open settings window reads the config it wrote")
-        let listed = runSelf(["--list-extensions"] + options)
-        check(listed.status == 0 && listed.output.contains("@selftesthello\tshow\t\(url)"), "--list-extensions lists its command with its source")
-        let updated = runSelf(["--update-sources"] + options)
-        check(updated.status == 0 && updated.output.contains("up to date"), "--update-sources (\(updated.output.trimmingCharacters(in: .newlines)))")
-        let refused = runSelf(["--add-source", "http://example.com/x.git"] + options)
-        check(refused.status != 0, "--add-source refuses plain http")
-        let unknown = runSelf(["--add-source", url, "--bogus", "x"] + options)
-        check(unknown.status == 2 && unknown.output.contains("unknown option --bogus"), "--add-source refuses an option it doesn't know")
 
         // Remove when the Trash refuses: the status goes anyway, and the failure is told.
         let trashing = sources.trashItem
@@ -222,16 +139,6 @@ extension SelfTest {
         check(failed != nil && sources.statuses[other.url] == nil, "Remove drops the status even when the Trash refuses, and says so")
         sources.trashItem = trashing
         try? fm.removeItem(at: ExtensionSources.cloneFolder(for: other.url, root: sources.root))
-
-        // Remove: the clone goes (here deleted; to the Trash for real), the config forgets it, its preferences stay.
-        model.config.extensionPreferences["selftestgreetings"] = ["greeting": "yo"]
-        _ = sources.remove(source)
-        ExtensionSources.remove(source, from: &model.config, root: sources.root)
-        model.save()
-        check(!fm.fileExists(atPath: installed.path) && sources.statuses[url] == nil && model.config.extensionSources.isEmpty
-              && model.config.extensionFolders.isEmpty && model.config.extensionPreferences["selftestgreetings"] != nil,
-              "Remove: the clone, the source and its folder go; its preferences stay")
-        check((try? Data(contentsOf: Config.userURL)) == realBefore, "the real config file was not touched")
     }
 
     /// Settings → Commands → Extension Sources' "Trust its updates" (0.6.7.1 §2), on the sample sources with a config file

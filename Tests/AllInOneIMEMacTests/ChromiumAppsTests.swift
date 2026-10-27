@@ -76,9 +76,10 @@ struct ChromiumAppsTests {
             looked.ids.append(id)
             return ["com.example.chat": chat, "com.example.notes": notes][id]
         }
-        let ids: [String?] = ["com.example.chat", "com.example.notes", "com.example.chat", "com.google.Chrome", "com.example.gone",
-                              "com.example.gone", nil, ""]
-        #expect(ids.map(known.isChromium) == [true, false, true, true, false, false, false, false])
+        // A browser's other channel and a web app of one: told by their id too, no bundle looked for.
+        let ids: [String?] = ["com.example.chat", "com.example.notes", "com.example.chat", "com.google.Chrome", "com.microsoft.edgemac.Beta",
+                              "com.google.Chrome.app.abcdefgh", "com.example.gone", "com.example.gone", nil, ""]
+        #expect(ids.map(known.isChromium) == [true, false, true, true, true, true, false, false, false, false])
         #expect(looked.ids == ["com.example.chat", "com.example.notes", "com.example.gone"], "\(looked.ids)")
     }
 

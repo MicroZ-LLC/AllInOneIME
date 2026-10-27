@@ -18,7 +18,7 @@ let usage = """
                         drive the input controller (real Rime engine on DATA, else the installed
                         Chinese pack; live Bedrock call) with a fake text field; writes panel snapshots
                         to DIR (default /tmp/allinoneime-selftest); --typing-lag-only runs just the
-                        offline window lifecycle, menu cache and rapid pinyin checks; --autocomplete-only
+                        offline window reuse, config cache and rapid pinyin checks; --autocomplete-only
                         just autocomplete's (a harness window, stand-in models, no AI requests);
                         --settings-only just the settings window's (stand-ins, no AI requests);
                         --suggestions-only just suggestions' (a stand-in for api.github.com, the
