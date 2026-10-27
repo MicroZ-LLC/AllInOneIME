@@ -2,6 +2,12 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
+## 0.6.8.1 (2026-10-27)
+
+### Fixed
+
+- In Terminal, Ghostty, iTerm2 and other terminals, the keys you press on the clipboard history panel (↓ ↑ → Esc) no longer also reach the shell. Before, ↓ and ↑ after ⌃V also went through the shell's history, and ⏎ on a copy with several lines could run the line before pasting it. The same goes for suggestion rows there.
+
 ## 0.6.8 (2026-10-27)
 
 ### Added
