@@ -153,10 +153,11 @@ In the app (`PluginLibrary`, Settings → Commands → Plugins → "Browse Libra
 
 ## Completions (suggestions)
 
-A `script` plugin may also complete what is typed (Suggestions, 0.6.7): rows in the candidate panel, with the same keys
-in every app (terminals too): the first row that puts something in is chosen from the start, ↓ ↑ move, ⏎ or Tab
-inserts the chosen row, → or Esc hides the rows (then the keys are the app's until the token changes); digits are
-typed.
+A `script` plugin may also complete what is typed (Suggestions, 0.6.7): rows in the candidate panel, 5 shown at a time
+of up to 100 (0.6.7.3), with the same keys in every app (terminals too): the first row that puts something in is chosen
+from the start, ↓ ↑ move (past the last row shown the rows scroll), the wheel or the trackpad over the panel moves the
+chosen row too (as in the command list: it stops at the first and the last), ⏎ or Tab inserts the chosen row, → or Esc
+hides the rows (then the keys are the app's until the token changes); digits are typed.
 It declares its sources in `completions` (optional; `api` 1 stays valid) and its settings in `preferences`:
 
 ```json
@@ -205,7 +206,9 @@ user turned it on), and only while plugin.json still lists them (the hosts appro
 - `Item`: `{ match, title?, subtitle?, arg?, variables? }`: `match` (1–64 letters, digits and `. _ - @ #`, the prefix
   included) is what the token is compared with; `title` and `subtitle` are what the row shows; `arg` (default `match`)
   and `variables` (texts of the plugin's choosing) fill the templates: `{match}`, `{arg}`, and any of the item's
-  variables by name (`{url}`, `{title}`…). The order is the rank; the rows the user picked before come first.
+  variables by name (`{url}`, `{title}`…). The order is the rank; the rows the user picked before come first. Each
+  item that matches is a row (one none of whose templates can go in there aside: below), up to 100 in all; the
+  footer's count is theirs.
 - What a row puts in is the plugin's to decide, per app class, in `insert`: the number alone (`{arg}`), with its title
   (`{arg} {title}`), with a link too (`{arg} {title} {url}`), or a Markdown link (`[{title}]({url})`). The example
   inserts `#1234 Fix login` in documents and mail, `#1234 Fix login https://github.com/…/issues/1234` in chat apps, and

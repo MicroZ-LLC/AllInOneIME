@@ -2,12 +2,17 @@ import AllInOneIMECore
 import AppKit
 
 /// api.github.com as the GitHub plugin's (Core/Plugins/github) `fetch` reaches it, a stand-in: recorded issues of a
-/// made-up repository (octo-org/octo-repo), the list and each issue by number; every request kept. Nothing leaves this
-/// Mac.
+/// made-up repository (octo-org/octo-repo; `issues` unless others are given), the list and each issue by number; every
+/// request kept. Nothing leaves this Mac.
 final class GitHubStandIn: PluginFetcher, @unchecked Sendable {
     private let lock = NSLock()
     private var asked: [String] = []
     var requests: [String] { lock.withLock { asked } }
+    let listed: [(number: Int, title: String, state: String)]
+
+    init(issues: [(number: Int, title: String, state: String)] = GitHubStandIn.issues) {
+        listed = issues
+    }
 
     static let repository = "octo-org/octo-repo"
     static let issues: [(number: Int, title: String, state: String)] = [
@@ -28,9 +33,9 @@ final class GitHubStandIn: PluginFetcher, @unchecked Sendable {
             func json(_ value: Any) -> PluginResponse {
                 PluginResponse(status: 200, text: String(decoding: (try? JSONSerialization.data(withJSONObject: value)) ?? Data(), as: UTF8.self))
             }
-            if request.url.hasPrefix(base + "?") { return json(Self.issues.map { Self.issue($0.number, $0.title, $0.state) }) }
+            if request.url.hasPrefix(base + "?") { return json(listed.map { Self.issue($0.number, $0.title, $0.state) }) }
             if request.url.hasPrefix(base + "/"), let number = Int(request.url.dropFirst(base.count + 1)) {
-                guard let found = Self.issues.first(where: { $0.number == number }) else { return PluginResponse(status: 404, text: "{}") }
+                guard let found = listed.first(where: { $0.number == number }) else { return PluginResponse(status: 404, text: "{}") }
                 return json(Self.issue(found.number, found.title, found.state))
             }
             return PluginResponse(error: "not allowed: \(URL(string: request.url)?.host ?? request.url)")
@@ -54,9 +59,10 @@ extension SelfTest {
     }
 
     /// The GitHub plugin (Core/Plugins/github) copied into `folder` with its issues enabled in `controller`, its script
-    /// run here with a stand-in for api.github.com (`GitHubStandIn`): what enabled them, to give the settings again with
-    /// another Insert. Nil: it didn't load (a failed check says so).
-    static func useGitHubPlugin(_ controller: AllInOneIMEInputController, in folder: URL) -> CompletionSourceApproval? {
+    /// run here with a stand-in for api.github.com (`GitHubStandIn`, with `issues`): what enabled them, to give the
+    /// settings again with another Insert. Nil: it didn't load (a failed check says so).
+    static func useGitHubPlugin(_ controller: AllInOneIMEInputController, in folder: URL,
+                                issues listed: [(number: Int, title: String, state: String)] = GitHubStandIn.issues) -> CompletionSourceApproval? {
         try? FileManager.default.removeItem(at: folder)
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let source = coreFolder.appendingPathComponent("Plugins/github", isDirectory: true)
@@ -66,7 +72,7 @@ extension SelfTest {
             check(false, "the GitHub plugin from \(source.path), with its issues source")
             return nil
         }
-        let standIn = GitHubStandIn()
+        let standIn = GitHubStandIn(issues: listed)
         var services = controller.services.suggestions
         services.store = SuggestionsStore()
         services.runtime = PluginCompletionRuntime(mode: .inProcess(fetcher: { _ in standIn }))
@@ -289,6 +295,96 @@ extension SelfTest {
         } else {
             check(false, "the Python pack from Core/CodingPacks")
         }
+    }
+}
+
+extension SelfTest {
+    /// Suggestion rows scroll (0.6.7.3), in the fake field with the candidate panel: the GitHub plugin's 23 issues
+    /// "#7001" … "#7023" (a stand-in for api.github.com), "#70" typed. The panel shows 5 of them, the first chosen, its
+    /// footer's right saying which ("1–5 / 23", as the command list says it); ↓ past the fifth chooses the sixth and moves
+    /// the rows shown by one, the panel as high; the wheel over the panel moves the choice as ↓ and ↑ do, the rows shown
+    /// following it, as the command list's wheel does (it stops at the last and the first, never around); Return puts in
+    /// the row chosen, one shown; in the next token's rows, a click puts in the row clicked. Snapshots:
+    /// suggestions-scrolled (after ↓), suggestions-wheel.
+    static func testRowsScroll(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
+        section("Suggestions: 5 rows shown of up to 100, ↓ and the wheel move the choice through them", needs: .composing)
+        let saved = (services: controller.services.suggestions, plugins: controller.services.plugins)
+        let folder = snapshotDirectory.appendingPathComponent("suggestions-scroll", isDirectory: true)
+        defer {
+            (controller.services.suggestions, controller.services.plugins) = (saved.services, saved.plugins)
+            try? FileManager.default.removeItem(at: folder)
+            controller.commitComposition(client)
+            client.bundleIDOverride = nil
+            controller.activateServer(client)
+            controller.composer.setInputMode(settings.defaultInput)
+            client.inserted.removeAll()
+            if let notice = controller.notice { controller.endNotice(notice) }
+        }
+        let issues = (7001...7023).map { (number: $0, title: "Issue \($0)", state: "open") }
+        guard let approval = useGitHubPlugin(controller, in: folder, issues: issues) else { return }
+        controller.services.suggestions.settings = { SuggestionsSettings(enabled: [approval], insert: .id) }
+        controller.commitComposition(client)
+        client.bundleIDOverride = "com.example.editor"
+        controller.activateServer(client)
+        controller.composer.setInputMode(.english)
+        client.inserted.removeAll()
+        let panel = CandidatePanel.shared
+        /// The issues the panel shows, by number, the one drawn selected among them, and its footer's right.
+        func shown() -> (rows: [String], highlighted: Int?, detail: String) {
+            let model = panel.view.model
+            return (model.rows.map { String($0.text.prefix(5)) }, model.highlighted, model.detail ?? "")
+        }
+        func numbers(_ range: ClosedRange<Int>) -> [String] { range.map { "#\($0)" } }
+        type("#70", controller, client)
+        let listed = pump(timeout: 5) { shown().rows == numbers(7001...7005) }
+        let first = shown(), height = panel.frame.height
+        check(listed && first.highlighted == 0 && first.detail.hasSuffix("1–5 / 23"),
+              "\"#70\": 5 rows shown of 23 (\(first.rows)), the first chosen, the footer's right \"\(first.detail)\"")
+        for _ in 1...5 { press(controller, client, "", code: VirtualKey.down) }
+        let moved = shown()
+        snapshot("suggestions-scrolled", in: snapshotDirectory)
+        check(moved.rows == numbers(7002...7006) && moved.highlighted == 4 && moved.detail.hasSuffix("2–6 / 23") && panel.frame.height == height,
+              "↓ past the fifth: the sixth chosen, the rows shown moved by one (\(moved.rows), \"\(moved.detail)\"), the panel as high "
+              + "(\(Int(panel.frame.height)) pt)")
+        /// The wheel over the panel, `lines` notches down (a mouse's wheel).
+        func wheel(_ lines: Int32) {
+            guard let event = CGEvent(scrollWheelEvent2Source: nil, units: .line, wheelCount: 1, wheel1: -lines, wheel2: 0, wheel3: 0)
+                .flatMap(NSEvent.init(cgEvent:)) else { return }
+            panel.view.scrollWheel(with: event)
+        }
+        wheel(3)
+        let wheeled = shown()
+        wheel(100)
+        let last = shown()
+        snapshot("suggestions-wheel", in: snapshotDirectory)
+        check(wheeled.rows == numbers(7005...7009) && wheeled.highlighted == 4 && wheeled.detail.hasSuffix("5–9 / 23")
+              && last.rows == numbers(7019...7023) && last.highlighted == 4 && last.detail.hasSuffix("19–23 / 23") && panel.frame.height == height,
+              "the wheel moves the choice as ↓ does, the rows shown following it (#7009: \(wheeled.rows), \(String(describing: wheeled.highlighted)), "
+              + "\"\(wheeled.detail)\"), stopping at the last (\(last.rows), \(String(describing: last.highlighted)), \"\(last.detail)\")")
+        wheel(-100)
+        let top = shown()
+        wheel(-1)
+        let still = shown()
+        check(top.rows == numbers(7001...7005) && top.highlighted == 0 && top.detail.hasSuffix("1–5 / 23") && still == top,
+              "the wheel up stops at the first, never around to the last (\(top.rows), \(String(describing: top.highlighted)), \"\(top.detail)\"; "
+              + "once more: \(still.rows), \(String(describing: still.highlighted)))")
+        wheel(20)
+        let chosen = shown()
+        let entered = press(controller, client, "\r", code: VirtualKey.returnKey)
+        check(chosen.rows == numbers(7017...7021) && chosen.highlighted == 4 && entered && client.inserted.last == "21"
+              && controller.session.panelModel().rows.isEmpty,
+              "Return after the wheel puts in the row chosen, shown (\(chosen.rows), \(String(describing: chosen.highlighted)): "
+              + "\(client.inserted.last.map { "\"\($0)\"" } ?? "nothing")), the rows go")
+        // #7021, just picked, comes first now (picked rows first), then #7001 on.
+        type(" #70", controller, client)
+        let again = pump(timeout: 5) { shown().rows == ["#7021"] + numbers(7001...7004) }
+        wheel(7)
+        let clicked = shown()
+        panel.view.onSelect?(1)
+        _ = pump(timeout: 0.2) { false }
+        check(again && clicked.rows == numbers(7003...7007) && client.inserted.last == "04" && controller.session.panelModel().rows.isEmpty,
+              "\" #70\" (#7021, picked, first), the wheel to #7007 (\(clicked.rows)), a click on the second row shown puts #7004 in "
+              + "(\(client.inserted.last.map { "\"\($0)\"" } ?? "nothing")), the rows go")
     }
 }
 

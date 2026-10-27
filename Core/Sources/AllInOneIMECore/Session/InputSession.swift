@@ -175,6 +175,8 @@ public final class InputSession {
                 guard rows.indices.contains(row), let choice = rows[row].choice else { return }
                 perform(composer.choose(index: choice))
             case let .scroll(steps):
+                // Suggestions' rows: the wheel moves the choice, as the command list's does (0.6.7.3).
+                if suggestionsScroll(steps) { return }
                 perform(composer.scrollPalette(by: steps))
             case let .clipboard(content, id):
                 // Nothing is read during secure input (the shell doesn't read it then either).

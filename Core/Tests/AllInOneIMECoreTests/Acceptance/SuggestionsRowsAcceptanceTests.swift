@@ -3,7 +3,7 @@ import Testing
 @testable import AllInOneIMECore
 import AllInOneIMETestSupport
 
-/// Suggestions v1, spec 1.4: up to 5 rows, in the list's order with the rows picked before first (the one picked last
+/// Suggestions v1, spec 1.4: 5 rows shown, in the list's order with the rows picked before first (the one picked last
 /// first: spec 6.17); the keys while rows show, one set in every class of app that has rows (ordinary, chat, terminal and
 /// code editor; none in the last class: spec 6.11, decision 31), digits never picking a row (6.1), → or Esc hiding them
 /// for the token (6.12, decision 31); which rows are offered (by their match where what they insert can go in: 0.6.7.1
@@ -28,15 +28,20 @@ struct SuggestionsRowsAcceptanceTests {
 
     // MARK: - Rows
 
-    /// Five rows at most, in the list's order (its rank, not sorted).
-    @Test func atMostFiveRowsInTheListsOrder() async throws {
+    /// Five rows shown, of up to 100, in the list's order (its rank, not sorted); ↓ past the fifth scrolls the rest in
+    /// (0.6.7.3).
+    @Test func fiveRowsShownInTheListsOrderDownScrollsTheRest() async throws {
         try await inEnglish {
             let items = [7090, 7001, 7080, 7002, 7070, 7060, 7008, 7009].map { SuggestionsItems.issue($0, "Issue \($0)") }
             let field = try typedHash7(items: items)
             field.type("0")
             #expect(field.settle { field.shown(items.map(\.match)) == ["#7090", "#7001", "#7080", "#7002", "#7070"] },
                     "\(field.rows.map(\.text))")
-            #expect(field.rows.count == 5)
+            #expect(field.rows.count == 5 && field.footer.contains("1–5 / 8"), "5 shown of 8: \(field.footer)")
+            for _ in 1...7 { #expect(field.press(SuggestionKeys.down)) }
+            #expect(field.shown(items.map(\.match)) == ["#7002", "#7070", "#7060", "#7008", "#7009"]
+                    && field.host.panel?.highlighted == 4 && field.footer.contains("4–8 / 8"),
+                    "↓ to the eighth: \(field.rows.map(\.text)), \(field.footer)")
         }
     }
 

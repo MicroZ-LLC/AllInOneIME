@@ -927,8 +927,10 @@ They take the place of [autocomplete](#autocomplete-beta-new)'s gray text while 
 - **Plugins' completions:** a plugin declares what it completes after a prefix, `#12` for `@github`'s issues, or a whole
   12-digit AWS account id with no prefix. Its list is kept on this Mac (loaded again every 15 minutes or so while you
   use it, never when you haven't for a week), and some also look up what you type, from 2 characters after the prefix,
-  so a brand-new issue shows too. Up to 5 rows, the ones you picked before first (by how often and how recently); the
-  footer names the source, and the list's age when it's older than 10 minutes. It works in English and in pinyin: `#`
+  so a brand-new issue shows too. Every item that matches is a row, up to 100: the ones you picked before first (by how
+  often and how recently), then the source's order. The panel shows 5 at a time; with more, the footer says which
+  (`6–10 / 23`, as in the command list). The footer names the source, and the list's age when it's older than 10
+  minutes. It works in English and in pinyin: `#`
   typed while pinyin is composed puts the words in and starts the token; a prefix of letters and a dash (`PROJ-`) typed
   in pinyin goes in as typed once its dash is typed (its letters aren't made Chinese), and the digits after it are
   typed. What you typed stays as typed; only the rest goes in (`#12` and the row `#1234 Fix login` add `34 Fix login`).
@@ -937,11 +939,16 @@ They take the place of [autocomplete](#autocomplete-beta-new)'s gray text while 
   its source's next choice (the number). Whether a row shows is its item's match alone.
 - **Keys:** the same for every kind of row, in every app (chat apps, browsers, code editors and terminals too) and every
   input (English, pinyin when nothing is being composed, Code), as in the command list: while the rows show, the keys
-  are AllInOneIME's first. The first row that puts something in is chosen from the start, drawn selected; ↓ ↑ move it;
-  ⏎ or Tab inserts it. → or Esc hides the rows (nothing else happens; in Code the word you're typing goes in as typed),
+  are AllInOneIME's first. The first row that puts something in is chosen from the start, drawn selected; ↓ ↑ move it,
+  and past the last row shown (or the first) the rows scroll by one, round from the last to the first; the wheel or the
+  trackpad over the panel moves the chosen row too, as in the command list (it stops at the first and the last row),
+  and a click inserts the row clicked; ⏎ or Tab inserts the chosen one, always a row you can see.
+  → or Esc hides the rows (nothing else happens; in Code the word you're typing goes in as typed),
   and keys are the app's again until what you type
   changes: in Slack, `#12` then ⏎ inserts the issue, and `#12` → ⏎ sends `#12` as typed. Digits never pick a row: they
-  go on typing (`#7` then `1` is `#71`). Pinyin's own candidates while it composes are as always (⏎ puts in the
+  go on typing (`#7` then `1` is `#71`). A key the rows take never reaches the app too, in Slack, Chrome, Google Docs,
+  VS Code and other apps built on Chromium or Electron as well: ⏎ doesn't send the message, ↑ doesn't move the caret.
+  Pinyin's own candidates while it composes are as always (⏎ puts in the
   letters, Space picks). No rows in launchers, remote desktops, virtual machines and SSH clients.
 - **Turning them on:** **Suggestions** in Settings → General, on unless you turn it off, covers plugins', script
   extensions', Suggestions commands' and Code's rows; they show once there is a source (a plugin's completions, a script

@@ -9,11 +9,14 @@
 // handle through -[NSApplication sendEvent:] again (-[CommandDispatcher redispatchKeyEvent:], its window key), so the
 // input method gets every modifier change twice. Whether a key down can come twice too (the owner's "#17", 0.6.7): the
 // hash-digits script types "#17", and a key down through TSMProcessRawKeyEvent is recorded as well ("rawKeyDown").
-// What the page does with a key the input method answers (0.6.7.2: Return on a suggestion row sent Slack's message):
-// the type-enter script, the probe standing in for the input method (HARNESS_ANSWER, `standIn`).
+// What the page does with a key the input method answers (0.6.7.2: Return on a suggestion row sent Slack's message;
+// 0.6.7.3: ↓ ↑ → Esc on the rows moved Slack's caret, or the focus): the type-enter and type-keys scripts, the probe
+// standing in for the input method (HARNESS_ANSWER, `standIn`).
 //
-// Environment: HARNESS_SCRIPT (shift-hold, shift-tap, shift-letter, option-tap, hash-digits, type-enter), HARNESS_TYPE
-// (what type-enter types), HARNESS_ANSWER (its answer to Return: `standIn`), HARNESS_DELAY (seconds before it starts,
+// Environment: HARNESS_SCRIPT (shift-hold, shift-tap, shift-letter, option-tap, hash-digits, type-enter, type-keys),
+// HARNESS_TYPE (what type-enter and type-keys type), HARNESS_KEYS (the keys type-keys presses after it, by name:
+// return, tab, down, up, right, left, escape; type-enter's is return), HARNESS_ANSWER (the answer to each of them:
+// `standIn`), HARNESS_AFTER (the page's text after the caret before anything is typed), HARNESS_DELAY (seconds before it starts,
 // the page loaded), HARNESS_FAKE_KEY (the window says it's key, as it is while someone types in it: on a locked screen, or with
 // another app in front, no app becomes active; it's what Chromium looks at before it sends an event again). Prints
 // "REC <seconds into the script> <what> …" lines on stdout for the self-test (ElectronSelfTest.swift), and what it sees
@@ -147,12 +150,19 @@ static void answerStep(id<NSTextInputClient> client, NSArray<NSString *> *parts)
     }
 }
 
+/// The keys the answer's steps answer (the rest are typed), by the names HARNESS_KEYS gives them.
+static NSDictionary<NSString *, NSNumber *> *answeredKeys(void) {
+    return @{@"return": @(kVK_Return), @"tab": @(kVK_Tab), @"down": @(kVK_DownArrow), @"up": @(kVK_UpArrow),
+             @"right": @(kVK_RightArrow), @"left": @(kVK_LeftArrow), @"escape": @(kVK_Escape)};
+}
+
 /// A key down answered as the input method would: a character key's text put in during it (insertText: with no
-/// range, as an input method that types it does), ⏎ with the answer's steps, each during its key down ("key:…") or on
-/// the run loop's next turn after it ("after:…"). Every key is the input method's.
+/// range, as an input method that types it does); ⏎, Tab, an arrow or Esc with the answer's steps, each during its key
+/// down ("key:…") or on the run loop's next turn after it ("after:…"), none for an empty answer (the key taken, nothing
+/// done: what 0.6.7.2 did on ↓). Every key is the input method's.
 static BOOL standIn(id<NSTextInputClient> client, NSEvent *e) {
     answered = client;
-    if (e.keyCode != kVK_Return) {
+    if (![answeredKeys().allValues containsObject:@(e.keyCode)]) {
         [client insertText:e.characters replacementRange:NSMakeRange(NSNotFound, 0)];
         return YES;
     }
@@ -266,10 +276,13 @@ static NSArray *steps(NSString *name) {
                  @[@0.3, ^{ key(NSEventTypeKeyDown, 26, @"7", noModifier); }],
                  @[@0.05, ^{ key(NSEventTypeKeyUp, 26, @"7", noModifier); }], @[@1.0, ^{}]];
     }
-    // HARNESS_TYPE ("#17" without it) typed, the probe standing in for the input method (HARNESS_ANSWER), then ⏎
-    // answered with its steps; then a second for what comes after, and whether the field still has marked text.
-    if ([name isEqualToString:@"type-enter"]) {
-        NSString *typed = NSProcessInfo.processInfo.environment[@"HARNESS_TYPE"] ?: @"#17";
+    // HARNESS_TYPE ("#17" without it) typed, the probe standing in for the input method (HARNESS_ANSWER), then ⏎ (or
+    // type-keys' HARNESS_KEYS, one after another) answered with its steps; then a second for what comes after, and
+    // whether the field still has marked text.
+    if ([name isEqualToString:@"type-enter"] || [name isEqualToString:@"type-keys"]) {
+        NSDictionary<NSString *, NSString *> *environment = NSProcessInfo.processInfo.environment;
+        NSString *typed = environment[@"HARNESS_TYPE"] ?: @"#17";
+        NSString *keys = [name isEqualToString:@"type-keys"] ? environment[@"HARNESS_KEYS"] ?: @"return" : @"return";
         NSDictionary<NSString *, NSNumber *> *codes = @{@"#": @20, @"0": @29, @"1": @18, @"2": @19, @"3": @20, @"4": @21,
                                                         @"5": @23, @"6": @22, @"7": @26, @"8": @28, @"9": @25};
         NSMutableArray *script = [NSMutableArray array];
@@ -280,8 +293,28 @@ static NSArray *steps(NSString *name) {
             [script addObject:@[@0.1, ^{ post(keyEvent(NSEventTypeKeyDown, flags, code, character)); }]];
             [script addObject:@[@0.05, ^{ post(keyEvent(NSEventTypeKeyUp, flags, code, character)); }]];
         }
-        [script addObject:@[@0.3, ^{ post(keyEvent(NSEventTypeKeyDown, noModifier, kVK_Return, @"\r")); }]];
-        [script addObject:@[@0.05, ^{ post(keyEvent(NSEventTypeKeyUp, noModifier, kVK_Return, @"\r")); }]];
+        // Each key's characters as AppKit has them: ⏎, Tab, Esc; an arrow's function key.
+        NSDictionary<NSNumber *, NSString *> *characters = @{
+            @(kVK_Return): @"\r", @(kVK_Tab): @"\t", @(kVK_Escape): @"\x1b",
+            @(kVK_DownArrow): [NSString stringWithFormat:@"%C", (unichar)NSDownArrowFunctionKey],
+            @(kVK_UpArrow): [NSString stringWithFormat:@"%C", (unichar)NSUpArrowFunctionKey],
+            @(kVK_RightArrow): [NSString stringWithFormat:@"%C", (unichar)NSRightArrowFunctionKey],
+            @(kVK_LeftArrow): [NSString stringWithFormat:@"%C", (unichar)NSLeftArrowFunctionKey]};
+        double wait = 0.3;
+        for (NSString *key in [keys componentsSeparatedByString:@","]) {
+            NSNumber *code = answeredKeys()[key];
+            if (!code) {
+                say(@"a key not known: %@", key);
+                continue;
+            }
+            // An arrow's events say so, as the system's do.
+            NSEventModifierFlags flags = code.unsignedShortValue >= kVK_LeftArrow && code.unsignedShortValue <= kVK_UpArrow
+                ? noModifier | NSEventModifierFlagFunction | NSEventModifierFlagNumericPad : noModifier;
+            NSString *chars = characters[code];
+            [script addObject:@[@(wait), ^{ post(keyEvent(NSEventTypeKeyDown, flags, code.unsignedShortValue, chars)); }]];
+            [script addObject:@[@0.05, ^{ post(keyEvent(NSEventTypeKeyUp, flags, code.unsignedShortValue, chars)); }]];
+            wait = 0.25;
+        }
         [script addObject:@[@1.0, ^{
             id<NSTextInputClient> client = answered;
             record([NSString stringWithFormat:@"hasMarkedText %d", client ? (int)[client hasMarkedText] : -1]);

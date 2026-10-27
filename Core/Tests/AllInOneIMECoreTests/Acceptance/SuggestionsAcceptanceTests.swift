@@ -19,8 +19,8 @@ import AllInOneIMETestSupport
 //   SuggestionsTokenAcceptanceTests
 // - list and query merged, a query cancelled, the cache per prefix, refreshes, failures, the script's ctx, the plugin's
 //   outputs (good, bad, oversized, control and bidi characters, duplicates): SuggestionsSourcesAcceptanceTests
-// - at most 5 rows, their order (picked before first), the keys per app class, what is inserted with the templates per
-//   class: SuggestionsRowsAcceptanceTests
+// - 5 rows shown of up to 100 (↓ scrolls), their order (picked before first), the keys per app class, what is inserted
+//   with the templates per class: SuggestionsRowsAcceptanceTests
 // - never-run rules (secure fields, remote apps, the master, app and source switches, a plugin changed since it was
 //   enabled), privacy (nothing logged, nothing learned as English words): SuggestionsSwitchesAcceptanceTests
 // - Code, the input (decision 22, which replaced coding mode and decision 13's chooser): a tap of Shift through the
