@@ -1,15 +1,15 @@
 {
-  "build" : "17",
-  "generated" : "2026-10-27T01:00:56Z",
+  "build" : "18",
+  "generated" : "2026-10-27T22:41:54Z",
   "minimumSystemVersion" : "14.0",
-  "notesURL" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/tag/v0.6.7.3",
+  "notesURL" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/tag/v0.6.8",
   "schema" : 1,
-  "sha256" : "60360620cbf47388a9ee5eaaaa07e549c9c17fe04676cef6d6a7c9556d2908a5",
-  "size" : 28285521,
+  "sha256" : "3228f8425f6e738b33ba50b7afd19d87a4e04b64cc3b1639fb9fbb721c3472a1",
+  "size" : 28477357,
   "summary" : {
-    "en" : "In Slack and other Chromium apps, ↓ ↑ and Esc on suggestion rows stay in the input method, and ⏎ on a Markdown-link row no longer sends the message; suggestion rows scroll past 5.",
-    "zh" : "在 Slack 等 Chromium 系 App 里，在建议行上按 ↓ ↑ 和 Esc 不再交给 App，对 Markdown 链接的行按 ⏎ 不再把消息发出去；建议行超过 5 行可以滚动。"
+    "en" : "Clipboard history: ⌃V lists the text you copied lately and puts in the one you choose (⇧↓ picks several); Suggestions commands are out of the @ list; a crash after long use in some interface languages is fixed.",
+    "zh" : "剪贴板历史：按 ⌃V 列出最近复制的文字，选一条就放进去（⇧↓ 可多选）；「建议」类型命令不再出现在 @ 列表里；修好了部分界面语言下用久了会崩溃的问题。"
   },
-  "url" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/download/v0.6.7.3/AllInOneIME-0.6.7.3-update.zip",
-  "version" : "0.6.7.3"
+  "url" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/download/v0.6.8/AllInOneIME-0.6.8-update.zip",
+  "version" : "0.6.8"
 }
