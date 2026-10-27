@@ -85,8 +85,8 @@ public final class ClipboardRecorder {
     let source: ClipboardSource
     let secureInput: () -> Bool
     let now: () -> Date
-    /// The change count last looked at (nil: none yet: what's on the clipboard is recorded at the first look), and whether
-    /// secure input was on then.
+    /// The change count last looked at (nil: none yet: what's on the clipboard is recorded at the first look, at launch),
+    /// and whether secure input was on then.
     private var seen: Int?
     private var wasSecure = false
     /// The access as told at the last change.
@@ -118,9 +118,10 @@ public final class ClipboardRecorder {
         return store.record(text, at: now(), limit: limit) ? .recorded : .same
     }
 
-    /// What's on the clipboard now is looked at again at the next `poll` (the history turned on again).
+    /// What's on the clipboard now is never recorded, only a copy made after it (Clear History, the history turned off
+    /// and on again): its change count is remembered as looked at, which never asks.
     public func forget() {
-        seen = nil
+        seen = source.changeCount
     }
 }
 

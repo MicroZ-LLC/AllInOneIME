@@ -150,7 +150,7 @@ struct ClipboardHistoryRecordingTests {
     }
 
     /// The file is the user's only (0600), excluded from backups; Clear deletes it, and the next copy makes it again; the
-    /// history turned off is the same Clear (`ClipboardHistoryShared`), and the clipboard is looked at again once on.
+    /// history turned off is the same Clear (`ClipboardHistoryShared`).
     @Test func theFileIsTheUsersOnlyAndClearDeletesIt() throws {
         let folder = try Self.folder()
         defer { try? FileManager.default.removeItem(at: folder) }
@@ -169,7 +169,30 @@ struct ClipboardHistoryRecordingTests {
         #expect(!FileManager.default.fileExists(atPath: url.path) && recorder.store.items.isEmpty)
         #expect(ClipboardHistoryStore(url: url).items.isEmpty)
         recorder.forget()
-        #expect(recorder.poll(limit: 20) == .recorded && Self.texts(recorder) == ["again"], "on again: what's on the clipboard")
+        pasteboard.copy("after")
+        #expect(recorder.poll(limit: 20) == .recorded && Self.texts(recorder) == ["after"] && FileManager.default.fileExists(atPath: url.path))
+    }
+
+    /// Clear History (and the history turned off and on again: `ClipboardHistoryShared` forgets then too) doesn't record
+    /// what is on the clipboard at the next look: its change count is remembered, nothing of it read; only a later copy.
+    @Test func clearDoesntRecordWhatIsOnTheClipboardAgain() throws {
+        let folder = try Self.folder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let (recorder, pasteboard) = Self.recorder(in: folder)
+        pasteboard.copy("cleared")
+        #expect(recorder.poll(limit: 20) == .recorded)
+        recorder.store.clear()
+        recorder.forget()
+        let reads = pasteboard.reads
+        #expect(recorder.poll(limit: 20) == .unchanged && recorder.store.items.isEmpty && pasteboard.reads == reads,
+                "the next look: what was copied before Clear stays out")
+        #expect(recorder.poll(limit: 20) == .unchanged && recorder.store.items.isEmpty)
+        // Copied while the history was off, then on again (forgotten as it comes on): not recorded either.
+        pasteboard.copy("while off")
+        recorder.forget()
+        #expect(recorder.poll(limit: 20) == .unchanged && recorder.store.items.isEmpty)
+        pasteboard.copy("later")
+        #expect(recorder.poll(limit: 20) == .recorded && Self.texts(recorder) == ["later"])
     }
 
     /// A file that can't be read is an empty history, made anew by the next copy.

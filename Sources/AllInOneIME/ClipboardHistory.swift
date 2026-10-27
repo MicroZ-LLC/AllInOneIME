@@ -44,12 +44,14 @@ enum ClipboardHistoryShared {
         }
     }
 
-    /// `config`'s switch and limit, once each time they change.
+    /// `config`'s switch and limit, once each time they change. Turned on again: only a copy made from then on is recorded.
     static func apply(_ config: Config) {
         let now = (on: config.clipboardHistoryOn, limit: config.clipboardHistoryKept)
         guard applied.map({ $0 != now }) ?? true else { return }
+        let wasOff = applied?.on == false
         applied = now
         if now.on {
+            if wasOff { recorder.forget() }
             recorder.store.trim(to: now.limit)
         } else {
             clear()
@@ -57,7 +59,8 @@ enum ClipboardHistoryShared {
         }
     }
 
-    /// Clear History, or the history turned off: the file deleted; what's on the clipboard is looked at again.
+    /// Clear History, or the history turned off: the file deleted; what's on the clipboard now isn't recorded again at the
+    /// next look, only a later copy (`ClipboardRecorder.forget`).
     static func clear() {
         recorder.store.clear()
         recorder.forget()
