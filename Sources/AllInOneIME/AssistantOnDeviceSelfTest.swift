@@ -62,8 +62,7 @@ extension SelfTest {
         let real = AppleModel.system
         section("Settings → Assistant on Apple Intelligence on this Mac: a large config fitted to its context (\(real.availability.rawValue))")
         guard real.availability == .available, let guided = real as? any AppleGuidedBackend else {
-            print("  skipped: the on-device model isn't available here")
-            return
+            return skip("Settings → Assistant fitted to the on-device model's context", noOnDeviceModel)
         }
         let realBefore = try? Data(contentsOf: Config.userURL)
         defer { check((try? Data(contentsOf: Config.userURL)) == realBefore, "Assistant on device: the user's config file was not touched") }
@@ -173,8 +172,7 @@ extension SelfTest {
         let real = AppleModel.system
         section("Settings → Assistant on Apple Intelligence on this Mac: Autocomplete on and off in a sentence (\(real.availability.rawValue))")
         guard real.availability == .available, let guided = real as? any AppleGuidedBackend else {
-            print("  skipped: the on-device model isn't available here")
-            return
+            return skip("Settings → Assistant's Autocomplete on the on-device model", noOnDeviceModel)
         }
         let realBefore = try? Data(contentsOf: Config.userURL)
         defer { check((try? Data(contentsOf: Config.userURL)) == realBefore, "Assistant Autocomplete: the user's config file was not touched") }

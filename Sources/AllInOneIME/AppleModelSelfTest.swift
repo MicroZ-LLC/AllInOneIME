@@ -10,8 +10,7 @@ extension SelfTest {
         let availability = AppleModel.system.availability
         section("Apple Intelligence on this Mac (\(availability.rawValue))")
         guard availability == .available else {
-            print("  skipped: the on-device model isn't available here")
-            return
+            return skip("Apple Intelligence on this Mac", noOnDeviceModel)
         }
         needing(.composing)  // the on-device model, not Bedrock
         let (converterBefore, settingsBefore) = (controller.services.converter, settings)

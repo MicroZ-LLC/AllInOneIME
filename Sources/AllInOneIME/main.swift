@@ -22,7 +22,10 @@ let usage = """
                         just autocomplete's (a harness window, stand-in models, no AI requests);
                         --settings-only just the settings window's (stand-ins, no AI requests);
                         --suggestions-only just suggestions' (a stand-in for api.github.com, the
-                        Electron harness where ALLINONEIME_ELECTRON_HARNESS names it; no AI requests)
+                        Electron harness where ALLINONEIME_ELECTRON_HARNESS names it; no AI requests).
+                        Exits 0 when every check ran and passed, 1 when one failed, 2 when none failed
+                        but some were skipped or couldn't run (a locked screen ends it at once); the
+                        last line is SELFTEST-RESULT {"passed":N,"failed":N,"skipped":N,"status":…}
       --install-pack ID [--library URL] [--key BASE64] [--packs-dir DIR]
                         download and install a language pack (zh-pinyin) as Settings does; plain http
                         is allowed to this Mac only, for a test server

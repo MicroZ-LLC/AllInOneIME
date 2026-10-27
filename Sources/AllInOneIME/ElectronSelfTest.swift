@@ -426,8 +426,8 @@ extension SelfTest {
     /// each key down reaches the input method (`checkKeyDowns`, about 4 s each). Skipped, and said so, without it.
     static func testElectronHarness(_ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
         guard let folder = ProcessInfo.processInfo.environment["ALLINONEIME_ELECTRON_HARNESS"], !folder.isEmpty else {
-            print("  the Electron harness: not run (make electron-harness, then make selftest ELECTRON_HARNESS=build/electron-harness)")
-            return
+            print("  the Electron harness: make electron-harness, then make selftest ELECTRON_HARNESS=build/electron-harness")
+            return skip("the Electron harness's scripts in Slack's composer and a textarea", noElectronHarness)
         }
         let harness = URL(fileURLWithPath: folder)
         guard FileManager.default.isExecutableFile(atPath: electronBinary(in: harness).path),
@@ -1060,7 +1060,8 @@ extension SelfTest {
                 harness = nil
             }
         } else {
-            print("  the Electron harness: not run (make electron-harness, then ELECTRON_HARNESS=build/electron-harness); what it recorded is checked")
+            print("  the Electron harness: make electron-harness, then ELECTRON_HARNESS=build/electron-harness; what it recorded is checked")
+            skip("the rows' keys in the Electron harness's page, and its Electron told by its bundle", noElectronHarness)
         }
         let userData = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-electron-\(UUID().uuidString)")
         try? FileManager.default.createDirectory(at: userData, withIntermediateDirectories: true)
