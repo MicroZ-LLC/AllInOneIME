@@ -75,6 +75,8 @@ public final class InputSession {
     /// Suggestions in this field: the token, its rows (InputSession+Suggestions.swift), and the long press of Shift that
     /// turns Translate as You Type on and off, timed on the session's clock.
     var suggesting = SuggestionsField()
+    /// Clipboard history's panel in this field (InputSession+ClipboardHistory.swift).
+    var clipboard = ClipboardHistoryField()
     /// The field that has the focus is a password field where secure input isn't on, as the shell told it
     /// (`FieldContext.Parts.passwordField`: the Mac asks Accessibility once a field, and with each read autocomplete's
     /// pause makes); nil until told. Autocomplete and suggestions both go by it; one told stays one until another field
@@ -156,6 +158,7 @@ public final class InputSession {
                 focus(info)
             case .blur:
                 autocompleteLeft(.ignored)
+                clipboardLeft()
                 suggestionsLeft()
                 perform(composer.commitAll())
                 learnTypedInEnglish(englishModeWords.leftField())
@@ -164,23 +167,25 @@ public final class InputSession {
                 fieldText = nil
             case .commit:
                 autocompleteLeft(.ignored)  // a click in the field: the caret may be elsewhere
+                clipboardLeft()
                 perform(composer.commitAll())
                 suggestionsClicked()
             case let .pick(row):
-                // Suggestions' rows put in what a click picks.
-                if suggestionsPick(row) { return }
+                // Clipboard history's rows and suggestions' put in what a click picks.
+                if clipboardPick(row) || suggestionsPick(row) { return }
                 // What a click on the row picks (`PanelModel.Row.choice`): its number's, a conversation's answer by its
                 // round, nothing for a question.
                 let rows = panelModel().rows
                 guard rows.indices.contains(row), let choice = rows[row].choice else { return }
                 perform(composer.choose(index: choice))
             case let .scroll(steps):
-                // Suggestions' rows: the wheel moves the choice, as the command list's does (0.6.7.3).
-                if suggestionsScroll(steps) { return }
+                // Clipboard history's and suggestions' rows: the wheel moves the choice, as the command list's does (0.6.7.3).
+                if clipboardScroll(steps) || suggestionsScroll(steps) { return }
                 perform(composer.scrollPalette(by: steps))
             case let .clipboard(content, id):
-                // Nothing is read during secure input (the shell doesn't read it then either).
-                perform(composer.pasted(secureInputActive() ? .none : content, id: id))
+                // Nothing is read during secure input (the shell doesn't read it then either). Below 0: clipboard history's.
+                let content = secureInputActive() ? ClipboardContent.none : content
+                if id < 0 { clipboardRead(content, id: id) } else { perform(composer.pasted(content, id: id)) }
             case let .field(context, id):
                 takePasswordField(context)
                 // Below 0: Code's read of the field's words; else autocomplete's.
@@ -203,6 +208,7 @@ public final class InputSession {
                 autocompleteNotShown(text)
             case .close:
                 autocompleteLeft(.unseen)
+                clipboardLeft()
                 suggestionsLeft()
                 learnTypedInEnglish(englishModeWords.leftField())
                 tasks.close()  // what runs for the field stops (a save, a message, an agent goes on)
@@ -266,6 +272,7 @@ public final class InputSession {
         field = info
         passwordField = nil
         tasks.reopen()  // focused again after `.close`: its work starts again (the engine is made again below)
+        clipboard = ClipboardHistoryField(reads: clipboard.reads)
         ensureLevelOne()
         settings(app: info.app)  // the app's own starting language, rewrite styles, typing out (`AppProfile`)
         learningFocused()  // what Shift does before anything is typed may teach the app its starting input
@@ -642,6 +649,7 @@ public final class InputSession {
             }
             lastTyped.forget()
             englishModeWords = EnglishModeWords()  // nothing typed here is followed, nor the word before kept
+            clipboardHide()
             suggestionsSecure()
             return false
         }
@@ -657,6 +665,8 @@ public final class InputSession {
         }
         // Autocomplete's suggestion: Tab puts it in, Esc takes it down; any key ends its pause and stops its request.
         if let taken = autocompleteBeforeKey(event) { return taken }
+        // ⌃V shows clipboard history, in place of suggestions' rows; while it shows, its keys (the same in every app).
+        if let taken = clipboardBeforeKey(event) { return taken }
         // Suggestions' rows take their keys (the arrows, Tab, Return, →, Esc: the same in every app).
         if let taken = suggestionsBeforeKey(event, context) { return taken }
         ensureLevelOne()
@@ -1005,7 +1015,7 @@ public final class InputSession {
             case .showPanel:
                 showPanel()
             case .hidePanel:
-                emit(.panel(nil))
+                emit(.panel(clipboardPanel()))  // clipboard history's stays while it shows
             case let .notice(text):
                 // A note left unsaved, its text on the clipboard: up as long as the other "on the clipboard" notices.
                 say(text, long: text == composer.messages.noteNotSaved)
@@ -1455,9 +1465,9 @@ public final class InputSession {
 
     // MARK: - The candidate panel and notices
 
-    /// The candidate panel as it is now: suggestions' rows where they show, else the composer's
-    /// (`PanelPresenter`).
-    public func panelModel() -> PanelModel { suggestionsShownPanel() ?? panelPresenter().model(for: composer) }
+    /// The candidate panel as it is now: clipboard history's while it shows, suggestions' rows where they show, else the
+    /// composer's (`PanelPresenter`).
+    public func panelModel() -> PanelModel { clipboardPanel() ?? suggestionsShownPanel() ?? panelPresenter().model(for: composer) }
 
     /// Suggestions' panel, where it is the one shown: the rows with nothing composed.
     private func suggestionsShownPanel() -> PanelModel? {
@@ -1477,7 +1487,7 @@ public final class InputSession {
     }
 
     private func showPanel() {
-        emit(.panel(composer.wantsPanel || suggestionsShownPanel() != nil ? panelModel() : nil))
+        emit(.panel(composer.wantsPanel || clipboard.shown || suggestionsShownPanel() != nil ? panelModel() : nil))
     }
 
     /// A short status message ("英" English mode, "已复制" copied, …): on the panel's footer when it's shown, else on its
@@ -1491,7 +1501,7 @@ public final class InputSession {
         notice = text
         noticeToken += 1
         emit(.startTimer(.notice(noticeToken), after: lasting ?? SessionText.noticeDuration(text, long: long)))
-        if composer.wantsPanel || suggestionsShownPanel() != nil {
+        if composer.wantsPanel || clipboard.shown || suggestionsShownPanel() != nil {
             showPanel()
         } else {
             emit(.notice(text))

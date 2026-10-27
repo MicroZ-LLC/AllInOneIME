@@ -48,6 +48,53 @@
         }
       }
     },
+    " · %@ selected" : {
+      "comment" : " · 已选 %@ 条 — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · %@ ausgewählt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · %@ seleccionados"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · %@ sélectionnés"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · %@件選択"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · %@개 선택됨"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · %@ selecionados"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · 已選 %@ 條"
+          }
+        }
+      }
+    },
     " · 90%% within %@ ms" : {
       "comment" : " · 九成在 %@ ms 内 — Sources/AllInOneIMECore/Autocomplete.swift",
       "localizations" : {
@@ -2590,6 +2637,53 @@
         }
       }
     },
+    "%@ again pastes it" : {
+      "comment" : "再按 %@ 粘贴 — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nochmals %@ setzt es ein"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ otra vez la pega"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ à nouveau la colle"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "もう一度 %@ でペースト"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@를 한 번 더 누르면 붙여넣기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ de novo a cola"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再按 %@ 貼上"
+          }
+        }
+      }
+    },
     "%@ ask · %@ insert · %@ pick · %@ copy · Esc back" : {
       "comment" : "%@ 追问 · %@ 上屏 · %@ 选 · %@ 复制 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
       "localizations" : {
@@ -2915,6 +3009,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "每秒 %@ 個字（應介於 %@ 到 %@ 之間）"
+          }
+        }
+      }
+    },
+    "%@ chars" : {
+      "comment" : "%@ 字 — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ Zeichen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ caracteres"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ caractères"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@文字"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@자"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ caracteres"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 字"
           }
         }
       }
@@ -3436,6 +3577,100 @@
         }
       }
     },
+    "%@ inserts · ↑↓ to pick · ⇧↓ selects more · → or Esc hides" : {
+      "comment" : "%@ 插入 · ↑↓ 选择 · ⇧↓ 多选 · → 或 Esc 隐藏 — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ fügt ein · ↑↓ zum Wählen · ⇧↓ wählt mehr · → oder Esc blendet aus"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ inserta · ↑↓ para elegir · ⇧↓ elige más · → o Esc oculta"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ insère · ↑↓ pour choisir · ⇧↓ en choisit plus · → ou Échap masque"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ で挿入 · ↑↓ で選択 · ⇧↓ で複数選択 · → か Esc で隠す"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 삽입 · ↑↓ 선택 · ⇧↓ 여러 개 선택 · → 또는 Esc 숨기기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ insere · ↑↓ para escolher · ⇧↓ escolhe mais · → ou Esc oculta"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 插入 · ↑↓ 選擇 · ⇧↓ 多選 · → 或 Esc 隱藏"
+          }
+        }
+      }
+    },
+    "%@ inserts them, one per line · ⇧↑⇧↓ select · → or Esc hides" : {
+      "comment" : "%@ 一行一条插入 · ⇧↑⇧↓ 多选 · → 或 Esc 隐藏 — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ fügt sie ein, je eine Zeile · ⇧↑⇧↓ wählen · → oder Esc blendet aus"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ los inserta, uno por línea · ⇧↑⇧↓ eligen · → o Esc oculta"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ les insère, un par ligne · ⇧↑⇧↓ choisissent · → ou Échap masque"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ で1行ずつ挿入 · ⇧↑⇧↓ で選択 · → か Esc で隠す"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 한 줄에 하나씩 삽입 · ⇧↑⇧↓ 선택 · → 또는 Esc 숨기기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ insere, um por linha · ⇧↑⇧↓ escolhem · → ou Esc oculta"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 一行一條插入 · ⇧↑⇧↓ 多選 · → 或 Esc 隱藏"
+          }
+        }
+      }
+    },
     "%@ is a built-in command" : {
       "comment" : "%@ 是内置命令的名字 — Sources/AllInOneIMECore/UIText+Names.swift",
       "localizations" : {
@@ -3906,6 +4141,53 @@
         }
       }
     },
+    "%@ lists the text you copied lately and puts in the one you choose; ⇧↓ ⇧↑ choose several, and %@ puts them in one per line. Text only, kept on this Mac only, never what a password manager marks as concealed. Off, %@ works as before." : {
+      "comment" : "按 %@ 列出最近复制的文字，选一条就放进去；⇧↓ ⇧↑ 多选，%@ 一行一条放进去。只记文字，只存在这台 Mac 上，密码管理器标成隐藏的内容不记。关掉后 %@ 和以前一样。 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ listet den Text, den du zuletzt kopiert hast, und setzt den gewählten ein; ⇧↓ ⇧↑ wählen mehrere, und %@ setzt sie zeilenweise ein. Nur Text, nur auf diesem Mac gespeichert, nie, was ein Passwortmanager als verborgen markiert. Aus: %@ funktioniert wie zuvor."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ muestra el texto que copiaste hace poco y pone el que elijas; ⇧↓ ⇧↑ eligen varios, y %@ los pone uno por línea. Solo texto, guardado solo en este Mac, nunca lo que un gestor de contraseñas marca como oculto. Desactivado, %@ funciona como antes."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ liste le texte copié récemment et insère celui que vous choisissez ; ⇧↓ ⇧↑ en choisissent plusieurs, et %@ les insère un par ligne. Du texte seulement, gardé sur ce Mac seulement, jamais ce qu’un gestionnaire de mots de passe marque comme masqué. Désactivé, %@ fonctionne comme avant."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ で最近コピーしたテキストを一覧し、選んだものを入力します。⇧↓ ⇧↑ で複数選び、%@ で1行ずつ入力します。テキストのみ、この Mac にだけ保存し、パスワードマネージャが非表示にした内容は記録しません。オフにすると %@ は以前と同じです。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@를 누르면 최근에 복사한 텍스트가 나열되고, 고른 것을 넣습니다. ⇧↓ ⇧↑로 여러 개를 고르고 %@로 한 줄에 하나씩 넣습니다. 텍스트만, 이 Mac에만 보관하며, 암호 관리자가 숨김으로 표시한 내용은 기록하지 않습니다. 끄면 %@는 예전과 같습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ lista o texto que você copiou há pouco e insere o que escolher; ⇧↓ ⇧↑ escolhem vários, e %@ os insere um por linha. Só texto, guardado só neste Mac, nunca o que um gerenciador de senhas marca como oculto. Desativado, %@ funciona como antes."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按 %@ 列出最近複製的文字，選一條就放進去；⇧↓ ⇧↑ 多選，%@ 一行一條放進去。只記文字，只存在這台 Mac 上，密碼管理器標成隱藏的內容不記。關掉後 %@ 和以前一樣。"
+          }
+        }
+      }
+    },
     "%@ min" : {
       "comment" : "%@ 分钟 — Sources/AllInOneIMECore/Suggestions/SuggestionsSettings.swift",
       "localizations" : {
@@ -4325,6 +4607,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ 在瀏覽器中打開，在 GitHub 上提交 · Esc 返回"
+          }
+        }
+      }
+    },
+    "%@ opens Privacy & Security" : {
+      "comment" : "%@ 打开「隐私与安全性」 — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ öffnet „Datenschutz & Sicherheit“"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ abre Privacidad y seguridad"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ouvre Confidentialité et sécurité"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ で「プライバシーとセキュリティ」を開く"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@를 누르면 ‘개인정보 보호 및 보안’ 열기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ abre Privacidade e Segurança"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 打開「隱私權與安全性」"
           }
         }
       }
@@ -5835,6 +6164,100 @@
         }
       }
     },
+    "+%@ lines" : {
+      "comment" : "+%@ 行 — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+%@ Zeilen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+%@ líneas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+%@ lignes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+%@行"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+%@줄"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+%@ linhas"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+%@ 行"
+          }
+        }
+      }
+    },
+    "+1 line" : {
+      "comment" : "+1 行 — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+1 Zeile"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+1 línea"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+1 ligne"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+1行"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+1줄"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+1 linha"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+1 行"
+          }
+        }
+      }
+    },
     "⌥Space" : {
       "comment" : "⌥空格 — Sources/AllInOneIMECore/UIText+Names.swift",
       "localizations" : {
@@ -6160,6 +6583,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "⚠ 佔位符已被更改"
+          }
+        }
+      }
+    },
+    "1 char" : {
+      "comment" : "1 字 — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 Zeichen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 carácter"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 caractère"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1文字"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1자"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 caractere"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 字"
           }
         }
       }
@@ -13849,6 +14319,100 @@
         }
       }
     },
+    "Clipboard" : {
+      "comment" : "剪贴板 — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zwischenablage"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Portapapeles"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Presse-papiers"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クリップボード"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "클립보드"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Área de transferência"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "剪貼簿"
+          }
+        }
+      }
+    },
+    "Clipboard history" : {
+      "comment" : "剪贴板历史 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verlauf der Zwischenablage"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Historial del portapapeles"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Historique du presse-papiers"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クリップボード履歴"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "클립보드 기록"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Histórico da área de transferência"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "剪貼簿歷史"
+          }
+        }
+      }
+    },
     "Code" : {
       "comment" : "代码 — Sources/AllInOneIMECore/Composer.swift",
       "localizations" : {
@@ -20075,6 +20639,53 @@
         }
       }
     },
+    "Image on the clipboard" : {
+      "comment" : "剪贴板里的图片 — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bild in der Zwischenablage"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Imagen en el portapapeles"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Image dans le presse-papiers"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クリップボードの画像"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "클립보드의 이미지"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Imagem na área de transferência"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "剪貼簿裡的圖片"
+          }
+        }
+      }
+    },
     "Import a file containing its own entries, without dependencies in import_tables." : {
       "comment" : "请导入直接包含词条的词库，不能依赖 import_tables 中的其他文件。 — Sources/AllInOneIMECore/PersonalDictionary.swift",
       "localizations" : {
@@ -21766,6 +22377,100 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "保留前 %@ 種"
+          }
+        }
+      }
+    },
+    "Keep the last" : {
+      "comment" : "保留最近几条 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Behalten: die letzten"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guardar los últimos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Garder les derniers"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存する件数"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "보관할 개수"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guardar os últimos"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保留最近幾條"
+          }
+        }
+      }
+    },
+    "Kept on this Mac only; turn it off in Settings → General → Clipboard history" : {
+      "comment" : "只存在这台 Mac 上；在设置 →「通用」→「剪贴板历史」里可以关掉 — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nur auf diesem Mac gespeichert; ausschalten unter Einstellungen → Allgemein → Verlauf der Zwischenablage"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Solo se guarda en este Mac; desactívalo en Ajustes → General → Historial del portapapeles"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gardé sur ce Mac seulement ; désactivez-le dans Réglages → Général → Historique du presse-papiers"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この Mac にだけ保存されます。設定 → 一般 →「クリップボード履歴」でオフにできます"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Mac에만 보관됩니다. 설정 → 일반 → 클립보드 기록에서 끌 수 있습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guardado só neste Mac; desative em Ajustes → Geral → Histórico da área de transferência"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只存在這台 Mac 上；在設定 →「一般」→「剪貼簿歷史」裡可以關掉"
           }
         }
       }
@@ -28361,6 +29066,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "開啟"
+          }
+        }
+      }
+    },
+    "on the clipboard" : {
+      "comment" : "剪贴板里的 — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "in der Zwischenablage"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "en el portapapeles"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "dans le presse-papiers"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クリップボード上"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "클립보드에 있음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "na área de transferência"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "剪貼簿裡的"
           }
         }
       }
@@ -46442,6 +47194,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "逾時 %@ 秒"
+          }
+        }
+      }
+    },
+    "To keep a history, allow Paste from Other Apps" : {
+      "comment" : "要记下历史，请允许「从其他App粘贴」 — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Für einen Verlauf „Aus anderen Apps einsetzen“ erlauben"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Para guardar un historial, permite Pegar desde otras apps"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pour garder un historique, autorisez Coller depuis d’autres apps"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "履歴を残すには「ほかのアプリからペースト」を許可"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기록을 남기려면 ‘다른 앱에서 붙여넣기’를 허용하세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Para guardar um histórico, permita Colar de Outros Apps"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要記下歷史，請允許「從其他App貼上」"
           }
         }
       }

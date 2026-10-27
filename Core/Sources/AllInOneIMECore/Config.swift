@@ -271,6 +271,11 @@ public struct Config: Codable, Equatable, Sendable {
     /// General, decision 28): ID only, with title, with title and link; nil: the source's own (a plugin's `insert`, a
     /// custom command's Insert). Synced as the other settings are: what goes in is the same on every Mac.
     public var suggestionsInsert: SuggestionsInsert?
+    /// Clipboard history (ClipboardHistory.swift): ⌃V lists the text copied lately (Settings → General); nil: on. Off, ⌃V
+    /// is as before 0.6.8 and the history is deleted. This Mac's own, never synced.
+    public var clipboardHistory: Bool?
+    /// How many texts it keeps (`clipboardHistoryKept`: 5…100); nil: 20. This Mac's own, never synced.
+    public var clipboardHistoryLimit: Int?
 
     /// The settings of an API-key provider, with its defaults filled in.
     public func settings(for provider: Provider) -> ProviderSettings {
@@ -400,6 +405,7 @@ public struct Config: Codable, Equatable, Sendable {
         case iCloudSync
         case notes
         case suggestions, completionSources, completionSourcesOff, pluginsSeen, pluginPreferences, unconfirmedCommands, suggestionsInsert
+        case clipboardHistory, clipboardHistoryLimit
         case extensionSources
         case provider, anthropic, gemini, openai
     }
@@ -513,6 +519,9 @@ public struct Config: Codable, Equatable, Sendable {
         unconfirmedCommands = (try? c.decodeIfPresent([CustomCommand.Unconfirmed].self, forKey: .unconfirmedCommands)).flatMap { $0 } ?? []
         // A value of the wrong type, or one this version doesn't know, reads as none.
         suggestionsInsert = (try? c.decodeIfPresent(String.self, forKey: .suggestionsInsert)).flatMap { $0 }.flatMap(SuggestionsInsert.init(rawValue:))
+        // A value of the wrong type reads as none (on, 20), not an error.
+        clipboardHistory = (try? c.decodeIfPresent(Bool.self, forKey: .clipboardHistory)).flatMap { $0 }
+        clipboardHistoryLimit = (try? c.decodeIfPresent(Int.self, forKey: .clipboardHistoryLimit)).flatMap { $0 }
         provider = try c.decodeIfPresent(Provider.self, forKey: .provider) ?? d.provider
         anthropic = try c.decodeIfPresent(ProviderSettings.self, forKey: .anthropic) ?? d.anthropic
         gemini = try c.decodeIfPresent(ProviderSettings.self, forKey: .gemini) ?? d.gemini
@@ -700,6 +709,9 @@ public struct Config: Codable, Equatable, Sendable {
         if !pluginPreferences.isEmpty { try c.encode(pluginPreferences, forKey: .pluginPreferences) }
         if !unconfirmedCommands.isEmpty { try c.encode(unconfirmedCommands, forKey: .unconfirmedCommands) }
         try c.encodeIfPresent(suggestionsInsert?.rawValue, forKey: .suggestionsInsert)
+        // Only once set: a file from before clipboard history doesn't gain the keys.
+        try c.encodeIfPresent(clipboardHistory, forKey: .clipboardHistory)
+        try c.encodeIfPresent(clipboardHistoryLimit, forKey: .clipboardHistoryLimit)
         try c.encode(provider, forKey: .provider)
         try c.encode(anthropic, forKey: .anthropic)
         try c.encode(gemini, forKey: .gemini)

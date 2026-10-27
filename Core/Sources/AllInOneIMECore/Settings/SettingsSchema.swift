@@ -254,6 +254,18 @@ struct SettingsSchema {
         add(suggestionsInsert(), to: &fields) { value in
             store.config.suggestionsInsert = value.string.flatMap(SuggestionsInsert.init(rawValue:))
         }
+        // Clipboard history (the Mac's: its window has Clear History and the permission's state too), and how many it keeps.
+        add(toggle("clipboardHistory", tr("剪贴板历史", "Clipboard history"), UIText.clipboardHistoryHelp(terms: terms),
+                   config.clipboardHistoryOn, platforms: [.mac]), to: &fields) { store.config.clipboardHistory = Self.bool($0) ? nil : false }
+        if config.clipboardHistoryOn {
+            var limit = integer("clipboardHistoryLimit", UIText.clipboardHistoryLimitLabel, value: config.clipboardHistoryKept,
+                                in: Config.clipboardHistoryLimits, step: 1)
+            limit.platforms = [.mac]
+            add(limit, to: &fields) { value in
+                let kept = min(max(Self.int(value), Config.clipboardHistoryLimits.lowerBound), Config.clipboardHistoryLimits.upperBound)
+                store.config.clipboardHistoryLimit = kept == Config.defaultClipboardHistoryLimit ? nil : kept
+            }
+        }
         add(toggle("menuBarIcon", tr("在菜单栏显示图标", "Show in Menu Bar"),
                    tr("笔记、提醒和后台的 Claude 任务，点一下就下拉出来", "Your notes, reminders and Claude tasks, a click away"),
                    config.menuBarIcon, platforms: [.mac]), to: &fields) { store.setMenuBarIcon(Self.bool($0)) }

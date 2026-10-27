@@ -2068,13 +2068,31 @@ public final class Composer {
     /// without a draft, and after "@" alone (a mention): the key then does what it does in the app.
     /// ⌘V is left to apps that paste on it themselves (`pastesIntoDraft`); ⌃V works everywhere.
     private func pasteIntoDraft(evenWhereTheAppPastes: Bool = false) -> Response? {
-        guard pastesIntoDraft || evenWhereTheAppPastes, !isLevelTwo, voice == .off, !draft.isEmpty else { return nil }
-        if let query = paletteQuery, query.isEmpty || paletteMatches.isEmpty { return nil }
+        guard pastesIntoDraft || evenWhereTheAppPastes, takesPasteAnywhere else { return nil }
         var effects: [Effect] = []
         if paletteQuery != nil { _ = complete(paletteMatches) }  // the draft is now "@name "
         if let engine, engine.snapshot().isComposing { effects += convertComposition(engine) }
         setLevelOnePhase()
         return .consumed(effects + [.updateMarkedText, .showPanel, requestClipboard()])
+    }
+
+    /// Whether ⌃V (`ModifierRoles.pasteAnywhere`) pastes into the draft now (`pasteIntoDraft`): there's a draft, not at
+    /// level two, no voice, not "@" alone or a command name nothing matches. Clipboard history appends its row there then
+    /// (InputSession+ClipboardHistory.swift).
+    public var takesPasteAnywhere: Bool {
+        guard !isLevelTwo, voice == .off, !draft.isEmpty else { return false }
+        if let query = paletteQuery, query.isEmpty || paletteMatches.isEmpty { return false }
+        return true
+    }
+
+    /// ⌃V into the draft (`takesPasteAnywhere`; nil: it takes none now), with `content` what it takes: clipboard history's
+    /// row chosen in a command, as if the clipboard had it (`pasted`: lines made one, `@note`'s kept, `@reply`'s message).
+    /// Nil `content`: ⌃V as it is, the clipboard read (`Effect.readClipboard`).
+    public func pasteAnywhere(_ content: ClipboardContent?) -> [Effect]? {
+        guard let response = pasteIntoDraft(evenWhereTheAppPastes: true) else { return nil }
+        guard let content else { return forField(response.effects) }
+        let effects = response.effects.filter { if case .readClipboard = $0 { false } else { true } }
+        return forField(effects) + pasted(content, id: pasteCounter)
     }
 
     /// Asks for the clipboard's text (`pasted`); only the latest request counts.

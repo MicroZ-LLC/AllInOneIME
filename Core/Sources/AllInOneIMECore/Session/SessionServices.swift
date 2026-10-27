@@ -162,6 +162,9 @@ public struct SessionServices {
     /// Plugin completions, Code's rows and the long press of Shift (`SuggestionsServices`, Suggestions/SuggestionsContract.swift).
     public var suggestions: SuggestionsServices
 
+    /// Clipboard history: what the shell keeps (`ClipboardHistoryServices`, Session/ClipboardHistory.swift); none by default.
+    public var clipboardHistory: ClipboardHistoryServices
+
     public init(converter: Converter = Converter(), loadSettings: @escaping () -> Config = { .default }) {
         self.converter = converter
         self.loadSettings = loadSettings
@@ -229,6 +232,7 @@ public struct SessionServices {
         loadContacts = { nil }
         messageSender = NoMessageSender()
         suggestions = SuggestionsServices()
+        clipboardHistory = ClipboardHistoryServices()
     }
 
     /// Where a default can't do what was asked.

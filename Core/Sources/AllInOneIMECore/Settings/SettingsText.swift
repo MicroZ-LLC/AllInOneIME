@@ -145,6 +145,16 @@ extension UIText {
                      "Off: it isn't in the @ command list, and @ with its name is just text; its suggestions still show."), trigger: trigger)
     }
 
+    /// Clipboard history's switch (Settings → General, `Config.clipboardHistory`), under its name: what ⌃V does with it,
+    /// what is kept and where, and that off, ⌃V is as before.
+    public static func clipboardHistoryHelp(terms: PlatformTerms = Platform.current.terms) -> String {
+        tr("按 \(terms.paste) 列出最近复制的文字，选一条就放进去；⇧↓ ⇧↑ 多选，\(terms.enter) 一行一条放进去。只记文字，只存在这台 Mac 上，密码管理器标成隐藏的内容不记。关掉后 \(terms.paste) 和以前一样。",
+           "\(terms.paste) lists the text you copied lately and puts in the one you choose; ⇧↓ ⇧↑ choose several, and \(terms.enter) puts them in one per line. Text only, kept on this Mac only, never what a password manager marks as concealed. Off, \(terms.paste) works as before.")
+    }
+
+    /// How many texts clipboard history keeps (`Config.clipboardHistoryLimit`), the label of its number.
+    public static var clipboardHistoryLimitLabel: String { tr("保留最近几条", "Keep the last") }
+
     /// Why a custom command in config.json isn't used (`CustomCommand.Refused`), as Settings → Custom Commands says it
     /// under its name: "This command isn't used: “minChars” should be a whole number".
     public static func describe(_ refused: CustomCommand.Refused) -> String {
