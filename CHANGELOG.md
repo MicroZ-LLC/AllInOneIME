@@ -2,6 +2,12 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
+## 0.6.8.1 (2026-10-27)
+
+### Fixed
+
+- The keys you press on the clipboard history panel and on suggestion rows (↓ ↑ → Esc ⏎ Tab, and ⌃V that opens clipboard history) now stay with the input method in every app. With Accessibility allowed, they're taken before any app sees them, whatever the app is built with. In 0.6.8, terminals still got them: ↓ and ↑ after ⌃V also went through the shell's history, and ⏎ on a copy with several lines could run the line before pasting it. Without Accessibility, Chromium and Electron apps and now terminals are kept from them by marked text during the key instead (macOS asks for Accessibility once, the first time that's needed).
+
 ## 0.6.8 (2026-10-27)
 
 ### Added

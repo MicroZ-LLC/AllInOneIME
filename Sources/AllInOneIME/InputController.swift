@@ -281,6 +281,7 @@ final class AllInOneIMEInputController: IMKInputController {
             appliedLayout = nil  // the layout is told to each text field
             fieldSession += 1
             Self.activeController = self
+            attachKeyGuard()
             let app = (sender as? IMKTextInput)?.bundleIdentifier()
             if let app { recordApp(app) }
             // The app's own starting language, rewrite styles, typing out (`AppProfile`); a terminal pastes on ⌘V itself.
@@ -339,7 +340,24 @@ final class AllInOneIMEInputController: IMKInputController {
         } else {
             client?.insertText(text, replacementRange: range)
             hasMarkedText = false  // the inserted text took the marked text's place
+            insertedDuringKey = true
         }
+    }
+
+    /// Whether text went into the field during the key being answered (`insert`), for `keepFromTerminal`.
+    private var insertedDuringKey = false
+
+    /// A key the rows took (↓ ↑ → Esc, ⌃V opening clipboard history, ⏎ on a row that goes in as a paste) in a terminal,
+    /// where nothing went in during it and no marked text is there: a space marked at the caret during the key and taken
+    /// out once it's done (`markRow`), so the terminal doesn't send the key to the shell as well. A terminal (Ghostty,
+    /// Terminal, iTerm2) sends a key the input method took itself unless text went in during it or marked text is there
+    /// after it: ↓ ↑ after ⌃V went to the shell's history (0.6.8), and ⏎ on a row with line breaks (a paste, after the
+    /// key) ran the line. Marked text never reaches the shell; text inserted during the key goes in the key's place.
+    @MainActor
+    private func keepFromTerminal(_ target: IMKTextInput) {
+        guard !atTap, Self.isTerminal(target), !hasMarkedText, !insertedDuringKey else { return }
+        KeyGuard.shared.markedInstead()
+        markRow(" ", replacing: nil, in: target, for: "a key the rows took in a terminal", takenOut: true)
     }
 
     /// A result in place of the selection the command worked on (`Composer.Effect.replaceSelection`): by its range, which
@@ -480,6 +498,7 @@ final class AllInOneIMEInputController: IMKInputController {
             panelAnchor.forget()  // the last rect to trust was this field's
             (anchorToken, anchorSaid) = (anchorToken + 1, nil)
             if Self.activeController === self { Self.activeController = nil }
+            KeyGuard.shared.detach(self)
             hideTranslateChip()  // Translate as You Type's chip is for the field being typed in
         }
         super.deactivateServer(sender)
@@ -497,6 +516,7 @@ final class AllInOneIMEInputController: IMKInputController {
             hidePanelIfOwned()
             fieldSession += 1  // what is inserted once a key is done goes nowhere now
             if Self.activeController === self { Self.activeController = nil }
+            KeyGuard.shared.detach(self)
         }
         super.inputControllerWillClose()
     }
@@ -541,6 +561,7 @@ final class AllInOneIMEInputController: IMKInputController {
     @MainActor
     func handleKeyDown(_ event: NSEvent, client: IMKTextInput?) -> Bool {
         if TerminalPaste.isOurs(event) { return false }  // a line break being pasted into a terminal
+        if !atTap, !KeyGuard.shared.isAttached(self) { attachKeyGuard() }
         commitRow()  // a row the key before put in, if this key came first
         // The same key down handed over a second time (the owner's "#17" had the session's token one "1" longer than
         // the field): answered as the first was, before anything sees it (the session, typing out, Translate as You
@@ -559,6 +580,33 @@ final class AllInOneIMEInputController: IMKInputController {
         Self.keyEchoes.answered(key, now: now, handled: handled)
         return handled
     }
+
+    /// A key down at the key tap (`KeyGuard`), before any app has it: nil when it's no key for us there (the app hands it
+    /// over as usual); else answered here as when the app hands it over (`handleKeyDown`): true, the tap keeps it from the
+    /// app; false, it goes on to the app, which hands it over again and has the same answer (`KeyEchoes`). Ours while this
+    /// is the field being typed in, nothing of ours is marked in it (marked text keeps keys from any app already), and a
+    /// panel shows (suggestion rows, clipboard history's) or the key is ⌃V (which opens clipboard history's).
+    @MainActor
+    func keyAtTap(_ event: NSEvent) -> Bool? {
+        guard !hasMarkedText, let client = client() else { return nil }
+        // ⌃ alone of the four (a key posted by another program carries other bits besides).
+        let controlV = event.keyCode == 0x09 && event.modifierFlags.intersection([.command, .option, .control, .shift]) == .control
+        guard CandidatePanel.shared.isShowing || controlV else { return nil }
+        atTap = true
+        defer { atTap = false }
+        return handleKeyDown(event, client: client)
+    }
+
+    /// This controller's `keyAtTap` the one the key tap asks: from its field's activation, and from a key it is handed
+    /// without one (the input method started again while its field had the focus: no activation comes then).
+    @MainActor
+    private func attachKeyGuard() {
+        KeyGuard.shared.attach(self) { [weak self] event in self?.keyAtTap(event) ?? nil }
+    }
+
+    /// The key being answered came from the key tap (`keyAtTap`): no app will have it, so nothing is marked to keep it
+    /// from one (`marksRow`, `keepFromTerminal`).
+    private var atTap = false
 
     /// A key down handed over for the first time.
     @MainActor
@@ -753,18 +801,24 @@ final class AllInOneIMEInputController: IMKInputController {
         var rowByKey: Bool?
         // The rows took the key and put nothing in (`rowsTookKey`): whether the key is kept from the app (`markBeforeCaret`).
         var keepKey = false
+        // The rows (suggestions', clipboard history's) took the key, whatever it puts in: in a terminal it is kept from the
+        // shell below (`keepFromTerminal`).
+        var tookKey = false
+        insertedDuringKey = false
         // ⌃V opening clipboard history's panel (its read of the clipboard), and whether the panel changed yet: a row of it
         // goes in before it hides; a key that hides it and goes on puts its text in after.
         var opensHistory = false, panelChanged = false
         for output in outputs {
             switch output {
             case .rowByKey:
+                tookKey = true
                 rowByKey = marksRow(in: target)
                 if rowByKey == false {
                     let why = target.map { Self.isTerminal($0) ? "a terminal" : hasMarkedText ? "marked text of ours in the field" : "an app that doesn't give it the key" } ?? "no field"
                     log.notice("a row put in by a key: inserted, as 0.6.7.1 did (\(why, privacy: .public))")
                 }
             case .rowsTookKey:
+                tookKey = true
                 keepKey = marksRow(in: target)
             case let .commit(text):
                 if !panelChanged, let target, let range = takePastedOver(in: target) {
@@ -887,6 +941,7 @@ final class AllInOneIMEInputController: IMKInputController {
            opensHistory {
             pastedOver = (range, text, fieldSession)
         }
+        if tookKey, let target { keepFromTerminal(target) }
         keepAlive = session.waitsForPage ? self : nil
         if composer.translateMode != nil { scheduleChipRefresh() }  // Translate as You Type's chip follows the caret
     }
@@ -924,8 +979,10 @@ final class AllInOneIMEInputController: IMKInputController {
     /// on a key the input method took. The same keys and rows everywhere; only how they go in differs.
     @MainActor
     private func marksRow(in client: IMKTextInput?) -> Bool {
-        guard let client, !Self.isTerminal(client), !hasMarkedText else { return false }
-        return chromiumApp(client.bundleIdentifier())
+        guard !atTap, let client, !Self.isTerminal(client), !hasMarkedText else { return false }
+        guard chromiumApp(client.bundleIdentifier()) else { return false }
+        KeyGuard.shared.markedInstead()
+        return true
     }
 
     /// What a key the rows took puts in, in an app built on Chromium or Electron (`marksRow`): a row in place of `range`
@@ -947,7 +1004,7 @@ final class AllInOneIMEInputController: IMKInputController {
         markedRow = MarkedRow(text: text, client: client, fieldSession: fieldSession, takenOut: takenOut)
         DispatchQueue.main.async { [weak self] in self?.commitRow() }
         let place = range.map { " in place of \($0.length)" } ?? " at the caret"
-        log.notice("\(what, privacy: .public) in a Chromium or Electron app: marked until the key is done (\(length, privacy: .public) UTF-16 units\(place, privacy: .public))")
+        log.notice("\(what, privacy: .public): marked until the key is done (\(length, privacy: .public) UTF-16 units\(place, privacy: .public))")
     }
 
     /// The row marked during its key (`markRow`) committed, and a snippet's caret moved in it (`moveCaret`): on the run

@@ -2590,6 +2590,7 @@ enum SelfTest {
         waitForOtherSelfTests()
         endIfScreenLocked()
         _ = NSApplication.shared
+        KeyGuard.shared.disabled = true  // the user's real keys meanwhile are never the fake fields'
         // The recent @questions in a file of the self-test's own: the user's are neither listed nor changed.
         QuestionHistoryStore.url = snapshotDirectory.appendingPathComponent("recent-questions.json")
         QuestionHistoryStore.clear()  // none left from a run before

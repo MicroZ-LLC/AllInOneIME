@@ -231,6 +231,43 @@ extension SelfTest {
         check(!noCaretTook && !noCaretShown && noCaret.calls.isEmpty,
               "Slack's composer telling no caret: ⌃V is the app's (\(noCaretTook ? "taken" : "not taken")), \(noCaretShown ? "a panel" : "no panel")")
 
+        // A terminal (Ghostty here) sends a key the input method took to the shell itself unless text went in during it or
+        // marked text is there after it (0.6.8: ↓ ↑ after ⌃V went to the shell's history). Every key the panel takes is
+        // kept from it: ⌃V, ↓, Esc each mark a space during the key and take it out after; ⏎ on the two-line row goes in
+        // as a paste after the key, with the space marked during it, so the shell never gets the Return.
+        let terminal = FakeTextClient()
+        terminal.bundleIDOverride = "com.mitchellh.ghostty"
+        let savedPaste = (can: controller.canPasteInTerminal, paste: controller.pasteInTerminal)
+        var pasted: [String] = []
+        controller.canPasteInTerminal = { true }
+        controller.pasteInTerminal = { pasted.append($0) }
+        controller.activateServer(terminal)
+        controller.composer.setInputMode(.english)
+        controller.clientOverride = terminal
+        /// `key` handled, then what is marked during it (before the run loop turns) and after it.
+        func inTerminal(_ key: NSEvent) -> (taken: Bool, during: String, after: String) {
+            let taken = controller.handle(key, client: terminal)
+            let during = terminal.marked
+            _ = pump(timeout: 0.3) { false }
+            return (taken, during, terminal.marked)
+        }
+        let vKey = inTerminal(controlV)
+        let terminalShown = pump(timeout: 3) { panel.isShowing && panel.view.model.rows.first?.text == "First line of the copy" }
+        let down = inTerminal(event("", code: VirtualKey.down))
+        let esc = inTerminal(event("\u{1b}", code: VirtualKey.escape))
+        let hidden = !panel.isShowing
+        _ = inTerminal(controlV)
+        _ = pump(timeout: 3) { panel.isShowing }
+        let enter = inTerminal(event("\r", code: VirtualKey.returnKey))
+        _ = pump(timeout: 1) { !pasted.isEmpty }
+        controller.deactivateServer(terminal)
+        (controller.canPasteInTerminal, controller.pasteInTerminal) = (savedPaste.can, savedPaste.paste)
+        let kept = [vKey, down, esc, enter].allSatisfy { $0.taken && $0.during == " " && $0.after.isEmpty }
+        check(terminalShown && hidden && kept && pasted == [item] && terminal.inserted.isEmpty,
+              "a terminal: ⌃V ↓ Esc and ⏎ each kept from the shell (a space marked during the key, gone after: "
+              + "\([vKey, down, esc, enter].map { "\($0.taken) \($0.during.debugDescription)→\($0.after.debugDescription)" })), "
+              + "the two lines pasted after ⏎ (\(pasted.count)), nothing typed")
+
         // In the Electron harness's composer, that answer to ⏎ (the input method's as above; as it answers where the keys
         // couldn't be composed here, a locked screen): the text in, the key the input method's, nothing sent. The harness
         // runs on a locked screen too: it needs nothing composed here.
