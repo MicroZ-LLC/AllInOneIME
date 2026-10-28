@@ -2,6 +2,16 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
+## 0.6.8.2 (2026-10-28)
+
+### Added
+
+- Clipboard history keeps images too: a screenshot or an image you copy is a row of its own, with a thumbnail, its size and how large it is. ⏎ pastes it: AllInOneIME puts it on the clipboard, presses the app's paste key for you (⌘V, or ⌃V in a terminal, where Claude Code takes images) and puts your clipboard back. It needs Accessibility; without it, ⏎ puts the image on the clipboard for your own ⌘V. In a command, an image is read as a screenshot, as with `@reply`. Images are kept like the text, on this Mac only, up to 10 MB each, and Clear History deletes them too.
+
+### Fixed
+
+- In Slack and other apps, ⌃V ⏎ on the image on the clipboard, and ⌃V pressed twice, now paste it: they press the app's own paste key (⌘V). Before, they gave the app ⌃V, which pastes only in a terminal.
+
 ## 0.6.8.1 (2026-10-27)
 
 ### Fixed
