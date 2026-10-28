@@ -328,6 +328,31 @@ final class AllInOneIMEInputController: IMKInputController {
     /// ⌃V to the app as it is, marked as ours (clipboard history's image row: `TerminalPaste.postControlV`; the self-test
     /// counts it instead).
     var passPasteKey: @MainActor () -> Void = { TerminalPaste.postControlV() }
+    /// ⌘V to the app, marked as ours (an app's own paste: clipboard history's image, ⌃V again; the self-test counts it).
+    var passCommandV: @MainActor () -> Void = { TerminalPaste.postCommandV() }
+    /// A kept image pasted with the app's paste key, the clipboard put back after (`TerminalPaste.pasteImage`; the
+    /// self-test records it instead).
+    var pasteImage: @MainActor (Data, Bool) async -> Void = { await TerminalPaste.pasteImage($0, terminal: $1) }
+
+    /// Clipboard history's kept image `id` (0.6.8.2), once the key being answered is done: pasted with the app's own paste
+    /// key where Accessibility lets it be posted; else put on the clipboard, for the user's own ⌘V (the row said so).
+    @MainActor
+    private func pasteKeptImage(_ id: String, into target: IMKTextInput?) {
+        guard let png = services.clipboardHistory.imageData(id) else {
+            log.notice("clipboard history: a kept image is gone")
+            return
+        }
+        let terminal = Self.isTerminal(target)
+        guard services.clipboardHistory.canPassPasteKey() else {
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setData(png, forType: .png)
+            log.notice("clipboard history: a kept image put on the clipboard (no Accessibility to paste it)")
+            return
+        }
+        let paste = pasteImage
+        Task { @MainActor in await paste(png, terminal) }
+    }
 
     /// Inserts `text` into `client`; into a terminal, text with line breaks goes in as a paste, so the
     /// line breaks don't run (or send) anything.
@@ -929,9 +954,13 @@ final class AllInOneIMEInputController: IMKInputController {
             case let .platform(.cancelVoice(id)):
                 cancelVoiceSession(id: id)
             case .platform(.passPasteKey):
-                // Once this key is done: ⌃V reaches the app as it is (clipboard history's image row).
-                let pass = passPasteKey
+                // Once this key is done: the app's own paste (clipboard history's image on the clipboard, ⌃V again): ⌃V in a
+                // terminal (Claude Code's image paste, vim's and the shell's ⌃V), ⌘V in any other app (0.6.8.2: Slack's ⌃V
+                // pastes nothing).
+                let pass = Self.isTerminal(target) ? passPasteKey : passCommandV
                 DispatchQueue.main.async { pass() }
+            case let .platform(.pasteImage(id)):
+                pasteKeptImage(id, into: target)
             }
         }
         // A row the key put in that adds nothing, a key the rows took that puts nothing in (↓ ↑ → Esc): the key is still the

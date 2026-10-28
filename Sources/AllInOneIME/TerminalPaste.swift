@@ -51,20 +51,44 @@ enum TerminalPaste {
         }
     }
 
+    /// ⌘V to the app, marked as ours: an app's own paste (clipboard history's image, ⌃V again outside a terminal).
+    @MainActor
+    static func postCommandV() {
+        postV(.maskCommand)
+    }
+
     /// Pastes `text` into the frontmost app, then puts the clipboard back once the app has read it.
     @MainActor
     static func paste(_ text: String) async {
+        await paste(key: .maskCommand) { $0.setString(text, forType: .string) }
+    }
+
+    /// Pastes a kept image (PNG `png`) into the frontmost app with its own paste key (⌃V in a terminal, where Claude Code
+    /// takes an image on it; else ⌘V), then puts the clipboard back once the app has read it (0.6.8.2, clipboard
+    /// history). As TIFF too, which some apps read before PNG.
+    @MainActor
+    static func pasteImage(_ png: Data, terminal: Bool) async {
+        await paste(key: terminal ? .maskControl : .maskCommand) { pasteboard in
+            pasteboard.setData(png, forType: .png)
+            if let tiff = NSImage(data: png)?.tiffRepresentation { pasteboard.setData(tiff, forType: .tiff) }
+        }
+    }
+
+    /// What `write` puts on the clipboard, pasted with V and `key` (posted marked as ours), the clipboard put back once the
+    /// app has read it.
+    @MainActor
+    private static func paste(key: CGEventFlags, _ write: (NSPasteboard) -> Void) async {
         let pasteboard = NSPasteboard.general
         let saved = (pasteboard.pasteboardItems ?? []).map { item in
             item.types.reduce(into: [NSPasteboard.PasteboardType: Data]()) { $0[$1] = item.data(forType: $1) }
         }
         pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
-        // Clipboard managers skip transient content (nspasteboard.org).
+        write(pasteboard)
+        // Clipboard managers skip transient content (nspasteboard.org), clipboard history too.
         pasteboard.setData(Data(), forType: NSPasteboard.PasteboardType("org.nspasteboard.TransientType"))
         let ours = pasteboard.changeCount
 
-        postV(.maskCommand)
+        postV(key)
         // The app reads the clipboard when the ⌘V reaches it: wait for that before typing on or putting it back.
         try? await Task.sleep(nanoseconds: 150_000_000)
         Task { @MainActor in

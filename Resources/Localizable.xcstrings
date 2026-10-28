@@ -2596,6 +2596,7 @@
     },
     "%@ of %@; the first is the default" : {
       "comment" : "第 %@ 个，共 %@ 个；第一个是默认 — Sources/AllInOneIME/SettingsWindow.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -23397,6 +23398,7 @@
     },
     "Position" : {
       "comment" : "位置 — Sources/AllInOneIME/SettingsWindow.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {

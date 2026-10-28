@@ -169,11 +169,16 @@ struct ClipboardHistorySessionTests {
                 #expect(host.press(key) && host.panel == nil && host.document.isEmpty)
                 #expect(host.outputs[before...].contains(.rowsTookKey))
             }
+            // ⌃V again: the app's own paste where it can be posted (0.6.8.2: ⌘V in an app, ⌃V in a terminal), else ⌃V as it is.
             let again = host()
             again.press(FakeHost.controlV)
-            #expect(!again.press(FakeHost.controlV), "⌃V again is the app's")
+            #expect(again.press(FakeHost.controlV) && again.pasteKeysPassed == 1, "⌃V again: the app's own paste")
             #expect(again.panel == nil && again.document.isEmpty)
             #expect(again.press(FakeHost.controlV) && again.panel != nil, "and the next ⌃V shows it again")
+            let without = host()
+            without.passesPasteKey = false
+            without.press(FakeHost.controlV)
+            #expect(!without.press(FakeHost.controlV) && without.pasteKeysPassed == 0, "without Accessibility ⌃V again is the app's")
 
             let digit = host()
             digit.composer.setInputMode(.english)
@@ -424,8 +429,8 @@ struct ClipboardHistorySessionTests {
         }
     }
 
-    /// An image on the clipboard is the first row, chosen: ⏎ gives ⌃V to the app as it is (`passPasteKey`), nothing put
-    /// in; where it can't (no Accessibility) the row says ⌃V again pastes it and ⏎ only hides; ⌃V ⌃V gives the app ⌃V.
+    /// An image on the clipboard is the first row, chosen: ⏎ gives the app its own paste key (`passPasteKey`), nothing put
+    /// in; where it can't (no Accessibility) the row says ⌃V again pastes it and ⏎ only hides; ⌃V ⌃V pastes as the app does.
     @Test func anImageIsTheFirstRow() async {
         await inEnglish {
             let host = host(clipboard: .image(Data([0x89, 0x50])))
@@ -439,7 +444,7 @@ struct ClipboardHistorySessionTests {
             #expect(without.press(FakeHost.enter) && without.pasteKeysPassed == 0 && without.panel == nil)
             let twice = self.host(clipboard: .image(Data([0x89, 0x50])))
             twice.press(FakeHost.controlV)
-            #expect(!twice.press(FakeHost.controlV))
+            #expect(twice.press(FakeHost.controlV) && twice.pasteKeysPassed == 1)
         }
     }
 

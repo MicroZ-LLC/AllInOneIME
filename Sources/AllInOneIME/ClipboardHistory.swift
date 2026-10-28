@@ -70,8 +70,9 @@ enum ClipboardHistoryShared {
     static var access: ClipboardAccess { SystemClipboard().access }
 
     /// What a field's session asks: whether it records (Paste from Other Apps' Allow), the history with a copy made since
-    /// the last look, Accessibility (⌃V given to the app for the image row, asked without asking), the first showing's
-    /// note (once on this Mac), the privacy page.
+    /// the last look, Accessibility (the app's paste key posted for an image and ⌃V again, asked without asking), the first
+    /// showing's note (once on this Mac), the privacy page, a kept image's data (a command reads it), whether the clipboard
+    /// holds the newest copy still.
     static var services: ClipboardHistoryServices {
         guard !isolated else { return ClipboardHistoryServices() }
         return ClipboardHistoryServices(
@@ -88,7 +89,9 @@ enum ClipboardHistoryShared {
                 UserDefaults.standard.set(true, forKey: noteShownKey)
                 return true
             },
-            openPermission: { MainActor.assumeIsolated { openPrivacyPage() } })
+            openPermission: { MainActor.assumeIsolated { openPrivacyPage() } },
+            imageData: { id in MainActor.assumeIsolated { recorder.store.imageData(id) } },
+            clipboardIsNewest: { MainActor.assumeIsolated { recorder.clipboardIsNewest } })
     }
 
     /// Paste from Other Apps, in System Settings.

@@ -1,4 +1,5 @@
 import AllInOneIMECore
+import AllInOneIMEMac
 import AppKit
 import InputMethodKit
 
@@ -59,6 +60,7 @@ extension SelfTest {
         controller.readClipboard = { reads += 1; return .text(item) }
         var pasteKeys = 0
         controller.passPasteKey = { pasteKeys += 1 }
+        controller.passCommandV = { pasteKeys += 1 }
         let slack = "com.tinyspeck.slackmacgap"
         controller.chromiumApp = { $0 == slack }
         let panel = CandidatePanel.shared
@@ -267,6 +269,52 @@ extension SelfTest {
               "a terminal: ⌃V ↓ Esc and ⏎ each kept from the shell (a space marked during the key, gone after: "
               + "\([vKey, down, esc, enter].map { "\($0.taken) \($0.during.debugDescription)→\($0.after.debugDescription)" })), "
               + "the two lines pasted after ⏎ (\(pasted.count)), nothing typed")
+
+        // A kept image (0.6.8.2): its row in the real panel with its thumbnail, ⏎ pasting it with the app's own paste key
+        // (an NSTextView: ⌘V; a terminal: ⌃V), from a history of the self-test's own (never the user's files or clipboard).
+        let keptImages = ClipboardHistoryStore(url: snapshotDirectory.appendingPathComponent("clipboard-history-selftest.json"))
+        keptImages.clear()
+        let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 400, pixelsHigh: 200, bitsPerSample: 8, samplesPerPixel: 4,
+                                      hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+        for x in 0..<400 { for y in 0..<200 { bitmap.setColor(NSColor(deviceRed: Double(x) / 400, green: 0.5, blue: Double(y) / 200, alpha: 1), atX: x, y: y) } }
+        let shot = ClipboardImage(png: bitmap.representation(using: .png, properties: [:])!, width: 400, height: 200)
+        keptImages.record("a text copied before", at: now - 600, limit: 20)
+        keptImages.recordImage(shot, at: now - 120, limit: 20)
+        controller.services.clipboardHistory = ClipboardHistoryServices(
+            state: { .recording }, items: { keptImages.items }, canPassPasteKey: { true }, firstShowing: { false }, now: { now },
+            imageData: { keptImages.imageData($0) }, clipboardIsNewest: { true })
+        // The image just copied is on the clipboard still: its kept row stands for it, first.
+        controller.peekClipboard = { .image(Data([0x89, 0x50, 0x4E, 0x47])) }
+        var imagesPasted: [(Data, Bool)] = []
+        let savedImagePaste = controller.pasteImage
+        controller.pasteImage = { imagesPasted.append(($0, $1)) }
+        /// ⌃V, the image's row (the first), ⏎ in `field`: the row as shown.
+        func pasteKeptImage(into field: IMKTextInput, snapshotting: Bool = false) -> PanelModel.Row? {
+            controller.activateServer(field)
+            controller.composer.setInputMode(.english)
+            controller.clientOverride = field
+            _ = controller.handle(controlV, client: field)
+            _ = pump(timeout: 3) { panel.isShowing && panel.view.model.rows.first?.text.hasPrefix(tr("图片", "Image")) == true }
+            let row = panel.view.model.rows.first
+            if snapshotting { snapshot("clipboard-history-image", in: snapshotDirectory) }
+            _ = controller.handle(event("\r", code: VirtualKey.returnKey), client: field)
+            _ = pump(timeout: 1) { false }
+            controller.deactivateServer(field)
+            return row
+        }
+        let imageView = TextViewClient()
+        let imageRow = pasteKeptImage(into: imageView, snapshotting: true)
+        imageView.close()
+        let imageTerminal = FakeTextClient()
+        imageTerminal.bundleIDOverride = "com.mitchellh.ghostty"
+        _ = pasteKeptImage(into: imageTerminal)
+        controller.pasteImage = savedImagePaste
+        keptImages.clear()
+        let thumbnailShown = imageRow?.icon.flatMap { icon -> String? in if case let .image(path, _) = icon.glyph { path } else { nil } } != nil
+        check(imageRow?.text == tr("图片 400 × 200", "Image 400 × 200") && thumbnailShown
+              && imagesPasted.map(\.0) == [shot.png, shot.png] && imagesPasted.map(\.1) == [false, true],
+              "a kept image: its row (\(imageRow?.text ?? "none"), thumbnail \(thumbnailShown)), ⏎ pastes it "
+              + "(\(imagesPasted.map { $0.1 ? "terminal ⌃V" : "⌘V" }))")
 
         // In the Electron harness's composer, that answer to ⏎ (the input method's as above; as it answers where the keys
         // couldn't be composed here, a locked screen): the text in, the key the input method's, nothing sent. The harness
