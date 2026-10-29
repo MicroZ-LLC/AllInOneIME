@@ -112,6 +112,15 @@ public final class SystemClipboard: ClipboardSource {
     }
 }
 
+/// The ids of images being made ready, read and changed from any thread.
+private final class PreparingIDs: @unchecked Sendable {
+    private let lock = NSLock()
+    private var set: Set<String> = []
+    var ids: Set<String> { lock.withLock { set } }
+    func insert(_ id: String) { _ = lock.withLock { set.insert(id) } }
+    func remove(_ id: String) { _ = lock.withLock { set.remove(id) } }
+}
+
 /// A value handed back to the main thread it came from (unchecked: it is only ever used there).
 private struct MainThreadOnly<Value>: @unchecked Sendable {
     let value: Value
@@ -123,7 +132,7 @@ private struct MainThreadOnly<Value>: @unchecked Sendable {
 /// reading it would ask the user (`access` not `.allowed`: nothing is read then, only the change count and the access,
 /// which never ask), it was copied during secure input (a password field had the keys when it changed, or at the look
 /// before), it is marked never to be kept (`neverRecorded`: password managers and clipboard tools mark theirs, as
-/// TerminalPaste marks its own writes), it isn't text (an image, a file, a colour), it is blank, or it is longer than
+/// TerminalPaste marks its own writes), it is neither an image nor text (a file, a colour), it is blank, or it is longer than
 /// `ClipboardHistoryItem.maxLength`. Used on one thread (the input method's main one).
 public final class ClipboardRecorder {
     /// Why a change wasn't recorded.
@@ -149,13 +158,15 @@ public final class ClipboardRecorder {
 
     public let store: ClipboardHistoryStore
     let source: ClipboardSource
+    /// Where images are made ready, one at a time (a later copy never overtakes an earlier one).
+    static let imageQueue = DispatchQueue(label: "com.aipinyin.inputmethod.clipboard-images", qos: .utility)
     /// Runs an image's preparation (its PNG, id, thumbnail and files: `ClipboardHistoryStore.prepare`) and hands its result
     /// to the second closure on the main thread: off the main thread by default, so a large copy never holds typing up;
     /// a test's runs it at once.
     public var imageWork: (@escaping @Sendable () -> ClipboardHistoryStore.Prepared, @escaping (ClipboardHistoryStore.Prepared) -> Void) -> Void = { prepare, done in
-        // `done` runs on the main thread only, where the recorder is used.
+        // `done` runs on the main thread only, where the recorder is used; one image after another, in the order copied.
         let main = MainThreadOnly(done)
-        DispatchQueue.global(qos: .utility).async {
+        ClipboardRecorder.imageQueue.async {
             let prepared = prepare()
             DispatchQueue.main.async { main.value(prepared) }
         }
@@ -195,10 +206,15 @@ public final class ClipboardRecorder {
         guard !secure, !wasSecure else { return .secureInput }
         guard Set(source.types).isDisjoint(with: Self.neverRecorded) else { return .marked }
         if let image = source.image() {
-            let (store, date) = (store, now())
+            let (store, date, generation) = (store, now(), store.generation)
             var outcome = Outcome.imageQueued
             imageWork({ store.prepare(image) }) { [weak self] prepared in
                 guard let self else { return }
+                // Cleared or turned off meanwhile: not kept.
+                if case let .ready(ready) = prepared, store.generation != generation {
+                    store.discard(ready)
+                    return
+                }
                 switch prepared {
                 case let .ready(ready):
                     outcome = store.add(ready, at: date, limit: limit) ? .recorded : .same
@@ -241,6 +257,10 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
     static let thumbnailSide = 96
 
     public let url: URL
+    /// Counts the clears: an image made ready before one isn't added after it (`ClipboardRecorder.poll`).
+    public private(set) var generation = 0
+    /// The ids of the images being made ready (`prepare` until `add` or `discard`): their files are never removed meanwhile.
+    private let preparing = PreparingIDs()
     /// The kept images' folder, beside the list and named after it (clipboard-history-images for the user's): two stores
     /// never share one.
     public var imagesURL: URL {
@@ -314,6 +334,7 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
     public func prepare(_ image: ClipboardImage) -> Prepared {
         guard let png = image.pngData(), png.count <= ClipboardHistoryImage.maxBytes else { return .tooLarge }
         let id = SHA256.hash(data: png).map { String(format: "%02x", $0) }.joined()
+        preparing.insert(id)
         do {
             try FileManager.default.createDirectory(at: imagesURL, withIntermediateDirectories: true,
                                                     attributes: [.posixPermissions: 0o700])
@@ -324,6 +345,7 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
         } catch {
             CoreLog(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "ime")
                 .error("clipboard history: could not save an image: \(String(describing: type(of: error)))")
+            preparing.remove(id)
             return .notSaved
         }
         return .ready(ReadyImage(id: id, width: image.width, height: image.height, bytes: png.count))
@@ -334,6 +356,7 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
     /// already, and nothing changed.
     @discardableResult
     public func add(_ image: ReadyImage, at date: Date, limit: Int) -> Bool {
+        preparing.remove(image.id)
         guard items.first?.image?.id != image.id else { return false }
         items.removeAll { $0.image?.id == image.id }
         let kept = kept(image.id, width: image.width, height: image.height, bytes: image.bytes)
@@ -341,6 +364,12 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
         items.insert(ClipboardHistoryItem(image: kept, copiedAt: date), at: place)
         keep(limit)
         return true
+    }
+
+    /// A ready image not added after all (the history cleared or turned off while it was made ready): its files deleted.
+    public func discard(_ image: ReadyImage) {
+        preparing.remove(image.id)
+        removeUnlisted()
     }
 
     /// An image copied at `date`, prepared and added at once (tests, the self-test). False: not kept.
@@ -364,6 +393,7 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
 
     /// Everything forgotten: the list's file and the images deleted.
     public func clear() {
+        generation += 1
         items = []
         try? FileManager.default.removeItem(at: url)
         try? FileManager.default.removeItem(at: imagesURL)
@@ -396,7 +426,7 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
 
     /// Image files whose image is no longer in the list deleted.
     private func removeUnlisted() {
-        let listed = Set(items.compactMap { $0.image?.id })
+        let listed = Set(items.compactMap { $0.image?.id }).union(preparing.ids)
         guard let files = try? FileManager.default.contentsOfDirectory(atPath: imagesURL.path) else { return }
         for name in files {
             let id = name.replacingOccurrences(of: "-thumb.png", with: "").replacingOccurrences(of: ".png", with: "")

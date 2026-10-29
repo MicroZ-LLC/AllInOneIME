@@ -367,4 +367,19 @@ struct ClipboardHistoryRecordingTests {
         #expect(recorder.store.items.map(\.text) == ["copied after the image", ""], "\(recorder.store.items.map(\.text))")
         #expect(recorder.clipboardIsNewest, "the text is the clipboard's still, and the newest")
     }
+
+    @Test func anImageMadeReadyAfterAClearIsNotKept() throws {
+        let folder = try Self.folder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let (recorder, pasteboard) = Self.recorder(in: folder)
+        var held: (() -> Void)?
+        recorder.imageWork = { prepare, done in held = { done(prepare()) } }
+        pasteboard.copy(image: Self.png(8, 8))
+        #expect(recorder.poll(limit: 20) == .imageQueued)
+        recorder.store.clear()
+        held?()
+        #expect(recorder.store.items.isEmpty, "Clear History meanwhile: not added after it")
+        let files = (try? FileManager.default.contentsOfDirectory(atPath: recorder.store.imagesURL.path)) ?? []
+        #expect(files.isEmpty, "its files deleted: \(files)")
+    }
 }
