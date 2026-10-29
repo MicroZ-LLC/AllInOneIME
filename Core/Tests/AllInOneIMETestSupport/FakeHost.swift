@@ -33,6 +33,12 @@ public final class FakeHost: @unchecked Sendable {
     public var passesPasteKey = true
     public var firstClipboardPanel = false
     public var clipboardNow = Date()
+    /// Kept images' data by id (`ClipboardHistoryServices.imageData`), and whether the clipboard holds the history's newest
+    /// copy still (`clipboardIsNewest`).
+    public var clipboardImages: [String: Data] = [:]
+    /// The clipboard's reads held back until `answerFieldReads()` (a large image read slowly: a key comes first).
+    public var clipboardReadsWait = false
+    public var clipboardIsNewest = false
     /// How many times the session opened where a history can be allowed (`ClipboardHistoryServices.openPermission`).
     public private(set) var permissionOpened = 0
     /// A key the session lets through types its text into the document, as the app does (off: the document has only what
@@ -99,10 +105,16 @@ public final class FakeHost: @unchecked Sendable {
                 defer { firstClipboardPanel = false }
                 return firstClipboardPanel
             },
-            openPermission: { [unowned self] in permissionOpened += 1 }, now: { [unowned self] in clipboardNow })
+            openPermission: { [unowned self] in permissionOpened += 1 }, now: { [unowned self] in clipboardNow },
+            imageData: { [unowned self] in clipboardImages[$0] }, clipboardIsNewest: { [unowned self] in clipboardIsNewest })
     }
 
-    /// Times `PlatformAction.passPasteKey` was asked for: ⌃V given to the app as it is (clipboard history's image row).
+    /// The kept images pasted (`PlatformAction.pasteImage`), their ids in order.
+    public var imagesPasted: [String] {
+        platformActions.compactMap { if case let .pasteImage(id) = $0 { id } else { nil } }
+    }
+
+    /// Times `PlatformAction.passPasteKey` was asked for: the app's own paste key (clipboard history's image row, ⌃V again).
     public var pasteKeysPassed: Int { platformActions.filter { $0 == .passPasteKey }.count }
 
     /// The caret: where the selection starts, else the end of the document.
@@ -292,9 +304,13 @@ public final class FakeHost: @unchecked Sendable {
             case let .copy(text):
                 copied.append(text)
             case let .readClipboard(id):
-                // Once the key is answered, as the Mac reads it.
+                // Once the key is answered, as the Mac reads it (held back with `clipboardReadsWait`: a slow read).
                 let content = clipboard
-                afterKey.append { [weak self] in self?.send(.clipboard(content, id: id)) }
+                if clipboardReadsWait {
+                    waitingReads.append(.clipboard(content, id: id))
+                } else {
+                    afterKey.append { [weak self] in self?.send(.clipboard(content, id: id)) }
+                }
             case .keyboardLayout:
                 break
             case let .startTimer(id, seconds):

@@ -2682,6 +2682,11 @@ enum SelfTest {
         // check pastes them itself.
         controller.canPasteInTerminal = { false }
         controller.pasteInTerminal = { _ in }
+        // Never a key posted to the user's frontmost app: the app's paste key and a kept image's paste are counted or
+        // dropped by the checks that use them.
+        controller.passPasteKey = {}
+        controller.passCommandV = {}
+        controller.pasteImage = { _, _ in }
         controller.services.pointerUsedWithin = { _ in false }  // the user's own clicks meanwhile aren't Shift-clicks
         controller.selectionByAccessibility = false  // the fake field's selection only, never the user's frontmost app's
         controller.services.loadCommandUsage = { CommandUsage() }  // leave the user's command order alone

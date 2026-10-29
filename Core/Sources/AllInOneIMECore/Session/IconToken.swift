@@ -18,13 +18,16 @@ public struct IconToken: Equatable, Sendable {
     /// - plugins and custom commands, by what they are: `plugin`, `link`, `prompt`, `run`, `terminal`, `snippet`;
     /// - script extensions, by what they do: `scriptInsert`, `scriptShow`, `scriptList`, `scriptSilent`,
     ///   `scriptBackground`, `scriptStatus` (one with a status line);
-    /// - a background task's state (`@tasks`): `done`, `working`, `needsYou`.
+    /// - a background task's state (`@tasks`): `done`, `working`, `needsYou`;
+    /// - an image (clipboard history): `image`.
     public enum Builtin: String, CaseIterable, Sendable {
         case improve, translate, question, reply, agent, open, read, note, reminder, python, javascript, webSearch, tasks
         case settings, message, reportIssue, command
         case plugin, link, prompt, run, terminal, snippet
         case scriptInsert, scriptShow, scriptList, scriptSilent, scriptBackground, scriptStatus
         case done, working, needsYou
+        /// An image (clipboard history's row for one, where its thumbnail can't be drawn).
+        case image
 
         /// Its SF Symbol, on Apple platforms.
         public var appleSymbol: String {
@@ -51,6 +54,7 @@ public struct IconToken: Equatable, Sendable {
             case .prompt: return "text.bubble.fill"
             case .terminal: return "apple.terminal.fill"
             case .snippet: return "text.insert"
+            case .image: return "photo"
             case .scriptInsert: return "text.cursor"
             case .scriptShow: return "text.alignleft"
             case .scriptList: return "list.bullet"

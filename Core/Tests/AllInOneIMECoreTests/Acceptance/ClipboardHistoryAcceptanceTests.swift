@@ -273,7 +273,9 @@ struct ClipboardHistoryAcceptanceTests {
             let denied = host(items: ["old"], clipboard: image)
             denied.passesPasteKey = false
             open(denied)
-            #expect(denied.panel?.rows.first?.comment == "⌃V again pastes it")
+            // Changed by the spec's owner (0.6.8.2): without the paste key posted, ⌃V again gives the app ⌃V, which pastes
+            // nothing in most apps (Slack); the row says the image is on the clipboard already, for the app's own paste.
+            #expect(denied.panel?.rows.first?.comment == "on the clipboard already")
             denied.press(FakeHost.enter)
             #expect(denied.pasteKeysPassed == 0 && denied.panel == nil)
 
@@ -288,10 +290,18 @@ struct ClipboardHistoryAcceptanceTests {
 
     @Test func secondControlVFallsThroughOrUsesTodaysCommandPaste() async throws {
         try await withInterfaceLanguage("en") {
+            // Changed by the spec's owner (0.6.8.2, the owner: in Slack ⌃V ⌃V didn't paste the image): outside a command ⌃V
+            // again gives the app its own paste key where it can be posted (⌘V in an app, ⌃V in a terminal); without
+            // that (no Accessibility) the app gets ⌃V as it is, as before.
             let outside = host(items: ["old"], clipboard: .text("now"))
             open(outside)
-            #expect(!outside.press(FakeHost.controlV))
+            #expect(outside.press(FakeHost.controlV) && outside.pasteKeysPassed == 1)
             #expect(outside.panel == nil && outside.document.isEmpty)
+            let unposted = host(items: ["old"], clipboard: .text("now"))
+            unposted.passesPasteKey = false
+            open(unposted)
+            #expect(!unposted.press(FakeHost.controlV) && unposted.pasteKeysPassed == 0)
+            #expect(unposted.panel == nil && unposted.document.isEmpty)
 
             let inside = host(items: ["old"], clipboard: .text("now\nclipboard"))
             command(inside)

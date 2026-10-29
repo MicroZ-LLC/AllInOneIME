@@ -63,7 +63,7 @@ A new install writes English; to type Chinese (pinyin), French, Korean or Hindi 
 | Space, ⏎ / digits | Once the results are up: insert the highlighted / numbered one; 0 is the original. ⏎ inserts even with a follow-up half typed (it's dropped) |
 | ⇧⏎ | With a follow-up typed after AI results: sends it (the next question of an `@question` conversation, or a refine). While a command is typed, or on AI results with nothing typed: inserts what you typed as is, `@command` included. On other results (`@open`, a reminder …) it inserts the highlighted row, as ⏎ does |
 | ⌘C | Copies the highlighted result (for `@open`, the path); the candidate panel stays open |
-| ⌃V | Shows [clipboard history](#clipboard-history-new), the text you copied lately, newest first: ⏎ or Tab puts in the one chosen, ↓ ↑ choose, ⇧↓ ⇧↑ choose several (⏎ puts them in one per line, oldest first), → or Esc hides it. ⌃V ⏎ is the ⌃V you had, and ⌃V twice gives ⌃V to the app (vim, the shell). In a command (e.g. after `@improve `) the one you choose is appended after what you've typed instead of being pasted into the app: multiple lines become one, up to 2000 characters at a time (`@note` keeps the line breaks and takes up to 20000). Works in any app, terminals too. With clipboard history off, ⌃V in a command appends the clipboard text at once, and without a command it goes to the app as usual |
+| ⌃V | Shows [clipboard history](#clipboard-history-new), the text and images you copied lately, newest first: ⏎ or Tab puts in the one chosen, ↓ ↑ choose, ⇧↓ ⇧↑ choose several (⏎ puts them in one per line, oldest first), → or Esc hides it. ⌃V ⏎ is the ⌃V you had, and ⌃V twice pastes as the app does (⌘V; ⌃V in a terminal or a code editor: vim, the shell). In a command (e.g. after `@improve `) the one you choose is appended after what you've typed instead of being pasted into the app: multiple lines become one, up to 2000 characters at a time (`@note` keeps the line breaks and takes up to 20000). Works in any app, terminals too. With clipboard history off, ⌃V in a command appends the clipboard text at once, and without a command it goes to the app as usual |
 | ⌘V | The app's Paste. In a command it appends the clipboard text at once, no history, except where the app handles ⌘V itself (terminals such as Ghostty, iTerm2 and Terminal, and Notes) and pastes into the app as usual; use ⌃V there |
 | Esc, ⌫ | Back to the sentence to keep editing; typing punctuation or digits after the results continues it. After a refine: back to the results before it |
 | Letters, once AI results are up | A follow-up: after `@question` the next question (see [Conversations](#conversations-with-question-new)), after `@improve` or a prompt command an instruction such as `shorter` (see [Refining the results](#refining-the-results-new)); ⇧⏎ sends it. After `@translate` letters continue the sentence, and ⏎ translates it again |
@@ -1014,7 +1014,7 @@ They take the place of [autocomplete](#autocomplete-beta-new)'s gray text while 
 
 ## Clipboard history (new)
 
-**⌃V** shows the text you copied lately, the last 20 (5 to 100 in Settings → General), in the rows panel the
+**⌃V** shows the text and images you copied lately, the last 20 (5 to 100 in Settings → General), in the rows panel the
 suggestions use, and puts in the one you choose.
 
 - **The rows:** newest first, the first chosen: it's what's on the clipboard now, so ⌃V ⏎ is the ⌃V you had. Each row
@@ -1036,13 +1036,20 @@ suggestions use, and puts in the one you choose.
 - **In a command:** ⌃V after `@improve ` (or any command) shows the history too, and the row you choose is appended to
   the command, as ⌃V appended the clipboard before: lines made one, up to 2000 characters; `@note` keeps them, up to
   20000. `@reply` takes it as the message to answer. ⌘V in a command is still a direct paste of the clipboard.
-- **An image on the clipboard** (a screenshot) is the first row, "Image on the clipboard": ⏎ gives ⌃V to the app as it
-  is, so ⌃V ⏎ pastes the image where the app takes one on ⌃V (Claude Code in a terminal). That needs Accessibility
-  (System Settings → Privacy & Security → Accessibility); without it the row says "⌃V again pastes it". In a command,
-  ⏎ on it reads the screenshot as ⌃V did before (`@reply`).
-- **⌃V again** while the panel shows gives ⌃V to the app as it is: ⌃V ⌃V is vim's block selection, the shell's "type
-  the next key as is". In a command, ⌃V ⌃V appends the clipboard at once.
-- **Text only:** the plain text of what you copy (rich text's too); never images, files or colours, never what a password
+- **Images (0.6.8.2):** an image you copy (a screenshot, Copy Image) is kept too, a row of its own with a thumbnail, its
+  size and how large it is ("Image 1280 × 720 · 2.4 MB · 2 min ago"). ⏎ pastes it: it goes on the clipboard, the app's
+  own paste key is pressed for you (⌘V in an app, ⌃V in a terminal or a code editor, where Claude Code takes an image),
+  and your clipboard is put back once the app has read it. That needs Accessibility (System Settings → Privacy & Security → Accessibility); without it ⏎ puts the
+  image on the clipboard, for your own ⌘V. In a command, ⏎ on it reads it as a screenshot (`@reply`). ⇧↓ ⇧↑ put in the
+  texts selected only. An image on the clipboard the history doesn't have (it isn't recording, or didn't keep it: over
+  10 MB, marked, or copied on another device through Universal Clipboard) is the first row, "Image on the clipboard",
+  pasted the same way.
+- **⌃V again** while the panel shows pastes as the app does (0.6.8.2): ⌘V in an app (Slack's and WeChat's ⌃V paste
+  nothing), ⌃V in a terminal or a code editor (VS Code, Cursor, JetBrains, Xcode…), so ⌃V ⌃V is still vim's block
+  selection and the shell's "type the next key as is"; without Accessibility, ⌃V as it is. In a command, ⌃V ⌃V appends the clipboard at once.
+- **Text and images:** the plain text of what you copy (rich text's too), or the image when an image is what you copied;
+  never files or colours, never an image over 10 MB (as PNG) or 40 million pixels, never an image copied on another
+  device (Universal Clipboard), never what a password
   manager or clipboard tool marks as concealed, transient or auto-generated, nothing copied during secure input (a
   password field; checked once a second: a copy is dropped when secure input was on at the check that finds it or the
   one before, so secure input turned on and off again between two checks can go unseen), nothing blank, nothing over
@@ -1295,7 +1302,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
   lists, the tokens and the lookups are never logged, sent to the AI, learned or synced; see
   [Suggestions and Code](#suggestions-and-code-new).
 - The input method reads the clipboard text when you press ⌃V (the history's panel shows what's on it) or ⌘V in a command; content that password managers mark as concealed isn't read. Text appended to a command is shown in it first and, again, is sent only when you press the action key. Recent macOS versions ask whether AllInOneIME may read the clipboard: allow it. To stop being asked every time, set AllInOneIME to Allow in System Settings → Privacy & Security → Paste from Other Apps.
-- Clipboard history (on by default, Settings → General): after each copy, the input method reads the plain text copied, only while macOS lets it without asking (Paste from Other Apps: Allow; it never makes macOS ask in the background), and keeps the last 20 (5–100) in `~/Library/Application Support/AllInOneIME/clipboard-history.json`, readable only by your user account and excluded from backups. Never what a password manager or clipboard tool marks as concealed, transient or auto-generated, nothing copied during secure input (checked once a second: a copy is dropped when secure input was on at the check that finds it or the one before, so secure input on for less than a second between two checks can go unseen), no images or files. It stays on this Mac: never synced, never sent to an AI or anywhere, never logged (only how many). Clear History deletes it, and so does turning it off.
+- Clipboard history (on by default, Settings → General): after each copy, the input method reads the plain text copied (or the image, 0.6.8.2), only while macOS lets it without asking (Paste from Other Apps: Allow; it never makes macOS ask in the background), and keeps the last 20 (5–100) in `~/Library/Application Support/AllInOneIME/clipboard-history.json`, readable only by your user account and excluded from backups. Never what a password manager or clipboard tool marks as concealed, transient or auto-generated, nothing copied during secure input (checked once a second: a copy is dropped when secure input was on at the check that finds it or the one before, so secure input on for less than a second between two checks can go unseen), no files, no image over 10 MB. Images are kept as PNG files, with a small thumbnail each, in `~/Library/Application Support/AllInOneIME/clipboard-history-images/` (readable only by your user account, excluded from backups); an image that drops out of the last 20 is deleted. Pasting one puts it on the clipboard until the app has read it, then your clipboard back (without Accessibility it stays there, for your own ⌘V). It stays on this Mac: never synced, never sent to an AI or anywhere, never logged (only how many). Clear History deletes it all, images too, and so does turning it off.
 - In password fields macOS switches to its own keyboard (U.S. or ABC) and back when you leave them. Whenever the app you type in holds secure input, AllInOneIME doesn't compose text: keys go in as typed. And while the system is in secure input (password fields, Terminal's Secure Keyboard Entry, etc.), nothing is sent to the AI.
 - `@note` and `@reminder` don't go to the AI: AllInOneIME hands the text only to Notes and Reminders on this Mac, and reads the reminder's time on the Mac too (whether those apps sync it to your other devices depends on their accounts, such as iCloud). So they work during secure input as well. `@note` to a folder writes a file on this Mac (it syncs if the folder does, as an iCloud Drive or Obsidian Sync folder would). `@note` to Notion sends the note to Notion (api.notion.com, with your integration's token, kept in the keychain), and only then: not during secure input.
 - `@reportissue` (and "Report an Issue…") sends nothing itself: it opens GitHub's new-issue page in your browser with the title you typed and the versions, languages, provider kind and counts listed above, shown in the candidate panel first. Nothing reaches GitHub unless you click Submit there.

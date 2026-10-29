@@ -1,14 +1,24 @@
 import Foundation
 
 /// Clipboard history in one text field's session (Session/ClipboardHistory.swift, where the seam is described): the panel
-/// ⌃V shows, its rows, the row chosen and those selected with ⇧↓ ⇧↑, what goes in.
+/// ⌃V shows, its rows (texts and images), the row chosen and those selected with ⇧↓ ⇧↑, what goes in.
 struct ClipboardHistoryField {
     /// A row of the panel.
     enum Row: Equatable {
+        /// An image's row (on the clipboard, or kept).
+        var isImage: Bool {
+            switch self {
+            case .image, .keptImage: return true
+            case .text, .permission: return false
+            }
+        }
+
         /// A text, copied at `copiedAt` (nil: the clipboard's, which the history doesn't have).
         case text(String, copiedAt: Date?)
-        /// An image on the clipboard (a screenshot).
+        /// An image on the clipboard (a screenshot) the history doesn't have (it isn't recording, or it wasn't kept).
         case image
+        /// An image the history kept, copied at `copiedAt` (0.6.8.2).
+        case keptImage(ClipboardHistoryImage, copiedAt: Date)
         /// How to keep a history (`ClipboardHistoryState.notAllowed`).
         case permission
     }
@@ -63,7 +73,10 @@ extension InputSession {
             // A key before the clipboard was read: the panel isn't shown for it; ⌃V again is as ⌃V again.
             let command = clipboard.reading?.command ?? false
             clipboard.reading = nil
-            if isPasteAnywhere(event) { return command ? nil : false }
+            if isPasteAnywhere(event) {
+                clipboardTookKey()
+                return clipboardPasteAgain(command: command)
+            }
         }
         guard isPasteAnywhere(event), let command = clipboardOpensIn() else { return nil }
         clipboardTookKey()
@@ -94,13 +107,14 @@ extension InputSession {
         guard !rows.isEmpty else { return say(composer.messages.nothingToPaste) }
         clipboard = ClipboardHistoryField(reads: clipboard.reads, rows: rows, shown: true, command: reading.command,
                                           first: services.clipboardHistory.firstShowing(),
-                                          passesPasteKey: rows.first == .image && services.clipboardHistory.canPassPasteKey())
+                                          passesPasteKey: rows.contains(where: \.isImage) && services.clipboardHistory.canPassPasteKey())
         log.notice("clipboard history: shown (\(rows.count) rows\(reading.command ? ", in a command" : ""))")
         emit(.panel(clipboardPanel()))
     }
 
-    /// The panel's rows, newest first: an image on the clipboard, else its text unless it is the history's newest; the
-    /// history's texts (`Config.clipboardHistoryKept` at most), each once; how to keep a history, where it can't yet.
+    /// The panel's rows, newest first: an image on the clipboard unless it is the history's newest (its kept row stands for
+    /// it then), else its text unless it is the history's newest; the history's texts and images
+    /// (`Config.clipboardHistoryKept` at most), each once; how to keep a history, where it can't yet.
     func clipboardRows(_ content: ClipboardContent) -> [ClipboardHistoryField.Row] {
         let history = services.clipboardHistory
         let items = Array(history.items().prefix(services.loadSettings().clipboardHistoryKept))
@@ -108,7 +122,7 @@ extension InputSession {
         var current: String?
         switch content {
         case .image:
-            rows.append(.image)
+            if !(items.first?.image != nil && history.clipboardIsNewest()) { rows.append(.image) }
         case let .text(text):
             // As the history would have kept it: some text, not too long.
             if text.utf16.count <= ClipboardHistoryItem.maxLength * 4, text.count <= ClipboardHistoryItem.maxLength,
@@ -119,7 +133,9 @@ extension InputSession {
         case .none:
             break
         }
-        rows += items.filter { $0.text != current }.map { .text($0.text, copiedAt: $0.copiedAt) }
+        rows += items.filter { $0.image != nil || $0.text != current }.map { item in
+            item.image.map { .keptImage($0, copiedAt: item.copiedAt) } ?? .text(item.text, copiedAt: item.copiedAt)
+        }
         if history.state() == .notAllowed { rows.append(.permission) }
         return rows
     }
@@ -138,15 +154,15 @@ extension InputSession {
 
     /// While the panel shows: ↓ ↑ move the choice around the ends (a selection ends), ⇧↓ ⇧↑ extend the selection from the
     /// row chosen when it started, ⏎ keypad Enter and Tab put in what is selected, → and Esc hide the panel, ⌃V again hides
-    /// it and gives ⌃V as it is (outside a command the app's: false; in one the composer's: nil). Any other key hides it
-    /// and goes on (nil): digits are typed, never pick.
+    /// it and pastes as the app does (0.6.8.2: outside a command the app's own paste key where it can be posted,
+    /// `PlatformAction.passPasteKey`, ⌘V in an app and ⌃V in a terminal; else ⌃V as it is, the app's: false; in a command the
+    /// composer's: nil). Any other key hides it and goes on (nil): digits are typed, never pick.
     func clipboardKey(_ event: KeyEvent) -> Bool? {
         if isPasteAnywhere(event) {
             clipboardTookKey()
             let command = clipboard.command
-            log.notice("clipboard history: ⌃V again, as it is")
             clipboardHide()
-            return command ? nil : false
+            return clipboardPasteAgain(command: command)
         }
         let modifiers = event.modifiers.subtracting(.capsLock).subtracting(.sides)
         let arrow = event.key == .arrow(.down) || event.key == .arrow(.up)
@@ -183,6 +199,24 @@ extension InputSession {
             clipboardHide()
             return nil
         }
+    }
+
+    /// ⌃V again (the panel showing, or before the clipboard was read for it): in a command the composer's (nil: today's
+    /// ⌃V); outside one the app's own paste key where it can be posted (`PlatformAction.passPasteKey`: true), else ⌃V as it
+    /// is (false: the app's).
+    func clipboardPasteAgain(command: Bool) -> Bool? {
+        if command {
+            log.notice("clipboard history: ⌃V again, as it is")
+            return nil
+        }
+        guard services.clipboardHistory.canPassPasteKey() else {
+            log.notice("clipboard history: ⌃V again, as it is")
+            return false
+        }
+        log.notice("clipboard history: ⌃V again, the app's own paste")
+        emit(.rowsTookKey)
+        emit(.platform(.passPasteKey))
+        return true
     }
 
     /// A row of the panel clicked (`index` among those shown): that row put in, alone (true); false: not ours.
@@ -238,9 +272,9 @@ extension InputSession {
     /// `picked` (rows of the panel) put in, the panel hidden. Texts in the order they were copied, oldest first (the
     /// reverse of the rows'), one per line, each without the line breaks at its end; one alone as it was copied. Outside a
     /// command as suggestions' rows go in (`rowByKey` first for a key, then a `commit`: in a terminal that can't take a
-    /// paste, on one line); in one, as ⌃V pastes into it (`Composer.pasteAnywhere`). The image row alone: outside a
-    /// command ⌃V given to the app as it is where it can be (`PlatformAction.passPasteKey`), in one today's ⌃V; how to
-    /// keep a history: where to allow it opens.
+    /// paste, on one line); in one, as ⌃V pastes into it (`Composer.pasteAnywhere`). An image alone: outside a command the
+    /// app's own paste key for the clipboard's (`PlatformAction.passPasteKey`), a kept one pasted (`pasteImage`); in one,
+    /// read as a screenshot; how to keep a history: where to allow it opens.
     func clipboardPut(_ picked: [Int], key: KeyEvent?) {
         let (rows, command) = (clipboard.rows, clipboard.command)
         let texts = picked.reversed().compactMap { index -> String? in
@@ -253,6 +287,19 @@ extension InputSession {
             if key != nil, !command { emit(.rowsTookKey) }
             clipboard = ClipboardHistoryField(reads: clipboard.reads)
             switch row {
+            case let .keptImage(image, _)? where command:
+                // As ⌃V pastes an image into a command: `@reply` reads it as a screenshot.
+                log.notice("clipboard history: a kept image, into a command")
+                if let data = services.clipboardHistory.imageData(image.id) {
+                    perform(composer.pasteAnywhere(.image(data)) ?? [.showPanel])
+                } else {
+                    emit(.panel(composer.wantsPanel ? panelModel() : nil))
+                    say(composer.messages.nothingToPaste)
+                }
+            case let .keptImage(image, _)?:
+                emit(.panel(nil))
+                log.notice("clipboard history: a kept image pasted (\(image.bytes) bytes)")
+                emit(.platform(.pasteImage(id: image.id)))
             case .image? where command:
                 // Today's ⌃V in a command: the clipboard read, its image as `@reply` reads it.
                 log.notice("clipboard history: the image, as ⌃V in a command")
@@ -305,13 +352,16 @@ extension InputSession {
         let (all, shown) = (clipboard.rows.count, Self.shownSuggestionRows)
         let window = clipboard.top..<min(clipboard.top + shown, all)
         let selection = clipboardSelection()
-        let selected = selection.count > 1 ? Set(selection) : []
+        // Several selected: the texts among them, which go in (an image goes in alone, so it isn't marked).
+        let texts = selection.filter { !clipboard.rows[$0].isImage && clipboard.rows[$0] != .permission }
+        let selected = selection.count > 1 ? Set(texts) : []
         let now = services.clipboardHistory.now()
         let passes = clipboard.command || clipboard.passesPasteKey
         let rows = window.map { index in
-            let (text, comment) = Self.clipboardRowText(clipboard.rows[index], now: now, passesPasteKey: passes, in: t)
+            let row = clipboard.rows[index]
+            let (text, comment) = Self.clipboardRowText(row, now: now, passesPasteKey: passes, in: t)
             return PanelModel.Row(label: selected.contains(index) ? "✓" : "", text: text, comment: comment, kind: .candidate,
-                                  pickable: clipboard.rows[index] != .permission, choice: index)
+                                  icon: Self.clipboardRowIcon(row), pickable: row != .permission, choice: index)
         }
         let terms = Platform.current.terms
         let enter = terms.enter
@@ -331,19 +381,51 @@ extension InputSession {
         return PanelModel(rows: rows, highlighted: highlighted, footer: footer, detail: notice ?? detail)
     }
 
+    /// How large a kept image is: "820 KB", "2.4 MB".
+    static func byteSize(_ bytes: Int, language: String = UIText.language) -> String {
+        let megabyte = 1024.0 * 1024.0
+        if Double(bytes) >= megabyte {
+            let size = String(format: "%.1f", Double(bytes) / megabyte)
+            // A decimal comma where the language writes one.
+            let comma = ["de", "fr", "es", "pt"].contains { language.hasPrefix($0) }
+            return (comma ? size.replacingOccurrences(of: ".", with: ",") : size) + " MB"
+        }
+        return "\(max(1, Int((Double(bytes) / 1024).rounded()))) KB"
+    }
+
+    /// An image row's icon: a kept image's thumbnail (drawn where the shell can read it, else an image icon); none for text.
+    static func clipboardRowIcon(_ row: ClipboardHistoryField.Row) -> IconToken? {
+        switch row {
+        case let .keptImage(image, _):
+            return IconToken(image.thumbnail.map { .image(path: $0, fallback: .image) } ?? .builtin(.image), color: .gray)
+        case .image:
+            return IconToken(.image, color: .gray)
+        case .text, .permission:
+            return nil
+        }
+    }
+
     /// The most of a text's first line a row shows.
     static let clipboardRowLength = 80
 
     /// A row's text and comment: a text's first line that isn't blank, trimmed, with "+N lines" or its length and how
-    /// long ago it was copied (or that it is on the clipboard); the image, with how ⌃V pastes it where ⏎ can't
-    /// (`passesPasteKey` false); how to keep a history, and that ⏎ opens where.
+    /// long ago it was copied (or that it is on the clipboard); the image on the clipboard, with how ⌃V pastes it where ⏎
+    /// can't (`passesPasteKey` false); a kept image's size, how large it is and when it was copied (where ⏎ can't paste it,
+    /// that it puts it on the clipboard); how to keep a history, and that ⏎ opens where.
     static func clipboardRowText(_ row: ClipboardHistoryField.Row, now: Date, passesPasteKey: Bool,
                                  in t: InterfaceWords) -> (text: String, comment: String) {
         let terms = Platform.current.terms
         switch row {
+        case let .keptImage(image, copiedAt):
+            let when = RelativeTime.ago(copiedAt, now: now, language: t.language, style: .short)
+            let comment = byteSize(image.bytes, language: t.language) + " · " + when
+            return (t.tr("图片 \(image.width) × \(image.height)", "Image \(image.width) × \(image.height)"),
+                    passesPasteKey ? comment : comment + t.tr(" · \(terms.enter) 放到剪贴板", " · \(terms.enter) puts it on the clipboard"))
         case .image:
+            // Without the paste key posted, ⌃V again is the app's ⌃V, which pastes nothing in most apps: the image is on the
+            // clipboard already, for the app's own paste.
             return (t.tr("剪贴板里的图片", "Image on the clipboard"),
-                    passesPasteKey ? "" : t.tr("再按 \(terms.paste) 粘贴", "\(terms.paste) again pastes it"))
+                    passesPasteKey ? "" : t.tr("已在剪贴板上", "on the clipboard already"))
         case .permission:
             return (t.tr("要记下历史，请允许「从其他App粘贴」", "To keep a history, allow Paste from Other Apps"),
                     t.tr("\(terms.enter) 打开「隐私与安全性」", "\(terms.enter) opens Privacy & Security"))

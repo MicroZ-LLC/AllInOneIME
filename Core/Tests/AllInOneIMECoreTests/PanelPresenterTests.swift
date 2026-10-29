@@ -398,7 +398,7 @@ struct IconTokenTests {
             "improve", "translate", "question", "reply", "agent", "open", "read", "note", "reminder", "python", "javascript",
             "webSearch", "tasks", "settings", "message", "reportIssue", "command", "plugin", "link", "prompt", "run",
             "terminal", "snippet", "scriptInsert", "scriptShow", "scriptList", "scriptSilent", "scriptBackground",
-            "scriptStatus", "done", "working", "needsYou",
+            "scriptStatus", "done", "working", "needsYou", "image",
         ])
         #expect(IconToken.Builtin.allCases.allSatisfy { !$0.appleSymbol.isEmpty && IconToken.Builtin(rawValue: $0.rawValue) == $0 })
     }
