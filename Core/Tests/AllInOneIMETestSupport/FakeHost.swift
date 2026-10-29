@@ -36,6 +36,8 @@ public final class FakeHost: @unchecked Sendable {
     /// Kept images' data by id (`ClipboardHistoryServices.imageData`), and whether the clipboard holds the history's newest
     /// copy still (`clipboardIsNewest`).
     public var clipboardImages: [String: Data] = [:]
+    /// The clipboard's reads held back until `answerFieldReads()` (a large image read slowly: a key comes first).
+    public var clipboardReadsWait = false
     public var clipboardIsNewest = false
     /// How many times the session opened where a history can be allowed (`ClipboardHistoryServices.openPermission`).
     public private(set) var permissionOpened = 0
@@ -302,9 +304,13 @@ public final class FakeHost: @unchecked Sendable {
             case let .copy(text):
                 copied.append(text)
             case let .readClipboard(id):
-                // Once the key is answered, as the Mac reads it.
+                // Once the key is answered, as the Mac reads it (held back with `clipboardReadsWait`: a slow read).
                 let content = clipboard
-                afterKey.append { [weak self] in self?.send(.clipboard(content, id: id)) }
+                if clipboardReadsWait {
+                    waitingReads.append(.clipboard(content, id: id))
+                } else {
+                    afterKey.append { [weak self] in self?.send(.clipboard(content, id: id)) }
+                }
             case .keyboardLayout:
                 break
             case let .startTimer(id, seconds):

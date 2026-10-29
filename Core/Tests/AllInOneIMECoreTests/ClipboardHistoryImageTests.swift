@@ -107,4 +107,35 @@ struct ClipboardHistoryImageTests {
             #expect(other.panel?.rows.first?.text == "Image on the clipboard" && other.panel?.rows.first?.icon?.glyph == .builtin(.image))
         }
     }
+
+    /// ⌃V again before the clipboard was read for the first (pressed quickly, a large image read slowly) is ⌃V again all
+    /// the same: the app's own paste.
+    @Test func controlVTwiceQuicklyPastesAsTheAppDoes() async {
+        await inEnglish {
+            let host = host()
+            host.clipboardReadsWait = true
+            host.press(FakeHost.controlV)
+            #expect(host.press(FakeHost.controlV) && host.pasteKeysPassed == 1)
+            host.answerFieldReads()
+            #expect(host.panel == nil, "the late read shows nothing")
+        }
+    }
+
+    /// Several selected with an image among them: the texts are marked and counted, the image not (it doesn't go in).
+    @Test func anImageInASelectionIsNotMarked() async {
+        await inEnglish {
+            let host = host()
+            host.press(FakeHost.controlV)
+            host.press(FakeHost.shiftDown)
+            host.press(FakeHost.shiftDown)
+            #expect(host.panel?.rows.map(\.label) == ["✓", "", "✓"], "\(host.panel?.rows.map(\.label) ?? [])")
+            #expect(host.panel?.detail?.contains("2 selected") == true, "\(host.panel?.detail ?? "-")")
+        }
+    }
+
+    @Test func aDecimalCommaWhereTheLanguageWritesOne() {
+        #expect(InputSession.byteSize(2_516_582, language: "en") == "2.4 MB")
+        #expect(InputSession.byteSize(2_516_582, language: "de") == "2,4 MB")
+        #expect(InputSession.byteSize(1_357, language: "fr") == "1 KB")
+    }
 }

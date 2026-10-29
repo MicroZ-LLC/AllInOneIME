@@ -2,9 +2,10 @@ import AllInOneIMECore
 import AppKit
 import CryptoKit
 import Foundation
+import ImageIO
 
 // Clipboard history's recording and keeping on this Mac (the core's Session/ClipboardHistory.swift is the behaviour of
-// the panel ⌃V shows): the text of each copy, after it is made, kept in a file of the user's only. The input method's
+// the panel ⌃V shows): the text of each copy, or its image (0.6.8.2), after it is made, kept in files of the user's only. The input method's
 // `ClipboardHistoryShared` runs it on a timer and gives the sessions what it keeps.
 
 /// Whether this app may read the clipboard now without the system asking the user (macOS 15.4:
@@ -33,25 +34,41 @@ public protocol ClipboardSource: AnyObject {
     func image() -> ClipboardImage?
 }
 
-/// An image read off the clipboard: its PNG and its size in pixels.
+/// An image read off the clipboard as it was there (PNG, TIFF, JPEG…) and its size in pixels, told without decoding it
+/// (`ClipboardImage.from`); its PNG and thumbnail are made off the main thread (`ClipboardHistoryStore.prepare`).
 public struct ClipboardImage: Equatable, Sendable {
-    public var png: Data
+    public var data: Data
     public var width: Int
     public var height: Int
 
-    public init(png: Data, width: Int, height: Int) {
-        (self.png, self.width, self.height) = (png, width, height)
+    public init(data: Data, width: Int, height: Int) {
+        (self.data, self.width, self.height) = (data, width, height)
     }
 
     /// The image types a copy of an image puts first.
     public static let types: Set<String> = ["public.png", "public.tiff", "public.jpeg", "public.heic", "com.compuserve.gif"]
+    /// The most pixels an image kept may have (a photo's 48 MP is past it: its PNG would be over the limit anyway), and the
+    /// most bytes it may come as: larger ones are never decoded.
+    public static let maxPixels = 40_000_000
+    public static let maxDataBytes = 60 * 1024 * 1024
 
-    /// `data` (any image type macOS reads) as PNG, with its size in pixels; nil where it isn't an image.
+    /// `data` with its size in pixels, as the image's header tells it (nothing decoded); nil where it isn't an image, or
+    /// it is too large to keep (`maxPixels`, `maxDataBytes`).
     public static func from(_ data: Data) -> ClipboardImage? {
-        guard let bitmap = NSBitmapImageRep(data: data), bitmap.pixelsWide > 0, bitmap.pixelsHigh > 0 else { return nil }
-        let png = data.starts(with: [0x89, 0x50, 0x4E, 0x47]) ? data : bitmap.representation(using: .png, properties: [:])
-        guard let png else { return nil }
-        return ClipboardImage(png: png, width: bitmap.pixelsWide, height: bitmap.pixelsHigh)
+        guard data.count <= maxDataBytes, let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let width = properties[kCGImagePropertyPixelWidth] as? Int, let height = properties[kCGImagePropertyPixelHeight] as? Int,
+              width > 0, height > 0, width * height <= maxPixels
+        else { return nil }
+        return ClipboardImage(data: data, width: width, height: height)
+    }
+
+    /// As PNG (kept as it is when it is one).
+    func pngData() -> Data? {
+        if data.starts(with: [0x89, 0x50, 0x4E, 0x47]) { return data }
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil), let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
+        else { return nil }
+        return NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:])
     }
 }
 
@@ -82,12 +99,23 @@ public final class SystemClipboard: ClipboardSource {
         return nil
     }
 
+    /// Universal Clipboard's marker: an image copied on an iPhone or another Mac, its data fetched from there when read
+    /// (the main thread would wait on the network): never read for the history.
+    public static let remoteType = "com.apple.is-remote-clipboard"
+
     public func image() -> ClipboardImage? {
         let pasteboard = NSPasteboard.general
-        guard let first = pasteboard.types?.first, ClipboardImage.types.contains(first.rawValue),
-              let data = pasteboard.data(forType: first) else { return nil }
+        guard let types = pasteboard.types, let first = types.first, ClipboardImage.types.contains(first.rawValue),
+              !types.contains(where: { $0.rawValue == Self.remoteType }), let data = pasteboard.data(forType: first)
+        else { return nil }
         return ClipboardImage.from(data)
     }
+}
+
+/// A value handed back to the main thread it came from (unchecked: it is only ever used there).
+private struct MainThreadOnly<Value>: @unchecked Sendable {
+    let value: Value
+    init(_ value: Value) { self.value = value }
 }
 
 /// Records each copy into `store` (`poll`, on a timer): an image where one was copied (`ClipboardSource.image`; one over
@@ -102,6 +130,10 @@ public final class ClipboardRecorder {
     public enum Outcome: Equatable, Sendable {
         case unchanged, recorded
         case notAllowed, secureInput, marked, notText, blank, tooLong
+        /// An image being made ready off the main thread (`imageWork`): recorded once it is.
+        case imageQueued
+        /// It couldn't be written (a full disk): nothing kept.
+        case notSaved
         /// The newest kept already (a copy of it again, the clipboard put back after a paste of ours).
         case same
     }
@@ -117,6 +149,17 @@ public final class ClipboardRecorder {
 
     public let store: ClipboardHistoryStore
     let source: ClipboardSource
+    /// Runs an image's preparation (its PNG, id, thumbnail and files: `ClipboardHistoryStore.prepare`) and hands its result
+    /// to the second closure on the main thread: off the main thread by default, so a large copy never holds typing up;
+    /// a test's runs it at once.
+    public var imageWork: (@escaping @Sendable () -> ClipboardHistoryStore.Prepared, @escaping (ClipboardHistoryStore.Prepared) -> Void) -> Void = { prepare, done in
+        // `done` runs on the main thread only, where the recorder is used.
+        let main = MainThreadOnly(done)
+        DispatchQueue.global(qos: .utility).async {
+            let prepared = prepare()
+            DispatchQueue.main.async { main.value(prepared) }
+        }
+    }
     let secureInput: () -> Bool
     let now: () -> Date
     /// The change count last looked at (nil: none yet: what's on the clipboard is recorded at the first look, at launch),
@@ -152,9 +195,22 @@ public final class ClipboardRecorder {
         guard !secure, !wasSecure else { return .secureInput }
         guard Set(source.types).isDisjoint(with: Self.neverRecorded) else { return .marked }
         if let image = source.image() {
-            guard image.png.count <= ClipboardHistoryImage.maxBytes else { return .tooLong }
-            newestSeen = count
-            return store.recordImage(image, at: now(), limit: limit) ? .recorded : .same
+            let (store, date) = (store, now())
+            var outcome = Outcome.imageQueued
+            imageWork({ store.prepare(image) }) { [weak self] prepared in
+                guard let self else { return }
+                switch prepared {
+                case let .ready(ready):
+                    outcome = store.add(ready, at: date, limit: limit) ? .recorded : .same
+                    // The newest still on the clipboard only if nothing was copied since.
+                    if source.changeCount == count { newestSeen = count }
+                case .tooLarge:
+                    outcome = .tooLong
+                case .notSaved:
+                    outcome = .notSaved
+                }
+            }
+            return outcome
         }
         guard let text = source.text() else { return .notText }
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return .blank }
@@ -176,15 +232,20 @@ public final class ClipboardRecorder {
 /// Application Support, excluded from backups, written whole (the list atomically) with each change; an image no longer
 /// in the list is deleted with it; `clear` deletes them all (Clear History, the history turned off). Read once, as it is
 /// made. Never synced, never sent anywhere.
-public final class ClipboardHistoryStore {
+// Unchecked: `prepare` runs off the main thread and touches only the images folder (by `url`, which never changes); the
+// list itself is read and changed on the main thread only.
+public final class ClipboardHistoryStore: @unchecked Sendable {
     /// ~/Library/Application Support/AllInOneIME/clipboard-history.json.
     public static var defaultURL: URL { CorePaths.dataDir.appendingPathComponent("clipboard-history.json") }
     /// The longest side of a thumbnail, in pixels (the panel draws it in a row's icon square).
     static let thumbnailSide = 96
 
     public let url: URL
-    /// The kept images' folder: clipboard-history-images, beside the list.
-    public var imagesURL: URL { url.deletingLastPathComponent().appendingPathComponent("clipboard-history-images", isDirectory: true) }
+    /// The kept images' folder, beside the list and named after it (clipboard-history-images for the user's): two stores
+    /// never share one.
+    public var imagesURL: URL {
+        url.deletingLastPathComponent().appendingPathComponent(url.deletingPathExtension().lastPathComponent + "-images", isDirectory: true)
+    }
     public private(set) var items: [ClipboardHistoryItem]
 
     private struct File: Codable {
@@ -230,19 +291,63 @@ public final class ClipboardHistoryStore {
         return true
     }
 
-    /// An image copied at `date`: its PNG and thumbnail written (once: its id is its data's SHA-256), first in the list,
-    /// once (the same image further down moves up), `limit` kept at most. False: it was the newest already, or it couldn't
-    /// be written, and nothing changed.
+    /// An image made ready to keep (`prepare`): its id (its PNG's SHA-256), size and PNG's length, its files written.
+    public struct ReadyImage: Sendable {
+        public var id: String
+        public var width: Int
+        public var height: Int
+        public var bytes: Int
+    }
+
+    /// What preparing an image came to.
+    public enum Prepared: Sendable {
+        case ready(ReadyImage)
+        /// Its PNG is over `ClipboardHistoryImage.maxBytes` (or it couldn't be read as an image).
+        case tooLarge
+        /// Its files couldn't be written.
+        case notSaved
+    }
+
+    /// `image` made ready to keep, off the main thread: its PNG (≤ `ClipboardHistoryImage.maxBytes`), its id, its thumbnail,
+    /// both written in the images folder (0600; the folder 0700, excluded from backups; the PNG kept as it is if there).
+    /// Touches nothing of the list (`add` does, on the main thread).
+    public func prepare(_ image: ClipboardImage) -> Prepared {
+        guard let png = image.pngData(), png.count <= ClipboardHistoryImage.maxBytes else { return .tooLarge }
+        let id = SHA256.hash(data: png).map { String(format: "%02x", $0) }.joined()
+        do {
+            try FileManager.default.createDirectory(at: imagesURL, withIntermediateDirectories: true,
+                                                    attributes: [.posixPermissions: 0o700])
+            excludeFromBackup(imagesURL)
+            let file = imageURL(id)
+            if !FileManager.default.fileExists(atPath: file.path) { try Platform.current.files.writePrivate(png, to: file) }
+            if let thumbnail = Self.thumbnail(png) { try Platform.current.files.writePrivate(thumbnail, to: thumbnailURL(id)) }
+        } catch {
+            CoreLog(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "ime")
+                .error("clipboard history: could not save an image: \(String(describing: type(of: error)))")
+            return .notSaved
+        }
+        return .ready(ReadyImage(id: id, width: image.width, height: image.height, bytes: png.count))
+    }
+
+    /// A ready image (`prepare`) copied at `date` in the list: where its date puts it (a text copied while it was made
+    /// ready stays above it), once (the same image further down moves up), `limit` kept at most. False: it was the newest
+    /// already, and nothing changed.
     @discardableResult
-    public func recordImage(_ image: ClipboardImage, at date: Date, limit: Int) -> Bool {
-        let id = SHA256.hash(data: image.png).map { String(format: "%02x", $0) }.joined()
-        guard items.first?.image?.id != id else { return false }
-        guard write(image, id: id) else { return false }
-        items.removeAll { $0.image?.id == id }
-        let kept = kept(id, width: image.width, height: image.height, bytes: image.png.count)
-        items.insert(ClipboardHistoryItem(image: kept, copiedAt: date), at: 0)
+    public func add(_ image: ReadyImage, at date: Date, limit: Int) -> Bool {
+        guard items.first?.image?.id != image.id else { return false }
+        items.removeAll { $0.image?.id == image.id }
+        let kept = kept(image.id, width: image.width, height: image.height, bytes: image.bytes)
+        let place = items.firstIndex { $0.copiedAt < date } ?? items.count
+        items.insert(ClipboardHistoryItem(image: kept, copiedAt: date), at: place)
         keep(limit)
         return true
+    }
+
+    /// An image copied at `date`, prepared and added at once (tests, the self-test). False: not kept.
+    @discardableResult
+    public func recordImage(_ image: ClipboardImage, at date: Date, limit: Int) -> Bool {
+        guard case let .ready(ready) = prepare(image) else { return false }
+        return add(ready, at: date, limit: limit)
     }
 
     /// A kept image's PNG; nil: not kept (any more).
@@ -280,34 +385,12 @@ public final class ClipboardHistoryStore {
                                      thumbnail: FileManager.default.fileExists(atPath: thumbnail.path) ? thumbnail.path : nil)
     }
 
-    /// The image's PNG and thumbnail in the images folder (0600, excluded from backups; the PNG kept as it is if there).
-    private func write(_ image: ClipboardImage, id: String) -> Bool {
-        do {
-            try FileManager.default.createDirectory(at: imagesURL, withIntermediateDirectories: true,
-                                                    attributes: [.posixPermissions: 0o700])
-            excludeFromBackup(imagesURL)
-            let file = imageURL(id)
-            if !FileManager.default.fileExists(atPath: file.path) { try Platform.current.files.writePrivate(image.png, to: file) }
-            if let thumbnail = Self.thumbnail(image) { try Platform.current.files.writePrivate(thumbnail, to: thumbnailURL(id)) }
-            return true
-        } catch {
-            CoreLog(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "ime")
-                .error("clipboard history: could not save an image: \(String(describing: type(of: error)))")
-            return false
-        }
-    }
-
-    /// A PNG at most `thumbnailSide` pixels on its longer side.
-    static func thumbnail(_ image: ClipboardImage) -> Data? {
-        guard let source = NSBitmapImageRep(data: image.png)?.cgImage else { return nil }
-        let scale = min(1, Double(thumbnailSide) / Double(max(image.width, image.height)))
-        let (width, height) = (max(1, Int(Double(image.width) * scale)), max(1, Int(Double(image.height) * scale)))
-        guard let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
-                                      space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
-        else { return nil }
-        context.interpolationQuality = .high
-        context.draw(source, in: CGRect(x: 0, y: 0, width: width, height: height))
-        guard let small = context.makeImage() else { return nil }
+    /// A PNG at most `thumbnailSide` pixels on its longer side (ImageIO's thumbnail: the image decoded at that size only).
+    static func thumbnail(_ png: Data) -> Data? {
+        guard let source = CGImageSourceCreateWithData(png as CFData, nil) else { return nil }
+        let options: [CFString: Any] = [kCGImageSourceCreateThumbnailFromImageAlways: true, kCGImageSourceCreateThumbnailWithTransform: true,
+                                        kCGImageSourceThumbnailMaxPixelSize: thumbnailSide]
+        guard let small = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
         return NSBitmapImageRep(cgImage: small).representation(using: .png, properties: [:])
     }
 

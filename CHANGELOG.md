@@ -10,7 +10,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ### Fixed
 
-- In Slack and other apps, ⌃V ⏎ on the image on the clipboard, and ⌃V pressed twice, now paste it: they press the app's own paste key (⌘V). Before, they gave the app ⌃V, which pastes only in a terminal.
+- In Slack, WeChat and other apps, ⌃V ⏎ on the image on the clipboard, and ⌃V pressed twice, now paste: with Accessibility allowed they press the app's own paste key (⌘V; in a terminal or a code editor still ⌃V). Before, they gave the app ⌃V, which pastes only in a terminal.
 
 ## 0.6.8.1 (2026-10-27)
 

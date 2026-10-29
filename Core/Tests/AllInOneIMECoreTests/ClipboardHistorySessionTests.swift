@@ -430,7 +430,8 @@ struct ClipboardHistorySessionTests {
     }
 
     /// An image on the clipboard is the first row, chosen: ⏎ gives the app its own paste key (`passPasteKey`), nothing put
-    /// in; where it can't (no Accessibility) the row says ⌃V again pastes it and ⏎ only hides; ⌃V ⌃V pastes as the app does.
+    /// in; where it can't (no Accessibility) the row says it's on the clipboard already and ⏎ only hides; ⌃V ⌃V pastes as
+    /// the app does.
     @Test func anImageIsTheFirstRow() async {
         await inEnglish {
             let host = host(clipboard: .image(Data([0x89, 0x50])))
@@ -440,7 +441,7 @@ struct ClipboardHistorySessionTests {
             let without = self.host(clipboard: .image(Data([0x89, 0x50])))
             without.passesPasteKey = false
             without.press(FakeHost.controlV)
-            #expect(without.panel?.rows.first?.comment == "⌃V again pastes it", "\(without.panel?.rows.first?.comment ?? "-")")
+            #expect(without.panel?.rows.first?.comment == "on the clipboard already", "\(without.panel?.rows.first?.comment ?? "-")")
             #expect(without.press(FakeHost.enter) && without.pasteKeysPassed == 0 && without.panel == nil)
             let twice = self.host(clipboard: .image(Data([0x89, 0x50])))
             twice.press(FakeHost.controlV)

@@ -2686,6 +2686,7 @@
     },
     "%@ again pastes it" : {
       "comment" : "再按 %@ 粘贴 — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -29255,6 +29256,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "剪貼簿裡的"
+          }
+        }
+      }
+    },
+    "on the clipboard already" : {
+      "comment" : "已在剪贴板上 — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "schon in der Zwischenablage"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ya está en el portapapeles"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "déjà dans le presse-papiers"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すでにクリップボードにあります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이미 클립보드에 있습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "já está na área de transferência"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已在剪貼簿上"
           }
         }
       }

@@ -58,9 +58,11 @@ extension SelfTest {
         var (peeks, reads) = (0, 0)
         controller.peekClipboard = { peeks += 1; return .text(item) }
         controller.readClipboard = { reads += 1; return .text(item) }
-        var pasteKeys = 0
-        controller.passPasteKey = { pasteKeys += 1 }
-        controller.passCommandV = { pasteKeys += 1 }
+        // The app's paste key, counted apart: ⌃V (a terminal, a code editor), ⌘V (any other app).
+        var (controlVs, commandVs) = (0, 0)
+        var pasteKeys: Int { controlVs + commandVs }
+        controller.passPasteKey = { controlVs += 1 }
+        controller.passCommandV = { commandVs += 1 }
         let slack = "com.tinyspeck.slackmacgap"
         controller.chromiumApp = { $0 == slack }
         let panel = CandidatePanel.shared
@@ -277,7 +279,7 @@ extension SelfTest {
         let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 400, pixelsHigh: 200, bitsPerSample: 8, samplesPerPixel: 4,
                                       hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
         for x in 0..<400 { for y in 0..<200 { bitmap.setColor(NSColor(deviceRed: Double(x) / 400, green: 0.5, blue: Double(y) / 200, alpha: 1), atX: x, y: y) } }
-        let shot = ClipboardImage(png: bitmap.representation(using: .png, properties: [:])!, width: 400, height: 200)
+        let shot = ClipboardImage(data: bitmap.representation(using: .png, properties: [:])!, width: 400, height: 200)
         keptImages.record("a text copied before", at: now - 600, limit: 20)
         keptImages.recordImage(shot, at: now - 120, limit: 20)
         controller.services.clipboardHistory = ClipboardHistoryServices(
@@ -312,7 +314,7 @@ extension SelfTest {
         keptImages.clear()
         let thumbnailShown = imageRow?.icon.flatMap { icon -> String? in if case let .image(path, _) = icon.glyph { path } else { nil } } != nil
         check(imageRow?.text == tr("图片 400 × 200", "Image 400 × 200") && thumbnailShown
-              && imagesPasted.map(\.0) == [shot.png, shot.png] && imagesPasted.map(\.1) == [false, true],
+              && imagesPasted.map(\.0) == [shot.data, shot.data] && imagesPasted.map(\.1) == [false, true],
               "a kept image: its row (\(imageRow?.text ?? "none"), thumbnail \(thumbnailShown)), ⏎ pastes it "
               + "(\(imagesPasted.map { $0.1 ? "terminal ⌃V" : "⌘V" }))")
 

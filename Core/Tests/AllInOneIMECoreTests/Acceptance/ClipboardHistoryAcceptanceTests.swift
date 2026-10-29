@@ -273,7 +273,9 @@ struct ClipboardHistoryAcceptanceTests {
             let denied = host(items: ["old"], clipboard: image)
             denied.passesPasteKey = false
             open(denied)
-            #expect(denied.panel?.rows.first?.comment == "⌃V again pastes it")
+            // Changed by the spec's owner (0.6.8.2): without the paste key posted, ⌃V again gives the app ⌃V, which pastes
+            // nothing in most apps (Slack); the row says the image is on the clipboard already, for the app's own paste.
+            #expect(denied.panel?.rows.first?.comment == "on the clipboard already")
             denied.press(FakeHost.enter)
             #expect(denied.pasteKeysPassed == 0 && denied.panel == nil)
 
