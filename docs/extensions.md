@@ -33,9 +33,12 @@ Extensions are read from folders:
 
 A folder you add (and the first one) is read whole, as below. From a folder Spotlight found, only its Raycast Script
 Commands are taken: its `@allinoneime.` scripts and bundles are left alone, since a found folder may be any copy of
-anything that holds a Raycast script (a second checkout of a repository, a backup). To use all of such a folder, add
-it. Each search replaces the folders found before, so one removed, or no longer holding a Raycast script, drops out of
-the list.
+anything that holds a Raycast script (a second checkout of a repository, a backup, a zip unpacked in Downloads). Nobody
+looked at such a folder, so a script loads from it only when it is executable (`chmod +x`, as Raycast wants it) and
+wasn't downloaded from the internet (macOS's quarantine mark, `com.apple.quarantine`); one left out says why in
+Settings. And none of it runs before you choose it: a `mode inline` script with `refreshTime` has no status line there.
+To use all of such a folder, add it. Each search replaces the folders found before, so one removed, or no longer holding
+a Raycast script, drops out of the list.
 
 A script, or a bundle, that is byte for byte the same as one read before it under the same name (its `extension.json`
 and the scripts it lists, for a bundle) is a copy: it's left out quietly, and Settings says only "Skipped N identical
@@ -310,7 +313,7 @@ Raycast's keys are read as they are, and mean:
 | `schemaVersion`, `title`, `mode` | required, as in Raycast (Raycast's `schemaVersion` is `1`; another is reported) |
 | `mode fullOutput` | `output show` |
 | `mode compact`, `mode silent` | `output silent` |
-| `mode inline` with `refreshTime` | `status self`, `statusRefresh` = `refreshTime` (running it is `silent`) |
+| `mode inline` with `refreshTime` | `status self`, `statusRefresh` = `refreshTime` (running it is `silent`; none from a found folder) |
 | `mode inline` alone | `output silent` |
 | `needsConfirmation` | `confirm` |
 | `currentDirectoryPath` | `currentDirectoryPath` |

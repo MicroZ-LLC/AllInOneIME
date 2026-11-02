@@ -228,3 +228,81 @@ struct PluginTests {
         #expect(fetcher.asked.allSatisfy { $0.headers["User-Agent"] == "Mozilla/5.0" })
     }
 }
+
+/// A test whose Trash is a folder of its own (`FolderTrashFileOps`, through `Platform.override`), removed after it: what
+/// it moves to the Trash never reaches the user's.
+struct OwnTrash: TestTrait, TestScoping {
+    func scopeProvider(for test: Test, testCase: Test.Case?) -> OwnTrash? {
+        testCase == nil ? nil : self
+    }
+
+    func provideScope(for test: Test, testCase: Test.Case?, performing function: @Sendable () async throws -> Void) async throws {
+        let trash = FileManager.default.temporaryDirectory.appendingPathComponent("trash-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: trash) }
+        var platform = Platform.current
+        platform.files = FolderTrashFileOps(trash: trash)
+        try await Platform.$override.withValue(platform) { try await function() }
+    }
+
+    /// The Trash of the test running.
+    static var folder: URL? { (Platform.current.files as? FolderTrashFileOps)?.folder }
+}
+
+/// Removing a plugin (Settings → Plugins → Remove, or the settings document's `remove`) moves its folder to the Trash,
+/// never deletes it: a local plugin's folder is where its author writes it (docs/plugins.md), maybe the only copy.
+struct PluginRemovalTests {
+    /// A plugins folder with a library plugin (its install record) and a local one with a file of its author's.
+    func plugins() throws -> (root: URL, store: SettingsStore) {
+        let fm = FileManager.default
+        let folder = fm.temporaryDirectory.appendingPathComponent("plugin-removal-\(UUID().uuidString)", isDirectory: true)
+        let root = folder.appendingPathComponent("plugins", isDirectory: true)
+        let stock = root.appendingPathComponent("stock"), tone = root.appendingPathComponent("tone")
+        try fm.createDirectory(at: stock, withIntermediateDirectories: true)
+        try fm.createDirectory(at: tone, withIntermediateDirectories: true)
+        try Data(#"{"name":"stock","version":"1.0.0","type":"prompt","prompt":"Quotes."}"#.utf8).write(to: stock.appendingPathComponent("plugin.json"))
+        let record = PluginInstallRecord(version: "1.0.0", files: ["plugin.json": PluginStore.sha256(of: stock.appendingPathComponent("plugin.json"))!])
+        try JSONEncoder().encode(record).write(to: stock.appendingPathComponent("install.json"))
+        try Data(#"{"name":"tone","version":"0.1","type":"prompt","prompt":"Make it friendlier."}"#.utf8).write(to: tone.appendingPathComponent("plugin.json"))
+        try Data("ideas for the next version".utf8).write(to: tone.appendingPathComponent("notes.md"))
+        let url = folder.appendingPathComponent("config.json")
+        try Data("{}".utf8).write(to: url)
+        return (root, SettingsStore(configURL: url))
+    }
+
+    @Test(OwnTrash()) func aRemovedPluginsFolderGoesToTheTrash() throws {
+        let (root, store) = try plugins()
+        defer { try? FileManager.default.removeItem(at: root.deletingLastPathComponent()) }
+        let trash = try #require(OwnTrash.folder)
+        let loaded = PluginStore.load(from: root).plugins
+        #expect(loaded.map(\.name) == ["stock", "tone"] && loaded.map(\.isLocal) == [false, true])
+        for plugin in loaded { #expect(store.uninstall(plugin) == nil, "\(plugin.name)") }
+        #expect(PluginStore.load(from: root).plugins.isEmpty, "removed")
+        // In the Trash as they were, the author's own file with the local one.
+        #expect(FileManager.default.contents(atPath: trash.appendingPathComponent("tone/notes.md").path) == Data("ideas for the next version".utf8))
+        #expect(FileManager.default.fileExists(atPath: trash.appendingPathComponent("stock/install.json").path))
+    }
+
+    /// Where the Trash can't take it (a volume without one), the folder stays, and Settings says why.
+    @Test func aFolderTheTrashCantTakeStays() throws {
+        struct NoTrash: FileOps {
+            let system = SystemFileOps()
+            func swap(_ source: URL, into destination: URL, exists: Bool) throws { try system.swap(source, into: destination, exists: exists) }
+            func recoverInterruptedSwaps(in folder: URL) { system.recoverInterruptedSwaps(in: folder) }
+            func writePrivate(_ data: Data, to url: URL, stagingIn staging: URL?) throws { try system.writePrivate(data, to: url, stagingIn: staging) }
+            func modificationDate(atPath path: String) -> Date? { system.modificationDate(atPath: path) }
+            func isQuarantined(_ url: URL) -> Bool { false }
+            func trash(_ url: URL) throws { throw CocoaError(.fileWriteVolumeReadOnly) }
+        }
+        let (root, store) = try plugins()
+        defer { try? FileManager.default.removeItem(at: root.deletingLastPathComponent()) }
+        let tone = try #require(PluginStore.load(from: root).plugins.first { $0.name == "tone" })
+        var platform = Platform.current
+        platform.files = NoTrash()
+        let error = UIText.$scopedLanguage.withValue("en") {
+            Platform.$override.withValue(platform) { store.uninstall(tone) }
+        }
+        #expect(error?.hasPrefix("Couldn't remove the plugin: ") == true, "\(error ?? "nil")")
+        #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent("tone/notes.md").path), "not deleted")
+        #expect(PluginStore.load(from: root).plugins.map(\.name) == ["stock", "tone"])
+    }
+}

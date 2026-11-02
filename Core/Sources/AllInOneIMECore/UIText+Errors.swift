@@ -70,6 +70,9 @@ extension UIText {
             case let .keyForAnotherHost(p, saved):
                 return tr("\(name(p)) 的 API key 是为 \(saved) 保存的，不会发给现在的 Base URL：请为它重新保存 key",
                           "The \(name(p)) API key was saved for \(saved), not this base URL: save the key again for it")
+            case let .shellKeyForAnotherHost(p, variable):
+                return tr("$\(variable) 只发给 \(p.ownHost)，不会发给现在的 Base URL：请在设置里为这个服务保存 key",
+                          "$\(variable) is sent only to \(p.ownHost), not this base URL: save a key for this service in the settings")
             case let .http(p, status, type, message): return "\(name(p)) \(type ?? "HTTP \(status)")" + tr("：", ": ") + message
             case let .stream(p, type, message): return "\(name(p)) \(type)" + tr("：", ": ") + message
             case .refused(.apple): return tr("Apple Intelligence 拒绝了这个请求", "Apple Intelligence declined this request")

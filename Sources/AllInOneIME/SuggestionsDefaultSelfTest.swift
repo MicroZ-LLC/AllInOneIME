@@ -217,8 +217,11 @@ extension SelfTest {
         model.refreshPlugins()
         check(pluginRow() == .off && saved()?.completionSources.contains(where: { $0.plugin == "selftestnotes" }) == false,
               "…and in a new window (a restart)")
-        // Removed in Settings, then put in the plugins folder again: found anew, but what the user turned off stays off.
-        model.uninstall(plugin)
+        // Removed in Settings (its folder to a Trash of the self-test's own, not the user's), then put in the plugins
+        // folder again: found anew, but what the user turned off stays off.
+        var platform = Platform.current
+        platform.files = FolderTrashFileOps(trash: dir.appendingPathComponent("Trash", isDirectory: true))
+        Platform.$override.withValue(platform) { model.uninstall(plugin) }
         check(model.pluginError == nil && !fm.fileExists(atPath: pluginFolder.path) && saved()?.pluginsSeen.isEmpty == true
               && saved()?.completionSourcesOff.contains(pagesKey) == true,
               "…removed in Settings: forgotten that it was found, not that it was turned off (\(saved()?.completionSourcesOff ?? []))")

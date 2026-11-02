@@ -24,6 +24,15 @@ public enum HTTPProviders {
         return URL(string: base)?.host?.lowercased()
     }
 
+    /// This computer itself (localhost, 127.x.x.x, ::1): a model served on it (Ollama, LM Studio), where a key set in the
+    /// login shell may go too (`APIKeys.shellKeyGoes`); unlike `isLocal`, no other machine on the network.
+    static func isLoopback(_ host: String) -> Bool {
+        let host = host.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+        if host == "localhost" || host == "::1" { return true }
+        let parts = host.split(separator: ".", omittingEmptySubsequences: false)
+        return parts.count == 4 && parts[0] == "127" && parts.allSatisfy { UInt8($0) != nil }
+    }
+
     /// This Mac or the local network: plain http is fine there (a model served by Ollama, LM Studio).
     static func isLocal(_ host: String) -> Bool {
         let host = host.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "[]"))

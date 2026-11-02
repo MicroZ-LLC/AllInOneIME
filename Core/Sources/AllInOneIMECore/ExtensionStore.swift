@@ -319,6 +319,9 @@ public enum ExtensionStore {
         }
 
         public var url: URL { URL(fileURLWithPath: (path as NSString).expandingTildeInPath, isDirectory: true) }
+
+        /// Where its commands come from, as they carry it (`ScriptCommand.origin`).
+        public var origin: ScriptCommand.Origin { found ? .found : bundleOnly ? .extensionSource : .added }
     }
 
     /// A script or bundle that isn't loaded, or a command left out, and why.
@@ -348,7 +351,9 @@ public enum ExtensionStore {
 
     /// Reads `folders` (not those hidden): each one's bundles (subfolders with `extension.json`) and scripts,
     /// by name, not deeper (as Raycast does); an added folder with an `extension.json` of its own is that one
-    /// bundle; from a folder found (`Folder.found`), its Raycast scripts only.
+    /// bundle; from a folder found (`Folder.found`), its Raycast scripts only, those that pass `foundProblem`, and
+    /// without their status lines (nothing of a found folder runs that the user didn't start). Each command carries
+    /// its folder's `origin`.
     /// Symbolic links are followed: a linked folder, script or bundle is read as the one it points to (a link to
     /// nothing is reported). A script or bundle byte for byte the same as one before it, under the same name (a
     /// second checkout of a repository, a copied folder), is left out quietly (`ExtensionIndex.identical`); one
@@ -412,6 +417,11 @@ public enum ExtensionStore {
                             skipped.append(Skipped(file: manifest, problem: .bundleTaken))
                             continue
                         }
+                        let commands = commands.map { command in
+                            var command = command
+                            command.origin = folder.origin
+                            return command
+                        }
                         bundles.append((bundle, commands, snippets, digest))
                         skipped += problems
                     case let .failure(problem):
@@ -420,12 +430,16 @@ public enum ExtensionStore {
                     }
                 case .file:
                     guard let file = read(item.url), !folder.found || file.metadata?.front == .raycast,
-                          let read = ScriptCommand.read(file.metadata, firstLine: file.firstLine, file: item.url,
+                          var read = ScriptCommand.read(file.metadata, firstLine: file.firstLine, file: item.url,
                                                         executable: file.executable) else { continue }
+                    // Before the copies are told apart: an executable copy elsewhere still loads.
+                    if folder.found, case .success = read, let problem = foundProblem(file, at: item.url) { read = .failure(problem) }
                     switch read {
                     case var .success(command):
                         guard first("command " + command.name, file.digest, item.url) else { continue }
                         command.id = abbreviated(item.url.path)
+                        command.origin = folder.origin
+                        if folder.found { command.status = nil }
                         scripts.append(command)
                     case let .failure(problem):
                         guard first("file " + item.url.lastPathComponent, file.digest, item.url) else { continue }
@@ -439,6 +453,16 @@ public enum ExtensionStore {
         let ordered = bundles.flatMap(\.commands) + scripts.filter { $0.source == .script } + scripts.filter { $0.source == .raycast }
         return ExtensionIndex(commands: ordered, bundles: bundles.map(\.bundle), snippets: bundles.flatMap(\.snippets), skipped: skipped,
                               identical: identical)
+    }
+
+    /// Why a Raycast script of a folder Spotlight found isn't loaded, though it could be: nobody added the folder (a
+    /// download, a cloned repository, a copy of anything), so a script must have been made executable, as Raycast wants
+    /// it (one isn't run through its "#!" line), and not be a download (`FileOps.isQuarantined`: a zip unpacked in
+    /// ~/Downloads). Nil: it loads. Its folder added, it loads as any script does.
+    static func foundProblem(_ file: ExtensionCache.File, at url: URL) -> ScriptCommand.Problem? {
+        if !file.executable { return .notExecutable }
+        if Platform.current.files.isQuarantined(url) { return .quarantined }
+        return nil
     }
 
     /// A bundle's commands (each entry's keys over its script's own `@allinoneime.` lines) and snippets, and the
@@ -547,11 +571,12 @@ public enum ExtensionStore {
         return folders.sorted()
     }
 
-    /// Whether `file` is there and is a Raycast script that loads (a file of a folder since removed, still in
-    /// Spotlight's index, isn't: its folder is dropped).
+    /// Whether `file` is there and is a Raycast script that loads from a found folder (`foundProblem`; a file of a
+    /// folder since removed, still in Spotlight's index, isn't: its folder is dropped).
     @usableFromInline static func isScript(_ file: URL) -> Bool {
         guard let read = ExtensionCache().read(file), read.metadata?.front == .raycast,
-              case .success? = ScriptCommand.read(read.metadata, firstLine: read.firstLine, file: file, executable: read.executable)
+              case .success? = ScriptCommand.read(read.metadata, firstLine: read.firstLine, file: file, executable: read.executable),
+              foundProblem(read, at: file) == nil
         else { return false }
         return true
     }
