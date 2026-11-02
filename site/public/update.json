@@ -1,15 +1,15 @@
 {
-  "build" : "19",
-  "generated" : "2026-10-28T00:10:26Z",
+  "build" : "20",
+  "generated" : "2026-11-02T02:18:49Z",
   "minimumSystemVersion" : "14.0",
-  "notesURL" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/tag/v0.6.8.1",
+  "notesURL" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/tag/v0.6.8.2",
   "schema" : 1,
-  "sha256" : "0472f864e540bce7f2b83e7cfb26825e09ffb1f0abf11561bd39abb99010baf5",
-  "size" : 28494018,
+  "sha256" : "0a934a5d3d2cf21783434822806645707b16329d4e8299804705c3b3f04297e4",
+  "size" : 28593622,
   "summary" : {
-    "en" : "The keys you press on the clipboard history panel and suggestion rows now stay with the input method in every app (in 0.6.8, ↓ ↑ after ⌃V also went to a terminal's shell).",
-    "zh" : "在剪贴板历史面板和建议行上按的键，现在在任何 App 里都只给输入法（0.6.8 里按 ⌃V 后的 ↓ ↑ 还会传给终端的 shell）。"
+    "en" : "Clipboard history keeps images too, and ⏎ pastes them; ⌃V twice now pastes in Slack and other apps.",
+    "zh" : "剪贴板历史也记图片了，⏎ 就能贴进去；在 Slack 等 App 里连按两次 ⌃V 现在能粘贴了。"
   },
-  "url" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/download/v0.6.8.1/AllInOneIME-0.6.8.1-update.zip",
-  "version" : "0.6.8.1"
+  "url" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/download/v0.6.8.2/AllInOneIME-0.6.8.2-update.zip",
+  "version" : "0.6.8.2"
 }
