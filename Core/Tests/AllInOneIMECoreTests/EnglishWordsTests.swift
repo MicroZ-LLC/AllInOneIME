@@ -560,6 +560,58 @@ struct EnglishWordsTests {
         #expect(writes.withLock { $0 } == [url, url], "the two learned meanwhile in one write")
     }
 
+    /// A word learned while the config file doesn't parse (a comma left in an editor) or can't be written isn't lost:
+    /// the writer keeps it, leaves the file as it is, and writes it with the next word learned or once the shell says
+    /// the file parses again (`retry`), never trying on its own meanwhile; the process drains what's left before it
+    /// ends (`drain`).
+    @Test func aWordWhoseWriteFailedIsKeptUntilTheFileTakesIt() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("englishwords-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let url = folder.appendingPathComponent("config.json")
+        let broken = Data(#"{"typeOut": true,, "englishWords": ["Bedrock"]}"#.utf8)
+        try broken.write(to: url)
+        let writes = Locked(initialState: 0)
+        let writer = EnglishWords.Writer { _ in writes.withLock { $0 += 1 } }
+        writer.learn("frobnicate", at: url)
+        writer.flush()
+        #expect(try Data(contentsOf: url) == broken, "the file left as it is")
+        #expect(!writer.drain(within: 10), "still kept")
+        writer.retry()
+        writer.flush()
+        #expect(try Data(contentsOf: url) == broken && writes.withLock { $0 } == 0, "no file to take it: kept, nothing written")
+
+        // Fixed: the next word learned takes the one kept along, in order.
+        try Data(#"{"typeOut": true, "englishWords": ["Bedrock"]}"#.utf8).write(to: url)
+        writer.learn("zorblax", at: url)
+        writer.flush()
+        #expect(try Config.load(from: url).englishWords == ["Bedrock", "frobnicate", "zorblax"])
+
+        // Broken again, then fixed with nothing learned since: the shell's retry writes it.
+        try broken.write(to: url)
+        writer.learn("quuxify", at: url)
+        writer.flush()
+        #expect(try Data(contentsOf: url) == broken)
+        try Data(#"{"englishWords": ["Bedrock"]}"#.utf8).write(to: url)
+        writer.retry()
+        writer.flush()
+        #expect(try Config.load(from: url).englishWords == ["Bedrock", "quuxify"])
+
+        // A folder that can't be written (no file yet): kept until it can; drained before the process ends. (Where the
+        // folder's mode doesn't keep this process out, as root, there's nothing to show.)
+        let locked = folder.appendingPathComponent("locked")
+        try FileManager.default.createDirectory(at: locked, withIntermediateDirectories: true)
+        try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: locked.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: locked.path) }
+        guard !FileManager.default.isWritableFile(atPath: locked.path) else { return }
+        let file = locked.appendingPathComponent("config.json")
+        writer.learn("wibble", at: file)
+        #expect(!writer.drain(within: 10), "it couldn't go in")
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: locked.path)
+        #expect(writer.drain(within: 10))
+        #expect(try Config.load(from: file).englishWords == ["wibble"])
+    }
+
     @Test func theListInSettings() {
         var config = Config.default
         #expect(EnglishWords.add("Bedrock, SageMaker；北京\nbedrock", to: &config).words == ["Bedrock", "SageMaker"])

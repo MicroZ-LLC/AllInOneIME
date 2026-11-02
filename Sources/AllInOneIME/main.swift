@@ -117,19 +117,22 @@ final class IMEAppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         CommandRunner.stopAll()  // what script extensions started doesn't outlive the input method
+        SessionServices.englishWordsWriter.drain(within: 0.5)  // the English words just learned, into the file
     }
 }
 
 /// SIGTERM (an update, `make install`, logging out): the programs running for script extensions, and what they
-/// started, are stopped first (`CommandRunner.stopAll`, at most half a second), then the input method ends, as
-/// the signal's default would end it. Handled on a queue of its own, not in a signal handler and not on the main
-/// thread: a main thread that hangs doesn't keep it alive, and a hard exit is armed in case stopping hangs too.
+/// started, are stopped first (`CommandRunner.stopAll`, at most half a second), the English words learned and not
+/// written yet go into the config file (`EnglishWords.Writer.drain`, at most half a second), then the input method
+/// ends, as the signal's default would end it. Handled on a queue of its own, not in a signal handler and not on the
+/// main thread: a main thread that hangs doesn't keep it alive, and a hard exit is armed in case stopping hangs too.
 private let terminationSignal: DispatchSourceSignal = {
     signal(SIGTERM, SIG_IGN)
     let source = DispatchSource.makeSignalSource(signal: SIGTERM, queue: DispatchQueue(label: "AllInOneIME.terminate"))
     source.setEventHandler {
         DispatchQueue.global().asyncAfter(deadline: .now() + 1.5) { _exit(0) }
         CommandRunner.stopAll()
+        SessionServices.englishWordsWriter.drain(within: 0.5)
         _exit(0)
     }
     return source

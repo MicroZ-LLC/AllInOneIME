@@ -259,19 +259,25 @@ public enum EnglishWords {
     /// never waits for the file to be read, parsed and written: in order, on a queue of their own, those learned
     /// meanwhile in one write, each into the file as it is then (what another writer changed stays, keys this version
     /// doesn't know too; under `AIConfig.fileLock`, so that no writer of this process writes between its read and its
-    /// write). The session offers a word at once (`EnglishWordsEngine.words`). Safe from any thread.
+    /// write). The session offers a word at once (`EnglishWordsEngine.words`). A word whose write fails (a file that
+    /// doesn't parse, one that can't be written) is kept and written with the next word learned, or once the shell
+    /// says the file may take it again (`retry`), never tried again on its own; the process drains them before it ends
+    /// (`drain`). Safe from any thread.
     public final class Writer: @unchecked Sendable {
         /// Told on the writer's queue once words are in the file at a URL: what the shell may read there, off its thread.
         private let written: @Sendable (URL) -> Void
         /// The words waiting to be written, and where.
         private let waiting = Locked<[(word: String, url: URL)]>(initialState: [])
+        /// Those whose write failed, in order, the latest `maxWords` at most: written before the next ones. On the queue only.
+        private var kept: [(word: String, url: URL)] = []
         private let queue = DispatchQueue(label: "com.aipinyin.english-words", qos: .utility)
 
         public init(written: @escaping @Sendable (URL) -> Void = { _ in }) {
             self.written = written
         }
 
-        /// `typed` learned into the config file at `url` a moment later, with the words learned meanwhile.
+        /// `typed` learned into the config file at `url` a moment later, with the words learned meanwhile (and those
+        /// kept since their write failed).
         public func learn(_ typed: String, at url: URL) {
             let first = waiting.withLock { waiting -> Bool in
                 defer { waiting.append((typed, url)) }
@@ -280,18 +286,40 @@ public enum EnglishWords {
             if first { queue.async { self.write() } }
         }
 
+        /// The words kept since their write failed written again, a moment later: what the shell calls once it reads the
+        /// file anew and it parses (fixed in an editor, say). Nothing when none is kept.
+        public func retry() {
+            queue.async { if !self.kept.isEmpty { self.write() } }
+        }
+
         /// Waits until the words learned so far are in the file (a self-test reads it then). Never under
         /// `AIConfig.fileLock`.
         public func flush() {
             queue.sync { write() }
         }
 
-        /// The words waiting, written on the queue: one write for each file, in turn.
+        /// Waits `seconds` at most for the words learned so far to be in the file, those kept since their write failed
+        /// tried once more: what the process does before it ends. Whether they all went in. Never under
+        /// `AIConfig.fileLock`.
+        @discardableResult
+        public func drain(within seconds: TimeInterval) -> Bool {
+            let done = Locked(initialState: false), finished = DispatchSemaphore(value: 0)
+            queue.async {
+                self.write()
+                done.withLock { $0 = self.kept.isEmpty }
+                finished.signal()
+            }
+            return finished.wait(timeout: .now() + seconds) == .success && done.withLock { $0 }
+        }
+
+        /// The words kept, then those waiting, written on the queue: one write for each file, in turn; those of a write
+        /// that fails kept for the next.
         private func write() {
-            let words = waiting.withLock { waiting -> [(word: String, url: URL)] in
+            let words = kept + waiting.withLock { waiting -> [(word: String, url: URL)] in
                 defer { waiting = [] }
                 return waiting
             }
+            kept = []
             var start = words.startIndex
             while start < words.endIndex {
                 let url = words[start].url
@@ -299,10 +327,12 @@ public enum EnglishWords {
                 do {
                     if try EnglishWords.learn(words[start..<end].map(\.word), at: url) { written(url) }
                 } catch {
-                    EnglishWords.log.error("could not keep an English word (\(String(describing: type(of: error))))")
+                    kept += words[start..<end]
+                    EnglishWords.log.error("could not keep an English word yet, kept to try again (\(String(describing: type(of: error))))")
                 }
                 start = end
             }
+            if kept.count > EnglishWords.maxWords { kept.removeFirst(kept.count - EnglishWords.maxWords) }
         }
     }
 

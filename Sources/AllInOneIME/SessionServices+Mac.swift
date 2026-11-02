@@ -11,8 +11,8 @@ extension SessionServices {
 
     /// Where the English words learned are written into the config file, off the main thread (`EnglishWords.Writer`):
     /// every field's, in order. The file as it is then is read there too, so the next key finds it read
-    /// (`LiveConfig.take`) and doesn't parse it again.
-    @MainActor
+    /// (`LiveConfig.take`) and doesn't parse it again. Words it couldn't write yet are tried again once the file reads
+    /// anew and parses (`LiveConfig.currentIfValid`), and drained before the input method ends (`main.swift`): any thread.
     static let englishWordsWriter = EnglishWords.Writer { url in
         guard let read = LiveConfig.read(url) else { return }
         DispatchQueue.main.async { LiveConfig.take(read) }
