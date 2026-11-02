@@ -19,6 +19,8 @@ struct EnglishWordsWriterTests {
         let live = try InputMenuWritesTests.source("LiveSettings.swift")
         let read = try #require(live.range(of: "static var currentIfValid: Config? {").map { live[$0.upperBound...] })
         let body = try #require(read.range(of: "\n    }\n").map { read[..<$0.lowerBound] })
-        #expect(body.contains("if config != nil { SessionServices.englishWordsWriter.retry() }"), "\(body)")
+        #expect(body.contains("if config != nil { parsedAnew() }"), "\(body)")
+        let server = try #require(InputMenuWritesTests.body(of: "runServer", in: try InputMenuWritesTests.source("main.swift")))
+        #expect(server.contains("LiveConfig.parsedAnew = { SessionServices.englishWordsWriter.retry() }"))
     }
 }

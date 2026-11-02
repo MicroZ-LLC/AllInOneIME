@@ -100,17 +100,20 @@ enum LiveConfig {
 
     /// The config as the file has it; nil while it doesn't parse. The input menu must still report a broken file and
     /// disable actions that would overwrite it; what deletes, trims or records anything waits for the file to parse.
-    /// Read anew and parsing (fixed in an editor, say), English words whose write failed are tried again
-    /// (`EnglishWords.Writer.retry`).
+    /// Read anew and parsing (fixed in an editor, say), it says so (`parsedAnew`).
     static var currentIfValid: Config? {
         let url = Config.defaultURL
         let date = modificationDate(url)
         if let cached, cached.url == url, cached.date == date { return cached.config }
         let config = try? Config.load(from: url)
         cached = (url, date, config)
-        if config != nil { SessionServices.englishWordsWriter.retry() }
+        if config != nil { parsedAnew() }
         return config
     }
+
+    /// Told on the main thread each time the file is read anew and parses: the input method's English words whose
+    /// write failed are tried again (`EnglishWords.Writer.retry`, set in `runServer`); nothing by default.
+    static var parsedAnew: () -> Void = {}
 
     /// The file at `url` read now, off the main thread, with its modification date (nil: it changed while it was read,
     /// or doesn't parse): what `take` makes the settings, an English word learned (`EnglishWords.Writer`).
