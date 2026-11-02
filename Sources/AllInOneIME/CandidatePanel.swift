@@ -698,13 +698,15 @@ final class CandidateView: NSView {
             let points = event.hasPreciseScrollingDeltas ? event.scrollingDeltaY : event.scrollingDeltaY * 24
             scrolled = min(max((scrolled ?? rowsShift) - points, 0), overflow)
             relayout()
+            onScroll?(0)  // the pointer on the panel all the same, not in the field (`SessionEvent.scroll`)
             return
         }
-        // A row per notch of a wheel; a trackpad adds up its small steps (about a row per 24 points).
+        // A row per notch of a wheel; a trackpad adds up its small steps (about a row per 24 points). Every event is told,
+        // one short of a row as 0 (a trackpad's small steps, its momentum after the last row): none of them is the pointer
+        // used in the field.
         let delta = event.hasPreciseScrollingDeltas ? event.scrollingDeltaY / 24 : event.scrollingDeltaY
         pendingScroll -= delta  // content up = further down the list
         let rows = Int(pendingScroll.rounded(.towardZero))
-        guard rows != 0 else { return }
         pendingScroll -= CGFloat(rows)
         onScroll?(rows)
     }

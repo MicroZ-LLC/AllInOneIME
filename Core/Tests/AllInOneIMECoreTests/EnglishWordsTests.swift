@@ -521,6 +521,45 @@ struct EnglishWordsTests {
         #expect(object?["englishWords"] as? [String] == ["Bedrock", "frobnicate"])
     }
 
+    /// Learned off the key's thread (`EnglishWords.Writer`): the key that learns a word never waits for the file, even
+    /// one another writer of the process holds (`AIConfig.fileLock`). Each write patches the file as it is then: what
+    /// another writer changed meanwhile (Settings, iCloud sync, the Assistant) stays, every word learned in a row is
+    /// there, and those learned while a write goes on go in one more write.
+    @Test func learnedOffTheKeysThreadIntoTheFileAsItIsThen() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("englishwords-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let url = folder.appendingPathComponent("config.json")
+        try Data(#"{"futureKey": 1, "englishWords": ["Bedrock"]}"#.utf8).write(to: url)
+        // Each write told, on the writer's queue; the first held there until the test lets it go on.
+        let writes = Locked<[URL]>(initialState: [])
+        let told = DispatchSemaphore(value: 0), goOn = DispatchSemaphore(value: 0)
+        let writer = EnglishWords.Writer { written in
+            let first = writes.withLock { writes -> Bool in
+                writes.append(written)
+                return writes.count == 1
+            }
+            told.signal()
+            if first { goOn.wait() }
+        }
+        // Another writer holds the file: the word waits for it, the key doesn't.
+        AIConfig.fileLock.lock()
+        writer.learn("frobnicate", at: url)
+        #expect(try Config.load(from: url).englishWords == ["Bedrock"], "not written on the key's thread")
+        try AIConfig.patchingFile(at: url) { $0["typeOut"] = .bool(true) }  // Settings saves meanwhile
+        AIConfig.fileLock.unlock()
+        #expect(told.wait(timeout: .now() + 10) == .success)
+        // Two more while that write is still going on: both in the next one.
+        writer.learn("zorblax", at: url)
+        writer.learn("quuxify", at: url)
+        goOn.signal()
+        writer.flush()
+        let object = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
+        #expect(object?["englishWords"] as? [String] == ["Bedrock", "frobnicate", "zorblax", "quuxify"])
+        #expect(object?["futureKey"] as? Int == 1 && object?["typeOut"] as? Bool == true, "\(object ?? [:])")
+        #expect(writes.withLock { $0 } == [url, url], "the two learned meanwhile in one write")
+    }
+
     @Test func theListInSettings() {
         var config = Config.default
         #expect(EnglishWords.add("Bedrock, SageMaker；北京\nbedrock", to: &config).words == ["Bedrock", "SageMaker"])
@@ -764,6 +803,50 @@ struct EnglishWordsSessionTests {
             let notLearning = host(off, learned: learned)
             putInTwice("frobnicate", notLearning)
             #expect(app.document == "frobnicatefrobnicate" && notLearning.document == "frobnicatefrobnicate" && learned.words.isEmpty)
+        }
+    }
+
+    /// A password field secure input isn't on in (a web page's, an Electron app's), as the Mac's Accessibility tells
+    /// it: nothing typed there is learned, neither a password of letters put in as typed twice (a field to type it
+    /// again in) nor words typed in English mode, though autocomplete and suggestions are off and ask nothing of the
+    /// field. A key that types a letter asks whether it is one, once a field; until the shell tells, nothing is
+    /// learned.
+    @Test func neverInAPasswordFieldSecureInputIsntOnIn() async {
+        await withInterfaceLanguage("en") {
+            let learned = Learned()
+            let password = host(learned: learned)
+            (password.readsWhatIsWanted, password.passwordField) = (true, true)
+            putInTwice("frobnicate", password)
+            #expect(password.document == "frobnicatefrobnicate" && learned.words.isEmpty, "\(learned.words)")
+            password.modifiers(ModifierChange(key: .modifier(.shift, .left), modifiers: [.shift, .leftShift], timestamp: 100))
+            password.modifiers(ModifierChange(key: .modifier(.shift, .left), modifiers: [], timestamp: 100.1))
+            #expect(password.composer.inputLanguage == .english)
+            password.type("zorblax zorblax ok")
+            #expect(learned.words.isEmpty, "typed in English mode: \(learned.words)")
+
+            // Asked with a key that types a letter, once a field.
+            let field = host(learned: learned)
+            let f = KeyEvent(keyCode: 0, characters: "f")
+            #expect(field.session.fieldWants(for: f, given: FieldContext(read: .secure)).contains(.passwordField))
+            #expect(!field.session.fieldWants(for: FakeHost.enter, given: FieldContext(read: .secure)).contains(.passwordField))
+            field.press(f)
+            #expect(!field.session.fieldWants(for: f, given: FieldContext(read: .secure)).contains(.passwordField), "told: none")
+
+            // A shell that never tells: nothing is learned.
+            let untold = host(learned: learned)
+            for _ in 0..<2 {
+                for character in "frobnicate" {
+                    untold.press(KeyEvent(keyCode: 0, characters: String(character)), with: FieldContext(read: .secure))
+                }
+                untold.press(FakeHost.enter, with: FieldContext(read: .secure))
+            }
+            #expect(untold.document == "frobnicatefrobnicate" && learned.words.isEmpty, "\(learned.words)")
+
+            // Told it is none: learned.
+            let plain = host(learned: learned)
+            plain.readsWhatIsWanted = true
+            putInTwice("frobnicate", plain)
+            #expect(learned.words == ["frobnicate"])
         }
     }
 

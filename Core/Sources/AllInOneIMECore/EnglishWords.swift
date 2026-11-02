@@ -115,15 +115,37 @@ public enum EnglishWords {
     /// learning off (`Config.learnsEnglishWords`). `config` is read only past those.
     public static func learns(_ typed: String, in field: FieldInfo, secureInput: Bool, config: () -> Config, offered: [String],
                               dictionary: EnglishDictionary, typedOnce: TypedOnce) -> Bool {
-        guard !secureInput, !field.secure, !field.terminal, !isRemote(field.app), !PasswordManagers.contains(field.app) else {
-            return false
-        }
-        let config = config()
-        return config.learnsEnglishWords && config.allowsAI(in: field.app)
-            && !dictionary.contains(typed)  // most words typed in English mode: told before the words offered are gone through
-            && learnable(typed, known: Set(offered.map(key)), dictionary: dictionary, hidden: config.redaction.customWords,
+        learns(typed, in: field, secureInput: secureInput, config: config, known: Set(offered.map(key)),
+               dictionary: dictionary, typedOnce: typedOnce)
+    }
+
+    /// `learns` with the words offered by their letters (`known`, made only past the field's checks: the session's are
+    /// kept, `EnglishWordsEngine.keys`, not made again for each word).
+    public static func learns(_ typed: String, in field: FieldInfo, secureInput: Bool, config: () -> Config,
+                              known: @autoclosure () -> Set<String>, dictionary: EnglishDictionary,
+                              typedOnce: TypedOnce) -> Bool {
+        guard let config = learningConfig(in: field, secureInput: secureInput, config: config) else { return false }
+        return !dictionary.contains(typed)  // most words typed in English mode: told before the words offered are gone through
+            && learnable(typed, known: known(), dictionary: dictionary, hidden: config.redaction.customWords,
                          fuzzy: config.fuzzyPinyin)
             && typedOnce.again(typed)
+    }
+
+    /// Whether anything typed in `field` may be learned (`learns`, before what was typed is looked at): not during
+    /// secure input or in a password field, a terminal, a remote desktop, a virtual machine, an SSH client or a
+    /// password manager, in an app with AI, with learning on. What a session asks before it learns anything in a field.
+    static func mayLearn(in field: FieldInfo, secureInput: Bool, config: () -> Config) -> Bool {
+        learningConfig(in: field, secureInput: secureInput, config: config) != nil
+    }
+
+    /// The settings, where what is typed in `field` may be learned (`mayLearn`); `config` read only past what the field
+    /// tells.
+    private static func learningConfig(in field: FieldInfo, secureInput: Bool, config: () -> Config) -> Config? {
+        guard !secureInput, !field.secure, !field.terminal, !isRemote(field.app), !PasswordManagers.contains(field.app) else {
+            return nil
+        }
+        let config = config()
+        return config.learnsEnglishWords && config.allowsAI(in: field.app) ? config : nil
     }
 
     /// Whether a word typed in English mode (`EnglishModeWords`: letters that went straight to the app, between a space or
@@ -134,8 +156,16 @@ public enum EnglishWords {
     /// capital first, which in prose is a name (a person's, a place's) or a sentence's first word: not even remembered.
     public static func learnsTypedInEnglish(_ typed: String, in field: FieldInfo, secureInput: Bool, config: () -> Config,
                                             offered: [String], dictionary: EnglishDictionary, typedOnce: TypedOnce) -> Bool {
+        learnsTypedInEnglish(typed, in: field, secureInput: secureInput, config: config, known: Set(offered.map(key)),
+                             dictionary: dictionary, typedOnce: typedOnce)
+    }
+
+    /// `learnsTypedInEnglish` with the words offered by their letters (`learns(_:in:secureInput:config:known:…)`).
+    public static func learnsTypedInEnglish(_ typed: String, in field: FieldInfo, secureInput: Bool, config: () -> Config,
+                                            known: @autoclosure () -> Set<String>, dictionary: EnglishDictionary,
+                                            typedOnce: TypedOnce) -> Bool {
         guard let first = typed.first, !first.isUppercase else { return false }
-        return learns(typed, in: field, secureInput: secureInput, config: config, offered: offered, dictionary: dictionary,
+        return learns(typed, in: field, secureInput: secureInput, config: config, known: known(), dictionary: dictionary,
                       typedOnce: typedOnce)
     }
 
@@ -195,9 +225,17 @@ public enum EnglishWords {
     /// a missing file is written with this Mac's new user's settings. Whether it was added.
     @discardableResult
     public static func learn(_ typed: String, at url: URL) throws -> Bool {
+        try learn([typed], at: url)
+    }
+
+    /// `words` learned into the config file at `url` as `learn(_:at:)` learns one, each in turn, in one write of the file
+    /// as it is now (under `AIConfig.fileLock`). Whether any was added.
+    @discardableResult
+    public static func learn(_ words: [String], at url: URL) throws -> Bool {
+        AIConfig.fileLock.lock(); defer { AIConfig.fileLock.unlock() }
         guard FileManager.default.fileExists(atPath: url.path) else {
             var config = try Config.load(from: url)
-            let list = learning(typed, into: config.englishWords, added: config.addedEnglishWords)
+            let list = words.reduce(config.englishWords) { learning($1, into: $0, added: config.addedEnglishWords) }
             guard list != config.englishWords else { return false }
             config.englishWords = list
             try config.write(to: url)
@@ -206,13 +244,67 @@ public enum EnglishWords {
         var added = false
         try AIConfig.patchingFile(at: url) { file in
             let list = file[Config.englishWordsKey]?.strings ?? []
-            let new = learning(typed, into: list, added: file[Config.addedEnglishWordsKey]?.strings ?? [])
+            let marked = file[Config.addedEnglishWordsKey]?.strings ?? []
+            let new = words.reduce(list) { learning($1, into: $0, added: marked) }
             guard new != list else { return }
             file[Config.englishWordsKey] = .array(new.map { .string($0) })
             added = true
         }
         return added
     }
+
+    /// English words learned into the config file (`learn(_:at:)`) off the caller's thread, so that a key's handling
+    /// never waits for the file to be read, parsed and written: in order, on a queue of their own, those learned
+    /// meanwhile in one write, each into the file as it is then (what another writer changed stays, keys this version
+    /// doesn't know too; under `AIConfig.fileLock`, so that no writer of this process writes between its read and its
+    /// write). The session offers a word at once (`EnglishWordsEngine.words`). Safe from any thread.
+    public final class Writer: @unchecked Sendable {
+        /// Told on the writer's queue once words are in the file at a URL: what the shell may read there, off its thread.
+        private let written: @Sendable (URL) -> Void
+        /// The words waiting to be written, and where.
+        private let waiting = Locked<[(word: String, url: URL)]>(initialState: [])
+        private let queue = DispatchQueue(label: "com.aipinyin.english-words", qos: .utility)
+
+        public init(written: @escaping @Sendable (URL) -> Void = { _ in }) {
+            self.written = written
+        }
+
+        /// `typed` learned into the config file at `url` a moment later, with the words learned meanwhile.
+        public func learn(_ typed: String, at url: URL) {
+            let first = waiting.withLock { waiting -> Bool in
+                defer { waiting.append((typed, url)) }
+                return waiting.isEmpty
+            }
+            if first { queue.async { self.write() } }
+        }
+
+        /// Waits until the words learned so far are in the file (a self-test reads it then). Never under
+        /// `AIConfig.fileLock`.
+        public func flush() {
+            queue.sync { write() }
+        }
+
+        /// The words waiting, written on the queue: one write for each file, in turn.
+        private func write() {
+            let words = waiting.withLock { waiting -> [(word: String, url: URL)] in
+                defer { waiting = [] }
+                return waiting
+            }
+            var start = words.startIndex
+            while start < words.endIndex {
+                let url = words[start].url
+                let end = words[start...].firstIndex { $0.url != url } ?? words.endIndex
+                do {
+                    if try EnglishWords.learn(words[start..<end].map(\.word), at: url) { written(url) }
+                } catch {
+                    EnglishWords.log.error("could not keep an English word (\(String(describing: type(of: error))))")
+                }
+                start = end
+            }
+        }
+    }
+
+    static let log = CoreLog(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "ime")
 
     /// `list` with `typed` learned: at the end unless a word with its letters is there, within `maxWords`.
     static func learning(_ typed: String, into list: [String], added: [String]) -> [String] {

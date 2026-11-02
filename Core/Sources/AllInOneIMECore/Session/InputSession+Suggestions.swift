@@ -275,7 +275,7 @@ extension InputSession {
     /// switches on, not an app with none: a remote desktop, a virtual machine, an SSH client, a launcher). Nowhere else is
     /// the field read for it.
     func codeReadsTheField() -> Bool {
-        composer.coding && !terminal && !secureInputActive() && passwordField == false
+        composer.coding && !terminal && !fieldIsPrivate(unknown: true)
             && SuggestionsAppClass(app: app, terminal: terminal) != .none && suggestionsOn(services.suggestions.settings())
     }
 
@@ -559,7 +559,7 @@ extension InputSession {
         // marked text, so the app asks nothing of it), which may have moved the caret. The token ends, as
         // `suggestionsAfterKey` ends it for a key that types, and the key is the app's: no row goes in where the token
         // was, nor takes out what is before the caret now.
-        if services.pointerUsedWithin(services.uptime() - suggesting.tokenAt) {
+        if caretMayHaveMoved(within: services.uptime() - suggesting.tokenAt) {
             log.notice("suggestions: the pointer was used since the token's last key: the token ends, the key is the app's")
             suggestionsBoundary()
             suggestionsUpdate()
@@ -602,11 +602,11 @@ extension InputSession {
     /// they may: where it left the caret isn't known then, no token until the next boundary.
     func suggestionsAfterKey(_ key: KeyEvent, handled: Bool, inserted: String, held: (before: String, after: String) = ("", ""),
                              context: FieldContext) {
-        guard !secureInputActive(), passwordField != true else { return suggestionsSecure() }
+        guard !fieldIsPrivate(unknown: false) else { return suggestionsSecure() }
         let now = services.uptime()
         let mayShow = suggestionsMayShow()
         var held = held
-        if mayShow, !suggesting.token.isEmpty, services.pointerUsedWithin(now - suggesting.tokenAt) {
+        if mayShow, !suggesting.token.isEmpty, caretMayHaveMoved(within: now - suggesting.tokenAt) {
             let unasked = suggesting.unasked
             suggestionsBoundary()
             suggesting.dead = unasked
@@ -700,7 +700,7 @@ extension InputSession {
     func suggestionsPrefixFinished(by typed: String) -> Bool {
         let appClass = SuggestionsAppClass(app: app, terminal: terminal)
         let settings = services.suggestions.settings()
-        guard !suggesting.dead, appClass != .none, passwordField == false, !secureInputActive(),
+        guard !suggesting.dead, appClass != .none, !fieldIsPrivate(unknown: true),
               suggestionsSourcesMayBeOn(settings), suggestionsOn(settings) else { return false }
         let start = SuggestionsToken.normalized(suggesting.token + typed).lowercased()
         let insert = settings.insert(for: app)
@@ -864,7 +864,7 @@ extension InputSession {
         let s = services.suggestions
         let settings = s.settings()
         guard !suggesting.token.isEmpty, !suggesting.dead, suggesting.hiddenFor != suggesting.token,
-              !composesBesidesCodeWord, !composer.wantsPanel, !secureInputActive(), passwordField == false, appClass != .none,
+              !composesBesidesCodeWord, !composer.wantsPanel, !fieldIsPrivate(unknown: true), appClass != .none,
               suggestionsOn(settings)
         else { return [] }
         let now = s.now()

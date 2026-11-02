@@ -448,6 +448,7 @@ public enum AIConfig {
     /// settings window read it again from there; every other key of the file, one this version doesn't know too, stays
     /// as it was. What undoes them, with now.
     public static func applying(_ edits: [Edit], at url: URL = Config.defaultURL, now: Date = Platform.current.clock.now) throws -> Applied {
+        fileLock.lock(); defer { fileLock.unlock() }
         let before = try Config.load(from: url)
         var config = before
         let recorded = applyRecording(edits, to: &config)
@@ -466,6 +467,7 @@ public enum AIConfig {
     /// written; one changed since (in Settings, by hand) is left as it is, and reported.
     public static func undoing(_ applied: Applied, at url: URL = Config.defaultURL, now: Date = Platform.current.clock.now) throws -> UndoReport? {
         guard applied.canUndo(at: now) else { return nil }
+        fileLock.lock(); defer { fileLock.unlock() }
         let before = try Config.load(from: url)
         var config = before
         var report = UndoReport(undone: 0, skipped: [])
@@ -535,10 +537,19 @@ public enum AIConfig {
         return .object(fields)
     }
 
+    /// Held while this process reads the config file to change it and writes it back (`patchingFile`, `Config.write`,
+    /// `Config.change`, `applying`, `ICloudSync.writeConfig`, Settings' edits of the English words): English words are
+    /// learned into it on a queue of their own (`EnglishWords.Writer`), and with it no writer of the process writes
+    /// between another's read and its write, which would put back what the file had before the other's change.
+    /// Recursive: a writer holding it patches the file.
+    public static let fileLock = NSRecursiveLock()
+
     /// The config file at `url` as a JSON object, `change` made to its top-level keys, and written back with only the
     /// keys that changed rewritten (`JSONFileText.patched`): every other key keeps its text as it was, numbers too (a
-    /// large integer isn't turned into a float). Throws when it isn't a JSON object (nothing is written then).
+    /// large integer isn't turned into a float). Throws when it isn't a JSON object (nothing is written then). Under
+    /// `fileLock`.
     public static func patchingFile(at url: URL, _ change: (inout [String: JSONValue]) throws -> Void) throws {
+        fileLock.lock(); defer { fileLock.unlock() }
         let data = try Data(contentsOf: url)
         guard case var .object(file)? = (try? JSONSerialization.jsonObject(with: data)).flatMap(JSONValue.init) else {
             throw ConfigError.malformed(path: url.path, detail: "not a JSON object")

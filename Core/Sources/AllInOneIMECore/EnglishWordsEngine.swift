@@ -18,8 +18,14 @@ public final class EnglishWordsEngine: PinyinEngine {
     public let dictionary: EnglishDictionary
     /// The words offered (`EnglishWords.offered`), as they are written; the first of two with the same letters counts.
     public var words: [String] {
-        didSet { if words != oldValue { index = Self.index(words) } }
+        didSet {
+            guard words != oldValue else { return }
+            index = Self.index(words)
+            keys = Set(index.map(\.key))
+        }
     }
+    /// Their letters (`EnglishWords.key`): what is learned isn't one of them (`EnglishWords.learns`).
+    public private(set) var keys: Set<String>
     /// Letters librime committed exactly as they were typed, the whole composition (⏎, a tap of Shift).
     public var rawCommitted: ((String) -> Void)?
     /// The user's fuzzy pinyin (`Config.fuzzyPinyin`): what librime reads as pinyin with it is pinyin here too.
@@ -48,6 +54,7 @@ public final class EnglishWordsEngine: PinyinEngine {
         self.dictionary = dictionary
         self.words = words
         index = Self.index(words)
+        keys = Set(index.map(\.key))
     }
 
     private static func index(_ words: [String]) -> [(key: String, word: String)] {

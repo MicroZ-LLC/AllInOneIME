@@ -33,7 +33,8 @@ public struct SessionServices {
     /// none are (no Chinese pack, a test's engine).
     public var englishDictionary: () -> EnglishDictionary?
     /// An English word learned from letters put in as typed (`EnglishWords.learnable`): kept in the settings
-    /// (`EnglishWords.learn`, `Config.englishWords`).
+    /// (`EnglishWords.learn`, `Config.englishWords`) off the session's thread (`EnglishWords.Writer`), as it is told
+    /// while a key is handled; the session offers the word at once.
     public var learnEnglishWord: (String) -> Void
     /// The letters put in as typed once (learned the second time), shared by every field of a launch: the shell gives one
     /// for them all; the default is these services' own.
@@ -59,7 +60,8 @@ public struct SessionServices {
     /// Whether secure input is on anywhere (a password field, the lock screen): nothing is sent to a model or run then.
     public var secureInputActive: () -> Bool
     /// Whether a mouse button, a drag or the scroll wheel was used in the last `seconds`, anywhere: a Shift-click is no
-    /// tap of Shift.
+    /// tap of Shift. On the session's own panels too (what may have moved the caret leaves theirs out:
+    /// `InputSession.caretMayHaveMoved`).
     public var pointerUsedWithin: (_ seconds: TimeInterval) -> Bool
     /// Whether the voice key is still held with no mouse button down, when its hold timer fires.
     public var isVoiceKeyHeld: () -> Bool
@@ -117,6 +119,10 @@ public struct SessionServices {
                                          _ say: @escaping (String) -> Void) -> Void
     /// The installed plugins (`rescan`: a text field became active: looked for again).
     public var plugins: (_ rescan: Bool) -> [InstalledPlugin]
+    /// The plugins looked for again off the session's thread (a text field became active: one installed or removed shows
+    /// up there; looking hashes their files), `scanned` told from any thread once they are: `plugins(false)` gives them
+    /// then. Nil: the session asks `plugins(true)` (a shell where that's quick, a test's).
+    public var rescanPlugins: ((_ scanned: @escaping @Sendable () -> Void) -> Void)?
     /// The status line of a script extension the command list shows (`ScriptCommand.status`), and running those that are
     /// due: `environment` gives each its environment, `ended` (from any thread) says one ended.
     public var scriptStatus: (ScriptCommand) -> String?

@@ -2,31 +2,59 @@ import AllInOneIMECore
 import Foundation
 
 /// The installed plugins, scanned again when a text field becomes active (installing or removing one
-/// shows up there) and at most every 30 seconds otherwise: then in the background, never while a key is
-/// handled (the key gets the plugins as last scanned). Main thread only.
+/// shows up there: `rescan(scanned:)`) and at most every 30 seconds otherwise: then in the background, never
+/// while a key is handled or a field takes the focus (they get the plugins as last scanned). Main thread only.
 enum LivePlugins {
     private static var cached: (at: Date, result: (plugins: [InstalledPlugin], skipped: [PluginStore.Skipped]))?
     private static var scanning = false
+    /// A scan wanted while one goes on (it may have started before what changed): one more after it; and what waits for
+    /// the scans wanted to be in.
+    private static var scanAgain = false
+    private static var waiting: [() -> Void] = []
 
+    /// The plugins as last scanned (none scanned yet: none, until the scan started then is in). `rescan`: scanned now,
+    /// on this thread (the settings window, which shows what is there at once).
     static func current(rescan: Bool = false) -> [InstalledPlugin] {
-        guard rescan || cached == nil else {
-            if let cached, Date().timeIntervalSince(cached.at) >= 30, !scanning {
-                scanning = true
-                DispatchQueue.global(qos: .utility).async {
-                    let result = PluginStore.load()
-                    DispatchQueue.main.async {
-                        self.cached = (Date(), result)
-                        scanning = false
-                        found(result.plugins)
-                    }
-                }
-            }
+        guard rescan else {
+            if cached.map({ Date().timeIntervalSince($0.at) >= 30 }) ?? true { scanInBackground() }
             return cached?.result.plugins ?? []
         }
         let result = PluginStore.load()
         cached = (Date(), result)
         found(result.plugins)
         return result.plugins
+    }
+
+    /// Scanned again in the background (a text field became active): `scanned`, on the main thread, once a scan that
+    /// started after this is in (`current()` gives what it found).
+    static func rescan(scanned: @escaping () -> Void) {
+        waiting.append(scanned)
+        if scanning { scanAgain = true } else { scanInBackground() }
+    }
+
+    private static func scanInBackground() {
+        guard !scanning else { return }
+        scanning = true
+        let started = Date()
+        DispatchQueue.global(qos: .utility).async {
+            let result = PluginStore.load()
+            DispatchQueue.main.async {
+                // Unless the settings scanned meanwhile (`current(rescan: true)`): theirs is as new.
+                if (cached?.at ?? .distantPast) < started {
+                    cached = (Date(), result)
+                    found(result.plugins)
+                }
+                scanning = false
+                if scanAgain {
+                    scanAgain = false
+                    scanInBackground()
+                    return
+                }
+                let done = waiting
+                waiting = []
+                done.forEach { $0() }
+            }
+        }
     }
 
     /// Told the plugins each scan finds, on the main thread: the input method's `SuggestionsShared.pluginsFound` (one
@@ -74,11 +102,29 @@ enum LiveConfig {
     /// disable actions that would overwrite it; what deletes, trims or records anything waits for the file to parse.
     static var currentIfValid: Config? {
         let url = Config.defaultURL
-        let date = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
+        let date = modificationDate(url)
         if let cached, cached.url == url, cached.date == date { return cached.config }
         let config = try? Config.load(from: url)
         cached = (url, date, config)
         return config
+    }
+
+    /// The file at `url` read now, off the main thread, with its modification date (nil: it changed while it was read,
+    /// or doesn't parse): what `take` makes the settings, an English word learned (`EnglishWords.Writer`).
+    static func read(_ url: URL) -> (url: URL, date: Date?, config: Config)? {
+        let date = modificationDate(url)
+        guard let config = try? Config.load(from: url), modificationDate(url) == date else { return nil }
+        return (url, date, config)
+    }
+
+    /// What `read` read, as the settings now, unless the file changed since: the next key doesn't parse it again.
+    static func take(_ read: (url: URL, date: Date?, config: Config)) {
+        guard read.url == Config.defaultURL, modificationDate(read.url) == read.date else { return }
+        cached = (read.url, read.date, read.config)
+    }
+
+    private static func modificationDate(_ url: URL) -> Date? {
+        (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
     }
 }
 

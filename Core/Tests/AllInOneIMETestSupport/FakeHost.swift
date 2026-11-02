@@ -47,7 +47,8 @@ public final class FakeHost: @unchecked Sendable {
     /// The field tells nothing of its text when it is read (`SessionOutput.readField`): WeChat's.
     public var tellsNoText = false
     /// The field is a password field by what the shell tells of it when it is read (the Mac's Accessibility:
-    /// `AXSecureTextField`), though secure input isn't on.
+    /// `AXSecureTextField`), though secure input isn't on: once a pause asks (`SessionOutput.readField`), and with a
+    /// key read as the Mac reads it (`readsWhatIsWanted`) where the session asks (`FieldContext.Parts.passwordField`).
     public var passwordField = false
     /// A key reads only what the session wants of the field (`InputSession.fieldWants`), asked until it wants nothing
     /// more, as the Mac does: its text isn't told with every key, only once a pause asks for it (`SessionOutput.readField`).
@@ -149,6 +150,7 @@ public final class FakeHost: @unchecked Sendable {
             if missing.contains(.selection) { told.selection = full.selection }
             if missing.contains(.beforeCaret) { told.beforeCaret = full.beforeCaret }
             if missing.contains(.text) { told.text = full.text }
+            if missing.contains(.passwordField) { told.field = FieldInfo(app: app, terminal: terminal, secure: passwordField) }
         }
     }
 

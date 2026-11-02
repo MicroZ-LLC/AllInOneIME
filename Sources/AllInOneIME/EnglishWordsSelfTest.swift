@@ -24,7 +24,11 @@ extension SelfTest {
         // The fake field is no password field: secure input off, whatever holds it on this Mac now (the lock screen).
         controller.services.secureInputActive = { false }
         func candidates() -> [String] { controller.composer.engineState.candidates.map(\.text) }
-        func learned() -> [String] { (try? Config.load())?.englishWords ?? [] }
+        // What was learned is written a moment later, off the main thread (`SessionServices.englishWordsWriter`).
+        func learned() -> [String] {
+            SessionServices.englishWordsWriter.flush()
+            return (try? Config.load())?.englishWords ?? []
+        }
 
         type("bedrock", controller, client)
         check(candidates().first == "Bedrock" && controller.composer.engineState.highlighted == 0,

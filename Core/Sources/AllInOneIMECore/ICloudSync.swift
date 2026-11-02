@@ -725,6 +725,7 @@ public enum ICloudSync {
     /// some maybe only in part.
     @discardableResult
     public static func writeConfig(_ config: Config, readAs old: Config, keys: Set<String>, at url: URL) throws -> Set<String> {
+        AIConfig.fileLock.lock(); defer { AIConfig.fileLock.unlock() }  // from the file's read to its write
         guard FileManager.default.fileExists(atPath: url.path) else {
             try config.write(to: url)
             return keys
