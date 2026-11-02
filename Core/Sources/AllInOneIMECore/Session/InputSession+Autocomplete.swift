@@ -194,7 +194,7 @@ extension InputSession {
         let now = services.uptime()
         // A key that types, pinyin's too: the user's rhythm, what the pause goes by.
         if key.printableText != nil, key.modifiers.isDisjoint(with: [.command, .control]) { services.autocomplete.keyTyped(at: now) }
-        if !autocomplete.typed.text.isEmpty, services.pointerUsedWithin(now - autocomplete.typedAt) { autocomplete.typed.forget() }
+        if !autocomplete.typed.text.isEmpty, caretMayHaveMoved(within: now - autocomplete.typedAt) { autocomplete.typed.forget() }
         if !inserted.isEmpty {
             autocomplete.typed.add(inserted)
             autocomplete.typedAt = now
