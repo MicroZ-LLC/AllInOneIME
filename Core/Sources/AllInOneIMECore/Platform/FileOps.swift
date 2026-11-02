@@ -12,7 +12,7 @@ import WinSDK
 #endif
 
 /// The file operations that differ by system: swapping two folders in one step, writing a file only the user can read,
-/// a file's modification date, the Trash.
+/// a file's modification date, the Trash, the mark of a download.
 public protocol FileOps: Sendable {
     /// Puts `source` at `destination` in one step: when `exists`, swapped with what is there (`source` then holds the
     /// old); else renamed into place, never over something that appeared meanwhile. Throws, changing nothing, when it
@@ -38,6 +38,9 @@ public protocol FileOps: Sendable {
     /// Moves `url` to the Trash where there is one (the user can put it back; on Windows the Recycle Bin, from a fixed
     /// drive only: on another it throws, as the Mac's does on a volume without a Trash); elsewhere removes it.
     func trash(_ url: URL) throws
+    /// Whether the file at `url` (a link followed) carries the mark of a download from the internet: on Apple's systems
+    /// the `com.apple.quarantine` extended attribute a browser, Mail or Archive Utility sets. False where there is none.
+    func isQuarantined(_ url: URL) -> Bool
 }
 
 extension FileOps {
@@ -293,6 +296,17 @@ public struct SystemFileOps: FileOps {
         try WindowsRecycleBin.trash(url)
         #else
         try FileManager.default.removeItem(at: url)
+        #endif
+    }
+
+    public func isQuarantined(_ url: URL) -> Bool {
+        #if canImport(Darwin)
+        return url.withUnsafeFileSystemRepresentation { path in
+            guard let path else { return false }
+            return getxattr(path, "com.apple.quarantine", nil, 0, 0, 0) >= 0
+        }
+        #else
+        return false
         #endif
     }
 }

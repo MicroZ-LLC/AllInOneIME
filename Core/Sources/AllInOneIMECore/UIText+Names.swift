@@ -296,6 +296,12 @@ extension UIText {
             case .badPreference: return tr("有一个偏好设置没有 name，或者 type 不认识", "A preference has no name, or a type this app doesn't know")
             }
         case .brokenLink: return tr("这个替身（符号链接）指向的东西不在了", "A link to something that isn't there")
+        case .notExecutable:
+            return tr("没有执行权限：聚焦找到的文件夹里只载入可执行的脚本（chmod +x，或者添加这个文件夹）",
+                      "Not executable: from a folder Spotlight found, only executable scripts load (chmod +x, or add the folder)")
+        case .quarantined:
+            return tr("是从网上下载的：聚焦找到的文件夹里不载入这样的脚本（要用就添加这个文件夹）",
+                      "Downloaded from the internet: not loaded from a folder Spotlight found (add the folder to use it)")
         case .bundleTaken: return tr("已经有一个同名的扩展包", "Another bundle with this name is loaded")
         case let .nameTaken(taken, owner):
             let name = UIText.commandTrigger + taken
