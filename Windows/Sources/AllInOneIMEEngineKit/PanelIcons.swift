@@ -54,6 +54,7 @@ public enum PanelIcons {
         case .link: code = 0xE71B  // Link
         case .prompt: code = 0xE8F2  // ChatBubbles
         case .snippet, .scriptInsert: code = 0xE8AC  // Rename
+        case .image: code = 0xE8B9  // Photo
         case .scriptShow: code = 0xE8E4  // AlignLeft
         case .scriptList: code = 0xE8FD  // BulletedList
         case .scriptBackground: code = 0xE81C  // History
