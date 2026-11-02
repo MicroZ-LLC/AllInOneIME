@@ -318,7 +318,9 @@ func printStatus() -> Int32 {
         if config.provider == .apple {
             print("apple model: \(AppleModel.system.availability.rawValue)")
         } else if config.provider != .bedrock {
-            print("api key:     \(APIKeys.source(config.provider) == .none ? "✗ none" : "found")")  // not read: no keychain prompt
+            let source = APIKeys.source(config.provider).sent(by: config.provider,
+                                                              to: HTTPProviders.host(of: config.settings(for: config.provider)))
+            print("api key:     \(source == .none ? "✗ none" : "found")")  // not read: no keychain prompt
         } else {
             // Read from the files and the SSO sign-in only: no program run, nothing fetched.
             let status = AWSCredentialResolver.shared.status(profile: config.awsProfile)

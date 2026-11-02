@@ -252,9 +252,11 @@ final class SettingsModel: ObservableObject {
     }
     private var keysShown = false
 
-    /// Whether the provider's key is set, as its row shows it.
+    /// Whether the provider's key is set, as its row shows it: one in the shell only for a base URL it is sent to
+    /// (`APIKeys.shellKeyGoes`).
     func keyState(_ provider: Provider) -> KeyState {
-        KeyState(keySources[provider], ending: keyEndings[provider])
+        let host = HTTPProviders.host(of: config.settings(for: provider))
+        return KeyState(keySources[provider]?.sent(by: provider, to: host), ending: keyEndings[provider])
     }
 
     /// The key sheet's Save and Use: the key saved, then the provider switched to and Test Connection run.

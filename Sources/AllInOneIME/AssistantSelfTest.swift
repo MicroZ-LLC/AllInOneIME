@@ -945,7 +945,7 @@ extension SelfTest {
         let shown = [Provider.openai, .anthropic, .gemini].map(model.keyStatus)
         check(shown == [tr("✓ 已保存 · 结尾 a1b2", "✓ Saved · ends in a1b2"), tr("✓ 来自 $ANTHROPIC_API_KEY", "✓ From $ANTHROPIC_API_KEY"),
                         tr("还没有 API key", "No API key yet")], "Settings says in each key's row whether it is set (\(shown))")
-        let keyed = AIConfigSession.providersWithKey(AIConfigSession.keySource)
+        let keyed = AIConfigSession.providersWithKey(AIConfigSession.keySource, config: .default)
         check(keyed == [.openai, .anthropic], "Settings → Assistant's checks see the same keys (\(keyed))")
     }
 

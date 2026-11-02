@@ -6683,6 +6683,53 @@
         }
       }
     },
+    "$%@ is sent only to %@, not this base URL: save a key for this service in the settings" : {
+      "comment" : "$%@ 只发给 %@，不会发给现在的 Base URL：请在设置里为这个服务保存 key — Sources/AllInOneIMECore/UIText+Errors.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "$%@ wird nur an %@ gesendet, nicht an diese Basis-URL: Sichere in den Einstellungen einen Schlüssel für diesen Dienst"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "$%@ solo se envía a %@, no a esta URL base: guarda una clave para este servicio en los ajustes"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "$%@ n'est envoyée qu'à %@, pas à cette URL de base : enregistrez une clé pour ce service dans les réglages"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "$%@は%@にのみ送信され、このBase URLには送信されません：設定でこのサービス用のキーを保存してください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "$%@ 키는 %@에만 보내지고 이 Base URL로는 보내지지 않습니다. 설정에서 이 서비스용 키를 저장하세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "$%@ é enviada só para %@, não para esta URL base: salve uma chave para este serviço nos Ajustes"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "$%@ 只會傳送給 %@，不會傳送給現在的 Base URL：請在設定中為這個服務儲存金鑰"
+          }
+        }
+      }
+    },
     "1 char" : {
       "comment" : "1 字 — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
       "localizations" : {

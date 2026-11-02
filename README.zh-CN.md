@@ -948,7 +948,7 @@ profile 的 `region`；设置里填的「区域」又优先于这两者。
 | Gemini API | `gemini-3.8-flash` | Google AI Studio |
 | 兼容 OpenAI 的服务 | OpenAI 的 `gpt-6-luna`（也可选 `gpt-5.4-mini`）；「常用服务…」里有 DeepSeek、通义千问、Kimi、智谱 GLM、硅基流动、OpenRouter、本机 Ollama，选了会填好 Base URL，再填它的模型 | 那个服务的 key；Base URL 填它的地址，比如 `https://api.deepseek.com/v1`，本机 Ollama 填 `http://localhost:11434/v1` |
 
-- API key 存在登录钥匙串里，不写进配置文件；在「通过 iCloud 同步」里打开「API 密钥和密码」的话，改存在 iCloud 钥匙串里，`allinoneime-cli` 和 0.6.5 以前的版本读不到。钥匙串里没有时，也会用 shell 里设的 `ANTHROPIC_API_KEY`、`GEMINI_API_KEY`（或 `GOOGLE_API_KEY`）、`OPENAI_API_KEY`。
+- API key 存在登录钥匙串里，不写进配置文件；在「通过 iCloud 同步」里打开「API 密钥和密码」的话，改存在 iCloud 钥匙串里，`allinoneime-cli` 和 0.6.5 以前的版本读不到。钥匙串里没有时，也会用 shell 里设的 `ANTHROPIC_API_KEY`、`GEMINI_API_KEY`（或 `GOOGLE_API_KEY`）、`OPENAI_API_KEY`，但只发给它们自己的服务（api.anthropic.com、generativelanguage.googleapis.com、api.openai.com）和这台 Mac 上的服务（localhost）：Base URL 换成别的服务（DeepSeek、中转）时，在设置里为它保存 key。
 - API key 那一行直接写有没有 key：「✓ 已保存 · 结尾 a1b2」（最后 4 位，存 key 时一起记下，显示时不用读 key 本身），旁边是「替换…」「删除…」；用 shell 里的写「✓ 来自 $OPENAI_API_KEY」；没有就写「还没有 API key」，直接给出粘贴框。
 - 「思考」在 Claude API 和 Gemini 上默认是 low（兼容 OpenAI 的服务默认不设置）：输入法每句话都在等，思考越少越快。模型不支持这个参数时，在配置里它的服务下写 `"effort": ""`（不发）；设置里只在它不是默认值时才显示「思考」，带「恢复默认」。
 - 选 Claude Opus 5.5、Sonnet 5.5 时会带上 Claude API 的拒答兜底（`fallbacks: "default"`）：安全分类器拒绝时，服务端自动换一个模型重试。
