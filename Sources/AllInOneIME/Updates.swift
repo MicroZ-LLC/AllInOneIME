@@ -242,13 +242,14 @@ enum UpdateHelper {
         if let waitPID { waitForExit(waitPID) }
         if !locations.isTest { stopInputMethod(locations, staged: staged) }
 
-        // Checked again: they waited in a folder of the user's since the input method checked them.
+        // Checked again: they waited in a folder of the user's since the input method checked them. Signed by this app's
+        // team, as the installer checks them (none for an ad-hoc signed build, a developer's).
         do {
             for (app, id) in [(new.inputMethod, Updater.bundleID), (new.settingsApp, Updater.settingsBundleID)] {
                 guard NSDictionary(contentsOf: app.appendingPathComponent("Contents/Info.plist"))?["CFBundleIdentifier"] as? String == id else {
                     throw UpdateError.invalidApp("\(app.lastPathComponent) is missing")
                 }
-                try CodeSignature.check(app, identifier: id, team: nil)
+                try CodeSignature.check(app, identifier: id, team: CodeSignature.ownTeamID)
             }
         } catch {
             return finish("the staged update doesn't check out (\(error)); nothing was changed")
