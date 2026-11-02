@@ -14,7 +14,9 @@ public enum SessionEvent: Sendable {
     /// The app wants what's pending in now (a click elsewhere in it).
     case commit
     /// A row of the candidate panel clicked (its index in `PanelModel.rows`: the session picks its `choice`); its list
-    /// scrolled by `steps` rows (down positive).
+    /// scrolled by `steps` rows (down positive; 0: the wheel or trackpad moved over it short of a row, or scrolled a
+    /// conversation in it). Each wheel event over the panel is told: the pointer used there moved no caret in the field
+    /// (`InputSession.caretMayHaveMoved`).
     case pick(Int)
     case scroll(Int)
     /// The clipboard as `SessionOutput.readClipboard` asked for it, for the draft's request `id` (below 0: clipboard

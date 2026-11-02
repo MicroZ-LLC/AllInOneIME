@@ -141,7 +141,7 @@ extension InputSession {
         tasks.cancel(.autocomplete)
         guard let suggestion = autocomplete.suggestion, !suggestion.hidden else { return nil }
         // A click or the wheel since it came up: the caret may be elsewhere (the shell has taken it down).
-        if services.pointerUsedWithin(now - suggestion.shownAt) {
+        if caretMayHaveMoved(within: now - suggestion.shownAt) {
             autocompleteEnded(.ignored)
             return nil
         }
@@ -268,7 +268,7 @@ extension InputSession {
         let text = context.read.contains(.text) ? context.text : nil
         let selection = context.read.contains(.selectedRange) ? context.selectedRange : nil
         // What was typed stands in only where the field tells nothing, and not past a click.
-        let typed = services.pointerUsedWithin(services.uptime() - autocomplete.typedAt) ? "" : autocomplete.typed.text
+        let typed = caretMayHaveMoved(within: services.uptime() - autocomplete.typedAt) ? "" : autocomplete.typed.text
         guard let request = Autocomplete.context(text, selection: selection, typed: typed) else { return }
         if let kept = services.autocomplete.kept(for: request, in: app) {
             autocompleteShow(kept.rest, kept: kept.entry, fromCache: true)

@@ -559,7 +559,7 @@ extension InputSession {
         // marked text, so the app asks nothing of it), which may have moved the caret. The token ends, as
         // `suggestionsAfterKey` ends it for a key that types, and the key is the app's: no row goes in where the token
         // was, nor takes out what is before the caret now.
-        if services.pointerUsedWithin(services.uptime() - suggesting.tokenAt) {
+        if caretMayHaveMoved(within: services.uptime() - suggesting.tokenAt) {
             log.notice("suggestions: the pointer was used since the token's last key: the token ends, the key is the app's")
             suggestionsBoundary()
             suggestionsUpdate()
@@ -606,7 +606,7 @@ extension InputSession {
         let now = services.uptime()
         let mayShow = suggestionsMayShow()
         var held = held
-        if mayShow, !suggesting.token.isEmpty, services.pointerUsedWithin(now - suggesting.tokenAt) {
+        if mayShow, !suggesting.token.isEmpty, caretMayHaveMoved(within: now - suggesting.tokenAt) {
             let unasked = suggesting.unasked
             suggestionsBoundary()
             suggesting.dead = unasked

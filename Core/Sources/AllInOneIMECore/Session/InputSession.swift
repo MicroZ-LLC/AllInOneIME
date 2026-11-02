@@ -87,6 +87,10 @@ public final class InputSession {
     /// pause makes); nil until told. Autocomplete, suggestions and the English words learned all go by it
     /// (`fieldIsPrivate`); one told stays one until another field takes the focus.
     var passwordField: Bool?
+    /// When one of the session's own panels last had the pointer (`SessionServices.uptime`): the wheel over suggestions'
+    /// rows, the command list or clipboard history, a click on one of their rows (`SessionEvent.scroll`, `.pick`). It
+    /// moved no caret (`caretMayHaveMoved`).
+    private var panelPointerAt: TimeInterval?
     lazy var shiftHold = TranslateMode.ShiftHold(now: { [weak self] in self?.services.uptime() ?? 0 },
                                                  pointer: { [weak self] in self?.services.suggestions.pointer() ?? .zero },
                                                  stickyKeys: { [weak self] in self?.services.suggestions.stickyKeys() ?? false })
@@ -176,6 +180,7 @@ public final class InputSession {
                 perform(composer.commitAll())
                 suggestionsClicked()
             case let .pick(row):
+                panelPointerAt = services.uptime()
                 // Clipboard history's rows and suggestions' put in what a click picks.
                 if clipboardPick(row) || suggestionsPick(row) { return }
                 // What a click on the row picks (`PanelModel.Row.choice`): its number's, a conversation's answer by its
@@ -184,6 +189,9 @@ public final class InputSession {
                 guard rows.indices.contains(row), let choice = rows[row].choice else { return }
                 perform(composer.choose(index: choice))
             case let .scroll(steps):
+                panelPointerAt = services.uptime()
+                // The wheel short of a row (a trackpad's small steps, its momentum): nothing moves.
+                guard steps != 0 else { return }
                 // Clipboard history's and suggestions' rows: the wheel moves the choice, as the command list's does (0.6.7.3).
                 if clipboardScroll(steps) || suggestionsScroll(steps) { return }
                 perform(composer.scrollPalette(by: steps))
@@ -434,10 +442,18 @@ public final class InputSession {
     }
 
     /// Whether the mouse or trackpad was used since a time, as of `now` (`ProcessInfo.systemUptime`): a click may have
-    /// moved the caret. Asked once or twice a word, not for each key.
+    /// moved the caret (`caretMayHaveMoved`). Asked once or twice a word, not for each key.
     private func pointerUsedSince(now: TimeInterval) -> (TimeInterval) -> Bool {
-        let pointer = services.pointerUsedWithin
-        return { pointer(now - $0) }
+        { self.caretMayHaveMoved(within: now - $0) }
+    }
+
+    /// Whether the pointer was used in the last `seconds` where it may have moved the caret: a click in the field, the
+    /// wheel over it (`SessionServices.pointerUsedWithin`, which tells any use of it), but not on the session's own
+    /// panels: only what came after one of them last had it (`panelPointerAt`) counts. What the token, autocomplete's
+    /// suggestion, the character before the caret and the words typed in English mode go by; a Shift-click is told by
+    /// any use of the pointer.
+    func caretMayHaveMoved(within seconds: TimeInterval) -> Bool {
+        services.pointerUsedWithin(panelPointerAt.map { min(seconds, services.uptime() - $0) } ?? seconds)
     }
 
     // MARK: - Settings
@@ -799,7 +815,7 @@ public final class InputSession {
 
     private func characterBeforeCaret(in context: FieldContext) -> Character? {
         guard let typed = lastTyped.character,
-              !services.pointerUsedWithin(ProcessInfo.processInfo.systemUptime - lastTyped.time) else { return nil }
+              !caretMayHaveMoved(within: ProcessInfo.processInfo.systemUptime - lastTyped.time) else { return nil }
         guard !(context.field ?? field).terminal, context.read.contains(.beforeCaret) else { return typed }
         switch context.beforeCaret {
         case .unknown: return typed  // a field that tells no caret, or reads nothing back

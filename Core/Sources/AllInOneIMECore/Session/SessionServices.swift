@@ -59,7 +59,8 @@ public struct SessionServices {
     /// Whether secure input is on anywhere (a password field, the lock screen): nothing is sent to a model or run then.
     public var secureInputActive: () -> Bool
     /// Whether a mouse button, a drag or the scroll wheel was used in the last `seconds`, anywhere: a Shift-click is no
-    /// tap of Shift.
+    /// tap of Shift. On the session's own panels too (what may have moved the caret leaves theirs out:
+    /// `InputSession.caretMayHaveMoved`).
     public var pointerUsedWithin: (_ seconds: TimeInterval) -> Bool
     /// Whether the voice key is still held with no mouse button down, when its hold timer fires.
     public var isVoiceKeyHeld: () -> Bool

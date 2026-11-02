@@ -175,6 +175,66 @@ struct SuggestionsScrollTests {
         }
     }
 
+    /// The wheel over the rows is the pointer on the panel, not in the field, though the system tells every use of it
+    /// (the Mac's counts the wheel over the panel too): in Slack, "#70" typed and its rows scrolled to #7009, Return puts
+    /// that row in (it didn't go to Slack, which sent "#70"), and ↑ moves the choice (it didn't edit Slack's last
+    /// message); a trackpad's small steps after its last row's (0 rows) the same. A click in the field since still ends
+    /// the token, and the key is the app's.
+    @Test func theWheelOverTheRowsIsNoClickInTheField() async throws {
+        try await inEnglish {
+            let world = SuggestionsWorld()
+            try world.github(items: Self.issues(23), manifest: SuggestionsPlugins.githubManifest(query: false))
+            // When the pointer was used (on the world's clock), anywhere: as the Mac's `pointerUsedWithin` tells it.
+            let used = Locked<[TimeInterval]>(initialState: [])
+            let clock = world.clock
+            func use() { used.withLock { $0.append(clock.timestamp) } }
+            func slack() -> SuggestionsField {
+                world.field(app: SuggestionsApps.slack) { services in
+                    services.pointerUsedWithin = { seconds in
+                        let now = clock.timestamp
+                        return used.withLock { $0.contains { now - $0 < seconds } }
+                    }
+                }
+            }
+            /// The wheel over the panel: the pointer used, then the panel tells the session.
+            func wheel(_ field: SuggestionsField, _ steps: Int) {
+                use()
+                field.host.send(.scroll(steps))
+            }
+
+            let field = slack()
+            field.type("#70")
+            #expect(field.settle { field.issuesShown == Self.shown(1...5) }, "\(field.issuesShown)")
+            clock.advance(0.5)
+            wheel(field, 3)
+            clock.advance(0.1)
+            wheel(field, 5)
+            clock.advance(0.05)
+            wheel(field, 0)  // the trackpad's momentum
+            #expect(Self.state(field) == (4, "5–9 / 23"), "\(field.issuesShown) \(Self.state(field))")
+            // What every caller goes by (the token, autocomplete, the character before the caret, English mode's words);
+            // a Shift-click still sees the pointer used.
+            #expect(!field.host.session.caretMayHaveMoved(within: 60) && field.host.session.services.pointerUsedWithin(60))
+            clock.advance(0.5)
+            #expect(field.press(SuggestionKeys.up), "↑ is the rows'")
+            #expect(field.press(SuggestionKeys.down))
+            #expect(field.press(SuggestionKeys.enter), "Return puts the row in: \(field.document)")
+            #expect(field.document.hasPrefix("#7009 "), "the row chosen, as a chat app has it: \(field.document)")
+
+            // A click in the field after the wheel: the token ends, Return is the app's.
+            let clicked = slack()
+            clicked.type("#70")
+            #expect(clicked.settle { !clicked.rows.isEmpty })
+            clock.advance(0.5)
+            wheel(clicked, 2)
+            clock.advance(0.2)
+            use()  // a click in the field
+            clock.advance(0.2)
+            #expect(!clicked.press(SuggestionKeys.enter), "the app's")
+            #expect(clicked.rows.isEmpty && clicked.document == "#70", "\(clicked.document)")
+        }
+    }
+
     /// None chosen (the one row is what was typed, so it puts nothing in): the wheel chooses as ↓ and ↑ do, down the first
     /// row, up the last.
     @Test func theWheelChoosesWhereNoneIsChosen() async throws {
