@@ -155,6 +155,14 @@ extension UIText {
     /// How many texts clipboard history keeps (`Config.clipboardHistoryLimit`), the label of its number.
     public static var clipboardHistoryLimitLabel: String { tr("保留最近几条", "Keep the last") }
 
+    /// The characters Chinese is typed in (Settings → Input → Chinese, `Config.chineseCharacters`): its name, and what it
+    /// says under it.
+    public static var chineseCharactersLabel: String { tr("字形", "Characters") }
+    public static var chineseCharactersHelp: String {
+        tr("拼音打出简体字还是繁体字，AI 的润色、翻译和回复也跟着用；台湾繁体也换成台湾的用词（软件 → 軟體）。",
+           "Whether pinyin types Simplified or Traditional characters; the AI polishes, translates and replies in them too. Taiwan's also uses Taiwan's words (软件 → 軟體).")
+    }
+
     /// Why a custom command in config.json isn't used (`CustomCommand.Refused`), as Settings → Custom Commands says it
     /// under its name: "This command isn't used: “minChars” should be a whole number".
     public static func describe(_ refused: CustomCommand.Refused) -> String {

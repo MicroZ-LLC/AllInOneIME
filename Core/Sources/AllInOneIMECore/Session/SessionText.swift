@@ -217,16 +217,18 @@ public enum SessionText {
 
     // MARK: - Menus and settings
 
-    /// An input language as the menu and the settings name it: "中文（拼音）", "英文".
-    public static func inputName(_ input: Language, language: String) -> String {
+    /// An input language as the menu and the settings name it: "中文（拼音）", "英文"; Chinese typed in Traditional
+    /// characters (`chinese`, `Config.typedChinese`) "中文（拼音·繁體）".
+    public static func inputName(_ input: Language, language: String, chinese: ChineseCharacters = .simplified) -> String {
         let t = InterfaceWords(language: language)
-        return input == .chinese ? t.tr("中文（拼音）", "Chinese (pinyin)") : t.name(input)
+        guard input == .chinese else { return t.name(input) }
+        return chinese.isTraditional ? t.tr("中文（拼音·繁體）", "Chinese (pinyin, Traditional)") : t.tr("中文（拼音）", "Chinese (pinyin)")
     }
 
-    /// The name of `input` in the interface language `language`: a language's (`inputName(_:language:)`), or Code's with
-    /// its coding language (`coding`, the pack's title: "Code (Python)"; nil: "Code").
-    public static func inputName(_ input: Input, language: String, coding: String?) -> String {
-        guard input == .code else { return input.language.map { inputName($0, language: language) } ?? "" }
+    /// The name of `input` in the interface language `language`: a language's (`inputName(_:language:chinese:)`), or Code's
+    /// with its coding language (`coding`, the pack's title: "Code (Python)"; nil: "Code").
+    public static func inputName(_ input: Input, language: String, coding: String?, chinese: ChineseCharacters = .simplified) -> String {
+        guard input == .code else { return input.language.map { inputName($0, language: language, chinese: chinese) } ?? "" }
         let t = InterfaceWords(language: language)
         return coding.map { t.tr("代码（\($0)）", "Code (\($0))") } ?? t.tr("代码", "Code")
     }

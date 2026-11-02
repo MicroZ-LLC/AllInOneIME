@@ -44,7 +44,7 @@ public enum ICloudSync {
         "maxTokens", "temperature", "timeoutSeconds",
         "outputLanguages", "inputLanguages", "codingLanguage", "rewriteStyles", "improveTranslates", "voiceInput", "actionKey", "commandTrigger", "uiLanguage",
         "claudeInBackground", "rememberQuestions", "questionRounds", "questionContinueIn", "menuBarIcon",
-        "typeOut", "typeOutRate", "typeOutVaries", "typeOutMistakes", "fuzzyPinyin", "keyboardLayouts", "candidateLayout",
+        "typeOut", "typeOutRate", "typeOutVaries", "typeOutMistakes", "fuzzyPinyin", "chineseCharacters", "keyboardLayouts", "candidateLayout",
         "checkForUpdates", "useSelection", "redaction", "learnsEnglishWords", "suggestionsInsert",
     ]
     /// One app's settings: "appProfiles.<bundle id>".
@@ -931,7 +931,8 @@ public enum ICloudSync {
     public static func problem(_ key: String, _ value: AIConfig.JSONValue?, environment env: Environment) -> Problem? {
         guard let value else {
             // Only what the config may leave out can be deleted.
-            return key.hasPrefix(appPrefix) || ["questionRounds", "questionContinueIn", "codingLanguage", "suggestionsInsert"].contains(key)
+            return key.hasPrefix(appPrefix)
+                || ["questionRounds", "questionContinueIn", "codingLanguage", "suggestionsInsert", "chineseCharacters"].contains(key)
                 ? nil : .cannotDelete
         }
         func number(_ range: ClosedRange<Double>) -> Problem? {
@@ -1023,6 +1024,9 @@ public enum ICloudSync {
         case "candidateLayout":
             guard case let .string(name) = value else { return .wrongType }
             return CandidateArrangement(rawValue: name) == nil ? .unknownValue : nil
+        case "chineseCharacters":
+            guard case let .string(name) = value else { return .wrongType }
+            return ChineseCharacters(rawValue: name) == nil ? .unknownValue : nil
         case "suggestionsInsert":
             return insertProblem(value)
         case "redaction":

@@ -13568,6 +13568,53 @@
         }
       }
     },
+    "Characters" : {
+      "comment" : "字形 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schriftzeichen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Caracteres"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Caractères"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "字体"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자형"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Caracteres"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "字形"
+          }
+        }
+      }
+    },
     "ChatGPT (web)" : {
       "comment" : "ChatGPT 网页版 — Sources/AllInOneIMECore/Session/SessionText.swift",
       "localizations" : {
@@ -14082,6 +14129,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "中"
+          }
+        }
+      }
+    },
+    "Chinese (pinyin, Traditional)" : {
+      "comment" : "中文（拼音·繁體） — Sources/AllInOneIMECore/Session/SessionText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chinesisch (Pinyin, traditionell)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chino (pinyin, tradicional)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chinois (pinyin, traditionnel)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "中国語（ピンイン・繁体字）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "중국어 (병음·번체)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chinês (pinyin, tradicional)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "中文（拼音·繁體）"
           }
         }
       }
@@ -39763,6 +39857,53 @@
         }
       }
     },
+    "Simplified" : {
+      "comment" : "简体 — Sources/AllInOneIMECore/ChineseCharacters.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vereinfacht"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Simplificado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Simplifié"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "簡体字"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "간체"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Simplificado"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "簡體"
+          }
+        }
+      }
+    },
     "snippet" : {
       "comment" : "代码片段 — Sources/AllInOneIMECore/Suggestions/SuggestionRows.swift",
       "localizations" : {
@@ -48001,6 +48142,100 @@
         }
       }
     },
+    "Traditional (Hong Kong)" : {
+      "comment" : "繁體（香港） — Sources/AllInOneIMECore/ChineseCharacters.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Traditionell (Hongkong)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tradicional (Hong Kong)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Traditionnel (Hong Kong)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "繁体字（香港）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "번체 (홍콩)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tradicional (Hong Kong)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "繁體（香港）"
+          }
+        }
+      }
+    },
+    "Traditional (Taiwan)" : {
+      "comment" : "繁體（台灣） — Sources/AllInOneIMECore/ChineseCharacters.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Traditionell (Taiwan)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tradicional (Taiwán)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Traditionnel (Taïwan)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "繁体字（台湾）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "번체 (대만)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tradicional (Taiwan)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "繁體（台灣）"
+          }
+        }
+      }
+    },
     "Translate & Rewrite" : {
       "comment" : "翻译与改写 — Sources/AllInOneIMECore/Session/InputSession.swift",
       "localizations" : {
@@ -50553,6 +50788,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你輸入的文字會作為它的最後一個參數。"
+          }
+        }
+      }
+    },
+    "Whether pinyin types Simplified or Traditional characters; the AI polishes, translates and replies in them too. Taiwan's also uses Taiwan's words (软件 → 軟體)." : {
+      "comment" : "拼音打出简体字还是繁体字，AI 的润色、翻译和回复也跟着用；台湾繁体也换成台湾的用词（软件 → 軟體）。 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ob Pinyin vereinfachte oder traditionelle Schriftzeichen schreibt; auch die KI überarbeitet, übersetzt und antwortet darin. Taiwans Variante verwendet auch Taiwans Wörter (软件 → 軟體)."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si el pinyin escribe caracteres simplificados o tradicionales; la IA también pule, traduce y responde con ellos. La variante de Taiwán usa además las palabras de Taiwán (软件 → 軟體)."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si le pinyin écrit en caractères simplifiés ou traditionnels ; l’IA retouche, traduit et répond aussi avec eux. Ceux de Taïwan prennent aussi les mots de Taïwan (软件 → 軟體)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ピンインで簡体字と繁体字のどちらを入力するかを選びます。AIの推敲・翻訳・返信もそれに合わせます。台湾の繁体字では台湾の語彙も使います（软件 → 軟體）。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "병음으로 간체를 입력할지 번체를 입력할지 정합니다. AI의 다듬기, 번역, 답장도 이를 따릅니다. 대만 번체는 대만식 단어도 씁니다(软件 → 軟體)."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se o pinyin escreve caracteres simplificados ou tradicionais; a IA também revisa, traduz e responde neles. A variante de Taiwan usa também as palavras de Taiwan (软件 → 軟體)."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拼音打出簡體字還是繁體字，AI 的潤飾、翻譯和回覆也跟著用；台灣繁體也換成台灣的用詞（软件 → 軟體）。"
           }
         }
       }

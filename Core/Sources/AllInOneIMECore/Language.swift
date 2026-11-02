@@ -124,17 +124,21 @@ public struct OutputLanguage: Hashable, Codable, Sendable, Identifiable {
     }
 
     /// The input language this is, when it is one ("zh" is Chinese; "zh-Hant" is not: Chinese typed in
-    /// pinyin comes out simplified, so it is translated into traditional).
+    /// pinyin comes out simplified, so it is translated into traditional, unless the characters typed are
+    /// Traditional: `Language.matches(_:chinese:)`).
     public var input: Language? { Language(rawValue: code) }
 
     /// Tag of the level-two lines in this language ("EN: …", "ZH: …", "ZHHANT: …").
     var tag: String { code.uppercased().filter(\.isLetter) }
 
-    /// Name used in the prompt ("English", "Simplified Chinese", "Traditional Chinese", "Japanese").
+    /// Name used in the prompt ("English", "Simplified Chinese", "Traditional Chinese", "Traditional Chinese (Taiwan)",
+    /// "Japanese"): Taiwan's and Hong Kong's by name, their words differ (軟體, 軟件).
     var promptName: String {
         switch code {
         case "zh": return "Simplified Chinese"
         case "zh-Hant": return "Traditional Chinese"
+        case "zh-Hant-TW": return "Traditional Chinese (Taiwan)"
+        case "zh-Hant-HK": return "Traditional Chinese (Hong Kong)"
         default:
             if let indian = Self.indian[code] { return "\(indian.english) (\(indian.script) script)" }
             return Locale(identifier: "en").localizedString(forIdentifier: code) ?? code
@@ -152,12 +156,16 @@ public struct OutputLanguage: Hashable, Codable, Sendable, Identifiable {
             case "en": return "英文"
             case "zh": return "中文"
             case "zh-Hant": return "繁体中文"
+            case "zh-Hant-TW": return "繁体中文（台湾）"
+            case "zh-Hant-HK": return "繁体中文（香港）"
             default: if let indian = Self.indian[code] { return indian.chinese }
             }
         } else if language == "en" {
             switch code {
             case "zh": return "Chinese"
             case "zh-Hant": return "Traditional Chinese"
+            case "zh-Hant-TW": return "Traditional Chinese (Taiwan)"
+            case "zh-Hant-HK": return "Traditional Chinese (Hong Kong)"
             default: if let indian = Self.indian[code] { return indian.english }
             }
         }
@@ -175,8 +183,11 @@ public struct OutputLanguage: Hashable, Codable, Sendable, Identifiable {
 }
 
 extension Language {
-    /// Whether a sentence in this language is polished (not translated) for `output`.
-    public func matches(_ output: OutputLanguage) -> Bool { output.input == self }
+    /// Whether a sentence in this language is polished (not translated) for `output`: Chinese typed in `chinese`'s
+    /// characters (`Config.typedChinese`) is in any Chinese of the same script ("zh-Hant" for Taiwan's and Hong Kong's).
+    public func matches(_ output: OutputLanguage, chinese: ChineseCharacters = .simplified) -> Bool {
+        self == .chinese ? chinese.language.isSame(as: output) : output.input == self
+    }
 }
 
 /// What a text field types in: one of the inputs a tap of Shift goes through (`Config.inputs`), an input language or

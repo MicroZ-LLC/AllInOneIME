@@ -296,7 +296,9 @@ struct SettingsSchema {
                               help: config.inputLanguages.count > 1 ? tr("单按 Shift 切换；新的输入框从第一个开始。", "Tap Shift to switch; new text fields start in the first.")
                                   : tr("只有一种时 Shift 不切换", "With one, Shift doesn't switch"),
                               value: .array(config.inputLanguages.map { .string($0.rawValue) }))
-        languages.choices = Language.allCases.map { Choice($0.rawValue, SessionText.inputName($0, language: UIText.language)) }
+        languages.choices = Language.allCases.map {
+            Choice($0.rawValue, SessionText.inputName($0, language: UIText.language, chinese: config.typedChinese))
+        }
         (languages.ordered, languages.minCount, languages.maxCount) = (true, 1, Config.maxInputLanguages)
         add(languages, to: &fields) { value in
             store.config.setOrder(Self.strings(value).compactMap(Language.init(rawValue:)))
@@ -315,6 +317,13 @@ struct SettingsSchema {
             store.config.candidateLayout = value.string.flatMap(CandidateArrangement.init(rawValue:)) ?? store.config.candidateLayout
         }
         if config.inputLanguages.contains(.chinese) {
+            // As the system's languages say until one is picked (`Config.typedChinese`).
+            add(choice("chineseCharacters", UIText.chineseCharactersLabel, UIText.chineseCharactersHelp,
+                       value: .string(config.typedChinese.rawValue),
+                       choices: ChineseCharacters.allCases.map { (Choice($0.rawValue, $0.name(in: UIText.language)), nil) }),
+                to: &fields) { value in
+                store.setChineseCharacters(value.string.flatMap(ChineseCharacters.init(rawValue:)) ?? store.config.typedChinese)
+            }
             var fuzzy = Field(id: "fuzzyPinyin", kind: .choices, label: tr("模糊音", "Fuzzy pinyin"),
                               help: tr("分不清的音两种拼法都能打出来，比如 zh 和 z：打 zi 也有「之」", "Sounds you don't tell apart typed either way, e.g. zh and z: zi also offers 之"),
                               value: .array(config.fuzzyPinyin.map(JSON.string)))
