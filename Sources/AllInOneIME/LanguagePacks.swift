@@ -175,7 +175,9 @@ enum RimeStartup {
         } catch {
             log.error("could not link the Rime scripts: \(String(describing: error), privacy: .public)")
         }
-        let fuzzy = RimeFuzzy.write(LiveConfig.current.fuzzyPinyin)
+        // Fuzzy pinyin's patch by the config file as it parses: while it doesn't, the patch stays as it is (the defaults
+        // aren't the user's pairs).
+        let fuzzy = LiveConfig.currentIfValid.flatMap { RimeFuzzy.write($0.fuzzyPinyin) }
         let record = store.installed(.chinesePinyin)
         let deployed = "\(record?.version ?? "?")|\(record?.sha256 ?? record?.source.rawValue ?? "")|\(shared.path)"
         let packChanged = UserDefaults.standard.string(forKey: deployedKey) != deployed

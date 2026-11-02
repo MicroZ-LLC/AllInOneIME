@@ -545,7 +545,7 @@ final class ICloudSyncController: ObservableObject {
         let config = LiveConfig.current
         NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
         if report.configKeys.contains("menuBarIcon") { MenuBarIcon.shared.apply(config.menuBarIcon) }
-        if report.configKeys.contains("fuzzyPinyin") { RimeFuzzy.apply(config.fuzzyPinyin) }
+        if report.configKeys.contains("fuzzyPinyin"), let valid = LiveConfig.currentIfValid { RimeFuzzy.apply(valid.fuzzyPinyin) }
         if report.configKeys.contains("uiLanguage") {
             UIText.choice = config.uiLanguage
             SettingsWindow.shared.updateTitle()
