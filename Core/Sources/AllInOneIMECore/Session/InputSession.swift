@@ -91,10 +91,9 @@ public final class InputSession {
     /// The focus (`fieldSession`) the shell was last asked in off the key's thread (`SessionOutput.readPasswordField`):
     /// once a field.
     private var passwordFieldAsked = -1
-    /// When one of the session's own panels last had the pointer (`SessionServices.uptime`): the wheel over suggestions'
-    /// rows, the command list or clipboard history, a click on one of their rows (`SessionEvent.scroll`, `.pick`). It
-    /// moved no caret (`caretMayHaveMoved`).
-    private var panelPointerAt: TimeInterval?
+    /// When the wheel was last over one of the session's own panels (`SessionServices.uptime`): suggestions' rows, the
+    /// command list or clipboard history (`SessionEvent.scroll`). It moved no caret (`caretMayHaveMoved`).
+    private var panelWheelAt: TimeInterval?
     lazy var shiftHold = TranslateMode.ShiftHold(now: { [weak self] in self?.services.uptime() ?? 0 },
                                                  pointer: { [weak self] in self?.services.suggestions.pointer() ?? .zero },
                                                  stickyKeys: { [weak self] in self?.services.suggestions.stickyKeys() ?? false })
@@ -188,7 +187,6 @@ public final class InputSession {
                 perform(composer.commitAll())
                 suggestionsClicked()
             case let .pick(row):
-                panelPointerAt = services.uptime()
                 // Clipboard history's rows and suggestions' put in what a click picks.
                 if clipboardPick(row) || suggestionsPick(row) { return }
                 // What a click on the row picks (`PanelModel.Row.choice`): its number's, a conversation's answer by its
@@ -197,7 +195,7 @@ public final class InputSession {
                 guard rows.indices.contains(row), let choice = rows[row].choice else { return }
                 perform(composer.choose(index: choice))
             case let .scroll(steps):
-                panelPointerAt = services.uptime()
+                panelWheelAt = services.uptime()
                 // The wheel short of a row (a trackpad's small steps, its momentum): nothing moves.
                 guard steps != 0 else { return }
                 // Clipboard history's and suggestions' rows: the wheel moves the choice, as the command list's does (0.6.7.3).
@@ -495,13 +493,17 @@ public final class InputSession {
         { self.caretMayHaveMoved(within: now - $0) }
     }
 
-    /// Whether the pointer was used in the last `seconds` where it may have moved the caret: a click in the field, the
-    /// wheel over it (`SessionServices.pointerUsedWithin`, which tells any use of it), but not on the session's own
-    /// panels: only what came after one of them last had it (`panelPointerAt`) counts. What the token, autocomplete's
-    /// suggestion, the character before the caret and the words typed in English mode go by; a Shift-click is told by
-    /// any use of the pointer.
+    /// Whether the pointer was used in the last `seconds` where it may have moved the caret: a mouse button or a drag
+    /// anywhere (`SessionServices.buttonUsedWithin`: a click in the field before the wheel over a panel too), and the
+    /// wheel but not over the session's own panels: of the rest (`SessionServices.pointerUsedWithin`, which tells any use
+    /// of the pointer) only what came after the wheel was last over one of them (`panelWheelAt`) counts. A click on a
+    /// row of one of them is a click all the same: the system tells only the latest, so a click in the field just before
+    /// it couldn't be told apart (and what the row puts in starts the token and the character before the caret anew).
+    /// What the token, autocomplete's suggestion, the character before the caret and the words typed in English mode go
+    /// by; a Shift-click is told by any use of the pointer.
     func caretMayHaveMoved(within seconds: TimeInterval) -> Bool {
-        services.pointerUsedWithin(panelPointerAt.map { min(seconds, services.uptime() - $0) } ?? seconds)
+        services.buttonUsedWithin(seconds)
+            || services.pointerUsedWithin(panelWheelAt.map { min(seconds, services.uptime() - $0) } ?? seconds)
     }
 
     // MARK: - Settings

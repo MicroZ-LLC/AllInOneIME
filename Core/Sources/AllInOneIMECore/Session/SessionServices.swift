@@ -60,9 +60,14 @@ public struct SessionServices {
     /// Whether secure input is on anywhere (a password field, the lock screen): nothing is sent to a model or run then.
     public var secureInputActive: () -> Bool
     /// Whether a mouse button, a drag or the scroll wheel was used in the last `seconds`, anywhere: a Shift-click is no
-    /// tap of Shift. On the session's own panels too (what may have moved the caret leaves theirs out:
+    /// tap of Shift. On the session's own panels too (what may have moved the caret leaves their wheel out:
     /// `InputSession.caretMayHaveMoved`).
     public var pointerUsedWithin: (_ seconds: TimeInterval) -> Bool
+    /// Whether a mouse button or a drag was used in the last `seconds`, anywhere: `pointerUsedWithin` without the wheel,
+    /// so that the wheel over the session's own panels doesn't hide a click in the field before it
+    /// (`InputSession.caretMayHaveMoved`). A shell that can't tell them apart leaves it false: `pointerUsedWithin` then
+    /// tells the clicks too.
+    public var buttonUsedWithin: (_ seconds: TimeInterval) -> Bool
     /// Whether the voice key is still held with no mouse button down, when its hold timer fires.
     public var isVoiceKeyHeld: () -> Bool
     /// What reads a screenshot's text on the device (`Platform.current.text` by default).
@@ -212,6 +217,7 @@ public struct SessionServices {
         saveRecentHandles = { _ in }
         secureInputActive = { false }
         pointerUsedWithin = { _ in false }
+        buttonUsedWithin = { _ in false }
         isVoiceKeyHeld = { false }
         recognizeText = Platform.current.text
         searchFiles = { _, _ in [] }

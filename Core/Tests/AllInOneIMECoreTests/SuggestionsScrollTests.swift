@@ -235,6 +235,61 @@ struct SuggestionsScrollTests {
         }
     }
 
+    /// A click in the field before the wheel over the rows isn't forgotten (the Mac tells the mouse's buttons apart from
+    /// the wheel, `SessionServices.buttonUsedWithin`): in Slack, "#70" typed and its rows shown, a click elsewhere in the
+    /// message (the rows stay), the rows scrolled, then Return: the token ends and Return is Slack's, no row put in at the
+    /// caret the click moved, as before the wheel was the panel's. The wheel alone still moves no caret.
+    @Test func aClickInTheFieldBeforeTheWheelStillCounts() async throws {
+        try await inEnglish {
+            let world = SuggestionsWorld()
+            try world.github(items: Self.issues(23), manifest: SuggestionsPlugins.githubManifest(query: false))
+            // When a button and the wheel were used (on the world's clock), anywhere: as the Mac tells each kind.
+            let clicks = Locked<[TimeInterval]>(initialState: []), wheels = Locked<[TimeInterval]>(initialState: [])
+            let clock = world.clock
+            func within(_ seconds: TimeInterval, _ times: [TimeInterval]) -> Bool {
+                let now = clock.timestamp
+                return times.contains { now - $0 < seconds }
+            }
+            func slack() -> SuggestionsField {
+                world.field(app: SuggestionsApps.slack) { services in
+                    services.buttonUsedWithin = { within($0, clicks.withLock { $0 }) }
+                    services.pointerUsedWithin = { within($0, clicks.withLock { $0 } + wheels.withLock { $0 }) }
+                }
+            }
+            func wheel(_ field: SuggestionsField, _ steps: Int) {
+                wheels.withLock { $0.append(clock.timestamp) }
+                field.host.send(.scroll(steps))
+            }
+
+            let clicked = slack()
+            clicked.type("#70")
+            #expect(clicked.settle { clicked.issuesShown == Self.shown(1...5) }, "\(clicked.issuesShown)")
+            clock.advance(0.5)
+            clicks.withLock { $0.append(clock.timestamp) }  // a click elsewhere in the message: the rows stay
+            #expect(!clicked.rows.isEmpty)
+            clock.advance(0.5)
+            wheel(clicked, 3)
+            clock.advance(0.1)
+            wheel(clicked, 0)
+            #expect(clicked.host.session.caretMayHaveMoved(within: 60))
+            clock.advance(0.5)
+            #expect(!clicked.press(SuggestionKeys.enter), "Slack's")
+            #expect(clicked.rows.isEmpty && clicked.document == "#70", "\(clicked.document)")
+
+            // The wheel alone, the same buttons and wheel told apart: Return puts the row in.
+            let scrolled = slack()
+            clock.advance(10)
+            scrolled.type("#70")
+            #expect(scrolled.settle { scrolled.issuesShown == Self.shown(1...5) }, "\(scrolled.issuesShown)")
+            clock.advance(0.5)
+            wheel(scrolled, 3)
+            #expect(!scrolled.host.session.caretMayHaveMoved(within: 5), "the click was before the token")
+            clock.advance(0.5)
+            #expect(scrolled.press(SuggestionKeys.enter), "the rows'")
+            #expect(scrolled.document.hasPrefix("#700") && scrolled.document != "#70", "\(scrolled.document)")
+        }
+    }
+
     /// None chosen (the one row is what was typed, so it puts nothing in): the wheel chooses as ↓ and ↑ do, down the first
     /// row, up the last.
     @Test func theWheelChoosesWhereNoneIsChosen() async throws {

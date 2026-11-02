@@ -15,7 +15,7 @@ public enum SessionEvent: Sendable {
     case commit
     /// A row of the candidate panel clicked (its index in `PanelModel.rows`: the session picks its `choice`); its list
     /// scrolled by `steps` rows (down positive; 0: the wheel or trackpad moved over it short of a row, or scrolled a
-    /// conversation in it). Each wheel event over the panel is told: the pointer used there moved no caret in the field
+    /// conversation in it). Each wheel event over the panel is told: the wheel used there moved no caret in the field
     /// (`InputSession.caretMayHaveMoved`).
     case pick(Int)
     case scroll(Int)

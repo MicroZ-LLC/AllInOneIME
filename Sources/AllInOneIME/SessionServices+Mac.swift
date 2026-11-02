@@ -78,11 +78,15 @@ extension SessionServices {
         services.loadRecentHandles = { RecentRecipients.handles }
         services.saveRecentHandles = { RecentRecipients.handles = $0 }
         services.secureInputActive = { SecureInput.isOn }
-        services.pointerUsedWithin = { seconds in
-            let kinds: [CGEventType] = [.leftMouseDown, .leftMouseUp, .leftMouseDragged, .rightMouseDown, .rightMouseUp,
-                                        .rightMouseDragged, .otherMouseDown, .otherMouseUp, .otherMouseDragged, .scrollWheel]
-            return kinds.contains { CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: $0) < seconds }
+        // The mouse's buttons and drags, and the wheel: the system times each kind apart, so that the wheel over our own
+        // panels hides no click in the field before it (`InputSession.caretMayHaveMoved`).
+        let buttons: [CGEventType] = [.leftMouseDown, .leftMouseUp, .leftMouseDragged, .rightMouseDown, .rightMouseUp,
+                                      .rightMouseDragged, .otherMouseDown, .otherMouseUp, .otherMouseDragged]
+        let used = { (kinds: [CGEventType], seconds: TimeInterval) in
+            kinds.contains { CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: $0) < seconds }
         }
+        services.pointerUsedWithin = { used(buttons + [.scrollWheel], $0) }
+        services.buttonUsedWithin = { used(buttons, $0) }
         // An Option key still down with no mouse button pressed, as a sanity check when the hold timer fires (the
         // composer tracks which key from the events).
         services.isVoiceKeyHeld = { NSEvent.modifierFlags.contains(.option) && NSEvent.pressedMouseButtons == 0 }

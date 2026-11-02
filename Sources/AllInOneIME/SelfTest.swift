@@ -2688,6 +2688,7 @@ enum SelfTest {
         controller.passCommandV = {}
         controller.pasteImage = { _, _ in }
         controller.services.pointerUsedWithin = { _ in false }  // the user's own clicks meanwhile aren't Shift-clicks
+        controller.services.buttonUsedWithin = { _ in false }  // …nor clicks in the fake field
         controller.selectionByAccessibility = false  // the fake field's selection only, never the user's frontmost app's
         controller.services.loadCommandUsage = { CommandUsage() }  // leave the user's command order alone
         controller.services.loadExtensions = { _, _ in .empty }  // never the user's own extensions (the extension check makes its own)
