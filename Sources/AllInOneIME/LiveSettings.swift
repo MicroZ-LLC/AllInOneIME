@@ -64,9 +64,14 @@ enum CommandUsageStore {
 enum LiveConfig {
     private static var cached: (url: URL, date: Date?, config: Config?)?
 
+    /// The config, or the defaults while the file doesn't parse (a comma left in TextEdit): what typing goes by, which a
+    /// broken file mustn't stop. Never what deletes, trims or starts recording anything (clipboard history, the cached
+    /// lists of suggestions): the defaults aren't the user's settings (a limit of 20 would drop the rest of a history of
+    /// 100, a history turned off would record again). That goes by `currentIfValid`, and does nothing while it is nil.
     static var current: Config { currentIfValid ?? .default }
 
-    /// The input menu must still report a broken file and disable actions that would overwrite it.
+    /// The config as the file has it; nil while it doesn't parse. The input menu must still report a broken file and
+    /// disable actions that would overwrite it; what deletes, trims or records anything waits for the file to parse.
     static var currentIfValid: Config? {
         let url = Config.defaultURL
         let date = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date

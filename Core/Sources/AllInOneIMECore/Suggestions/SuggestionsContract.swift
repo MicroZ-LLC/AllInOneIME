@@ -505,6 +505,10 @@ public struct SuggestionsServices {
     public var extensionRuntime: any ExtensionCompletionRuntime
     /// The switches (read again as the settings change).
     public var settings: () -> SuggestionsSettings
+    /// Whether `settings` are the user's: false while their file doesn't parse and the shell reads the defaults instead,
+    /// when nothing is forgotten nor its cached list deleted for what they say (`SuggestionsStore.prune`: the defaults
+    /// approve no source). The default: yes.
+    public var settingsValid: () -> Bool
     /// The time now.
     public var now: @Sendable () -> Date
     /// Where the lists are cached on disk, a file of each source's, readable by the user only (0600): the shell's
@@ -562,6 +566,7 @@ public struct SuggestionsServices {
         commandRuntime = CommandCompletionRunner()
         extensionRuntime = ExtensionCompletionRunner()
         settings = { SuggestionsSettings() }
+        settingsValid = { true }
         now = { Date() }
         cacheFolder = nil
         preferences = { _ in [:] }

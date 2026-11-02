@@ -34,9 +34,10 @@ enum ClipboardHistoryShared {
     }
 
     /// The settings as they are now (turned off: the history deleted; a lower limit: the oldest dropped), then, while it's
-    /// on, a copy since the last look recorded.
+    /// on, a copy since the last look recorded. Nothing at all while the config file doesn't parse (`currentIfValid`): its
+    /// defaults would trim the history to 20, or turn on one the user turned off.
     static func tick() {
-        let config = LiveConfig.current
+        guard let config = LiveConfig.currentIfValid else { return }
         apply(config)
         guard config.clipboardHistoryOn else { return }
         if recorder.poll(limit: config.clipboardHistoryKept) == .recorded {
