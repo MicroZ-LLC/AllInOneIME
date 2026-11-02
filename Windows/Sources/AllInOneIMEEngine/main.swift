@@ -283,7 +283,7 @@ func runEngine(_ options: EngineOptions) -> Never {
         if let location = EngineRime.locate(executable: executable, sharedData: data) {
             let userData = options.rimeUser.map { URL(fileURLWithPath: $0, isDirectory: true) } ?? EngineRime.defaultUserData
             let rime = EngineRime(location: location, userData: userData, log: { log($0, always: true) })
-            rime.applyFuzzyPinyin(startConfig.fuzzyPinyin)  // deployed with the rest
+            rime.applyFuzzyPinyin(startConfig.fuzzyPinyin, characters: startConfig.typedChinese)  // deployed with the rest
             do {
                 try rime.start()
                 hostOptions.rime = rime
@@ -357,20 +357,20 @@ func runEngine(_ options: EngineOptions) -> Never {
         host.writingSettings = { try service.writingFile($0) }
         server.settings = service
         // After each change, wherever it was made (the Settings app, another program, a hand edit): the interface
-        // language, and fuzzy pinyin in librime, as the Mac's settings window and iCloud sync apply them.
+        // language, and fuzzy pinyin and the characters in librime, as the Mac's settings window and iCloud sync apply them.
         let told = service.changed
         let rime = hostOptions.rime
-        let fuzzy = Locked(initialState: startConfig.fuzzyPinyin)
+        let fuzzy = Locked(initialState: (startConfig.fuzzyPinyin, startConfig.typedChinese))
         service.changed = { revision in
             let config = settings.current
             EngineLanguage.apply(config)
             let changed = fuzzy.withLock { applied -> Bool in
-                defer { applied = config.fuzzyPinyin }
-                return applied != config.fuzzyPinyin
+                defer { applied = (config.fuzzyPinyin, config.typedChinese) }
+                return applied != (config.fuzzyPinyin, config.typedChinese)
             }
             if changed, let rime {
                 // Deployed again: the fields get their new sessions once it is done.
-                rime.applyFuzzyPinyin(config.fuzzyPinyin, deployed: { host.rimeBecameReady() })
+                rime.applyFuzzyPinyin(config.fuzzyPinyin, characters: config.typedChinese, deployed: { host.rimeBecameReady() })
             }
             told(revision)
         }

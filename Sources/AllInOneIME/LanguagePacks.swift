@@ -156,7 +156,8 @@ final class LanguagePackManager: ObservableObject {
     }
 }
 
-/// Starts librime on the Chinese pack: its Lua linked to the app's, the fuzzy pinyin patch written, and a
+/// Starts librime on the Chinese pack: its Lua linked to the app's, the fuzzy pinyin patch written (the characters too,
+/// with the app's OpenCC data for them), and a
 /// full check when the pack changed since the last deployment. Deploys again if it was running already
 /// (the pack was installed anew in the same folder).
 enum RimeStartup {
@@ -174,7 +175,8 @@ enum RimeStartup {
         } catch {
             log.error("could not link the Rime scripts: \(String(describing: error), privacy: .public)")
         }
-        let fuzzy = RimeFuzzy.write(LiveConfig.current.fuzzyPinyin)
+        let config = LiveConfig.current
+        let fuzzy = RimeFuzzy.write(config.fuzzyPinyin, characters: config.typedChinese)
         let record = store.installed(.chinesePinyin)
         let deployed = "\(record?.version ?? "?")|\(record?.sha256 ?? record?.source.rawValue ?? "")|\(shared.path)"
         let packChanged = UserDefaults.standard.string(forKey: deployedKey) != deployed
@@ -184,7 +186,7 @@ enum RimeStartup {
             do {
                 try RimeService.shared.start(
                     sharedDataDir: shared, userDataDir: RimeDirectories.user, logDir: RimeDirectories.logs,
-                    fullCheck: fuzzy == .written || fuzzy == .removed || packChanged)
+                    fullCheck: fuzzy == .written || fuzzy == .removed || packChanged, openCCDir: RimeDirectories.openCC)
                 RimeReadinessLogger.shared.start()
             } catch {
                 log.fault("could not start Rime: \(String(describing: error), privacy: .public)")

@@ -35245,6 +35245,100 @@
         }
       }
     },
+    "Rime: the data for Traditional characters (OpenCC) can't be read; remove the opencc folder in the Rime user folder, then reinstall AllInOneIME" : {
+      "comment" : "Rime：繁体字的转换数据（OpenCC）读不出来；请删掉 Rime 用户目录里的 opencc 文件夹，再重新安装 AllInOneIME — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime: Die Daten für traditionelle Schriftzeichen (OpenCC) lassen sich nicht lesen; entferne den Ordner opencc im Rime-Benutzerordner und installiere AllInOneIME dann neu"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime: no se pueden leer los datos de los caracteres tradicionales (OpenCC); elimina la carpeta opencc de la carpeta de usuario de Rime y luego reinstala AllInOneIME"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime : les données des caractères traditionnels (OpenCC) sont illisibles ; supprimez le dossier opencc du dossier utilisateur de Rime, puis réinstallez AllInOneIME"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime：繁体字の変換データ（OpenCC）を読み込めません。Rimeユーザフォルダのopenccフォルダを削除してから、AllInOneIMEを再インストールしてください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime: 번체용 변환 데이터(OpenCC)를 읽을 수 없습니다. Rime 사용자 폴더의 opencc 폴더를 삭제한 다음 AllInOneIME를 다시 설치하세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime: não é possível ler os dados dos caracteres tradicionais (OpenCC); remova a pasta opencc da pasta de usuário do Rime e reinstale o AllInOneIME"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime：繁體字的轉換資料（OpenCC）讀不出來；請刪除 Rime 使用者檔案夾裡的 opencc 檔案夾，再重新安裝 AllInOneIME"
+          }
+        }
+      }
+    },
+    "Rime: the data for Traditional characters (OpenCC) is missing; reinstall AllInOneIME, or choose Simplified under Settings → Input → Chinese → Characters" : {
+      "comment" : "Rime：缺少繁体字的转换数据（OpenCC）；请重新安装 AllInOneIME，或在设置 →「输入」→ 中文的「字形」里选「简体」 — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime: Die Daten für traditionelle Schriftzeichen (OpenCC) fehlen; installiere AllInOneIME neu oder wähle „Vereinfacht“ unter Einstellungen → Eingabe → Chinesisch → Schriftzeichen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime: faltan los datos de los caracteres tradicionales (OpenCC); reinstala AllInOneIME o elige Simplificado en Ajustes → Entrada → Chino → Caracteres"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime : les données des caractères traditionnels (OpenCC) manquent ; réinstallez AllInOneIME, ou choisissez Simplifié dans Réglages → Saisie → Chinois → Caractères"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime：繁体字の変換データ（OpenCC）がありません。AllInOneIMEを再インストールするか、設定 → 入力 → 中国語 → 字体で「簡体字」を選んでください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime: 번체용 변환 데이터(OpenCC)가 없습니다. AllInOneIME를 다시 설치하거나 설정 → 입력 → 중국어 → 자형에서 '간체'를 선택하세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime: faltam os dados dos caracteres tradicionais (OpenCC); reinstale o AllInOneIME ou escolha Simplificado em Ajustes → Entrada → Chinês → Caracteres"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime：缺少繁體字的轉換資料（OpenCC）；請重新安裝 AllInOneIME，或在設定 →「輸入」→ 中文的「字形」裡選「簡體」"
+          }
+        }
+      }
+    },
     "Role via %@" : {
       "comment" : "通过 %@ 的角色 — Sources/AllInOneIMECore/AWSProfiles.swift",
       "localizations" : {

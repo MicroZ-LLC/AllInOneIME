@@ -553,6 +553,13 @@ public enum Doctor {
 
     static func isResolvedLogEvent(_ line: String) -> Bool { line.hasPrefix(providedLunarDatabase) }
 
+    /// librime couldn't find, or couldn't read, OpenCC's data for Traditional characters (Settings → Input → Chinese →
+    /// Characters): the files the app carries and copies into the Rime folder's `opencc` (`RimeService.prepareOpenCC`),
+    /// missing (a build without them, a copy that failed) or not OpenCC's of librime's version (a file of the user's own
+    /// there, left as it is). With what to do: the app put back, or Simplified until then.
+    static let missingOpenCC = "Rime: the data for Traditional characters (OpenCC) is missing; reinstall AllInOneIME, or choose Simplified"
+    static let unreadableOpenCC = "Rime: the data for Traditional characters (OpenCC) can't be read; remove the Rime folder's opencc and reinstall"
+
     /// A line of `summarizeLogLines` as the findings show it: the lunar database's phrases and the count in the
     /// interface language (the other phrases stay in English, as the logs are).
     static func localizedLogEvent(_ line: String, _ t: Words) -> String {
@@ -566,6 +573,12 @@ public enum Doctor {
             event = t.tr("Rime：缺少所需文件 lua/lunar.db（农历日期）", "Rime: a file it needs is missing: lua/lunar.db (the lunar date)")
         case providedLunarDatabase:
             event = t.tr("之前运行 Rime 时缺少 lua/lunar.db；此版本已提供该文件", "Earlier Rime run: lua/lunar.db was missing; this version provides it")
+        case missingOpenCC:
+            event = t.tr("Rime：缺少繁体字的转换数据（OpenCC）；请重新安装 AllInOneIME，或在设置 →「输入」→ 中文的「字形」里选「简体」",
+                         "Rime: the data for Traditional characters (OpenCC) is missing; reinstall AllInOneIME, or choose Simplified under Settings → Input → Chinese → Characters")
+        case unreadableOpenCC:
+            event = t.tr("Rime：繁体字的转换数据（OpenCC）读不出来；请删掉 Rime 用户目录里的 opencc 文件夹，再重新安装 AllInOneIME",
+                         "Rime: the data for Traditional characters (OpenCC) can't be read; remove the opencc folder in the Rime user folder, then reinstall AllInOneIME")
         default: break
         }
         return event + (count.map { t.tr("，\($0) 次", ", \($0) times") } ?? "")
@@ -594,6 +607,9 @@ public enum Doctor {
                line.contains("non-existent file") || line.contains("Error opening reversedb") {
                 return missingLunarDatabase
             }
+            // The simplifier's (rime-ice's traditionalize): its config file not found, or OpenCC failing on it.
+            if message.contains("opencc config not found") { return missingOpenCC }
+            if message.contains("error initializing opencc") { return unreadableOpenCC }
             if message.contains("lookup") { return "Rime lookup failed" + reason }
             if message.contains("deploy") || source == "deployer" || source == "deployment_tasks" {
                 return "Rime deployment failed" + reason

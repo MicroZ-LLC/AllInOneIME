@@ -180,17 +180,21 @@ public final class EngineRime: @unchecked Sendable {
         return isReady
     }
 
-    /// Fuzzy pinyin's pairs (`Config.fuzzyPinyin`) as librime's patch of rime-ice's schema in the user folder, as the
-    /// Mac's `RimeFuzzy` writes it: before the deployment at the start, and when the settings change them, then
-    /// deployed again (a second or so, with the sessions dropped), once a deployment under way is done; `deployed`
-    /// after that, so that the Composers get new sessions. What it did; nil when it couldn't (logged).
+    /// Fuzzy pinyin's pairs (`Config.fuzzyPinyin`) and the characters Chinese is typed in (`characters`; Traditional ones
+    /// need OpenCC's data in the shared data's `opencc`, which this build doesn't carry yet) as librime's patch of
+    /// rime-ice's schema in the user folder, as the Mac's `RimeFuzzy` writes it: before the deployment at the start, and
+    /// when the settings change them, then deployed again (a second or so, with the sessions dropped), once a deployment
+    /// under way is done; `deployed` after that, so that the Composers get new sessions. What it did; nil when it
+    /// couldn't (logged).
     @discardableResult
-    public func applyFuzzyPinyin(_ ids: [String], deployed: (@Sendable () -> Void)? = nil) -> FuzzyPinyin.Outcome? {
+    public func applyFuzzyPinyin(_ ids: [String], characters: ChineseCharacters = .simplified,
+                                 deployed: (@Sendable () -> Void)? = nil) -> FuzzyPinyin.Outcome? {
         Self.lock.lock()
         defer { Self.lock.unlock() }
         let outcome: FuzzyPinyin.Outcome
         do {
-            outcome = try FuzzyPinyin.apply(ids, schema: location.sharedData.appendingPathComponent("rime_ice.schema.yaml"),
+            outcome = try FuzzyPinyin.apply(ids, characters: characters,
+                                            schema: location.sharedData.appendingPathComponent("rime_ice.schema.yaml"),
                                             userDir: userData)
         } catch {
             log("rime: couldn't write the fuzzy pinyin patch: \(error)")

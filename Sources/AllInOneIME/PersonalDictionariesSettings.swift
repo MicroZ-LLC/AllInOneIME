@@ -56,18 +56,18 @@ final class PersonalDictionariesModel: ObservableObject {
 
     func importDictionary(from source: URL, fuzzyPinyin: [String]) async {
         guard !isWorking, hasChinesePack else { return }
-        let store = dictionaryStore()
+        let store = dictionaryStore(), characters = LiveConfig.current.typedChinese
         await change(store: store) {
-            _ = try store.importDictionary(from: source, fuzzyPinyin: fuzzyPinyin)
+            _ = try store.importDictionary(from: source, fuzzyPinyin: fuzzyPinyin, characters: characters)
             return try store.list()
         }
     }
 
     func removeDictionary(named name: String, fuzzyPinyin: [String]) async {
         guard !isWorking, hasChinesePack else { return }
-        let store = dictionaryStore()
+        let store = dictionaryStore(), characters = LiveConfig.current.typedChinese
         await change(store: store) {
-            try store.removeDictionary(named: name, fuzzyPinyin: fuzzyPinyin)
+            try store.removeDictionary(named: name, fuzzyPinyin: fuzzyPinyin, characters: characters)
             return try store.list()
         }
     }
@@ -92,11 +92,13 @@ final class PersonalDictionariesModel: ObservableObject {
             return
         }
 
-        // A settings or iCloud change during parsing may have changed fuzzy pinyin. Reconcile the
+        // A settings or iCloud change during parsing may have changed fuzzy pinyin (or the characters). Reconcile the
         // latest saved choice before deployment, using the same writer that preserves these imports.
-        let currentFuzzy = LiveConfig.current.fuzzyPinyin
+        let currentFuzzy = LiveConfig.current.fuzzyPinyin, characters = LiveConfig.current.typedChinese
         do {
-            let outcome = try await Task.detached(priority: .utility) { try store.applyFuzzyPinyin(currentFuzzy) }.value
+            let outcome = try await Task.detached(priority: .utility) {
+                try store.applyFuzzyPinyin(currentFuzzy, characters: characters)
+            }.value
             if outcome == .userFile { throw PersonalDictionaryError.managedFile(FuzzyPinyin.fileName) }
         } catch {
             self.error = error.localizedDescription
