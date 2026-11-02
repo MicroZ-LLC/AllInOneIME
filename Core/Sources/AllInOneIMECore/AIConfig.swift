@@ -507,8 +507,11 @@ public enum AIConfig {
     /// version doesn't know too. Inside an object-valued key (`appProfiles` per app, `redaction` per field, `openai` …)
     /// only what changed from `old` to `config` is written (`merged`): a field written meanwhile by something else (a
     /// Settings window's save over the Assistant's write, or the other way round) and fields this version doesn't know stay.
-    /// `old` is the config the writer last read or wrote. A missing file is written whole (`Config.write`).
+    /// `old` is the config the writer last read or wrote. A missing file is written whole (`Config.write`): whether
+    /// there is one is decided under `fileLock` with the write, so a file another writer of this process made meanwhile
+    /// (an English word learned on a fresh install while Settings saves) is patched, never written over.
     public static func writing(_ config: Config, from old: Config, keys: Set<String>, at url: URL) throws {
+        fileLock.lock(); defer { fileLock.unlock() }
         guard FileManager.default.fileExists(atPath: url.path) else { return try config.write(to: url) }
         try writing(encoded(config), from: encoded(old), keys: keys, at: url)
     }
@@ -538,10 +541,11 @@ public enum AIConfig {
     }
 
     /// Held while this process reads the config file to change it and writes it back (`patchingFile`, `Config.write`,
-    /// `Config.change`, `applying`, `ICloudSync.writeConfig`, Settings' edits of the English words): English words are
+    /// `Config.change`, `applying`, `writing`, `ICloudSync.writeConfig`, Settings' edits of the English words), and
+    /// while it decides there is no file to write one whole (`writing`, `Config.writeIfMissing`): English words are
     /// learned into it on a queue of their own (`EnglishWords.Writer`), and with it no writer of the process writes
-    /// between another's read and its write, which would put back what the file had before the other's change.
-    /// Recursive: a writer holding it patches the file.
+    /// between another's read (or look) and its write, which would put back what the file had before the other's
+    /// change. Recursive: a writer holding it patches the file.
     public static let fileLock = NSRecursiveLock()
 
     /// The config file at `url` as a JSON object, `change` made to its top-level keys, and written back with only the

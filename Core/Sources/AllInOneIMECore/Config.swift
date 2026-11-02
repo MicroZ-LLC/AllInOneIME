@@ -770,6 +770,17 @@ public struct Config: Codable, Equatable, Sendable {
         try encoder.encode(self).write(to: url, options: .atomic)
     }
 
+    /// `self` written whole (`write`) where there is no file at `url` yet, decided under `AIConfig.fileLock` with the
+    /// write: a file another writer of this process made meanwhile (an English word learned on a fresh install,
+    /// `EnglishWords.Writer`) stays as it is. Whether it was written.
+    @discardableResult
+    public func writeIfMissing(to url: URL = defaultURL) throws -> Bool {
+        AIConfig.fileLock.lock(); defer { AIConfig.fileLock.unlock() }
+        guard !FileManager.default.fileExists(atPath: url.path) else { return false }
+        try write(to: url)
+        return true
+    }
+
     /// The config file at `url` changed by `change`, written as Settings saves (`SettingsStore.save`, `AIConfig.writing`):
     /// only the keys `change` changed, in place, every other key of the file as it was, its text too: a key this version
     /// doesn't know, an app's field it doesn't know, the custom commands it refused or keeps for a later version.
