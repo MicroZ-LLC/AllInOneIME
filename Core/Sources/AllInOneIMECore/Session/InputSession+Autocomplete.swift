@@ -88,8 +88,10 @@ extension InputSession {
         guard !suggestionsHoldTheCaret else { return false }
         let config = services.loadSettings()
         guard Autocomplete.isOn(in: app, config: config, stopped: services.autocomplete.stopped(in: app)) else { return false }
-        let info = FieldInfo(app: app, terminal: terminal, secure: field.secure || passwordField == true)
-        return Autocomplete.blocker(in: info, secureInput: secureInputActive(), config: config, composing: composer.isComposing,
+        // A password field where secure input isn't on as if it were (`fieldIsPrivate`: one not told yet may run, its
+        // read once the pause is over tells it).
+        let info = FieldInfo(app: app, terminal: terminal, secure: field.secure)
+        return Autocomplete.blocker(in: info, secureInput: fieldIsPrivate(unknown: false), config: config, composing: composer.isComposing,
                                     translating: composer.translateMode != nil) == nil
     }
 

@@ -115,15 +115,28 @@ public enum EnglishWords {
     /// learning off (`Config.learnsEnglishWords`). `config` is read only past those.
     public static func learns(_ typed: String, in field: FieldInfo, secureInput: Bool, config: () -> Config, offered: [String],
                               dictionary: EnglishDictionary, typedOnce: TypedOnce) -> Bool {
-        guard !secureInput, !field.secure, !field.terminal, !isRemote(field.app), !PasswordManagers.contains(field.app) else {
-            return false
-        }
-        let config = config()
-        return config.learnsEnglishWords && config.allowsAI(in: field.app)
-            && !dictionary.contains(typed)  // most words typed in English mode: told before the words offered are gone through
+        guard let config = learningConfig(in: field, secureInput: secureInput, config: config) else { return false }
+        return !dictionary.contains(typed)  // most words typed in English mode: told before the words offered are gone through
             && learnable(typed, known: Set(offered.map(key)), dictionary: dictionary, hidden: config.redaction.customWords,
                          fuzzy: config.fuzzyPinyin)
             && typedOnce.again(typed)
+    }
+
+    /// Whether anything typed in `field` may be learned (`learns`, before what was typed is looked at): not during
+    /// secure input or in a password field, a terminal, a remote desktop, a virtual machine, an SSH client or a
+    /// password manager, in an app with AI, with learning on. What a session asks before it learns anything in a field.
+    static func mayLearn(in field: FieldInfo, secureInput: Bool, config: () -> Config) -> Bool {
+        learningConfig(in: field, secureInput: secureInput, config: config) != nil
+    }
+
+    /// The settings, where what is typed in `field` may be learned (`mayLearn`); `config` read only past what the field
+    /// tells.
+    private static func learningConfig(in field: FieldInfo, secureInput: Bool, config: () -> Config) -> Config? {
+        guard !secureInput, !field.secure, !field.terminal, !isRemote(field.app), !PasswordManagers.contains(field.app) else {
+            return nil
+        }
+        let config = config()
+        return config.learnsEnglishWords && config.allowsAI(in: field.app) ? config : nil
     }
 
     /// Whether a word typed in English mode (`EnglishModeWords`: letters that went straight to the app, between a space or

@@ -241,7 +241,8 @@ public struct FieldContext: Equatable, Sendable {
         public static let beforeCaret = Parts(rawValue: 1 << 4)
         public static let text = Parts(rawValue: 1 << 5)
         /// Whether the field is a password field where secure input isn't on (the Mac: one Accessibility tells is an
-        /// `AXSecureTextField`), told in `field`'s `secure`: asked once a field, where suggestions may show.
+        /// `AXSecureTextField`), told in `field`'s `secure`: asked once a field, where suggestions may show or English
+        /// words may be learned.
         public static let passwordField = Parts(rawValue: 1 << 6)
         public static let all: Parts = [.secure, .markedText, .selectedRange, .selection, .beforeCaret, .text, .passwordField]
     }

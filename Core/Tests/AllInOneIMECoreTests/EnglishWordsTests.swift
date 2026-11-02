@@ -767,6 +767,50 @@ struct EnglishWordsSessionTests {
         }
     }
 
+    /// A password field secure input isn't on in (a web page's, an Electron app's), as the Mac's Accessibility tells
+    /// it: nothing typed there is learned, neither a password of letters put in as typed twice (a field to type it
+    /// again in) nor words typed in English mode, though autocomplete and suggestions are off and ask nothing of the
+    /// field. A key that types a letter asks whether it is one, once a field; until the shell tells, nothing is
+    /// learned.
+    @Test func neverInAPasswordFieldSecureInputIsntOnIn() async {
+        await withInterfaceLanguage("en") {
+            let learned = Learned()
+            let password = host(learned: learned)
+            (password.readsWhatIsWanted, password.passwordField) = (true, true)
+            putInTwice("frobnicate", password)
+            #expect(password.document == "frobnicatefrobnicate" && learned.words.isEmpty, "\(learned.words)")
+            password.modifiers(ModifierChange(key: .modifier(.shift, .left), modifiers: [.shift, .leftShift], timestamp: 100))
+            password.modifiers(ModifierChange(key: .modifier(.shift, .left), modifiers: [], timestamp: 100.1))
+            #expect(password.composer.inputLanguage == .english)
+            password.type("zorblax zorblax ok")
+            #expect(learned.words.isEmpty, "typed in English mode: \(learned.words)")
+
+            // Asked with a key that types a letter, once a field.
+            let field = host(learned: learned)
+            let f = KeyEvent(keyCode: 0, characters: "f")
+            #expect(field.session.fieldWants(for: f, given: FieldContext(read: .secure)).contains(.passwordField))
+            #expect(!field.session.fieldWants(for: FakeHost.enter, given: FieldContext(read: .secure)).contains(.passwordField))
+            field.press(f)
+            #expect(!field.session.fieldWants(for: f, given: FieldContext(read: .secure)).contains(.passwordField), "told: none")
+
+            // A shell that never tells: nothing is learned.
+            let untold = host(learned: learned)
+            for _ in 0..<2 {
+                for character in "frobnicate" {
+                    untold.press(KeyEvent(keyCode: 0, characters: String(character)), with: FieldContext(read: .secure))
+                }
+                untold.press(FakeHost.enter, with: FieldContext(read: .secure))
+            }
+            #expect(untold.document == "frobnicatefrobnicate" && learned.words.isEmpty, "\(learned.words)")
+
+            // Told it is none: learned.
+            let plain = host(learned: learned)
+            plain.readsWhatIsWanted = true
+            putInTwice("frobnicate", plain)
+            #expect(learned.words == ["frobnicate"])
+        }
+    }
+
     @Test func neverInATerminalARemoteDesktopOrAVirtualMachine() async {
         await withInterfaceLanguage("en") {
             let learned = Learned()
