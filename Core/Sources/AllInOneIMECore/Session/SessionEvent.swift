@@ -152,9 +152,13 @@ public enum PlatformAction: Equatable, Sendable {
     case startVoice(id: Int, language: Language)
     case stopVoice(id: Int)
     case cancelVoice(id: Int)
-    /// The paste-anywhere key (⌃V) to the app as it is, once the key being answered is done: posted marked as the input
-    /// method's own, so it goes through (clipboard history's image row: `ClipboardHistoryServices.canPassPasteKey`).
+    /// The app's own paste key, once the key being answered is done, posted marked as the input method's own so it goes
+    /// through (clipboard history's image on the clipboard, and ⌃V again: `ClipboardHistoryServices.canPassPasteKey`):
+    /// on the Mac ⌘V in an app, ⌃V in a terminal (Claude Code pastes an image on it; vim and the shell have their ⌃V).
     case passPasteKey
+    /// A kept image (`ClipboardHistoryImage.id`) pasted: put on the clipboard and the app's paste key posted, the clipboard
+    /// put back after; where the key can't be posted, left on the clipboard for the user's own paste (0.6.8.2).
+    case pasteImage(id: String)
 }
 
 /// Dictation `id`, as the platform hears it.

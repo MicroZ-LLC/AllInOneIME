@@ -25,8 +25,10 @@ import Foundation
 //   `SessionEvent.clipboard(content, id:)` (FakeHost answers it with its `clipboard` once the key is done, as the Mac
 //   does). Outside a command ⌃V also says `rowsTookKey` (a Chromium page keeps none of it). Then the panel
 //   (`SessionOutput.panel`, `InputSession.panelModel()`), its rows newest first: an image on the clipboard first
-//   ("Image on the clipboard"), else the clipboard's text first unless the history's newest is that text; then the
-//   history (`items`, newest first, at most `clipboardHistoryKept`), each text once; with `state` `.notAllowed`, last,
+//   ("Image on the clipboard") unless the history's newest is an image and the clipboard holds it still
+//   (`clipboardIsNewest`), else the clipboard's text first unless the history's newest is that text; then the
+//   history (`items`, newest first, at most `clipboardHistoryKept`: texts and kept images, 0.6.8.2), each once; with
+//   `state` `.notAllowed`, last,
 //   a row saying how to keep a history (`openPermission` on ⏎). The first row is chosen (`PanelModel.highlighted`). The
 //   clipboard's text counts only when it isn't blank and has no more than `ClipboardHistoryItem.maxLength` characters.
 //   Nothing to show (no text, no image, an empty history): no panel, the composer's `Messages.nothingToPaste` notice.
@@ -36,7 +38,10 @@ import Foundation
 //   or "on the clipboard" for the clipboard's text the history doesn't have ("5 chars · 5 min ago", "+2 lines · 2 hr
 //   ago", "5 chars · on the clipboard"); `label` "✓" on the rows selected with ⇧↓ ⇧↑ (else ""); no numbers; `choice` its
 //   index among all the rows. The image row: "Image on the clipboard", its comment "" where ⏎ can give ⌃V to the app (in
-//   a command, or `canPassPasteKey`, asked as the panel opens) and "⌃V again pastes it" where it can't. The permission
+//   a command, or `canPassPasteKey`, asked as the panel opens) and "⌃V again pastes it" where it can't. A kept image's
+//   row (0.6.8.2): "Image 1280 × 720", its comment how large it is and when it was copied ("2.4 MB · 2 min ago"; where
+//   ⏎ can't paste it, " · ⏎ puts it on the clipboard" after), its `icon` the thumbnail (`IconToken.Glyph.image`, else
+//   the image icon; the image on the clipboard has the image icon). The permission
 //   row: "To keep a history, allow Paste from Other Apps", "⏎ opens Privacy & Security", `pickable` false. 5 rows show
 //   at a time (`InputSession.shownSuggestionRows`), scrolled to keep the chosen one in view; `detail` "Clipboard", with
 //   several selected " · 3 selected" after it, with more rows than shown " · 1–5 / 20" last; a notice takes its place
@@ -47,8 +52,9 @@ import Foundation
 // - Keys while it shows (no other modifier; Caps Lock and the sides don't count): ↓ ↑ move the choice around the ends and
 //   end a selection; ⇧↓ ⇧↑ extend the selection from the row chosen when it started (stopping at the ends); ⏎, keypad
 //   Enter or Tab put in the selection (or the chosen row); → or Esc hide the panel (the composer's panel back in a
-//   command); ⌃V again hides it and gives ⌃V as it is: outside a command the key isn't handled (the app's), in one the
-//   composer has it (today's ⌃V). Each key the panel takes that puts nothing in says `rowsTookKey` first; one that puts
+//   command); ⌃V again hides it and pastes as the app does: outside a command, with `canPassPasteKey`, the app's own paste
+//   key (`PlatformAction.passPasteKey`, handled; 0.6.8.2), without it the key isn't handled (the app's ⌃V); in a command
+//   the composer has it (today's ⌃V). Each key the panel takes that puts nothing in says `rowsTookKey` first; one that puts
 //   text in, `rowByKey`. Any other key hides the panel and goes on as it would (digits are typed, never pick). The wheel
 //   (`SessionEvent.scroll`) moves the choice, stopping at the ends; a click (`SessionEvent.pick(index among those shown)`)
 //   puts that row in, alone.
@@ -58,8 +64,11 @@ import Foundation
 //   `SessionServices.pastesInTerminal`, else the lines made one, `Composer.oneLine`); the clipboard itself unchanged. In a
 //   command the composer takes it as ⌃V takes the clipboard (`Composer.pasteAnywhere(_:)`: lines made one, 2,000
 //   characters; `@note` keeps its lines, 20,000; `@reply` takes it as the message). The image row: outside a command,
-//   with `canPassPasteKey`, `PlatformAction.passPasteKey` (the shell posts ⌃V marked as its own), else only hides; in a
-//   command, today's ⌃V (`readClipboard` with the composer's id, the image read as `@reply` reads it). The permission row:
+//   with `canPassPasteKey`, `PlatformAction.passPasteKey` (the shell posts the app's paste key marked as its own: ⌘V in
+//   an app, ⌃V in a terminal), else only hides; in a command, today's ⌃V (`readClipboard` with the composer's id, the
+//   image read as `@reply` reads it). A kept image: outside a command `PlatformAction.pasteImage(id:)` (the shell pastes
+//   it, or leaves it on the clipboard where it can't post the key); in a command the composer takes its data
+//   (`imageData`) as ⌃V takes a screenshot; with texts selected (⇧↓ ⇧↑) only the texts go in. The permission row:
 //   `openPermission`, nothing put in. Leaving the field (`blur`, `close`, a click in it: `commit`) hides the panel.
 // - FakeHost (AllInOneIMETestSupport) keeps a history as the Mac does once `keepClipboardHistory()` is called:
 //   `clipboardHistory` (items, newest first), `clipboardHistoryState` (`.recording` by default), `passesPasteKey` (true),
@@ -67,16 +76,43 @@ import Foundation
 //   `clipboard` answers the reads. Keys: `controlV`, `down`, `up`, `right`, `shiftDown`, `shiftUp`, `enter`, `tab`,
 //   `escape`. Without `keepClipboardHistory()` its sessions have none (`.unavailable`): ⌃V as before.
 
-/// A text copied, as the shell kept it.
+/// An image copied (a screenshot, Copy Image), as the shell kept it (0.6.8.2): its data stays with the shell, read when
+/// it goes into a command (`ClipboardHistoryServices.imageData`).
+public struct ClipboardHistoryImage: Equatable, Hashable, Sendable {
+    /// The largest image kept, in bytes of its PNG: a larger one isn't recorded.
+    public static let maxBytes = 10 * 1024 * 1024
+
+    /// Which it is to the shell (the Mac: its data's SHA-256: the same image copied again is the same one).
+    public var id: String
+    public var width: Int
+    public var height: Int
+    public var bytes: Int
+    /// A small picture of it the panel's row draws (the Mac: a PNG file's path); nil: an image icon.
+    public var thumbnail: String?
+
+    public init(id: String, width: Int, height: Int, bytes: Int, thumbnail: String? = nil) {
+        (self.id, self.width, self.height, self.bytes, self.thumbnail) = (id, width, height, bytes, thumbnail)
+    }
+}
+
+/// A copy as the shell kept it: a text, or an image (`image`; its `text` is empty then).
 public struct ClipboardHistoryItem: Equatable, Hashable, Sendable {
     /// The most text one copy may have to be kept, in characters: a longer one isn't recorded.
     public static let maxLength = 100_000
 
     public var text: String
+    public var image: ClipboardHistoryImage?
     public var copiedAt: Date
 
     public init(text: String, copiedAt: Date) {
         self.text = text
+        self.image = nil
+        self.copiedAt = copiedAt
+    }
+
+    public init(image: ClipboardHistoryImage, copiedAt: Date) {
+        self.text = ""
+        self.image = image
         self.copiedAt = copiedAt
     }
 }
@@ -108,16 +144,24 @@ public struct ClipboardHistoryServices {
     public var openPermission: () -> Void
     /// The time now, how long ago each was copied goes by.
     public var now: () -> Date
+    /// A kept image's data (`ClipboardHistoryImage.id`), for a command (`@reply` reads it as a screenshot); nil: gone.
+    public var imageData: (String) -> Data?
+    /// Whether what's on the clipboard now is the history's newest (the copy recorded last, unchanged since): an image
+    /// there then has its kept row only, not "Image on the clipboard" besides.
+    public var clipboardIsNewest: () -> Bool
 
     public init(state: @escaping () -> ClipboardHistoryState = { .unavailable }, items: @escaping () -> [ClipboardHistoryItem] = { [] },
                 canPassPasteKey: @escaping () -> Bool = { false }, firstShowing: @escaping () -> Bool = { false },
-                openPermission: @escaping () -> Void = {}, now: @escaping () -> Date = { Platform.current.clock.now }) {
+                openPermission: @escaping () -> Void = {}, now: @escaping () -> Date = { Platform.current.clock.now },
+                imageData: @escaping (String) -> Data? = { _ in nil }, clipboardIsNewest: @escaping () -> Bool = { false }) {
         self.state = state
         self.items = items
         self.canPassPasteKey = canPassPasteKey
         self.firstShowing = firstShowing
         self.openPermission = openPermission
         self.now = now
+        self.imageData = imageData
+        self.clipboardIsNewest = clipboardIsNewest
     }
 }
 

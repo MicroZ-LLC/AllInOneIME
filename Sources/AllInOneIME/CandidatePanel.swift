@@ -663,7 +663,12 @@ final class CandidateView: NSView {
     /// A white symbol on a colored rounded square (a missing symbol: a generic one), or an emoji.
     static func draw(_ icon: Icon, in frame: NSRect) {
         if let path = icon.image, let image = CommandIcons.image(path) {
-            image.draw(in: frame, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+            // Kept as it is shaped (clipboard history's thumbnails: a screenshot is wide), centered in the square.
+            let size = image.size
+            let scale = size.width > 0 && size.height > 0 ? min(frame.width / size.width, frame.height / size.height) : 1
+            let fitted = NSSize(width: size.width * scale, height: size.height * scale)
+            let rect = NSRect(x: frame.midX - fitted.width / 2, y: frame.midY - fitted.height / 2, width: fitted.width, height: fitted.height)
+            image.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
             return
         }
         if let emoji = icon.emoji {

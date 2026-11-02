@@ -1,4 +1,6 @@
+import AllInOneIMECore
 import AllInOneIMEMac
+import AppKit
 import Foundation
 import Testing
 
@@ -14,6 +16,7 @@ struct ClipboardHistoryRecordingTests {
         var access = ClipboardAccess.allowed
         var copiedTypes: [String] = []
         var copiedText: String?
+        var copiedImage: ClipboardImage?
         private(set) var reads = 0
 
         var types: [String] {
@@ -26,9 +29,20 @@ struct ClipboardHistoryRecordingTests {
             return copiedText
         }
 
+        func image() -> ClipboardImage? {
+            reads += 1
+            return copiedImage
+        }
+
+        /// An image copied (a screenshot: PNG first, no text).
+        func copy(image: ClipboardImage, types: [String] = ["public.png"]) {
+            (copiedImage, copiedText, copiedTypes) = (image, nil, types)
+            changeCount += 1
+        }
+
         /// `text` copied, with `types` (plain text's by default).
         func copy(_ text: String?, types: [String] = ["public.utf8-plain-text"]) {
-            (copiedText, copiedTypes) = (text, types)
+            (copiedText, copiedTypes, copiedImage) = (text, types, nil)
             changeCount += 1
         }
     }
@@ -48,6 +62,7 @@ struct ClipboardHistoryRecordingTests {
             clock += 1
             return clock
         })
+        recorder.imageWork = { prepare, done in done(prepare()) }  // at once, not off the main thread
         return (recorder, pasteboard)
     }
 
@@ -205,5 +220,166 @@ struct ClipboardHistoryRecordingTests {
         #expect(store.items.isEmpty)
         store.record("new", at: Date(), limit: 20)
         #expect(ClipboardHistoryStore(url: url).items.map(\.text) == ["new"])
+    }
+
+    // MARK: - Images (0.6.8.2)
+
+    /// A PNG `width` × `height` pixels, of `shade`.
+    static func png(_ width: Int, _ height: Int, shade: CGFloat = 0.5) -> ClipboardImage {
+        let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: width, pixelsHigh: height, bitsPerSample: 8,
+                                      samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+                                      bytesPerRow: 0, bitsPerPixel: 0)!
+        for x in 0..<width { for y in 0..<height { bitmap.setColor(NSColor(deviceRed: shade, green: shade, blue: 1 - shade, alpha: 1), atX: x, y: y) } }
+        return ClipboardImage(data: bitmap.representation(using: .png, properties: [:])!, width: width, height: height)
+    }
+
+    @Test func anImageCopiedIsKeptWithAThumbnailInFilesOfTheUsersOnly() throws {
+        let folder = try Self.folder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let (recorder, pasteboard) = Self.recorder(in: folder)
+        pasteboard.copy("a text")
+        #expect(recorder.poll(limit: 20) == .recorded)
+        let shot = Self.png(400, 200)
+        pasteboard.copy(image: shot)
+        #expect(recorder.poll(limit: 20) == .recorded)
+        let image = try #require(recorder.store.items.first?.image)
+        #expect(image.width == 400 && image.height == 200 && image.bytes == shot.data.count)
+        #expect(recorder.store.items.map(\.text) == ["", "a text"])
+        #expect(recorder.store.imageData(image.id) == shot.data)
+        let thumbnail = try #require(image.thumbnail)
+        let thumb = try #require(NSBitmapImageRep(data: try Data(contentsOf: URL(fileURLWithPath: thumbnail))))
+        #expect(thumb.pixelsWide == 96 && thumb.pixelsHigh == 48, "\(thumb.pixelsWide)×\(thumb.pixelsHigh)")
+        for file in [recorder.store.url.path, thumbnail, recorder.store.imagesURL.appendingPathComponent("\(image.id).png").path] {
+            let mode = try FileManager.default.attributesOfItem(atPath: file)[.posixPermissions] as? Int
+            #expect(mode == 0o600, "\(file): \(String(mode ?? 0, radix: 8))")
+        }
+        let folderMode = try FileManager.default.attributesOfItem(atPath: recorder.store.imagesURL.path)[.posixPermissions] as? Int
+        #expect(folderMode == 0o700, "the images' folder: \(String(folderMode ?? 0, radix: 8))")
+        #expect(recorder.store.imagesURL.lastPathComponent == "clipboard-history-images", "named after the list's file")
+        #expect(try recorder.store.imagesURL.resourceValues(forKeys: [.isExcludedFromBackupKey]).isExcludedFromBackup == true)
+        #expect(recorder.clipboardIsNewest, "the clipboard holds the newest copy still")
+        // Read again from the file, as the next launch does.
+        let again = ClipboardHistoryStore(url: recorder.store.url)
+        #expect(again.items.first?.image == image && again.items.count == 2)
+    }
+
+    @Test func theSameImageAgainMovesUpAndAnImageDroppedIsDeleted() throws {
+        let folder = try Self.folder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let (recorder, pasteboard) = Self.recorder(in: folder)
+        let (first, second) = (Self.png(10, 10, shade: 0.2), Self.png(10, 10, shade: 0.8))
+        pasteboard.copy(image: first)
+        recorder.poll(limit: 2)
+        pasteboard.copy(image: second)
+        recorder.poll(limit: 2)
+        pasteboard.copy(image: first)
+        #expect(recorder.poll(limit: 2) == .recorded)
+        #expect(recorder.store.items.count == 2, "each image once")
+        let firstID = try #require(recorder.store.items.first?.image?.id)
+        let secondID = try #require(recorder.store.items.last?.image?.id)
+        pasteboard.copy("a text")
+        recorder.poll(limit: 2)
+        #expect(recorder.store.items.map(\.text) == ["a text", ""])
+        #expect(recorder.store.imageData(secondID) == nil, "the oldest dropped beyond the limit")
+        let files = try FileManager.default.contentsOfDirectory(atPath: recorder.store.imagesURL.path).sorted()
+        #expect(files == ["\(firstID)-thumb.png", "\(firstID).png"].sorted(), "\(files)")
+        recorder.store.clear()
+        #expect(!FileManager.default.fileExists(atPath: recorder.store.imagesURL.path), "Clear deletes the images too")
+    }
+
+    @Test func anImageIsNeverRecordedWhereATextWouldntBe() throws {
+        let folder = try Self.folder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        var secure = false
+        let (recorder, pasteboard) = Self.recorder(in: folder, secure: { secure })
+        pasteboard.copy(image: Self.png(8, 8), types: ["public.png", "org.nspasteboard.ConcealedType"])
+        #expect(recorder.poll(limit: 20) == .marked)
+        secure = true
+        pasteboard.copy(image: Self.png(8, 8))
+        #expect(recorder.poll(limit: 20) == .secureInput)
+        secure = false
+        recorder.poll(limit: 20)
+        let huge = ClipboardImage(data: Data(count: ClipboardHistoryImage.maxBytes + 1), width: 1, height: 1)
+        pasteboard.copy(image: huge)
+        #expect(recorder.poll(limit: 20) == .tooLong)
+        #expect(!recorder.clipboardIsNewest, "an image not kept is never the newest")
+        pasteboard.access = .asks
+        pasteboard.copy(image: Self.png(8, 8))
+        #expect(recorder.poll(limit: 20) == .notAllowed)
+        #expect(recorder.store.items.isEmpty)
+    }
+
+    @Test func anImageThatCantBeWrittenIsNotKeptNorTheNewest() throws {
+        let folder = try Self.folder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let (recorder, pasteboard) = Self.recorder(in: folder)
+        pasteboard.copy("a text")
+        recorder.poll(limit: 20)
+        #expect(recorder.clipboardIsNewest)
+        // A file where the images' folder goes: it can't be made.
+        try Data().write(to: recorder.store.imagesURL)
+        pasteboard.copy(image: Self.png(8, 8))
+        #expect(recorder.poll(limit: 20) == .notSaved)
+        #expect(!recorder.clipboardIsNewest, "the clipboard holds an image the history doesn't have")
+        #expect(recorder.store.items.map(\.text) == ["a text"])
+    }
+
+    @Test func anImageWhoseFileIsGoneIsGoneFromTheList() throws {
+        let folder = try Self.folder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let (recorder, pasteboard) = Self.recorder(in: folder)
+        pasteboard.copy(image: Self.png(8, 8))
+        recorder.poll(limit: 20)
+        pasteboard.copy("a text")
+        recorder.poll(limit: 20)
+        let id = try #require(recorder.store.items.last?.image?.id)
+        try FileManager.default.removeItem(at: recorder.store.imagesURL.appendingPathComponent("\(id).png"))
+        let again = ClipboardHistoryStore(url: recorder.store.url)
+        #expect(again.items.map(\.text) == ["a text"], "read again at the next launch")
+    }
+
+    @Test func aLowerLimitDeletesTheImagesDropped() throws {
+        let folder = try Self.folder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let (recorder, pasteboard) = Self.recorder(in: folder)
+        pasteboard.copy(image: Self.png(8, 8, shade: 0.1))
+        recorder.poll(limit: 20)
+        pasteboard.copy(image: Self.png(8, 8, shade: 0.9))
+        recorder.poll(limit: 20)
+        let (newer, older) = (try #require(recorder.store.items.first?.image?.id), try #require(recorder.store.items.last?.image?.id))
+        recorder.store.trim(to: 1)
+        let files = try FileManager.default.contentsOfDirectory(atPath: recorder.store.imagesURL.path)
+        #expect(files.allSatisfy { $0.hasPrefix(newer) } && !files.contains { $0.hasPrefix(older) }, "\(files)")
+    }
+
+    @Test func anImageMadeReadyLateGoesWhereItWasCopied() throws {
+        let folder = try Self.folder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let (recorder, pasteboard) = Self.recorder(in: folder)
+        // Its preparation held back until a text copied after it was recorded.
+        var held: (() -> Void)?
+        recorder.imageWork = { prepare, done in held = { done(prepare()) } }
+        pasteboard.copy(image: Self.png(8, 8))
+        #expect(recorder.poll(limit: 20) == .imageQueued)
+        pasteboard.copy("copied after the image")
+        recorder.poll(limit: 20)
+        held?()
+        #expect(recorder.store.items.map(\.text) == ["copied after the image", ""], "\(recorder.store.items.map(\.text))")
+        #expect(recorder.clipboardIsNewest, "the text is the clipboard's still, and the newest")
+    }
+
+    @Test func anImageMadeReadyAfterAClearIsNotKept() throws {
+        let folder = try Self.folder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let (recorder, pasteboard) = Self.recorder(in: folder)
+        var held: (() -> Void)?
+        recorder.imageWork = { prepare, done in held = { done(prepare()) } }
+        pasteboard.copy(image: Self.png(8, 8))
+        #expect(recorder.poll(limit: 20) == .imageQueued)
+        recorder.store.clear()
+        held?()
+        #expect(recorder.store.items.isEmpty, "Clear History meanwhile: not added after it")
+        let files = (try? FileManager.default.contentsOfDirectory(atPath: recorder.store.imagesURL.path)) ?? []
+        #expect(files.isEmpty, "its files deleted: \(files)")
     }
 }
