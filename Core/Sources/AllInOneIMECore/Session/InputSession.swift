@@ -111,6 +111,10 @@ public final class InputSession {
     private var lastInserted: String?
     /// The command list as last built from the settings and the extensions.
     private var catalog = CatalogCache()
+    /// The focus count the plugins were last looked for again in (`pluginsRescanned`), and the plugins the session had
+    /// then.
+    private var pluginsRescannedIn = -1
+    private var pluginsTaken: [InstalledPlugin] = []
     /// The commands whose programs were last checked (`setCommands`), and those whose program is missing; a check that
     /// ended while a command was being written applies once it's done; the latest check.
     private var checkedCommands: [Command] = []
@@ -496,7 +500,7 @@ public final class InputSession {
         }
         (typeOutRate, typeOutVaries, typeOutMistakes) = (config.typeOutRate, config.typeOutVaries, config.typeOutMistakes)
         applyAgent(config)  // before the program check: it's the agent's program `@agent` needs
-        setCommandList(catalog.catalog(config.customCommands, plugins: services.plugins(true), index: services.loadExtensions(config, true),
+        setCommandList(catalog.catalog(config.customCommands, plugins: pluginsRescanned(), index: services.loadExtensions(config, true),
                                        disabled: config.disabledExtensions, hidden: config.hiddenFromCommandList).commands, recheck: true)
         // The interface language (config `uiLanguage`, else the system's) for the panel, notices and menu.
         UIText.choice = config.uiLanguage
@@ -586,6 +590,38 @@ public final class InputSession {
                                                       installed: { installed($0, config.agentCommand) })
         composer.pickedAgent = installed(config.agent, config.agentCommand) ? config.agent : nil
         composer.chatMessages = .make(language: UIText.language)
+    }
+
+    /// The plugins as last looked for; looked for again once a field takes the focus (one installed or removed shows up
+    /// there): in the background where the shell can (`SessionServices.rescanPlugins`, once a focus), what it found taken
+    /// in once it's done (`pluginsScanned`): the keys meanwhile have the commands as they were.
+    private func pluginsRescanned() -> [InstalledPlugin] {
+        guard let rescan = services.rescanPlugins else { return services.plugins(true) }
+        if pluginsRescannedIn != fieldSession {
+            pluginsRescannedIn = fieldSession
+            let post = tasks.poster()
+            rescan { post(.pluginsScanned) }
+        }
+        pluginsTaken = services.plugins(false)
+        return pluginsTaken
+    }
+
+    /// The plugins were looked for again (`pluginsRescanned`): what changed taken in as the focus would have: the command
+    /// list made again (unless something is composed: the next key after it makes it), suggestions' sources (a plugin
+    /// updated is turned on again, `suggestionsSettingsChanged`).
+    private func pluginsScanned() {
+        let plugins = services.plugins(false)
+        guard plugins != pluginsTaken else { return }
+        pluginsTaken = plugins
+        if !composer.isComposing {
+            let config = services.loadSettings()
+            let (commands, changed) = catalog.catalog(config.customCommands, plugins: plugins,
+                                                      index: services.loadExtensions(config, false),
+                                                      disabled: config.disabledExtensions, hidden: config.hiddenFromCommandList)
+            if changed { setCommandList(commands, recheck: false) }
+        }
+        log.notice("plugins looked for again: \(plugins.count)")
+        suggestionsSettingsChanged()
     }
 
     /// Whether the agent changed since its program was last checked (`setCommands`).
@@ -1256,6 +1292,8 @@ public final class InputSession {
             autocompleteAnswered(result, request: request)
         case .completionsAnswered:
             suggestionsAnswered()
+        case .pluginsScanned:
+            pluginsScanned()
         }
     }
 

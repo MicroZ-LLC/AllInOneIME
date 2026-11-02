@@ -119,6 +119,10 @@ public struct SessionServices {
                                          _ say: @escaping (String) -> Void) -> Void
     /// The installed plugins (`rescan`: a text field became active: looked for again).
     public var plugins: (_ rescan: Bool) -> [InstalledPlugin]
+    /// The plugins looked for again off the session's thread (a text field became active: one installed or removed shows
+    /// up there; looking hashes their files), `scanned` told from any thread once they are: `plugins(false)` gives them
+    /// then. Nil: the session asks `plugins(true)` (a shell where that's quick, a test's).
+    public var rescanPlugins: ((_ scanned: @escaping @Sendable () -> Void) -> Void)?
     /// The status line of a script extension the command list shows (`ScriptCommand.status`), and running those that are
     /// due: `environment` gives each its environment, `ended` (from any thread) says one ended.
     public var scriptStatus: (ScriptCommand) -> String?

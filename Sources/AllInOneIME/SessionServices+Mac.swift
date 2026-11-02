@@ -39,6 +39,8 @@ extension SessionServices {
         services.usableLanguages = { LanguagePackManager.shared.usable($0) }
         services.voiceSupported = { VoiceInput.isSupported }
         services.plugins = { LivePlugins.current(rescan: $0) }
+        // A field that takes the focus has them as last scanned at once, scanned again in the background.
+        services.rescanPlugins = { scanned in LivePlugins.rescan(scanned: scanned) }
         services.scriptStatus = { command in MainActor.assumeIsolated { ScriptStatus.shared.text(for: command) } }
         services.refreshStatuses = { shown, environment, ended in
             MainActor.assumeIsolated { ScriptStatus.shared.refresh(shown, environment: environment, ended: ended) }
