@@ -617,13 +617,16 @@ final class AllInOneIMEInputController: IMKInputController {
     /// over as usual); else answered here as when the app hands it over (`handleKeyDown`): true, the tap keeps it from the
     /// app; false, it goes on to the app, which hands it over again and has the same answer (`KeyEchoes`). Ours while this
     /// is the field being typed in, nothing of ours is marked in it (marked text keeps keys from any app already), and a
-    /// panel shows (suggestion rows, clipboard history's) or the key is ⌃V (which opens clipboard history's).
+    /// panel shows (suggestion rows, clipboard history's), this field's autocomplete suggestion shows after the caret
+    /// (`GhostOverlay`: its Esc and Tab, which a Chromium page acted on too), or the key is ⌃V (which opens clipboard
+    /// history's).
     @MainActor
     func keyAtTap(_ event: NSEvent) -> Bool? {
         guard !hasMarkedText, let client = client() else { return nil }
         // ⌃ alone of the four (a key posted by another program carries other bits besides).
         let controlV = event.keyCode == 0x09 && event.modifierFlags.intersection([.command, .option, .control, .shift]) == .control
-        guard CandidatePanel.shared.isShowing || controlV else { return nil }
+        let ghost = GhostOverlay.shared.isVisible && GhostOverlay.shared.owner === self
+        guard CandidatePanel.shared.isShowing || ghost || controlV else { return nil }
         atTap = true
         defer { atTap = false }
         return handleKeyDown(event, client: client)

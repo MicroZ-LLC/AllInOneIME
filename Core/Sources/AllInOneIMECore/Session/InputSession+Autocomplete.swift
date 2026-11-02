@@ -126,7 +126,10 @@ extension InputSession {
     /// Before the composer has `event`. Every key ends the pause and stops the request; ⌘Z right after a Tab takes the
     /// suggestion back (`autocompleteTakenBack`).
     /// With a suggestion up: Tab puts it in (true), or goes to the app as it would (`Autocomplete.tab`: ⇧Tab, ⌥Tab, a Tab
-    /// right as it came up) and the suggestion goes; Esc takes it down (true). Nil: the key goes on.
+    /// right as it came up) and the suggestion goes; Esc takes it down (true). Nil: the key goes on. A key it takes is the
+    /// input method's, as the rows' are: Tab says a row goes in (`SessionOutput.rowByKey`), Esc that it puts nothing in
+    /// (`rowsTookKey`), so a shell whose app would act on it as well (Chromium's: Esc closed Slack's thread, a single
+    /// character put in left Tab to the page) keeps it from doing so.
     func autocompleteBeforeKey(_ event: KeyEvent) -> Bool? {
         guard autocomplete.active || autocomplete.suggestion != nil || autocomplete.taken != nil else { return nil }
         let now = services.uptime()
@@ -150,6 +153,7 @@ extension InputSession {
             }
             // As the input method's own commits go in: what was typed before it in English mode is the start of a word,
             // never one (`EnglishModeWords`).
+            emit(.rowByKey)
             perform([.commit(suggestion.text)])
             suggestionsGhostTaken(suggestion.text)
             autocompleteEnded(.accepted)
@@ -164,6 +168,7 @@ extension InputSession {
         if event.key == .escape, event.modifiers.subtracting(.capsLock).subtracting(.sides).isEmpty {
             // Not this one: in this app it isn't shown again for this text (before and after the caret), nor as it's typed
             // along, whether kept or said again by the model (`Autocomplete.Cache.reject`).
+            emit(.rowsTookKey)
             services.autocomplete.reject(suggestion.kept)
             autocompleteEnded(.dismissed)
             return true

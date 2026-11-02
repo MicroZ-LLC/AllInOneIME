@@ -1245,6 +1245,35 @@ struct AutocompleteTests {
         }
     }
 
+    /// The keys it takes are the input method's, as the rows' are (`SuggestionsScrollTests.theKeysTheRowsTakeSaySo`), for
+    /// a shell whose app would act on them as well (Chromium's: Esc closed Slack's thread, a single character put in left
+    /// Tab to the page): Esc says it puts nothing in (`rowsTookKey`), first; Tab says a row goes in (`rowByKey`) before
+    /// its text, one character or more; a key it leaves to the app says neither.
+    @Test func theKeysItTakesSaySo() async {
+        await withInterfaceLanguage("en") {
+            func press(_ key: KeyEvent, suggested: String) -> (handled: Bool, outputs: [SessionOutput]) {
+                let r = rig(model: ContinuingModel { _ in suggested })
+                r.host.type("Hello wor")
+                r.pauseEnds(expecting: "x")
+                #expect(r.host.ghost == suggested)
+                r.clock.advance(0.5)
+                let before = r.host.outputs.count
+                let handled = r.host.press(key)
+                return (handled, Array(r.host.outputs.dropFirst(before)))
+            }
+            let esc = press(FakeHost.escape, suggested: "ld, how are you?")
+            #expect(esc.handled && esc.outputs.first == .rowsTookKey && !esc.outputs.contains(.rowByKey), "\(esc.outputs)")
+            for suggested in ["ld, how are you?", "d"] {
+                let tab = press(FakeHost.tab, suggested: suggested)
+                let row = tab.outputs.firstIndex(of: .rowByKey), commit = tab.outputs.firstIndex(of: .commit(suggested))
+                #expect(tab.handled && row != nil && commit != nil && row! < commit!, "\(suggested): \(tab.outputs)")
+                #expect(!tab.outputs.contains(.rowsTookKey), "\(suggested): \(tab.outputs)")
+            }
+            let right = press(KeyEvent(keyCode: VirtualKey.right, characters: "\u{F703}"), suggested: "ld, how are you?")
+            #expect(!right.handled && !right.outputs.contains(.rowsTookKey) && !right.outputs.contains(.rowByKey), "\(right.outputs)")
+        }
+    }
+
     @Test func typingAlongTakesItOnAndToItsEnd() async {
         await withInterfaceLanguage("en") {
             let r = rig()

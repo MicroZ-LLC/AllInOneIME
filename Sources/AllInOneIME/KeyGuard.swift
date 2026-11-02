@@ -10,9 +10,10 @@ import os
 ///
 /// So the keys are taken before any app sees them: a session event tap (`CGEvent.tapCreate`), on while this input
 /// method is the one in use (`AllInOneIMEInputController.activeController`), hands each key down to the input
-/// controller itself (`keyAtTap`) while a panel shows with nothing marked, and ⌃V always; the key goes no further when
-/// the controller took it (and its key up neither), and on as usual when it didn't (the controller answers the same key
-/// handed over again by the app as it did here: `KeyEchoes`). Every app, whatever it's built with, the same.
+/// controller itself (`keyAtTap`) while a panel or its field's autocomplete suggestion (Esc, Tab) shows with nothing
+/// marked, and ⌃V always; the key goes no further when the controller took it (and its key up neither), and on as usual
+/// when it didn't (the controller answers the same key handed over again by the app as it did here: `KeyEchoes`). Every
+/// app, whatever it's built with, the same.
 ///
 /// The tap is on only while this input method is in use (a field of its own attached): with another input method no key
 /// of any app waits on this process.
