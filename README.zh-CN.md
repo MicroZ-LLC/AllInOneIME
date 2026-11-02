@@ -310,7 +310,8 @@ fi
 
 用程序加自己的命令：任何语言的脚本（bash、Python、Node、Swift……），注释里写几行元数据。放进
 `~/.config/allinoneime/extensions`，或者在 设置 →「命令」→「脚本扩展」里添加的文件夹。Raycast 的脚本命令不用改就能用，
-已经放着它们的文件夹会用聚焦（Spotlight）自动找到。
+已经放着它们的文件夹会用聚焦（Spotlight）自动找到。自动找到的文件夹里只载入 Raycast 脚本，而且只载入有执行权限、不是从网上下载的，
+也不显示状态行；一个这样的脚本都没有的文件夹不会被找到（设置里也不会提到它），要用就添加它（[docs/extensions.md](docs/extensions.md)）。
 
 ```bash
 #!/bin/bash

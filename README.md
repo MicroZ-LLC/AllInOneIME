@@ -367,7 +367,9 @@ link: `@sig` ⏎ puts it in at once (Tab or Space only complete the name). Its `
 Add your own commands as programs: a script in any language (bash, Python, Node, Swift, …) with a few lines of
 metadata in its comments. Put it in `~/.config/allinoneime/extensions`, or in a folder you add under Settings →
 Commands → Script Extensions. Raycast Script Commands work as they are, and folders that already hold them are
-found with Spotlight.
+found with Spotlight. From a found folder only its Raycast scripts load, and only those that are executable and weren't
+downloaded from the internet, with no status line; a folder holding none of those isn't found (nothing about it shows in
+Settings): add it to use it ([docs/extensions.md](docs/extensions.md)).
 
 ```bash
 #!/bin/bash

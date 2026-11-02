@@ -35,10 +35,13 @@ A folder you add (and the first one) is read whole, as below. From a folder Spot
 Commands are taken: its `@allinoneime.` scripts and bundles are left alone, since a found folder may be any copy of
 anything that holds a Raycast script (a second checkout of a repository, a backup, a zip unpacked in Downloads). Nobody
 looked at such a folder, so a script loads from it only when it is executable (`chmod +x`, as Raycast wants it) and
-wasn't downloaded from the internet (macOS's quarantine mark, `com.apple.quarantine`); one left out says why in
-Settings. And none of it runs before you choose it: a `mode inline` script with `refreshTime` has no status line there.
-To use all of such a folder, add it. Each search replaces the folders found before, so one removed, or no longer holding
-a Raycast script, drops out of the list.
+wasn't downloaded from the internet (macOS's quarantine mark, `com.apple.quarantine`). The search finds only a folder
+holding at least one Raycast script that loads: a folder whose Raycast scripts are all left out this way isn't found at
+all, so it isn't in Settings' list of folders and nothing is said of it there. In a folder that is found, a script left
+out this way is listed as left out, and why (§7). And nothing of a found folder runs before you choose it: its scripts
+get no status line (a `mode inline` script with `refreshTime` runs only when you pick it). To use all of such a folder,
+add it. Each search replaces the folders found before, so one removed, or no longer holding a Raycast script that loads,
+drops out of the list.
 
 A script, or a bundle, that is byte for byte the same as one read before it under the same name (its `extension.json`
 and the scripts it lists, for a bundle) is a copy: it's left out quietly, and Settings says only "Skipped N identical
