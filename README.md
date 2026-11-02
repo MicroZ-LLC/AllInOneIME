@@ -445,7 +445,8 @@ The config keeps them as `extensionSources`; the repository layout is in [docs/e
 
 Plugins are ready-made `@` commands for things not everyone needs, like `@stock AAPL 600519 700` for stock quotes.
 Installed, they work like any command; Settings → Commands → Plugins shows what's installed and where each sends your
-text, and removes them. Plugins are JavaScript run in a separate process: they can reach only the websites they declare
+text, and removes them (a removed plugin's folder goes to the Trash).
+Plugins are JavaScript run in a separate process: they can reach only the websites they declare
 (HTTPS), and can't read files or run other programs. "Browse Library…" under Plugins installs them
 from the [plugin library](https://github.com/MicroZ-LLC/AllInOneIME-plugins): it shows which websites a plugin
 contacts before installing; the library's index is signed and every file must match it. A newer version shows an

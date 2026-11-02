@@ -311,6 +311,34 @@ public struct SystemFileOps: FileOps {
     }
 }
 
+/// The system's file operations with a Trash of the caller's own, a folder (made as needed): what tests and the
+/// self-test move to the Trash goes there, never to the user's, and can be looked for.
+public struct FolderTrashFileOps: FileOps {
+    public var folder: URL
+    let system = SystemFileOps()
+
+    public init(trash folder: URL) { self.folder = folder }
+
+    public func swap(_ source: URL, into destination: URL, exists: Bool) throws { try system.swap(source, into: destination, exists: exists) }
+    public func recoverInterruptedSwaps(in folder: URL) { system.recoverInterruptedSwaps(in: folder) }
+    public func writePrivate(_ data: Data, to url: URL, stagingIn staging: URL?) throws {
+        try system.writePrivate(data, to: url, stagingIn: staging)
+    }
+    public func modificationDate(atPath path: String) -> Date? { system.modificationDate(atPath: path) }
+    public func isQuarantined(_ url: URL) -> Bool { system.isQuarantined(url) }
+
+    /// `url` moved into `folder`, under its own name (with a number when that is taken there).
+    public func trash(_ url: URL) throws {
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        var name = url.lastPathComponent, n = 1
+        while FileManager.default.fileExists(atPath: folder.appendingPathComponent(name).path) {
+            n += 1
+            name = "\(url.lastPathComponent) \(n)"
+        }
+        try FileManager.default.moveItem(at: url, to: folder.appendingPathComponent(name))
+    }
+}
+
 #if os(Windows)
 extension SystemFileOps {
     /// `url`'s path as Windows' wide-character calls take it ("C:\…").

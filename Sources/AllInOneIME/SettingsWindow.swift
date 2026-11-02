@@ -2334,7 +2334,11 @@ struct SettingsView: View {
                 pluginToRemove = nil
             }
         } message: {
-            if let plugin = pluginToRemove { Text(model.config.commandTrigger + plugin.name) }
+            if let plugin = pluginToRemove {
+                let (name, folder) = (model.config.commandTrigger + plugin.name, ExtensionStore.abbreviated(plugin.directory.path))
+                Text(tr("\(name)：它的文件夹（\(folder)）会移到废纸篓，还可以从那里放回来。",
+                        "\(name): its folder (\(folder)) goes to the Trash, so you can still put it back."))
+            }
         }
         .onChange(of: model.config.awsProfile) { model.save() }
         .onChange(of: model.config.provider) {
