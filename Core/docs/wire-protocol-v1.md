@@ -638,7 +638,7 @@ given and sends back what the user did. It opens no sessions.
 | Section | Fields |
 |---|---|
 | `general` | `actionKey`, `commandTrigger` (the magic key), `typeOut`, `typeOutRate`, `typeOutVaries`, `typeOutMistakes`, `useSelection`, `rememberQuestions`, `suggestions`, `suggestionsInsert` (what a suggestion row inserts, under the Suggestions switch), `uiLanguage`; the Mac's: `menuBarIcon`, `iCloudSync`, `checkForUpdates` |
-| `input` | `inputLanguages`, `codingLanguage` (Code), `code.installed`, `code.library` (the coding packs), `candidateLayout`, `fuzzyPinyin`, `learnsEnglishWords`, `englishWords`; the Mac's: `voiceInput` (while voice input is on) |
+| `input` | `inputLanguages`, `codingLanguage` (Code), `code.installed`, `code.library` (the coding packs), `candidateLayout`, `chineseCharacters`, `fuzzyPinyin`, `learnsEnglishWords`, `englishWords`; the Mac's: `voiceInput` (while voice input is on) |
 | `writing` | `outputLanguages`, `rewriteStyles`, `improveTranslates`, `jargonFile` |
 | `provider` | `provider`; `<p>.model`, `<p>.key`, `<p>.baseURL`, `<p>.effort` for `anthropic`, `gemini`, `openai`; `bedrock.modelId`, `bedrock.awsProfile`, `bedrock.region`; `provider.test` |
 | `request` | `maxTokens`, `temperature` (Bedrock), `timeoutSeconds` |

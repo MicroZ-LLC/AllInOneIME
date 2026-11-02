@@ -201,7 +201,7 @@ extension Composer {
         let (plan, snippets, codeLeft) = innerPlan(typed)
         let intent = plan.isEmpty ? plan.input(outputs: []) : typed
         let context = ReplyContext.make(intent: intent, selection: selectionInUse, message: message, screen: screen,
-                                        field: readFieldText(), provider: provider)
+                                        field: readFieldText(), provider: provider, chinese: chineseCharacters)
         if context.isEmpty, !pageContextApplies() { return .consumed([.notice(messages.reply.hint)]) }
         if let refusal = aiRefusal() { return .consumed([.updateMarkedText, .notice(refusal)]) }
         let input = Prompt.replyMessage(context)

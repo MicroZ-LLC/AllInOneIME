@@ -64,11 +64,14 @@ enum AppProfileSamples {
 /// What the settings and the menu say about an app's profile.
 @MainActor
 enum AppProfileText {
-    static func inputName(_ language: Language) -> String { SessionText.inputName(language, language: UIText.language) }
+    static func inputName(_ language: Language) -> String {
+        SessionText.inputName(language, language: UIText.language, chinese: LiveConfig.current.typedChinese)
+    }
 
     /// An input as the settings name it: a language, or Code with `config`'s coding language ("Code (Python)").
     static func inputName(_ input: Input, _ config: Config) -> String {
-        SessionText.inputName(input, language: UIText.language, coding: config.codingLanguage.map { CodingLanguagePack.title(of: $0) })
+        SessionText.inputName(input, language: UIText.language, coding: config.codingLanguage.map { CodingLanguagePack.title(of: $0) },
+                              chinese: config.typedChinese)
     }
 
     /// 「跟全局一样（带标题）」: what a suggestion row inserts in an app without its own choice (decision 28).

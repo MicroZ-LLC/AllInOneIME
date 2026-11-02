@@ -70,6 +70,10 @@ enum RimeDirectories {
     static var code: URL? {
         Bundle.main.sharedSupportURL?.appendingPathComponent("rime-lua")
     }
+    /// The app's OpenCC data for Traditional characters, copied into the user folder (`RimeService.prepareOpenCC`).
+    static var openCC: URL? {
+        Bundle.main.sharedSupportURL?.appendingPathComponent("opencc")
+    }
     static var user: URL {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/AllInOneIME/Rime")
@@ -79,14 +83,15 @@ enum RimeDirectories {
     }
 }
 
-/// Fuzzy pinyin (`FuzzyPinyin`) in the Rime user folder: the patch for the pairs the config turns on.
+/// Fuzzy pinyin (`FuzzyPinyin`) in the Rime user folder: the patch for the pairs the config turns on, and for the
+/// characters Chinese is typed in (`ChineseCharacters`, Traditional ones through OpenCC).
 enum RimeFuzzy {
     /// Writes (or removes) the patch; nil when it couldn't. `.written` and `.removed` need a deployment.
     @discardableResult
-    static func write(_ ids: [String]) -> FuzzyPinyin.Outcome? {
+    static func write(_ ids: [String], characters: ChineseCharacters) -> FuzzyPinyin.Outcome? {
         guard let shared = RimeDirectories.shared else { return nil }
         do {
-            let outcome = try FuzzyPinyin.apply(ids, schema: shared.appendingPathComponent("rime_ice.schema.yaml"),
+            let outcome = try FuzzyPinyin.apply(ids, characters: characters, schema: shared.appendingPathComponent("rime_ice.schema.yaml"),
                                                 userDir: RimeDirectories.user)
             if outcome == .userFile { log.notice("fuzzy pinyin not applied: the Rime folder has the user's own \(FuzzyPinyin.fileName, privacy: .public)") }
             return outcome
@@ -98,8 +103,8 @@ enum RimeFuzzy {
 
     /// Changed in the settings: written, and Rime deployed again when it changed (about a second).
     @discardableResult
-    static func apply(_ ids: [String]) -> FuzzyPinyin.Outcome? {
-        let outcome = write(ids)
+    static func apply(_ ids: [String], characters: ChineseCharacters) -> FuzzyPinyin.Outcome? {
+        let outcome = write(ids, characters: characters)
         if outcome == .written || outcome == .removed { RimeService.shared.redeploy() }
         return outcome
     }

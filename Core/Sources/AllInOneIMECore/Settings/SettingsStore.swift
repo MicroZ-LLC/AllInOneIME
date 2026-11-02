@@ -311,6 +311,13 @@ public final class SettingsStore {
     /// What turning fuzzy pinyin on picks: the pairs most often mixed up.
     public static let fuzzyDefaults = ["z-zh", "c-ch", "s-sh", "en-eng", "in-ing"]
 
+    /// The characters Chinese is typed in (`Config.chineseCharacters`), saved: picked, they no longer follow the system's
+    /// languages. The shell applies them to its Rime, as it does fuzzy pinyin.
+    public func setChineseCharacters(_ characters: ChineseCharacters) {
+        config.chineseCharacters = characters
+        save()
+    }
+
     // MARK: Rewrite styles
 
     public func isStyleOn(_ style: RewriteStyle) -> Bool {

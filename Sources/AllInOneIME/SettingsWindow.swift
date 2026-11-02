@@ -188,17 +188,26 @@ final class SettingsModel: ObservableObject {
 
     // MARK: Fuzzy pinyin
 
-    /// Fuzzy pinyin couldn't be applied: the Rime folder has the user's own `rime_ice.custom.yaml`.
+    /// Fuzzy pinyin (and the characters) couldn't be applied: the Rime folder has the user's own `rime_ice.custom.yaml`.
     @Published private(set) var fuzzyBlocked = false
-    /// Writes the patch and deploys Rime again (the self-test's preview model doesn't).
-    var applyFuzzyPinyin: @MainActor ([String]) -> FuzzyPinyin.Outcome? = { RimeFuzzy.apply($0) }
+    /// Writes the patch, fuzzy pinyin's and the characters', and deploys Rime again (the self-test's preview model doesn't).
+    var applyRimePatch: @MainActor ([String], ChineseCharacters) -> FuzzyPinyin.Outcome? = { RimeFuzzy.apply($0, characters: $1) }
     /// What turning it on picks: the pairs most often mixed up.
     static let fuzzyDefaults = SettingsStore.fuzzyDefaults
 
     func setFuzzyPinyin(_ ids: [String]) {
         store.setFuzzyPinyin(ids)
         guard persists else { return }
-        fuzzyBlocked = applyFuzzyPinyin(config.fuzzyPinyin) == .userFile
+        fuzzyBlocked = applyRimePatch(config.fuzzyPinyin, config.typedChinese) == .userFile
+    }
+
+    /// The characters Chinese is typed in, picked: saved (no longer the system's languages'), and Rime deployed again
+    /// when they change what it types, as for fuzzy pinyin.
+    func setChineseCharacters(_ characters: ChineseCharacters) {
+        guard characters != config.chineseCharacters else { return }
+        store.setChineseCharacters(characters)
+        guard persists else { return }
+        fuzzyBlocked = applyRimePatch(config.fuzzyPinyin, config.typedChinese) == .userFile
     }
 
     func setFuzzy(_ id: String, on: Bool) {
@@ -1168,7 +1177,7 @@ struct SettingsView: View {
                 }
                 HStack(spacing: 6) {
                     LanguageChips(items: model.config.inputLanguages,
-                                  name: { SessionText.inputName($0, language: UIText.language) },
+                                  name: { SessionText.inputName($0, language: UIText.language, chinese: model.config.typedChinese) },
                                   firstNote: tr("默认", "default"),
                                   keepsOne: !(model.config.inputLanguages.count == 1 && model.config.inputLanguages.first != .english),
                                   reorder: { model.config.setOrder($0) }, remove: removeInputLanguage,
@@ -1247,7 +1256,7 @@ struct SettingsView: View {
         return Menu(tr("添加…", "Add…")) {
             ForEach(missing, id: \.self) { language in
                 let download = !packs.isUsable(language)
-                Button(SessionText.inputName(language, language: UIText.language)
+                Button(SessionText.inputName(language, language: UIText.language, chinese: model.config.typedChinese)
                        + (download ? tr("（下载语言包）", " (downloads a language pack)") : "")) {
                     addInputLanguage(language)
                 }
@@ -1296,7 +1305,7 @@ struct SettingsView: View {
                     titled(SettingsSpot.outputLanguages.title, tr("每种一行，拖动排序", "A line in each; drag to reorder"))
                 } else {
                     // Only the languages typed (a new user whose Mac has English alone): @translate has nothing to do yet.
-                    let typed = model.config.inputLanguages.map { UIText.name(OutputLanguage($0)) }.joined(separator: tr("、", ", "))
+                    let typed = model.config.inputLanguages.map { UIText.name(model.config.typedLanguage($0)) }.joined(separator: tr("、", ", "))
                     VStack(alignment: .leading, spacing: 2) {
                         Text(SettingsSpot.outputLanguages.title)
                         Text(tr("再加一种\(typed)以外的语言：句子不会翻译成它本来的语言",
@@ -2071,6 +2080,15 @@ struct SettingsView: View {
             }
             switch language {
             case .chinese:
+                // As the system's languages say until one is picked (`Config.typedChinese`).
+                Picker(selection: Binding(get: { model.config.typedChinese }, set: { model.setChineseCharacters($0) })) {
+                    ForEach(ChineseCharacters.allCases, id: \.self) { characters in
+                        Text(characters.name(in: UIText.language)).tag(characters)
+                    }
+                } label: {
+                    titled(.chineseCharacters)
+                }
+                .pickerStyle(.menu)
                 Toggle(isOn: Binding(get: { !model.config.fuzzyPinyin.isEmpty },
                                      set: { model.setFuzzyPinyin($0 ? SettingsModel.fuzzyDefaults : []) })) {
                     titled(.fuzzyPinyin)
@@ -2086,8 +2104,8 @@ struct SettingsView: View {
                     }
                 }
                 if model.fuzzyBlocked {
-                    Label(tr("Rime 用户目录里有你自己的 \(FuzzyPinyin.fileName)，没有改动它，模糊音没有生效。",
-                             "The Rime user folder has your own \(FuzzyPinyin.fileName): it was left as is, so fuzzy pinyin isn't on."),
+                    Label(tr("Rime 用户目录里有你自己的 \(FuzzyPinyin.fileName)，没有改动它，模糊音和字形没有生效。",
+                             "The Rime user folder has your own \(FuzzyPinyin.fileName): it was left as is, so fuzzy pinyin and the characters aren't applied."),
                           systemImage: "exclamationmark.triangle")
                         .font(.caption).foregroundStyle(.orange)
                 }
@@ -2113,7 +2131,7 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
         } header: {
-            SectionTitle(SessionText.inputName(language, language: UIText.language), icon: CommandIcons.input)
+            SectionTitle(SessionText.inputName(language, language: UIText.language, chinese: model.config.typedChinese), icon: CommandIcons.input)
         } footer: {
             if language == .chinese {
                 Text(tr("改完词库会重新部署，一两秒生效。", "Applied in a second or two: the dictionaries are deployed again."))
@@ -2452,7 +2470,7 @@ struct SettingsView: View {
     /// The commands, at the top: what this input method does beyond typing the user's input languages.
     private var commandsSummary: String {
         let key = UIText.howToPress(model.config.actionKey)
-        let languages = model.config.inputLanguages.map { SessionText.inputName($0, language: UIText.language) }
+        let languages = model.config.inputLanguages.map { SessionText.inputName($0, language: UIText.language, chinese: model.config.typedChinese) }
             .joined(separator: tr("、", ", "))
         return tr("平时就是普通输入法：\(languages)。开头打 @ 用命令：@improve 润色、改写，@translate 翻译，@question 提问，"
                       + "@agent 交给 Claude Code 等 agent，@open 找文件，@note 存到备忘录，@reminder 加提醒事项。写完\(key)执行。",

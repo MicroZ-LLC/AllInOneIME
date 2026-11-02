@@ -79,12 +79,13 @@ public struct ScreenText: Equatable, Sendable {
         }
     }
 
-    /// The recognizer's languages for `config`, the likeliest first: Simplified Chinese first when Chinese is typed or
-    /// written into, then the input and output languages, and English always.
+    /// The recognizer's languages for `config`, the likeliest first: Chinese first when it is typed or written into,
+    /// in the characters typed (`Config.typedChinese`: Traditional ones, then Simplified), then the input and output
+    /// languages, and English always.
     public static func languages(_ config: Config) -> [String] {
         let chinese = config.inputLanguages.contains(.chinese) || config.outputLanguages.contains { $0.code.hasPrefix("zh") }
-        var codes: [String] = chinese ? ["zh-Hans"] : []
-        codes += config.inputLanguages.map { recognizerCode(OutputLanguage($0)) }
+        var codes: [String] = chinese ? (config.typedChinese.isTraditional ? ["zh-Hant", "zh-Hans"] : ["zh-Hans"]) : []
+        codes += config.inputLanguages.map { recognizerCode(config.typedLanguage($0)) }
         codes += config.outputLanguages.map(recognizerCode)
         codes.append("en-US")
         var seen = Set<String>()
@@ -94,8 +95,8 @@ public struct ScreenText: Equatable, Sendable {
     /// An output language's code as a BCP-47 code with its usual region or script ("en" → "en-US", "ja" → "ja-JP"): each
     /// recognizer maps it to its own (`VisionTextRecognizer.visionCodes`).
     static func recognizerCode(_ language: OutputLanguage) -> String {
-        let table = ["en": "en-US", "zh": "zh-Hans", "zh-Hant": "zh-Hant", "ja": "ja-JP", "ko": "ko-KR", "fr": "fr-FR",
-                     "de": "de-DE", "es": "es-ES", "pt": "pt-BR", "it": "it-IT", "ru": "ru-RU", "vi": "vi-VN", "th": "th-TH",
+        let table = ["en": "en-US", "zh": "zh-Hans", "zh-Hant": "zh-Hant", "zh-Hant-TW": "zh-Hant", "zh-Hant-HK": "zh-Hant",
+                     "ja": "ja-JP", "ko": "ko-KR", "fr": "fr-FR", "de": "de-DE", "es": "es-ES", "pt": "pt-BR", "it": "it-IT", "ru": "ru-RU", "vi": "vi-VN", "th": "th-TH",
                      "id": "id-ID", "ar": "ar-SA", "hi": "hi-IN"]
         return table[language.code] ?? language.code
     }

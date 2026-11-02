@@ -48,7 +48,9 @@ extension AllInOneIMEInputController {
 
         // The inputs: the languages, then Code ("Code (Python)", its item added by `addingCode`).
         let coding = current.codingLanguage.map { CodingLanguagePack.title(of: $0) }
-        let inputNames = current.inputs.map { SessionText.inputName($0, language: UIText.language, coding: coding) }
+        let inputNames = current.inputs.map {
+            SessionText.inputName($0, language: UIText.language, coding: coding, chinese: current.typedChinese)
+        }
         let inputItem = NSMenuItem(title: tr("输入：", "Input: ") + inputNames.joined(separator: " + "),
                                    action: nil, keyEquivalent: "")
         let inputs = NSMenu()
@@ -56,7 +58,8 @@ extension AllInOneIMEInputController {
         for language in current.inputLanguages {
             // One whose pack isn't there yet can't be typed: shown, greyed, with why.
             let usable = LanguagePackManager.shared.isUsable(language)
-            let title = SessionText.inputName(language, language: UIText.language) + (usable ? "" : tr("（还没有语言包）", " (no language pack yet)"))
+            let title = SessionText.inputName(language, language: UIText.language, chinese: current.typedChinese)
+                + (usable ? "" : tr("（还没有语言包）", " (no language pack yet)"))
             let item = NSMenuItem(title: title, action: #selector(setDefaultInput(_:)), keyEquivalent: "")
             item.target = self
             item.representedObject = language.rawValue

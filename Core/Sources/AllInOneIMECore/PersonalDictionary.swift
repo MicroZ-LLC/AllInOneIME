@@ -63,7 +63,8 @@ public struct PersonalDictionaryStore: Sendable {
     }
 
     @discardableResult
-    public func importDictionary(from source: URL, fuzzyPinyin: [String]) throws -> PersonalDictionary {
+    public func importDictionary(from source: URL, fuzzyPinyin: [String],
+                                 characters: ChineseCharacters = .simplified) throws -> PersonalDictionary {
         // Read and validate the entire source before touching the installed setup, outside the write lock.
         let parsed = try Parsed.read(source)
         return try Self.locked {
@@ -85,7 +86,7 @@ public struct PersonalDictionaryStore: Sendable {
             let says = Self.tableSays + String(decoding: try encodeLine(Said(name: record.name, fileName: record.fileName,
                                                                               entryCount: record.entryCount)), as: UTF8.self)
             var changes: [Change] = [Change(url: table, data: Data(parsed.table(named: reference(record), says: says).utf8))]
-            changes += try configurationChanges(for: after, fuzzyPinyin: fuzzyPinyin, checkAlgebra: true)
+            changes += try configurationChanges(for: after, fuzzyPinyin: fuzzyPinyin, characters: characters, checkAlgebra: true)
             changes.append(Change(url: manifest, data: try encode(after)))
             try write(changes)
             removeUnlistedTables(after)
@@ -93,7 +94,7 @@ public struct PersonalDictionaryStore: Sendable {
         }
     }
 
-    public func removeDictionary(named name: String, fuzzyPinyin: [String]) throws {
+    public func removeDictionary(named name: String, fuzzyPinyin: [String], characters: ChineseCharacters = .simplified) throws {
         try Self.locked {
             let before = try readState().state
             guard before.dictionaries.contains(where: { $0.name == name }) else { return }
@@ -101,7 +102,7 @@ public struct PersonalDictionaryStore: Sendable {
             try checkWrapper()
             var after = before
             after.dictionaries.removeAll { $0.name == name }
-            var changes = try configurationChanges(for: after, fuzzyPinyin: fuzzyPinyin, checkAlgebra: true)
+            var changes = try configurationChanges(for: after, fuzzyPinyin: fuzzyPinyin, characters: characters, checkAlgebra: true)
             changes.append(Change(url: manifest, data: try encode(after)))
             try write(changes)
             removeUnlistedTables(after)
@@ -109,21 +110,22 @@ public struct PersonalDictionaryStore: Sendable {
         }
     }
 
-    /// The shared writer used by FuzzyPinyin.apply too: a fuzzy toggle must keep every dictionary.
+    /// The shared writer used by FuzzyPinyin.apply too: a fuzzy toggle must keep every dictionary, and the characters
+    /// (`characters`, `ChineseCharacters.patch`) go in the same file.
     @discardableResult
-    public func applyFuzzyPinyin(_ ids: [String]) throws -> FuzzyPinyin.Outcome {
+    public func applyFuzzyPinyin(_ ids: [String], characters: ChineseCharacters = .simplified) throws -> FuzzyPinyin.Outcome {
         try Self.locked {
             // The user's own file (or a link): left alone before anything else is read, as fuzzy pinyin always did,
             // whatever the dictionaries' files are like.
             guard try checkPatch(requireOwnership: false) else {
                 let listed = (try? readState().state.dictionaries.isEmpty) == false
-                return !listed && FuzzyPinyin.known(ids).isEmpty ? .unchanged : .userFile
+                return !listed && FuzzyPinyin.known(ids).isEmpty && !characters.isTraditional ? .unchanged : .userFile
             }
             let (state, recovered) = try readState()
             if !state.dictionaries.isEmpty { try checkWrapper() }
             // After a first import that never finished, its wrapper goes too (if it is this app's).
             let leftWrapper = recovered && state.dictionaries.isEmpty && (try? checkWrapper()) != nil
-            var changes = try configurationChanges(for: state, fuzzyPinyin: ids, checkAlgebra: false,
+            var changes = try configurationChanges(for: state, fuzzyPinyin: ids, characters: characters, checkAlgebra: false,
                                                    includeWrapper: !state.dictionaries.isEmpty || leftWrapper)
             // Recovered: the manifest as it is now (the tables it lists all there).
             if recovered { changes.append(Change(url: manifest, data: try encode(state))) }
@@ -315,22 +317,27 @@ public struct PersonalDictionaryStore: Sendable {
         }
     }
 
-    private func configurationChanges(for state: State, fuzzyPinyin: [String], checkAlgebra: Bool,
-                                      includeWrapper: Bool = true) throws -> [Change] {
+    private func configurationChanges(for state: State, fuzzyPinyin: [String], characters: ChineseCharacters,
+                                      checkAlgebra: Bool, includeWrapper: Bool = true) throws -> [Change] {
         let schemaText = (try? String(contentsOf: schema, encoding: .utf8)) ?? ""
         let fuzzy = FuzzyPinyin.patch(fuzzyPinyin, schema: schemaText)
         if checkAlgebra, !FuzzyPinyin.known(fuzzyPinyin).isEmpty, fuzzy == nil {
             throw PersonalDictionaryError.unsupported(tr("无法读取当前拼音方案的模糊音规则。", "The current pinyin schema's spelling rules couldn't be read."))
         }
+        // Traditional characters: lines of their own at the end of the patch, whatever else it holds.
+        let traditional = characters.patch(schema: schemaText)
         var changes: [Change] = []
         if state.dictionaries.isEmpty {
-            changes.append(Change(url: patch, data: fuzzy.map { Data($0.utf8) }))
+            let text = fuzzy == nil && traditional == nil ? nil
+                : (fuzzy ?? FuzzyPinyin.marker + "\npatch:\n") + (traditional ?? "")
+            changes.append(Change(url: patch, data: text.map { Data($0.utf8) }))
             if includeWrapper { changes.append(Change(url: wrapper, data: nil)) }
         } else {
             let header = FuzzyPinyin.marker + "\n" + Self.patchDictionaries + "\n"
             var text = fuzzy.map { header + $0.dropFirst(FuzzyPinyin.marker.count + 1) } ?? header + "patch:\n"
             // The dictionary changes; the database of learned words deliberately keeps its old identity.
             text += "  translator/dictionary: \(Self.dictionaryName)\n  translator/user_dict: rime_ice\n"
+            text += traditional ?? ""
             changes.append(Change(url: patch, data: Data(text.utf8)))
             if includeWrapper {
                 let base = try baseDictionary()

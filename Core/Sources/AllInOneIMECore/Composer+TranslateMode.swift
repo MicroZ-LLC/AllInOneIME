@@ -16,7 +16,7 @@ extension Composer {
     /// the input isn't Code (where it can't run) and secure input is off.
     var modeCollects: Bool {
         guard let session = translateMode, draft.isEmpty, selection == nil, !isLevelTwo, !coding else { return false }
-        return !inputLanguage.matches(session.target) && !secureInputActive()
+        return !inputLanguage.matches(session.target, chinese: chineseCharacters) && !secureInputActive()
     }
 
     /// `modeCollects` for `text`: a space (or nothing) doesn't start a draft.
@@ -44,7 +44,7 @@ extension Composer {
     /// into, with `choices` listed under it. Nil while it's off here, and in Code (it doesn't run there).
     public func translateModeChip(choices: [OutputLanguage]? = nil) -> TranslateMode.Chip? {
         guard let session = translateMode, !coding else { return nil }
-        return TranslateMode.Chip(source: inputLanguage, target: session.target, choices: choices)
+        return TranslateMode.Chip(source: inputLanguage, target: session.target, choices: choices, chinese: chineseCharacters)
     }
 
     /// The draft as marked in the field: any "@" full-width (an app may take "@…" for a mention), and while it's
@@ -105,7 +105,9 @@ extension Composer {
             setLevelOnePhase()
             return effects + [.updateMarkedText]
         }
-        if Language.of(text, french: inputLanguages.contains(.french)).matches(session.target) { return effects + finish(committing: draft) }
+        if Language.of(text, french: inputLanguages.contains(.french)).matches(session.target, chinese: chineseCharacters) {
+            return effects + finish(committing: draft)
+        }
         if let refusal = aiRefusal() { return effects + finish(committing: draft) + [.notice(refusal)] }
         if secureInputActive() { return effects + modeFailed(translateModeMessages.secureInput) }
         requestCounter += 1

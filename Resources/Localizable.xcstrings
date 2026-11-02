@@ -31056,8 +31056,56 @@
         }
       }
     },
+    "The Rime user folder has your own %@: it was left as is, so fuzzy pinyin and the characters aren't applied." : {
+      "comment" : "Rime 用户目录里有你自己的 %@，没有改动它，模糊音和字形没有生效。 — Sources/AllInOneIME/SettingsWindow.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Rime-Benutzerordner enthält deine eigene Datei %@: Sie blieb unverändert, daher sind unscharfes Pinyin und die Schriftzeichen nicht angewendet."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La carpeta de usuario de Rime tiene tu propio %@: se ha dejado como estaba, así que el pinyin aproximado y los caracteres no se aplican."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le dossier utilisateur de Rime contient votre propre %@ : il a été laissé tel quel, le pinyin approximatif et les caractères ne sont donc pas appliqués."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rimeユーザフォルダに独自の%@があるため変更しませんでした。そのため、あいまいピンインと字体は適用されていません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime 사용자 폴더에 직접 만든 %@이(가) 있어 그대로 두었으므로 퍼지 병음과 자형이 적용되지 않았습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A pasta de usuário do Rime tem o seu próprio %@: ele foi mantido como está, então o pinyin aproximado e os caracteres não foram aplicados."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime 使用者檔案夾中有你自己的 %@：未做更改，因此模糊音和字形沒有生效。"
+          }
+        }
+      }
+    },
     "The Rime user folder has your own %@: it was left as is, so fuzzy pinyin isn't on." : {
       "comment" : "Rime 用户目录里有你自己的 %@，没有改动它，模糊音没有生效。 — Sources/AllInOneIME/SettingsWindow.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {

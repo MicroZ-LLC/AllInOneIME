@@ -19,7 +19,8 @@ extension SettingsServiceTests {
 
     /// The Mac's documents as lines, one a value: the whole document with the action key Return, and the action key's
     /// field with each other key. What is the system's own is left out ("$any"): the config file's path, the interface
-    /// languages (by the system's names), Apple's model (offered where the system has it).
+    /// languages (by the system's names), Apple's model (offered where the system has it), the characters Chinese is typed
+    /// in (the system's languages' until one is picked).
     func macDocumentLines() async throws -> [String] {
         typealias JSON = AIConfig.JSONValue
         var lines: [String] = []
@@ -49,6 +50,7 @@ extension SettingsServiceTests {
             switch members["id"] {
             case .string("configFile"): members["value"] = .string("$any")
             case .string("uiLanguage"): members["choices"] = .string("$any")
+            case .string("chineseCharacters"): members["value"] = .string("$any")
             case .string("provider"): members["choices"] = members["choices"].map { .array($0.members.filter { $0["value"] != .string("apple") }) }
             default: break
             }

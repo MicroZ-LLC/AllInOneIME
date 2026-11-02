@@ -539,12 +539,15 @@ final class ICloudSyncController: ObservableObject {
     // MARK: Applying
 
     /// What reading the config again doesn't do by itself: Settings and the input method told, the menu bar icon,
-    /// fuzzy pinyin (Rime deployed again), the interface language, a language pack for an input language added.
+    /// fuzzy pinyin and the characters (Rime deployed again), the interface language, a language pack for an input language
+    /// added.
     static func applyLive(_ report: ICloudSyncEngine.Report) {
         let config = LiveConfig.current
         NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
         if report.configKeys.contains("menuBarIcon") { MenuBarIcon.shared.apply(config.menuBarIcon) }
-        if report.configKeys.contains("fuzzyPinyin") { RimeFuzzy.apply(config.fuzzyPinyin) }
+        if report.configKeys.contains("fuzzyPinyin") || report.configKeys.contains("chineseCharacters") {
+            RimeFuzzy.apply(config.fuzzyPinyin, characters: config.typedChinese)
+        }
         if report.configKeys.contains("uiLanguage") {
             UIText.choice = config.uiLanguage
             SettingsWindow.shared.updateTitle()

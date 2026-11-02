@@ -54,6 +54,9 @@ public enum WebSearch {
     /// The service `@search` uses.
     public static let backend: any SearchBackend = BraveSearch()
 
+    /// The backend for someone who types Chinese in `chinese`'s characters: Chinese pages in them.
+    public static func backend(chinese: ChineseCharacters) -> any SearchBackend { BraveSearch(chinese: chinese) }
+
     public static let maxResults = 5
     public static let timeout: TimeInterval = 10
     /// Of a response (a page of 5 results is some 10 KB).
@@ -362,8 +365,8 @@ public enum WebSearch {
 
 /// The Brave Search API's web search (`GET /res/v1/web/search`, api-dashboard.search.brave.com): the key
 /// in `X-Subscription-Token`; each result's title, URL, description, extra snippets and page age.
-/// A query with Chinese in it asks for Chinese pages from anywhere (`search_lang=zh-hans`, `country=ALL`;
-/// otherwise Brave's defaults, English and the US).
+/// A query with Chinese in it asks for Chinese pages from anywhere (`search_lang=zh-hans`, `country=ALL`; `zh-hant` for
+/// someone who types Traditional characters: `chinese`), otherwise Brave's defaults, English and the US.
 public struct BraveSearch: SearchBackend {
     public let name = "Brave Search"
     public let host: String
@@ -371,15 +374,21 @@ public struct BraveSearch: SearchBackend {
     public let keyVariables = ["BRAVE_API_KEY", "BRAVE_SEARCH_API_KEY"]
     public let keyPage = URL(string: "https://brave.com/search/api/")!
 
-    public init() { self.init(host: "api.search.brave.com") }
+    /// The characters the user types Chinese in (`Config.typedChinese`): the script of the Chinese pages asked for.
+    public let chinese: ChineseCharacters
+
+    public init(chinese: ChineseCharacters = .simplified) { self.init(host: "api.search.brave.com", chinese: chinese) }
 
     /// Another host, for tests.
-    init(host: String) { self.host = host }
+    init(host: String, chinese: ChineseCharacters = .simplified) {
+        self.host = host
+        self.chinese = chinese
+    }
 
     public func request(for query: String, count: Int, detailed: Bool, key: String) throws -> URLRequest {
         // Highlight markers off: plain text in the snippets.
         var parameters = [("q", query), ("count", String(count)), ("result_filter", "web"), ("text_decorations", "false")]
-        if query.containsHan { parameters += [("search_lang", "zh-hans"), ("country", "ALL")] }
+        if query.containsHan { parameters += [("search_lang", chinese.isTraditional ? "zh-hant" : "zh-hans"), ("country", "ALL")] }
         if detailed { parameters.append(("extra_snippets", "true")) }
         var components = URLComponents()
         components.scheme = "https"

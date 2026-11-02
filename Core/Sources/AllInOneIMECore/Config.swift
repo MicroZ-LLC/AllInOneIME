@@ -47,8 +47,18 @@ public struct Config: Codable, Equatable, Sendable {
     /// languages (text already in the language goes in as it is). A new user whose Mac has English alone has none until
     /// one is added: English typed, English out.
     public var hasLanguageToTranslateInto: Bool {
-        outputLanguages.contains { output in inputLanguages.contains { !$0.matches(output) } }
+        outputLanguages.contains { output in inputLanguages.contains { !$0.matches(output, chinese: typedChinese) } }
     }
+
+    /// The characters Chinese is typed in: the ones picked (`chineseCharacters`), else those of the system's preferred
+    /// languages (`Platform.userLanguages`, `ChineseCharacters.preferred`), read each time: a Mac whose language changes
+    /// follows it.
+    public var typedChinese: ChineseCharacters {
+        chineseCharacters ?? .preferred(from: Platform.current.userLanguages.preferred)
+    }
+
+    /// The output language a sentence typed in `language` is in: Chinese in the characters typed ("zh", "zh-Hant-TW").
+    public func typedLanguage(_ language: Language) -> OutputLanguage { OutputLanguage(language, chinese: typedChinese) }
 
     /// The Code input (decision 22): the coding language whose pack its rows come from ("python",
     /// `CodingLanguagePack.offered`); nil: no Code input. It comes after the input languages, a tap of Shift away from the
@@ -195,6 +205,10 @@ public struct Config: Codable, Equatable, Sendable {
     public var menuBarIcon: Bool
     /// Fuzzy pinyin (模糊音): the pairs typed either way (`FuzzyPinyin.pairs` ids, e.g. "z-zh", "n-l"); none by default.
     public var fuzzyPinyin: [String]
+    /// The characters Chinese is typed in (`ChineseCharacters`: Simplified, or Traditional as Taiwan or Hong Kong write
+    /// it), for pinyin's candidates and whatever reasons about the language typed (`typedChinese`); nil: as the system's
+    /// languages say, read each time, until one is picked (Settings → Input → Chinese).
+    public var chineseCharacters: ChineseCharacters?
     /// English words of the user's offered among pinyin's candidates (`EnglishWords`, `EnglishWordsEngine`), as they are
     /// written ("Bedrock"): added in Settings, or learned (`learnsEnglishWords`). Oldest first; none by default.
     public var englishWords: [String]
@@ -396,7 +410,7 @@ public struct Config: Codable, Equatable, Sendable {
         case awsProfile, region, modelId, maxTokens, temperature, timeoutSeconds, rewriteStyles
         case outputLanguage, outputLanguages, inputLanguages, defaultInput, codingLanguage, improveTranslates, voiceInput, jargonFile, actionKey, commandTrigger, uiLanguage, customCommands, claudeInBackground, agent, agentCommand, agentPageContext
         case extensionFolders, findRaycastScripts, hiddenExtensionFolders, disabledExtensions, hiddenFromCommandList, extensionPreferences
-        case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutMistakes, typeOutSpeed, fuzzyPinyin, keyboardLayouts, candidateLayout
+        case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutMistakes, typeOutSpeed, fuzzyPinyin, chineseCharacters, keyboardLayouts, candidateLayout
         case englishWords, addedEnglishWords, learnsEnglishWords
         case checkForUpdates, useSelection, appProfiles
         case rememberQuestions, questionRounds, questionContinueIn
@@ -486,6 +500,9 @@ public struct Config: Codable, Equatable, Sendable {
             .compactMap(ChatHandoff.Destination.init(rawValue:))
         menuBarIcon = try c.decodeIfPresent(Bool.self, forKey: .menuBarIcon) ?? d.menuBarIcon
         fuzzyPinyin = FuzzyPinyin.known(try c.decodeIfPresent([String].self, forKey: .fuzzyPinyin) ?? [])
+        // One this version doesn't know (a later one's) follows the system, not an error.
+        chineseCharacters = (try? c.decodeIfPresent(String.self, forKey: .chineseCharacters)).flatMap { $0 }
+            .flatMap(ChineseCharacters.init(rawValue:))
         // A list of the wrong type reads as none, not an error (the words are offered only as `EnglishWords.word` allows).
         englishWords = (try? c.decodeIfPresent([String].self, forKey: .englishWords)).flatMap { $0 } ?? d.englishWords
         addedEnglishWords = (try? c.decodeIfPresent([String].self, forKey: .addedEnglishWords)).flatMap { $0 } ?? d.addedEnglishWords
@@ -677,6 +694,8 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encodeIfPresent(questionContinueIn, forKey: .questionContinueIn)
         try c.encode(menuBarIcon, forKey: .menuBarIcon)
         try c.encode(fuzzyPinyin, forKey: .fuzzyPinyin)
+        // Only once picked: a file from before the setting doesn't gain the key, and follows the system.
+        try c.encodeIfPresent(chineseCharacters, forKey: .chineseCharacters)
         // Only once there are words, and learning only when it's off: a file from before them doesn't gain the keys.
         if !englishWords.isEmpty { try c.encode(englishWords, forKey: .englishWords) }
         if !addedEnglishWords.isEmpty { try c.encode(addedEnglishWords, forKey: .addedEnglishWords) }
