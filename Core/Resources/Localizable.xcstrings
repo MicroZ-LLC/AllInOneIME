@@ -6689,25 +6689,25 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "$%@ wird nur an %@ gesendet, nicht an diese Basis-URL: Sichere in den Einstellungen einen Schlüssel für diesen Dienst"
+            "value" : "Der Schlüssel aus $%@ wird nur an %@ gesendet, nicht an diese Basis-URL: Sichere in den Einstellungen einen Schlüssel für diesen Dienst"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "$%@ solo se envía a %@, no a esta URL base: guarda una clave para este servicio en los ajustes"
+            "value" : "La clave de $%@ solo se envía a %@, no a esta URL base: guarda una clave para este servicio en los ajustes"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "$%@ n'est envoyée qu'à %@, pas à cette URL de base : enregistrez une clé pour ce service dans les réglages"
+            "value" : "La clé de $%@ n’est envoyée qu’à %@, pas à cette URL de base : enregistrez une clé pour ce service dans les réglages"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "$%@は%@にのみ送信され、このBase URLには送信されません：設定でこのサービス用のキーを保存してください"
+            "value" : "$%@のキーは%@にのみ送信され、このBase URLには送信されません：設定でこのサービス用のキーを保存してください"
           }
         },
         "ko" : {
@@ -6719,13 +6719,13 @@
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "$%@ é enviada só para %@, não para esta URL base: salve uma chave para este serviço nos Ajustes"
+            "value" : "A chave de $%@ só é enviada para %@, não para esta URL base: salve uma chave para este serviço nos Ajustes"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "$%@ 只會傳送給 %@，不會傳送給現在的 Base URL：請在設定中為這個服務儲存金鑰"
+            "value" : "$%@ 中的金鑰只會傳送給 %@，不會傳送給現在的 Base URL：請在設定中為這個服務儲存金鑰"
           }
         }
       }
@@ -17640,7 +17640,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Téléchargé depuis Internet : non chargé depuis un dossier trouvé par Spotlight (ajoutez le dossier pour l’utiliser)"
+            "value" : "Téléchargé depuis Internet : non chargé depuis un dossier trouvé par Spotlight (ajoutez le dossier pour l’utiliser)"
           }
         },
         "ja" : {
@@ -27677,7 +27677,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Non exécutable : depuis un dossier trouvé par Spotlight, seuls les scripts exécutables sont chargés (chmod +x, ou ajoutez le dossier)"
+            "value" : "Non exécutable : depuis un dossier trouvé par Spotlight, seuls les scripts exécutables sont chargés (chmod +x, ou ajoutez le dossier)"
           }
         },
         "ja" : {

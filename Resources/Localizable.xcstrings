@@ -3130,7 +3130,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@ : son dossier (%2$@) est placé dans la Corbeille, vous pouvez donc encore le remettre en place."
+            "value" : "%1$@ : son dossier (%2$@) est placé dans la Corbeille, vous pouvez donc encore le remettre en place."
           }
         },
         "ja" : {
