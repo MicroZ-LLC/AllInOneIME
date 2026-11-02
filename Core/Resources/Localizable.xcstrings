@@ -2120,6 +2120,53 @@
         }
       }
     },
+    "@agent and @reply can't take the Chrome page along" : {
+      "comment" : "@agent 和 @reply 带不上 Chrome 里的网页 — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@agent und @reply können die Chrome-Seite nicht mitnehmen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@agent y @reply no pueden incluir la página de Chrome"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@agent et @reply ne peuvent pas joindre la page Chrome"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@agentと@replyにChromeのページを添えられません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@agent와 @reply가 Chrome 페이지를 함께 전달할 수 없음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@agent e @reply não conseguem levar junto a página do Chrome"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@agent 和 @reply 附不上 Chrome 中的網頁"
+          }
+        }
+      }
+    },
     "@agent and @reply take the Chrome page along" : {
       "comment" : "@agent 和 @reply 带上 Chrome 里的网页 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
@@ -7389,6 +7436,53 @@
         }
       }
     },
+    "a few password fields aren't recognized, so autocomplete and suggestions may show in them" : {
+      "comment" : "少数密码框认不出来，续写和建议可能会在里面出现 — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "einige wenige Passwortfelder werden nicht erkannt, sodass Autovervollständigen und Vorschläge darin erscheinen können"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "algunos campos de contraseña no se reconocen, así que Autocompletar y las sugerencias pueden aparecer en ellos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "quelques champs de mot de passe ne sont pas reconnus, la complétion automatique et les suggestions peuvent donc s’y afficher"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一部のパスワード欄を見分けられず、オートコンプリートや候補が出ることがあります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "일부 암호 입력란을 알아보지 못해 자동 완성과 제안이 그 안에 나올 수 있음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "alguns campos de senha não são reconhecidos, então o Autocompletar e as sugestões podem aparecer neles"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "少數密碼欄位認不出來，續寫和建議可能會在裡面出現"
+          }
+        }
+      }
+    },
     "A language is listed twice in config.json" : {
       "comment" : "config.json 里有重复的语言 — Sources/AllInOneIMECore/Doctor.swift",
       "localizations" : {
@@ -11641,6 +11735,53 @@
         }
       }
     },
+    "autocomplete's gray text can run past the field's edge" : {
+      "comment" : "续写的灰字可能超出输入框 — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "der graue Text des Autovervollständigens kann über den Rand des Felds hinausragen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "el texto gris de Autocompletar puede pasar del borde del campo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "le texte gris de la complétion automatique peut dépasser du bord du champ"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オートコンプリートの灰色の文字が入力欄の端からはみ出すことがあります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자동 완성의 회색 글자가 입력란 가장자리를 넘어갈 수 있음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "o texto cinza do Autocompletar pode passar da borda do campo"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "續寫的灰字可能超出輸入框"
+          }
+        }
+      }
+    },
     "AWS credentials: the last refresh failed" : {
       "comment" : "AWS 凭证上次刷新失败 — Sources/AllInOneIMECore/Doctor.swift",
       "localizations" : {
@@ -14505,6 +14646,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "剪貼簿歷史"
+          }
+        }
+      }
+    },
+    "clipboard history: ⏎ on an image only puts it on the clipboard, for your own ⌘V, and ⌃V again doesn't paste in most apps" : {
+      "comment" : "剪贴板历史：在图片上按 ⏎ 只会放到剪贴板，要自己按 ⌘V；再按 ⌃V 在多数 App 里不会粘贴 — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verlauf der Zwischenablage: ⏎ auf einem Bild legt es nur in die Zwischenablage, zum Einsetzen mit ⌘V, und ⌃V ein zweites Mal setzt in den meisten Apps nichts ein"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "historial del portapapeles: ⏎ sobre una imagen solo la pone en el portapapeles, para que la pegues con ⌘V, y ⌃V otra vez no pega en la mayoría de las apps"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "historique du presse-papiers : ⏎ sur une image la met seulement dans le presse-papiers, à coller vous-même avec ⌘V, et ⌃V une seconde fois ne colle rien dans la plupart des apps"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クリップボード履歴：画像で⏎を押してもクリップボードに入れるだけなので、自分で⌘Vしてください。もう一度⌃Vを押しても、ほとんどのAppではペーストされません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "클립보드 기록: 이미지에서 ⏎ 키를 누르면 클립보드에 넣기만 하므로 직접 ⌘V를 눌러야 하고, ⌃V를 다시 눌러도 대부분의 앱에서는 붙여넣어지지 않음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "histórico da área de transferência: ⏎ em uma imagem só a coloca na área de transferência, para você colar com ⌘V, e ⌃V de novo não cola na maioria dos apps"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "剪貼簿歷史：在圖片上按 ⏎ 只會放到剪貼簿，要自己按 ⌘V；再按 ⌃V 在多數 App 裡不會貼上"
           }
         }
       }
@@ -20735,6 +20923,53 @@
         }
       }
     },
+    "If AllInOneIME is already on in System Settings → Privacy & Security → Accessibility, turn it off and on again (macOS can keep the permission for the previous version)" : {
+      "comment" : "如果系统设置 → 隐私与安全性 → 辅助功能里 AllInOneIME 已经打开，先关掉再打开（macOS 可能还留着上一个版本的权限） — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wenn AllInOneIME in Systemeinstellungen → Datenschutz & Sicherheit → Bedienungshilfen schon eingeschaltet ist, schalte es aus und wieder ein (macOS kann die Berechtigung für die vorherige Version behalten)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si AllInOneIME ya está activado en Ajustes del Sistema → Privacidad y seguridad → Accesibilidad, desactívalo y vuelve a activarlo (macOS puede conservar el permiso de la versión anterior)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si AllInOneIME est déjà activé dans Réglages Système → Confidentialité et sécurité → Accessibilité, désactivez-le puis réactivez-le (macOS peut conserver l’autorisation de la version précédente)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "システム設定 → プライバシーとセキュリティ → アクセシビリティでAllInOneIMEがすでにオンになっている場合は、一度オフにしてからオンにしてください（macOSが前のバージョンの許可を保持していることがあります）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "시스템 설정 → 개인정보 보호 및 보안 → 손쉬운 사용에서 AllInOneIME가 이미 켜져 있다면 껐다가 다시 켜세요(macOS가 이전 버전의 권한을 유지할 수 있습니다)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se o AllInOneIME já estiver ativado em Ajustes do Sistema → Privacidade e Segurança → Acessibilidade, desative e ative de novo (o macOS pode manter a permissão da versão anterior)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "如果系統設定 → 隱私權與安全性 → 輔助使用裡 AllInOneIME 已經打開，請先關閉再打開（macOS 可能仍保留上一個版本的權限）"
+          }
+        }
+      }
+    },
     "Image %@ × %@" : {
       "comment" : "图片 %@ × %@ — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
       "localizations" : {
@@ -20924,6 +21159,53 @@
         }
       }
     },
+    "in Chrome and apps like Slack or VS Code, @ commands may not read the selection, and ⌃V may not open clipboard history" : {
+      "comment" : "在 Chrome 和 Slack、VS Code 这类 App 里，@ 命令可能读不到选中的文字，⌃V 也可能打不开剪贴板历史 — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "in Chrome und Apps wie Slack oder VS Code lesen @-Befehle die Auswahl vielleicht nicht, und ⌃V öffnet den Verlauf der Zwischenablage vielleicht nicht"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "en Chrome y en apps como Slack o VS Code, puede que los comandos @ no lean la selección y que ⌃V no abra el historial del portapapeles"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "dans Chrome et des apps comme Slack ou VS Code, les commandes @ peuvent ne pas lire la sélection, et ⌃V peut ne pas ouvrir l’historique du presse-papiers"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChromeやSlack、VS CodeなどのAppでは、@コマンドが選択したテキストを読み取れないことがあり、⌃Vでクリップボード履歴が開かないことがあります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chrome과 Slack, VS Code 같은 앱에서는 @ 명령이 선택 영역을 읽지 못하거나 ⌃V로 클립보드 기록이 열리지 않을 수 있음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "no Chrome e em apps como Slack ou VS Code, os comandos @ podem não ler a seleção, e ⌃V pode não abrir o histórico da área de transferência"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Chrome 和 Slack、VS Code 這類 App 裡，@ 指令可能讀不到選取的文字，⌃V 也可能打不開剪貼簿歷史"
+          }
+        }
+      }
+    },
     "In Notion, open the page → ··· → Connections → add your integration" : {
       "comment" : "在 Notion 里打开那个页面 → ··· → 连接 → 加上你的集成 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
@@ -20967,6 +21249,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在 Notion 中打開該頁面 → ··· → 連線 → 加入你的整合"
+          }
+        }
+      }
+    },
+    "in some apps (often Chrome's pages), a list may show away from the caret" : {
+      "comment" : "有的 App 里（多半是 Chrome 里的网页），列表可能不在光标旁边 — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "in manchen Apps (oft auf Seiten in Chrome) kann eine Liste abseits der Einfügemarke erscheinen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "en algunas apps (a menudo en páginas de Chrome), una lista puede aparecer lejos del cursor"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "dans certaines apps (souvent sur des pages dans Chrome), une liste peut s’afficher loin du curseur"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一部のApp（多くはChromeのページ）では、リストがカーソルから離れた場所に出ることがあります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "일부 앱(주로 Chrome의 웹 페이지)에서는 목록이 커서에서 떨어진 곳에 나올 수 있음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "em alguns apps (muitas vezes em páginas do Chrome), uma lista pode aparecer longe do cursor"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有些 App 裡（多半是 Chrome 裡的網頁），列表可能不在游標旁邊"
           }
         }
       }
@@ -39810,6 +40139,53 @@
         }
       }
     },
+    "some apps can also get the keys a list takes (↓ ↑ ⏎ Esc)" : {
+      "comment" : "列表用的键（↓ ↑ ⏎ Esc）有的 App 也会收到 — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "die Tasten, die eine Liste nutzt (↓ ↑ ⏎ Esc), können auch bei manchen Apps ankommen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "algunas apps también pueden recibir las teclas que usa una lista (↓ ↑ ⏎ Esc)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "certaines apps peuvent aussi recevoir les touches d’une liste (↓ ↑ ⏎ Esc)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リストで使うキー（↓ ↑ ⏎ Esc）が、一部のAppにも届くことがあります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "목록에서 쓰는 키(↓ ↑ ⏎ Esc)가 일부 앱에도 전달될 수 있음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "alguns apps também podem receber as teclas que uma lista usa (↓ ↑ ⏎ Esc)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "列表用的鍵（↓ ↑ ⏎ Esc）有些 App 也會收到"
+          }
+        }
+      }
+    },
     "Some of its files can't be read, so it can't be checked for changes." : {
       "comment" : "它有些文件读不了，没法检查改动。 — Sources/AllInOneIMECore/Suggestions/ExtensionCompletions.swift",
       "localizations" : {
@@ -43102,6 +43478,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已選取文字：未使用截圖"
+          }
+        }
+      }
+    },
+    "text of more than one line goes into terminals on one line" : {
+      "comment" : "多行文字放进终端会变成一行 — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "mehrzeiliger Text kommt im Terminal in einer Zeile an"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "el texto de varias líneas entra en una terminal en una sola línea"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "un texte de plusieurs lignes arrive dans un terminal sur une seule ligne"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複数行のテキストはターミナルに1行で入ります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "여러 줄의 텍스트가 터미널에 한 줄로 들어감"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "texto de mais de uma linha entra no terminal em uma só linha"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "多行文字放進終端機會變成一行"
           }
         }
       }
@@ -46544,6 +46967,7 @@
     },
     "the selection can't be read in some apps. If AllInOneIME is already on in System Settings → Privacy & Security → Accessibility, turn it off and on again (macOS can keep the permission for the previous version)" : {
       "comment" : "有的 App 里读不到选中的文字。如果系统设置 → 隐私与安全性 → 辅助功能里 AllInOneIME 已经打开，先关掉再打开（macOS 可能还留着上一个版本的权限） — Sources/AllInOneIMECore/Doctor.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -50882,6 +51306,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "連同標題和連結（聊天 App 裡）"
+          }
+        }
+      }
+    },
+    "without it:" : {
+      "comment" : "没有这个权限： — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ohne diese Berechtigung:"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sin este permiso:"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sans cette autorisation :"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "許可しないと："
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "권한이 없으면:"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sem essa permissão:"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有這個權限："
           }
         }
       }
