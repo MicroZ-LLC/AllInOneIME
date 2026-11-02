@@ -169,7 +169,8 @@ extension AllInOneIMEInputController {
     /// press says when it can't come on.
     @MainActor
     func translateModeFollow(_ config: Config) {
-        guard TranslateModeShared.state.follow(outputs: config.outputLanguages, inputs: config.inputLanguages) else { return }
+        guard TranslateModeShared.state.follow(outputs: config.outputLanguages, inputs: config.inputLanguages,
+                                               chinese: config.typedChinese) else { return }
         let session = TranslateModeShared.state.session
         let now = session.map { "into " + $0.target.code } ?? "off"
         log.notice("Translate as You Type: \(now, privacy: .public) (the target was removed)")
@@ -184,9 +185,10 @@ extension AllInOneIMEInputController {
     /// target: the first other input language); and why it does nothing here if it doesn't.
     @MainActor
     private func showOnNotice(_ session: TranslateMode.Session, allowed: Bool) {
-        let typed = composer.inputLanguage
-        let from = typed.matches(session.target) ? composer.inputLanguages.first { !$0.matches(session.target) } : typed
-        let languages = (from.map { UIText.name(OutputLanguage($0)) + " → " } ?? "") + UIText.name(session.target)
+        let typed = composer.inputLanguage, chinese = composer.chineseCharacters
+        let from = typed.matches(session.target, chinese: chinese)
+            ? composer.inputLanguages.first { !$0.matches(session.target, chinese: chinese) } : typed
+        let languages = (from.map { UIText.name(OutputLanguage($0, chinese: chinese)) + " → " } ?? "") + UIText.name(session.target)
         let why = !allowed ? tr(" · 这个 App 里关了 AI，照原样上屏", " · AI is off in this app, text goes in as typed")
             : services.secureInputActive() ? tr(" · 系统安全输入开着，暂时照原样上屏", " · secure input is on, text goes in as typed for now") : ""
         let text = tr("边打边译 已开启：\(languages) · 再长按 Shift 关闭", "Translate as You Type on: \(languages) · hold Shift again to turn off")

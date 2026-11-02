@@ -612,6 +612,9 @@ public final class Composer {
     /// The output languages (`Config.outputLanguages`, set by the controller): what `@translate` on a selection of
     /// several lines translates into (`Command.edit`).
     public var outputLanguages: [OutputLanguage] = [.english, .chinese]
+    /// The characters Chinese is typed in (`Config.typedChinese`, set by the controller): Translate as You Type's same
+    /// language and its chip, `@reply`'s language.
+    public var chineseCharacters: ChineseCharacters = .simplified
     /// The selection is no longer than `maxSelectionLength` (worked out once, when it is read).
     private var selectionFits = false
 

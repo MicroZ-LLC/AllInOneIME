@@ -276,6 +276,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         composer.typesResults = false  // typed out step by step comes later (ComposerSession commits it in one go)
         composer.horizontalCandidates = config.candidateLayout == .horizontal
         composer.outputLanguages = config.outputLanguages
+        composer.chineseCharacters = config.typedChinese
         composer.provider = config.provider
         // Script extensions from the folders the settings name, each on or off as they say (the Settings app's
         // switches); their programs run through the core's runner (`startScript`). Those with suggestions taken out of

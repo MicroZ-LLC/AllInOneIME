@@ -1136,13 +1136,20 @@ extension Prompt {
 
     /// The examples for text that ends with `before`, in the script of the caret's line (`Autocomplete.languageText`; the
     /// model answers in the examples' language): the English ones after Latin letters (without the space at the start,
-    /// `spaced` false), the Chinese ones after Chinese, none after Japanese, Korean or another script.
-    static func autocompleteExamples(for before: String, spaced: Bool = true) -> [AutocompleteExample] {
+    /// `spaced` false), the Chinese ones after Chinese, in the characters Chinese is typed in (`chinese`), none after
+    /// Japanese, Korean or another script.
+    static func autocompleteExamples(for before: String, spaced: Bool = true,
+                                     chinese: ChineseCharacters = .simplified) -> [AutocompleteExample] {
         let text = Autocomplete.languageText(before)
         if text.unicodeScalars.contains(where: { (0x3040...0x30FF).contains($0.value) || (0xAC00...0xD7AF).contains($0.value) }) {
             return []
         }
-        if text.contains(where: \.isWideLetter) { return autocompleteChineseExamples }
+        if text.contains(where: \.isWideLetter) {
+            let written = chinese.language.written
+            return autocompleteChineseExamples.map { example in
+                (.init(before: written(example.context.before), after: written(example.context.after)), written(example.answer))
+            }
+        }
         guard AppleModel.mostlyLatin(text) else { return [] }
         return spaced ? autocompleteEnglishExamples : autocompleteEnglishExamples.map { ($0.context, String($0.answer.drop { $0 == " " })) }
     }
@@ -1152,11 +1159,13 @@ extension Prompt {
     /// (`Autocomplete.languageText`, `Autocomplete.looksEnglish`) the on-device model is asked for no space at the start:
     /// it can't tell a word being finished from a new one ("rep" + " report", "comm" + " mand"), and a space is put in by
     /// the English words where a new one starts (`Autocomplete.needsSpace`). Other languages keep the model's own spaces.
-    public static func autocompleteRequest(_ context: Autocomplete.Context, app: String?, onDevice: Bool = false) -> ConverseRequest {
+    /// The Chinese examples are in the characters Chinese is typed in (`chinese`, `Config.typedChinese`).
+    public static func autocompleteRequest(_ context: Autocomplete.Context, app: String?, onDevice: Bool = false,
+                                           chinese: ChineseCharacters = .simplified) -> ConverseRequest {
         let text = Autocomplete.languageText(context.before)
         let english = AppleModel.mostlyLatin(text) && !text.contains(where: \.isWideLetter) && Autocomplete.looksEnglish(text)
         let spaced = !onDevice || !english
-        let examples = onDevice ? autocompleteExamples(for: context.before, spaced: spaced).flatMap { example in
+        let examples = onDevice ? autocompleteExamples(for: context.before, spaced: spaced, chinese: chinese).flatMap { example in
             [ConverseRequest.Message(role: "user", text: autocompleteMessage(example.context)),
              ConverseRequest.Message(role: "assistant", text: example.answer)]
         } : []
@@ -1301,7 +1310,7 @@ extension Converter {
         var redaction = Redaction(config.redaction)
         let hidden = redaction?.hide([context.before, context.after]) ?? [context.before, context.after]
         let sent = Autocomplete.Context(before: hidden[0], after: hidden[1])
-        var request = Prompt.autocompleteRequest(sent, app: app, onDevice: route == .onDevice)
+        var request = Prompt.autocompleteRequest(sent, app: app, onDevice: route == .onDevice, chinese: config.typedChinese)
         if route != .onDevice { Autocomplete.quick(&request, config: &config) }
         let body = redaction?.protect(request, sent: Prompt.autocompleteMessage(sent)) ?? request
         var text = ""

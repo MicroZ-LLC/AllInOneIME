@@ -5,16 +5,21 @@ import Speech
 
 /// Voice input: hold the right Option key, speak, release. Speech is recognized on the Mac by
 /// Apple's SpeechAnalyzer (macOS 26+); audio never leaves the machine. The language follows the
-/// input mode: Chinese (pinyin) → zh_CN, English → en_US.
+/// input mode: Chinese (pinyin) → zh_CN (zh_TW, zh_HK in Taiwan's and Hong Kong's characters), English → en_US.
 enum VoiceInput {
     static var isSupported: Bool {
         if #available(macOS 26.0, *) { return SpeechTranscriber.isAvailable }
         return false
     }
 
-    static func locale(for language: Language) -> Locale {
+    static func locale(for language: Language, chinese: ChineseCharacters = LiveConfig.current.typedChinese) -> Locale {
         switch language {
-        case .chinese: return Locale(identifier: "zh_CN")
+        case .chinese:
+            switch chinese {
+            case .simplified: return Locale(identifier: "zh_CN")
+            case .taiwan: return Locale(identifier: "zh_TW")
+            case .hongkong: return Locale(identifier: "zh_HK")
+            }
         case .english: return Locale(identifier: "en_US")
         case .french: return Locale(identifier: "fr_FR")
         case .korean: return Locale(identifier: "ko_KR")

@@ -66,10 +66,10 @@ public enum SessionText {
         long ? 12 : min(5, 1.2 + Double(text.count) * 0.06)
     }
 
-    /// Whether `config` has a language to translate `input` into other than its own.
+    /// Whether `config` has a language to translate `input` into other than its own (Chinese in the characters typed).
     public static func hasTranslationTarget(for input: String, config: Config) -> Bool {
-        let own = OutputLanguage(config.language(of: input))
-        return config.outputLanguages.contains { $0 != own }
+        let own = config.typedLanguage(config.language(of: input))
+        return config.outputLanguages.contains { !$0.isSame(as: own) }
     }
 
     // MARK: - The panel's lines

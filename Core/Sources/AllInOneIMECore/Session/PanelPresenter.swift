@@ -185,7 +185,8 @@ public struct PanelPresenter {
             let command = composer.activeCommand
             switch composer.phase {
             case .translating:
-                let polishing = config.language(of: composer.selectionInUse ?? composer.sentText).matches(config.outputLanguage)
+                let polishing = config.language(of: composer.selectionInUse ?? composer.sentText)
+                    .matches(config.outputLanguage, chinese: config.typedChinese)
                 let loading = command?.kind == .generate ? t.tr("AI 回答中…", "Answering…")
                     : command == .webSearch ? t.tr("搜索中…", "Searching…")
                     : command?.script.map { t.tr("正在运行 \($0.title)…", "Running \($0.title)…") }

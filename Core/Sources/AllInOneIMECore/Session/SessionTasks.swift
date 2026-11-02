@@ -244,15 +244,18 @@ public final class SessionTasks {
         public var commandTrigger: String
         /// The language script plugins are told (`UIText.pluginLanguage`).
         public var pluginLanguage: Language
+        /// The characters Chinese is typed in (`Config.typedChinese`): the Chinese pages `@search` asks for.
+        public var chinese: ChineseCharacters
 
         public init(app: String?, terminal: Bool, pastesInTerminal: Bool, improveTranslates: Bool,
-                    pluginLanguage: Language, commandTrigger: String = "@") {
+                    pluginLanguage: Language, commandTrigger: String = "@", chinese: ChineseCharacters = .simplified) {
             self.app = app
             self.terminal = terminal
             self.pastesInTerminal = pastesInTerminal
             self.improveTranslates = improveTranslates
             self.commandTrigger = commandTrigger
             self.pluginLanguage = pluginLanguage
+            self.chinese = chinese
         }
     }
 
@@ -270,11 +273,12 @@ public final class SessionTasks {
         let (app, fresh, improveTranslates, pluginLanguage, commandTrigger) = (place.app, request.fresh,
             place.improveTranslates, place.pluginLanguage, place.commandTrigger)
         let searchList: WebSearch.Output = place.terminal ? .line : .list
+        let search = WebSearch.backend(chinese: place.chinese)
         let streamFor: @Sendable (Command?, String) -> AsyncThrowingStream<ConversionUpdate, Error> = { command, input in
             if command == .read { return WebReader.stream(input) }
             // @py, @js: the code runs in a child process, like a custom program (never in this one).
             if let command, let code = InlineCode.definition(for: command) { return runProgram(code, input) }
-            if command == .webSearch { return WebSearch.stream(input, output: searchList, loadKey: loadSearchKey) }
+            if command == .webSearch { return WebSearch.stream(input, output: searchList, backend: search, loadKey: loadSearchKey) }
             // A link opens once the commands inside its text have run: their outputs go in it as they are.
             if let command, command.kind == .link { return LinkTemplate.passThrough(input) }
             if command?.kind == .message { return CommandPipeline.unchanged(input) }  // sent as written, after confirming
@@ -297,7 +301,7 @@ public final class SessionTasks {
             // The commands inside the text first (together), then this one on the text with their outputs.
             stream = CommandPipeline.run(plan, inner: { command, argument in
                 // Its errors (no key, say) in the interface language.
-                command == .webSearch ? described(WebSearch.stream(argument, output: innerSearch, loadKey: loadSearchKey))
+                command == .webSearch ? described(WebSearch.stream(argument, output: innerSearch, backend: search, loadKey: loadSearchKey))
                     : streamFor(command, argument)
             }, outer: { text in
                 // @reply: the text with the commands' outputs is what to reply (capped as what's typed is), sent with the

@@ -449,6 +449,7 @@ public final class InputSession {
             }
         }
         composer.outputLanguages = config.outputLanguages
+        composer.chineseCharacters = config.typedChinese
         composer.provider = config.provider  // the on-device model gets less of a screenshot (`ReplyContext.Limits`)
         // `@reportissue`: the versions and settings it shows, read when it runs (the extensions as this field has them).
         let fallback = services
@@ -1125,7 +1126,7 @@ public final class InputSession {
         let config = services.loadSettings()
         return SessionTasks.Place(app: app, terminal: terminal, pastesInTerminal: terminal && generates && services.pastesInTerminal(),
                                   improveTranslates: config.improveTranslates, pluginLanguage: UIText.pluginLanguage,
-                                  commandTrigger: config.commandTrigger)
+                                  commandTrigger: config.commandTrigger, chinese: config.typedChinese)
     }
 
     /// Asks again for the results shown, revised as the refinement's last instruction says ("shorter"; `SessionTasks.refine`).
