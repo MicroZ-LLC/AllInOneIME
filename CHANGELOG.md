@@ -2,6 +2,18 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
+## 0.6.9 (unreleased)
+
+### Added
+
+- Pinyin in Traditional characters: Settings → Input → Chinese (pinyin) → Characters: Simplified, Traditional (Taiwan) or Traditional (Hong Kong) (`chineseCharacters` in the config). Taiwan's types Taiwan's characters and words (ruanjian → 軟體, wangluo → 網路, xinxi → 資訊), Hong Kong's its characters (軟件, 網絡), and `"` and `'` give 「」 and 『』. Until you pick one it follows your Mac's preferred languages, so a Mac in Traditional Chinese types Traditional. It applies everywhere: `@improve`, the rewrite styles and polishing keep your Traditional Chinese, `@translate` and Translate as You Type take it as the language you type (the chip says 繁), `@reply` answers Chinese in it, screenshots are read as Traditional first, `@search` asks for Traditional Chinese pages, `@remind` reads Traditional dates, and the input is called "Chinese (pinyin, Traditional)". The conversion is OpenCC's, on this Mac, with its data in the app (about 1 MB; the Chinese language pack is unchanged). It swaps whole words, so a few Simplified words only have their Taiwan form (运行 → 執行). Synced through iCloud with the other settings.
+- The Troubleshoot checks recognize Rime's logs when the data for Traditional characters is missing or can't be read, and say what to do.
+
+### Changed
+
+- `@reply` answers Chinese in your characters (Settings → Input → Chinese → Characters), whichever the other person writes in. Before, a reply to Traditional Chinese came in Traditional Chinese and one to Simplified in Simplified.
+- `@remind` also reads dates and times written in Traditional characters (下個禮拜五下午三點, 兩個小時以後), whatever your characters are.
+
 ## 0.6.8.2 (2026-10-28)
 
 ### Added
