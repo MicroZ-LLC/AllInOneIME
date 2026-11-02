@@ -2,6 +2,12 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
+## 0.6.9 (unreleased)
+
+### Changed
+
+- Troubleshoot: when Accessibility isn't allowed, its row now lists what doesn't work without it: the keys a list takes can reach some apps, text of more than one line goes into a terminal on one line, ⏎ on a clipboard history image only puts it on the clipboard, the selection may not be read in Chrome and apps like Slack, `@agent` and `@reply` can't take the Chrome page along, a list may show away from the caret, and autocomplete can run past a field's edge or miss a few password fields.
+
 ## 0.6.8.2 (2026-10-28)
 
 ### Added

@@ -614,7 +614,8 @@ or comes back to the front, and as Troubleshoot… opens; they ask for no permis
 they find wrong also shows at the top of the page it's about, as a banner, with a dot by that page in the sidebar: red
 for a problem, orange for a warning. It checks the input method (installed, enabled, in your input sources), the AI
 provider (its key saved or the Bedrock profile's credentials found, never read or shown; Apple Intelligence), the
-permissions (Accessibility, controlling Notes, Reminders, Terminal and Messages, asked of macOS without a prompt), secure
+permissions (Accessibility, controlling Notes, Reminders, Terminal and Messages, asked of macOS without a prompt; with
+Accessibility not allowed, its row lists what doesn't work without it), secure
 input, the language packs of your input languages, `config.json` (readable, unknown keys, values out of range, a language
 twice, more than 5 translation languages), extensions and plugins that didn't load, updates, sync through iCloud (on or
 off, when it last synced, the last error, iCloud Drive not available, settings from iCloud not used here), and recent

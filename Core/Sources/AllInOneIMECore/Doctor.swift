@@ -316,12 +316,30 @@ public enum Doctor {
         case .granted:
             out.append(Finding(area: .permissions, status: .ok, title: t.tr("辅助功能权限已允许", "Accessibility is allowed")))
         case .denied, .notDetermined:
-            // Not allowed for the build that runs, though System Settings may show the switch on: after an update macOS
-            // can keep it for the previous build's signature.
+            // What works less well without it, a line each (the Mac's: the key tap, `KeyGuard`; posting the paste key,
+            // `TerminalPaste`, `canPassPasteKey`; the selection, `SelectedText`; ⌃V's panel where nothing can be marked,
+            // `clipboardPanelFits`; the caret, `FocusedField.caret`; the page, `PageContextReader`; the field's frame and
+            // password fields, `FocusedField`). Then: not allowed for the build that runs, though System Settings may show
+            // the switch on: after an update macOS can keep it for the previous build's signature.
+            let without = [
+                t.tr("列表用的键（↓ ↑ ⏎ Esc）有的 App 也会收到", "some apps can also get the keys a list takes (↓ ↑ ⏎ Esc)"),
+                t.tr("多行文字放进终端会变成一行", "text of more than one line goes into terminals on one line"),
+                t.tr("剪贴板历史：在图片上按 ⏎ 只会放到剪贴板，要自己按 ⌘V；再按 ⌃V 在多数 App 里不会粘贴",
+                     "clipboard history: ⏎ on an image only puts it on the clipboard, for your own ⌘V, and ⌃V again doesn't paste in most apps"),
+                t.tr("在 Chrome 和 Slack、VS Code 这类 App 里，@ 命令可能读不到选中的文字，⌃V 也可能打不开剪贴板历史",
+                     "in Chrome and apps like Slack or VS Code, @ commands may not read the selection, and ⌃V may not open clipboard history"),
+                t.tr("有的 App 里（多半是 Chrome 里的网页），列表可能不在光标旁边",
+                     "in some apps (often Chrome's pages), a list may show away from the caret"),
+                t.tr("@agent 和 @reply 带不上 Chrome 里的网页", "@agent and @reply can't take the Chrome page along"),
+                t.tr("续写的灰字可能超出输入框", "autocomplete's gray text can run past the field's edge"),
+                t.tr("少数密码框认不出来，续写和建议可能会在里面出现",
+                     "a few password fields aren't recognized, so autocomplete and suggestions may show in them"),
+            ]
+            let detail = [t.tr("没有这个权限：", "without it:")] + without.map { "• " + $0 }
+                + [t.tr("如果系统设置 → 隐私与安全性 → 辅助功能里 AllInOneIME 已经打开，先关掉再打开（macOS 可能还留着上一个版本的权限）",
+                        "If AllInOneIME is already on in System Settings → Privacy & Security → Accessibility, turn it off and on again (macOS can keep the permission for the previous version)")]
             out.append(Finding(area: .permissions, status: .warning, title: t.tr("辅助功能权限没有允许", "Accessibility isn't allowed"),
-                               detail: t.tr("有的 App 里读不到选中的文字。如果系统设置 → 隐私与安全性 → 辅助功能里 AllInOneIME 已经打开，先关掉再打开（macOS 可能还留着上一个版本的权限）",
-                                            "the selection can't be read in some apps. If AllInOneIME is already on in System Settings → Privacy & Security → Accessibility, turn it off and on again (macOS can keep the permission for the previous version)"),
-                               fix: .openPrivacy(.accessibility)))
+                               detail: detail.joined(separator: "\n"), fix: .openPrivacy(.accessibility)))
         case .unknown: break
         }
         if facts.config?.voiceInput != false {
@@ -711,12 +729,14 @@ public enum Doctor {
     /// The findings as the model reads them, one per line, each with its id when it has a fix ("F3"): what
     /// a question sends, nothing else. In the language they were made in: the controller makes them in English
     /// for the model (`findings(_:chinese: false)`, in the same order as the panel's). Each line is scrubbed again
-    /// (`scrub`): no paths beyond ~ ("…/<last>" for others), no keys; the user's text was never in them.
+    /// (`scrub`): no paths beyond ~ ("…/<last>" for others), no keys; the user's text was never in them. A detail of
+    /// several lines (what doesn't work without Accessibility) is on its finding's line, its lines joined with spaces.
     public static func report(_ findings: [Finding], areas: Set<Area>? = nil) -> String {
         findings.enumerated().compactMap { index, finding in
             guard areas?.contains(finding.area) ?? true else { return nil }
             let id = finding.fix == nil ? "" : " [fix F\(index + 1)]"
-            return "- \(finding.area.rawValue): \(scrub(finding.text(chinese: false)))\(id)"
+            let text = scrub(finding.text(chinese: false)).split(whereSeparator: \.isNewline).joined(separator: " ")
+            return "- \(finding.area.rawValue): \(text)\(id)"
         }.joined(separator: "\n")
     }
 
