@@ -109,7 +109,9 @@ public enum EnglishWords {
     /// Whether letters put in as typed in `field` (`EnglishWordsEngine.rawCommitted`) are learned, as every shell learns
     /// them (`InputSession`, the Windows engine; words typed in English mode too, `learnsTypedInEnglish`): the second time (`typedOnce`; the first time they are only remembered,
     /// in memory) when they may be a word (`learnable`, not one of `offered` already). Never during secure input
-    /// (`secureInput`) or in a password field (`FieldInfo.secure`), in a terminal (a password prompt of sudo's or ssh's
+    /// (`secureInput`; the session's is true also in a field not known to be no password field: the Mac without
+    /// Accessibility learns nothing where secure input is off, `InputSession.fieldIsPrivate`) or in a password field
+    /// (`FieldInfo.secure`), in a terminal (a password prompt of sudo's or ssh's
     /// doesn't turn secure input on in every one), in a remote desktop, a virtual machine or an SSH client (`isRemote`),
     /// in a password manager (`PasswordManagers`: a password shown in a plain field there), in an app with no AI, or with
     /// learning off (`Config.learnsEnglishWords`). `config` is read only past those.

@@ -290,7 +290,7 @@ extension InputSession {
 
     /// Whether a key asks if the field is a password field (`FieldContext.Parts.passwordField`, the Mac's Accessibility):
     /// not yet told in this field, and rows may show in it. So it's asked once a field, and only where suggestions may use
-    /// it; rows show only once it's known to be none.
+    /// it; rows show only once it's told (none, or one the shell couldn't tell: as they always did).
     func suggestionsWantPasswordField() -> Bool {
         passwordField == nil && suggestionsMayShow()
     }

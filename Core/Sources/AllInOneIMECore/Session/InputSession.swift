@@ -82,11 +82,15 @@ public final class InputSession {
     /// Electron page that tells no caret, or doesn't read back what is before it, where nothing can be marked during
     /// them). False: ⌃V is as before 0.6.8 there (`clipboardOpensIn`).
     public var clipboardPanelAllowed = true
-    /// The field that has the focus is a password field where secure input isn't on, as the shell told it
-    /// (`FieldContext.Parts.passwordField`: the Mac asks Accessibility once a field, and with each read autocomplete's
-    /// pause makes); nil until told. Autocomplete, suggestions and the English words learned all go by it
+    /// Whether the field that has the focus is a password field where secure input isn't on, as the shell told it: with
+    /// a key where suggestions may show (`FieldContext.Parts.passwordField`: the Mac asks Accessibility once a field), off
+    /// the key's thread where English words may be learned (`SessionOutput.readPasswordField`), and with each read
+    /// autocomplete's pause makes; nil until told. Autocomplete, suggestions and the English words learned all go by it
     /// (`fieldIsPrivate`); one told stays one until another field takes the focus.
-    var passwordField: Bool?
+    var passwordField: PasswordField?
+    /// The focus (`fieldSession`) the shell was last asked in off the key's thread (`SessionOutput.readPasswordField`):
+    /// once a field.
+    private var passwordFieldAsked = -1
     /// When one of the session's own panels last had the pointer (`SessionServices.uptime`): the wheel over suggestions'
     /// rows, the command list or clipboard history, a click on one of their rows (`SessionEvent.scroll`, `.pick`). It
     /// moved no caret (`caretMayHaveMoved`).
@@ -207,6 +211,10 @@ public final class InputSession {
                 takePasswordField(context)
                 // Below 0: Code's read of the field's words; else autocomplete's.
                 if id < 0 { suggestionsFieldRead(context, pause: -id) } else { autocompleteRead(context, id: id) }
+            case let .passwordField(told, focus):
+                // Asked in a field that has lost the focus since: not this one's.
+                guard focus == fieldSession else { return }
+                takePasswordField(told.map { $0 ? .yes : .no } ?? .unknown)
             case let .task(id, update):
                 guard tasks.isCurrent(id) else { return }
                 received(update, from: id)
@@ -268,21 +276,55 @@ public final class InputSession {
     /// field here.
     public func secureInputActive() -> Bool { field.secure || services.secureInputActive() }
 
+    /// What the shell told of the field that has the focus being a password field where secure input isn't on
+    /// (`passwordField`).
+    enum PasswordField: Equatable {
+        /// One (the Mac: Accessibility tells an `AXSecureTextField`).
+        case yes
+        /// None.
+        case no
+        /// The shell was asked and couldn't tell (the Mac: no Accessibility, nothing focused, no answer in time, the read
+        /// failed): not asked again in this field.
+        case unknown
+    }
+
     /// Whether nothing of this field may be read, sent or learned from: secure input on (`secureInputActive`), or a
-    /// password field where it isn't (`passwordField`), as if it were; `unknown` is what a field not told yet counts as
+    /// password field where it isn't (`passwordField`), as if it were. `unknown` is what a field not told yet counts as
     /// (true where nothing is done until it's known: suggestions' rows, Code's reads of the field, the English words
-    /// learned; false for autocomplete, whose read of the field once its pause is over tells it). The one check
-    /// learning, autocomplete and suggestions go by.
-    func fieldIsPrivate(unknown: Bool) -> Bool { secureInputActive() || (passwordField ?? unknown) }
+    /// learned; false for autocomplete, whose read of the field once its pause is over tells it); `untold` what one the
+    /// shell couldn't tell counts as (`PasswordField.unknown`): true for the English words learned, so that without
+    /// Accessibility nothing is learned in a field secure input isn't on in (a password field can't be told apart there);
+    /// false for autocomplete and suggestions, which have always taken it as none. The one check learning, autocomplete
+    /// and suggestions go by.
+    func fieldIsPrivate(unknown: Bool, untold: Bool = false) -> Bool {
+        guard !secureInputActive() else { return true }
+        switch passwordField {
+        case .yes?: return true
+        case .no?: return false
+        case .unknown?: return untold
+        case nil: return unknown
+        }
+    }
 
     /// What `context` tells of the field being a password field where secure input isn't on (`passwordField`): one
-    /// (`field`'s `secure`) stays one until another field takes the focus; asked (`.passwordField`) and not, it's none.
+    /// (`field`'s `secure`), else asked (`.passwordField`) none or, where the shell couldn't tell
+    /// (`passwordFieldUnknown`), unknown (`takePasswordField(_:)`).
     func takePasswordField(_ context: FieldContext) {
         guard context.read.contains(.secure), !context.secure else { return }
         if context.field?.secure == true {
-            passwordField = true
-        } else if context.read.contains(.passwordField), passwordField == nil {
-            passwordField = false
+            takePasswordField(.yes)
+        } else if context.read.contains(.passwordField) {
+            takePasswordField(context.passwordFieldUnknown ? .unknown : .no)
+        }
+    }
+
+    /// `told` of the field that has the focus: one stays one until another field takes the focus; none is taken over
+    /// one not told yet or not told apart (a read that tells after one that couldn't); unknown only over one not told
+    /// yet.
+    func takePasswordField(_ told: PasswordField) {
+        switch (told, passwordField) {
+        case (.yes, _), (_, nil), (.no, .unknown?): passwordField = told
+        default: break
         }
     }
 
@@ -373,13 +415,14 @@ public final class InputSession {
     /// Letters put in as they were typed while typing pinyin ("bedrock" and ⏎), learned as an English word the second time
     /// when they may be one, as every shell learns them (`EnglishWords.learns`; the first time they are only remembered,
     /// in memory: `SessionServices.englishTypedOnce`): never during secure input or in a password field where it isn't
-    /// on (`fieldIsPrivate`: nor in one not known to be none yet, `learningWantsPasswordField`), in a terminal, in a
-    /// remote desktop, a virtual machine or an SSH client, in a password manager, in an app with no AI, or with learning
-    /// off. Offered in this field at once; kept for every field (`SessionServices.learnEnglishWord`).
+    /// on, nor in a field not known to be none (`fieldIsPrivate`: not told yet, `learningAsksPasswordField`, or told the
+    /// shell couldn't tell: the Mac without Accessibility learns nothing in a field secure input isn't on in), in a
+    /// terminal, in a remote desktop, a virtual machine or an SSH client, in a password manager, in an app with no AI, or
+    /// with learning off. Offered in this field at once; kept for every field (`SessionServices.learnEnglishWord`).
     private func learnEnglishWord(_ typed: String) {
         guard let englishWords,
               EnglishWords.learns(typed, in: FieldInfo(app: app, terminal: terminal, secure: field.secure),
-                                  secureInput: fieldIsPrivate(unknown: true), config: services.loadSettings,
+                                  secureInput: fieldIsPrivate(unknown: true, untold: true), config: services.loadSettings,
                                   known: englishWords.keys, dictionary: englishWords.dictionary,
                                   typedOnce: services.englishTypedOnce) else { return }
         learned(typed, englishWords)
@@ -396,7 +439,8 @@ public final class InputSession {
             if suggestionsKeepFromLearning(typed) { continue }
             guard let englishWords,
                   EnglishWords.learnsTypedInEnglish(typed, in: FieldInfo(app: app, terminal: terminal, secure: field.secure),
-                                                    secureInput: fieldIsPrivate(unknown: true), config: services.loadSettings,
+                                                    secureInput: fieldIsPrivate(unknown: true, untold: true),
+                                                    config: services.loadSettings,
                                                     known: englishWords.keys, dictionary: englishWords.dictionary,
                                                     typedOnce: services.englishTypedOnce) else { continue }
             learned(typed, englishWords)
@@ -404,14 +448,14 @@ public final class InputSession {
         }
     }
 
-    /// Whether `key` asks if the field is a password field (`FieldContext.Parts.passwordField`) for the English words
-    /// learned in `field` (the key's): not told yet in this field, a key that types a Latin letter (what a word learned
-    /// is made of), and words may be learned there (`EnglishWords.mayLearn`). So it's asked once a field before
-    /// anything can be learned in it, also where nothing else asks (autocomplete and suggestions off); until it's told,
-    /// nothing is.
-    private func learningWantsPasswordField(for key: KeyEvent, in field: FieldInfo) -> Bool {
-        guard passwordField == nil, englishWords != nil, key.printableText?.contains(where: { $0.isASCII && $0.isLetter }) == true
-        else { return false }
+    /// Whether `key` has the shell asked, off the key's thread (`SessionOutput.readPasswordField`), if the field is a
+    /// password field, for the English words learned in `field` (the key's): not told yet, not asked yet in this field,
+    /// a key that types a Latin letter (what a word learned is made of), and words may be learned there
+    /// (`EnglishWords.mayLearn`). So it's asked once a field before anything can be learned in it, also where nothing
+    /// else asks (autocomplete and suggestions off), and no key waits for the answer; until it comes, nothing is learned.
+    private func learningAsksPasswordField(for key: KeyEvent, in field: FieldInfo) -> Bool {
+        guard passwordField == nil, passwordFieldAsked != fieldSession, englishWords != nil,
+              key.printableText?.contains(where: { $0.isASCII && $0.isLetter }) == true else { return false }
         return EnglishWords.mayLearn(in: FieldInfo(app: field.app, terminal: field.terminal, secure: self.field.secure),
                                      secureInput: secureInputActive(), config: services.loadSettings)
     }
@@ -668,16 +712,14 @@ public final class InputSession {
 
     /// What of the field `key` may need, given what was read of it so far (`context`): what the shell reads before it hands
     /// the key on, asking again until there is nothing more: three reads at most (whether secure input is on; what the key
-    /// may need, with the character before an "@", and once a field where suggestions may show or English words may be
-    /// learned, whether it's a password field all the same; the selection, unless that "@" comes right after a word). A
-    /// shell where reading is cheap reads it all.
+    /// may need, with the character before an "@", and once a field where suggestions may show, whether it's a password
+    /// field all the same; the selection, unless that "@" comes right after a word). A shell where reading is cheap reads
+    /// it all.
     public func fieldWants(for key: KeyEvent, given context: FieldContext) -> FieldContext.Parts {
         // First whether anything is composed at all: nothing else is read in a password field.
         var wants: FieldContext.Parts = [.secure]
         guard context.read.contains(.secure), !context.secure, !field.secure else { return wants }
-        if suggestionsWantPasswordField() || learningWantsPasswordField(for: key, in: context.field ?? field) {
-            wants.insert(.passwordField)
-        }
+        if suggestionsWantPasswordField() { wants.insert(.passwordField) }
         if composer.isComposing, !composer.draftInPanel { wants.insert(.markedText) }
         if composer.draftInPanel, selectionReported != nil { wants.insert(.selectedRange) }
         // "@" may start a command where level one would start one (`Composer.handleLevelOne`: an engine, nothing composed
@@ -734,6 +776,12 @@ public final class InputSession {
             return false
         }
         secureNoticeShown = false
+        // Whether the field is a password field, for the English words learned in it: read once this key is answered,
+        // off its thread (no key waits for Accessibility), and told later.
+        if learningAsksPasswordField(for: event, in: context.field ?? field) {
+            passwordFieldAsked = fieldSession
+            emit(.readPasswordField(focus: fieldSession))
+        }
         // The app took the text being typed without saying so (Slack, on an "@…"): start over rather than show the draft
         // again, doubled. This key is dropped, so ⏎ doesn't send half a sentence. (A command on the selection marks
         // nothing in the field: there's nothing for the app to take.)

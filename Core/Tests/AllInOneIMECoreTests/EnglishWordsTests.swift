@@ -809,8 +809,8 @@ struct EnglishWordsSessionTests {
     /// A password field secure input isn't on in (a web page's, an Electron app's), as the Mac's Accessibility tells
     /// it: nothing typed there is learned, neither a password of letters put in as typed twice (a field to type it
     /// again in) nor words typed in English mode, though autocomplete and suggestions are off and ask nothing of the
-    /// field. A key that types a letter asks whether it is one, once a field; until the shell tells, nothing is
-    /// learned.
+    /// field. A key that types a letter has the shell ask whether it is one, once a field, off the key: the key itself
+    /// reads nothing more of the field (`fieldWants`); until the answer comes, nothing is learned.
     @Test func neverInAPasswordFieldSecureInputIsntOnIn() async {
         await withInterfaceLanguage("en") {
             let learned = Learned()
@@ -823,30 +823,81 @@ struct EnglishWordsSessionTests {
             #expect(password.composer.inputLanguage == .english)
             password.type("zorblax zorblax ok")
             #expect(learned.words.isEmpty, "typed in English mode: \(learned.words)")
+            #expect(password.passwordFieldReads == 1, "asked once a field: \(password.passwordFieldReads)")
 
-            // Asked with a key that types a letter, once a field.
+            // Asked off the key: a key wants nothing of it; one that types a letter has it read once it's answered.
             let field = host(learned: learned)
+            field.readsWhatIsWanted = true
             let f = KeyEvent(keyCode: 0, characters: "f")
-            #expect(field.session.fieldWants(for: f, given: FieldContext(read: .secure)).contains(.passwordField))
-            #expect(!field.session.fieldWants(for: FakeHost.enter, given: FieldContext(read: .secure)).contains(.passwordField))
+            #expect(!field.session.fieldWants(for: f, given: FieldContext(read: .secure)).contains(.passwordField))
+            field.press(FakeHost.enter)
+            #expect(field.passwordFieldReads == 0, "a key that types no letter")
             field.press(f)
-            #expect(!field.session.fieldWants(for: f, given: FieldContext(read: .secure)).contains(.passwordField), "told: none")
+            #expect(field.passwordFieldReads == 1)
 
-            // A shell that never tells: nothing is learned.
-            let untold = host(learned: learned)
-            for _ in 0..<2 {
-                for character in "frobnicate" {
-                    untold.press(KeyEvent(keyCode: 0, characters: String(character)), with: FieldContext(read: .secure))
-                }
-                untold.press(FakeHost.enter, with: FieldContext(read: .secure))
-            }
-            #expect(untold.document == "frobnicatefrobnicate" && learned.words.isEmpty, "\(learned.words)")
+            // A shell whose answer hasn't come: nothing is learned; once it has, words are.
+            let waiting = host(learned: learned)
+            (waiting.readsWhatIsWanted, waiting.fieldReadsWait) = (true, true)
+            putInTwice("frobnicate", waiting)
+            #expect(waiting.document == "frobnicatefrobnicate" && learned.words.isEmpty, "\(learned.words)")
+            waiting.answerFieldReads()
+            putInTwice("quuxify", waiting)
+            #expect(learned.words == ["quuxify"], "\(learned.words)")
 
             // Told it is none: learned.
             let plain = host(learned: learned)
             plain.readsWhatIsWanted = true
             putInTwice("frobnicate", plain)
-            #expect(learned.words == ["frobnicate"])
+            #expect(learned.words == ["quuxify", "frobnicate"], "\(learned.words)")
+        }
+    }
+
+    /// Where the shell can't tell whether the field is a password field (the Mac without Accessibility, nothing focused,
+    /// no answer in time), it counts as one for learning, never as none: without Accessibility, English words aren't
+    /// learned in a field secure input isn't on in. A read that tells it is none later (autocomplete's pause, a key where
+    /// suggestions ask) lets them be learned; one told is never asked again.
+    @Test func notWhereTheShellCantTellAPasswordFieldApart() async {
+        await withInterfaceLanguage("en") {
+            let learned = Learned()
+            let untold = host(learned: learned)
+            (untold.readsWhatIsWanted, untold.cannotTellPasswordField) = (true, true)
+            putInTwice("frobnicate", untold)
+            untold.modifiers(ModifierChange(key: .modifier(.shift, .left), modifiers: [.shift, .leftShift], timestamp: 100))
+            untold.modifiers(ModifierChange(key: .modifier(.shift, .left), modifiers: [], timestamp: 100.1))
+            untold.type("zorblax zorblax ok ")
+            #expect(learned.words.isEmpty && untold.passwordFieldReads == 1, "\(learned.words) \(untold.passwordFieldReads)")
+
+            // A shell that reads it all (every key tells it), unable to tell: the same.
+            let all = host(learned: learned)
+            all.cannotTellPasswordField = true
+            putInTwice("quuxify", all)
+            #expect(learned.words.isEmpty && all.passwordFieldReads == 0, "\(learned.words)")
+
+            // Told none since (a later read could tell): learned.
+            all.cannotTellPasswordField = false
+            putInTwice("quuxify", all)
+            #expect(learned.words == ["quuxify"], "\(learned.words)")
+        }
+    }
+
+    /// The answer to the read of whether the field is a password field (`SessionOutput.readPasswordField`) is for the
+    /// field it was asked in: one that comes once another field took the focus is dropped, and that field is asked
+    /// anew.
+    @Test func anAnswerForAFieldLeftIsDropped() async {
+        await withInterfaceLanguage("en") {
+            let learned = Learned()
+            let host = host(learned: learned)
+            (host.readsWhatIsWanted, host.fieldReadsWait) = (true, true)
+            host.type("f")
+            #expect(host.passwordFieldReads == 1)
+            host.press(FakeHost.escape)
+            host.focus()
+            host.answerFieldReads()  // the first field's: none
+            putInTwice("frobnicate", host)
+            #expect(learned.words.isEmpty && host.passwordFieldReads == 2, "\(learned.words) \(host.passwordFieldReads)")
+            host.answerFieldReads()
+            putInTwice("frobnicate", host)
+            #expect(learned.words == ["frobnicate"], "\(learned.words)")
         }
     }
 

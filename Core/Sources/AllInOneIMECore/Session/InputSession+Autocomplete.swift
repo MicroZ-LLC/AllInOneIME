@@ -89,7 +89,7 @@ extension InputSession {
         let config = services.loadSettings()
         guard Autocomplete.isOn(in: app, config: config, stopped: services.autocomplete.stopped(in: app)) else { return false }
         // A password field where secure input isn't on as if it were (`fieldIsPrivate`: one not told yet may run, its
-        // read once the pause is over tells it).
+        // read once the pause is over tells it; one the shell couldn't tell runs, as it always did).
         let info = FieldInfo(app: app, terminal: terminal, secure: field.secure)
         return Autocomplete.blocker(in: info, secureInput: fieldIsPrivate(unknown: false), config: config, composing: composer.isComposing,
                                     translating: composer.translateMode != nil) == nil
@@ -190,7 +190,7 @@ extension InputSession {
     /// typed starts the pause (`autocompleteSchedulePause`).
     func autocompleteAfterKey(_ key: KeyEvent, handled: Bool, inserted: String) {
         // Off here (`AutocompleteField.active`): nothing to do. Nothing of a password field is kept, not even what was typed.
-        guard autocomplete.active, passwordField != true else { return }
+        guard autocomplete.active, passwordField != .yes else { return }
         let now = services.uptime()
         // A key that types, pinyin's too: the user's rhythm, what the pause goes by.
         if key.printableText != nil, key.modifiers.isDisjoint(with: [.command, .control]) { services.autocomplete.keyTyped(at: now) }
@@ -264,7 +264,7 @@ extension InputSession {
         guard id == autocomplete.reading, id == autocomplete.pause, autocomplete.suggestion == nil else { return }
         autocomplete.reading = nil
         guard context.read.contains(.secure), !context.secure else { return }
-        if passwordField == true {
+        if passwordField == .yes {
             autocomplete.typed.forget()
             log.notice("autocomplete: a password field; off in it")
             return

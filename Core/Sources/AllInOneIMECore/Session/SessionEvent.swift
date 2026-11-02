@@ -26,6 +26,10 @@ public enum SessionEvent: Sendable {
     /// mode's): whether secure input is on, the selection, the text around the caret (what wasn't read,
     /// `FieldContext.read`, counts as unknown).
     case field(FieldContext, id: Int)
+    /// Whether the field that had the focus when `SessionOutput.readPasswordField` asked (`focus`, its count) is a
+    /// password field where secure input isn't on; nil: the shell couldn't tell (the Mac: no Accessibility, nothing
+    /// focused, no answer in time), unknown, never none. One for a field that has lost the focus since is dropped.
+    case passwordField(Bool?, focus: Int)
     /// What the session's work answers (`SessionTasks`).
     case task(TaskID, TaskUpdate)
     /// A timer the session started (`SessionOutput.startTimer`) went off.
@@ -111,6 +115,10 @@ public enum SessionOutput: Equatable, Sendable {
     /// mode's words once typing paused, `ReplyContext.Limits.fieldBefore` and `fieldAfter`), never during secure input,
     /// and hand it back as `SessionEvent.field` with `id`. A shell that can't read it answers with nothing read.
     case readField(id: Int)
+    /// Read whether the field that has the focus is a password field where secure input isn't on, off the session's
+    /// thread (the Mac asks Accessibility, which may take a quarter of a second: no key waits for it), and hand it back
+    /// as `SessionEvent.passwordField` with `focus`. A shell that can't tell answers nil.
+    case readPasswordField(focus: Int)
     /// Autocomplete's suggestion (`Autocomplete`): `text` in gray right after the caret (where the caret can't be placed,
     /// a line of the candidate panel), until the next one; nil: none. Shown again as the caret moves (typed along).
     case ghost(String?)
@@ -243,8 +251,8 @@ public struct FieldContext: Equatable, Sendable {
         public static let beforeCaret = Parts(rawValue: 1 << 4)
         public static let text = Parts(rawValue: 1 << 5)
         /// Whether the field is a password field where secure input isn't on (the Mac: one Accessibility tells is an
-        /// `AXSecureTextField`), told in `field`'s `secure`: asked once a field, where suggestions may show or English
-        /// words may be learned.
+        /// `AXSecureTextField`), told in `field`'s `secure` (one the shell couldn't tell, `passwordFieldUnknown`): asked
+        /// once a field, where suggestions may show.
         public static let passwordField = Parts(rawValue: 1 << 6)
         public static let all: Parts = [.secure, .markedText, .selectedRange, .selection, .beforeCaret, .text, .passwordField]
     }
@@ -274,10 +282,13 @@ public struct FieldContext: Equatable, Sendable {
     public var beforeCaret: BeforeCaret
     /// The text around the caret, without the draft (`@reply`'s context).
     public var text: FieldText?
+    /// Asked whether the field is a password field (`Parts.passwordField`), the shell couldn't tell (the Mac: no
+    /// Accessibility, nothing focused, no answer in time, the read failed): unknown, never none.
+    public var passwordFieldUnknown: Bool
 
     public init(read: Parts = [], field: FieldInfo? = nil, secure: Bool = false, markedTextTaken: Bool = false,
                 selectedRange: Range<Int>? = nil, selection: Composer.Selection? = nil, beforeCaret: BeforeCaret = .unknown,
-                text: FieldText? = nil) {
+                text: FieldText? = nil, passwordFieldUnknown: Bool = false) {
         self.read = read
         self.field = field
         self.secure = secure
@@ -286,5 +297,6 @@ public struct FieldContext: Equatable, Sendable {
         self.selection = selection
         self.beforeCaret = beforeCaret
         self.text = text
+        self.passwordFieldUnknown = passwordFieldUnknown
     }
 }

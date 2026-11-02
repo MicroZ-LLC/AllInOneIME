@@ -1460,6 +1460,18 @@ struct AutocompleteTests {
         }
     }
 
+    /// Where the shell can't tell whether the field is a password field when it's read (the Mac without Accessibility,
+    /// no answer in time), autocomplete runs as it always did there (only the English words learned take it as one).
+    @Test func aFieldTheShellCantTellRunsAsBefore() async {
+        await withInterfaceLanguage("en") {
+            let r = rig()
+            r.host.cannotTellPasswordField = true
+            r.host.type("Hello wor")
+            r.pauseEnds(expecting: "x")
+            #expect(r.model.requests.count == 1 && r.host.ghost != nil)
+        }
+    }
+
     /// A field told to be a password field with a key (the Mac asks Accessibility once a field, where suggestions may
     /// show): autocomplete goes by the same answer as suggestions, nothing of the field read or sent.
     @Test func aFieldToldSecureWithAKeyIsReadForNothing() async {
