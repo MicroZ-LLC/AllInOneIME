@@ -945,7 +945,8 @@ extension InputSession {
     /// loaded (`prune`, as a field takes the focus or the settings change, the plugins just scanned again and the script
     /// extensions read again: the sources disabled forgotten first, their cache deleted, and the shell told of those
     /// whose approval no longer holds, to mark it lapsed: kept, with its cache, and of the script extensions' that follow
-    /// their changes, made what they are now); the next refresh's timer.
+    /// their changes, made what they are now; none of it while the settings are only the defaults, `settingsValid`); the
+    /// next refresh's timer.
     func suggestionsMaintain(prune: Bool = false) {
         let s = services.suggestions
         if prune { (suggesting.extensionPins, suggesting.extensionsOnByDefault) = ([:], nil) }
@@ -961,7 +962,7 @@ extension InputSession {
                 s.reportStatus(status)
             }
         }
-        if prune {
+        if prune, s.settingsValid() {
             // Those on by default with no approval (the user's own extension's, a trusted source's) keep their lists too.
             let declared = services.loadExtensions(services.loadSettings(), false).commands
             s.store.prune(keeping: settings.sourceKeys(extensions: declared), folder: s.cacheFolder)

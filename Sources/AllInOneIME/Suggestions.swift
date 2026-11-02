@@ -54,10 +54,10 @@ enum SuggestionsShared {
     static func settingsChanged() {
         if let field = AllInOneIMEInputController.activeController {
             field.received(.configChanged)
-        } else {
+        } else if let config = LiveConfig.currentIfValid {
             // No field: what's disabled (or a custom command that was a source, deleted) is still forgotten now, what no
             // longer holds marked and what follows its extension made what it is, with the plugins and extensions as they are.
-            let config = LiveConfig.current
+            // Not by the defaults of a config file that doesn't parse: they approve no source, and every list would go.
             let extensions = LiveExtensions.current(config).commands
             // A script extension's on with no approval (the user's own, a trusted source's) keeps its list too.
             store.prune(keeping: settings(config).sourceKeys(extensions: extensions), folder: cacheFolder)
@@ -149,6 +149,8 @@ enum SuggestionsShared {
         services.store = store
         services.runtime = runtime
         services.settings = { MainActor.assumeIsolated { settings(LiveConfig.current) } }
+        // The defaults of a config file that doesn't parse forget no source, nor delete its cached list.
+        services.settingsValid = { MainActor.assumeIsolated { LiveConfig.currentIfValid != nil } }
         services.cacheFolder = cacheFolder
         services.preferences = { plugin in pluginPreferences(plugin) }
         services.codingPacks = { MainActor.assumeIsolated { codingPacks } }

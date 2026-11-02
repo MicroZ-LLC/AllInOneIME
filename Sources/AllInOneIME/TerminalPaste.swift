@@ -110,23 +110,49 @@ enum TerminalPaste {
         restore(pending.before, to: pasteboard)
     }
 
-    /// Pastes `text` into the frontmost app, then puts the clipboard back once the app has read it.
+    /// Hands the text being pasted to the app when it reads the clipboard (`NSPasteboardItemDataProvider`), so the
+    /// clipboard is put back only once it has, as a kept image's is (`ImageProvider`).
+    private final class TextProvider: NSObject, NSPasteboardItemDataProvider {
+        let text: String
+        private(set) var read = false
+
+        init(text: String) { self.text = text }
+
+        func pasteboard(_ pasteboard: NSPasteboard?, item: NSPasteboardItem, provideDataForType type: NSPasteboard.PasteboardType) {
+            if type == .string { item.setString(text, forType: .string) }
+            read = true
+        }
+    }
+
+    /// How long a paste of text waits for the app to read the clipboard (a terminal busy with output takes the ⌘V late)
+    /// before it is put back all the same (an app that never reads it), and how long after the app's first read it is.
+    static let textReadTimeout: TimeInterval = 5, textPutBackAfterRead: TimeInterval = 0.5
+
+    /// Pastes `text` into the frontmost app, then puts the clipboard back once the app has read it: shortly after its first
+    /// read (`textPutBackAfterRead`), or after `textReadTimeout` if it never does; typing goes on once it has. Put back on
+    /// a timer from the ⌘V instead (half a second), a busy terminal that took the ⌘V later pasted what was copied before
+    /// (a password, a token).
     @MainActor
     static func paste(_ text: String) async {
         let pasteboard = NSPasteboard.general
         let before = userClipboard(pasteboard)
         pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
-        // Clipboard managers skip transient content (nspasteboard.org), clipboard history too.
-        pasteboard.setData(Data(), forType: NSPasteboard.PasteboardType("org.nspasteboard.TransientType"))
+        let provider = TextProvider(text: text)
+        let item = NSPasteboardItem()
+        item.setDataProvider(provider, forTypes: [.string])
+        // Clipboard managers skip transient content (nspasteboard.org), clipboard history too (it reads types only then).
+        item.setData(Data(), forType: NSPasteboard.PasteboardType("org.nspasteboard.TransientType"))
+        pasteboard.writeObjects([item])
         let ours = pasteboard.changeCount
         pending = (ours, before)
         await modifiersUp()
         postV(.maskCommand)
-        // The app reads the clipboard when the ⌘V reaches it: wait for that before typing on or putting it back.
-        try? await Task.sleep(nanoseconds: 150_000_000)
+        // The app reads the clipboard when the ⌘V reaches it: wait for that before typing on or putting it back (not once
+        // a later paste of ours took it over: that one puts it back). The provider stays until then.
+        let steps = Int(textReadTimeout / 0.02)
+        for _ in 0..<steps where !provider.read && pending?.ours == ours { try? await Task.sleep(nanoseconds: 20_000_000) }
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 350_000_000)
+            if provider.read { try? await Task.sleep(nanoseconds: UInt64(textPutBackAfterRead * 1_000_000_000)) }
             putBack(after: ours, to: pasteboard)
         }
     }
