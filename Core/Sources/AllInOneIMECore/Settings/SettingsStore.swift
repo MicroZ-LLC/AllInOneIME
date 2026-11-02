@@ -208,6 +208,8 @@ public final class SettingsStore {
     /// learned becomes theirs), and those refused as what hiding sensitive information hides.
     @discardableResult
     public func addEnglishWords(_ text: String) -> EnglishWords.Added {
+        // From the file's read to its write: a word learned meanwhile (`EnglishWords.Writer`) stays.
+        AIConfig.fileLock.lock(); defer { AIConfig.fileLock.unlock() }
         refresh()
         var changed = config
         let result = EnglishWords.add(text, to: &changed)
@@ -219,6 +221,7 @@ public final class SettingsStore {
 
     /// A word's ✕: `word` gone from the English words (`EnglishWords.remove`), wherever it is in the list now.
     public func removeEnglishWord(_ word: String) {
+        AIConfig.fileLock.lock(); defer { AIConfig.fileLock.unlock() }
         refresh()
         var changed = config
         EnglishWords.remove(word, from: &changed)

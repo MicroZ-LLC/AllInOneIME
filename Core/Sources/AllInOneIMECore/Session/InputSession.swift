@@ -376,7 +376,7 @@ public final class InputSession {
         guard let englishWords,
               EnglishWords.learns(typed, in: FieldInfo(app: app, terminal: terminal, secure: field.secure),
                                   secureInput: fieldIsPrivate(unknown: true), config: services.loadSettings,
-                                  offered: englishWords.words, dictionary: englishWords.dictionary,
+                                  known: englishWords.keys, dictionary: englishWords.dictionary,
                                   typedOnce: services.englishTypedOnce) else { return }
         learned(typed, englishWords)
         log.notice("learned an English word (\(typed.count) letters)")
@@ -393,7 +393,7 @@ public final class InputSession {
             guard let englishWords,
                   EnglishWords.learnsTypedInEnglish(typed, in: FieldInfo(app: app, terminal: terminal, secure: field.secure),
                                                     secureInput: fieldIsPrivate(unknown: true), config: services.loadSettings,
-                                                    offered: englishWords.words, dictionary: englishWords.dictionary,
+                                                    known: englishWords.keys, dictionary: englishWords.dictionary,
                                                     typedOnce: services.englishTypedOnce) else { continue }
             learned(typed, englishWords)
             log.notice("learned an English word typed in English mode (\(typed.count) letters)")

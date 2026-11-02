@@ -69,11 +69,29 @@ enum LiveConfig {
     /// The input menu must still report a broken file and disable actions that would overwrite it.
     static var currentIfValid: Config? {
         let url = Config.defaultURL
-        let date = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
+        let date = modificationDate(url)
         if let cached, cached.url == url, cached.date == date { return cached.config }
         let config = try? Config.load(from: url)
         cached = (url, date, config)
         return config
+    }
+
+    /// The file at `url` read now, off the main thread, with its modification date (nil: it changed while it was read,
+    /// or doesn't parse): what `take` makes the settings, an English word learned (`EnglishWords.Writer`).
+    static func read(_ url: URL) -> (url: URL, date: Date?, config: Config)? {
+        let date = modificationDate(url)
+        guard let config = try? Config.load(from: url), modificationDate(url) == date else { return nil }
+        return (url, date, config)
+    }
+
+    /// What `read` read, as the settings now, unless the file changed since: the next key doesn't parse it again.
+    static func take(_ read: (url: URL, date: Date?, config: Config)) {
+        guard read.url == Config.defaultURL, modificationDate(read.url) == read.date else { return }
+        cached = (read.url, read.date, read.config)
+    }
+
+    private static func modificationDate(_ url: URL) -> Date? {
+        (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
     }
 }
 

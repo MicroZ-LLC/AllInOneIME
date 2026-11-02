@@ -762,6 +762,7 @@ public struct Config: Codable, Equatable, Sendable {
     }
 
     public func write(to url: URL = defaultURL) throws {
+        AIConfig.fileLock.lock(); defer { AIConfig.fileLock.unlock() }  // not between another writer's read and write
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         try FileManager.default.createDirectory(
@@ -778,6 +779,7 @@ public struct Config: Codable, Equatable, Sendable {
     /// changed.
     @discardableResult
     public static func change(at url: URL = defaultURL, _ change: (inout Config) throws -> Void) throws -> Config {
+        AIConfig.fileLock.lock(); defer { AIConfig.fileLock.unlock() }
         let old = try load(from: url)
         var new = old
         try change(&new)

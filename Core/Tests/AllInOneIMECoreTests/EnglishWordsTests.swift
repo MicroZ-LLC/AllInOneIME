@@ -521,6 +521,45 @@ struct EnglishWordsTests {
         #expect(object?["englishWords"] as? [String] == ["Bedrock", "frobnicate"])
     }
 
+    /// Learned off the key's thread (`EnglishWords.Writer`): the key that learns a word never waits for the file, even
+    /// one another writer of the process holds (`AIConfig.fileLock`). Each write patches the file as it is then: what
+    /// another writer changed meanwhile (Settings, iCloud sync, the Assistant) stays, every word learned in a row is
+    /// there, and those learned while a write goes on go in one more write.
+    @Test func learnedOffTheKeysThreadIntoTheFileAsItIsThen() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("englishwords-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let url = folder.appendingPathComponent("config.json")
+        try Data(#"{"futureKey": 1, "englishWords": ["Bedrock"]}"#.utf8).write(to: url)
+        // Each write told, on the writer's queue; the first held there until the test lets it go on.
+        let writes = Locked<[URL]>(initialState: [])
+        let told = DispatchSemaphore(value: 0), goOn = DispatchSemaphore(value: 0)
+        let writer = EnglishWords.Writer { written in
+            let first = writes.withLock { writes -> Bool in
+                writes.append(written)
+                return writes.count == 1
+            }
+            told.signal()
+            if first { goOn.wait() }
+        }
+        // Another writer holds the file: the word waits for it, the key doesn't.
+        AIConfig.fileLock.lock()
+        writer.learn("frobnicate", at: url)
+        #expect(try Config.load(from: url).englishWords == ["Bedrock"], "not written on the key's thread")
+        try AIConfig.patchingFile(at: url) { $0["typeOut"] = .bool(true) }  // Settings saves meanwhile
+        AIConfig.fileLock.unlock()
+        #expect(told.wait(timeout: .now() + 10) == .success)
+        // Two more while that write is still going on: both in the next one.
+        writer.learn("zorblax", at: url)
+        writer.learn("quuxify", at: url)
+        goOn.signal()
+        writer.flush()
+        let object = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
+        #expect(object?["englishWords"] as? [String] == ["Bedrock", "frobnicate", "zorblax", "quuxify"])
+        #expect(object?["futureKey"] as? Int == 1 && object?["typeOut"] as? Bool == true, "\(object ?? [:])")
+        #expect(writes.withLock { $0 } == [url, url], "the two learned meanwhile in one write")
+    }
+
     @Test func theListInSettings() {
         var config = Config.default
         #expect(EnglishWords.add("Bedrock, SageMaker；北京\nbedrock", to: &config).words == ["Bedrock", "SageMaker"])

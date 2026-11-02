@@ -33,7 +33,8 @@ public struct SessionServices {
     /// none are (no Chinese pack, a test's engine).
     public var englishDictionary: () -> EnglishDictionary?
     /// An English word learned from letters put in as typed (`EnglishWords.learnable`): kept in the settings
-    /// (`EnglishWords.learn`, `Config.englishWords`).
+    /// (`EnglishWords.learn`, `Config.englishWords`) off the session's thread (`EnglishWords.Writer`), as it is told
+    /// while a key is handled; the session offers the word at once.
     public var learnEnglishWord: (String) -> Void
     /// The letters put in as typed once (learned the second time), shared by every field of a launch: the shell gives one
     /// for them all; the default is these services' own.

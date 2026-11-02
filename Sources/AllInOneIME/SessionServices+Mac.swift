@@ -9,6 +9,15 @@ extension SessionServices {
     @MainActor
     private static let lettersTypedOnce = EnglishWords.TypedOnce()
 
+    /// Where the English words learned are written into the config file, off the main thread (`EnglishWords.Writer`):
+    /// every field's, in order. The file as it is then is read there too, so the next key finds it read
+    /// (`LiveConfig.take`) and doesn't parse it again.
+    @MainActor
+    static let englishWordsWriter = EnglishWords.Writer { url in
+        guard let read = LiveConfig.read(url) else { return }
+        DispatchQueue.main.async { LiveConfig.take(read) }
+    }
+
     /// This Mac's: the config file as of now, what UserDefaults keeps, Spotlight, Terminal, Notes or a folder or Notion,
     /// Reminders, Contacts and Messages, the keychain. Main thread only, but for the `@Sendable` ones.
     @MainActor
@@ -20,16 +29,11 @@ extension SessionServices {
             return RimeService.shared.isStarted ? .starting : .none
         }
         services.engineIsValid = { ($0 as? RimeSession)?.isValid ?? true }
-        // English words among pinyin's candidates; a word learned goes into the config file (the self-test's own while it runs).
+        // English words among pinyin's candidates; a word learned goes into the config file (the self-test's own while it
+        // runs) a moment later, never while the key is handled.
         services.englishDictionary = { RimeService.shared.englishDictionary }
         services.englishTypedOnce = lettersTypedOnce
-        services.learnEnglishWord = { word in
-            do {
-                try EnglishWords.learn(word, at: Config.defaultURL)
-            } catch {
-                log.error("could not keep an English word: \(String(describing: error), privacy: .public)")
-            }
-        }
+        services.learnEnglishWord = { englishWordsWriter.learn($0, at: Config.defaultURL) }
         services.hangulTables = { LanguagePackManager.shared.hangulTables() }
         services.hindiTables = { LanguagePackManager.shared.hindiTables() }
         services.usableLanguages = { LanguagePackManager.shared.usable($0) }
