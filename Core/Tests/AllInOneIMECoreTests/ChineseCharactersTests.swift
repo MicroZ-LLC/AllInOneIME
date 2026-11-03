@@ -219,7 +219,8 @@ struct ChineseCharactersTests {
 
         _ = try store.importDictionary(from: source, fuzzyPinyin: ["n-l"], characters: .taiwan)
         var written = try text()
-        #expect(written.hasPrefix(FuzzyPinyin.marker + "\npatch:\n  speller/algebra:\n") && written.contains("\"derive/^n/l/\"")
+        #expect(written.hasPrefix(FuzzyPinyin.marker + "\n# And the personal dictionaries (Settings → Input → Chinese).\npatch:\n  speller/algebra:\n")
+                && written.contains("\"derive/^n/l/\"")
                 && written.contains("  translator/dictionary: allinoneime_personal\n") && written.hasSuffix(taiwan), "\(written)")
         // Fuzzy pinyin changed with a dictionary there: the characters kept.
         #expect(try store.applyFuzzyPinyin([], characters: .taiwan) == .written)
