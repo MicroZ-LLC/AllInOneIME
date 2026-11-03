@@ -43,16 +43,8 @@ public enum FuzzyPinyin {
     }
 
     public static let fileName = "rime_ice.custom.yaml"
-    /// The first line of the file when AllInOneIME wrote it, whatever it holds (fuzzy pinyin, the characters Chinese is
-    /// typed in, the personal dictionaries): one without it, or an earlier version's (`earlierMarkers`), is the user's,
-    /// never touched.
-    static let marker = "# Written by AllInOneIME (Settings → Input → Chinese). Edits here are replaced."
-    /// The first lines earlier versions wrote, still this app's (written again with `marker`): fuzzy pinyin's, 0.6.6 to
-    /// 0.6.8 (the dictionaries' too), and 0.6.7's first builds'. Those versions take a file with `marker` for the user's.
-    static let earlierMarkers = [
-        "# Written by AllInOneIME: fuzzy pinyin (Settings → Input). Edits here are replaced.",
-        "# Written by AllInOneIME: personal dictionaries and fuzzy pinyin (Settings → Input). Edits here are replaced.",
-    ]
+    /// The first line of the file when AllInOneIME wrote it: one without it is the user's, never touched.
+    static let marker = "# Written by AllInOneIME: fuzzy pinyin (Settings → Input). Edits here are replaced."
 
     /// The schema's own spelling rules, as written in `rime_ice.schema.yaml` (comments dropped).
     static func algebra(ofSchema text: String) -> [String] {
