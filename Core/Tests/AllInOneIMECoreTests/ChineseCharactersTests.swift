@@ -365,6 +365,40 @@ struct ChineseCharactersTests {
                     == "翻译成中文")
     }
 
+    /// Translate as You Type into Traditional Chinese while Simplified is typed, then Traditional picked: Chinese would go
+    /// in as typed, the chip 「繁 → 繁」. The target gives way as a removed one does, to the next (none: off); picked
+    /// again on the chip, it's the user's.
+    @Test func translateAsYouTypeIntoWhatIsTypedNowGivesWay() {
+        let hant = OutputLanguage("zh-Hant")
+        var config = config(.simplified, outputs: [hant, .english])
+        var state = TranslateMode.State()
+        func follow(_ chinese: ChineseCharacters) -> Bool {
+            state.follow(outputs: config.outputLanguages, inputs: config.inputLanguages, chinese: chinese)
+        }
+        #expect(state.enter(last: hant, config: config)?.target == hant)
+        #expect(follow(.simplified) == false)
+        #expect(follow(.taiwan) && state.session?.target == .english)
+        state.retarget(hant)
+        #expect(follow(.taiwan) == false && state.session?.target == hant)
+        // Back to Simplified with Simplified Chinese the target: the same, the other way round.
+        config.setOrder([OutputLanguage.chinese, .english])
+        config.chineseCharacters = .hongkong
+        state = TranslateMode.State()
+        #expect(state.enter(last: .chinese, config: config)?.target == .chinese)
+        #expect(follow(.simplified) && state.session?.target == .english)
+        // Nothing else to translate into: off (the shell says where to add one).
+        config.setOrder([hant])
+        config.chineseCharacters = .simplified
+        state = TranslateMode.State()
+        #expect(state.enter(last: nil, config: config)?.target == hant)
+        #expect(follow(.hongkong) && !state.isOn)
+        // A Simplified typer translating English into Chinese keeps it: the characters didn't change.
+        config.setOrder([OutputLanguage.chinese])
+        state = TranslateMode.State()
+        #expect(state.enter(last: nil, config: config)?.target == .chinese)
+        #expect(follow(.simplified) == false && state.isOn)
+    }
+
     /// The Taiwan examples are Taiwan's words where they differ from what ICU's transform gives (儘快, 主管, 使用者, 下週),
     /// Hong Kong's ICU's; Simplified as written.
     @Test func taiwanExamplesUseTaiwansWords() {

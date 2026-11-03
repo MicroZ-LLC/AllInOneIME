@@ -73,6 +73,8 @@ public enum TranslateMode {
         /// (`appActivated`).
         public private(set) var app: String?
         private var sawApp = false
+        /// The characters Chinese was typed in when it came on or the settings were last read (`follow`).
+        private var characters: ChineseCharacters?
 
         public init() {}
 
@@ -90,6 +92,7 @@ public enum TranslateMode {
             else { return nil }
             let session = Session(target: target)
             self.session = session
+            characters = config.typedChinese
             return session
         }
 
@@ -105,16 +108,24 @@ public enum TranslateMode {
             return session
         }
 
-        /// The settings were read again (`outputs`, the output languages now; `inputs`, the input languages): a target
-        /// no longer among them (removed in the settings) gives way at once to the one it would come on into with none
-        /// picked (`enter`), the first of them something typed is translated into; with none, it leaves, as it wouldn't
-        /// come on (English alone typed and English left: not on into English, where it would only put text in as
-        /// typed). True: the session changed.
+        /// The settings were read again (`outputs`, the output languages now; `inputs`, the input languages; `chinese`, the
+        /// characters Chinese is typed in): a target no longer among them (removed in the settings) gives way at once to
+        /// the one it would come on into with none picked (`enter`), the first of them something typed is translated
+        /// into; with none, it leaves, as it wouldn't come on (English alone typed and English left: not on into English,
+        /// where it would only put text in as typed). So does a target Chinese is typed in since the characters changed
+        /// (into Traditional Chinese, then Traditional picked: Chinese would go in as typed, the chip 「繁 → 繁」), for
+        /// another of them. True: the session changed.
         @discardableResult
         public mutating func follow(outputs: [OutputLanguage], inputs: [Language] = [],
                                     chinese: ChineseCharacters = .simplified) -> Bool {
-            guard let session, !outputs.contains(session.target) else { return false }
-            self.session = TranslateMode.first(of: outputs, from: inputs, chinese: chinese).map(Session.init(target:))
+            let before = characters ?? chinese
+            characters = chinese
+            guard let session else { return false }
+            let typedNow = inputs.contains(.chinese) && Language.chinese.matches(session.target, chinese: chinese)
+                && !Language.chinese.matches(session.target, chinese: before)
+            guard typedNow || !outputs.contains(session.target) else { return false }
+            let others = typedNow ? outputs.filter { $0 != session.target } : outputs
+            self.session = TranslateMode.first(of: others, from: inputs, chinese: chinese).map(Session.init(target:))
             return true
         }
 
