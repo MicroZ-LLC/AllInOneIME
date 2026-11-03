@@ -338,8 +338,8 @@ struct SettingsSchema {
         let store = store
         add(toggle("learnsEnglishWords", tr("学习英文词", "Learn English words"),
                    terms.device == .mac
-                       ? tr("打拼音时原样上屏两次的字母，或英文模式下打了两次的词，以后会出现在拼音的候选里；密码框、终端和不用 AI 的 App 里不学。",
-                            "A word put in as typed twice while typing pinyin, or typed twice in English mode, comes up among pinyin's candidates; never in password fields, terminals or apps without AI.")
+                       ? tr("打拼音时原样上屏两次的字母，或英文模式下打了两次的词，以后会出现在拼音的候选里；密码框、终端和不用 AI 的 App 里不学。需要辅助功能权限，用来认出密码框。",
+                            "A word put in as typed twice while typing pinyin, or typed twice in English mode, comes up among pinyin's candidates; never in password fields, terminals or apps without AI. It needs Accessibility, which tells password fields apart.")
                        : tr("打拼音时原样上屏两次的字母，以后会出现在候选里；密码框、终端和不用 AI 的应用里不学。",
                             "A word put in as typed twice while typing pinyin comes up among the candidates; never in password fields, terminals or apps without AI."),
                    config.learnsEnglishWords), to: &fields) { store.config.learnsEnglishWords = Self.bool($0) }

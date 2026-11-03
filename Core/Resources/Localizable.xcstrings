@@ -8094,49 +8094,49 @@
         }
       }
     },
-    "A word put in as typed twice while typing pinyin, or typed twice in English mode, comes up among pinyin's candidates; never in password fields, terminals or apps without AI." : {
-      "comment" : "打拼音时原样上屏两次的字母，或英文模式下打了两次的词，以后会出现在拼音的候选里；密码框、终端和不用 AI 的 App 里不学。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+    "A word put in as typed twice while typing pinyin, or typed twice in English mode, comes up among pinyin's candidates; never in password fields, terminals or apps without AI. It needs Accessibility, which tells password fields apart." : {
+      "comment" : "打拼音时原样上屏两次的字母，或英文模式下打了两次的词，以后会出现在拼音的候选里；密码框、终端和不用 AI 的 App 里不学。需要辅助功能权限，用来认出密码框。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ein Wort, das du beim Pinyin-Tippen zweimal so eingibst, wie du es getippt hast, oder im Englisch-Modus zweimal tippst, erscheint unter den Pinyin-Kandidaten; nie in Passwortfeldern, Terminals oder Apps ohne KI."
+            "value" : "Ein Wort, das du beim Pinyin-Tippen zweimal so eingibst, wie du es getippt hast, oder im Englisch-Modus zweimal tippst, erscheint unter den Pinyin-Kandidaten; nie in Passwortfeldern, Terminals oder Apps ohne KI. Dafür braucht es den Zugriff auf Bedienungshilfen, der Passwortfelder erkennt."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Una palabra introducida dos veces tal cual al escribir pinyin, o escrita dos veces en modo inglés, aparece entre los candidatos del pinyin; nunca en campos de contraseña, terminales ni apps sin IA."
+            "value" : "Una palabra introducida dos veces tal cual al escribir pinyin, o escrita dos veces en modo inglés, aparece entre los candidatos del pinyin; nunca en campos de contraseña, terminales ni apps sin IA. Necesita Accesibilidad, que distingue los campos de contraseña."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Un mot inséré deux fois tel que tapé en pinyin, ou tapé deux fois en mode anglais, apparaît parmi les candidats du pinyin ; jamais dans les champs de mot de passe, les terminaux ni les apps sans IA."
+            "value" : "Un mot inséré deux fois tel que tapé en pinyin, ou tapé deux fois en mode anglais, apparaît parmi les candidats du pinyin ; jamais dans les champs de mot de passe, les terminaux ni les apps sans IA. Il faut l’Accessibilité, qui distingue les champs de mot de passe."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ピンイン入力中にそのまま2回確定した単語や、英語モードで2回入力した単語が、ピンインの候補に出ます。パスワード欄、ターミナル、AIを使わないAppでは学習しません。"
+            "value" : "ピンイン入力中にそのまま2回確定した単語や、英語モードで2回入力した単語が、ピンインの候補に出ます。パスワード欄、ターミナル、AIを使わないAppでは学習しません。パスワード欄を見分けるため、アクセシビリティの許可が必要です。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "병음을 입력하다가 입력한 그대로 두 번 넣거나 영어 모드에서 두 번 입력한 단어가 병음 후보에 나타납니다. 암호 필드, 터미널, AI를 사용하지 않는 앱에서는 학습하지 않습니다."
+            "value" : "병음을 입력하다가 입력한 그대로 두 번 넣거나 영어 모드에서 두 번 입력한 단어가 병음 후보에 나타납니다. 암호 필드, 터미널, AI를 사용하지 않는 앱에서는 학습하지 않습니다. 암호 필드를 구분하려면 손쉬운 사용 권한이 필요합니다."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Uma palavra inserida duas vezes como digitada ao digitar pinyin, ou digitada duas vezes no modo inglês, aparece entre os candidatos do pinyin; nunca em campos de senha, terminais ou apps sem IA."
+            "value" : "Uma palavra inserida duas vezes como digitada ao digitar pinyin, ou digitada duas vezes no modo inglês, aparece entre os candidatos do pinyin; nunca em campos de senha, terminais ou apps sem IA. Precisa da Acessibilidade, que distingue os campos de senha."
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "打拼音時照原樣送出兩次的字母，或英文模式下打了兩次的詞，以後會出現在拼音的候選裡；密碼欄位、終端機和不使用 AI 的 App 裡不學。"
+            "value" : "打拼音時照原樣送出兩次的字母，或英文模式下打了兩次的詞，以後會出現在拼音的候選裡；密碼欄位、終端機和不使用 AI 的 App 裡不學。需要輔助使用權限，用來認出密碼欄位。"
           }
         }
       }
