@@ -43,7 +43,8 @@ dist=$deps/librime/dist
 opencc=$deps/opencc
 
 wanted="$RIME_ICE_ZIP $RIME_ICE_SHA256 $(sha256sum "$patch" | cut -d' ' -f1) $(cat "$deps/librime/.archive") $(cat "$opencc/.archive")"
-if [ -f "$built" ] && [ "$(cat "$stamp" 2>/dev/null)" = "$wanted" ]; then
+# Built, and OpenCC's data still there (build.ps1 checks for it).
+if [ -f "$built" ] && [ -f "$data/opencc/s2twp.json" ] && [ "$(cat "$stamp" 2>/dev/null)" = "$wanted" ]; then
     echo "build-rime-data: rime-ice $RIME_ICE_TAG is built in $data"
     exit 0
 fi
