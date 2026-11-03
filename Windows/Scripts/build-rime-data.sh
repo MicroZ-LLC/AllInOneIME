@@ -3,9 +3,12 @@
 # macOS shell pins (the root Makefile's RIME_ICE_TAG: its full.zip, the same SHA-256), with the macOS shell's schema
 # list (Resources/rime/default.custom.yaml: rime_ice only), unpacked into ThirdParty/rime-data and its dictionaries
 # prebuilt into rime-data/build (rime_ice.table.bin, .prism.bin, .reverse.bin, ...) by librime's own rime_deployer.exe,
-# so deployment at startup is quick. Fetches librime first (Scripts/fetch-librime.sh), whose ThirdParty rule it shares:
-# $ALLINONEIME_THIRDPARTY if it is set, else Windows/ThirdParty. Nothing is done when the data is already built from
-# this release and this schema list.
+# so deployment at startup is quick; and OpenCC's data for Traditional characters in rime-data/opencc, the shared data's,
+# where librime looks for rime-ice's conversion (s2twp.json, s2hk.json) after the user folder's opencc (the Mac copies it
+# into the user folder instead: there the shared data is the language pack's). Fetches librime and OpenCC's data first
+# (Scripts/fetch-librime.sh), whose ThirdParty rule it shares: $ALLINONEIME_THIRDPARTY if it is set, else
+# Windows/ThirdParty. Nothing is done when the data is already built from this release, this schema list and this
+# OpenCC data.
 #
 #   Scripts/build-rime-data.sh      (in Git Bash)
 set -eu
@@ -37,8 +40,9 @@ fi
 
 "$windows/Scripts/fetch-librime.sh"
 dist=$deps/librime/dist
+opencc=$deps/opencc
 
-wanted="$RIME_ICE_ZIP $RIME_ICE_SHA256 $(sha256sum "$patch" | cut -d' ' -f1) $(cat "$deps/librime/.archive")"
+wanted="$RIME_ICE_ZIP $RIME_ICE_SHA256 $(sha256sum "$patch" | cut -d' ' -f1) $(cat "$deps/librime/.archive") $(cat "$opencc/.archive")"
 if [ -f "$built" ] && [ "$(cat "$stamp" 2>/dev/null)" = "$wanted" ]; then
     echo "build-rime-data: rime-ice $RIME_ICE_TAG is built in $data"
     exit 0
@@ -77,5 +81,8 @@ if [ ! -f "$built" ]; then
     echo "build-rime-data: no $built after rime_deployer (log: $log)" >&2
     exit 1
 fi
+# OpenCC's files, as Scripts/fetch-librime.sh took them (its stamp left out).
+mkdir -p "$data/opencc"
+for file in "$opencc"/*; do cp "$file" "$data/opencc/"; done
 echo "$wanted" > "$stamp"
 echo "build-rime-data: rime-ice $RIME_ICE_TAG built in $data"

@@ -19,10 +19,10 @@ The Windows shell of AllInOneIME, on the core in `../Core` (the same Swift packa
 - The installer, in `installer/`: an MSI that makes AllInOneIME an input method like any other (see "Installing").
 
 ```
-Scripts/build-rime-data.sh                    # in Git Bash: librime and rime-ice's data, in ThirdParty (once)
+Scripts/build-rime-data.sh                    # in Git Bash: librime, rime-ice's data and OpenCC's, in ThirdParty (once)
 swift build                                   # Swift 6.4 for Windows, with Visual Studio's MSVC and Windows SDK
 swift run allinoneime-cli --help
-swift test                                    # the pipe's (4), the Rime tests (36), the engine's (111)
+swift test                                    # the pipe's (4), the Rime tests (37), the engine's (111)
 ```
 
 The engine and the command line link librime (`rime.lib`, `Scripts/fetch-librime.sh`); the engine finds `rime.dll`
@@ -156,7 +156,9 @@ mode the goldens bring their own (`#! settings`); `settings.jsonl` replays over 
   every change, wherever it was made (`UIText.choice`), else from Windows' own languages: the document, the notices and
   the panel's messages are in any of the nine languages the core has.
 - **Fuzzy pinyin** changed in the settings reaches librime as on the Mac (`RimeFuzzy`): the schema's patch in the user
-  folder, deployed again once a deployment under way is done, the fields given new sessions.
+  folder, deployed again once a deployment under way is done, the fields given new sessions. So do the characters
+  Chinese is typed in (`chineseCharacters`, Simplified or Traditional as Taiwan or Hong Kong write it; absent, as
+  Windows' languages say), converted by OpenCC with the data the installer puts in `rime-data\opencc`.
 - **More of the store:** the per-app settings (an app added by its program), the script extensions' folders, switches,
   preferences and passwords, the custom command editor (`schema`), the window's own words (§12.3), what runs and its
   cancel (§12.5).
@@ -199,7 +201,7 @@ What the MSI does:
 
 - **Files:** `Program Files\AllInOneIME\<version>\`: `AllInOneTIP.dll`, `AllInOneIMEEngine.exe` (made a GUI program,
   so it opens no console at logon), `rime.dll` (librime) and `rime-data\` (rime-ice's schemas and dictionaries, 85
-  files, 120 MB) beside it, `allinoneime-cli.exe` (the command line), `AllInOneIMESetup.exe` (the helper), the 20
+  files, 120 MB, and in `opencc\` OpenCC's data for Traditional characters, 8 files more, 1 MB) beside it, `allinoneime-cli.exe` (the command line), `AllInOneIMESetup.exe` (the helper), the 20
   DLLs the engine and the command line import from the Swift runtime and the VC++ redistributable, next to them, and
   the interface text's String Catalog (`Localizable.xcstrings`). AllInOneIME Settings in `Settings\`, self-contained
   (.NET and the Windows App SDK in its folder, 284 files), with "AllInOneIME Settings" in the Start menu. A
@@ -511,15 +513,17 @@ Composer and scripted level two → outputs → the composition and commit in th
 ## Level one: librime and rime-ice
 
 The same versions as the macOS shell (the root `Makefile`), downloaded, checked and unpacked into `ThirdParty/`
-(git-ignored), in the Mac's layout (`ThirdParty/librime/dist/...`, `ThirdParty/rime-data/`). In Git Bash:
+(git-ignored), in the Mac's layout (`ThirdParty/librime/dist/...`, `ThirdParty/rime-data/`, `ThirdParty/opencc/`). In
+Git Bash:
 
 ```
 Scripts/build-rime-data.sh    # librime (Scripts/fetch-librime.sh), then rime-ice, its dictionaries prebuilt
-swift test                    # the Rime tests (Tests/AllInOneIMERimeTests): 30, in 5 s to a minute
+swift test                    # the Rime tests (Tests/AllInOneIMERimeTests): 37, in 5 s to a minute
 ```
 
-`Scripts/fetch-librime.sh` alone fetches librime only. Both do nothing when `ThirdParty` already has what they would
-make, and both fail when the root `Makefile` pins another version than theirs: the two shells move together.
+`Scripts/fetch-librime.sh` alone fetches librime and OpenCC's data only. Both do nothing when `ThirdParty` already
+has what they would make, and both fail when the root `Makefile` pins another version than theirs (or, for OpenCC,
+other files): the two shells move together.
 `ALLINONEIME_THIRDPARTY` (an absolute path), as on the Mac, puts `ThirdParty` elsewhere, a folder several checkouts on
 this PC share; `Package.swift` and the tests read it too.
 
@@ -527,6 +531,16 @@ this PC share; `Package.swift` and the tests read it too.
 |---|---|---|---|---|
 | librime (BSD-3) | 1.16.1, de4700e, MSVC x64 | [`rime-de4700e-Windows-msvc-x64.7z`](https://github.com/rime/librime/releases/download/1.16.1/rime-de4700e-Windows-msvc-x64.7z) | 7,373,905 | `e17c1bb4acc9934669e7a62003aef3f8b56d0afa89e5d893ed7dbf34546abb6e` |
 | rime-ice (GPL-3.0) | 2026.06.30, 6810e89 | [`full.zip`](https://github.com/iDvel/rime-ice/releases/download/2026.06.30/full.zip), saved as `rime-ice-2026.06.30-full.zip` | 16,050,491 | `675d23b070be00e1b800f9a6db033ef98f4493cd5b568ed8aa3b3541769c46ac` |
+| OpenCC's data (Apache-2.0) | librime 1.16.1's dependencies, de4700e, MSVC x64 | [`rime-deps-de4700e-Windows-msvc-x64.7z`](https://github.com/rime/librime/releases/download/1.16.1/rime-deps-de4700e-Windows-msvc-x64.7z) | 3,620,316 | `8ddfa46881a8f20c37fbbfdc3b9d0e9c5f7958f486cce4335a18be6ea8277af2` |
+
+OpenCC's data for Traditional characters (Settings → Input → Chinese → Characters) comes from librime's own build of
+its dependencies for the same release, as the Mac's does from its macOS one (the `.ocd2` format follows the OpenCC
+linked into librime): of its `share/opencc`, only `s2twp.json`, `s2hk.json`, `s2tw.json` and the five dictionaries
+they name (`ChineseCharacters.openCCFiles`), into `ThirdParty/opencc` (1 MB). The dictionaries are byte for byte the
+macOS asset's, the configs the same with `\r\n` line ends. `Scripts/build-rime-data.sh` copies them into
+`rime-data/opencc`, beside rime-ice's own (its emoji), where librime looks for rime-ice's conversion after the user
+folder's `opencc`: the installer carries them with the rest of `rime-data`, and nothing is copied into the user folder
+(the Mac copies them there, its shared data being the Chinese pack, which has none).
 
 librime's official Windows build has the same plugins as the macOS one, at the same commits (its `version-info.txt`):
 librime-lua 68f9c36 (rime-ice's Lua scripts: the date, the calculator...), librime-octagram dfcc151, librime-predict
@@ -551,7 +565,8 @@ redistributable.
 `Tests/AllInOneIMERimeTests` are the macOS shell's Rime tests (the root's `Tests/AllInOneIMERimeTests`), on Windows:
 deployment from the prebuilt data, nihao → 你好, a sentence, punctuation and the ASCII mode, rime-ice's Lua date, the
 Composer with the real engine (the action keys, @ commands, English mode, Caps Lock, Shift), a redeploy, fuzzy pinyin
-(n ↔ l) and its rules in rime-ice's schema, and the learned words' sync through a shared folder. Added here: paging
+(n ↔ l) and its rules in rime-ice's schema, Traditional characters (ruanjian → 軟體 for Taiwan, 軟件 for Hong Kong,
+through `rime-data/opencc`), and the learned words' sync through a shared folder. Added here: paging
 (Page Down / Page Up and rime-ice's `=` / `-`), picking a candidate (by its place, its number key, on the second page),
 learning (a word picked from the second page comes up front the next time), and `installation.yaml` as librime writes
 it on Windows. Before `Scripts/fetch-librime.sh` they don't link, nor do the engine and the command line (no

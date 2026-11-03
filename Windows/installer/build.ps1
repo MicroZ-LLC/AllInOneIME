@@ -10,7 +10,8 @@
 #    (self-contained and trimmed: .NET 8 and the Windows App SDK in its folder, nothing to install first);
 # 3. the stage, Windows\installer\build\stage\: the four programs, the engine made a GUI-subsystem program (editbin),
 #    so that started at logon it opens no console window; librime (rime.dll) and its data (rime-data\: rime-ice's
-#    schemas and prebuilt dictionaries) beside the engine, with the interface text's String Catalog; in runtime\ the DLLs
+#    schemas and prebuilt dictionaries, and in opencc\ OpenCC's data for Traditional characters) beside the engine, with
+#    the interface text's String Catalog; in runtime\ the DLLs
 #    the engine and the command line need (dumpbin, transitively) from the Swift runtime and the VC++ redistributable;
 #    and the Settings app in Settings\;
 # 4. Windows\installer\build\AllInOneIME-<version>-x64.msi, with `wix build`. The version is the app's
@@ -71,11 +72,14 @@ foreach ($ext in 'WixToolset.UI.wixext', 'WixToolset.Util.wixext') {
     if (-not ($extensions | Select-String -SimpleMatch $ext)) { Run $wix @('extension', 'add', '-g', "$ext/$wixVersion") }
 }
 
-# librime and rime-ice's data, as the Rime tests and the engine's use them.
+# librime and rime-ice's data, as the Rime tests and the engine's use them, with OpenCC's (rime-data\opencc, made by
+# build-rime-data.sh since 0.6.9: a rime-data from before gets it there).
 $thirdParty = if ($env:ALLINONEIME_THIRDPARTY) { $env:ALLINONEIME_THIRDPARTY } else { Join-Path $windows 'ThirdParty' }
 $rimeDll = Join-Path $thirdParty 'librime\dist\lib\rime.dll'
 $rimeData = Join-Path $thirdParty 'rime-data'
-if (-not $SkipBuild -and (-not (Test-Path $rimeDll) -or -not (Test-Path (Join-Path $rimeData 'build\rime_ice.table.bin')))) {
+$openCC = Join-Path $rimeData 'opencc\s2twp.json'
+if (-not $SkipBuild -and (-not (Test-Path $rimeDll) -or -not (Test-Path (Join-Path $rimeData 'build\rime_ice.table.bin')) -or
+                          -not (Test-Path $openCC))) {
     $bash = Join-Path $env:ProgramFiles 'Git\bin\bash.exe'
     if (-not (Test-Path $bash)) { Fail "no librime and rime-data in ${thirdParty}: run Windows/Scripts/build-rime-data.sh in Git Bash" }
     Write-Host '== librime and rime-ice (Scripts/build-rime-data.sh)'
@@ -137,6 +141,7 @@ Write-Host ("  Settings: {0} files, {1:N1} MB" -f $settingsFiles.Count, (($setti
 # rime-ice's data, whole: the schemas, the dictionaries' sources and the dictionaries prebuilt from them (build\), which
 # librime uses as they are once it has checked them against the sources.
 if (-not (Test-Path (Join-Path $rimeData 'build\rime_ice.table.bin'))) { Fail "no prebuilt rime-data in $rimeData" }
+if (-not (Test-Path $openCC)) { Fail "no OpenCC data in $rimeData\opencc: run Windows/Scripts/build-rime-data.sh in Git Bash" }
 Copy-Item $rimeData (Join-Path $stage 'rime-data') -Recurse
 $dataFiles = Get-ChildItem (Join-Path $stage 'rime-data') -Recurse -File
 Write-Host ("  rime-data: {0} files, {1:N1} MB; rime.dll {2:N1} MB" -f $dataFiles.Count,
