@@ -279,7 +279,8 @@ enum SettingsPageImages {
         }
         // The checks and the search's Change: a sample request and findings from stand-ins and a config file of their own
         // (no probe of this Mac, no AI, nothing of the user's): the pages with nothing wrong, then made-up problems (unless
-        // `doctor=fine`) on a page's banner and in Troubleshoot (`doctor=open`: what is fine opened there).
+        // `doctor=fine`) on a page's banner and in Troubleshoot (`doctor=open`: what is fine opened there; `doctor=noax`:
+        // Accessibility not allowed too).
         let samples = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-assistant-\(UUID().uuidString)")
         try? FileManager.default.createDirectory(at: samples, withIntermediateDirectories: true)
         let rig = SelfTest.AssistantRig(samples, name: "config.json", config: SelfTest.assistantSampleConfig)
@@ -306,7 +307,7 @@ enum SettingsPageImages {
         model.config.suggestionsInsert = .markdownLink
         render(.general, "insert-markdown-link")
         model.config = saved
-        let troubled = SelfTest.sampleAssistant(rig, fine: shownChecks.contains("fine"))
+        let troubled = SelfTest.sampleAssistant(rig, fine: shownChecks.contains("fine"), noAccessibility: shownChecks.contains("noax"))
         troubled.showsFine = shownChecks.contains("open")
         // The sample request's preview where the search's "Change: …" shows it, the search typed.
         render(.general, "search", assistant: troubled, query: troubled.request)

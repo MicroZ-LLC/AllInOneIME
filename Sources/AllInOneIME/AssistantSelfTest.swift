@@ -412,10 +412,11 @@ extension SelfTest {
     }
 
     /// Settings → Assistant as its images show it, in the interface language: the canned answer's preview over the
-    /// made-up findings (`troubledFacts`; `fine`: `fineFacts`, the typing speed in range), all from `rig`'s stand-ins and
-    /// config file.
-    static func sampleAssistant(_ rig: AssistantRig, fine: Bool = false) -> AssistantModel {
-        rig.facts = fine ? fineFacts : troubledFacts
+    /// made-up findings (`troubledFacts`; `fine`: `fineFacts`, the typing speed in range; `noAccessibility`: with
+    /// Accessibility not allowed, its list of what doesn't work fully), all from `rig`'s stand-ins and config file.
+    static func sampleAssistant(_ rig: AssistantRig, fine: Bool = false, noAccessibility: Bool = false) -> AssistantModel {
+        let facts: (URL) -> Doctor.Facts = fine ? fineFacts : troubledFacts
+        rig.facts = noAccessibility ? { var shown = facts($0); shown.accessibility = .denied; return shown } : facts
         if fine {
             var config = (try? Config.load(from: rig.url)) ?? assistantSampleConfig
             config.typeOutRate = TypeOut.defaultRate

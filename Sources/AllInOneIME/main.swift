@@ -533,7 +533,7 @@ case "--settings-image":
         // `agent=gemini|kiro|custom:<command>`: the agent `@agent` hands the text to.
         let agent = arguments.first { $0.hasPrefix("agent=") }.map { String($0.dropFirst("agent=".count)) }
         // `doctor=fine`: About → Troubleshoot's checks with nothing wrong (else made-up problems); `doctor=open` or
-        // `doctor=fine,open`: what is fine opened (else folded).
+        // `doctor=fine,open`: what is fine opened (else folded); `noax` with either: Accessibility not allowed.
         let doctor = arguments.first { $0.hasPrefix("doctor=") }.map { String($0.dropFirst("doctor=".count)) }
         SettingsPageImages.run(output: directory, chinese: arguments.contains("zh"), dark: arguments.contains("dark"),
                                extensions: extensions, update: update, agent: agent, doctor: doctor)
