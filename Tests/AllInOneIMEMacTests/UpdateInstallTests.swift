@@ -1,4 +1,5 @@
 import Foundation
+import Security
 import Testing
 @testable import AllInOneIMECore
 
@@ -27,8 +28,9 @@ struct UpdateInstallTests {
         let work = FileManager.default.temporaryDirectory.appendingPathComponent("update-unpack-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: work) }
         let manifest = try Self.manifest(version: "0.7.0", build: "9")
+        // The test's apps are ad-hoc signed, as a developer's build is: no team to check them by (`CodeSignature.ownTeamID`).
         func attempt(_ name: String, version: String = "0.7.0", build: String = "9", imeID: String = Updater.bundleID,
-                     sign: Bool = true, settings: Bool = true) throws -> UpdatePayload {
+                     sign: Bool = true, settings: Bool = true, team: String? = nil) throws -> UpdatePayload {
             let source = work.appendingPathComponent("\(name)-src", isDirectory: true)
             try FakeApp.make(source.appendingPathComponent(Updater.inputMethodName), id: imeID, version: version, build: build, sign: sign)
             if settings {
@@ -39,7 +41,7 @@ struct UpdateInstallTests {
             try FakeApp.run("/usr/bin/ditto", ["-c", "-k", source.path, zip.path])
             let into = work.appendingPathComponent("\(name)-out", isDirectory: true)
             try FileManager.default.createDirectory(at: into, withIntermediateDirectories: true)
-            return try Updater.unpack(zip, into: into, manifest: manifest)
+            return try Updater.unpack(zip, into: into, manifest: manifest, team: team)
         }
         let payload = try attempt("good")
         #expect(payload.inputMethod.lastPathComponent == "AllInOneIME.app" && FileManager.default.fileExists(atPath: payload.settingsApp.path))
@@ -48,6 +50,11 @@ struct UpdateInstallTests {
         #expect(throws: UpdateError.invalidApp("AllInOneIME.app's bundle ID")) { try attempt("id", imeID: "com.example.other") }
         #expect(throws: UpdateError.invalidApp("AllInOneIME Settings.app is missing")) { try attempt("half", settings: false) }
         #expect(throws: (any Error).self) { try attempt("unsigned", sign: false) }
+        // Signed by a team (this app's, `CodeSignature.ownTeamID`, as the installer checks them): an app it didn't sign
+        // isn't accepted, however intact its signature (errSecCSReqFailed).
+        #expect(throws: UpdateError.invalidApp("AllInOneIME.app's code signature (\(errSecCSReqFailed))")) {
+            try attempt("other team", team: "9SR8N3UD5Y")
+        }
         let bad = work.appendingPathComponent("not-a.zip")
         try Data("not a zip".utf8).write(to: bad)
         #expect(throws: (any Error).self) { try Updater.unpack(bad, into: work, manifest: manifest) }

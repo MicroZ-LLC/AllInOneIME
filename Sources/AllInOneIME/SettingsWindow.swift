@@ -261,9 +261,11 @@ final class SettingsModel: ObservableObject {
     }
     private var keysShown = false
 
-    /// Whether the provider's key is set, as its row shows it.
+    /// Whether the provider's key is set, as its row shows it: one in the shell only for a base URL it is sent to
+    /// (`APIKeys.shellKeyGoes`).
     func keyState(_ provider: Provider) -> KeyState {
-        KeyState(keySources[provider], ending: keyEndings[provider])
+        let host = HTTPProviders.host(of: config.settings(for: provider))
+        return KeyState(keySources[provider]?.sent(by: provider, to: host), ending: keyEndings[provider])
     }
 
     /// The key sheet's Save and Use: the key saved, then the provider switched to and Test Connection run.
@@ -2352,7 +2354,11 @@ struct SettingsView: View {
                 pluginToRemove = nil
             }
         } message: {
-            if let plugin = pluginToRemove { Text(model.config.commandTrigger + plugin.name) }
+            if let plugin = pluginToRemove {
+                let (name, folder) = (model.config.commandTrigger + plugin.name, ExtensionStore.abbreviated(plugin.directory.path))
+                Text(tr("\(name)：它的文件夹（\(folder)）会移到废纸篓，还可以从那里放回来。",
+                        "\(name): its folder (\(folder)) goes to the Trash, so you can still put it back."))
+            }
         }
         .onChange(of: model.config.awsProfile) { model.save() }
         .onChange(of: model.config.provider) {

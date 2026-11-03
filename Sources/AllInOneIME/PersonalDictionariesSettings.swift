@@ -93,17 +93,20 @@ final class PersonalDictionariesModel: ObservableObject {
         }
 
         // A settings or iCloud change during parsing may have changed fuzzy pinyin (or the characters). Reconcile the
-        // latest saved choice before deployment, using the same writer that preserves these imports.
-        let currentFuzzy = LiveConfig.current.fuzzyPinyin, characters = LiveConfig.current.typedChinese
-        do {
-            let outcome = try await Task.detached(priority: .utility) {
-                try store.applyFuzzyPinyin(currentFuzzy, characters: characters)
-            }.value
-            if outcome == .userFile { throw PersonalDictionaryError.managedFile(FuzzyPinyin.fileName) }
-        } catch {
-            self.error = error.localizedDescription
-            status = nil
-            return
+        // latest saved choice before deployment, using the same writer that preserves these imports;
+        // not from the defaults of a config file that doesn't parse (left as the import wrote it then).
+        if let valid = LiveConfig.currentIfValid {
+            let currentFuzzy = valid.fuzzyPinyin, characters = valid.typedChinese
+            do {
+                let outcome = try await Task.detached(priority: .utility) {
+                    try store.applyFuzzyPinyin(currentFuzzy, characters: characters)
+                }.value
+                if outcome == .userFile { throw PersonalDictionaryError.managedFile(FuzzyPinyin.fileName) }
+            } catch {
+                self.error = error.localizedDescription
+                status = nil
+                return
+            }
         }
         status = tr("正在重新部署词库…", "Redeploying dictionaries…")
         if RimeService.shared.isStarted { RimeService.shared.redeploy(invalidateGeneratedSchema: true) }
@@ -136,10 +139,12 @@ struct PersonalDictionariesSection: View {
     var body: some View {
         Section {
             LabeledContent {
+                // Not while the config file doesn't parse: the patch it writes has the config's fuzzy pinyin, the
+                // defaults' then (`canSave`, as every section that writes the settings).
                 Button(tr("导入或更新…", "Import or Update…")) {
                     dictionaries.chooseDictionary(fuzzyPinyin: model.config.fuzzyPinyin)
                 }
-                .disabled(dictionaries.isWorking || !dictionaries.hasChinesePack)
+                .disabled(dictionaries.isWorking || !dictionaries.hasChinesePack || !model.canSave)
             } label: {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(tr("添加你的拼音词库", "Add your pinyin vocabulary"))
@@ -159,7 +164,7 @@ struct PersonalDictionariesSection: View {
                     Button(tr("移除", "Remove"), role: .destructive) {
                         Task { await dictionaries.removeDictionary(named: dictionary.name, fuzzyPinyin: model.config.fuzzyPinyin) }
                     }
-                    .disabled(dictionaries.isWorking || !dictionaries.hasChinesePack)
+                    .disabled(dictionaries.isWorking || !dictionaries.hasChinesePack || !model.canSave)
                 } label: {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(dictionary.name)

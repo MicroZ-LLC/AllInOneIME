@@ -268,8 +268,10 @@ public enum PluginStore {
         return (plugins, skipped)
     }
 
+    /// Removes `plugin`, its folder to the Trash (`FileOps.trash`, where the user can put it back), a local plugin's as
+    /// a library one's: a local plugin's folder is where its author writes it (docs/plugins.md), maybe the only copy.
     public static func uninstall(_ plugin: InstalledPlugin) throws {
-        try FileManager.default.removeItem(at: plugin.directory)
+        try Platform.current.files.trash(plugin.directory)
     }
 
     public static func sha256(of url: URL) -> String? {

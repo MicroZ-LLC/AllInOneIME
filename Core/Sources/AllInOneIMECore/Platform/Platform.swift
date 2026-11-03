@@ -29,7 +29,7 @@ public struct Platform: Sendable {
     public var text: any TextRecognizer
     /// Programs: commands, scripts, plugins, `@py`, `@js`, AWS `credential_process`, a language pack's archive.
     public var processes: any ProcessLauncher
-    /// Atomic swaps, private writes, modification dates, the Trash.
+    /// Atomic swaps, private writes, modification dates, the Trash, the mark of a download.
     public var files: any FileOps
     /// Small values kept between launches (UserDefaults-like).
     public var defaults: any KeyValueStore

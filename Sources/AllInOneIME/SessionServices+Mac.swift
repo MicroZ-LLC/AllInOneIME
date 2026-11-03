@@ -9,6 +9,15 @@ extension SessionServices {
     @MainActor
     private static let lettersTypedOnce = EnglishWords.TypedOnce()
 
+    /// Where the English words learned are written into the config file, off the main thread (`EnglishWords.Writer`):
+    /// every field's, in order. The file as it is then is read there too, so the next key finds it read
+    /// (`LiveConfig.take`) and doesn't parse it again. Words it couldn't write yet are tried again once the file reads
+    /// anew and parses (`LiveConfig.parsedAnew`), and drained before the input method ends (`main.swift`): any thread.
+    static let englishWordsWriter = EnglishWords.Writer { url in
+        guard let read = LiveConfig.read(url) else { return }
+        DispatchQueue.main.async { LiveConfig.take(read) }
+    }
+
     /// This Mac's: the config file as of now, what UserDefaults keeps, Spotlight, Terminal, Notes or a folder or Notion,
     /// Reminders, Contacts and Messages, the keychain. Main thread only, but for the `@Sendable` ones.
     @MainActor
@@ -20,21 +29,18 @@ extension SessionServices {
             return RimeService.shared.isStarted ? .starting : .none
         }
         services.engineIsValid = { ($0 as? RimeSession)?.isValid ?? true }
-        // English words among pinyin's candidates; a word learned goes into the config file (the self-test's own while it runs).
+        // English words among pinyin's candidates; a word learned goes into the config file (the self-test's own while it
+        // runs) a moment later, never while the key is handled.
         services.englishDictionary = { RimeService.shared.englishDictionary }
         services.englishTypedOnce = lettersTypedOnce
-        services.learnEnglishWord = { word in
-            do {
-                try EnglishWords.learn(word, at: Config.defaultURL)
-            } catch {
-                log.error("could not keep an English word: \(String(describing: error), privacy: .public)")
-            }
-        }
+        services.learnEnglishWord = { englishWordsWriter.learn($0, at: Config.defaultURL) }
         services.hangulTables = { LanguagePackManager.shared.hangulTables() }
         services.hindiTables = { LanguagePackManager.shared.hindiTables() }
         services.usableLanguages = { LanguagePackManager.shared.usable($0) }
         services.voiceSupported = { VoiceInput.isSupported }
         services.plugins = { LivePlugins.current(rescan: $0) }
+        // A field that takes the focus has them as last scanned at once, scanned again in the background.
+        services.rescanPlugins = { scanned in LivePlugins.rescan(scanned: scanned) }
         services.scriptStatus = { command in MainActor.assumeIsolated { ScriptStatus.shared.text(for: command) } }
         services.refreshStatuses = { shown, environment, ended in
             MainActor.assumeIsolated { ScriptStatus.shared.refresh(shown, environment: environment, ended: ended) }
@@ -72,11 +78,15 @@ extension SessionServices {
         services.loadRecentHandles = { RecentRecipients.handles }
         services.saveRecentHandles = { RecentRecipients.handles = $0 }
         services.secureInputActive = { SecureInput.isOn }
-        services.pointerUsedWithin = { seconds in
-            let kinds: [CGEventType] = [.leftMouseDown, .leftMouseUp, .leftMouseDragged, .rightMouseDown, .rightMouseUp,
-                                        .rightMouseDragged, .otherMouseDown, .otherMouseUp, .otherMouseDragged, .scrollWheel]
-            return kinds.contains { CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: $0) < seconds }
+        // The mouse's buttons and drags, and the wheel: the system times each kind apart, so that the wheel over our own
+        // panels hides no click in the field before it (`InputSession.caretMayHaveMoved`).
+        let buttons: [CGEventType] = [.leftMouseDown, .leftMouseUp, .leftMouseDragged, .rightMouseDown, .rightMouseUp,
+                                      .rightMouseDragged, .otherMouseDown, .otherMouseUp, .otherMouseDragged]
+        let used = { (kinds: [CGEventType], seconds: TimeInterval) in
+            kinds.contains { CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: $0) < seconds }
         }
+        services.pointerUsedWithin = { used(buttons + [.scrollWheel], $0) }
+        services.buttonUsedWithin = { used(buttons, $0) }
         // An Option key still down with no mouse button pressed, as a sanity check when the hold timer fires (the
         // composer tracks which key from the events).
         services.isVoiceKeyHeld = { NSEvent.modifierFlags.contains(.option) && NSEvent.pressedMouseButtons == 0 }

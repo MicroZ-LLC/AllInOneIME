@@ -16,6 +16,25 @@ English | [中文](CHANGELOG.zh-CN.md)
 - Snippets with line breaks go into a terminal as clipboard history and the AI's answers do: as one paste with Accessibility allowed, else on one line. Before, each line break acted as Return there without Accessibility, and the shell ran the line.
 - Troubleshoot: when Accessibility isn't allowed, its row now lists what doesn't work fully without it: the keys a list takes can reach some apps, text of more than one line (AI answers, snippets, clipboard history) goes into a terminal on one line, ⏎ on a clipboard history image only puts it on the clipboard, the selection may not be read in Chrome and apps like Slack, `@agent` and `@reply` can't take the Chrome page along, a list may show away from the caret, and autocomplete can run past a field's edge, and in the few password fields it can't recognize it may send what you type to your AI provider.
 
+## 0.6.8.3 (2026-11-02)
+
+### Changed
+
+- A key from your login shell (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `GOOGLE_API_KEY`) now goes only to its own provider's service, or to a server on this Mac. With another base URL (a relay, DeepSeek), save a key for that service in Settings; until then requests fail with a message that says so, and Settings no longer shows the shell's key as set there.
+- Raycast scripts that AllInOneIME finds by itself (with Spotlight) load only when they're executable and weren't downloaded, and they never run on their own: they have no status line. In a folder where at least one loads, Settings lists the ones left out, with the reason; a folder where none loads isn't found at all. A folder you add in Settings works as before.
+- Removing a plugin in Settings moves its folder to the Trash instead of deleting it.
+- English words are learned only where Accessibility can tell password fields apart, so without Accessibility none are learned at all. To keep learning them, allow AllInOneIME in System Settings → Privacy & Security → Accessibility.
+
+### Fixed
+
+- A config.json that doesn't parse (a trailing comma after editing it by hand, say) no longer trims clipboard history (to 20 items, images too), turns history back on after you turned it off, deletes cached suggestion lists or resets fuzzy pinyin. Until the file parses again, nothing is deleted or reset, clipboard history records nothing new, and Personal Dictionaries' Import or Update… and Remove are disabled.
+- English words were learned from password fields that secure input doesn't cover (some web and Electron ones) when the same letters were typed twice. They no longer are.
+- Scrolling suggestion rows (Slack's `#70`, say) with the mouse or trackpad no longer lets the next ⏎, Tab or ↑ go to the app.
+- Esc on autocomplete's gray text, and Tab putting in a one-character suggestion, no longer also reach Chromium and Electron apps (where Esc could close a thread or cancel an edit).
+- A multi-line answer typed into a terminal no longer pastes what you had copied before when the terminal is slow to take it: your clipboard is put back once the terminal has read the text (or after 5 seconds, if it never does).
+- Updates inside the app accept only an app signed by AllInOneIME's own developer team.
+- Typing no longer stalls on a key that learns an English word (config.json is written in the background), or when a field takes the focus (plugins are rescanned in the background).
+
 ## 0.6.8.2 (2026-10-28)
 
 ### Added

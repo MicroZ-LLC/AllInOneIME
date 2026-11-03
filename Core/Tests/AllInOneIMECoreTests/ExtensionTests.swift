@@ -608,3 +608,109 @@ struct ExtensionTests {
         #expect(otherStatus == "3 left now")
     }
 }
+
+/// Folders Spotlight found (`Origin.found`) are anything in the home folder that holds a Raycast script: a zip unpacked in
+/// ~/Downloads, a cloned repository. Nobody reviewed them, so a script loads from one only when it was made executable
+/// and isn't a download, and nothing of it runs that the user didn't start (no status line). Added folders and extension
+/// sources are as before.
+struct FoundScriptsTests {
+    /// What a zip leaves: mode 0644, a "#!" line, Raycast's `inline` with `refreshTime` (a status line, every minute).
+    let payload = raycast(title: "Translate zh", mode: "inline", ["refreshTime 1m"], "touch \"$HOME/ran\"")
+
+    @Test func aFoundScriptMustBeExecutable() throws {
+        let folder = ScriptFolder()
+        let file = folder.add("translatezh.sh", payload, executable: false)
+        let found = ExtensionStore.load([.init(path: folder.url.path, found: true)])
+        #expect(found.commands.isEmpty)
+        #expect(found.skipped == [.init(file: file, problem: .notExecutable)])
+        // Spotlight's results don't make it a found folder either.
+        #expect(!ExtensionStore.isScript(file) && ExtensionStore.folders(fromSpotlight: file.path, home: "/nowhere").isEmpty)
+        // An executable copy elsewhere still loads: the one left out isn't taken for it.
+        let other = ScriptFolder()
+        other.add("translatezh.sh", payload)
+        let both = ExtensionStore.load([.init(path: folder.url.path, found: true), .init(path: other.url.path, found: true)])
+        #expect(both.commands.map(\.file) == [other.url.appendingPathComponent("translatezh.sh")] && both.identical.isEmpty)
+        // The folder added: its own script runs through its "#!" line, as before.
+        let added = ExtensionStore.load([folder.folder])
+        #expect(added.commands.map(\.launch) == [["/bin/bash", file.path]] && added.skipped.isEmpty)
+        #expect(added.commands.first?.origin == .added && added.commands.first?.runsStatus == true)
+    }
+
+    @Test func aFoundScriptRunsNothingOnItsOwn() throws {
+        let folder = ScriptFolder()
+        let file = folder.add("translatezh.sh", payload)
+        let found = try #require(ExtensionStore.load([.init(path: folder.url.path, found: true)]).commands.first)
+        #expect(found.origin == .found && found.name == "translatezh" && found.output == .silent)
+        #expect(found.status == nil && !found.runsStatus, "no status line: it runs only when chosen")
+        #expect(ExtensionStore.isScript(file))
+        // A found command given a status anyway (another way in) doesn't run it on its own either.
+        var withStatus = found
+        withStatus.status = ScriptCommand.Status(launch: [file.path], refresh: 60, isSelf: true)
+        #expect(!withStatus.runsStatus)
+        // Added, the same file keeps its status line.
+        let added = try #require(folder.load().commands.first)
+        #expect(added.origin == .added && added.status?.isSelf == true && added.runsStatus)
+    }
+
+    #if canImport(Darwin)
+    @Test func aDownloadedScriptIsNotLoadedFromAFoundFolder() throws {
+        let folder = ScriptFolder()
+        let file = folder.add("translatezh.sh", payload)
+        #expect(!SystemFileOps().isQuarantined(file))
+        let mark = "0083;6720a1b2;Safari;"
+        #expect(setxattr(file.path, "com.apple.quarantine", mark, mark.utf8.count, 0, 0) == 0)
+        #expect(SystemFileOps().isQuarantined(file))
+        let found = ExtensionStore.load([.init(path: folder.url.path, found: true)])
+        #expect(found.commands.isEmpty && found.skipped == [.init(file: file, problem: .quarantined)])
+        #expect(!ExtensionStore.isScript(file))
+        // Added by the user: loaded as before.
+        #expect(folder.load().commands.map(\.name) == ["translatezh"])
+        // A link to it is read as what it leads to.
+        let link = ScriptFolder()
+        try FileManager.default.createSymbolicLink(at: link.url.appendingPathComponent("t.sh"), withDestinationURL: file)
+        #expect(SystemFileOps().isQuarantined(link.url.appendingPathComponent("t.sh")))
+    }
+    #endif
+
+    /// Each command carries where it came from: an added folder's bundle, an extension source's (read only as its bundle).
+    @Test func commandsCarryTheirOrigin() {
+        let folder = ScriptFolder()
+        folder.add("units/extension.json", #"{"schemaVersion": 1, "name": "units", "commands": [{"script": "convert.sh", "status": "self"}]}"#)
+        folder.add("units/convert.sh", "#!/bin/bash\necho converted\n")
+        let added = ExtensionStore.load([folder.folder]).commands
+        #expect(added.map(\.origin) == [.added] && added.allSatisfy(\.runsStatus))
+        let source = ExtensionStore.load([.init(path: folder.url.appendingPathComponent("units").path, found: false, bundleOnly: true)]).commands
+        #expect(source.map(\.origin) == [.extensionSource] && source.allSatisfy(\.runsStatus))
+        #expect(ExtensionStore.Folder(path: "~/x", found: true).origin == .found)
+    }
+
+    /// The command list shows a found script and an added one, both with a status line: only the added one's runs.
+    @Test func theListRunsOnlyAddedScriptsStatuses() async {
+        let status = ScriptCommand.Status(launch: ["/bin/echo", "hi"], refresh: 60, isSelf: false)
+        var found = ScriptCommand(id: "~/Downloads/tools/translatezh.sh", source: .raycast,
+                                  file: URL(fileURLWithPath: "/tmp/Downloads/tools/translatezh.sh"), name: "translatezh",
+                                  input: .none, output: .silent, status: status)
+        found.origin = .found
+        let added = ScriptCommand(id: "~/scripts/translatelog.sh", source: .raycast, file: URL(fileURLWithPath: "/tmp/scripts/translatelog.sh"),
+                                  name: "translatelog", input: .none, output: .silent, status: status)
+        let index = ExtensionIndex(commands: [found, added])
+        let asked = Locked(initialState: [[String]]())
+        await withInterfaceLanguage("en") {
+            var config = Config.default
+            config.uiLanguage = "en"
+            let fixed = config
+            var services = SessionServices(loadSettings: { fixed })
+            services.levelOne = { .engine(FakeEngine()) }
+            services.programInstalled = { _ in true }
+            services.loadExtensions = { _, _ in index }
+            services.refreshStatuses = { shown, _, _ in asked.withLock { $0.append(shown.map(\.name)) } }
+            let host = FakeHost(services: services)
+            host.focus()
+            host.press(FakeHost.at)
+            host.type("translate")
+            #expect(host.composer.paletteVisible.compactMap(\.script).map(\.name).sorted() == ["translatelog", "translatezh"])
+        }
+        let runs = asked.withLock { $0 }
+        #expect(!runs.isEmpty && runs.allSatisfy { $0 == ["translatelog"] }, "\(runs)")
+    }
+}

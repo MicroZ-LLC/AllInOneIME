@@ -50,7 +50,7 @@ enum DoctorSession {
             let data = try? Data(contentsOf: url)
             let config = Result { try Config.load(from: url) }
             // As Settings and the Assistant's requests see them (the item's attributes: no key read, no prompt).
-            let keyed = AIConfigSession.providersWithKey(lookup)
+            let keyed = AIConfigSession.providersWithKey(lookup, config: (try? config.get()) ?? .default)
             var keys: [Provider: Bool] = [:]
             for provider in Provider.allCases where provider != .bedrock && provider != .apple {
                 keys[provider] = keyed.contains(provider)

@@ -347,8 +347,8 @@ struct SettingsSchema {
         let store = store
         add(toggle("learnsEnglishWords", tr("学习英文词", "Learn English words"),
                    terms.device == .mac
-                       ? tr("打拼音时原样上屏两次的字母，或英文模式下打了两次的词，以后会出现在拼音的候选里；密码框、终端和不用 AI 的 App 里不学。",
-                            "A word put in as typed twice while typing pinyin, or typed twice in English mode, comes up among pinyin's candidates; never in password fields, terminals or apps without AI.")
+                       ? tr("打拼音时原样上屏两次的字母，或英文模式下打了两次的词，以后会出现在拼音的候选里；密码框、终端和不用 AI 的 App 里不学。需要辅助功能权限，用来认出密码框。",
+                            "A word put in as typed twice while typing pinyin, or typed twice in English mode, comes up among pinyin's candidates; never in password fields, terminals or apps without AI. It needs Accessibility, which tells password fields apart.")
                        : tr("打拼音时原样上屏两次的字母，以后会出现在候选里；密码框、终端和不用 AI 的应用里不学。",
                             "A word put in as typed twice while typing pinyin comes up among the candidates; never in password fields, terminals or apps without AI."),
                    config.learnsEnglishWords), to: &fields) { store.config.learnsEnglishWords = Self.bool($0) }
@@ -443,7 +443,8 @@ struct SettingsSchema {
             var model = text("\(provider.rawValue).model", tr("模型", "Model"), value: stored.model, placeholder: defaults.model)
             model.choices = SuggestedModel.suggested(for: provider).map { Choice($0.id, $0.title, note: $0.note) }
             add(model, to: &fields) { store.setProviderField(provider, \.model, to: $0.string ?? "") }
-            let source = keySource(provider)
+            // A key in the shell only where it is sent (`APIKeys.shellKeyGoes`): another base URL needs one saved here.
+            let source = keySource(provider).sent(by: provider, to: HTTPProviders.host(of: config.settings(for: provider)))
             add(secret("\(provider.rawValue).key", "API key", state: KeyState(source, ending: APIKeys.keyEnding(account: provider.rawValue)),
                        missing: tr("还没有 API key", "No API key yet"), removable: source == .keychain), to: &fields)
             add(text("\(provider.rawValue).baseURL", tr("Base URL", "Base URL"), value: stored.baseURL, placeholder: defaults.baseURL),

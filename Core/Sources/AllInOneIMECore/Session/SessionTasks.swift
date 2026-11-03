@@ -65,6 +65,8 @@ public enum TaskUpdate: Sendable {
     case suggested(Result<Autocomplete.Answer, any Error>, request: Int)
     /// A completion source's load or query came back: its result is in the store (`SuggestionsStore`), to be taken in.
     case completionsAnswered
+    /// The plugins were looked for again (`SessionServices.rescanPlugins`): what was found is to be taken in.
+    case pluginsScanned
 }
 
 /// How a save to notes or Reminders went (`TaskUpdate.saved`): told where the user is when it comes back, even if the

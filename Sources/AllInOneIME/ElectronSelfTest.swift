@@ -397,7 +397,7 @@ extension SelfTest {
         other.services.loadExtensions = { _, _ in .empty }
         (other.recordApp, other.services.takeRenameNotice) = ({ _ in }, { _ in nil })
         (other.warmsUpVision, other.selectionByAccessibility) = (false, false)
-        other.services.pointerUsedWithin = { _ in false }
+        (other.services.pointerUsedWithin, other.services.buttonUsedWithin) = ({ _ in false }, { _ in false })
         /// Shift's change into `field`, at `time`.
         func shift(_ field: AllInOneIMEInputController, _ fieldClient: FakeTextClient, down: Bool, at time: TimeInterval) {
             guard let event = NSEvent.keyEvent(

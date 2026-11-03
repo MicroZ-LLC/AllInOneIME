@@ -6730,6 +6730,53 @@
         }
       }
     },
+    "$%@ is sent only to %@, not this base URL: save a key for this service in the settings" : {
+      "comment" : "$%@ 只发给 %@，不会发给现在的 Base URL：请在设置里为这个服务保存 key — Sources/AllInOneIMECore/UIText+Errors.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Schlüssel aus $%@ wird nur an %@ gesendet, nicht an diese Basis-URL: Sichere in den Einstellungen einen Schlüssel für diesen Dienst"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La clave de $%@ solo se envía a %@, no a esta URL base: guarda una clave para este servicio en los ajustes"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La clé de $%@ n’est envoyée qu’à %@, pas à cette URL de base : enregistrez une clé pour ce service dans les réglages"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "$%@のキーは%@にのみ送信され、このBase URLには送信されません：設定でこのサービス用のキーを保存してください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "$%@ 키는 %@에만 보내지고 이 Base URL로는 보내지지 않습니다. 설정에서 이 서비스용 키를 저장하세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A chave de $%@ só é enviada para %@, não para esta URL base: salve uma chave para este serviço nos Ajustes"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "$%@ 中的金鑰只會傳送給 %@，不會傳送給現在的 Base URL：請在設定中為這個服務儲存金鑰"
+          }
+        }
+      }
+    },
     "1 char" : {
       "comment" : "1 字 — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
       "localizations" : {
@@ -8189,49 +8236,49 @@
         }
       }
     },
-    "A word put in as typed twice while typing pinyin, or typed twice in English mode, comes up among pinyin's candidates; never in password fields, terminals or apps without AI." : {
-      "comment" : "打拼音时原样上屏两次的字母，或英文模式下打了两次的词，以后会出现在拼音的候选里；密码框、终端和不用 AI 的 App 里不学。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+    "A word put in as typed twice while typing pinyin, or typed twice in English mode, comes up among pinyin's candidates; never in password fields, terminals or apps without AI. It needs Accessibility, which tells password fields apart." : {
+      "comment" : "打拼音时原样上屏两次的字母，或英文模式下打了两次的词，以后会出现在拼音的候选里；密码框、终端和不用 AI 的 App 里不学。需要辅助功能权限，用来认出密码框。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ein Wort, das du beim Pinyin-Tippen zweimal so eingibst, wie du es getippt hast, oder im Englisch-Modus zweimal tippst, erscheint unter den Pinyin-Kandidaten; nie in Passwortfeldern, Terminals oder Apps ohne KI."
+            "value" : "Ein Wort, das du beim Pinyin-Tippen zweimal so eingibst, wie du es getippt hast, oder im Englisch-Modus zweimal tippst, erscheint unter den Pinyin-Kandidaten; nie in Passwortfeldern, Terminals oder Apps ohne KI. Dafür braucht es den Zugriff auf Bedienungshilfen, der Passwortfelder erkennt."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Una palabra introducida dos veces tal cual al escribir pinyin, o escrita dos veces en modo inglés, aparece entre los candidatos del pinyin; nunca en campos de contraseña, terminales ni apps sin IA."
+            "value" : "Una palabra introducida dos veces tal cual al escribir pinyin, o escrita dos veces en modo inglés, aparece entre los candidatos del pinyin; nunca en campos de contraseña, terminales ni apps sin IA. Necesita Accesibilidad, que distingue los campos de contraseña."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Un mot inséré deux fois tel que tapé en pinyin, ou tapé deux fois en mode anglais, apparaît parmi les candidats du pinyin ; jamais dans les champs de mot de passe, les terminaux ni les apps sans IA."
+            "value" : "Un mot inséré deux fois tel que tapé en pinyin, ou tapé deux fois en mode anglais, apparaît parmi les candidats du pinyin ; jamais dans les champs de mot de passe, les terminaux ni les apps sans IA. Il faut l’Accessibilité, qui distingue les champs de mot de passe."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ピンイン入力中にそのまま2回確定した単語や、英語モードで2回入力した単語が、ピンインの候補に出ます。パスワード欄、ターミナル、AIを使わないAppでは学習しません。"
+            "value" : "ピンイン入力中にそのまま2回確定した単語や、英語モードで2回入力した単語が、ピンインの候補に出ます。パスワード欄、ターミナル、AIを使わないAppでは学習しません。パスワード欄を見分けるため、アクセシビリティの許可が必要です。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "병음을 입력하다가 입력한 그대로 두 번 넣거나 영어 모드에서 두 번 입력한 단어가 병음 후보에 나타납니다. 암호 필드, 터미널, AI를 사용하지 않는 앱에서는 학습하지 않습니다."
+            "value" : "병음을 입력하다가 입력한 그대로 두 번 넣거나 영어 모드에서 두 번 입력한 단어가 병음 후보에 나타납니다. 암호 필드, 터미널, AI를 사용하지 않는 앱에서는 학습하지 않습니다. 암호 필드를 구분하려면 손쉬운 사용 권한이 필요합니다."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Uma palavra inserida duas vezes como digitada ao digitar pinyin, ou digitada duas vezes no modo inglês, aparece entre os candidatos do pinyin; nunca em campos de senha, terminais ou apps sem IA."
+            "value" : "Uma palavra inserida duas vezes como digitada ao digitar pinyin, ou digitada duas vezes no modo inglês, aparece entre os candidatos do pinyin; nunca em campos de senha, terminais ou apps sem IA. Precisa da Acessibilidade, que distingue os campos de senha."
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "打拼音時照原樣送出兩次的字母，或英文模式下打了兩次的詞，以後會出現在拼音的候選裡；密碼欄位、終端機和不使用 AI 的 App 裡不學。"
+            "value" : "打拼音時照原樣送出兩次的字母，或英文模式下打了兩次的詞，以後會出現在拼音的候選裡；密碼欄位、終端機和不使用 AI 的 App 裡不學。需要輔助使用權限，用來認出密碼欄位。"
           }
         }
       }
@@ -17901,6 +17948,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "下載%@語言套件"
+          }
+        }
+      }
+    },
+    "Downloaded from the internet: not loaded from a folder Spotlight found (add the folder to use it)" : {
+      "comment" : "是从网上下载的：聚焦找到的文件夹里不载入这样的脚本（要用就添加这个文件夹） — Sources/AllInOneIMECore/UIText+Names.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aus dem Internet geladen: wird aus einem Ordner, den Spotlight gefunden hat, nicht geladen (füge den Ordner hinzu, um es zu verwenden)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descargado de internet: no se carga desde una carpeta que encontró Spotlight (añade la carpeta para usarlo)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Téléchargé depuis Internet : non chargé depuis un dossier trouvé par Spotlight (ajoutez le dossier pour l’utiliser)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "インターネットからダウンロードされたものです：Spotlightが見つけたフォルダからは読み込みません（使うにはフォルダを追加してください）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "인터넷에서 다운로드됨: Spotlight가 찾은 폴더에서는 불러오지 않습니다 (사용하려면 폴더를 추가하세요)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Baixado da internet: não é carregado de uma pasta que o Spotlight encontrou (adicione a pasta para usá-lo)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "是從網路下載的：Spotlight 找到的檔案夾中不載入這樣的腳本（要使用就加入這個檔案夾）"
           }
         }
       }
@@ -28126,6 +28220,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "不能控制："
+          }
+        }
+      }
+    },
+    "Not executable: from a folder Spotlight found, only executable scripts load (chmod +x, or add the folder)" : {
+      "comment" : "没有执行权限：聚焦找到的文件夹里只载入可执行的脚本（chmod +x，或者添加这个文件夹） — Sources/AllInOneIMECore/UIText+Names.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht ausführbar: Aus einem Ordner, den Spotlight gefunden hat, werden nur ausführbare Skripte geladen (chmod +x, oder füge den Ordner hinzu)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No es ejecutable: de una carpeta que encontró Spotlight solo se cargan scripts ejecutables (chmod +x, o añade la carpeta)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non exécutable : depuis un dossier trouvé par Spotlight, seuls les scripts exécutables sont chargés (chmod +x, ou ajoutez le dossier)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "実行権限がありません：Spotlightが見つけたフォルダからは実行可能なスクリプトだけを読み込みます（chmod +x するか、フォルダを追加してください）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "실행 권한 없음: Spotlight가 찾은 폴더에서는 실행 가능한 스크립트만 불러옵니다 (chmod +x 하거나 폴더를 추가하세요)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não é executável: de uma pasta que o Spotlight encontrou, só scripts executáveis são carregados (chmod +x, ou adicione a pasta)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有執行權限：Spotlight 找到的檔案夾中只載入可執行的腳本（chmod +x，或加入這個檔案夾）"
           }
         }
       }

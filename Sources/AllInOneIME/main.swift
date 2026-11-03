@@ -116,10 +116,11 @@ enum RimeFuzzy {
 
     /// The settings read again (a text field focused) or the system's languages changed: with no characters picked they
     /// follow the system's (`Config.typedChinese`), so the candidates do too once they differ from the patch's
-    /// (`ChineseCharacters.Written`): written again and deployed again, as a change in the settings is.
+    /// (`ChineseCharacters.Written`): written again and deployed again, as a change in the settings is. Nothing while the
+    /// config file doesn't parse (nil): its defaults aren't the user's fuzzy pinyin.
     @MainActor
-    static func follow(_ config: Config) {
-        guard RimeService.shared.isStarted, let characters = written.changed(config) else { return }
+    static func follow(_ config: Config?) {
+        guard let config, RimeService.shared.isStarted, let characters = written.changed(config) else { return }
         log.notice("the system's languages changed the characters Chinese is typed in: \(characters.rawValue, privacy: .public)")
         apply(config.fuzzyPinyin, characters: characters)
     }
@@ -137,19 +138,22 @@ final class IMEAppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         CommandRunner.stopAll()  // what script extensions started doesn't outlive the input method
+        SessionServices.englishWordsWriter.drain(within: 0.5)  // the English words just learned, into the file
     }
 }
 
 /// SIGTERM (an update, `make install`, logging out): the programs running for script extensions, and what they
-/// started, are stopped first (`CommandRunner.stopAll`, at most half a second), then the input method ends, as
-/// the signal's default would end it. Handled on a queue of its own, not in a signal handler and not on the main
-/// thread: a main thread that hangs doesn't keep it alive, and a hard exit is armed in case stopping hangs too.
+/// started, are stopped first (`CommandRunner.stopAll`, at most half a second), the English words learned and not
+/// written yet go into the config file (`EnglishWords.Writer.drain`, at most half a second), then the input method
+/// ends, as the signal's default would end it. Handled on a queue of its own, not in a signal handler and not on the
+/// main thread: a main thread that hangs doesn't keep it alive, and a hard exit is armed in case stopping hangs too.
 private let terminationSignal: DispatchSourceSignal = {
     signal(SIGTERM, SIG_IGN)
     let source = DispatchSource.makeSignalSource(signal: SIGTERM, queue: DispatchQueue(label: "AllInOneIME.terminate"))
     source.setEventHandler {
         DispatchQueue.global().asyncAfter(deadline: .now() + 1.5) { _exit(0) }
         CommandRunner.stopAll()
+        SessionServices.englishWordsWriter.drain(within: 0.5)
         _exit(0)
     }
     return source
@@ -200,6 +204,8 @@ func runServer(showSettings: Bool = false) -> Never {
     // A plugin found for the first time (installed, put in the plugins folder, or there before 0.6.7.2): its completion
     // sources on, as each scan of the plugins folder finds it.
     LivePlugins.found = { plugins in MainActor.assumeIsolated { SuggestionsShared.pluginsFound(plugins) } }
+    // English words learned while the config file didn't parse (or couldn't be written): written once it parses again.
+    LiveConfig.parsedAnew = { SessionServices.englishWordsWriter.retry() }
     // Translate as You Type goes off when another app becomes active, a text field in it or not.
     MainActor.assumeIsolated { TranslateModeShared.watchApps() }
     // Sync through iCloud, if it is on: a first run in a moment, then as files change.
@@ -210,7 +216,7 @@ func runServer(showSettings: Bool = false) -> Never {
     // candidates follow them as the rest does (a text field focused checks too).
     let localeChanged = NotificationCenter.default.addObserver(forName: NSLocale.currentLocaleDidChangeNotification, object: nil,
                                                                queue: .main) { _ in
-        MainActor.assumeIsolated { RimeFuzzy.follow(LiveConfig.current) }
+        MainActor.assumeIsolated { RimeFuzzy.follow(LiveConfig.currentIfValid) }
     }
     withExtendedLifetime((server, localeChanged)) { app.run() }
     exit(0)
@@ -344,7 +350,9 @@ func printStatus() -> Int32 {
         if config.provider == .apple {
             print("apple model: \(AppleModel.system.availability.rawValue)")
         } else if config.provider != .bedrock {
-            print("api key:     \(APIKeys.source(config.provider) == .none ? "✗ none" : "found")")  // not read: no keychain prompt
+            let source = APIKeys.source(config.provider).sent(by: config.provider,
+                                                              to: HTTPProviders.host(of: config.settings(for: config.provider)))
+            print("api key:     \(source == .none ? "✗ none" : "found")")  // not read: no keychain prompt
         } else {
             // Read from the files and the SSO sign-in only: no program run, nothing fetched.
             let status = AWSCredentialResolver.shared.status(profile: config.awsProfile)

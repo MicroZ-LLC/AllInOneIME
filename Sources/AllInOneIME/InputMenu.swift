@@ -364,12 +364,10 @@ extension AllInOneIMEInputController {
     @MainActor
     static func openConfigFile() {
         let url = Config.defaultURL
-        if !FileManager.default.fileExists(atPath: url.path) {
-            do {
-                try Config.default.write(to: url)
-            } catch {
-                log.error("could not create config: \(String(describing: error), privacy: .public)")
-            }
+        do {
+            try Config.default.writeIfMissing(to: url)  // one learned meanwhile stays
+        } catch {
+            log.error("could not create config: \(String(describing: error), privacy: .public)")
         }
         if let textEdit = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.TextEdit") {
             NSWorkspace.shared.open([url], withApplicationAt: textEdit, configuration: NSWorkspace.OpenConfiguration())

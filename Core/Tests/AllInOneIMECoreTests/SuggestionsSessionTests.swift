@@ -178,6 +178,45 @@ extension SuggestionsSessionTests {
 }
 
 extension SuggestionsSessionTests {
+    /// While the settings are only the defaults (their file doesn't parse, and the shell says so:
+    /// `SuggestionsServices.settingsValid`), neither a field taking the focus nor the settings changing forgets a source
+    /// or deletes its cached list for what they say (the defaults approve none); with the user's own settings again it is
+    /// all there, and a source they disable goes as before.
+    @Test func theDefaultsOfABrokenSettingsFileDeleteNoCachedList() async throws {
+        try await inEnglish {
+            let world = SuggestionsWorld()
+            let cache = world.folder.appendingPathComponent("cache", isDirectory: true)
+            world.cacheFolder = cache
+            try world.github()
+            let issues = ["#7001", "#7002", "#7090", "#7100", "#789"]
+            let file = cache.appendingPathComponent("github.issues.json")
+            let first = world.field()
+            first.type("#7")
+            #expect(first.waitForIssues(issues), "\(first.issuesShown)")
+            #expect(first.settle { FileManager.default.fileExists(atPath: file.path) }, "cached")
+            let loads = world.runtime.loads.count
+
+            let users = world.switches
+            world.switches = Config.default.suggestionsSettings()
+            let broken = world.field { $0.suggestions.settingsValid = { false } }
+            broken.host.send(.configChanged)
+            SuggestionsStore.disk.sync {}  // what the focus and the change pruned on disk, done
+            #expect(FileManager.default.fileExists(atPath: file.path), "the defaults deleted the cached list")
+
+            world.switches = users
+            let again = world.field()
+            again.type("#7")
+            #expect(again.waitForIssues(issues), "\(again.issuesShown)")
+            #expect(world.runtime.loads.count == loads, "forgotten meanwhile: loaded again (\(world.runtime.loads.count))")
+            world.disable("github", "issues")
+            again.host.send(.configChanged)
+            SuggestionsStore.disk.sync {}
+            #expect(again.settle { !FileManager.default.fileExists(atPath: file.path) }, "disabled: its cached list deleted")
+        }
+    }
+}
+
+extension SuggestionsSessionTests {
     /// The list cached on disk (up to 4 MB of JSON) is read and decoded off the session's thread (the main thread on the
     /// Mac): a key never waits for the disk, the cached list shows once read, and no load starts before it is.
     @Test func theCachedListIsReadOffTheSessionsThread() async throws {
@@ -248,9 +287,10 @@ extension SuggestionsSessionTests {
     }
 
     /// `pressAsTheMacDoes`, in a field Accessibility tells is a password field (`passwordField`, secure input off) or
-    /// not: whether the session asked for the field's text, and whether it asked if it is a password field.
+    /// not (nil: it can't tell): whether the session asked for the field's text, and whether it asked if it is a
+    /// password field.
     @discardableResult
-    func pressAsTheMac(_ key: KeyEvent, in field: SuggestionsField, passwordField: Bool = false) -> (askedText: Bool, askedPassword: Bool) {
+    func pressAsTheMac(_ key: KeyEvent, in field: SuggestionsField, passwordField: Bool? = false) -> (askedText: Bool, askedPassword: Bool) {
         var (askedText, askedPassword) = (false, false)
         var context = FieldContext(field: FieldInfo(app: field.host.app, terminal: field.host.terminal))
         let all = field.host.context
@@ -265,7 +305,8 @@ extension SuggestionsSessionTests {
             if missing.contains(.text) { context.text = all.text }
             if missing.contains(.passwordField) {
                 askedPassword = true
-                context.field?.secure = passwordField
+                context.field?.secure = passwordField == true
+                context.passwordFieldUnknown = passwordField == nil
             }
             context.read.formUnion(missing)
         }
@@ -278,7 +319,7 @@ extension SuggestionsSessionTests {
 
     /// Types `text` as `pressAsTheMac` does: how many keys asked whether the field is a password field.
     @discardableResult
-    func typeAsTheMac(_ text: String, into field: SuggestionsField, passwordField: Bool) -> Int {
+    func typeAsTheMac(_ text: String, into field: SuggestionsField, passwordField: Bool?) -> Int {
         text.filter { pressAsTheMac(SuggestionKeys.key($0), in: field, passwordField: passwordField).askedPassword }.count
     }
 
@@ -300,6 +341,19 @@ extension SuggestionsSessionTests {
             #expect(typeAsTheMac("#7", into: field, passwordField: false) == 1, "asked again")
             #expect(field.waitForIssues(SuggestionsSwitchesAcceptanceTests.allRows), "\(field.issuesShown)")
             #expect(typeAsTheMac("0", into: field, passwordField: false) == 0, "once a field")
+        }
+    }
+
+    /// Where Accessibility can't tell whether the field is a password field (not allowed, no answer in time), rows show
+    /// as they always did (only the English words learned take it as one): asked once a field, not with every key.
+    @Test func rowsShowWhereAccessibilityCantTell() async throws {
+        try await inEnglish {
+            let world = SuggestionsWorld()
+            try world.github()
+            let field = world.field()
+            #expect(typeAsTheMac("#7", into: field, passwordField: nil) == 1, "asked once")
+            #expect(field.waitForIssues(SuggestionsSwitchesAcceptanceTests.allRows), "\(field.issuesShown)")
+            #expect(typeAsTheMac("0", into: field, passwordField: nil) == 0, "once a field")
         }
     }
 

@@ -97,6 +97,23 @@ struct SettingsServiceTests {
         #expect(!text.contains("gemini-env-key") && !text.contains("gemini-saved-key"))
     }
 
+    /// A key set in the user's environment shows as set only while the base URL is one it is sent to (its provider's
+    /// own service, this computer: `APIKeys.shellKeyGoes`); with another service's there is no key until one is saved.
+    @Test(MemorySecrets(environment: ["OPENAI_API_KEY": "sk-proj-shell-0000-a1b2"]))
+    func aShellKeyShowsAsSetOnlyWhereItIsSent() throws {
+        func key(_ openai: String) throws -> SettingsDocument.Field {
+            try #require(try service(#"{"provider": "openai", "openai": \#(openai)}"#).0.document().field("openai.key"))
+        }
+        let shell = KeyState.shell("OPENAI_API_KEY").text(missing: "")
+        for sent in [#"{}"#, #"{"baseURL": "http://localhost:11434/v1", "model": "llama3"}"#] {
+            let field = try key(sent)
+            #expect(field.isSet == true && field.status == shell, "\(sent)")
+        }
+        let other = try key(#"{"baseURL": "https://api.deepseek.com/v1", "model": "deepseek-chat"}"#)
+        #expect(other.isSet == false && other.status == KeyState.missing.text(missing: tr("还没有 API key", "No API key yet")))
+        #expect(other.actions == ["setKey"])
+    }
+
     /// Keys, tokens and what a window sends (words to hide, a command's prompt) go to the secret store and the file,
     /// never into a log line: every message the core logs meanwhile is heard (`CoreLog.listen`).
     @Test func noKeyInTheLogs() async throws {
