@@ -2,6 +2,25 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
+## 0.6.8.3 (2026-11-02)
+
+### Changed
+
+- A key from your login shell (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`) now goes only to its own provider's service, or to a server on this Mac. With another base URL (a relay, DeepSeek), save a key for that service in Settings; until then requests fail with a message that says so, and Settings no longer shows the shell's key as set there.
+- Raycast scripts that AllInOneIME finds by itself (with Spotlight) load only when they're executable and weren't downloaded, and they never run on their own: they have no status line. Settings lists the ones left out, with the reason. A folder you add in Settings works as before.
+- Removing a plugin in Settings moves its folder to the Trash instead of deleting it.
+- English words are learned only where Accessibility can tell password fields apart: without Accessibility, nothing is learned in a field where secure input is off.
+
+### Fixed
+
+- A config.json that doesn't parse (a trailing comma after editing it by hand, say) no longer trims or deletes clipboard history, turns history back on after you turned it off, deletes cached suggestion lists or resets fuzzy pinyin. Nothing changes until the file parses again.
+- English words were learned from password fields that secure input doesn't cover (some web and Electron ones) when the same letters were typed twice. They no longer are.
+- Scrolling suggestion rows (Slack's `#70`, say) with the mouse or trackpad no longer lets the next ⏎, Tab or ↑ go to the app.
+- Esc, and Tab taking a single character, on autocomplete's gray text no longer also reach Chromium and Electron apps (where Esc could close a thread or cancel an edit).
+- A multi-line answer typed into a terminal can no longer paste what you had copied before: your clipboard is put back only once the terminal has read the text.
+- Updates inside the app accept only an app signed by AllInOneIME's own developer team.
+- Typing no longer stalls on a key that learns an English word (config.json is written in the background), or when a field takes the focus (plugins are rescanned in the background).
+
 ## 0.6.8.2 (2026-10-28)
 
 ### Added
