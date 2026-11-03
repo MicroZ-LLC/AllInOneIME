@@ -208,6 +208,8 @@ public final class SettingsStore {
     /// learned becomes theirs), and those refused as what hiding sensitive information hides.
     @discardableResult
     public func addEnglishWords(_ text: String) -> EnglishWords.Added {
+        // From the file's read to its write: a word learned meanwhile (`EnglishWords.Writer`) stays.
+        AIConfig.fileLock.lock(); defer { AIConfig.fileLock.unlock() }
         refresh()
         var changed = config
         let result = EnglishWords.add(text, to: &changed)
@@ -219,6 +221,7 @@ public final class SettingsStore {
 
     /// A word's ✕: `word` gone from the English words (`EnglishWords.remove`), wherever it is in the list now.
     public func removeEnglishWord(_ word: String) {
+        AIConfig.fileLock.lock(); defer { AIConfig.fileLock.unlock() }
         refresh()
         var changed = config
         EnglishWords.remove(word, from: &changed)
@@ -607,9 +610,10 @@ public final class SettingsStore {
 
     // MARK: Plugins
 
-    /// Removes an installed plugin (its folder), and what was kept of its completion sources (`Config.forgetPlugin`: their
-    /// approvals, that it was found here: installed again, they are on as they are then, but those the user turned off;
-    /// their cached lists go as the input method takes the settings in). What went wrong (nil: done).
+    /// Removes an installed plugin (its folder to the Trash: `PluginStore.uninstall`), and what was kept of its completion
+    /// sources (`Config.forgetPlugin`: their approvals, that it was found here: installed again, they are on as they are
+    /// then, but those the user turned off; their cached lists go as the input method takes the settings in). What went
+    /// wrong (nil: done; the folder stays where it can't go to the Trash).
     public func uninstall(_ plugin: InstalledPlugin) -> String? {
         guard persists else { return nil }
         do {

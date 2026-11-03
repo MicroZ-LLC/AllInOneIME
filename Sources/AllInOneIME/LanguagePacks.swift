@@ -96,7 +96,8 @@ final class LanguagePackManager: ObservableObject {
         guard !FileManager.default.fileExists(atPath: Config.defaultURL.path) else { return }
         var config = Config.fresh
         config.setOrder([Language.chinese, .english])
-        do { try config.write() } catch {
+        // Looked for again with the write: a file made meanwhile (an English word learned) stays.
+        do { try config.writeIfMissing() } catch {
             log.error("could not write the settings: \(String(describing: error), privacy: .public)")
         }
     }
@@ -174,7 +175,9 @@ enum RimeStartup {
         } catch {
             log.error("could not link the Rime scripts: \(String(describing: error), privacy: .public)")
         }
-        let fuzzy = RimeFuzzy.write(LiveConfig.current.fuzzyPinyin)
+        // Fuzzy pinyin's patch by the config file as it parses: while it doesn't, the patch stays as it is (the defaults
+        // aren't the user's pairs).
+        let fuzzy = LiveConfig.currentIfValid.flatMap { RimeFuzzy.write($0.fuzzyPinyin) }
         let record = store.installed(.chinesePinyin)
         let deployed = "\(record?.version ?? "?")|\(record?.sha256 ?? record?.source.rawValue ?? "")|\(shared.path)"
         let packChanged = UserDefaults.standard.string(forKey: deployedKey) != deployed

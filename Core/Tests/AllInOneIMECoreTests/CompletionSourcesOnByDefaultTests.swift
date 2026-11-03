@@ -214,7 +214,7 @@ struct CompletionSourcesOnByDefaultTests {
     /// A plugin removed in Settings (`SettingsStore.uninstall`: its folder, its approvals, that it was found) and installed
     /// again (put in the folder, or from the library: `forgetPlugin` first) has its sources approved as they are then, but
     /// one the user turned off: that stays off (docs/plugins.md), as saved, until turned on. Another plugin's choices stay.
-    @Test func aPluginRemovedAndInstalledAgainKeepsWhatTheUserTurnedOff() throws {
+    @Test(OwnTrash()) func aPluginRemovedAndInstalledAgainKeepsWhatTheUserTurnedOff() throws {
         let plugins = Plugins()
         let plugin = try plugins.install(Self.twoSources)
         let (issues, pulls) = (try Self.source(plugin, "issues"), try Self.source(plugin, "pulls"))

@@ -104,10 +104,11 @@ final class ICloudSyncController: ObservableObject {
     static let rimeInterval: TimeInterval = 30 * 60
     static let rimeIdle: TimeInterval = 30
 
-    /// The checks' view of this Mac: which providers have a key (the keychain item's attributes, never the key), the
-    /// AWS profiles, the providers offered.
+    /// The checks' view of this Mac: where each provider's key comes from (the keychain item's attributes, never the
+    /// key; one from the login shell counts only for a base URL it goes to, as in Settings), the AWS profiles, the
+    /// providers offered.
     nonisolated static var liveEnvironment: ICloudSync.Environment {
-        ICloudSync.Environment(hasKey: { APIKeys.source($0) != .none }, awsProfiles: { AWSSharedConfig.profileNames() },
+        ICloudSync.Environment(keySource: { APIKeys.source($0) }, awsProfiles: { AWSSharedConfig.profileNames() },
                                offeredProviders: Provider.offered, interfaceLanguages: InterfaceLanguage.shipped())
     }
 
@@ -544,7 +545,7 @@ final class ICloudSyncController: ObservableObject {
         let config = LiveConfig.current
         NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
         if report.configKeys.contains("menuBarIcon") { MenuBarIcon.shared.apply(config.menuBarIcon) }
-        if report.configKeys.contains("fuzzyPinyin") { RimeFuzzy.apply(config.fuzzyPinyin) }
+        if report.configKeys.contains("fuzzyPinyin"), let valid = LiveConfig.currentIfValid { RimeFuzzy.apply(valid.fuzzyPinyin) }
         if report.configKeys.contains("uiLanguage") {
             UIText.choice = config.uiLanguage
             SettingsWindow.shared.updateTitle()

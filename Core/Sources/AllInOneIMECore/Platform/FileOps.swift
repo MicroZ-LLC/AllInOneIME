@@ -12,7 +12,7 @@ import WinSDK
 #endif
 
 /// The file operations that differ by system: swapping two folders in one step, writing a file only the user can read,
-/// a file's modification date, the Trash.
+/// a file's modification date, the Trash, the mark of a download.
 public protocol FileOps: Sendable {
     /// Puts `source` at `destination` in one step: when `exists`, swapped with what is there (`source` then holds the
     /// old); else renamed into place, never over something that appeared meanwhile. Throws, changing nothing, when it
@@ -38,6 +38,9 @@ public protocol FileOps: Sendable {
     /// Moves `url` to the Trash where there is one (the user can put it back; on Windows the Recycle Bin, from a fixed
     /// drive only: on another it throws, as the Mac's does on a volume without a Trash); elsewhere removes it.
     func trash(_ url: URL) throws
+    /// Whether the file at `url` (a link followed) carries the mark of a download from the internet: on Apple's systems
+    /// the `com.apple.quarantine` extended attribute a browser, Mail or Archive Utility sets. False where there is none.
+    func isQuarantined(_ url: URL) -> Bool
 }
 
 extension FileOps {
@@ -294,6 +297,45 @@ public struct SystemFileOps: FileOps {
         #else
         try FileManager.default.removeItem(at: url)
         #endif
+    }
+
+    public func isQuarantined(_ url: URL) -> Bool {
+        #if canImport(Darwin)
+        return url.withUnsafeFileSystemRepresentation { path in
+            guard let path else { return false }
+            return getxattr(path, "com.apple.quarantine", nil, 0, 0, 0) >= 0
+        }
+        #else
+        return false
+        #endif
+    }
+}
+
+/// The system's file operations with a Trash of the caller's own, a folder (made as needed): what tests and the
+/// self-test move to the Trash goes there, never to the user's, and can be looked for.
+public struct FolderTrashFileOps: FileOps {
+    public var folder: URL
+    let system = SystemFileOps()
+
+    public init(trash folder: URL) { self.folder = folder }
+
+    public func swap(_ source: URL, into destination: URL, exists: Bool) throws { try system.swap(source, into: destination, exists: exists) }
+    public func recoverInterruptedSwaps(in folder: URL) { system.recoverInterruptedSwaps(in: folder) }
+    public func writePrivate(_ data: Data, to url: URL, stagingIn staging: URL?) throws {
+        try system.writePrivate(data, to: url, stagingIn: staging)
+    }
+    public func modificationDate(atPath path: String) -> Date? { system.modificationDate(atPath: path) }
+    public func isQuarantined(_ url: URL) -> Bool { system.isQuarantined(url) }
+
+    /// `url` moved into `folder`, under its own name (with a number when that is taken there).
+    public func trash(_ url: URL) throws {
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        var name = url.lastPathComponent, n = 1
+        while FileManager.default.fileExists(atPath: folder.appendingPathComponent(name).path) {
+            n += 1
+            name = "\(url.lastPathComponent) \(n)"
+        }
+        try FileManager.default.moveItem(at: url, to: folder.appendingPathComponent(name))
     }
 }
 

@@ -38,6 +38,9 @@ public enum Provider: String, Codable, CaseIterable, Sendable {
         }
     }
 
+    /// The host of the provider's own service (its default base URL's): the one its `keyVariables` go to.
+    var ownHost: String { HTTPProviders.host(of: .defaults(for: self)) ?? "" }
+
     /// Environment variables (of the user's login shell) that hold the API key when the keychain has none.
     public var keyVariables: [String] {
         switch self {
@@ -122,6 +125,9 @@ public enum ProviderError: Error, LocalizedError, Equatable {
     case insecureBaseURL(String)
     /// The keychain's key was saved for another host than the base URL's (`APIKeys.load(_:for:)`).
     case keyForAnotherHost(Provider, saved: String)
+    /// No key saved, and the one in the login shell (`variable`) goes only to the provider's own service, not the base
+    /// URL's (`APIKeys.shellKeyGoes`).
+    case shellKeyForAnotherHost(Provider, variable: String)
     case http(provider: Provider, status: Int, type: String?, message: String)
     case stream(provider: Provider, type: String, message: String)
     /// The model declined the request (the Claude API's `refusal` stop reason, Gemini's SAFETY finish).
@@ -140,6 +146,8 @@ public enum ProviderError: Error, LocalizedError, Equatable {
         case let .insecureBaseURL(url): return "Not sent over http:// to the internet (only to this Mac or the local network): \(url)"
         case let .keyForAnotherHost(p, saved):
             return "The \(p.displayName) API key was saved for \(saved), not this base URL: save the key again for it"
+        case let .shellKeyForAnotherHost(p, variable):
+            return "$\(variable) is sent only to \(p.ownHost), not this base URL: save a key for this service in the settings"
         case let .http(p, status, type, message): return "\(p.displayName) \(type ?? "HTTP \(status)"): \(message)"
         case let .stream(p, type, message): return "\(p.displayName) \(type): \(message)"
         case let .refused(p): return p == .apple ? "Apple Intelligence declined this request" : "The \(p.displayName) declined this request"

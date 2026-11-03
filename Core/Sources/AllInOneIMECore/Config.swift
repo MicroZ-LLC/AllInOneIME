@@ -762,11 +762,23 @@ public struct Config: Codable, Equatable, Sendable {
     }
 
     public func write(to url: URL = defaultURL) throws {
+        AIConfig.fileLock.lock(); defer { AIConfig.fileLock.unlock() }  // not between another writer's read and write
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         try FileManager.default.createDirectory(
             at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try encoder.encode(self).write(to: url, options: .atomic)
+    }
+
+    /// `self` written whole (`write`) where there is no file at `url` yet, decided under `AIConfig.fileLock` with the
+    /// write: a file another writer of this process made meanwhile (an English word learned on a fresh install,
+    /// `EnglishWords.Writer`) stays as it is. Whether it was written.
+    @discardableResult
+    public func writeIfMissing(to url: URL = defaultURL) throws -> Bool {
+        AIConfig.fileLock.lock(); defer { AIConfig.fileLock.unlock() }
+        guard !FileManager.default.fileExists(atPath: url.path) else { return false }
+        try write(to: url)
+        return true
     }
 
     /// The config file at `url` changed by `change`, written as Settings saves (`SettingsStore.save`, `AIConfig.writing`):
@@ -778,6 +790,7 @@ public struct Config: Codable, Equatable, Sendable {
     /// changed.
     @discardableResult
     public static func change(at url: URL = defaultURL, _ change: (inout Config) throws -> Void) throws -> Config {
+        AIConfig.fileLock.lock(); defer { AIConfig.fileLock.unlock() }
         let old = try load(from: url)
         var new = old
         try change(&new)

@@ -324,10 +324,24 @@ extension AllInOneIMEInputController {
     }
 
     /// Whether Accessibility tells the focused element is a password field (`FocusedField.isSecure`; the self-test's
-    /// harness field, which isn't the one focused, is told by the self-test).
+    /// harness field, which isn't the one focused, is told by the self-test). Nil: it can't tell (no Accessibility,
+    /// nothing focused, no answer in time), which the session counts as unknown, never as none.
     @MainActor
-    func passwordFieldByAccessibility() -> Bool {
-        passwordField?() ?? (FocusedField.isSecure() == true)
+    func passwordFieldByAccessibility() -> Bool? {
+        passwordField.map { $0() } ?? FocusedField.isSecure()
+    }
+
+    /// `passwordFieldByAccessibility` asked off the main thread, once the key that asks it is answered
+    /// (`SessionOutput.readPasswordField`: Accessibility may wait a quarter of a second for each of its two calls, more
+    /// than a key may), and handed back for the focus it was asked in (`SessionEvent.passwordField`).
+    @MainActor
+    func readPasswordField(focus: Int) {
+        let box = WeakBox(self)
+        let told: @Sendable (Bool?) -> Void = { answer in
+            DispatchQueue.main.async { MainActor.assumeIsolated { box.value?.received(.passwordField(answer, focus: focus)) } }
+        }
+        if let harness = passwordField { return told(harness()) }
+        DispatchQueue.global(qos: .userInitiated).async { told(FocusedField.isSecure()) }
     }
 
     /// Where the caret is on the screen (as tall as its line), as the field tells it for an empty range there: nil
@@ -395,7 +409,9 @@ extension AllInOneIMEInputController {
             context.secure = SecureInput.blocksComposing(target) || self.services.secureInputActive()
             if !context.secure {
                 // Told for suggestions too (`FieldContext.Parts.passwordField`): both go by the same answer.
-                context.field?.secure = self.passwordFieldByAccessibility()
+                let told = self.passwordFieldByAccessibility()
+                context.field?.secure = told == true
+                context.passwordFieldUnknown = told == nil
                 context.read.insert(.passwordField)
             }
             if !context.secure, context.field?.secure != true {

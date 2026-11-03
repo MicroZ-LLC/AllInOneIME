@@ -433,7 +433,8 @@ struct SettingsSchema {
             var model = text("\(provider.rawValue).model", tr("模型", "Model"), value: stored.model, placeholder: defaults.model)
             model.choices = SuggestedModel.suggested(for: provider).map { Choice($0.id, $0.title, note: $0.note) }
             add(model, to: &fields) { store.setProviderField(provider, \.model, to: $0.string ?? "") }
-            let source = keySource(provider)
+            // A key in the shell only where it is sent (`APIKeys.shellKeyGoes`): another base URL needs one saved here.
+            let source = keySource(provider).sent(by: provider, to: HTTPProviders.host(of: config.settings(for: provider)))
             add(secret("\(provider.rawValue).key", "API key", state: KeyState(source, ending: APIKeys.keyEnding(account: provider.rawValue)),
                        missing: tr("还没有 API key", "No API key yet"), removable: source == .keychain), to: &fields)
             add(text("\(provider.rawValue).baseURL", tr("Base URL", "Base URL"), value: stored.baseURL, placeholder: defaults.baseURL),

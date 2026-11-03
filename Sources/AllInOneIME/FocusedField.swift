@@ -17,12 +17,17 @@ enum FocusedField {
     }
 
     /// Whether it is a password field (`AXSecureTextField`): one whose app doesn't turn secure event input on for it, or
-    /// not yet (a web page's, a field of the app's own drawing).
+    /// not yet (a web page's, a field of the app's own drawing). Nil where it can't be told (`element`'s, and a read of
+    /// its subrole that fails: no answer in time, the element gone), never false then; one that has no subrole is none.
+    /// Any thread (`readPasswordField` asks off the main one).
     static func isSecure() -> Bool? {
         guard let element = element() else { return nil }
         var subrole: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &subrole) == .success else { return false }
-        return subrole as? String == kAXSecureTextFieldSubrole as String
+        switch AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &subrole) {
+        case .success: return subrole as? String == kAXSecureTextFieldSubrole as String
+        case .noValue, .attributeUnsupported: return false
+        default: return nil
+        }
     }
 
     /// Its frame on the screen, in AppKit's coordinates (Accessibility's start at the main screen's top left, y down).
