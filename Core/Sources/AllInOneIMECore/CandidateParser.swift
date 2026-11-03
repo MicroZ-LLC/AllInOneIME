@@ -145,12 +145,12 @@ public enum CandidateParser {
             tagged = OutputLanguage.catalog.first(where: { $0.tag == letters })
                 ?? (letters == output?.tag ? output : nil) ?? translations.first(where: { $0.tag == letters })
         }
-        // Taiwan's or Hong Kong's Traditional Chinese asked for ("ZHHANTTW": Chinese typed in their characters): the model
-        // may tag it as any Chinese ("ZHHANT", "ZH-TW", "ZH-HK", "ZH"), which is that one unless the language tagged is
-        // asked for too.
+        // Traditional Chinese asked for (Taiwan's or Hong Kong's, "ZHHANTTW": Chinese typed in their characters; or plain
+        // "ZHHANT", a Traditional selection's): the model may tag it as any Chinese ("ZHHANT", "ZH-TW", "ZH-HK", "ZH"),
+        // which is that one unless the language tagged is asked for too.
         let asked = [output].compactMap { $0 } + translations
         if Self.chineseTags.contains(letters), !(tagged.map(asked.contains) ?? false),
-           let variant = asked.first(where: { $0 == .traditionalTaiwan || $0 == .traditionalHongKong }) {
+           let variant = asked.first(where: \.isTraditionalChinese) {
             tagged = variant
         }
         guard let language = tagged else {
