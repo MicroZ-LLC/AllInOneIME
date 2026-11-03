@@ -106,16 +106,19 @@ public enum InterfaceLanguage {
         return shipped.first { Tag($0).code.lowercased() == wanted }
     }
 
-    /// A language identifier taken apart: "zh_Hant_TW" → zh, hant, TW.
-    struct Tag {
+    /// A language identifier taken apart: "zh_Hant_TW" → zh, hant, TW. Also how the characters Chinese is typed in read
+    /// the system's languages (`ChineseCharacters.preferred`).
+    public struct Tag {
         /// The identifier with "-" between its parts.
         let code: String
         /// Lowercased: "zh", "pt".
-        let language: String
-        let script: String?
-        let region: String?
+        public let language: String
+        /// Lowercased: "hant".
+        public let script: String?
+        /// Uppercased: "TW".
+        public let region: String?
 
-        init(_ identifier: String) {
+        public init(_ identifier: String) {
             code = identifier.replacingOccurrences(of: "_", with: "-")
             let parts = code.split(separator: "-").map(String.init)
             language = parts.first?.lowercased() ?? ""
@@ -126,7 +129,7 @@ public enum InterfaceLanguage {
         }
 
         /// Traditional Chinese: written in Hant, or for Taiwan, Hong Kong or Macau without a script.
-        var traditional: Bool { script.map { $0 == "hant" } ?? ["TW", "HK", "MO"].contains(region ?? "") }
+        public var traditional: Bool { script.map { $0 == "hant" } ?? ["TW", "HK", "MO"].contains(region ?? "") }
 
         /// What may match it, lowercased, best first: the code, the language with its script and region, with its
         /// region, with its script, and alone.

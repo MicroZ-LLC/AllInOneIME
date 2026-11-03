@@ -15,19 +15,12 @@ public enum ChineseCharacters: String, Codable, CaseIterable, Sendable {
     public var isTraditional: Bool { self != .simplified }
 
     /// The variant for the system's preferred languages (`Platform.userLanguages`), read as the interface language reads
-    /// them (`InterfaceLanguage.pick`): the first Chinese one decides. Hong Kong's ("zh-HK", "zh-Hant-HK") is Hong Kong's,
+    /// them (`InterfaceLanguage.Tag`): the first Chinese one decides. Hong Kong's ("zh-HK", "zh-Hant-HK") is Hong Kong's,
     /// another Traditional one ("zh-Hant", "zh-TW", "zh-MO") Taiwan's, any other Simplified; with none, Simplified.
     public static func preferred(from identifiers: [String]) -> ChineseCharacters {
-        for identifier in identifiers {
-            let parts = identifier.replacingOccurrences(of: "_", with: "-").split(separator: "-").map { $0.lowercased() }
-            guard parts.first == "zh" else { continue }
-            // A script says it; without one, the region does.
-            let script = parts.dropFirst().first { $0.count == 4 }
-            let region = parts.dropFirst().first { $0.count == 2 }
-            guard script.map({ $0 == "hant" }) ?? ["tw", "hk", "mo"].contains(region ?? "") else { return .simplified }
-            return region == "hk" ? .hongkong : .taiwan
-        }
-        return .simplified
+        guard let tag = identifiers.lazy.map(InterfaceLanguage.Tag.init).first(where: { $0.language == "zh" }), tag.traditional
+        else { return .simplified }
+        return tag.region == "HK" ? .hongkong : .taiwan
     }
 
     /// The language Chinese typed in these characters is: "zh" (Simplified, as before), "zh-Hant-TW", "zh-Hant-HK".

@@ -199,6 +199,47 @@ struct ChineseCharactersTests {
         #expect(try text() == "patch:\n  menu/page_size: 9\n")
     }
 
+    /// With personal dictionaries the patch holds theirs and the characters' lines (the store's branch with them), and an
+    /// import or a removal writes it with the characters it is given; the last one removed, the characters stay.
+    @Test func keptWithThePersonalDictionaries() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("characters-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let user = dir.appendingPathComponent("user")
+        try FileManager.default.createDirectory(at: user, withIntermediateDirectories: true)
+        let schemaURL = dir.appendingPathComponent("rime_ice.schema.yaml")
+        try (schema + "\ntranslator:\n  dictionary: rime_ice\n").write(to: schemaURL, atomically: true, encoding: .utf8)
+        try "---\nname: rime_ice\nversion: \"1\"\nsort: by_weight\n...\n你好\tni hao\t1000\n"
+            .write(to: dir.appendingPathComponent("rime_ice.dict.yaml"), atomically: true, encoding: .utf8)
+        let source = dir.appendingPathComponent("team.dict.yaml")
+        try "---\nname: team\nversion: \"1\"\n...\n霁鸢星槎\tji yuan xing cha\n".write(to: source, atomically: true, encoding: .utf8)
+        let store = PersonalDictionaryStore(userDirectory: user, schema: schemaURL)
+        let file = user.appendingPathComponent(FuzzyPinyin.fileName)
+        func text() throws -> String { try String(contentsOf: file, encoding: .utf8) }
+        let taiwan = try #require(ChineseCharacters.taiwan.patch(schema: String(contentsOf: schemaURL, encoding: .utf8)))
+
+        _ = try store.importDictionary(from: source, fuzzyPinyin: ["n-l"], characters: .taiwan)
+        var written = try text()
+        #expect(written.hasPrefix(FuzzyPinyin.marker + "\npatch:\n  speller/algebra:\n") && written.contains("\"derive/^n/l/\"")
+                && written.contains("  translator/dictionary: allinoneime_personal\n") && written.hasSuffix(taiwan), "\(written)")
+        // Fuzzy pinyin changed with a dictionary there: the characters kept.
+        #expect(try store.applyFuzzyPinyin([], characters: .taiwan) == .written)
+        written = try text()
+        #expect(!written.contains("speller/algebra") && written.contains("translator/dictionary") && written.hasSuffix(taiwan), "\(written)")
+        #expect(try store.applyFuzzyPinyin([], characters: .hongkong) == .written && text().contains("opencc_config: s2hk.json"))
+        #expect(try store.applyFuzzyPinyin([], characters: .simplified) == .written && !text().contains("opencc"))
+        // An import and a removal with the characters given.
+        let second = dir.appendingPathComponent("more.dict.yaml")
+        try "---\nname: more\nversion: \"1\"\n...\n星槎\txing cha\n".write(to: second, atomically: true, encoding: .utf8)
+        _ = try store.importDictionary(from: second, fuzzyPinyin: [], characters: .hongkong)
+        #expect(try text().contains("translator/dictionary") && text().contains("opencc_config: s2hk.json"))
+        try store.removeDictionary(named: "more", fuzzyPinyin: [], characters: .taiwan)
+        #expect(try text().contains("translator/dictionary") && text().hasSuffix(taiwan))
+        try store.removeDictionary(named: "team", fuzzyPinyin: [], characters: .taiwan)
+        #expect(try text() == FuzzyPinyin.marker + "\npatch:\n" + taiwan)
+        try store.removeDictionary(named: "team", fuzzyPinyin: [], characters: .simplified)  // none left: nothing changes
+        #expect(try text() == FuzzyPinyin.marker + "\npatch:\n" + taiwan)
+    }
+
     /// No characters picked and the system's languages changed while Rime runs: the patch is to be written again for the
     /// characters they give now, once (`ChineseCharacters.Written`); not before Rime's start first wrote it, not while
     /// they stay, not when picked ones don't change.
