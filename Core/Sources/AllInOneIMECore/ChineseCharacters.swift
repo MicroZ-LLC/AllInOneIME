@@ -50,9 +50,13 @@ public enum ChineseCharacters: String, Codable, CaseIterable, Sendable {
     /// read words: 皇后 and 公里 stay as they are, 后来 becomes 後來); with some of each (a quote in the other), the
     /// side more of them are on. Its first `limit` characters say, so a long selection costs no more than a sentence, and
     /// the same text asked again (the hint under a draft on a selection, at every key) is answered from the last time.
+    /// Japanese (any kana) is nil too: its kanji are neither (日本の学校 reads Simplified, 日本語の勉強 Traditional).
+    ///
+    /// It reads characters, not the writer: Simplified text that keeps a Traditional form by right (乾 in 乾隆) leans
+    /// Traditional, and text with no telling characters goes by the setting (`OutputLanguage.of`).
     public static func writtenTraditional(_ text: String, limit: Int = 400) -> Bool? {
         let text = String(text.prefix(limit))
-        guard text.containsHan else { return nil }
+        guard text.containsHan, !text.unicodeScalars.contains(where: isKana) else { return nil }
         if let told = lastTold.withLock({ $0 }), told.text == text { return told.traditional }
         let simplified = changed(text, by: "Hans-Hant"), traditional = changed(text, by: "Hant-Hans")
         let answer = simplified == traditional ? nil : traditional > simplified
@@ -62,6 +66,11 @@ public enum ChineseCharacters: String, Codable, CaseIterable, Sendable {
 
     /// The text `writtenTraditional` told last, and what it said.
     private static let lastTold = Locked<(text: String, traditional: Bool?)?>(initialState: nil)
+
+    /// Hiragana or katakana, the halfwidth ones too.
+    private static func isKana(_ scalar: Unicode.Scalar) -> Bool {
+        (0x3040...0x30FF).contains(scalar.value) || (0xFF66...0xFF9F).contains(scalar.value)
+    }
 
     /// How many characters of `text` ICU's transform `id` changes (as many as it has when their number changes).
     private static func changed(_ text: String, by id: String) -> Int {
