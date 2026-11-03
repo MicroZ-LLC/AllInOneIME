@@ -788,7 +788,7 @@ extension InputSession {
         if composer.codeWord != nil {
             perform(composer.endCodeWord(inserting: text))
         } else if !rest.isEmpty {
-            emit(.commit(rest))
+            emit(.commit(intoField(rest)))
             lastTyped.forget()
             followEnglishInserted(rest)
         }
