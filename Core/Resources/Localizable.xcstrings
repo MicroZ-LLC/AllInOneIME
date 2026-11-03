@@ -35806,7 +35806,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Rime：繁體字的轉換資料（OpenCC）缺少或讀不出來；請重新安裝 AllInOneIME（先刪掉你自己放進 Rime 使用者資料夾 opencc 檔案夾裡的檔案），或在設定 →「輸入」→ 中文的「字形」裡選「簡體」"
+            "value" : "Rime：繁體字的轉換資料（OpenCC）缺少或讀不出來；請重新安裝 AllInOneIME（先刪掉你自己放進 Rime 使用者資料夾 opencc 資料夾裡的檔案），或在設定 →「輸入」→ 中文的「字形」裡選「簡體」"
           }
         }
       }
