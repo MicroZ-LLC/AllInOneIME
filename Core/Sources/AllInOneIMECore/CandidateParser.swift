@@ -123,6 +123,9 @@ public enum CandidateParser {
         return ConversionResult(versions: Array(versions.prefix(maxVersions)), translations: translations, rewrites: rewrites)
     }
 
+    /// The tags of a line in Chinese, any variant, as `splitTag` reads them (letters only): "ZH", "ZH-HANT", "ZH-TW" ….
+    static let chineseTags: Set<String> = ["ZH", "CN", "中文", "CHINESE", "ZHHANT", "ZHTW", "ZHHK", "ZHHANTTW", "ZHHANTHK"]
+
     /// Lines tagged with the output language are the main versions; another language's tag is ignored.
     static func splitTag(_ line: String, output: OutputLanguage? = .english, translations: [OutputLanguage] = []) -> (Tag, String)? {
         guard let colon = line.firstIndex(where: { $0 == ":" || $0 == "：" }) else { return nil }
@@ -132,20 +135,27 @@ public enum CandidateParser {
         var body = String(line[line.index(after: colon)...])
         // "**EN:** text" leaves the closing emphasis right after the colon.
         while let first = body.first, "*_".contains(first) { body.removeFirst() }
-        let language: OutputLanguage
+        let letters = name.filter(\.isLetter)
+        var tagged: OutputLanguage?
         switch name {
-        case "EN", "ENGLISH", "英文": language = .english
-        case "ZH", "CN", "中文", "CHINESE": language = .chinese
+        case "EN", "ENGLISH", "英文": tagged = .english
+        case "ZH", "CN", "中文", "CHINESE": tagged = .chinese
         default:
             // "JA", "ZHHANT" (also written "ZH-HANT").
-            let letters = name.filter(\.isLetter)
-            if let known = OutputLanguage.catalog.first(where: { $0.tag == letters })
-                ?? (letters == output?.tag ? output : nil) ?? translations.first(where: { $0.tag == letters }) {
-                language = known
-            } else {
-                guard let style = RewriteStyle.forTag(name) else { return nil }
-                return (.rewrite(style.name), body)
-            }
+            tagged = OutputLanguage.catalog.first(where: { $0.tag == letters })
+                ?? (letters == output?.tag ? output : nil) ?? translations.first(where: { $0.tag == letters })
+        }
+        // Taiwan's or Hong Kong's Traditional Chinese asked for ("ZHHANTTW": Chinese typed in their characters): the model
+        // may tag it as any Chinese ("ZHHANT", "ZH-TW", "ZH-HK", "ZH"), which is that one unless the language tagged is
+        // asked for too.
+        let asked = [output].compactMap { $0 } + translations
+        if Self.chineseTags.contains(letters), !(tagged.map(asked.contains) ?? false),
+           let variant = asked.first(where: { $0 == .traditionalTaiwan || $0 == .traditionalHongKong }) {
+            tagged = variant
+        }
+        guard let language = tagged else {
+            guard let style = RewriteStyle.forTag(name) else { return nil }
+            return (.rewrite(style.name), body)
         }
         if language == output { return (.version, body) }
         return (translations.contains(language) ? .translation(language) : .ignored, body)

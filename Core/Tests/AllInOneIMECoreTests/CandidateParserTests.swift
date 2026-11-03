@@ -42,6 +42,25 @@ struct CandidateParserTests {
         #expect(CandidateParser.parse("优化：好呀", isFinal: true).rewrite("润色")?.text == "好呀")
     }
 
+    /// Taiwan's or Hong Kong's Traditional Chinese asked for (Chinese typed in their characters): a line the model tags as
+    /// any Chinese is in it, not dropped, as a version or a translation; one tagged as a language asked for too is that's.
+    @Test func anyChineseTagIsTheTraditionalVariantAsked() {
+        for variant in [OutputLanguage.traditionalTaiwan, .traditionalHongKong] {
+            for tag in ["ZHHANTTW:", "ZH-HANT-TW:", "ZHHANT:", "ZH-HANT:", "ZH-TW:", "ZH-HK:", "ZH:", "中文：", "**ZH-Hant:**"] {
+                let r = CandidateParser.parse("\(tag) 軟體很好用\n\(tag) 這個軟體不錯\n\(tag) 軟體真好用", isFinal: true, output: variant)
+                #expect(r.versions.map(\.text) == ["軟體很好用", "這個軟體不錯", "軟體真好用"], "\(variant.code), \(tag): \(r)")
+            }
+        }
+        for tag in ["ZH-HK:", "ZHHANT:", "ZH:"] {
+            let r = CandidateParser.parse("EN: It's handy\n\(tag) 好用", isFinal: true, output: nil, translations: [.english, .traditionalHongKong])
+            #expect(r.translations.map(\.language) == [.english, .traditionalHongKong] && r.translations.last?.line.text == "好用", "\(tag): \(r)")
+        }
+        let both = CandidateParser.parse("ZH: 软件\nZHHANTTW: 軟體", isFinal: true, output: nil, translations: [.chinese, .traditionalTaiwan])
+        #expect(both.translations.map(\.language) == [.chinese, .traditionalTaiwan] && both.translations.map(\.line.text) == ["软件", "軟體"])
+        // Simplified asked for: as before, "ZHHANT" isn't it.
+        #expect(CandidateParser.parse("ZH: 软件\nZHHANT: 軟體", isFinal: true, output: .chinese).versions.map(\.text) == ["软件"])
+    }
+
     @Test func keepsTheFirstLinePerStyleInArrivalOrder() {
         let r = CandidateParser.parse("FORMAL: 您好！\nPOLISH: 你好呀！\nFORMAL: 您好。", isFinal: true)
         #expect(r.rewrites.map(\.style) == ["正式", "润色"])
