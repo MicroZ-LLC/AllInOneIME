@@ -13,7 +13,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ### Fixed
 
-- A config.json that doesn't parse (a trailing comma after editing it by hand, say) no longer trims or deletes clipboard history, turns history back on after you turned it off, deletes cached suggestion lists or resets fuzzy pinyin. Until the file parses again, nothing changes: clipboard history records nothing new, and Personal Dictionaries' Import or Update… and Remove are turned off.
+- A config.json that doesn't parse (a trailing comma after editing it by hand, say) no longer trims clipboard history (to 20 items, images too), turns history back on after you turned it off, deletes cached suggestion lists or resets fuzzy pinyin. Until the file parses again, nothing is deleted or reset, clipboard history records nothing new, and Personal Dictionaries' Import or Update… and Remove are turned off.
 - English words were learned from password fields that secure input doesn't cover (some web and Electron ones) when the same letters were typed twice. They no longer are.
 - Scrolling suggestion rows (Slack's `#70`, say) with the mouse or trackpad no longer lets the next ⏎, Tab or ↑ go to the app.
 - Esc on autocomplete's gray text, and Tab putting in a one-character suggestion, no longer also reach Chromium and Electron apps (where Esc could close a thread or cancel an edit).
