@@ -43,23 +43,28 @@ struct TraditionalChineseRimeTests {
     }
 
     /// Every file copied, copied again when the app's change (an update), and the user's own left alone; provided (what
-    /// the Doctor reads, `providedOpenCC`) while each is the copy made.
+    /// the Doctor reads, `providedOpenCC`) for the characters typed while each of theirs is the copy made, since the
+    /// newest copy's time.
     @Test func theAppsDataIsCopiedAsTheLunarDatabaseIs() throws {
         defer { try? FileManager.default.removeItem(at: root) }
+        func provided(_ characters: ChineseCharacters) -> Date? { RimeService.providedOpenCC(userDataDir: user, for: characters) }
         try bundled("v1")
-        #expect(!RimeService.providedOpenCC(userDataDir: user))
+        #expect(provided(.taiwan) == nil)
+        let before = Date().addingTimeInterval(-1)
         try RimeService.prepareOpenCC(from: shared, userDataDir: user)
         for name in ChineseCharacters.openCCFiles { #expect(try copied(name) == "v1 " + name) }
-        #expect(RimeService.providedOpenCC(userDataDir: user))
+        let since = try #require(provided(.taiwan))
+        #expect(since > before && since <= Date() && provided(.hongkong) != nil && provided(.simplified) == nil, "\(since)")
         try RimeService.prepareOpenCC(from: shared, userDataDir: user)
-        #expect(try copied("s2twp.json") == "v1 s2twp.json")
+        #expect(try copied("s2twp.json") == "v1 s2twp.json" && provided(.taiwan) == since, "not copied again")
         // The user's own s2hk.json; then the app is updated.
         try Data("mine".utf8).write(to: user.appendingPathComponent("opencc/s2hk.json"))
         try bundled("v2, an update")
         try RimeService.prepareOpenCC(from: shared, userDataDir: user)
         #expect(try copied("s2twp.json") == "v2, an update s2twp.json" && copied("STPhrases.ocd2") == "v2, an update STPhrases.ocd2")
         #expect(try copied("s2hk.json") == "mine")
-        #expect(!RimeService.providedOpenCC(userDataDir: user), "the user's own s2hk.json isn't the app's")
+        #expect(provided(.hongkong) == nil, "the user's own s2hk.json isn't the app's")
+        #expect(try #require(provided(.taiwan)) >= since, "a Taiwan user doesn't use it")
         // `opencc` a file: nothing copied, only logged; pinyin starts all the same (librime's own run, in the scenarios).
         try FileManager.default.removeItem(at: user)
         try FileManager.default.createDirectory(at: user, withIntermediateDirectories: true)
@@ -86,6 +91,10 @@ struct TraditionalChineseRimeTests {
             let json = try JSONSerialization.jsonObject(with: Data(contentsOf: Self.openCC.appendingPathComponent(config)))
             let names = files(json)
             #expect(!names.isEmpty && names.allSatisfy(ChineseCharacters.openCCFiles.contains), "\(config): \(names)")
+            // The files the Doctor checks for the characters that use it (`openCCData`): exactly these.
+            for characters in ChineseCharacters.allCases where characters.openCCConfig == config {
+                #expect(Set(characters.openCCData) == Set([config] + names), "\(characters): \(characters.openCCData)")
+            }
         }
         let present = try FileManager.default.contentsOfDirectory(atPath: Self.openCC.path)
         #expect(Set(present) == Set(ChineseCharacters.openCCFiles))

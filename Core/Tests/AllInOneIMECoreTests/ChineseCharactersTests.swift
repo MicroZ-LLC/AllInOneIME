@@ -581,8 +581,9 @@ struct ChineseCharactersTests {
     }
 
     /// Earlier runs' errors about OpenCC's data don't keep the warning once the app's files are in the Rime folder, or
-    /// Simplified is chosen, as lua/lunar.db's don't once it's there; not known, they are errors.
-    @Test func earlierOpenCCErrorsAreResolvedAsTheLunarDatabasesAre() {
+    /// Simplified is chosen, as lua/lunar.db's don't once it's there; not known, they are errors. Only the runs before the
+    /// copy: one since couldn't read it (a damaged install), and its line stays an error.
+    @Test func earlierOpenCCErrorsAreResolvedAsTheLunarDatabasesAre() throws {
         let line = #"E20261102 10:00:00.000 1234 simplifier.cc:46] opencc config not found: "/Users/alice/Rime/opencc/s2twp.json""#
         func finding(_ openCC: Doctor.OpenCCNow) -> Doctor.Finding? {
             var facts = Doctor.Facts()
@@ -590,13 +591,37 @@ struct ChineseCharactersTests {
             return Doctor.findings(facts, chinese: false).first { $0.area == .recentErrors }
         }
         #expect(finding(.unknown)?.status == .warning && finding(.unknown)?.title == "1 recent error in the logs")
-        for (openCC, why) in [(Doctor.OpenCCNow.provided, "this version provides it"), (.unused, "Simplified is chosen now")] {
+        let logged = try #require(Doctor.glogTime(line))
+        let copied = Doctor.OpenCCNow.provided(since: logged.addingTimeInterval(60))
+        for (openCC, why) in [(copied, "this version provides it"), (.unused, "Simplified is chosen now")] {
             let found = finding(openCC)
             #expect(found?.status == .ok && found?.title == "An earlier Rime error is resolved", "\(openCC): \(String(describing: found))")
             #expect(found?.detail?.hasSuffix(why) == true, "\(String(describing: found?.detail))")
         }
+        // Logged as the copy was made or after it: still an error.
+        for since in [logged.addingTimeInterval(-60), logged] {
+            #expect(finding(.provided(since: since))?.status == .warning, "copied \(since), logged \(logged)")
+        }
         let chinese = Doctor.localizedLogEvent(Doctor.unusedOpenCC, Doctor.Words(language: "zh-Hans"))
         #expect(chinese == "之前运行 Rime 时用不了繁体字的转换数据（OpenCC）；现在选的是简体")
+    }
+
+    /// glog's time on librime's lines, in local time, to the microsecond.
+    @Test func theTimeOfALibrimeLine() throws {
+        let tokyo = try #require(TimeZone(identifier: "Asia/Tokyo"))
+        let at = Doctor.glogTime("E20261102 10:00:00.250000 1234 simplifier.cc:46] opencc config not found", timeZone: tokyo)
+        #expect(at == Date(timeIntervalSince1970: 1_793_581_200.25), "\(String(describing: at?.timeIntervalSince1970))")
+        #expect(Doctor.glogTime("W20261102 10:00:01 1 x.cc:1] y", timeZone: tokyo) == Date(timeIntervalSince1970: 1_793_581_201))
+        #expect(Doctor.glogTime("opencc config not found") == nil && Doctor.glogTime("E1102 10:00:00.0 1 x.cc:1] y") == nil)
+    }
+
+    /// The OpenCC files each characters convert with: their config and its dictionaries, of the app's (the Rime tests
+    /// check them against the configs themselves).
+    @Test func theOpenCCDataOfEachCharacters() {
+        #expect(ChineseCharacters.simplified.openCCData.isEmpty)
+        #expect(ChineseCharacters.taiwan.openCCData.first == "s2twp.json" && ChineseCharacters.hongkong.openCCData.first == "s2hk.json")
+        #expect(!ChineseCharacters.taiwan.openCCData.contains("HKVariants.ocd2") && !ChineseCharacters.hongkong.openCCData.contains("TWPhrases.ocd2"))
+        #expect(ChineseCharacters.allCases.allSatisfy { $0.openCCData.allSatisfy(ChineseCharacters.openCCFiles.contains) })
     }
 }
 

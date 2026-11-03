@@ -221,16 +221,21 @@ public final class RimeService {
     typealias OpenCCCopies = [String: LunarCopy]
     static let openCCRecord = "opencc.allinoneime.json"
 
-    /// Whether the user folder's `opencc` has each of the app's OpenCC files as `prepareOpenCC` copied it (its record lists
-    /// it, and the file is still that copy, not one of the user's own): the Doctor then takes librime's earlier errors
-    /// about the data for resolved (`Doctor.OpenCCNow.provided`).
-    public static func providedOpenCC(userDataDir: URL) -> Bool {
+    /// When the user folder's `opencc` got the app's copy of the files `characters` convert with (`openCCData`: the newest
+    /// copy's modification time), while each is still as `prepareOpenCC` copied it (its record lists it, and the file is
+    /// that copy, not one of the user's own); nil otherwise, and for Simplified. The Doctor then takes librime's errors
+    /// about the data logged before it for resolved (`Doctor.OpenCCNow.provided`); a run since couldn't read the copy.
+    public static func providedOpenCC(userDataDir: URL, for characters: ChineseCharacters) -> Date? {
         let folder = userDataDir.appendingPathComponent("opencc", isDirectory: true)
-        guard let data = try? Data(contentsOf: folder.appendingPathComponent(openCCRecord)),
-              let copied = try? JSONDecoder().decode(OpenCCCopies.self, from: data) else { return false }
-        return ChineseCharacters.openCCFiles.allSatisfy { name in
-            copied[name].map { LunarCopy.Stamp(folder.appendingPathComponent(name), type: .typeRegular) == $0.copy } ?? false
+        guard !characters.openCCData.isEmpty, let data = try? Data(contentsOf: folder.appendingPathComponent(openCCRecord)),
+              let copied = try? JSONDecoder().decode(OpenCCCopies.self, from: data) else { return nil }
+        var newest = -Double.infinity
+        for name in characters.openCCData {
+            guard let copy = copied[name]?.copy, LunarCopy.Stamp(folder.appendingPathComponent(name), type: .typeRegular) == copy
+            else { return nil }
+            newest = max(newest, copy.modified)
         }
+        return Date(timeIntervalSince1970: newest)
     }
 
     /// What the user folder's `lua/lunar.db` (or an OpenCC file) was copied from, and the copy as it was made: a later

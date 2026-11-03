@@ -145,10 +145,11 @@ enum DoctorSession {
     }
 
     /// Where OpenCC's data for Traditional characters stands (`Doctor.OpenCCNow`): not used with Simplified ones, provided
-    /// once the Rime user folder has the app's files as it copied them.
+    /// since the Rime user folder got the app's files for the characters typed as it copied them.
     nonisolated static func openCC(_ config: Config, rimeUser: URL) -> Doctor.OpenCCNow {
-        guard config.typedChinese.isTraditional else { return .unused }
-        return RimeService.providedOpenCC(userDataDir: rimeUser) ? .provided : .unknown
+        let characters = config.typedChinese
+        guard characters.isTraditional else { return .unused }
+        return RimeService.providedOpenCC(userDataDir: rimeUser, for: characters).map { .provided(since: $0) } ?? .unknown
     }
 
     /// The error lines of the last week in the app's own logs (the updater's, librime's) in `folder`, summarised.

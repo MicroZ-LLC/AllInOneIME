@@ -551,7 +551,7 @@ public enum Doctor {
             if lunarDatabaseAvailable, event == missingLunarDatabase { event = providedLunarDatabase }
             if event == failedOpenCC {
                 switch openCC {
-                case .provided: event = providedOpenCC
+                case let .provided(since): if let at = glogTime(line), at < since { event = providedOpenCC }
                 case .unused: event = unusedOpenCC
                 case .unknown: break
                 }
@@ -591,8 +591,8 @@ public enum Doctor {
     /// lazily and catches whatever OpenCC throws), so they are one event, which says what to do for both
     /// (`localizedLogEvent`): the app's files put back, or Simplified until then.
     static let failedOpenCC = "Rime: the data for Traditional characters (OpenCC) is missing or can't be read"
-    /// The same, logged by earlier runs: the user folder now has the app's files as it copied them (`OpenCCNow.provided`),
-    /// or Simplified is chosen (nothing is converted). Not an error.
+    /// The same, logged by earlier runs: before the user folder got the app's files as they are now (`OpenCCNow.provided`),
+    /// or with Simplified chosen now (nothing is converted). Not an error.
     static let providedOpenCC = "Earlier Rime run: the data for Traditional characters (OpenCC) couldn't be used; this version provides it"
     static let unusedOpenCC = "Earlier Rime run: the data for Traditional characters (OpenCC) couldn't be used; Simplified is chosen now"
 
@@ -601,10 +601,24 @@ public enum Doctor {
     public enum OpenCCNow: Sendable {
         /// Not known: they are errors.
         case unknown
-        /// The Rime user folder's `opencc` has each of the app's files as it copied them (`RimeService.providedOpenCC`).
-        case provided
+        /// The Rime user folder's `opencc` has the app's files for the characters typed as it copied them, the newest of
+        /// them copied at `since` (`RimeService.providedOpenCC`): what was logged before is resolved, what was logged
+        /// since isn't (the copy itself couldn't be read).
+        case provided(since: Date)
         /// Simplified is chosen: nothing is converted.
         case unused
+    }
+
+    /// When librime logged `line` (glog's "E20261008 15:45:58.123456 …", in local time); nil for a line without the time.
+    static func glogTime(_ line: String, timeZone: TimeZone = .current) -> Date? {
+        guard let range = line.range(of: #"^[IWEF]\d{8} \d{2}:\d{2}:\d{2}(\.\d+)?"#, options: .regularExpression) else { return nil }
+        let stamp = line[range].dropFirst()
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = timeZone
+        formatter.dateFormat = "yyyyMMdd HH:mm:ss"
+        guard let seconds = formatter.date(from: String(stamp.prefix(17))) else { return nil }
+        return seconds.addingTimeInterval(Double("0" + stamp.dropFirst(17)) ?? 0)
     }
 
     /// A line of `summarizeLogLines` as the findings show it: the lunar database's phrases and the count in the

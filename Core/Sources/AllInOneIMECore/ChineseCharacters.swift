@@ -100,6 +100,14 @@ public enum ChineseCharacters: String, Codable, CaseIterable, Sendable {
         "STPhrases.ocd2", "STCharacters.ocd2", "TWPhrases.ocd2", "TWVariants.ocd2", "HKVariants.ocd2",
     ]
 
+    /// The OpenCC files these characters convert with: their config and the dictionaries it names (of `openCCFiles`);
+    /// none for Simplified. What the Doctor checks for them (`RimeService.providedOpenCC`), not the others'.
+    public var openCCData: [String] {
+        guard let config = openCCConfig else { return [] }
+        let variants = self == .hongkong ? ["HKVariants.ocd2"] : ["TWPhrases.ocd2", "TWVariants.ocd2"]
+        return [config, "STPhrases.ocd2", "STCharacters.ocd2"] + variants
+    }
+
     /// The characters Rime's patch was last written for, kept by whatever writes it (the Mac's `RimeFuzzy`): with the
     /// setting absent they follow the system's languages (`Config.typedChinese`), which can change while the input method
     /// runs. The prompts, the chip and Settings read them each time and follow at once; the candidates follow once the
