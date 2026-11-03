@@ -159,8 +159,9 @@ extension UIText {
     /// says under it.
     public static var chineseCharactersLabel: String { tr("字形", "Characters") }
     public static var chineseCharactersHelp: String {
-        tr("拼音打出简体字还是繁体字，AI 的润色、翻译和回复也跟着用；台湾繁体也换成台湾的用词（软件 → 軟體）。",
-           "Whether pinyin types Simplified or Traditional characters; the AI polishes, translates and replies in them too. Taiwan's also uses Taiwan's words (软件 → 軟體).")
+        // Not "translates": into the other characters is a translation (the output languages name Simplified Chinese so).
+        tr("拼音打出简体字还是繁体字。台湾的还会换成台湾的用词（软件 → 軟體）。AI 润色和回复也用这种字。",
+           "Whether pinyin types Simplified or Traditional characters. Traditional (Taiwan) also uses Taiwan's words (软件 → 軟體). The AI's polishing and replies use it too.")
     }
 
     /// Why a custom command in config.json isn't used (`CustomCommand.Refused`), as Settings → Custom Commands says it

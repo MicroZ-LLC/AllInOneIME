@@ -172,6 +172,16 @@ public struct OutputLanguage: Hashable, Codable, Sendable, Identifiable {
         return Locale(identifier: language).localizedString(forIdentifier: code) ?? code
     }
 
+    /// Its name as a language to translate into for someone who types Chinese in `chinese`'s characters: "zh" is
+    /// "简体中文" / "Simplified Chinese" when those are Traditional (from them it's a translation, not their own Chinese),
+    /// else as `name(in:)` has it.
+    public func name(in language: String, typing chinese: ChineseCharacters) -> String {
+        guard code == "zh", chinese.isTraditional else { return name(in: language) }
+        if InterfaceLanguage.isSimplifiedChinese(language) { return "简体中文" }
+        if language == "en" { return "Simplified Chinese" }
+        return Locale(identifier: language).localizedString(forIdentifier: "zh-Hans") ?? name(in: language)
+    }
+
     public init(from decoder: Decoder) throws {
         code = try decoder.singleValueContainer().decode(String.self)
     }

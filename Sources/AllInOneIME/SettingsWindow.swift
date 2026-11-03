@@ -1290,12 +1290,14 @@ struct SettingsView: View {
             // @translate writes a line in each, in this order (three versions with only one).
             LabeledContent {
                 HStack(spacing: 6) {
-                    LanguageChips(items: model.config.outputLanguages, name: UIText.name,
+                    // "zh" is Simplified Chinese by name for someone typing Traditional characters (into it: a translation).
+                    let chinese = model.config.typedChinese
+                    LanguageChips(items: model.config.outputLanguages, name: { UIText.name($0, typing: chinese) },
                                   firstNote: nil,
                                   reorder: { model.config.setOrder($0) }, remove: removeOutputLanguage)
                     Menu(tr("添加…", "Add…")) {
                         ForEach(OutputLanguage.catalog.filter { !model.config.outputLanguages.contains($0) }) { language in
-                            Button(UIText.name(language)) { addOutputLanguage(language) }
+                            Button(UIText.name(language, typing: chinese)) { addOutputLanguage(language) }
                         }
                     }
                     .fixedSize()

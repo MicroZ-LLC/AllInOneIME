@@ -388,7 +388,8 @@ struct SettingsSchema {
         var languages = Field(id: "outputLanguages", kind: .choices, label: tr("翻译成", "Translate to"),
                               help: tr("每种一行，拖动排序", "A line in each; drag to reorder"),
                               value: .array(codes.map(JSON.string)))
-        languages.choices = OutputLanguage.catalog.map { Choice($0.code, UIText.name($0)) }
+        // "zh" is Simplified Chinese by name for someone typing Traditional characters: into it is a translation.
+        languages.choices = OutputLanguage.catalog.map { Choice($0.code, UIText.name($0, typing: config.typedChinese)) }
             + config.outputLanguages.filter { !inCatalog($0.code) }.map { Choice(value: .string($0.code), label: UIText.name($0), disabled: true) }
         (languages.ordered, languages.minCount) = (true, 1)
         add(languages, to: &fields) { value in

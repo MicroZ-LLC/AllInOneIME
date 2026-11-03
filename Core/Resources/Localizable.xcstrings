@@ -51646,6 +51646,7 @@
     },
     "Whether pinyin types Simplified or Traditional characters; the AI polishes, translates and replies in them too. Taiwan's also uses Taiwan's words (软件 → 軟體)." : {
       "comment" : "拼音打出简体字还是繁体字，AI 的润色、翻译和回复也跟着用；台湾繁体也换成台湾的用词（软件 → 軟體）。 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -51687,6 +51688,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "拼音打出簡體字還是繁體字，AI 的潤飾、翻譯和回覆也跟著用；台灣繁體也換成台灣的用詞（软件 → 軟體）。"
+          }
+        }
+      }
+    },
+    "Whether pinyin types Simplified or Traditional characters. Traditional (Taiwan) also uses Taiwan's words (软件 → 軟體). The AI's polishing and replies use it too." : {
+      "comment" : "拼音打出简体字还是繁体字。台湾的还会换成台湾的用词（软件 → 軟體）。AI 润色和回复也用这种字。 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ob Pinyin vereinfachte oder traditionelle Schriftzeichen schreibt. „Traditionell (Taiwan)“ verwendet auch Taiwans Wörter (软件 → 軟體). Auch die Überarbeitungen und Antworten der KI verwenden sie."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si el pinyin escribe caracteres simplificados o tradicionales. Tradicional (Taiwán) usa además las palabras de Taiwán (软件 → 軟體). Los retoques y las respuestas de la IA también los usan."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si le pinyin écrit en caractères simplifiés ou traditionnels. Traditionnel (Taïwan) prend aussi les mots de Taïwan (软件 → 軟體). Les retouches et les réponses de l’IA les utilisent aussi."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ピンインで簡体字と繁体字のどちらを入力するかを選びます。繁体字（台湾）では台湾の語彙も使います（软件 → 軟體）。AIの推敲と返信もこの字体を使います。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "병음으로 간체를 입력할지 번체를 입력할지 정합니다. 번체 (대만)는 대만식 단어도 씁니다(软件 → 軟體). AI의 다듬기와 답장도 이 자형을 씁니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se o pinyin escreve caracteres simplificados ou tradicionais. Tradicional (Taiwan) usa também as palavras de Taiwan (软件 → 軟體). As revisões e respostas da IA também os usam."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拼音打出簡體字還是繁體字。台灣的還會換成台灣的用詞（软件 → 軟體）。AI 潤飾和回覆也用這種字。"
           }
         }
       }

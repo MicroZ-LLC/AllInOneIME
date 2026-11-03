@@ -280,7 +280,8 @@ extension SelfTest {
         // Its target part: the output languages, the target checked; Japanese clicked is the target at once.
         click(.target)
         let listed = panel.view.model.rows
-        check(listed.map(\.text) == [OutputLanguage.english, japanese, .chinese].map(UIText.name) && listed.map(\.label) == ["✓", "", ""]
+        let names = [OutputLanguage.english, japanese, .chinese].map { UIText.name($0, typing: controller.composer.chineseCharacters) }
+        check(listed.map(\.text) == names && listed.map(\.label) == ["✓", "", ""]
               && chip() == zhEn, "a click on 「英」 lists the output languages, English checked: \(listed.map { $0.label + $0.text })")
         snapshot("translate-mode-chip-list", in: snapshotDirectory)
         panel.onSelect?(1)

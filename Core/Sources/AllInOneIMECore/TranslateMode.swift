@@ -38,8 +38,10 @@ public enum TranslateMode {
     }
 
     /// One language as the chip writes it in the Chinese interface: 「英」, 「日」, 「繁」 (Taiwan's and Hong Kong's too) …,
-    /// else its Chinese name without 语 / 文.
-    public static func short(_ language: OutputLanguage) -> String {
+    /// else its Chinese name without 语 / 文. Simplified Chinese is 「简」 for someone typing Traditional characters
+    /// (`chinese`), as the lists name it (`OutputLanguage.name(in:typing:)`).
+    public static func short(_ language: OutputLanguage, chinese: ChineseCharacters = .simplified) -> String {
+        if language == .chinese, chinese.isTraditional { return "简" }
         let table = ["en": "英", "zh": "中", "zh-Hant": "繁", "zh-Hant-TW": "繁", "zh-Hant-HK": "繁", "ja": "日", "ko": "韩", "fr": "法",
                      "de": "德", "es": "西", "pt": "葡", "it": "意", "ru": "俄", "vi": "越", "th": "泰", "id": "印尼", "ar": "阿", "hi": "印"]
         if let short = table[language.code] { return short }
@@ -49,9 +51,10 @@ public enum TranslateMode {
     }
 
     /// One language as the chip writes it in the English interface: its code in capitals, "EN", "ZH", "ZH-HANT" (Taiwan's
-    /// and Hong Kong's too, as 「繁」 is).
-    public static func tag(_ language: OutputLanguage) -> String {
-        language.isTraditionalChinese ? "ZH-HANT" : language.code.uppercased()
+    /// and Hong Kong's too, as 「繁」 is); "ZH-HANS" for someone typing Traditional characters (`chinese`), as 「简」.
+    public static func tag(_ language: OutputLanguage, chinese: ChineseCharacters = .simplified) -> String {
+        if language == .chinese, chinese.isTraditional { return "ZH-HANS" }
+        return language.isTraditionalChinese ? "ZH-HANT" : language.code.uppercased()
     }
 
     /// One time the mode is on: what it translates into.
@@ -172,14 +175,14 @@ public enum TranslateMode {
 
         /// 「中」 (「繁」 for Traditional characters), the source part.
         public var sourceText: String { TranslateMode.short(OutputLanguage(source, chinese: chinese)) }
-        /// 「英」, the target part.
-        public var targetText: String { TranslateMode.short(target) }
+        /// 「英」, the target part (「简」 for Simplified Chinese from Traditional characters).
+        public var targetText: String { TranslateMode.short(target, chinese: chinese) }
         /// 「中 → 英」.
         public var text: String { sourceText + " → " + targetText }
         /// "ZH", the source part in the English interface.
         public var sourceTag: String { TranslateMode.tag(OutputLanguage(source, chinese: chinese)) }
-        /// "EN", the target part in the English interface.
-        public var targetTag: String { TranslateMode.tag(target) }
+        /// "EN", the target part in the English interface ("ZH-HANS" for Simplified Chinese from Traditional characters).
+        public var targetTag: String { TranslateMode.tag(target, chinese: chinese) }
 
         /// Whether `language` is checked in the list: the target.
         public func checks(_ language: OutputLanguage) -> Bool { language == target }

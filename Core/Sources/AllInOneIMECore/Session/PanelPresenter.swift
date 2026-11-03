@@ -522,7 +522,8 @@ public struct PanelPresenter {
         var model = PanelModel()
         model.chip = PanelModel.Chip(chip, language: language)
         model.rows = (chip.choices ?? []).enumerated().map {
-            PanelModel.Row(label: chip.checks($0.element) ? "✓" : "", text: t.name($0.element), kind: .candidate, choice: $0.offset)
+            PanelModel.Row(label: chip.checks($0.element) ? "✓" : "", text: t.name($0.element, typing: chip.chinese), kind: .candidate,
+                           choice: $0.offset)
         }
         if let notice { model.status = .hint(notice) }
         return model

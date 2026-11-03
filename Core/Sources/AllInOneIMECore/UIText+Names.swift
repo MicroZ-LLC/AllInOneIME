@@ -31,6 +31,12 @@ extension InterfaceWords {
     /// An output language in this language: "日语" / "Japanese".
     public func name(_ language: OutputLanguage) -> String { language.name(in: self.language) }
 
+    /// An output language to translate into, for someone typing Chinese in `chinese`'s characters: "简体中文" / "Simplified
+    /// Chinese" for "zh" when those are Traditional (`OutputLanguage.name(in:typing:)`).
+    public func name(_ language: OutputLanguage, typing chinese: ChineseCharacters) -> String {
+        language.name(in: self.language, typing: chinese)
+    }
+
     /// A rewrite preset's name ("简洁" / "Concise"); the config keeps the Chinese name.
     public func name(_ style: RewriteStyle) -> String { style.name(in: language) }
 
@@ -49,7 +55,7 @@ extension InterfaceWords {
         var parts: [String] = []
         let targets = ([plan.versions].compactMap { $0 }.filter { $0 != plan.input }) + plan.translations
         if !targets.isEmpty {
-            let names = targets.map(name).joined(separator: tr("、", ", "))
+            let names = targets.map { name($0, typing: config.typedChinese) }.joined(separator: tr("、", ", "))
             parts.append(tr("翻译成\(names)", "translate to \(names)"))
         } else if plan.versions != nil {
             parts.append(tr("润色", "polish"))
@@ -248,6 +254,12 @@ extension UIText {
 
     /// An output language in the interface language: "日语" / "Japanese".
     public static func name(_ language: OutputLanguage) -> String { words.name(language) }
+
+    /// An output language to translate into, in the interface language, for someone typing Chinese in `chinese`'s
+    /// characters: "zh" is "简体中文" / "Simplified Chinese" when those are Traditional.
+    public static func name(_ language: OutputLanguage, typing chinese: ChineseCharacters) -> String {
+        words.name(language, typing: chinese)
+    }
 
     /// A rewrite preset's name in the window ("简洁" / "Concise"); the config keeps the Chinese name.
     public static func name(_ style: RewriteStyle) -> String { words.name(style) }

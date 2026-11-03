@@ -188,7 +188,8 @@ extension AllInOneIMEInputController {
         let typed = composer.inputLanguage, chinese = composer.chineseCharacters
         let from = typed.matches(session.target, chinese: chinese)
             ? composer.inputLanguages.first { !$0.matches(session.target, chinese: chinese) } : typed
-        let languages = (from.map { UIText.name(OutputLanguage($0, chinese: chinese)) + " → " } ?? "") + UIText.name(session.target)
+        let languages = (from.map { UIText.name(OutputLanguage($0, chinese: chinese)) + " → " } ?? "")
+            + UIText.name(session.target, typing: chinese)
         let why = !allowed ? tr(" · 这个 App 里关了 AI，照原样上屏", " · AI is off in this app, text goes in as typed")
             : services.secureInputActive() ? tr(" · 系统安全输入开着，暂时照原样上屏", " · secure input is on, text goes in as typed for now") : ""
         let text = tr("边打边译 已开启：\(languages) · 再长按 Shift 关闭", "Translate as You Type on: \(languages) · hold Shift again to turn off")

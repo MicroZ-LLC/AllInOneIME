@@ -101,6 +101,11 @@ struct ChineseCharactersTests {
             #expect(try service.set("chineseCharacters", to: .string("taiwan")).get() == ())
             #expect(try Config.load(from: url).chineseCharacters == .taiwan)
             #expect(service.set("chineseCharacters", to: .string("macau")).isSuccess == false)
+            // Translating into "zh" from Traditional characters: Simplified Chinese by name.
+            let writing = try #require(service.document().sections.first { $0.id == "writing" })
+            let zh = writing.fields.first { $0.id == "outputLanguages" }?.choices?.first { $0.value == .string("zh") }
+            #expect(zh?.label == OutputLanguage.chinese.name(in: UIText.language, typing: .taiwan)
+                        && zh?.label != OutputLanguage.chinese.name(in: UIText.language), "\(String(describing: zh))")
         }
         // Without Chinese typed, there's nothing to set.
         try Data(#"{"inputLanguages": ["en"]}"#.utf8).write(to: url)
@@ -338,6 +343,26 @@ struct ChineseCharactersTests {
         #expect(SessionText.hasTranslationTarget(for: "這個", config: config(.simplified, outputs: [.chinese])))
         // Translate as You Type's draft (pasted into it, say): by its characters too.
         #expect(TranslateMode.plan(for: "这个", target: hant, config: taiwan).input == .chinese)
+    }
+
+    /// "zh" is Simplified Chinese by name for someone typing Traditional characters, where into it is a translation: the
+    /// output languages, the chip (「简」, "ZH-HANS") and its list, what the action key does. As before for Simplified.
+    @Test func simplifiedChineseIsNamedSoForTraditionalTypers() {
+        #expect(OutputLanguage.chinese.name(in: "zh-Hans", typing: .taiwan) == "简体中文")
+        #expect(OutputLanguage.chinese.name(in: "en", typing: .hongkong) == "Simplified Chinese")
+        #expect(OutputLanguage.chinese.name(in: "fr", typing: .taiwan) == "chinois simplifié")
+        #expect(OutputLanguage.chinese.name(in: "zh-Hans", typing: .simplified) == "中文")
+        #expect(OutputLanguage.chinese.name(in: "en", typing: .simplified) == "Chinese")
+        #expect(OutputLanguage("ja").name(in: "en", typing: .taiwan) == "Japanese")
+        let chip = TranslateMode.Chip(source: .chinese, target: .chinese, choices: [.english, .chinese], chinese: .taiwan)
+        #expect(chip.text == "繁 → 简" && chip.sourceTag == "ZH-HANT" && chip.targetTag == "ZH-HANS")
+        #expect(TranslateMode.Chip(source: .english, target: .chinese).text == "英 → 中")
+        #expect(TranslateMode.Chip(source: .english, target: .chinese).targetTag == "ZH")
+        #expect(PanelPresenter.chipModel(chip, notice: nil, language: "en").rows.map(\.text) == ["English", "Simplified Chinese"])
+        #expect(InterfaceWords(language: "zh-Hans").action(.translate, input: .chinese, config: config(.taiwan, outputs: [.chinese]))
+                    == "翻译成简体中文")
+        #expect(InterfaceWords(language: "zh-Hans").action(.translate, input: .english, config: config(.simplified, outputs: [.chinese]))
+                    == "翻译成中文")
     }
 
     /// Translate as You Type: Traditional typed isn't collected for Traditional Chinese, the chip's source says 繁, and the

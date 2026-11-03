@@ -26,11 +26,12 @@ extension AllInOneIMEInputController {
         // added (a new user has one), with "Add Languages…" opening the settings.
         let current = config ?? .default
         // @translate writes in every language added, in this order (one picked here moves to the front).
-        let outputItem = NSMenuItem(title: tr("翻译成：", "Translate to: ") + current.outputLanguages.map(UIText.name).joined(separator: tr("、", ", ")),
+        let named = { (language: OutputLanguage) in UIText.name(language, typing: current.typedChinese) }
+        let outputItem = NSMenuItem(title: tr("翻译成：", "Translate to: ") + current.outputLanguages.map(named).joined(separator: tr("、", ", ")),
                                     action: nil, keyEquivalent: "")
         let outputs = NSMenu()
         for language in current.outputLanguages {
-            let item = NSMenuItem(title: UIText.name(language), action: #selector(setOutputLanguage(_:)), keyEquivalent: "")
+            let item = NSMenuItem(title: named(language), action: #selector(setOutputLanguage(_:)), keyEquivalent: "")
             item.target = self
             item.representedObject = language.code
             item.state = .on
