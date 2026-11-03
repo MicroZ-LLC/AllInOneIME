@@ -159,12 +159,6 @@ public struct PersonalDictionaryStore: Sendable {
     /// made again from the tables when the manifest is lost (`readState`).
     private static let tableSays = "# AllInOneIME personal dictionary: "
     private static let wrapperMarker = "# Written by AllInOneIME: personal dictionaries. Edits here are replaced."
-    /// The patch's first line is fuzzy pinyin's (`FuzzyPinyin.marker`) with the dictionaries too, so that an earlier
-    /// version (0.6.6) still takes the file as its own, and its fuzzy pinyin switch works (it writes the file without
-    /// them, and this version adds them again); the second says what else it holds.
-    private static let patchDictionaries = "# And the personal dictionaries (Settings → Input → Chinese)."
-    /// The first line 0.6.7's first builds wrote instead, which 0.6.6 took for the user's: still this app's.
-    private static let earlyPatchMarker = "# Written by AllInOneIME: personal dictionaries and fuzzy pinyin (Settings → Input). Edits here are replaced."
     private var folder: URL { userDirectory.appendingPathComponent(Self.folderName, isDirectory: true) }
     private var manifest: URL { folder.appendingPathComponent("manifest.json") }
     private var wrapper: URL { userDirectory.appendingPathComponent(Self.dictionaryName + ".dict.yaml") }
@@ -301,8 +295,9 @@ public struct PersonalDictionaryStore: Sendable {
         let owned: Bool
         if let attributes = try? FileManager.default.attributesOfItem(atPath: patch.path) {
             let bytes = attributes[.type] as? FileAttributeType == .typeRegular ? try Data(contentsOf: patch) : nil
-            owned = bytes.map { bytes in [FuzzyPinyin.marker, Self.earlyPatchMarker].contains { bytes.starts(with: Data(($0 + "\n").utf8)) } }
-                ?? false
+            owned = bytes.map { bytes in
+                ([FuzzyPinyin.marker] + FuzzyPinyin.earlierMarkers).contains { bytes.starts(with: Data(($0 + "\n").utf8)) }
+            } ?? false
         } else {
             owned = true  // none
         }
@@ -333,8 +328,7 @@ public struct PersonalDictionaryStore: Sendable {
             changes.append(Change(url: patch, data: text.map { Data($0.utf8) }))
             if includeWrapper { changes.append(Change(url: wrapper, data: nil)) }
         } else {
-            let header = FuzzyPinyin.marker + "\n" + Self.patchDictionaries + "\n"
-            var text = fuzzy.map { header + $0.dropFirst(FuzzyPinyin.marker.count + 1) } ?? header + "patch:\n"
+            var text = fuzzy ?? FuzzyPinyin.marker + "\npatch:\n"
             // The dictionary changes; the database of learned words deliberately keeps its old identity.
             text += "  translator/dictionary: \(Self.dictionaryName)\n  translator/user_dict: rime_ice\n"
             text += traditional ?? ""

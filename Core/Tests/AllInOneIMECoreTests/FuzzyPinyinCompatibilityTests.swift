@@ -3,8 +3,8 @@ import Testing
 @testable import AllInOneIMECore
 
 /// Fuzzy pinyin beside the personal dictionaries, as it was before them: the user's own `rime_ice.custom.yaml` (a link
-/// to one too) is `.userFile`, whatever the dictionaries' files are like; and the file written with dictionaries is still
-/// 0.6.6's own, so that its fuzzy pinyin switch works after a downgrade.
+/// to one too) is `.userFile`, whatever the dictionaries' files are like; and the files earlier versions wrote are this
+/// version's.
 struct FuzzyPinyinCompatibilityTests {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("fuzzy-compatibility-\(UUID().uuidString)")
     var user: URL { root.appendingPathComponent("Rime") }
@@ -84,31 +84,38 @@ struct FuzzyPinyinCompatibilityTests {
         #expect(try FuzzyPinyin.apply([], schema: schema, userDir: user) == .userFile)
     }
 
-    // MARK: Back to 0.6.6
+    // MARK: Earlier versions' files
 
-    /// The patch written with a dictionary (fuzzy pinyin on or off) is 0.6.6's to rewrite: its switch turns fuzzy pinyin
-    /// on and off (without the dictionaries, which it doesn't have). Back on this version, they are in it again.
+    /// What 0.6.6 to 0.6.8 wrote (fuzzy pinyin's first line, with the dictionaries' second line) is this version's: written
+    /// again with its own first line (`FuzzyPinyin.marker`, whatever the file holds), the dictionaries attached and the
+    /// pairs kept. Those versions take that first line for the user's (after a downgrade, their fuzzy pinyin switch says
+    /// so until the file is removed).
     @Test(arguments: [[], ["n-l"]])
-    func zeroSixSixTakesThePatchAsItsOwn(_ fuzzy: [String]) throws {
+    func anEarlierVersionsPatchIsThisOnes(_ fuzzy: [String]) throws {
         defer { try? FileManager.default.removeItem(at: root) }
         let team = try importOne(fuzzy: fuzzy)
-        #expect(try String(contentsOf: patch, encoding: .utf8).contains("translator/dictionary: allinoneime_personal"))
-        // 0.6.6 starts (with the pairs the config has), then the switch is changed there.
-        let started = try Self.apply066(fuzzy, schema: schema, userDir: user)
-        #expect(started != .userFile && started != .unchanged)
-        #expect(try Self.apply066(["n-l", "z-zh"], schema: schema, userDir: user) == .written)
-        #expect(try String(contentsOf: patch, encoding: .utf8) == FuzzyPinyin.patch(["n-l", "z-zh"], schema: String(contentsOf: schema, encoding: .utf8)))
-        #expect(try Self.apply066([], schema: schema, userDir: user) == .removed)
-        #expect(try Self.apply066(["z-zh"], schema: schema, userDir: user) == .written)
-        // This version again: the dictionary is attached as it starts, the pairs kept.
-        #expect(try store.applyFuzzyPinyin(["z-zh"]) == .written)
+        let rules = try FuzzyPinyin.patch(fuzzy, schema: String(contentsOf: schema, encoding: .utf8)).map { $0.split(separator: "\n").dropFirst(2) }
+        let earlier = "# Written by AllInOneIME: fuzzy pinyin (Settings → Input). Edits here are replaced.\n"
+            + "# And the personal dictionaries (Settings → Input → Chinese).\npatch:\n"
+            + (rules.map { $0.joined(separator: "\n") + "\n" } ?? "")
+            + "  translator/dictionary: allinoneime_personal\n  translator/user_dict: rime_ice\n"
+        try earlier.write(to: patch, atomically: true, encoding: .utf8)
+        #expect(try store.applyFuzzyPinyin(fuzzy) == .written)
         let text = try String(contentsOf: patch, encoding: .utf8)
-        #expect(text.contains("translator/dictionary: allinoneime_personal") && text.contains("derive/^zh/z/"))
+        #expect(text.hasPrefix(FuzzyPinyin.marker + "\npatch:\n") && text.contains("translator/dictionary: allinoneime_personal"), "\(text)")
+        #expect(fuzzy.isEmpty != text.contains("derive/^n/l/"), "\(text)")
         #expect(try store.list() == [team])
-        #expect(try store.applyFuzzyPinyin(["z-zh"]) == .unchanged)
+        #expect(try store.applyFuzzyPinyin(fuzzy) == .unchanged)
+        // 0.6.6's own fuzzy pinyin file, without dictionaries: this version's too.
+        try FileManager.default.removeItem(at: patch)
+        #expect(try Self.apply066(["z-zh"], schema: schema, userDir: user) == .written)
+        #expect(try store.applyFuzzyPinyin(["z-zh"]) == .written)
+        #expect(try String(contentsOf: patch, encoding: .utf8).hasPrefix(FuzzyPinyin.marker + "\n"))
+        // Back on 0.6.6, it is the user's.
+        #expect(try Self.apply066(["n-l"], schema: schema, userDir: user) == .userFile)
     }
 
-    /// 0.6.7's first builds wrote another first line: still this app's, and rewritten with 0.6.6's.
+    /// 0.6.7's first builds wrote another first line: still this app's, and rewritten with this version's.
     @Test func theFirstBuildsPatchIsStillThisAppsOwn() throws {
         defer { try? FileManager.default.removeItem(at: root) }
         _ = try importOne()
