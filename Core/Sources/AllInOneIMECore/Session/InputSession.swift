@@ -252,6 +252,14 @@ public final class InputSession {
     var app: String? { keyContext?.field?.app ?? field.app }
     var terminal: Bool { keyContext?.field?.terminal ?? field.terminal }
 
+    /// `text` as it goes into the field: into a terminal, line breaks only as a paste (a line break typed there is
+    /// Return: the shell runs the line), so where the paste key can't be posted (`SessionServices.pastesInTerminal`: no
+    /// Accessibility) on one line (`Composer.oneLine`). Whatever put it there: a snippet, clipboard history, an answer
+    /// (the AI's and a program's are one line already: `SessionTasks.stream`), typed out or in at once.
+    func intoField(_ text: String) -> String {
+        terminal && text.contains(where: \.isNewline) && !services.pastesInTerminal() ? Composer.oneLine(text) : text
+    }
+
     /// Whether secure input is on (nothing is sent to a model or run then): anywhere (`SessionServices`), or a password
     /// field here.
     public func secureInputActive() -> Bool { field.secure || services.secureInputActive() }
@@ -719,12 +727,12 @@ public final class InputSession {
         if composer.pendingAccent == nil { deadKeys.reset() }
         perform(response.effects)
         followEnglishTyping(key, english: english, passedOn: !response.handled)
-        let inserted = response.effects.compactMap { if case let .commit(text) = $0 { text } else { nil } }.last
+        let inserted = response.effects.compactMap { if case let .commit(text) = $0 { intoField(text) } else { nil } }.last
         lastTyped.answered(key, passedOn: !response.handled, inserted: inserted, at: ProcessInfo.processInfo.systemUptime)
         // What went into the field with this key: what the input method put in, and the key's own text if the app types it.
         let put = response.effects.compactMap { effect -> String? in
             switch effect {
-            case let .commit(text), let .commitAfterKey(text): return text
+            case let .commit(text), let .commitAfterKey(text): return intoField(text)
             default: return nil
             }
         }.joined() + (response.handled ? "" : key.printableText ?? "")
@@ -842,12 +850,14 @@ public final class InputSession {
                 // The rows as the input has them now: Code's go with it (its word went in as typed).
                 if suggesting.shown { suggestionsUpdate() }
             case let .commit(text):
+                let text = intoField(text)
                 emit(.commit(text))
                 lastInserted = text
                 lastTyped.forget()  // a key that typed it says so (`key`)
                 followEnglishInserted(text)
             case let .commitAfterKey(text):
                 // Once this key is done: a terminal would send what is inserted during it in the key's place.
+                let text = intoField(text)
                 emit(.commitAfterKey(text))
                 lastTyped.forget()
                 followEnglishInserted(text)
@@ -863,6 +873,7 @@ public final class InputSession {
                 lastTyped.forget()
                 followEnglishInserted(text)
             case let .typeOut(text):
+                let text = intoField(text)
                 emit(.typeOut(text))
                 lastInserted = nil
                 lastTyped.forget()

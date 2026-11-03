@@ -720,6 +720,29 @@ struct InputSessionTests {
         }
     }
 
+    /// A snippet with line breaks goes into a terminal as clipboard history and answers do (`InputSession.intoField`): its
+    /// lines kept where they go in as a paste, else on one line (a line break typed there is Return: the shell would run
+    /// each line), typed out too. Elsewhere as written.
+    @Test func aSnippetsLinesIntoATerminal() async {
+        await inEnglish {
+            for (terminal, pastes, typesOut, expected) in [(true, false, false, "echo one echo two"), (true, true, false, "echo one\n  echo two"),
+                                                            (false, false, false, "echo one\n  echo two"), (true, false, true, "echo one echo two")] {
+                let settings = Settings()
+                settings.config.customCommands = [CustomCommand(name: "two", type: .snippet, text: "echo one\n  echo two")]
+                settings.config.typeOut = typesOut
+                let host = host(settings) { $0.pastesInTerminal = { pastes } }
+                host.terminal = terminal
+                host.focus()
+                host.composer.setInputMode(.english)
+                host.press(FakeHost.at)
+                host.type("two")
+                host.press(FakeHost.enter)
+                let put = typesOut ? host.typedOut.joined() : host.document
+                #expect(put == expected, "terminal \(terminal), pastes \(pastes), typed out \(typesOut): \(put.debugDescription)")
+            }
+        }
+    }
+
     /// Nothing to translate into: no request and nothing opens by itself; the notice says where, and ⏎ on it puts
     /// the sentence in as typed and opens the settings there (`NoTranslationTargetTests` has the composer's side).
     @Test func nothingToTranslateIntoOpensTheSettingsOnReturn() async {

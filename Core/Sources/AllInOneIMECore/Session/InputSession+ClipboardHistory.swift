@@ -326,7 +326,7 @@ extension InputSession {
             return
         }
         // Line breaks into a terminal only as a paste (a line break typed there is Return): else on one line.
-        let put = terminal && text.contains(where: \.isNewline) && !services.pastesInTerminal() ? Composer.oneLine(text) : text
+        let put = intoField(text)
         if key != nil { emit(.rowByKey) }
         emit(.commit(put))
         lastTyped.forget()
