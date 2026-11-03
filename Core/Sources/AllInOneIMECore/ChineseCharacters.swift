@@ -49,6 +49,35 @@ public enum ChineseCharacters: String, Codable, CaseIterable, Sendable {
         }
     }
 
+    // MARK: Text
+
+    /// Whether Chinese `text` is written in Traditional characters (true) or Simplified ones (false); nil when it can't
+    /// be told: none of its characters differs between the two (香港很美), or it has no Chinese. Text in Simplified
+    /// characters changes when made Traditional, text in Traditional ones when made Simplified (ICU's transforms, which
+    /// read words: 皇后 and 公里 stay as they are, 后来 becomes 後來); with some of each (a quote in the other), the
+    /// side more of them are on. Its first `limit` characters say, so a long selection costs no more than a sentence, and
+    /// the same text asked again (the hint under a draft on a selection, at every key) is answered from the last time.
+    public static func writtenTraditional(_ text: String, limit: Int = 400) -> Bool? {
+        let text = String(text.prefix(limit))
+        guard text.containsHan else { return nil }
+        if let told = lastTold.withLock({ $0 }), told.text == text { return told.traditional }
+        let simplified = changed(text, by: "Hans-Hant"), traditional = changed(text, by: "Hant-Hans")
+        let answer = simplified == traditional ? nil : traditional > simplified
+        lastTold.withLock { $0 = (text, answer) }
+        return answer
+    }
+
+    /// The text `writtenTraditional` told last, and what it said.
+    private static let lastTold = Locked<(text: String, traditional: Bool?)?>(initialState: nil)
+
+    /// How many characters of `text` ICU's transform `id` changes (as many as it has when their number changes).
+    private static func changed(_ text: String, by id: String) -> Int {
+        guard let other = text.applyingTransform(StringTransform(rawValue: id), reverse: false) else { return 0 }
+        let (before, after) = (Array(text.unicodeScalars), Array(other.unicodeScalars))
+        guard before.count == after.count else { return other == text ? 0 : before.count }
+        return zip(before, after).filter { $0 != $1 }.count
+    }
+
     // MARK: Rime
 
     /// The OpenCC config Rime converts with (`opencc/` in the Rime user folder, copied there from the app's): Taiwan's
@@ -168,6 +197,20 @@ extension OutputLanguage {
     public func isSame(as other: OutputLanguage) -> Bool {
         if self == other { return true }
         return isChinese && other.isChinese && isTraditionalChinese == other.isTraditionalChinese
+    }
+
+    /// The language `text` is written in (`language`, as `Language.of` tells it), Chinese by its own characters when they
+    /// tell (`ChineseCharacters.writtenTraditional`): in Simplified ones "zh", in Traditional ones the characters typed
+    /// (`chinese`) when those are Traditional too ("zh-Hant-TW"), else "zh-Hant"; when they don't (香港很美), in the
+    /// characters typed. For text the user didn't just type, which may be in either (a selection, the clipboard, a page
+    /// from the mainland): a Taiwan user's Simplified text is translated into Traditional Chinese, a Simplified user's
+    /// Traditional text into Simplified Chinese.
+    public static func of(_ text: String, language: Language, chinese: ChineseCharacters) -> OutputLanguage {
+        guard language == .chinese, let traditional = ChineseCharacters.writtenTraditional(text) else {
+            return OutputLanguage(language, chinese: chinese)
+        }
+        if !traditional { return .chinese }
+        return chinese.isTraditional ? chinese.language : OutputLanguage("zh-Hant")
     }
 
     /// `text`, written in Simplified Chinese (or in no Chinese at all), as this language writes it: in Traditional

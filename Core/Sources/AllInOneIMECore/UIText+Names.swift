@@ -42,9 +42,10 @@ extension InterfaceWords {
     }
 
     /// What `@improve` / `@translate` (or both) do with a sentence in `input`: "润色 / 改写",
-    /// "翻译成英文、日语", "translate to English / rewrite".
-    public func action(_ mode: WritingMode, input: Language, config: Config) -> String {
-        let plan = WritingPlan.make(mode, input: config.typedLanguage(input), config: config)
+    /// "翻译成英文、日语", "translate to English / rewrite". `text`: the sentence, when it is there to tell its Chinese
+    /// (a selection: `Config.writtenLanguage`); else Chinese is in the characters typed.
+    public func action(_ mode: WritingMode, input: Language, config: Config, text: String? = nil) -> String {
+        let plan = WritingPlan.make(mode, input: text.map(config.writtenLanguage(of:)) ?? config.typedLanguage(input), config: config)
         var parts: [String] = []
         let targets = ([plan.versions].compactMap { $0 }.filter { $0 != plan.input }) + plan.translations
         if !targets.isEmpty {
@@ -129,7 +130,7 @@ extension InterfaceWords {
     /// What the action key does with a command draft, after "⏎ →".
     /// `draft`: the text typed, so `@translate @improve …` reads as both.
     public func action(_ command: Command, input: Language, config: Config, draft: String = "",
-                       terms: PlatformTerms = Platform.current.terms) -> String {
+                       terms: PlatformTerms = Platform.current.terms, text: String? = nil) -> String {
         if command.plugin != nil, command.kind == .run { return tr("运行插件", "run the plugin") }
         if let script = command.script {
             if script.output == .list { return tr("选中这一项", "pick") }
@@ -147,7 +148,7 @@ extension InterfaceWords {
         switch command {
         case .improve, .translate:
             return action(WritingMode.parse(command, draft, improveTranslates: config.improveTranslates,
-                                            trigger: config.commandTrigger).mode, input: input, config: config)
+                                            trigger: config.commandTrigger).mode, input: input, config: config, text: text)
         case .question: return tr("提问", "ask")
         case .reply: return tr("写三条回复", "write three replies")
         case .agent:

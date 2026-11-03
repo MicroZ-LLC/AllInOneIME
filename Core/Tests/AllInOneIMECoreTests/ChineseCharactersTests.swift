@@ -303,6 +303,43 @@ struct ChineseCharactersTests {
         #expect(SessionText.hasTranslationTarget(for: "这个", config: config(.simplified, outputs: [hant])))
     }
 
+    /// Text the user didn't just type says by its own characters which Chinese it is (`Config.writtenLanguage`): a
+    /// Simplified selection is translated into Traditional Chinese for a Taiwan user, a Traditional one into Simplified
+    /// Chinese for a Simplified user; text that can't tell is in the characters typed.
+    @Test func theTextsOwnCharactersSayWhichChineseItIs() {
+        #expect(ChineseCharacters.writtenTraditional("这个功能太难用了，下个版本再改吧") == false)
+        #expect(ChineseCharacters.writtenTraditional("這個功能太難用了") == true)
+        #expect(ChineseCharacters.writtenTraditional("台灣很美") == true && ChineseCharacters.writtenTraditional("台湾很美") == false)
+        // What both write alike (皇后, 公里, ICU reads the words), or no Chinese: can't tell.
+        #expect(ChineseCharacters.writtenTraditional("香港很美") == nil && ChineseCharacters.writtenTraditional("皇后很美") == nil)
+        #expect(ChineseCharacters.writtenTraditional("hello") == nil && ChineseCharacters.writtenTraditional("") == nil)
+        // A quote in the other: the side more of it is on.
+        #expect(ChineseCharacters.writtenTraditional("他說「这个」這個版本還是太難用了") == true)
+        let hant = OutputLanguage("zh-Hant")
+        let taiwan = config(.taiwan, outputs: [.english, hant])
+        #expect(taiwan.writtenLanguage(of: "这个功能太难用了") == .chinese)
+        #expect(taiwan.writtenLanguage(of: "這個功能太難用了") == .traditionalTaiwan && taiwan.writtenLanguage(of: "香港很美") == .traditionalTaiwan)
+        let simplified = config(.simplified, outputs: [.english, .chinese])
+        #expect(simplified.writtenLanguage(of: "這個功能太難用了") == hant && simplified.writtenLanguage(of: "香港很美") == .chinese)
+        #expect(simplified.writtenLanguage(of: "this is fine") == .english)
+        // @translate: a Simplified selection into Traditional Chinese, a Traditional one into Simplified.
+        #expect(WritingPlan.make(.translate, text: "这个功能太难用了", config: taiwan).translations == [.english, hant])
+        #expect(WritingPlan.make(.translate, text: "這個功能太難用了", config: simplified).translations == [.english, .chinese])
+        #expect(WritingPlan.make(.translate, text: "这个功能太难用了", config: simplified).versions == .english)
+        // Its examples in the sentence's characters, Simplified here (into English: lines the examples have).
+        let examples = Prompt.request(for: "这个功能太难用了", mode: .translate, config: config(.taiwan)).messages.dropLast()
+            .compactMap(\.content.first?.text).joined(separator: "\n")
+        #expect(examples.contains("这个功能太难用了") && !examples.contains("這個功能"), "\(examples)")
+        // What the action key will do with such a selection; whether there's a language to translate into.
+        #expect(InterfaceWords(language: "en").action(.translate, input: .chinese, config: taiwan, text: "这个功能太难用了")
+                    == "translate to English, Traditional Chinese")
+        #expect(SessionText.hasTranslationTarget(for: "这个", config: config(.taiwan, outputs: [hant])))
+        #expect(!SessionText.hasTranslationTarget(for: "這個", config: config(.taiwan, outputs: [hant])))
+        #expect(SessionText.hasTranslationTarget(for: "這個", config: config(.simplified, outputs: [.chinese])))
+        // Translate as You Type's draft (pasted into it, say): by its characters too.
+        #expect(TranslateMode.plan(for: "这个", target: hant, config: taiwan).input == .chinese)
+    }
+
     /// Translate as You Type: Traditional typed isn't collected for Traditional Chinese, the chip's source says 繁, and the
     /// target is the first output language something typed is translated into.
     @Test func translateAsYouType() {

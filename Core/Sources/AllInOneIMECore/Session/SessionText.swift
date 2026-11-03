@@ -66,9 +66,10 @@ public enum SessionText {
         long ? 12 : min(5, 1.2 + Double(text.count) * 0.06)
     }
 
-    /// Whether `config` has a language to translate `input` into other than its own (Chinese in the characters typed).
+    /// Whether `config` has a language to translate `input` into other than its own (Chinese in the characters it is
+    /// written in, `Config.writtenLanguage`).
     public static func hasTranslationTarget(for input: String, config: Config) -> Bool {
-        let own = config.typedLanguage(config.language(of: input))
+        let own = config.writtenLanguage(of: input)
         return config.outputLanguages.contains { !$0.isSame(as: own) }
     }
 
@@ -91,7 +92,8 @@ public enum SessionText {
                 return "\(how) → " + t.tr("按你写的要求改选中的文字", "rewrite the selection as you asked")
             }
             let text = composer.sentText.isEmpty ? selected : composer.sentText
-            return "\(how) → " + t.action(command, input: config.language(of: text), config: config, draft: composer.draft, terms: terms)
+            return "\(how) → " + t.action(command, input: config.language(of: text), config: config, draft: composer.draft, terms: terms,
+                                          text: text)
         }
         // @reply with nothing to reply to yet: what it takes.
         if command == .reply, composer.sentText.isEmpty, composer.attachment == nil {

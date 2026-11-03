@@ -44,9 +44,10 @@ public struct WritingPlan: Equatable, Sendable {
 
     /// `mode` for `text`: translations go to the added output languages other than the sentence's
     /// own (in the user's order); one target gets three versions, several get a line each. Chinese is in the characters
-    /// it is typed in (`Config.typedLanguage`).
+    /// it is written in, else those it is typed in (`Config.writtenLanguage`): a Simplified selection is translated into
+    /// Traditional Chinese for a Taiwan user.
     public static func make(_ mode: WritingMode, text: String, config: Config) -> WritingPlan {
-        make(mode, input: config.typedLanguage(config.language(of: text)), config: config)
+        make(mode, input: config.writtenLanguage(of: text), config: config)
     }
 
     /// `mode` for a sentence written in `input`.

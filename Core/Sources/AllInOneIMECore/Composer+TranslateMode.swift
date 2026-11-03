@@ -105,7 +105,9 @@ extension Composer {
             setLevelOnePhase()
             return effects + [.updateMarkedText]
         }
-        if Language.of(text, french: inputLanguages.contains(.french)).matches(session.target, chinese: chineseCharacters) {
+        // In its own characters, Chinese: what was pasted into the draft may be in the other ones.
+        let language = Language.of(text, french: inputLanguages.contains(.french))
+        if OutputLanguage.of(text, language: language, chinese: chineseCharacters).isSame(as: session.target) {
             return effects + finish(committing: draft)
         }
         if let refusal = aiRefusal() { return effects + finish(committing: draft) + [.notice(refusal)] }

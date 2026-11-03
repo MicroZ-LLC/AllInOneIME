@@ -60,6 +60,12 @@ public struct Config: Codable, Equatable, Sendable {
     /// The output language a sentence typed in `language` is in: Chinese in the characters typed ("zh", "zh-Hant-TW").
     public func typedLanguage(_ language: Language) -> OutputLanguage { OutputLanguage(language, chinese: typedChinese) }
 
+    /// The output language `text` is written in: Chinese by its own characters when they tell, else in the characters
+    /// typed (`OutputLanguage.of`). What decides whether it is translated into an output language or is in it already.
+    public func writtenLanguage(of text: String) -> OutputLanguage {
+        OutputLanguage.of(text, language: language(of: text), chinese: typedChinese)
+    }
+
     /// The Code input (decision 22): the coding language whose pack its rows come from ("python",
     /// `CodingLanguagePack.offered`); nil: no Code input. It comes after the input languages, a tap of Shift away from the
     /// last, and is never one of them (`inputs`). Synced with them.

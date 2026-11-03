@@ -338,7 +338,7 @@ public enum TranslateMode {
 
     /// The lines the mode asks for: one, the text in `target` (`Prompt.system`'s format for translations).
     static func plan(for input: String, target: OutputLanguage, config: Config) -> WritingPlan {
-        WritingPlan(versions: nil, translations: [target], styles: [], input: config.typedLanguage(config.language(of: input)))
+        WritingPlan(versions: nil, translations: [target], styles: [], input: config.writtenLanguage(of: input))
     }
 }
 

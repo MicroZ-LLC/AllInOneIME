@@ -207,14 +207,17 @@ public enum Prompt {
         // others (three EN lines where it asks for an EN and a ZH line, and the model leaves ZH out).
         // Apple's on-device model (`Provider.apple`) is small: examples in another language, or answered with other
         // lines, lead it to answer as they do (polishing where it should translate, rewriting in the wrong language).
-        // The Chinese examples are typed in the characters Chinese is typed in (Traditional ones: `written`), as the user's
-        // sentence is, and answered in them: never a Traditional sentence taught by Simplified examples.
+        // The Chinese examples are written in the characters the user's sentence is in (Traditional ones: `written`), a
+        // selection's own (`Config.writtenLanguage`), else those Chinese is typed in, and answered in them: never a
+        // Traditional sentence taught by Simplified examples, nor the other way round.
         let apple = config.provider == .apple
         let mixed = (plan.input.isChinese || plan.input == .english) && !apple
-        let typedChinese = config.typedLanguage(.chinese)
+        let typedChinese = plan.input.isChinese ? plan.input : config.typedLanguage(.chinese)
         for index in examples.indices {
             let typed = typedChinese.written(examples[index].input)
-            let examplePlan = WritingPlan.make(mode, text: typed, config: config)
+            let language = config.language(of: typed)
+            let examplePlan = WritingPlan.make(mode, input: language == .chinese ? typedChinese : config.typedLanguage(language),
+                                               config: config)
             guard mixed || examplePlan.lineTags == plan.lineTags && (!apple || examplePlan.input == plan.input),
                   let answer = exampleAnswer(index, plan: examplePlan) else { continue }
             messages.append(.init(role: "user", text: typed))
