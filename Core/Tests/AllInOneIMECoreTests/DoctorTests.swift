@@ -187,6 +187,7 @@ struct DoctorTests {
                 • in some apps (often Chrome's pages), a list may show away from the caret
                 • @agent and @reply can't take the Chrome page along
                 • autocomplete's gray text can run past the field's edge
+                • English words aren't learned from what you type
                 • a few password fields aren't recognized: autocomplete may send what you type in them to your AI provider, \
                 and suggestions may show there
                 If AllInOneIME is already on in System Settings → Privacy & Security → Accessibility, turn it off and on again \
@@ -206,6 +207,7 @@ struct DoctorTests {
             • 有的 App 里（多半是 Chrome 里的网页），列表可能不在光标旁边
             • @agent 和 @reply 带不上 Chrome 里的网页
             • 续写的灰字可能超出输入框
+            • 不会从你打的字里学英文词
             • 少数密码框认不出来：续写可能把你在里面打的字发给 AI 服务，建议也可能出现在里面
             如果系统设置 → 隐私与安全性 → 辅助功能里 AllInOneIME 已经打开，先关掉再打开（macOS 可能还留着上一个版本的权限）
             """)

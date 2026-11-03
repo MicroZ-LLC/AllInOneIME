@@ -18847,6 +18847,53 @@
         }
       }
     },
+    "English words aren't learned from what you type" : {
+      "comment" : "不会从你打的字里学英文词 — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "aus dem, was du tippst, werden keine englischen Wörter gelernt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "no se aprenden palabras en inglés de lo que escribes"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "les mots anglais ne sont pas appris à partir de ce que vous tapez"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "入力した文字から英単語を学習しません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "입력한 내용에서 영어 단어를 학습하지 않음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "palavras em inglês não são aprendidas com o que você digita"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不會從你打的字裡學英文詞"
+          }
+        }
+      }
+    },
     "Enter" : {
       "comment" : "Enter 键 — Sources/AllInOneIMECore/UIText+Names.swift",
       "localizations" : {

@@ -319,7 +319,8 @@ public enum Doctor {
             // What works less well without it, a line each (the Mac's: the key tap, `KeyGuard`; posting the paste key,
             // `TerminalPaste`, `canPassPasteKey`; the selection, `SelectedText`; ⌃V's panel where nothing can be marked,
             // `clipboardPanelFits`; the caret, `FocusedField.caret`; the page, `PageContextReader`; the field's frame and
-            // password fields, `FocusedField`: unknown, `passwordField` is nil, and autocomplete stops only for one known).
+            // password fields, `FocusedField`: unknown, `InputSession.PasswordField.unknown`, so no English word is learned,
+            // `fieldIsPrivate`, and autocomplete stops only for one known).
             // Then: not allowed for the build that runs, though System Settings may show the switch on: after an update
             // macOS can keep it for the previous build's signature.
             let without = [
@@ -334,6 +335,7 @@ public enum Doctor {
                      "in some apps (often Chrome's pages), a list may show away from the caret"),
                 t.tr("@agent 和 @reply 带不上 Chrome 里的网页", "@agent and @reply can't take the Chrome page along"),
                 t.tr("续写的灰字可能超出输入框", "autocomplete's gray text can run past the field's edge"),
+                t.tr("不会从你打的字里学英文词", "English words aren't learned from what you type"),
                 t.tr("少数密码框认不出来：续写可能把你在里面打的字发给 AI 服务，建议也可能出现在里面",
                      "a few password fields aren't recognized: autocomplete may send what you type in them to your AI provider, and suggestions may show there"),
             ]
