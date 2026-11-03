@@ -214,10 +214,12 @@ extension OutputLanguage {
     }
 
     /// `text`, written in Simplified Chinese (or in no Chinese at all), as this language writes it: in Traditional
-    /// characters for Traditional Chinese (ICU's Hans-Hant transform, the same for Taiwan and Hong Kong), as it is for the
-    /// others. The prompts' examples, written once, in Simplified Chinese and English.
+    /// characters for Traditional Chinese (ICU's Hans-Hant transform, the same for Taiwan and Hong Kong, but for the
+    /// examples Taiwan words otherwise, written by hand: `Prompt.taiwan`), as it is for the others. The prompts'
+    /// examples, written once, in Simplified Chinese and English.
     func written(_ text: String) -> String {
         guard isTraditionalChinese, text.containsHan else { return text }
+        if self == .traditionalTaiwan, let taiwan = Prompt.taiwan[text] { return taiwan }
         return text.applyingTransform(StringTransform(rawValue: "Hans-Hant"), reverse: false) ?? text
     }
 }

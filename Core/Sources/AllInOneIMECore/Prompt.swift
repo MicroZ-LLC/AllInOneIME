@@ -3,12 +3,12 @@ import Foundation
 /// Level-two prompt, built for the configured output language and rewrite presets.
 /// Bump `version` whenever the wording changes (it is part of the cache key).
 public enum Prompt {
-    public static let version = 8
+    public static let version = 9
 
     /// A few-shot input with its three main versions in each output language. Each preset in
     /// `RewriteStyle.catalog` carries its rewrite of every input (same order). Written in Simplified Chinese and English;
     /// Chinese typed in Traditional characters (`ChineseCharacters.language`) gets the Chinese in them
-    /// (`OutputLanguage.written`).
+    /// (`OutputLanguage.written`; Taiwan's words where they differ: `taiwan`).
     struct Example {
         let input: String
         let english: [String]
@@ -83,6 +83,21 @@ public enum Prompt {
                 "这是个 blocker 级别的 bug，需要你们团队尽快修一下。",
                 "这个 bug 卡住进度了，麻烦你们团队尽快修好。",
             ]),
+    ]
+
+    /// The examples' Chinese as Taiwan writes it, by hand, where its words aren't those ICU's transform gives
+    /// (`OutputLanguage.written`: 用戶體驗, 領導, 盡快, 下周 are the mainland's): by the Simplified text. Autocomplete's
+    /// examples too (`autocompleteChineseExamples`). The jargon style's mainland jargon (抓手, 顆粒度) is the style's.
+    static let taiwan: [String: String] = [
+        "这个 bug 是阻塞性的，你们团队得尽快修复。": "這個 bug 是阻塞性的，你們團隊得儘快修復。",
+        "这是个 blocker 级别的 bug，需要你们团队尽快修一下。": "這是個 blocker 等級的 bug，需要你們團隊儘快修一下。",
+        "这个 bug 卡住进度了，麻烦你们团队尽快修好。": "這個 bug 卡住進度了，麻煩你們團隊儘快修好。",
+        "明天我想回趟家。": "明天我想回家一趟。",
+        "老板说方案还差点意思，得再改改。": "老闆說方案還差一點，得再改改。",
+        "领导认为该方案仍有待完善，需要再修改一下。": "主管認為該方案仍有待完善，需要再修改一下。",
+        "不好意思哈，家里有点事，明天的会我估计去不了了。": "不好意思喔，家裡有點事，明天的會我估計去不了了。",
+        "这个功能的用户体验链路还有很大的优化空间。": "這個功能的使用者體驗鏈路還有很大的優化空間。",
+        "我们下周会公布最终结果。": "我們下週會公布最終結果。",
     ]
 
     public static func system(styles: [RewriteStyle], output: OutputLanguage = .english,

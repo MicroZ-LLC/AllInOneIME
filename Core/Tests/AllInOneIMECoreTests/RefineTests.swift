@@ -352,7 +352,7 @@ struct RefineTests {
         let golden = try Data(contentsOf: url)
         #expect(try PromptGolden.json(withoutLiveDataRule: true) == golden)
         #expect(try PromptGolden.json() != golden)
-        #expect(Prompt.version == 8 && Prompt.commandVersion == 4)
+        #expect(Prompt.version == 9 && Prompt.commandVersion == 4)
     }
 
     /// @question says it can't check live data (the weather, news, prices, scores, "today's" anything) instead of

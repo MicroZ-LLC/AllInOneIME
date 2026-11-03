@@ -275,7 +275,7 @@ struct ChineseCharactersTests {
         #expect(examples.contains("STYLE_POLISH: 這個功能用起來太彆扭了。"))
         // Not one character only Simplified Chinese writes.
         #expect(!examples.contains { "这个说会们团么对时发" .contains($0) }, "\(examples)")
-        #expect(Prompt.version == 8)
+        #expect(Prompt.version == 9)
         // Hong Kong's, named so; Simplified as before.
         let hongKong = Prompt.request(for: "這個方案還不夠好", mode: .improve, config: config(.hongkong)).system.first?.text ?? ""
         #expect(hongKong.contains("\nZHHANTHK: <how a native Traditional Chinese (Hong Kong) speaker"))
@@ -363,6 +363,22 @@ struct ChineseCharactersTests {
                     == "翻译成简体中文")
         #expect(InterfaceWords(language: "zh-Hans").action(.translate, input: .english, config: config(.simplified, outputs: [.chinese]))
                     == "翻译成中文")
+    }
+
+    /// The Taiwan examples are Taiwan's words where they differ from what ICU's transform gives (儘快, 主管, 使用者, 下週),
+    /// Hong Kong's ICU's; Simplified as written.
+    @Test func taiwanExamplesUseTaiwansWords() {
+        let all = Prompt.examples.flatMap { [$0.input] + $0.chinese } + RewriteStyle.catalog.flatMap(\.exampleRewrites)
+            + Prompt.autocompleteChineseExamples.flatMap { [$0.context.before, $0.context.after, $0.answer] }
+        let taiwan = all.map(OutputLanguage.traditionalTaiwan.written).joined(separator: "\n")
+        for mainland in ["盡快", "用戶", "領導", "下周", "回趟家", "差點意思", "不好意思哈"] { #expect(!taiwan.contains(mainland), "\(mainland)") }
+        for word in ["儘快", "使用者體驗", "主管", "下週"] { #expect(taiwan.contains(word), "\(word)") }
+        #expect(Prompt.taiwan.keys.allSatisfy(all.contains), "each written for an example there is")
+        #expect(Prompt.taiwan.values.allSatisfy { ChineseCharacters.writtenTraditional($0) != false }, "none of it Simplified")
+        #expect(OutputLanguage.traditionalHongKong.written("你们团队得尽快修复") == "你們團隊得盡快修復")
+        #expect(OutputLanguage.chinese.written("你们团队得尽快修复") == "你们团队得尽快修复")
+        let typed = Prompt.autocompleteExamples(for: "感謝大家的支持，", chinese: .taiwan).map(\.answer)
+        #expect(typed.contains("我們下週會公布最終結果。"), "\(typed)")
     }
 
     /// Translate as You Type: Traditional typed isn't collected for Traditional Chinese, the chip's source says 繁, and the
