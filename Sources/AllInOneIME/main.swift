@@ -86,10 +86,15 @@ enum RimeDirectories {
 /// Fuzzy pinyin (`FuzzyPinyin`) in the Rime user folder: the patch for the pairs the config turns on, and for the
 /// characters Chinese is typed in (`ChineseCharacters`, Traditional ones through OpenCC).
 enum RimeFuzzy {
+    /// The characters the patch was last written for (`follow`).
+    static let written = ChineseCharacters.Written()
+
     /// Writes (or removes) the patch; nil when it couldn't. `.written` and `.removed` need a deployment.
     @discardableResult
     static func write(_ ids: [String], characters: ChineseCharacters) -> FuzzyPinyin.Outcome? {
         guard let shared = RimeDirectories.shared else { return nil }
+        // Whatever came of it: tried once for these characters, not again at every check (`follow`).
+        defer { written.wrote(characters) }
         do {
             let outcome = try FuzzyPinyin.apply(ids, characters: characters, schema: shared.appendingPathComponent("rime_ice.schema.yaml"),
                                                 userDir: RimeDirectories.user)
@@ -107,6 +112,16 @@ enum RimeFuzzy {
         let outcome = write(ids, characters: characters)
         if outcome == .written || outcome == .removed { RimeService.shared.redeploy() }
         return outcome
+    }
+
+    /// The settings read again (a text field focused) or the system's languages changed: with no characters picked they
+    /// follow the system's (`Config.typedChinese`), so the candidates do too once they differ from the patch's
+    /// (`ChineseCharacters.Written`): written again and deployed again, as a change in the settings is.
+    @MainActor
+    static func follow(_ config: Config) {
+        guard RimeService.shared.isStarted, let characters = written.changed(config) else { return }
+        log.notice("the system's languages changed the characters Chinese is typed in: \(characters.rawValue, privacy: .public)")
+        apply(config.fuzzyPinyin, characters: characters)
     }
 }
 
@@ -191,7 +206,13 @@ func runServer(showSettings: Bool = false) -> Never {
     MainActor.assumeIsolated { ICloudSyncController.shared.start() }
     // Clipboard history: a look at the clipboard's change count each second (⌃V lists what was copied).
     MainActor.assumeIsolated { ClipboardHistoryShared.start() }
-    withExtendedLifetime(server) { app.run() }
+    // The system's languages changed (System Settings → General → Language & Region): with no characters picked, the
+    // candidates follow them as the rest does (a text field focused checks too).
+    let localeChanged = NotificationCenter.default.addObserver(forName: NSLocale.currentLocaleDidChangeNotification, object: nil,
+                                                               queue: .main) { _ in
+        MainActor.assumeIsolated { RimeFuzzy.follow(LiveConfig.current) }
+    }
+    withExtendedLifetime((server, localeChanged)) { app.run() }
     exit(0)
 }
 

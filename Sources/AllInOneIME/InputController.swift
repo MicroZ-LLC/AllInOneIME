@@ -289,6 +289,8 @@ final class AllInOneIMEInputController: IMKInputController {
             apply(session.handle(.focus(field)).outputs, client: sender as? IMKTextInput)
             // Translate as You Type's target removed: the first output language typed text goes into, else off.
             translateModeFollow(services.loadSettings())
+            // The candidates' characters, when they follow the system's languages and those changed (`RimeFuzzy.follow`).
+            RimeFuzzy.follow(services.loadSettings())
             translateModeActivated(app: app)  // another app leaves Translate as You Type, unless it translates always
             // A custom command renamed because a built-in has its name now: said once, last (no notice above covers it)
             apply(session.tellBuiltinRenames(), client: sender as? IMKTextInput)

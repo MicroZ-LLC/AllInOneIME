@@ -69,6 +69,33 @@ public enum ChineseCharacters: String, Codable, CaseIterable, Sendable {
         "STPhrases.ocd2", "STCharacters.ocd2", "TWPhrases.ocd2", "TWVariants.ocd2", "HKVariants.ocd2",
     ]
 
+    /// The characters Rime's patch was last written for, kept by whatever writes it (the Mac's `RimeFuzzy`): with the
+    /// setting absent they follow the system's languages (`Config.typedChinese`), which can change while the input method
+    /// runs. The prompts, the chip and Settings read them each time and follow at once; the candidates follow once the
+    /// patch is written again and Rime deployed again, which `changed` says when to do.
+    public final class Written: Sendable {
+        private let characters = Locked<ChineseCharacters?>(initialState: nil)
+
+        public init() {}
+
+        /// The patch was just written for `characters`.
+        public func wrote(_ characters: ChineseCharacters) {
+            self.characters.withLock { $0 = characters }
+        }
+
+        /// The characters `config` types in now, when the patch was last written for others: to write it for them (and
+        /// deploy again). They count as written from then on, so a change asks once. Nil when they are the same, and
+        /// before the patch is first written (Rime's start writes it).
+        public func changed(_ config: Config) -> ChineseCharacters? {
+            let now = config.typedChinese
+            return characters.withLock { written in
+                guard let before = written, before != now else { return nil }
+                written = now
+                return now
+            }
+        }
+    }
+
     /// rime-ice's switch for its Traditional output (`switches` in its schema, and `traditionalize/option_name`).
     static let switchName = "traditionalization"
 
