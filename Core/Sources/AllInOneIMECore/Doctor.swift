@@ -319,11 +319,13 @@ public enum Doctor {
             // What works less well without it, a line each (the Mac's: the key tap, `KeyGuard`; posting the paste key,
             // `TerminalPaste`, `canPassPasteKey`; the selection, `SelectedText`; ⌃V's panel where nothing can be marked,
             // `clipboardPanelFits`; the caret, `FocusedField.caret`; the page, `PageContextReader`; the field's frame and
-            // password fields, `FocusedField`). Then: not allowed for the build that runs, though System Settings may show
-            // the switch on: after an update macOS can keep it for the previous build's signature.
+            // password fields, `FocusedField`: unknown, `passwordField` is nil, and autocomplete stops only for one known).
+            // Then: not allowed for the build that runs, though System Settings may show the switch on: after an update
+            // macOS can keep it for the previous build's signature.
             let without = [
-                t.tr("列表用的键（↓ ↑ ⏎ Esc）有的 App 也会收到", "some apps can also get the keys a list takes (↓ ↑ ⏎ Esc)"),
-                t.tr("多行文字放进终端会变成一行", "text of more than one line goes into terminals on one line"),
+                t.tr("列表用的键（↓ ↑ → ⏎ Tab Esc）有的 App 也会收到", "some apps can also get the keys a list takes (↓ ↑ → ⏎ Tab Esc)"),
+                t.tr("多行文字（AI 回答、片段、剪贴板历史）放进终端会变成一行",
+                     "text of more than one line (AI answers, snippets, clipboard history) goes into terminals on one line"),
                 t.tr("剪贴板历史：在图片上按 ⏎ 只会放到剪贴板，要自己按 ⌘V；再按 ⌃V 在多数 App 里不会粘贴",
                      "clipboard history: ⏎ on an image only puts it on the clipboard, for your own ⌘V, and ⌃V again doesn't paste in most apps"),
                 t.tr("在 Chrome 和 Slack、VS Code 这类 App 里，@ 命令可能读不到选中的文字，⌃V 也可能打不开剪贴板历史",
@@ -332,10 +334,11 @@ public enum Doctor {
                      "in some apps (often Chrome's pages), a list may show away from the caret"),
                 t.tr("@agent 和 @reply 带不上 Chrome 里的网页", "@agent and @reply can't take the Chrome page along"),
                 t.tr("续写的灰字可能超出输入框", "autocomplete's gray text can run past the field's edge"),
-                t.tr("少数密码框认不出来，续写和建议可能会在里面出现",
-                     "a few password fields aren't recognized, so autocomplete and suggestions may show in them"),
+                t.tr("少数密码框认不出来：续写可能把你在里面打的字发给 AI 服务，建议也可能出现在里面",
+                     "a few password fields aren't recognized: autocomplete may send what you type in them to your AI provider, and suggestions may show there"),
             ]
-            let detail = [t.tr("没有这个权限：", "without it:")] + without.map { "• " + $0 }
+            // The title says it isn't allowed: the lead only says what follows.
+            let detail = [t.tr("这些会受影响：", "what doesn't work fully:")] + without.map { "• " + $0 }
                 + [t.tr("如果系统设置 → 隐私与安全性 → 辅助功能里 AllInOneIME 已经打开，先关掉再打开（macOS 可能还留着上一个版本的权限）",
                         "If AllInOneIME is already on in System Settings → Privacy & Security → Accessibility, turn it off and on again (macOS can keep the permission for the previous version)")]
             out.append(Finding(area: .permissions, status: .warning, title: t.tr("辅助功能权限没有允许", "Accessibility isn't allowed"),
@@ -529,9 +532,10 @@ public enum Doctor {
     /// times"): the newest `limit` events, oldest first. Of the line's own text only two things may be kept: a `~/…` path
     /// in a Rime dictionary event (which of its files), and a plugin's name when it looks like one (letters, digits, - _ .).
     /// Lines no known event matches are counted on one last line ("2 other log lines"). `lunarDatabaseAvailable`: the Rime
-    /// user folder has lua/lunar.db now, so the runs that missed it were earlier ones (`providedLunarDatabase`).
+    /// user folder has lua/lunar.db now, so the runs that missed it were earlier ones (`providedLunarDatabase`); `openCC`,
+    /// where OpenCC's data stands now, the same for the runs that couldn't use it (`providedOpenCC`, `unusedOpenCC`).
     public static func summarizeLogLines(_ lines: [String], home: String = NSHomeDirectory(), limit: Int = 3,
-                                         lunarDatabaseAvailable: Bool = false) -> [String] {
+                                         lunarDatabaseAvailable: Bool = false, openCC: OpenCCNow = .unknown) -> [String] {
         let errors = lines.filter { line in
             let lower = line.lowercased()
             return line.hasPrefix("E") && line.count > 1 && line.dropFirst().first?.isNumber == true
@@ -545,6 +549,13 @@ public enum Doctor {
                 continue
             }
             if lunarDatabaseAvailable, event == missingLunarDatabase { event = providedLunarDatabase }
+            if event == failedOpenCC {
+                switch openCC {
+                case .provided: event = providedOpenCC
+                case .unused: event = unusedOpenCC
+                case .unknown: break
+                }
+            }
             event = event.count > 120 ? String(event.prefix(120)) + "…" : event
             counts[event, default: 0] += 1
             last[event] = index
@@ -569,14 +580,32 @@ public enum Doctor {
     static let missingLunarDatabase = "Rime: a file it needs is missing: lua/lunar.db (the lunar date)"
     static let providedLunarDatabase = "Earlier Rime run: lua/lunar.db was missing; this version provides it"
 
-    static func isResolvedLogEvent(_ line: String) -> Bool { line.hasPrefix(providedLunarDatabase) }
+    static func isResolvedLogEvent(_ line: String) -> Bool {
+        [providedLunarDatabase, providedOpenCC, unusedOpenCC].contains { line.hasPrefix($0) }
+    }
 
     /// librime couldn't find, or couldn't read, OpenCC's data for Traditional characters (Settings → Input → Chinese →
     /// Characters): the files the app carries and copies into the Rime folder's `opencc` (`RimeService.prepareOpenCC`),
     /// missing (a build without them, a copy that failed) or not OpenCC's of librime's version (a file of the user's own
-    /// there, left as it is). With what to do: the app put back, or Simplified until then.
-    static let missingOpenCC = "Rime: the data for Traditional characters (OpenCC) is missing; reinstall AllInOneIME, or choose Simplified"
-    static let unreadableOpenCC = "Rime: the data for Traditional characters (OpenCC) can't be read; remove the Rime folder's opencc and reinstall"
+    /// there, left as it is). librime 1.16.1 logs either as "opencc config not found" (its simplifier loads the config
+    /// lazily and catches whatever OpenCC throws), so they are one event, which says what to do for both
+    /// (`localizedLogEvent`): the app's files put back, or Simplified until then.
+    static let failedOpenCC = "Rime: the data for Traditional characters (OpenCC) is missing or can't be read"
+    /// The same, logged by earlier runs: the user folder now has the app's files as it copied them (`OpenCCNow.provided`),
+    /// or Simplified is chosen (nothing is converted). Not an error.
+    static let providedOpenCC = "Earlier Rime run: the data for Traditional characters (OpenCC) couldn't be used; this version provides it"
+    static let unusedOpenCC = "Earlier Rime run: the data for Traditional characters (OpenCC) couldn't be used; Simplified is chosen now"
+
+    /// Where OpenCC's data for Traditional characters stands now, for the errors earlier runs logged about it
+    /// (`summarizeLogLines`).
+    public enum OpenCCNow: Sendable {
+        /// Not known: they are errors.
+        case unknown
+        /// The Rime user folder's `opencc` has each of the app's files as it copied them (`RimeService.providedOpenCC`).
+        case provided
+        /// Simplified is chosen: nothing is converted.
+        case unused
+    }
 
     /// A line of `summarizeLogLines` as the findings show it: the lunar database's phrases and the count in the
     /// interface language (the other phrases stay in English, as the logs are).
@@ -591,12 +620,13 @@ public enum Doctor {
             event = t.tr("Rime：缺少所需文件 lua/lunar.db（农历日期）", "Rime: a file it needs is missing: lua/lunar.db (the lunar date)")
         case providedLunarDatabase:
             event = t.tr("之前运行 Rime 时缺少 lua/lunar.db；此版本已提供该文件", "Earlier Rime run: lua/lunar.db was missing; this version provides it")
-        case missingOpenCC:
-            event = t.tr("Rime：缺少繁体字的转换数据（OpenCC）；请重新安装 AllInOneIME，或在设置 →「输入」→ 中文的「字形」里选「简体」",
-                         "Rime: the data for Traditional characters (OpenCC) is missing; reinstall AllInOneIME, or choose Simplified under Settings → Input → Chinese → Characters")
-        case unreadableOpenCC:
-            event = t.tr("Rime：繁体字的转换数据（OpenCC）读不出来；请删掉 Rime 用户目录里的 opencc 文件夹，再重新安装 AllInOneIME",
-                         "Rime: the data for Traditional characters (OpenCC) can't be read; remove the opencc folder in the Rime user folder, then reinstall AllInOneIME")
+        case failedOpenCC:
+            event = t.tr("Rime：繁体字的转换数据（OpenCC）缺少或读不出来；请重新安装 AllInOneIME（先删掉你自己放进 Rime 用户目录 opencc 文件夹里的文件），或在设置 →「输入」→ 中文的「字形」里选「简体」",
+                         "Rime: the data for Traditional characters (OpenCC) is missing or can't be read; reinstall AllInOneIME (first remove any files of your own from the Rime folder's opencc), or choose Simplified under Settings → Input → Chinese → Characters")
+        case providedOpenCC:
+            event = t.tr("之前运行 Rime 时用不了繁体字的转换数据（OpenCC）；此版本已提供", "Earlier Rime run: the data for Traditional characters (OpenCC) couldn't be used; this version provides it")
+        case unusedOpenCC:
+            event = t.tr("之前运行 Rime 时用不了繁体字的转换数据（OpenCC）；现在选的是简体", "Earlier Rime run: the data for Traditional characters (OpenCC) couldn't be used; Simplified is chosen now")
         default: break
         }
         return event + (count.map { t.tr("，\($0) 次", ", \($0) times") } ?? "")
@@ -626,8 +656,7 @@ public enum Doctor {
                 return missingLunarDatabase
             }
             // The simplifier's (rime-ice's traditionalize): its config file not found, or OpenCC failing on it.
-            if message.contains("opencc config not found") { return missingOpenCC }
-            if message.contains("error initializing opencc") { return unreadableOpenCC }
+            if message.contains("opencc config not found") || message.contains("error initializing opencc") { return failedOpenCC }
             if message.contains("lookup") { return "Rime lookup failed" + reason }
             if message.contains("deploy") || source == "deployer" || source == "deployment_tasks" {
                 return "Rime deployment failed" + reason

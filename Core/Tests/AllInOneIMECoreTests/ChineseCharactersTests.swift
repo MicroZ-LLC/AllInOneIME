@@ -372,19 +372,44 @@ struct ChineseCharactersTests {
         #expect(ReminderParser.Written("這個禮拜五").text == "这个礼拜五")
     }
 
-    /// The Doctor says what to do when librime can't find, or can't read, OpenCC's data.
+    /// The Doctor says what to do when librime can't use OpenCC's data. librime 1.16.1 logs a config that is missing and
+    /// one it can't read alike, "opencc config not found" with the path quoted (its simplifier loads the config lazily and
+    /// catches what OpenCC throws); an older librime's "Error initializing opencc" is the same event.
     @Test func theDoctorNamesTheOpenCCData() {
         let lines = [
-            "E20261102 10:00:00.000 1234 simplifier.cc:330] opencc config not found: s2twp.json",
-            "E20261102 10:00:01.000 1234 simplifier.cc:340] Error initializing opencc: /Users/alice/Library/Application Support/AllInOneIME/Rime/opencc/STPhrases.ocd2 is not a valid dictionary",
+            #"E20261102 10:00:00.000 1234 simplifier.cc:46] opencc config not found: "/Users/alice/Library/Application Support/AllInOneIME/Rime/opencc/s2twp.json""#,
+            #"E20261102 10:05:00.000 1234 simplifier.cc:46] opencc config not found: "/Users/alice/Library/Application Support/AllInOneIME/Rime/opencc/s2hk.json""#,
         ]
         let summary = Doctor.summarizeLogLines(lines, home: "/Users/alice")
-        #expect(summary == [Doctor.missingOpenCC, Doctor.unreadableOpenCC] && !summary.joined().contains("alice"))
+        #expect(summary == [Doctor.failedOpenCC + ", 2 times"] && !summary.joined().contains("alice"), "\(summary)")
+        #expect(Doctor.summarizeLogLines(["E20261102 10:00:01.000 1234 simplifier.cc:93] Error initializing opencc: s2hk.json"])
+                    == [Doctor.failedOpenCC])
         #expect(summary.allSatisfy { $0.count <= 120 })
         let english = Doctor.localizedLogEvent(summary[0], Doctor.Words(language: "en"))
-        #expect(english.contains("reinstall AllInOneIME") && english.contains("Settings → Input → Chinese → Characters"))
-        let chinese = Doctor.localizedLogEvent(summary[1] + ", 2 times", Doctor.Words(language: "zh-Hans"))
-        #expect(chinese.hasPrefix("Rime：繁体字的转换数据（OpenCC）读不出来") && chinese.hasSuffix("，2 次"))
+        #expect(english.contains("missing or can't be read") && english.contains("reinstall AllInOneIME")
+                    && english.contains("files of your own") && english.contains("Settings → Input → Chinese → Characters"), "\(english)")
+        let chinese = Doctor.localizedLogEvent(summary[0], Doctor.Words(language: "zh-Hans"))
+        #expect(chinese.hasPrefix("Rime：繁体字的转换数据（OpenCC）缺少或读不出来") && chinese.contains("重新安装")
+                    && chinese.hasSuffix("，2 次"), "\(chinese)")
+    }
+
+    /// Earlier runs' errors about OpenCC's data don't keep the warning once the app's files are in the Rime folder, or
+    /// Simplified is chosen, as lua/lunar.db's don't once it's there; not known, they are errors.
+    @Test func earlierOpenCCErrorsAreResolvedAsTheLunarDatabasesAre() {
+        let line = #"E20261102 10:00:00.000 1234 simplifier.cc:46] opencc config not found: "/Users/alice/Rime/opencc/s2twp.json""#
+        func finding(_ openCC: Doctor.OpenCCNow) -> Doctor.Finding? {
+            var facts = Doctor.Facts()
+            facts.recentErrors = Doctor.summarizeLogLines([line], home: "/Users/alice", openCC: openCC)
+            return Doctor.findings(facts, chinese: false).first { $0.area == .recentErrors }
+        }
+        #expect(finding(.unknown)?.status == .warning && finding(.unknown)?.title == "1 recent error in the logs")
+        for (openCC, why) in [(Doctor.OpenCCNow.provided, "this version provides it"), (.unused, "Simplified is chosen now")] {
+            let found = finding(openCC)
+            #expect(found?.status == .ok && found?.title == "An earlier Rime error is resolved", "\(openCC): \(String(describing: found))")
+            #expect(found?.detail?.hasSuffix(why) == true, "\(String(describing: found?.detail))")
+        }
+        let chinese = Doctor.localizedLogEvent(Doctor.unusedOpenCC, Doctor.Words(language: "zh-Hans"))
+        #expect(chinese == "之前运行 Rime 时用不了繁体字的转换数据（OpenCC）；现在选的是简体")
     }
 }
 

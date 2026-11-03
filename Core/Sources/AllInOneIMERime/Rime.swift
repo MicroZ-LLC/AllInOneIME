@@ -221,6 +221,18 @@ public final class RimeService {
     typealias OpenCCCopies = [String: LunarCopy]
     static let openCCRecord = "opencc.allinoneime.json"
 
+    /// Whether the user folder's `opencc` has each of the app's OpenCC files as `prepareOpenCC` copied it (its record lists
+    /// it, and the file is still that copy, not one of the user's own): the Doctor then takes librime's earlier errors
+    /// about the data for resolved (`Doctor.OpenCCNow.provided`).
+    public static func providedOpenCC(userDataDir: URL) -> Bool {
+        let folder = userDataDir.appendingPathComponent("opencc", isDirectory: true)
+        guard let data = try? Data(contentsOf: folder.appendingPathComponent(openCCRecord)),
+              let copied = try? JSONDecoder().decode(OpenCCCopies.self, from: data) else { return false }
+        return ChineseCharacters.openCCFiles.allSatisfy { name in
+            copied[name].map { LunarCopy.Stamp(folder.appendingPathComponent(name), type: .typeRegular) == $0.copy } ?? false
+        }
+    }
+
     /// What the user folder's `lua/lunar.db` (or an OpenCC file) was copied from, and the copy as it was made: a later
     /// source is copied over it only while it is still that copy.
     struct LunarCopy: Codable, Equatable {

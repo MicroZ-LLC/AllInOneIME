@@ -7438,6 +7438,7 @@
     },
     "a few password fields aren't recognized, so autocomplete and suggestions may show in them" : {
       "comment" : "少数密码框认不出来，续写和建议可能会在里面出现 — Sources/AllInOneIMECore/Doctor.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -7479,6 +7480,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "少數密碼欄位認不出來，續寫和建議可能會在裡面出現"
+          }
+        }
+      }
+    },
+    "a few password fields aren't recognized: autocomplete may send what you type in them to your AI provider, and suggestions may show there" : {
+      "comment" : "少数密码框认不出来：续写可能把你在里面打的字发给 AI 服务，建议也可能出现在里面 — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "einige wenige Passwortfelder werden nicht erkannt: Autovervollständigen kann, was du darin tippst, an deinen KI-Anbieter senden, und Vorschläge können darin erscheinen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "algunos campos de contraseña no se reconocen: Autocompletar puede enviar lo que escribes en ellos a tu proveedor de IA, y pueden aparecer sugerencias en ellos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "quelques champs de mot de passe ne sont pas reconnus : la complétion automatique peut envoyer ce que vous y tapez à votre fournisseur d’IA, et des suggestions peuvent s’y afficher"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一部のパスワード欄を見分けられません：そこで入力した文字がオートコンプリートでAIプロバイダに送られたり、候補が出たりすることがあります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "일부 암호 입력란을 알아보지 못함: 자동 완성이 그 안에 입력한 내용을 선택한 AI 서비스로 보낼 수 있고, 제안이 그 안에 나올 수도 있음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "alguns campos de senha não são reconhecidos: o Autocompletar pode enviar o que você digita neles ao seu provedor de IA, e sugestões podem aparecer neles"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "少數密碼欄位認不出來：續寫可能把你在裡面打的字傳送給 AI 服務，建議也可能出現在裡面"
           }
         }
       }
@@ -18184,6 +18232,100 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "先前執行 Rime 時缺少 lua/lunar.db；此版本已提供該檔案"
+          }
+        }
+      }
+    },
+    "Earlier Rime run: the data for Traditional characters (OpenCC) couldn't be used; Simplified is chosen now" : {
+      "comment" : "之前运行 Rime 时用不了繁体字的转换数据（OpenCC）；现在选的是简体 — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bei einem früheren Rime-Lauf waren die Daten für traditionelle Schriftzeichen (OpenCC) nicht nutzbar; jetzt ist „Vereinfacht“ gewählt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En una ejecución anterior de Rime no se pudieron usar los datos de los caracteres tradicionales (OpenCC); ahora está elegido Simplificado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lors d’une précédente exécution de Rime, les données des caractères traditionnels (OpenCC) n’ont pas pu être utilisées ; Simplifié est choisi maintenant"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以前のRime実行時に繁体字の変換データ（OpenCC）を使えませんでした。現在は「簡体字」が選ばれています"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이전 Rime 실행에서 번체용 변환 데이터(OpenCC)를 쓸 수 없었습니다. 지금은 '간체'가 선택되어 있습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Em uma execução anterior do Rime, os dados dos caracteres tradicionais (OpenCC) não puderam ser usados; agora Simplificado está escolhido"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先前執行 Rime 時無法使用繁體字的轉換資料（OpenCC）；現在選的是簡體"
+          }
+        }
+      }
+    },
+    "Earlier Rime run: the data for Traditional characters (OpenCC) couldn't be used; this version provides it" : {
+      "comment" : "之前运行 Rime 时用不了繁体字的转换数据（OpenCC）；此版本已提供 — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bei einem früheren Rime-Lauf waren die Daten für traditionelle Schriftzeichen (OpenCC) nicht nutzbar; diese Version stellt sie bereit"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En una ejecución anterior de Rime no se pudieron usar los datos de los caracteres tradicionales (OpenCC); esta versión los incluye"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lors d’une précédente exécution de Rime, les données des caractères traditionnels (OpenCC) n’ont pas pu être utilisées ; cette version les fournit"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以前のRime実行時に繁体字の変換データ（OpenCC）を使えませんでした。このバージョンには含まれています"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이전 Rime 실행에서 번체용 변환 데이터(OpenCC)를 쓸 수 없었습니다. 이 버전에는 해당 데이터가 포함됩니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Em uma execução anterior do Rime, os dados dos caracteres tradicionais (OpenCC) não puderam ser usados; esta versão os inclui"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先前執行 Rime 時無法使用繁體字的轉換資料（OpenCC）；此版本已提供"
           }
         }
       }
@@ -35576,6 +35718,7 @@
     },
     "Rime: the data for Traditional characters (OpenCC) can't be read; remove the opencc folder in the Rime user folder, then reinstall AllInOneIME" : {
       "comment" : "Rime：繁体字的转换数据（OpenCC）读不出来；请删掉 Rime 用户目录里的 opencc 文件夹，再重新安装 AllInOneIME — Sources/AllInOneIMECore/Doctor.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -35621,8 +35764,56 @@
         }
       }
     },
+    "Rime: the data for Traditional characters (OpenCC) is missing or can't be read; reinstall AllInOneIME (first remove any files of your own from the Rime folder's opencc), or choose Simplified under Settings → Input → Chinese → Characters" : {
+      "comment" : "Rime：繁体字的转换数据（OpenCC）缺少或读不出来；请重新安装 AllInOneIME（先删掉你自己放进 Rime 用户目录 opencc 文件夹里的文件），或在设置 →「输入」→ 中文的「字形」里选「简体」 — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime: Die Daten für traditionelle Schriftzeichen (OpenCC) fehlen oder lassen sich nicht lesen; installiere AllInOneIME neu (entferne vorher eigene Dateien aus opencc im Rime-Ordner) oder wähle „Vereinfacht“ unter Einstellungen → Eingabe → Chinesisch → Schriftzeichen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime: faltan los datos de los caracteres tradicionales (OpenCC) o no se pueden leer; reinstala AllInOneIME (antes quita los archivos tuyos de opencc en la carpeta de Rime) o elige Simplificado en Ajustes → Entrada → Chino → Caracteres"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime : les données des caractères traditionnels (OpenCC) manquent ou sont illisibles ; réinstallez AllInOneIME (retirez d’abord vos propres fichiers du dossier opencc de Rime), ou choisissez Simplifié dans Réglages → Saisie → Chinois → Caractères"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime：繁体字の変換データ（OpenCC）がないか、読み込めません。AllInOneIMEを再インストールするか（先にRimeフォルダのopencc内にあるご自分のファイルを削除してください）、設定 → 入力 → 中国語 → 字体で「簡体字」を選んでください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime: 번체용 변환 데이터(OpenCC)가 없거나 읽을 수 없습니다. AllInOneIME를 다시 설치하거나(먼저 Rime 폴더의 opencc에 직접 넣은 파일을 지우세요) 설정 → 입력 → 중국어 → 자형에서 '간체'를 선택하세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime: os dados dos caracteres tradicionais (OpenCC) estão faltando ou não podem ser lidos; reinstale o AllInOneIME (antes remova seus próprios arquivos da pasta opencc do Rime) ou escolha Simplificado em Ajustes → Entrada → Chinês → Caracteres"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime：繁體字的轉換資料（OpenCC）缺少或讀不出來；請重新安裝 AllInOneIME（先刪掉你自己放進 Rime 使用者資料夾 opencc 檔案夾裡的檔案），或在設定 →「輸入」→ 中文的「字形」裡選「簡體」"
+          }
+        }
+      }
+    },
     "Rime: the data for Traditional characters (OpenCC) is missing; reinstall AllInOneIME, or choose Simplified under Settings → Input → Chinese → Characters" : {
       "comment" : "Rime：缺少繁体字的转换数据（OpenCC）；请重新安装 AllInOneIME，或在设置 →「输入」→ 中文的「字形」里选「简体」 — Sources/AllInOneIMECore/Doctor.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -40374,8 +40565,56 @@
         }
       }
     },
+    "some apps can also get the keys a list takes (↓ ↑ → ⏎ Tab Esc)" : {
+      "comment" : "列表用的键（↓ ↑ → ⏎ Tab Esc）有的 App 也会收到 — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "die Tasten, die eine Liste nutzt (↓ ↑ → ⏎ Tab Esc), können auch bei manchen Apps ankommen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "algunas apps también pueden recibir las teclas que usa una lista (↓ ↑ → ⏎ Tab Esc)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "certaines apps peuvent aussi recevoir les touches d’une liste (↓ ↑ → ⏎ Tab Esc)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リストで使うキー（↓ ↑ → ⏎ Tab Esc）が、一部のAppにも届くことがあります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "목록에서 쓰는 키(↓ ↑ → ⏎ Tab Esc)가 일부 앱에도 전달될 수 있음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "alguns apps também podem receber as teclas que uma lista usa (↓ ↑ → ⏎ Tab Esc)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "列表用的鍵（↓ ↑ → ⏎ Tab Esc）有些 App 也會收到"
+          }
+        }
+      }
+    },
     "some apps can also get the keys a list takes (↓ ↑ ⏎ Esc)" : {
       "comment" : "列表用的键（↓ ↑ ⏎ Esc）有的 App 也会收到 — Sources/AllInOneIMECore/Doctor.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -43717,8 +43956,56 @@
         }
       }
     },
+    "text of more than one line (AI answers, snippets, clipboard history) goes into terminals on one line" : {
+      "comment" : "多行文字（AI 回答、片段、剪贴板历史）放进终端会变成一行 — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "mehrzeiliger Text (KI-Antworten, Textbausteine, Verlauf der Zwischenablage) kommt im Terminal in einer Zeile an"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "el texto de varias líneas (respuestas de la IA, fragmentos, historial del portapapeles) entra en una terminal en una sola línea"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "un texte de plusieurs lignes (réponses de l’IA, extraits, historique du presse-papiers) arrive dans un terminal sur une seule ligne"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複数行のテキスト（AIの回答、スニペット、クリップボード履歴）はターミナルに1行で入ります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "여러 줄의 텍스트(AI 답변, 스니펫, 클립보드 기록)가 터미널에 한 줄로 들어감"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "texto de mais de uma linha (respostas da IA, trechos, histórico da área de transferência) entra no terminal em uma só linha"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "多行文字（AI 回答、片段、剪貼簿歷史）放進終端機會變成一行"
+          }
+        }
+      }
+    },
     "text of more than one line goes into terminals on one line" : {
       "comment" : "多行文字放进终端会变成一行 — Sources/AllInOneIMECore/Doctor.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -51169,6 +51456,53 @@
         }
       }
     },
+    "what doesn't work fully:" : {
+      "comment" : "这些会受影响： — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "was nicht ganz funktioniert:"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "lo que no funciona del todo:"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ce qui ne fonctionne pas pleinement :"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "影響を受ける機能："
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "영향을 받는 기능:"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "o que não funciona totalmente:"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這些會受影響："
+          }
+        }
+      }
+    },
     "What it does" : {
       "comment" : "做什么 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
@@ -51688,6 +52022,7 @@
     },
     "without it:" : {
       "comment" : "没有这个权限： — Sources/AllInOneIMECore/Doctor.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {

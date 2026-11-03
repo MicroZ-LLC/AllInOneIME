@@ -1,5 +1,6 @@
 import AllInOneIMECore
 import AllInOneIMEMac
+import AllInOneIMERime
 import AppKit
 import Carbon
 import EventKit
@@ -44,7 +45,7 @@ enum DoctorSession {
             facts.inputMethod.registered = false
         }
         let url = AIConfigSession.url, logs = RimeDirectories.logs, lookup = AIConfigSession.keySource
-        let lunarDatabase = RimeDirectories.user.appendingPathComponent("lua/lunar.db")
+        let rimeUser = RimeDirectories.user, lunarDatabase = RimeDirectories.user.appendingPathComponent("lua/lunar.db")
         let read = await Task.detached(priority: .userInitiated) { () -> Background in
             let data = try? Data(contentsOf: url)
             let config = Result { try Config.load(from: url) }
@@ -67,7 +68,8 @@ enum DoctorSession {
                               automation: automation(),
                               reminders: EKEventStore.authorizationStatus(for: .reminder),
                               pluginErrors: PluginStore.load().skipped.prefix(5).map { "\($0.folder): \($0.reason)" },
-                              recentErrors: recentLogErrors(in: logs, lunarDatabase: lunarDatabase))
+                              recentErrors: recentLogErrors(in: logs, lunarDatabase: lunarDatabase,
+                                                            openCC: openCC((try? config.get()) ?? .default, rimeUser: rimeUser)))
         }.value
         facts.configData = read.configData
         switch read.config {
@@ -142,8 +144,15 @@ enum DoctorSession {
         return out
     }
 
+    /// Where OpenCC's data for Traditional characters stands (`Doctor.OpenCCNow`): not used with Simplified ones, provided
+    /// once the Rime user folder has the app's files as it copied them.
+    nonisolated static func openCC(_ config: Config, rimeUser: URL) -> Doctor.OpenCCNow {
+        guard config.typedChinese.isTraditional else { return .unused }
+        return RimeService.providedOpenCC(userDataDir: rimeUser) ? .provided : .unknown
+    }
+
     /// The error lines of the last week in the app's own logs (the updater's, librime's) in `folder`, summarised.
-    nonisolated static func recentLogErrors(in folder: URL, lunarDatabase: URL) -> [String] {
+    nonisolated static func recentLogErrors(in folder: URL, lunarDatabase: URL, openCC: Doctor.OpenCCNow = .unknown) -> [String] {
         let weekAgo = Date().addingTimeInterval(-7 * 86400)
         let files = ((try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.contentModificationDateKey])) ?? [])
             .filter { $0.lastPathComponent == "update.log" || $0.lastPathComponent.contains(".ERROR.") }
@@ -153,7 +162,8 @@ enum DoctorSession {
             guard let text = try? String(contentsOf: file, encoding: .utf8) else { continue }
             lines += text.split(separator: "\n").suffix(200).map(String.init)
         }
-        return Doctor.summarizeLogLines(lines, lunarDatabaseAvailable: FileManager.default.fileExists(atPath: lunarDatabase.path))
+        return Doctor.summarizeLogLines(lines, lunarDatabaseAvailable: FileManager.default.fileExists(atPath: lunarDatabase.path),
+                                        openCC: openCC)
     }
 
     /// What a fix does besides the settings (the self-test records them instead).

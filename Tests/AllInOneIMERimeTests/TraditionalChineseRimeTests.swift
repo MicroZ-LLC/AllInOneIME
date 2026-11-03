@@ -42,12 +42,15 @@ struct TraditionalChineseRimeTests {
         try String(contentsOf: user.appendingPathComponent("opencc/" + name), encoding: .utf8)
     }
 
-    /// Every file copied, copied again when the app's change (an update), and the user's own left alone.
+    /// Every file copied, copied again when the app's change (an update), and the user's own left alone; provided (what
+    /// the Doctor reads, `providedOpenCC`) while each is the copy made.
     @Test func theAppsDataIsCopiedAsTheLunarDatabaseIs() throws {
         defer { try? FileManager.default.removeItem(at: root) }
         try bundled("v1")
+        #expect(!RimeService.providedOpenCC(userDataDir: user))
         try RimeService.prepareOpenCC(from: shared, userDataDir: user)
         for name in ChineseCharacters.openCCFiles { #expect(try copied(name) == "v1 " + name) }
+        #expect(RimeService.providedOpenCC(userDataDir: user))
         try RimeService.prepareOpenCC(from: shared, userDataDir: user)
         #expect(try copied("s2twp.json") == "v1 s2twp.json")
         // The user's own s2hk.json; then the app is updated.
@@ -56,6 +59,7 @@ struct TraditionalChineseRimeTests {
         try RimeService.prepareOpenCC(from: shared, userDataDir: user)
         #expect(try copied("s2twp.json") == "v2, an update s2twp.json" && copied("STPhrases.ocd2") == "v2, an update STPhrases.ocd2")
         #expect(try copied("s2hk.json") == "mine")
+        #expect(!RimeService.providedOpenCC(userDataDir: user), "the user's own s2hk.json isn't the app's")
         // `opencc` a file: nothing copied, only logged; pinyin starts all the same (librime's own run, in the scenarios).
         try FileManager.default.removeItem(at: user)
         try FileManager.default.createDirectory(at: user, withIntermediateDirectories: true)
@@ -161,7 +165,7 @@ struct TraditionalChineseRimeTests {
             let lines = try FileManager.default.contentsOfDirectory(at: logs, includingPropertiesForKeys: nil)
                 .filter { $0.lastPathComponent.contains(".ERROR.") }
                 .flatMap { ((try? String(contentsOf: $0, encoding: .utf8)) ?? "").split(separator: "\n").map(String.init) }
-            #expect(Doctor.summarizeLogLines(lines).contains(Doctor.missingOpenCC), "\(lines)")
+            #expect(Doctor.summarizeLogLines(lines).contains { $0.hasPrefix(Doctor.failedOpenCC) }, "\(lines)")
         },
     ]
 }
