@@ -566,11 +566,12 @@ public final class FileHashes: @unchecked Sendable {
 
     /// The SHA-256 of the file at `url` (nil: none, or it can't be read).
     public func sha256(of url: URL) -> String? {
-        guard let stamp = Self.stamp(url.path) else { return nil }
-        if let had = kept.withLock({ $0[url.path] }), had.stamp == stamp { return had.sha }
+        let path = url.path
+        guard let stamp = Self.stamp(path) else { return nil }
+        if let had = kept.withLock({ $0[path] }), had.stamp == stamp { return had.sha }
         guard let data = try? Data(contentsOf: url) else { return nil }
         let sha = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-        kept.withLock { $0[url.path] = (stamp, sha) }
+        kept.withLock { $0[path] = (stamp, sha) }
         return sha
     }
 
