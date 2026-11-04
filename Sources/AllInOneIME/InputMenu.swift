@@ -310,10 +310,6 @@ extension AllInOneIMEInputController {
     /// `languages` with `language` removed, or added at the end; the last one stays (`SessionText.toggled`).
     static func toggled(_ language: Language, in languages: [Language]) -> [Language] { SessionText.toggled(language, in: languages) }
 
-    @objc func openConfig(_ sender: Any?) {
-        MainActor.assumeIsolated { Self.openConfigFile() }
-    }
-
     override func showPreferences(_ sender: Any!) {
         MainActor.assumeIsolated {
             perform(composer.commitAll(), client: nil)  // the window takes focus from the text field
@@ -358,21 +354,6 @@ extension AllInOneIMEInputController {
             perform(composer.commitAll(), client: nil)
             session.dropEngine()
             RimeService.shared.redeploy()
-        }
-    }
-
-    @MainActor
-    static func openConfigFile() {
-        let url = Config.defaultURL
-        do {
-            try Config.default.writeIfMissing(to: url)  // one learned meanwhile stays
-        } catch {
-            log.error("could not create config: \(String(describing: error), privacy: .public)")
-        }
-        if let textEdit = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.TextEdit") {
-            NSWorkspace.shared.open([url], withApplicationAt: textEdit, configuration: NSWorkspace.OpenConfiguration())
-        } else {
-            NSWorkspace.shared.open(url)
         }
     }
 }

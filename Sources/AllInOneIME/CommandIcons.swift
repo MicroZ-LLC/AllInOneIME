@@ -35,18 +35,14 @@ enum CommandIcons {
     /// The settings window's sections, like System Settings: a colored square with a symbol.
     static let input = CandidateView.Icon(symbol: "keyboard.fill", color: .systemGray)
     static let translate = CandidateView.Icon(symbol: "translate", color: .systemBlue)
-    static let improve = CandidateView.Icon(symbol: "wand.and.stars", color: .systemPurple)
-    static let jargon = CandidateView.Icon(symbol: "text.book.closed.fill", color: .systemOrange)
     /// The Commands page's: ⌘, as a command without an icon of its own has it (`IconToken.Builtin.command`), never "@":
     /// the magic key that opens the commands is the user's choice.
     static let commands = CandidateView.Icon(symbol: "command", color: .systemIndigo)
     static let plugins = CandidateView.Icon(symbol: "puzzlepiece.extension.fill", color: .systemPink)
-    static let voice = CandidateView.Icon(symbol: "mic.fill", color: .systemRed)
     static let provider = CandidateView.Icon(symbol: "cpu.fill", color: .systemTeal)
     /// Settings → Agent: `@agent`'s own.
     static var agent: CandidateView.Icon { icon(for: .agent) }
     static let advanced = CandidateView.Icon(symbol: "gearshape.2.fill", color: .systemGray)
-    static let panel = CandidateView.Icon(symbol: "rectangle.on.rectangle", color: .systemTeal)
     static let webSearch = CandidateView.Icon(symbol: "globe", color: .systemCyan)
 
     /// A background task's state in `@tasks`.
