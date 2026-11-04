@@ -204,14 +204,11 @@ public final class SuggestionsStore: @unchecked Sendable {
         state.withLock { $0.listeners[session] = deliver }
     }
 
-    /// What changed with a commit: the sources whose list or status changed (`statusChanged`), those a query answered,
-    /// and those whose list came from the disk cache (`cached`).
+    /// What changed with a commit: the sources whose list or status changed (`statusChanged`), and those whose list came
+    /// from the disk cache (`cached`).
     struct Committed {
         var statusChanged: [CompletionSourceKey] = []
-        var listsChanged: [CompletionSourceKey] = []
-        var answered: [CompletionSourceKey] = []
         var cached: [CompletionSourceKey] = []
-        var isEmpty: Bool { statusChanged.isEmpty && answered.isEmpty && cached.isEmpty }
     }
 
     /// The results the tasks left, taken in at `now` (the session's thread): a good list replaces the old one (and is
@@ -236,7 +233,6 @@ public final class SuggestionsStore: @unchecked Sendable {
                             source.loadedAt = now
                             source.madeAt = list.fetchedAt.map { Date(timeIntervalSince1970: $0) }.map { min($0, now) } ?? now
                             (source.failures, source.failedAt, source.error, source.pausedAt) = (0, nil, nil, nil)
-                            committed.listsChanged.append(key)
                             writes.append((key, source))
                         case let .failure(failure):
                             source.failures += 1
@@ -265,7 +261,6 @@ public final class SuggestionsStore: @unchecked Sendable {
                            let oldest = source.answers.min(by: { $0.value.at < $1.value.at })?.key {
                             source.answers[oldest] = nil
                         }
-                        committed.answered.append(key)
                     case let .cache(cached):
                         // Read for this source as it is (not one forgotten meanwhile, a disabled one's), and still none
                         // loaded.
