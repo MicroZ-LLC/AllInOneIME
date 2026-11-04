@@ -112,7 +112,7 @@ final class ICloudSyncController: ObservableObject {
                                offeredProviders: Provider.offered, interfaceLanguages: InterfaceLanguage.shipped())
     }
 
-    /// The setting as the config file has it now.
+    /// The setting as the config file has it now: the file read and parsed each time, so asked once for both switches.
     private var settings: ICloudSyncSettings { ((try? Config.load(from: engine.configURL)) ?? .default).iCloudSync }
 
     /// Rime's sync folder in the shared one.
@@ -142,7 +142,8 @@ final class ICloudSyncController: ObservableObject {
     /// Sync Now (and the switches in Settings): at once, the learned words too.
     func syncNow() {
         run()
-        if settings.enabled, settings.learnedWords { syncLearnedWords() }
+        let on = settings
+        if on.enabled, on.learnedWords { syncLearnedWords() }
     }
 
     private func schedule(after delay: TimeInterval) {
@@ -377,7 +378,9 @@ final class ICloudSyncController: ObservableObject {
 
     /// The learned words: Rime's sync into the shared folder's `rime/`, the other Macs' snapshots downloaded first.
     func syncLearnedWords() {
-        guard !sample, settings.enabled, settings.learnedWords, engine.folder.isAvailable else { return }
+        guard !sample else { return }
+        let on = settings
+        guard on.enabled, on.learnedWords, engine.folder.isAvailable else { return }
         let folder = engine.folder
         try? FileManager.default.createDirectory(at: rimeFolder, withIntermediateDirectories: true)
         folder.downloadAll(in: ICloudSync.rimeFolder)
@@ -396,7 +399,8 @@ final class ICloudSyncController: ObservableObject {
     /// Every minute: the learned words when they're due (at start, then every 30 minutes), nothing typed for a while and
     /// nothing being composed.
     private func rimeIfDue() {
-        guard settings.enabled, settings.learnedWords else { return }
+        let on = settings
+        guard on.enabled, on.learnedWords else { return }
         let due = rimeWanted || lastRimeSync.map { Date().timeIntervalSince($0) >= Self.rimeInterval } ?? true
         guard due, secondsSinceKey() >= Self.rimeIdle, !composing() else { return }
         syncLearnedWords()
