@@ -11,11 +11,12 @@ enum DeleteKeys {
     static let controlBackspace = KeyEvent(keyCode: VirtualKey.delete, characters: "\u{7F}", modifiers: .control)
 }
 
-/// A candidate deleted (librime's `delete_candidate`, rime-ice's ⌃⌦) through the composer: a row right-clicked
-/// (`Composer.deleteCandidate(index:)`, the row among those the panel shows) or ⌃⌦ on the highlighted one, while pinyin is
-/// typed. The engine is told the candidate; nothing is committed, the letters stay and the page is laid out again. On
-/// rows that aren't the engine's (level two's results, the command list, voice input) and with nothing composed,
-/// nothing; ⌃⌦ is then the app's.
+/// A candidate removed for good through the composer: a row right-clicked (`Composer.deleteCandidate(index:)`, the row
+/// among those the panel shows) or ⌃⌦ on the highlighted one, while pinyin is typed. The engine is told the candidate
+/// (librime's `delete_candidate`: what it learned forgotten), and it is on the list of those removed
+/// (`Composer.removedCandidates`, `Effect.candidateRemoved`); nothing is committed, the letters stay and the page is laid
+/// out again without it. On rows that aren't the engine's (level two's results, the command list, voice input) and with
+/// nothing composed, nothing; ⌃⌦ is then the app's. (RemovedCandidatesTests.swift has the rest.)
 struct DeleteCandidateTests {
     let at = KeyEvent(keyCode: 0x13, characters: "@", charactersIgnoringModifiers: "@", modifiers: .shift)
     let tab = KeyEvent(keyCode: VirtualKey.tab, characters: "\t")
@@ -28,7 +29,7 @@ struct DeleteCandidateTests {
 
     // MARK: - The engine's candidates
 
-    @Test func aRowsCandidateIsDeletedAndNothingCommitted() {
+    @Test func aRowsCandidateIsRemovedAndNothingCommitted() {
         let engine = FakeEngine()
         let c = Composer(engine: engine, actionKey: .enter)
         type("nihao", c)
@@ -37,15 +38,20 @@ struct DeleteCandidateTests {
         #expect(engine.deleted == [0])
         #expect(commits(effects).isEmpty, "nothing committed: \(effects)")
         #expect(c.engineState.isComposing && engine.input == "nihao" && c.markedText == "nihao", "the letters stay (\(c.markedText))")
-        // The page laid out again: the engine's as it is after the delete.
-        #expect(texts(c) == ["拟好", "你好"], "\(texts(c))")
-        #expect(effects.contains(.updateMarkedText) && effects.contains(.showPanel), "\(effects)")
-        // The second row: the second candidate.
-        _ = c.deleteCandidate(index: 1)
-        #expect(engine.deleted == [0, 1])
-        // Past the page's candidates: nothing deleted, nothing committed, still composing.
+        // The page laid out again, without it; kept on the list.
+        #expect(texts(c) == ["拟好"], "\(texts(c))")
+        #expect(effects.contains(.updateMarkedText) && effects.contains(.showPanel) && effects.contains(.candidateRemoved("你好")),
+                "\(effects)")
+        #expect(c.removedCandidates == ["你好"])
+        // Past the page's rows (one now): nothing removed, nothing committed, still composing.
+        #expect(c.deleteCandidate(index: 1).isEmpty && engine.deleted == [0])
         let past = c.deleteCandidate(index: 7)
-        #expect(commits(past).isEmpty && c.engineState.isComposing && engine.input == "nihao")
+        #expect(past.isEmpty && commits(past).isEmpty && c.engineState.isComposing && engine.input == "nihao")
+        // The second row: the second candidate.
+        _ = c.handleKeyDown(escKey)
+        type("wo", c)
+        #expect(c.deleteCandidate(index: 1).contains(.candidateRemoved("窝")) && engine.deleted == [0, 1], "\(engine.deleted)")
+        #expect(texts(c) == ["我"] && c.removedCandidates == ["你好", "窝"])
     }
 
     /// Pinyin typed in a command's text: its candidates too; the draft stays as it is.
@@ -107,10 +113,10 @@ struct DeleteCandidateTests {
 
     // MARK: - English words among the candidates
 
-    /// An English word put in among the engine's candidates (`EnglishWordsEngine`) isn't the engine's to delete: its row
-    /// (and ⌃⌦ on it) does nothing. A row of the engine's deletes its candidate, by its place on the engine's page, not
-    /// the row's.
-    @Test func englishWordsAmongTheCandidates() {
+    /// An English word put in among the engine's candidates (`EnglishWordsEngine`) is removed the same way, by its
+    /// letters (the same word spelled otherwise goes too); the engine isn't told (it has no such candidate). A row of
+    /// the engine's removes its candidate, the engine told its place on the engine's page, not the row's.
+    @Test func englishWordsAmongTheCandidatesAreRemovedToo() {
         let base = FakeEngine()
         base.dictionary["xiaomi"] = ["小米", "小蜜", "晓米"]
         let mixed = EnglishWordsEngine(base: base, dictionary: EnglishDictionary(["hello"]), words: ["Xiaomi"])
@@ -118,17 +124,24 @@ struct DeleteCandidateTests {
         type("xiaomi", c)
         // Pinyin too: the word second.
         #expect(texts(c) == ["小米", "Xiaomi", "小蜜", "晓米"], "\(texts(c))")
-        let word = c.deleteCandidate(index: 1)
-        #expect(base.deleted.isEmpty && commits(word).isEmpty && texts(c) == ["小米", "Xiaomi", "小蜜", "晓米"], "\(base.deleted)")
         // The third row is the engine's second candidate.
-        _ = c.deleteCandidate(index: 2)
-        #expect(base.deleted == [1], "\(base.deleted)")
-        #expect(texts(c) == ["小米", "Xiaomi", "晓米", "小蜜"], "\(texts(c))")
+        let row = c.deleteCandidate(index: 2)
+        #expect(row.contains(.candidateRemoved("小蜜")) && base.deleted == [1] && commits(row).isEmpty, "\(base.deleted)")
+        #expect(texts(c) == ["小米", "Xiaomi", "晓米"], "\(texts(c))")
+        let word = c.deleteCandidate(index: 1)
+        #expect(word.contains(.candidateRemoved("Xiaomi")) && base.deleted == [1], "the engine isn't told: \(base.deleted)")
+        #expect(texts(c) == ["小米", "晓米"] && commits(word).isEmpty && c.engineState.isComposing && base.input == "xiaomi",
+                "\(texts(c))")
+        #expect(c.removedCandidates == ["小蜜", "Xiaomi"])
         _ = c.deleteCandidate(index: 0)
-        #expect(base.deleted == [1, 0], "\(base.deleted)")
-        #expect(c.engineState.isComposing && base.input == "xiaomi")
+        #expect(base.deleted == [1, 0] && texts(c) == ["晓米"], "\(base.deleted) \(texts(c))")
+        // Spelled otherwise, by the user later: not shown either.
+        mixed.words = ["xiaomi", "XIAOMI"]
+        _ = c.handleKeyDown(escKey)
+        type("xiaomi", c)
+        #expect(texts(c) == ["晓米"], "\(texts(c))")
 
-        // ⌃⌦ on the word (highlighted first when it is all the letters and no pinyin): nothing; on the engine's row under
+        // ⌃⌦ on the word (highlighted first when it is all the letters and no pinyin): it goes; on the engine's row under
         // it, that candidate.
         let other = FakeEngine()
         other.dictionary["bedrock"] = ["被的rock", "北的rock"]
@@ -136,13 +149,15 @@ struct DeleteCandidateTests {
                          actionKey: .enter)
         type("bedrock", d)
         #expect(texts(d) == ["Bedrock", "被的rock", "北的rock"] && d.engineState.highlighted == 0, "\(texts(d))")
-        #expect(d.handleKeyDown(DeleteKeys.controlForwardDelete).handled, "consumed while composing")
-        #expect(other.deleted.isEmpty && d.engineState.isComposing && texts(d).first == "Bedrock", "\(other.deleted)")
+        let first = d.handleKeyDown(DeleteKeys.controlForwardDelete)
+        #expect(first.handled && first.effects.contains(.candidateRemoved("Bedrock")) && other.deleted.isEmpty, "\(first.effects)")
+        #expect(texts(d) == ["被的rock", "北的rock"] && d.engineState.highlighted == 0 && d.engineState.isComposing, "\(texts(d))")
         _ = d.handleKeyDown(downKey)
-        _ = d.handleKeyDown(downKey)
-        #expect(d.engineState.highlighted == 2, "\(d.engineState.highlighted)")
-        #expect(d.handleKeyDown(DeleteKeys.controlForwardDelete).handled)
-        #expect(other.deleted == [1], "the engine's second: \(other.deleted)")
+        #expect(d.engineState.highlighted == 1, "\(d.engineState.highlighted)")
+        let second = d.handleKeyDown(DeleteKeys.controlForwardDelete)
+        #expect(second.handled && second.effects.contains(.candidateRemoved("北的rock")) && other.deleted == [1],
+                "the engine's second: \(other.deleted)")
+        #expect(texts(d) == ["被的rock"] && commits(d.handleKeyDown(spaceKey)) == ["被的rock"])
     }
 
     // MARK: - Rows that aren't the engine's
@@ -161,7 +176,7 @@ struct DeleteCandidateTests {
         for index in choices.indices { #expect(c.deleteCandidate(index: index).isEmpty) }
         #expect(c.choices.map(\.text) == choices && c.isLevelTwo)
         _ = c.handleKeyDown(DeleteKeys.controlForwardDelete)
-        #expect(engine.deleted.isEmpty, "\(engine.deleted)")
+        #expect(engine.deleted.isEmpty && c.removedCandidates.isEmpty, "\(engine.deleted)")
     }
 
     @Test func theCommandListIsNone() {
@@ -225,7 +240,7 @@ struct DeleteCandidateSessionTests {
 
     func texts(_ host: FakeHost) -> [String] { host.panel?.rows.map(\.text) ?? [] }
 
-    @Test func aRightClickedRowsCandidateIsDeleted() async {
+    @Test func aRightClickedRowsCandidateIsRemoved() async {
         await inEnglish {
             let engine = FakeEngine()
             let host = host(engine)
@@ -233,16 +248,20 @@ struct DeleteCandidateSessionTests {
             #expect(texts(host) == ["你好", "拟好"] && host.panel?.rows.map(\.choice) == [0, 1], "\(texts(host))")
             host.send(.delete(1))
             #expect(engine.deleted == [1], "\(engine.deleted)")
-            host.send(.delete(0))
-            #expect(engine.deleted == [1, 0], "\(engine.deleted)")
             #expect(host.document.isEmpty && host.marked == "nihao", "nothing committed (\(host.document)), the letters marked (\(host.marked))")
-            #expect(texts(host) == ["拟好", "你好"], "the panel laid out again: \(texts(host))")
+            #expect(texts(host) == ["你好"] && host.panel?.rows.map(\.choice) == [0], "the panel laid out again without it: \(texts(host))")
             // Past the rows: nothing.
+            host.send(.delete(1))
             host.send(.delete(5))
-            #expect(engine.deleted == [1, 0] && host.document.isEmpty && host.marked == "nihao")
+            #expect(engine.deleted == [1] && host.document.isEmpty && host.marked == "nihao")
             // A click still picks.
             host.send(.pick(0))
-            #expect(host.document == "拟好" && host.marked.isEmpty, "\(host.document)")
+            #expect(host.document == "你好" && host.marked.isEmpty, "\(host.document)")
+            // Never again.
+            host.type("nihao")
+            #expect(texts(host) == ["你好"], "\(texts(host))")
+            host.send(.delete(0))
+            #expect(engine.deleted == [1, 0] && host.document == "你好" && host.marked == "nihao", "\(engine.deleted)")
         }
     }
 
@@ -257,10 +276,10 @@ struct DeleteCandidateSessionTests {
             #expect(host.composer.engineState.highlighted == 1 && host.panel?.highlighted == 1)
             #expect(host.press(DeleteKeys.controlForwardDelete), "taken: the app never has it")
             #expect(engine.deleted == [1] && host.document.isEmpty && host.marked == "nihao", "\(engine.deleted) \(host.document)")
-            #expect(texts(host) == ["你好", "拟好"], "\(texts(host))")
+            #expect(texts(host) == ["你好"] && host.panel?.highlighted == 0, "\(texts(host))")
             // Plain ⌦ is no delete.
             host.press(DeleteKeys.forwardDelete)
-            #expect(engine.deleted == [1])
+            #expect(engine.deleted == [1] && texts(host) == ["你好"])
         }
     }
 
