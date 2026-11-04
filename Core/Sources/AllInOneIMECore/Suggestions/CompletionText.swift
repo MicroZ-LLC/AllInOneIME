@@ -41,23 +41,24 @@ enum CompletionTemplate {
     /// `fill` with the templates in their parts (`parts`), read once for many items.
     static func fill(_ templates: [[Part]], with item: CompletionItem) -> String? {
         for parts in templates {
-            var out = ""
-            var complete = true
-            for part in parts {
-                switch part {
-                case let .text(text): out += text
-                case let .variable(name):
-                    guard let value = value(of: name, in: item) else {
-                        complete = false
-                        break
-                    }
-                    out += value
-                }
-                if !complete { break }
-            }
-            if complete { return CompletionOutput.clean(out) }
+            if let filled = fill(template: parts, with: item) { return filled }
         }
         return nil
+    }
+
+    /// One template in its parts (`parts`) filled with `item`'s variables, cleaned (`CompletionOutput.clean`); nil: the
+    /// item hasn't all of them.
+    static func fill(template parts: [Part], with item: CompletionItem) -> String? {
+        var out = ""
+        for part in parts {
+            switch part {
+            case let .text(text): out += text
+            case let .variable(name):
+                guard let value = value(of: name, in: item) else { return nil }
+                out += value
+            }
+        }
+        return CompletionOutput.clean(out)
     }
 
     /// The variable `name` of `item`: its `match`, its `arg` (else its match), or one of its own.
