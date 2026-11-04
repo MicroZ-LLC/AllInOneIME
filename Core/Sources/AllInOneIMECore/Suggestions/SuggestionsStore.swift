@@ -573,7 +573,7 @@ public final class FileHashes: @unchecked Sendable {
     /// `path`'s stamp now, never a value kept (a URL keeps those it read): the item itself, a link not followed. Where
     /// there is `lstat`, by it (a few microseconds; the file manager's attributes take ten times as long, which a
     /// repository of 2,000 files read as a field takes the focus would feel), with the inode and status-change time;
-    /// elsewhere its size, date and file number as the file manager has them.
+    /// elsewhere (Windows) its size, date and file number as the file manager has them.
     static func stamp(_ path: String) -> Stamp? {
         #if canImport(Darwin)
         var info = stat()
@@ -581,6 +581,13 @@ public final class FileHashes: @unchecked Sendable {
         return Stamp(size: Int(info.st_size), seconds: Int(info.st_mtimespec.tv_sec), nanoseconds: Int(info.st_mtimespec.tv_nsec),
                      inode: UInt64(info.st_ino), changedSeconds: Int(info.st_ctimespec.tv_sec),
                      changedNanoseconds: Int(info.st_ctimespec.tv_nsec))
+        #elseif canImport(Glibc) || canImport(Musl)
+        // The same on Linux, whose stat names its times st_mtim and st_ctim.
+        var info = stat()
+        guard lstat(path, &info) == 0 else { return nil }
+        return Stamp(size: Int(info.st_size), seconds: Int(info.st_mtim.tv_sec), nanoseconds: Int(info.st_mtim.tv_nsec),
+                     inode: UInt64(info.st_ino), changedSeconds: Int(info.st_ctim.tv_sec),
+                     changedNanoseconds: Int(info.st_ctim.tv_nsec))
         #else
         let attributes = try? FileManager.default.attributesOfItem(atPath: path)
         guard let size = (attributes?[.size] as? NSNumber)?.intValue else { return nil }

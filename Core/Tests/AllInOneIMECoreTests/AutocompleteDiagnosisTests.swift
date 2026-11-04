@@ -90,11 +90,12 @@ struct AutocompleteDiagnosisTests {
 
         var pauses: [TimerID] { host.timers.filter { if case .autocomplete = $0 { true } else { false } } }
 
-        /// The pause runs out: the field is read, a request (if any) is answered and handled.
+        /// The pause runs out: the field is read, a request (if any) is answered and handled. Until the read is in too,
+        /// which a busy test run can hold up past the first look (no request asked yet, none to wait for).
         func pauseEnds() {
             clock.advance(0.2)
             host.fireTimers { if case .autocomplete = $0 { true } else { false } }
-            host.settle(timeout: 10) { host.session.autocomplete.asked == nil }
+            host.settle(timeout: 10) { host.session.autocomplete.reading == nil && host.session.autocomplete.asked == nil }
         }
 
         /// The caret put after the first `caret` characters of `document` (UTF-16), as a click or an arrow key would,

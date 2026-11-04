@@ -275,11 +275,13 @@ struct CommandSuggestionsSessionTests {
             field.idle(0.5)
             #expect(field.rows.isEmpty && program.calls.allSatisfy(\.isEmpty), "\(off) off: \(field.rows.map(\.text)), \(program.calls)")
             if off == .master { #expect(program.calls.isEmpty, "\(program.calls)") }
-            // Another app, its switch on: rows.
+            // Another app, its switch on: rows. The list's, which the query's answer joins (JIRA-19) as it comes: a busy
+            // test run may show both before a look at the rows finds the list's alone.
             if off == .app {
                 let other = world.field(app: "com.apple.TextEdit")
                 other.type("JIRA-1")
-                #expect(other.settle(timeout: Self.wait) { other.rows.count == 3 }, "\(other.rows.map(\.text))")
+                #expect(other.settle(timeout: Self.wait) { Set(other.rows.map(\.text)).isSuperset(of: ["JIRA-12", "JIRA-123", "JIRA-17"]) },
+                        "\(other.rows.map(\.text))")
             }
         }
     }
