@@ -14,8 +14,17 @@ public struct KeyboardLayout: KeyTranslator, @unchecked Sendable {
         data = Unmanaged<CFData>.fromOpaque(dataPointer).takeUnretainedValue()
     }
 
-    /// An installed layout by its input source ID ("com.apple.keylayout.French"), enabled or not.
+    /// An installed layout by its input source ID ("com.apple.keylayout.French"), enabled or not. The layout the keys come
+    /// from (`current`'s) is taken when it is the one: it is asked for with every key, and listing the installed layouts
+    /// takes a millisecond or two, where the current one takes a microsecond.
     public init?(id: String) {
+        // Each copied only when it is reached: a copy never taken would never be released.
+        for copy in [TISCopyCurrentKeyboardLayoutInputSource, TISCopyCurrentASCIICapableKeyboardLayoutInputSource] {
+            if let source = copy()?.takeRetainedValue(), let layout = KeyboardLayout(source: source), layout.id == id {
+                self = layout
+                return
+            }
+        }
         let filter = [kTISPropertyInputSourceID as String: id] as CFDictionary
         guard let source = (TISCreateInputSourceList(filter, true)?.takeRetainedValue() as? [TISInputSource])?.first
         else { return nil }
