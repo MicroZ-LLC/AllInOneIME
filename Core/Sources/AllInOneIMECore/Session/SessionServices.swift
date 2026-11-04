@@ -37,9 +37,9 @@ public struct SessionServices {
     /// while a key is handled; the session offers the word at once.
     public var learnEnglishWord: (String) -> Void
     /// A candidate the user removed (`Composer.Effect.candidateRemoved`): kept on the list of those removed in the
-    /// settings, and taken out of the user's English words if it is one (`RemovedCandidates.remove`,
-    /// `Config.removedCandidates`), off the session's thread (`EnglishWords.Writer`), as it is told while a key (or a
-    /// click) is handled; the session's engine leaves it out at once.
+    /// settings (`RemovedCandidates.remove`, `Config.removedCandidates`), off the session's thread
+    /// (`EnglishWords.Writer`), as it is told while a key (or a click) is handled; the session's engine leaves it out at
+    /// once.
     public var removeCandidate: (String) -> Void
     /// The letters put in as typed once (learned the second time), shared by every field of a launch: the shell gives one
     /// for them all; the default is these services' own.

@@ -60,9 +60,10 @@ public final class InputSession {
     private var englishWords: EnglishWordsEngine?
     /// What its words were last made of (the user's, the jargon list's terms): made again only when that changes.
     private var englishWordsMadeOf: [String]?
-    /// The candidates removed the settings last gave level one (`Composer.removedCandidates`): given again only when the
-    /// settings' list changes, so that one removed meanwhile (left out at once, written a moment later) stays out.
-    private var removedCandidatesGiven: [String]?
+    /// The candidates removed level one is given (`Composer.removedCandidates`): the settings' list, given again only when
+    /// it changes, with those removed in this field it doesn't have yet (left out at once, written a moment later), so
+    /// that neither a new engine nor a list read before they were written brings one back (`RemovedCandidates.Given`).
+    private var removedCandidates = RemovedCandidates.Given()
     /// The words typed in English mode in this field, learned once they stand (`learnTypedInEnglish`).
     private var englishModeWords = EnglishModeWords()
     /// The default input last applied (applied again when the setting changes, or what the app learned).
@@ -181,6 +182,8 @@ public final class InputSession {
                 suggestionsLeft()
                 perform(composer.commitAll())
                 learnTypedInEnglish(englishModeWords.leftField())
+                // Left for Settings, say: one removed here that the file has by now is the file's, which ✕ there brings back.
+                takeRemovedCandidates(services.loadSettings().removedCandidates)
                 releasePage()  // `@agent` asked for a page it didn't send
                 fieldSession += 1
                 fieldText = nil
@@ -386,7 +389,6 @@ public final class InputSession {
             engine = fresh
             composer.engine = levelOneEngine(fresh)
             appliedDefaultInput = nil  // a new session starts in the default input mode
-            removedCandidatesGiven = nil  // given by `settings`
             settings(app: nil)
         case .starting:
             engine = nil
@@ -547,10 +549,7 @@ public final class InputSession {
             }
         }
         // The candidates the user removed, left out by level one whatever its engine.
-        if config.removedCandidates != removedCandidatesGiven {
-            removedCandidatesGiven = config.removedCandidates
-            composer.removedCandidates = config.removedCandidates
-        }
+        takeRemovedCandidates(config.removedCandidates)
         composer.outputLanguages = config.outputLanguages
         composer.provider = config.provider  // the on-device model gets less of a screenshot (`ReplyContext.Limits`)
         // `@reportissue`: the versions and settings it shows, read when it runs (the extensions as this field has them).
@@ -612,6 +611,12 @@ public final class InputSession {
     func codePack(_ config: Config) -> CodingLanguagePack? {
         guard let language = config.codingLanguage else { return nil }
         return services.suggestions.codingPacks().first { $0.language == language }
+    }
+
+    /// The candidates the user removed as the settings list them now (`listed`) given to level one when the list changed,
+    /// with those removed in this field it doesn't have yet (`RemovedCandidates.Given`).
+    private func takeRemovedCandidates(_ listed: [String]) {
+        if let list = removedCandidates.taking(listed) { composer.removedCandidates = list }
     }
 
     /// What the keys and places are called here (`Platform.terms`), the keys by the roles the composer acts on
@@ -1115,7 +1120,9 @@ public final class InputSession {
             case .commandUsed:
                 services.saveCommandUsage(composer.commandUsage)
             case let .candidateRemoved(text):
-                // Left out in this field already; kept for every field a moment later, never while the key is handled.
+                // Left out in this field already, also under a new engine and a list read before it is written; kept for
+                // every field a moment later, never while the key is handled.
+                removedCandidates.removed(text)
                 services.removeCandidate(text)
                 log.notice("removed a candidate (\(text.count) characters)")
             case let .rememberQuestion(entry):

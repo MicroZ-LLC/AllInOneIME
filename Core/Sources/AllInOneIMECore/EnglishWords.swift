@@ -246,14 +246,14 @@ public enum EnglishWords {
     public enum Change: Equatable, Sendable {
         /// An English word learned (`learn(_:at:)`).
         case learn(String)
-        /// A candidate the user removed (`RemovedCandidates.remove(_:at:)`): on the list of those removed, and out of the
-        /// English words when it is one.
+        /// A candidate the user removed (`RemovedCandidates.remove(_:at:)`): on the list of those removed, the English
+        /// words as they are.
         case remove(String)
     }
 
     /// `changes` made to the config file at `url`, each in turn, in one write of the file as it is now (under
-    /// `AIConfig.fileLock`): only the keys they change (`englishWords`; for a candidate removed `removedCandidates` and
-    /// `addedEnglishWords` too); a missing file is written with this Mac's new user's settings. Whether anything changed.
+    /// `AIConfig.fileLock`): only the keys they change (`englishWords` for a word learned, `removedCandidates` for a
+    /// candidate removed); a missing file is written with this Mac's new user's settings. Whether anything changed.
     @discardableResult
     public static func write(_ changes: [Change], at url: URL) throws -> Bool {
         AIConfig.fileLock.lock(); defer { AIConfig.fileLock.unlock() }
@@ -262,7 +262,7 @@ public enum EnglishWords {
             let lists = Lists(words: config.englishWords, added: config.addedEnglishWords, removed: config.removedCandidates)
             let new = lists.with(changes)
             guard new != lists else { return false }
-            (config.englishWords, config.addedEnglishWords, config.removedCandidates) = (new.words, new.added, new.removed)
+            (config.englishWords, config.removedCandidates) = (new.words, new.removed)
             try config.write(to: url)
             return true
         }
@@ -272,7 +272,7 @@ public enum EnglishWords {
                               added: file[Config.addedEnglishWordsKey]?.strings ?? [],
                               removed: file[Config.removedCandidatesKey]?.strings ?? [])
             let new = lists.with(changes)
-            for (key, old, list) in [(Config.englishWordsKey, lists.words, new.words), (Config.addedEnglishWordsKey, lists.added, new.added),
+            for (key, old, list) in [(Config.englishWordsKey, lists.words, new.words),
                                      (Config.removedCandidatesKey, lists.removed, new.removed)] where list != old {
                 // An emptied list goes, as the config writes none.
                 file[key] = list.isEmpty ? nil : .array(list.map { .string($0) })
@@ -282,10 +282,11 @@ public enum EnglishWords {
         return changed
     }
 
-    /// The lists of the config file `write` changes.
+    /// The lists of the config file `write` changes, and the words the user added (`added`: what a word learned is
+    /// capped by).
     private struct Lists: Equatable {
         var words: [String]
-        var added: [String]
+        let added: [String]
         var removed: [String]
 
         /// With `changes` made, in turn.
@@ -299,9 +300,6 @@ public enum EnglishWords {
                     out.words = learning(typed, into: out.words, added: out.added)
                 case let .remove(text):
                     out.removed = RemovedCandidates.adding(text, to: out.removed)
-                    guard word(text) != nil else { continue }
-                    out.words = removing(text, from: out.words)
-                    out.added = removing(text, from: out.added)
                 }
             }
             return out

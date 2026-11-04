@@ -122,8 +122,7 @@ public final class Composer {
         /// A command was run (`commandUsage` has it): keep the usage for the order of the command list.
         case commandUsed(String)
         /// A candidate the user removed (`deleteCandidate(index:)`), by its text as shown: the engine shows it no more
-        /// already (`removedCandidates`); keep it on the list of those removed (`Config.removedCandidates`), and out of
-        /// the user's English words if it is one.
+        /// already (`removedCandidates`); keep it on the list of those removed (`Config.removedCandidates`).
         case candidateRemoved(String)
         /// Keep an `@question` and its answer on this Mac (`questionHistory` has it already): the recent questions.
         case rememberQuestion(QuestionHistory.Entry)
@@ -690,8 +689,8 @@ public final class Composer {
     /// It as level one shows it (`shown`).
     private var levelOne: PinyinEngine?
     /// The candidates the user removed (`Config.removedCandidates`), by their text: level one never shows them
-    /// (`EnglishWordsEngine.removedCandidates`). The session sets them from the settings; one removed here
-    /// (`deleteCandidate(index:)`) is among them at once.
+    /// (`EnglishWordsEngine.removedCandidates`), whatever engine it is given later. The session sets them from the
+    /// settings; one removed here (`deleteCandidate(index:)`) is among them at once.
     public var removedCandidates: [String] {
         get { (levelOne as? EnglishWordsEngine)?.removedCandidates ?? removedKept }
         set {
@@ -699,14 +698,22 @@ public final class Composer {
             (levelOne as? EnglishWordsEngine)?.removedCandidates = newValue
         }
     }
-    /// What `removedCandidates` was last set to: an engine put in without English words gets it.
+    /// What `removedCandidates` was last set to, with those removed here since: an engine put in later gets them.
     private var removedKept: [String] = []
 
-    /// `engine` as level one shows it: an engine with English words among its candidates (`EnglishWordsEngine`) as it
-    /// is, which leaves out those removed; any other in one without words, which leaves them out all the same (an engine
-    /// set without rime-ice's English dictionary, a test's). `LatinEngine` has no candidates.
+    /// `engine` as level one shows it, leaving out those removed (`removedKept`): an engine with English words among its
+    /// candidates (`EnglishWordsEngine`) as it is, given them besides those it has; any other in one without words, which
+    /// leaves them out all the same (an engine set without rime-ice's English dictionary, a test's). `LatinEngine` has no
+    /// candidates.
     private func shown(_ engine: PinyinEngine?) -> PinyinEngine? {
-        guard let engine, !(engine is EnglishWordsEngine), !(engine is LatinEngine) else { return engine }
+        if let level = engine as? EnglishWordsEngine {
+            // librime deployed again: one removed under the engine before stays out under this one.
+            let own = Set(level.removedCandidates)
+            level.removedCandidates += removedKept.filter { !own.contains($0) }
+            removedKept = level.removedCandidates
+            return level
+        }
+        guard let engine, !(engine is LatinEngine) else { return engine }
         return EnglishWordsEngine(base: engine, dictionary: EnglishDictionary([]), removedCandidates: removedKept)
     }
     /// Hindi's engine, on the Hindi pack's tables (`hindiTables`, set by the controller once the pack is installed).

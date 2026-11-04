@@ -5,10 +5,11 @@ import Foundation
 /// candidate of its own, whatever is typed, until the user restores it in Settings (`EnglishWordsEngine`: librime's by
 /// its whole text, so a sentence or a longer phrase with it in it still comes; an English word put among them by its
 /// letters, `EnglishWords.key`, so "Bedrock" removes "bedrock" too); librime forgets what it learned of it as well (its
-/// `delete_candidate`). One of the user's English words removed is taken out of them, and never learned again.
+/// `delete_candidate`). Removing one only leaves it out: an English word on the list is never learned again, but the
+/// user's own English words stay as they are, so one restored comes back as it was.
 ///
 /// Kept by their text as they were shown (`Config.removedCandidates`), oldest first, at most `maxCount`: the engine's
-/// list changes at once, the file a moment later, off the key's thread (`EnglishWords.Writer`, only its keys of them
+/// list changes at once, the file a moment later, off the key's thread (`EnglishWords.Writer`, only its key of them
 /// patched). Synced through iCloud with the words learned (`ICloudSync.removedCandidatesKey`).
 public enum RemovedCandidates {
     /// The most kept: beyond it, the oldest go first.
@@ -34,19 +35,45 @@ public enum RemovedCandidates {
         })
     }
 
-    /// `config` with `text` removed: on the list (`adding`), and gone from the user's English words, added or learned
-    /// (`EnglishWords.remove`), when it is an English word.
+    /// `config` with `text` removed: on the list (`adding`). Nothing else changes, the user's English words neither.
     public static func remove(_ text: String, from config: inout Config) {
         config.removedCandidates = adding(text, to: config.removedCandidates)
-        if EnglishWords.word(text) != nil { EnglishWords.remove(text, from: &config) }
     }
 
     /// `text` removed in the config file at `url` (`remove(_:from:)`), in one write of the file as it is now: only its
-    /// keys of them change (`removedCandidates`, and the English words); a missing file is written with this Mac's new
-    /// user's settings. Whether anything changed. What `EnglishWords.Writer` does off the key's thread, in order with
-    /// the words learned.
+    /// key of them changes (`removedCandidates`); a missing file is written with this Mac's new user's settings. Whether
+    /// anything changed. What `EnglishWords.Writer` does off the key's thread, in order with the words learned.
     @discardableResult
     public static func remove(_ text: String, at url: URL) throws -> Bool {
         try EnglishWords.write([.remove(text)], at: url)
+    }
+
+    /// What a field's session gives level one of them (`Composer.removedCandidates`): the settings' list, with those
+    /// removed in the field that it doesn't have yet (written a moment later, `EnglishWords.Writer`; never while the file
+    /// doesn't parse), so that neither a new engine (librime deployed again) nor a list read before they were written
+    /// brings one back. One the list has is the list's from then on: restored there (Settings' ✕, the config without
+    /// it), it comes back.
+    public struct Given: Equatable, Sendable {
+        /// The settings' list last taken (`taking`).
+        private var listed: [String]?
+        /// Those removed in the field the settings' list didn't have when last taken, oldest first.
+        private var removedHere: [String] = []
+
+        public init() {}
+
+        /// `text` removed in the field (`Composer.Effect.candidateRemoved`): level one leaves it out already.
+        public mutating func removed(_ text: String) {
+            removedHere = adding(text, to: removedHere)
+        }
+
+        /// The settings' list as read now (`Config.removedCandidates`) taken: what level one is to be given, nil when the
+        /// list is the one taken last. Those removed here that it has are its own from then on.
+        public mutating func taking(_ listed: [String]) -> [String]? {
+            guard listed != self.listed else { return nil }
+            self.listed = listed
+            let caughtUp = Set(listed)
+            removedHere.removeAll { caughtUp.contains($0) }
+            return listed + removedHere
+        }
     }
 }

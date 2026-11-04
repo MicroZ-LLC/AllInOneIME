@@ -9,7 +9,8 @@ import Foundation
 /// or second when that is pinyin too ("xiaomi"); a longer one second, or after the page while what's typed may still be
 /// pinyin ("zhon", and up to four letters, which rime-ice reads as initials: "bed" b-e-d). At most `maxPerPage`, the
 /// shorter first. A candidate removed (`removedCandidates`) is left out of every page, librime's by its whole text, a word
-/// by its letters; a page with nothing left is skipped (`skipEmptyPages`).
+/// by its letters; a page with nothing left is skipped (`skipEmptyPages`). One removed here leaves the page where it was,
+/// laid out anew without it (`deleteCandidate`).
 ///
 /// While the page shown isn't librime's (words on it, candidates left out), ↑↓ (← → in a row), Space, the digits and a
 /// click pick by the place shown, numbered as shown; a punctuation key puts the word highlighted in before its mark; a
@@ -51,6 +52,9 @@ public final class EnglishWordsEngine: PinyinEngine {
     public static let maxPerPage = 3
     /// The most pages turned on past one with nothing shown (`skipEmptyPages`): the key never waits on many.
     public static let maxSkipped = 5
+    /// The most pages turned on back to the one a candidate was removed on (`deleteCandidate`: librime lays the
+    /// composition out anew from its first page), for the same reason.
+    public static let maxReturned = 10
 
     /// The words by their letters (`EnglishWords.key`), sorted: those a prefix begins are side by side.
     private var index: [(key: String, word: String)]
@@ -142,7 +146,7 @@ public final class EnglishWordsEngine: PinyinEngine {
     private func current() -> (snap: EngineSnapshot, entries: [Entry]) {
         let snap = base.snapshot()
         let entries = layout(snap)
-        let laidOut = "\(base.rawInput)\u{0}\(snap.pageNumber)\u{0}\(snap.preedit.filter { $0 != " " })"
+        let laidOut = laidOutKey(snap)
         if laidOut != laidOutFor {
             laidOutFor = laidOut
             cursor = entries.first.map(Self.isWord) == true ? 0 : nil
@@ -151,9 +155,22 @@ public final class EnglishWordsEngine: PinyinEngine {
         return (snap, entries)
     }
 
+    /// What `laidOutFor` tells a page by: the input, librime's page and its preedit without its spaces.
+    private func laidOutKey(_ snap: EngineSnapshot) -> String {
+        "\(base.rawInput)\u{0}\(snap.pageNumber)\u{0}\(snap.preedit.filter { $0 != " " })"
+    }
+
     private static func isWord(_ entry: Entry) -> Bool {
         if case .word = entry { return true }
         return false
+    }
+
+    /// The text `entry` shows on `snap`'s page.
+    private static func text(of entry: Entry, in snap: EngineSnapshot) -> String {
+        switch entry {
+        case let .base(i): return snap.candidates[i].text
+        case let .word(word): return word
+        }
     }
 
     /// Whether the page shown is librime's own: no word put in, no candidate left out.
@@ -200,7 +217,7 @@ public final class EnglishWordsEngine: PinyinEngine {
         let raw = base.rawInput
         if !raw.isEmpty { rawBefore = raw }
         if let handled = onPage(keycode, mask: mask) { return handled }
-        return changing { base.processKey(keycode, mask: mask) }
+        return changing(up: keycode == RimeKey.up && mask == 0) { base.processKey(keycode, mask: mask) }
     }
 
     /// A key that moves on the page or picks from it when the page shown isn't librime's; nil: librime's.
@@ -301,30 +318,37 @@ public final class EnglishWordsEngine: PinyinEngine {
         }
     }
 
-    /// `change` made to librime; with candidates removed, a page it leaves with nothing shown skipped (`skipEmptyPages`).
-    private func changing(_ change: () -> Bool) -> Bool {
+    /// `change` made to librime; with candidates removed, a page it leaves with nothing shown skipped (`skipEmptyPages`;
+    /// `up`: librime's ↑, from a page's first candidate onto the last of the page before).
+    private func changing(up: Bool = false, _ change: () -> Bool) -> Bool {
         guard !removed.isEmpty else { return change() }
         let page = base.snapshot().pageNumber
         let done = change()
-        skipEmptyPages(from: page)
+        skipEmptyPages(from: page, up: up)
         return done
     }
 
     /// librime's page, every candidate on it removed: the next page in the way the pages were turned (from `before`, the
     /// page before; on from the first), until one has something shown, `maxSkipped` at most. None has: the page shows no
-    /// candidates (`snapshot`), and Space puts the letters in as typed (`nothingShown`).
-    private func skipEmptyPages(from before: Int) {
+    /// candidates (`snapshot`), and Space puts the letters in as typed (`nothingShown`). After ↑ (`up`), the highlight on
+    /// the page reached as ↑ puts it: back, on its last row shown; on again (nothing shown before), on its first.
+    private func skipEmptyPages(from before: Int, up: Bool = false) {
         var snap = base.snapshot()
         if snap.pageNumber != before { pagedBack = snap.pageNumber < before }
+        var skipped = false
         for _ in 0..<Self.maxSkipped {
-            guard snap.isComposing, !snap.candidates.isEmpty, layout(snap).isEmpty else { return }
+            guard snap.isComposing, !snap.candidates.isEmpty, layout(snap).isEmpty else { break }
             if snap.pageNumber == 0 { pagedBack = false }  // nothing before it: on from there
-            guard pagedBack || !snap.isLastPage else { return }
+            guard pagedBack || !snap.isLastPage else { break }
             _ = base.processKey(pagedBack ? RimeKey.pageUp : RimeKey.pageDown, mask: 0)
             let next = base.snapshot()
-            guard next.pageNumber != snap.pageNumber else { return }
+            guard next.pageNumber != snap.pageNumber else { break }
             snap = next
+            skipped = true
         }
+        // Page Up and Down, - and = leave the highlight where librime's page keys put it.
+        guard up, skipped, !snap.candidates.isEmpty else { return }
+        highlightBase(pagedBack ? snap.candidates.count - 1 : 0)
     }
 
     /// A place on the page picked: a word goes in, librime's candidate is librime's to pick.
@@ -368,23 +392,59 @@ public final class EnglishWordsEngine: PinyinEngine {
     }
 
     /// The candidate shown at `index` removed (a right-click, ⌃⌦): on `removedCandidates`, never shown again, and
-    /// librime's deleted there too (`PinyinEngine.deleteCandidate`: what it learned of it forgotten). The page is laid out
-    /// anew without it, the highlight set anew; a page left with nothing shown is skipped. Whether one was removed.
+    /// librime's deleted there too (`PinyinEngine.deleteCandidate`: what it learned of it forgotten). The page stays the
+    /// one the user is on (librime lays the composition out anew from its first page: `returnToPage`), laid out anew
+    /// without it, the highlight where it was; on the one removed, on the one shown after it, else the one before. A page
+    /// left with nothing shown is skipped, on forward. Whether one was removed.
     public func deleteCandidate(onPage index: Int) -> Bool {
         let (snap, entries) = current()
         guard entries.indices.contains(index) else { return false }
-        let text: String
-        switch entries[index] {
-        case let .base(i):
-            text = snap.candidates[i].text
-            _ = base.deleteCandidate(onPage: i)
-        case let .word(word):
-            text = word
-        }
-        removedCandidates = RemovedCandidates.adding(text, to: removedCandidates)
-        laidOutFor = nil
-        skipEmptyPages(from: snap.pageNumber)
+        let shown = entries.map { Self.text(of: $0, in: snap) }
+        let at = highlighted(snap, entries) ?? index
+        if case let .base(i) = entries[index] { _ = base.deleteCandidate(onPage: i) }
+        removedCandidates = RemovedCandidates.adding(shown[index], to: removedCandidates)
+        let page = returnToPage(snap.pageNumber)
+        pagedBack = false  // nothing shown on it now: on forward
+        skipEmptyPages(from: page)
+        let near = Array(shown[(index + 1)...]) + shown[..<index].reversed()
+        highlight(at == index ? near : [shown[at]] + near)
         return true
+    }
+
+    /// librime on `page` again, the page a candidate was removed on, after its `delete_candidate` laid the composition
+    /// out anew from its first: its pages turned on to it, as many as `page` and `maxReturned` at most. The page it is on.
+    private func returnToPage(_ page: Int) -> Int {
+        var snap = base.snapshot()
+        for _ in 0..<min(page, Self.maxReturned) {
+            guard snap.isComposing, snap.pageNumber < page, !snap.isLastPage else { break }
+            _ = base.processKey(RimeKey.pageDown, mask: 0)
+            let next = base.snapshot()
+            guard next.pageNumber != snap.pageNumber else { break }
+            snap = next
+        }
+        return snap.pageNumber
+    }
+
+    /// The page laid out anew, the highlight on the first of `texts` it shows (the one highlighted before a candidate was
+    /// removed, else the one after it, else the one before); none: as on a page laid out anew (on a word that comes
+    /// first, else librime's).
+    private func highlight(_ texts: [String]) {
+        let snap = base.snapshot()
+        let entries = layout(snap)
+        laidOutFor = laidOutKey(snap)
+        cursor = entries.first.map(Self.isWord) == true ? 0 : nil
+        let shown = entries.map { Self.text(of: $0, in: snap) }
+        guard let place = texts.lazy.compactMap({ shown.firstIndex(of: $0) }).first else { return }
+        switch entries[place] {
+        case .word:
+            cursor = place
+        case let .base(i):
+            cursor = nil
+            // librime's highlight moved only when it isn't shown there already (on the one removed, say: the next shown).
+            guard highlighted(snap, entries) != place else { return }
+            highlightBase(i)
+            laidOutFor = laidOutKey(base.snapshot())  // librime's preedit follows its highlight
+        }
     }
 
     /// The composition as converted text: the word highlighted, else librime's (its highlight moved onto the candidate

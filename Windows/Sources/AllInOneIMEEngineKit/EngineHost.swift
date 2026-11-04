@@ -152,9 +152,11 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         var appliedDefaultInput: Language?
         /// What the English words on its librime session were last made of (the user's, the jargon list's terms).
         var englishWordsMadeOf: [String]?
-        /// The candidates removed the settings last gave its Composer (`Composer.removedCandidates`): given again only
-        /// when the settings' list changes, so that one removed meanwhile (written a moment later) stays out.
-        var removedCandidatesGiven: [String]?
+        /// The candidates removed its Composer is given (`Composer.removedCandidates`): the settings' list, given again
+        /// only when it changes, with those removed in its field it doesn't have yet (written a moment later), so that
+        /// neither a new librime session nor a list read before they were written brings one back
+        /// (`RemovedCandidates.Given`, as the Mac's `InputSession`).
+        var removedCandidates = RemovedCandidates.Given()
         /// What a click on each row of the panel shown last picks (`PanelModel.Row.choice`): the row's own index, in a
         /// conversation an answer's round, nil for a question.
         let choices: Locked<[Int?]>
@@ -234,8 +236,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         guard current == nil || current?.isValid == false, !composer.isComposing, let engine = levelOne() else { return false }
         composer.engine = engine
         state.appliedDefaultInput = nil  // a new session starts in the default input mode
-        state.englishWordsMadeOf = nil  // its words are given by `apply`
-        state.removedCandidatesGiven = nil  // and the candidates removed
+        state.englishWordsMadeOf = nil  // its words are given by `apply` (the candidates removed stay the Composer's)
         return true
     }
 
@@ -309,10 +310,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         composer.inputLanguages = languages
         if let words = composer.primaryEngine as? EnglishWordsEngine { applyEnglishWords(config, to: words, in: session, state: state) }
         // The candidates the user removed, left out whatever the engine (the Mac's `InputSession.settings`).
-        if config.removedCandidates != state.removedCandidatesGiven {
-            state.removedCandidatesGiven = config.removedCandidates
-            composer.removedCandidates = config.removedCandidates
-        }
+        takeRemovedCandidates(config.removedCandidates, to: composer, state: state)
         let defaultInput = config.startingInput(in: app, among: languages)
         if state.appliedDefaultInput != defaultInput || languages.count == 1, composer.engine != nil, !composer.isComposing {
             composer.setInputMode(defaultInput)
@@ -522,6 +520,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         case let .startVoice(id, _):
             session.feed { [notOnWindows] in $0.voiceFailed(notOnWindows, id: id) }
         case let .candidateRemoved(text):
+            state(session).removedCandidates.removed(text)
             removeCandidate(text, in: session)
         case .armVoice, .stopVoice, .cancelVoice, .inputLanguageChanged, .commandUsed, .rememberQuestion, .detachScript,
              .refreshList, .moveCaret:
@@ -872,13 +871,14 @@ public final class EngineHost: WireHost, @unchecked Sendable {
     }
 
     /// A candidate removed in `session`'s field (`Composer.Effect.candidateRemoved`: ⌃⌦ while typing pinyin), left out
-    /// there already: written into the settings file (`RemovedCandidates.remove`: on the list of those removed, out of
-    /// the user's English words if it is one) off the session's queue, in order with the words learned, through
-    /// `writingSettings`, for every field.
+    /// there already: written into the settings file (`RemovedCandidates.remove`: on the list of those removed) off the
+    /// session's queue, in order with the words learned, through `writingSettings`, for every field. Once it is in the
+    /// file, the session takes the list as the file has it: the file's from then on, which a restore there brings back
+    /// (the Mac's session takes it as its field is left).
     func removeCandidate(_ text: String, in session: ComposerSession) {
         log("session \(session.sid): removed a candidate (\(text.count) characters)")
         let (log, settings, writing) = (self.log, self.settings, writingSettings)
-        learnedWords.async {
+        learnedWords.async { [weak self, weak session] in
             do {
                 try writing {
                     // A new user's file is Windows' (Chinese with English), as for a word learned.
@@ -891,8 +891,21 @@ public final class EngineHost: WireHost, @unchecked Sendable {
                 }
             } catch {
                 log("couldn't keep a removed candidate: \(error)")
+                return
+            }
+            guard let session else { return }
+            session.feed { [weak self] composer in
+                guard let self else { return [] }
+                self.takeRemovedCandidates(settings.current.removedCandidates, to: composer, state: self.state(session))
+                return []
             }
         }
+    }
+
+    /// The candidates the user removed as the settings list them now (`listed`) given to `composer` when the list changed,
+    /// with those removed in its field it doesn't have yet (`RemovedCandidates.Given`).
+    func takeRemovedCandidates(_ listed: [String], to composer: Composer, state: SessionState) {
+        if let list = state.removedCandidates.taking(listed) { composer.removedCandidates = list }
     }
 
     /// Waits for the words learned (and candidates removed) so far to be written (the tests).

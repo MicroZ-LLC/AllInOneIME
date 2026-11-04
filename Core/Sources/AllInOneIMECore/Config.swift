@@ -301,7 +301,7 @@ public struct Config: Codable, Equatable, Sendable {
     /// The config file's key of `englishWords` (`EnglishWords.learn` writes it alone), and of `addedEnglishWords`.
     public static let englishWordsKey = CodingKeys.englishWords.rawValue
     public static let addedEnglishWordsKey = CodingKeys.addedEnglishWords.rawValue
-    /// The config file's key of `removedCandidates` (`RemovedCandidates.remove` writes it, and the English words, alone).
+    /// The config file's key of `removedCandidates` (`RemovedCandidates.remove` writes it alone).
     public static let removedCandidatesKey = CodingKeys.removedCandidates.rawValue
 
     /// `jargonFile` with "~" expanded (on Windows its `%NAME%`s too, as Windows' settings window shows the default file:

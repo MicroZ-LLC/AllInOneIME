@@ -231,8 +231,8 @@ public final class SettingsStore {
     }
 
     /// Settings → Input → Removed Candidates' ✕: `text` back among pinyin's candidates (`RemovedCandidates.restoring`),
-    /// wherever it is in the list now. What librime forgot of it stays forgotten, and an English word of the user's taken
-    /// out of them stays out.
+    /// wherever it is in the list now. What librime forgot of it stays forgotten; an English word of the user's comes back
+    /// as it was, never taken out of them.
     public func restoreCandidate(_ text: String) {
         // From the file's read to its write: a candidate removed meanwhile (`EnglishWords.Writer`) stays.
         AIConfig.fileLock.lock(); defer { AIConfig.fileLock.unlock() }
