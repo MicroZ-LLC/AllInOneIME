@@ -1654,7 +1654,13 @@ public final class InputSession {
     }
 
     private func showPanel() {
-        emit(.panel(composer.wantsPanel || clipboard.shown || suggestionsShownPanel() != nil ? panelModel() : nil))
+        emit(.panel(shownPanel()))
+    }
+
+    /// The panel to show now: `panelModel` where the composer wants one or clipboard history shows, else suggestions'
+    /// rows where they are the one shown (what `panelModel` would be then); nil: none.
+    private func shownPanel() -> PanelModel? {
+        composer.wantsPanel || clipboard.shown ? panelModel() : suggestionsShownPanel()
     }
 
     /// A short status message ("英" English mode, "已复制" copied, …): on the panel's footer when it's shown, else on its
@@ -1668,8 +1674,8 @@ public final class InputSession {
         notice = text
         noticeToken += 1
         emit(.startTimer(.notice(noticeToken), after: lasting ?? SessionText.noticeDuration(text, long: long)))
-        if composer.wantsPanel || clipboard.shown || suggestionsShownPanel() != nil {
-            showPanel()
+        if let panel = shownPanel() {
+            emit(.panel(panel))
         } else {
             emit(.notice(text))
         }
