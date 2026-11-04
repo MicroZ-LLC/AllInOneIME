@@ -13,8 +13,14 @@ public struct UIString: ExpressibleByStringInterpolation, Equatable, Sendable {
 
     /// A runtime string: format is the string with "%" doubled; no arguments.
     public init(_ string: String) {
-        format = string.replacingOccurrences(of: "%", with: "%%")
+        format = Self.escaped(string)
         arguments = []
+    }
+
+    /// `literal` with "%" doubled, as the format writes it. Foundation's search (which decides, as in `fill`) only for
+    /// one with a "%" byte: every text the interface shows is made of these (`tr` on most keys), and few have one.
+    static func escaped(_ literal: String) -> String {
+        literal.utf8.contains(UInt8(ascii: "%")) ? literal.replacingOccurrences(of: "%", with: "%%") : literal
     }
 
     public init(stringLiteral value: String) { self.init(value) }
@@ -43,7 +49,7 @@ public struct UIString: ExpressibleByStringInterpolation, Equatable, Sendable {
             format.reserveCapacity(literalCapacity + 2 * interpolationCount)
         }
 
-        public mutating func appendLiteral(_ literal: String) { format += literal.replacingOccurrences(of: "%", with: "%%") }
+        public mutating func appendLiteral(_ literal: String) { format += UIString.escaped(literal) }
 
         public mutating func appendInterpolation<T>(_ value: T) {
             format += "%@"
@@ -176,7 +182,9 @@ public enum InterfaceText {
     /// %% (a "%"), and refer to no more arguments than there are; else nil. Filled in here rather than by
     /// String(format:), whose handling differs between Apple's Foundation and swift-corelibs-foundation.
     public static func fill(_ format: String, _ arguments: [String]) -> String? {
-        guard format.contains("%") else { return format }
+        // Foundation's search, which decides (it takes a "%" with a combining mark on it for none), only for a format
+        // with a "%" byte: a text without an interpolation mostly has none.
+        guard format.utf8.contains(UInt8(ascii: "%")), format.contains("%") else { return format }
         var text = ""
         var sequential = 0
         var scalars = format.unicodeScalars.makeIterator()
