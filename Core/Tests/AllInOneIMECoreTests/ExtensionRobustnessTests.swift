@@ -118,6 +118,21 @@ struct ExtensionRobustnessTests {
 
     // MARK: - Processes
 
+    /// Whether process `pid` has ended: gone, or dead and not yet reaped. What a killed script started is reaped by the
+    /// system's first process, which on the Mac (launchd) does it at once; in a container whose first process isn't an
+    /// init (GitHub's job containers run `tail -f /dev/null`) nothing ever does, and it stays a zombie (`ps`'s Z).
+    static func ended(_ pid: pid_t) -> Bool {
+        guard kill(pid, 0) == 0 else { return true }
+        #if os(Linux)
+        // /proc/<pid>/stat: "pid (name) state …", the name in brackets maybe with spaces or brackets of its own.
+        guard let stat = try? String(contentsOfFile: "/proc/\(pid)/stat", encoding: .utf8),
+              let close = stat.lastIndex(of: ")") else { return false }
+        return stat[close...].dropFirst().trimmingCharacters(in: .whitespaces).hasPrefix("Z")
+        #else
+        return false
+        #endif
+    }
+
     /// A script that ignores SIGTERM, and what it started, are killed soon after its timeout.
     @Test func aStoppedScriptsChildrenGoToo() async throws {
         let folder = ScriptFolder()
@@ -137,8 +152,8 @@ struct ExtensionRobustnessTests {
         #expect(failure == .timedOut(1))
         #expect(Date().timeIntervalSince(started) < Timing.wellBeforeLongSleep)
         let child = try #require(pid_t(String(decoding: try Data(contentsOf: pids), as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)))
-        // Gone once it's reaped, which a busy test run can hold up (`Timing`).
-        #expect(await Timing.eventually { kill(child, 0) != 0 }, "the script's child \(child) is still running")
+        // Ended soon, which a busy test run can hold up (`Timing`).
+        #expect(await Timing.eventually { Self.ended(child) }, "the script's child \(child) is still running")
     }
 
     /// When the input method quits (`CommandRunner.stopAll`), a running program's group goes, children and all.
@@ -163,7 +178,7 @@ struct ExtensionRobustnessTests {
         let child = started
         // `stopAll` with only this test's program.
         CommandRunner.stop(CommandRunner.runningPrograms.filter { $0.processIdentifier == leader }, grace: 0.3)
-        #expect(await Timing.eventually { kill(child, 0) != 0 && kill(leader, 0) != 0 })
+        #expect(await Timing.eventually { Self.ended(child) && Self.ended(leader) })
         _ = try? await task.value
     }
 
