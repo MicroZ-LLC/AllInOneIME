@@ -54,16 +54,10 @@ public enum PluginHost {
             FileHandle.standardError.write(Data((message + "\n").utf8))
             return 1
         }
-        let directory = URL(fileURLWithPath: path, isDirectory: true)
-        guard let data = try? Data(contentsOf: directory.appendingPathComponent("plugin.json")),
-              let manifest = try? JSONDecoder().decode(PluginManifest.self, from: data) else {
-            return fail("The plugin has no readable plugin.json")
-        }
-        if let problem = manifest.problem(appVersion: appVersion) { return fail("Plugin \(manifest.name): \(problem)") }
-        guard manifest.type == .script, let script = manifest.script,
-              let source = try? Data(contentsOf: directory.appendingPathComponent(script)),
-              source.count <= PluginManifest.maxScriptBytes else {
-            return fail("Plugin \(manifest.name): no script, or larger than \(PluginManifest.maxScriptBytes / 1024) KB")
+        let manifest: PluginManifest, source: Data
+        switch script(in: path, appVersion: appVersion) {
+        case let .success(found): (manifest, source) = found
+        case let .failure(failure): return fail(failure.message)
         }
         let read = FileHandle.standardInput.readDataToEndOfFile()
         var input = String(decoding: read, as: UTF8.self)
@@ -81,6 +75,24 @@ public enum PluginHost {
         } catch {
             return fail((error as? LocalizedError)?.errorDescription ?? "\(error)")
         }
+    }
+
+    /// The plugin in the folder `path` as its child process runs it (`run`, `completion`): its plugin.json, one this app
+    /// can use (`appVersion`), and its script, a `script` plugin's of `PluginManifest.maxScriptBytes` at most; else why
+    /// not, as the process prints it.
+    static func script(in path: String, appVersion: String) -> Result<(manifest: PluginManifest, source: Data), CompletionFailure> {
+        let directory = URL(fileURLWithPath: path, isDirectory: true)
+        guard let data = try? Data(contentsOf: directory.appendingPathComponent("plugin.json")),
+              let manifest = try? JSONDecoder().decode(PluginManifest.self, from: data) else {
+            return .failure("The plugin has no readable plugin.json")
+        }
+        if let problem = manifest.problem(appVersion: appVersion) { return .failure(.init("Plugin \(manifest.name): \(problem)")) }
+        guard manifest.type == .script, let script = manifest.script,
+              let source = try? Data(contentsOf: directory.appendingPathComponent(script)),
+              source.count <= PluginManifest.maxScriptBytes else {
+            return .failure(.init("Plugin \(manifest.name): no script, or larger than \(PluginManifest.maxScriptBytes / 1024) KB"))
+        }
+        return .success((manifest, source))
     }
 }
 

@@ -252,9 +252,12 @@ public enum CommandRunner {
     /// What the program printed, as inserted: control characters (colors, bells, a terminal title)
     /// removed, line breaks and tabs kept, trailing blank lines dropped.
     static func cleanOutput(_ data: Data) -> String {
-        let text = String(decoding: data, as: UTF8.self)
-            .replacingOccurrences(of: "\u{1B}\\[[0-9;?]*[A-Za-z]", with: "", options: .regularExpression)
-            .replacingOccurrences(of: "\u{1B}\\][^\u{07}\u{1B}]*(\u{07}|\u{1B}\\\\)?", with: "", options: .regularExpression)
+        var text = String(decoding: data, as: UTF8.self)
+        // Both sequences start with ESC: output without one (most, and a completion list of up to 4 MB) isn't searched.
+        if text.utf8.contains(0x1B) {
+            text = text.replacingOccurrences(of: "\u{1B}\\[[0-9;?]*[A-Za-z]", with: "", options: .regularExpression)
+                .replacingOccurrences(of: "\u{1B}\\][^\u{07}\u{1B}]*(\u{07}|\u{1B}\\\\)?", with: "", options: .regularExpression)
+        }
         var out = String.UnicodeScalarView()
         for scalar in text.unicodeScalars {
             if scalar == "\n" || scalar == "\t" { out.append(scalar); continue }

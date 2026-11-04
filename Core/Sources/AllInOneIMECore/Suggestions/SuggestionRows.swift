@@ -97,12 +97,24 @@ struct CompletionItems: Sendable {
 
     /// Each item from `start` on that answers `token` (normalized, in small letters) as `source` compares
     /// (`PluginRows.matches`), in order, until `visit` says to stop (false): what `next` finds, the token's bytes read
-    /// once for all of them (a key may look for 100).
+    /// once for all of them (a key may look for 100). Compared whole, the first is where its match is (`positions`), and
+    /// the only one when no match is there twice (a script's list never has one twice: `CompletionOutput.read`).
     func each(answering token: String, _ source: CompletionSource, from start: Int = 0, _ visit: (Int) -> Bool) {
         guard start < items.count else { return }
-        // A token not in ASCII, or compared whole: as `matches` compares, item by item.
+        if source.compare == .exact {
+            guard let first = positions[token] else { return }
+            guard positions.count < items.count else {
+                if first >= start { _ = visit(first) }
+                return
+            }
+            for index in max(first, start)..<items.count where lowered[index] == token {
+                guard visit(index) else { return }
+            }
+            return
+        }
+        // A token not in ASCII: as `matches` compares, item by item.
         let wanted = Array(token.utf8)
-        guard source.compare == .prefix, wanted.allSatisfy({ $0 < 0x80 }) else {
+        guard wanted.allSatisfy({ $0 < 0x80 }) else {
             for index in start..<items.count where PluginRows.matches(lowered[index], token, source) {
                 guard visit(index) else { return }
             }
@@ -267,7 +279,7 @@ enum PluginRows {
             if matchOnly { return (item.match, false, nil) }
             var replacement: String?
             for parts in templates {
-                guard let filled = CompletionTemplate.fill([parts], with: item) else { continue }
+                guard let filled = CompletionTemplate.fill(template: parts, with: item) else { continue }
                 if SuggestionsToken.normalized(filled).lowercased().hasPrefix(lowered) {
                     return replacement.map { ($0, true, filled) } ?? (filled, false, nil)
                 }
@@ -310,8 +322,8 @@ enum PluginRows {
         if !title.isEmpty, title.lowercased().hasPrefix(item.match.lowercased()) {
             return (title, item.subtitle ?? "")
         }
-        let comment = [title, item.subtitle ?? ""].filter { !$0.isEmpty }.joined(separator: " · ")
-        return (item.match, comment)
+        let subtitle = item.subtitle ?? ""
+        return (item.match, title.isEmpty ? subtitle : subtitle.isEmpty ? title : title + " · " + subtitle)
     }
 }
 
@@ -444,37 +456,30 @@ enum CodingRows {
     static func words(_ text: FieldText) -> [String] {
         let before = Array(text.before.suffix(scanned)), after = Array(text.after.prefix(scanned))
         var counts: [String: (count: Int, distance: Int)] = [:]
-        func note(_ word: [Character], distance: Int) {
+        func note(_ word: ArraySlice<Character>, distance: Int) {
             guard word.count >= minWordLength, let first = word.first, !first.isNumber else { return }
             let key = String(word)
             let old = counts[key] ?? (0, Int.max)
             counts[key] = (old.count + 1, min(old.distance, distance))
         }
-        // Before the caret, from the caret back; the word the caret is at the end of is the one being typed.
-        var word: [Character] = []
+        // Before the caret, from the caret back; the word the caret is at the end of is the one being typed. Each word
+        // is what lies between two characters that can't be in one (`end`: where the one after it began).
         var index = before.count - 1
         while index >= 0, SuggestionsToken.isIdentifierCharacter(before[index]) { index -= 1 }
         let typedStart = index + 1
         let typedEnd = after.firstIndex { !SuggestionsToken.isIdentifierCharacter($0) } ?? after.count
-        for position in stride(from: typedStart - 1, through: 0, by: -1) {
-            if SuggestionsToken.isIdentifierCharacter(before[position]) {
-                word.insert(before[position], at: 0)
-            } else {
-                note(word, distance: before.count - position - 1)
-                word = []
-            }
+        var end = typedStart
+        for position in stride(from: typedStart - 1, through: 0, by: -1) where !SuggestionsToken.isIdentifierCharacter(before[position]) {
+            note(before[(position + 1)..<end], distance: before.count - position - 1)
+            end = position
         }
-        note(word, distance: before.count)
-        word = []
-        for position in typedEnd..<after.count {
-            if SuggestionsToken.isIdentifierCharacter(after[position]) {
-                word.append(after[position])
-            } else {
-                note(word, distance: position - word.count)
-                word = []
-            }
+        note(before[..<end], distance: before.count)
+        var start = typedEnd
+        for position in typedEnd..<after.count where !SuggestionsToken.isIdentifierCharacter(after[position]) {
+            note(after[start..<position], distance: start)
+            start = position + 1
         }
-        note(word, distance: after.count - word.count)
+        note(after[start...], distance: start)
         return counts.sorted { $0.value.count != $1.value.count ? $0.value.count > $1.value.count : $0.value.distance < $1.value.distance }
             .map(\.key)
     }
