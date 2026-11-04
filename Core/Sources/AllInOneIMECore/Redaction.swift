@@ -364,13 +364,12 @@ public struct Redaction: Sendable {
         let ns = folded.text as NSString
         let all = NSRange(location: 0, length: ns.length)
         var found: [Found] = []
-        func add(_ kind: Kind, _ regex: NSRegularExpression?, _ valid: (String) -> Bool = { _ in true }) {
-            guard let regex else { return }
+        func add(_ kind: Kind, _ regex: NSRegularExpression, _ valid: (String) -> Bool = { _ in true }) {
             for match in regex.matches(in: folded.text, range: all) where match.range.length > 0 && valid(ns.substring(with: match.range)) {
                 found.append(Found(kind: kind, range: match.range))
             }
         }
-        for word in settings.customWords { add(.item, wordRegex(word)) }
+        for regex in wordRegexes(settings.customWords) { add(.item, regex) }
         if settings.keys {
             add(.key, keyPrefixes)
             add(.key, privateKey)
@@ -413,6 +412,20 @@ public struct Redaction: Sendable {
         let pattern = (latin(folded.first) ? "(?<![A-Za-z0-9_])" : "") + body + (latin(folded.last) ? "(?![A-Za-z0-9_])" : "")
         return try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
     }
+
+    /// `wordRegex` of each of `words` that has one, in order, made again only for another list than the last one's:
+    /// every `find` of a request (its texts, the scrubs of `protect`, each jargon entry `allows`) and of each word typed
+    /// that may be learned (`EnglishWords.looksSecret`) is given the same list, the user's.
+    static func wordRegexes(_ words: [String]) -> [NSRegularExpression] {
+        guard !words.isEmpty else { return [] }
+        if let last = lastWords.withLock({ $0 }), last.words == words { return last.regexes }
+        let regexes = words.compactMap(wordRegex)
+        lastWords.withLock { $0 = (words, regexes) }
+        return regexes
+    }
+
+    /// The list `wordRegexes` made last, and what it made.
+    private static let lastWords = Locked<(words: [String], regexes: [NSRegularExpression])?>(initialState: nil)
 
     /// Not an address in a git remote ("git@github.com:org/repo") or a URL's user right after its scheme
     /// ("https://user@host"); after any other "/" it is one ("support@corp.com/sales@corp.com").
