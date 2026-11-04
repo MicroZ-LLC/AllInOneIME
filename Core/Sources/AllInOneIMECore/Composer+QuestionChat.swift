@@ -46,7 +46,7 @@ extension Composer {
     /// when nothing was), the latest answer as far as it has come (empty while asked). None outside one.
     public var chatRounds: [QuestionChat.Round] {
         guard isQuestionChat else { return [] }
-        let first = sentText.isEmpty ? selection?.text ?? "" : sentText
+        let typed = sentText, first = typed.isEmpty ? selection?.text ?? "" : typed
         return QuestionChat.rounds(first: first, turns: refinements, latest: result.versions.first?.text)
     }
 
