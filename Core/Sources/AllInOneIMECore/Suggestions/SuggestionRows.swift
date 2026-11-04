@@ -456,37 +456,30 @@ enum CodingRows {
     static func words(_ text: FieldText) -> [String] {
         let before = Array(text.before.suffix(scanned)), after = Array(text.after.prefix(scanned))
         var counts: [String: (count: Int, distance: Int)] = [:]
-        func note(_ word: [Character], distance: Int) {
+        func note(_ word: ArraySlice<Character>, distance: Int) {
             guard word.count >= minWordLength, let first = word.first, !first.isNumber else { return }
             let key = String(word)
             let old = counts[key] ?? (0, Int.max)
             counts[key] = (old.count + 1, min(old.distance, distance))
         }
-        // Before the caret, from the caret back; the word the caret is at the end of is the one being typed.
-        var word: [Character] = []
+        // Before the caret, from the caret back; the word the caret is at the end of is the one being typed. Each word
+        // is what lies between two characters that can't be in one (`end`: where the one after it began).
         var index = before.count - 1
         while index >= 0, SuggestionsToken.isIdentifierCharacter(before[index]) { index -= 1 }
         let typedStart = index + 1
         let typedEnd = after.firstIndex { !SuggestionsToken.isIdentifierCharacter($0) } ?? after.count
-        for position in stride(from: typedStart - 1, through: 0, by: -1) {
-            if SuggestionsToken.isIdentifierCharacter(before[position]) {
-                word.insert(before[position], at: 0)
-            } else {
-                note(word, distance: before.count - position - 1)
-                word = []
-            }
+        var end = typedStart
+        for position in stride(from: typedStart - 1, through: 0, by: -1) where !SuggestionsToken.isIdentifierCharacter(before[position]) {
+            note(before[(position + 1)..<end], distance: before.count - position - 1)
+            end = position
         }
-        note(word, distance: before.count)
-        word = []
-        for position in typedEnd..<after.count {
-            if SuggestionsToken.isIdentifierCharacter(after[position]) {
-                word.append(after[position])
-            } else {
-                note(word, distance: position - word.count)
-                word = []
-            }
+        note(before[..<end], distance: before.count)
+        var start = typedEnd
+        for position in typedEnd..<after.count where !SuggestionsToken.isIdentifierCharacter(after[position]) {
+            note(after[start..<position], distance: start)
+            start = position + 1
         }
-        note(word, distance: after.count - word.count)
+        note(after[start...], distance: start)
         return counts.sorted { $0.value.count != $1.value.count ? $0.value.count > $1.value.count : $0.value.distance < $1.value.distance }
             .map(\.key)
     }
