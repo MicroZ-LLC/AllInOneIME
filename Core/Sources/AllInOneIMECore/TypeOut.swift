@@ -191,6 +191,8 @@ extension TypeOut {
         /// Characters that make a word (or, `codeLine`, a line) look like code.
         static let codeCharacters = Set("/\\_=<>{}[]$#%&|~^*+`")
         static let codeLine = Set("{};=`")
+        /// The punctuation a plain word may have around it (`isPlainWord`).
+        static let aroundWords = Set(".,;:!?\"'“”‘’()…")
 
         init(_ characters: [Character]) {
             self.characters = characters
@@ -277,10 +279,9 @@ extension TypeOut {
         /// Letters only (an apostrophe or hyphen between them), around them at most punctuation; no capital
         /// inside (`camelCase`, `iPhone`), no digit, no dot between letters (`foo.bar`, `e.g.`).
         static func isPlainWord(_ word: ArraySlice<Character>) -> Bool {
-            let trim = Set(".,;:!?\"'“”‘’()…")
             var core = word[...]
-            while let first = core.first, trim.contains(first) { core = core.dropFirst() }
-            while let last = core.last, trim.contains(last) { core = core.dropLast() }
+            while let first = core.first, aroundWords.contains(first) { core = core.dropFirst() }
+            while let last = core.last, aroundWords.contains(last) { core = core.dropLast() }
             guard !core.isEmpty else { return false }
             var previous: Character?
             for character in core {

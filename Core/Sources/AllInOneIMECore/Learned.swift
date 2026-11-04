@@ -105,7 +105,7 @@ public final class LearnedStore: @unchecked Sendable {
     public var picks: [SuggestionPick] { contents.withLock { $0.picks } }
 
     public func recordPick(_ pick: SuggestionPick) {
-        contents.withLock { $0.picks = Array(($0.picks + [pick]).suffix(Self.picksKept)) }
+        contents.withLock { $0.picks.append(pick, keepingLast: Self.picksKept) }
         keepSoon()
     }
 

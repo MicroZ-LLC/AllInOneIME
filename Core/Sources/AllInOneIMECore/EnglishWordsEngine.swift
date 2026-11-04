@@ -67,21 +67,29 @@ public final class EnglishWordsEngine: PinyinEngine {
 
     // MARK: The page
 
-    /// librime's page with the words for what is typed put in.
-    private func layout(_ snap: EngineSnapshot) -> [Entry] {
+    /// librime's page with the words for what is typed (`raw`, librime's input) put in.
+    private func layout(_ snap: EngineSnapshot, raw: String) -> [Entry] {
         let rime = snap.candidates.indices.map(Entry.base)
         guard snap.isComposing, !snap.isAsciiMode, snap.pageNumber == 0, !index.isEmpty else { return rime }
-        let raw = base.rawInput
         guard !raw.isEmpty, raw.allSatisfy({ $0.isASCII && $0.isLetter }),
               // Nothing of it picked yet ("你好ma": the page is for the rest), and librime's numbering, which the page's follows.
               snap.preedit.filter({ $0 != " " }) == raw,
               snap.candidates.enumerated().allSatisfy({ $0.element.label == String(($0.offset + 1) % 10) }),
               snap.candidates.count + Self.maxPerPage <= 10 else { return rime }
         let typed = raw.lowercased()
+        // Most keys have no word to offer: librime's candidates are gone through only for one that has some, and the
+        // words only as far as the first `maxPerPage` that go on the page (the shorter first).
+        let words = matches(typed)
+        guard !words.isEmpty else { return rime }
         let shown = Set(snap.candidates.map { $0.text.lowercased() })
-        let found = matches(typed).filter { !shown.contains($0.word.lowercased()) && !dictionary.contains($0.key) }.prefix(Self.maxPerPage)
+        var found: [(key: String, word: String)] = []
+        for match in words where !shown.contains(match.word.lowercased()) && !dictionary.contains(match.key) {
+            found.append(match)
+            if found.count == Self.maxPerPage { break }
+        }
         guard !found.isEmpty else { return rime }
-        let pinyin = Pinyin.isPinyin(typed, fuzzy: fuzzyPinyin), maybePinyin = Pinyin.isPinyinBeingTyped(typed, fuzzy: fuzzyPinyin)
+        let pinyin = Pinyin.isPinyin(typed, fuzzy: fuzzyPinyin)
+        let maybePinyin = pinyin || Pinyin.endsInASpellingBegun(typed, fuzzy: fuzzyPinyin)
         // Before librime's candidate of each place (the last: after them all).
         var before = [[Entry]](repeating: [], count: rime.count + 1)
         for match in found {
@@ -112,8 +120,9 @@ public final class EnglishWordsEngine: PinyinEngine {
     /// without its spaces, so that moving onto its candidates doesn't set the highlight anew (back on the word).
     private func current() -> (snap: EngineSnapshot, entries: [Entry]) {
         let snap = base.snapshot()
-        let entries = layout(snap)
-        let laidOut = "\(base.rawInput)\u{0}\(snap.pageNumber)\u{0}\(snap.preedit.filter { $0 != " " })"
+        let raw = base.rawInput
+        let entries = layout(snap, raw: raw)
+        let laidOut = "\(raw)\u{0}\(snap.pageNumber)\u{0}\(snap.preedit.filter { $0 != " " })"
         if laidOut != laidOutFor {
             laidOutFor = laidOut
             cursor = entries.first.map(Self.isWord) == true ? 0 : nil
