@@ -42,13 +42,17 @@ public enum TranslateMode {
     /// (`chinese`), as the lists name it (`OutputLanguage.name(in:typing:)`).
     public static func short(_ language: OutputLanguage, chinese: ChineseCharacters = .simplified) -> String {
         if language == .chinese, chinese.isTraditional { return "简" }
-        let table = ["en": "英", "zh": "中", "zh-Hant": "繁", "zh-Hant-TW": "繁", "zh-Hant-HK": "繁", "ja": "日", "ko": "韩", "fr": "法",
-                     "de": "德", "es": "西", "pt": "葡", "it": "意", "ru": "俄", "vi": "越", "th": "泰", "id": "印尼", "ar": "阿", "hi": "印"]
-        if let short = table[language.code] { return short }
+        if let short = shortNames[language.code] { return short }
         var name = language.name(chinese: true)
         if name.count > 2, name.hasSuffix("语") || name.hasSuffix("文") { name.removeLast() }
         return name
     }
+
+    /// The languages `short` writes in a character or two of their own, by code: made once, as the chip is drawn on
+    /// every key.
+    static let shortNames = ["en": "英", "zh": "中", "zh-Hant": "繁", "zh-Hant-TW": "繁", "zh-Hant-HK": "繁", "ja": "日", "ko": "韩",
+                             "fr": "法", "de": "德", "es": "西", "pt": "葡", "it": "意", "ru": "俄", "vi": "越", "th": "泰", "id": "印尼",
+                             "ar": "阿", "hi": "印"]
 
     /// One language as the chip writes it in the English interface: its code in capitals, "EN", "ZH", "ZH-HANT" (Taiwan's
     /// and Hong Kong's too, as 「繁」 is); "ZH-HANS" for someone typing Traditional characters (`chinese`), as 「简」.
