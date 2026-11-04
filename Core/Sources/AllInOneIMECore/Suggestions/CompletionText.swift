@@ -74,6 +74,8 @@ enum CompletionTemplate {
 enum SuggestionsToken {
     /// Full-width ASCII forms as ASCII ("＃" "#", "１" "1"); the rest as it is.
     static func normalized(_ text: String) -> String {
+        // Text with none of them (nearly all: a token as it grows, a row's insertion) is itself, not copied.
+        guard text.unicodeScalars.contains(where: { (0xFF01...0xFF5E).contains($0.value) || $0.value == 0x3000 }) else { return text }
         var scalars = String.UnicodeScalarView()
         for scalar in text.unicodeScalars {
             if (0xFF01...0xFF5E).contains(scalar.value), let ascii = Unicode.Scalar(scalar.value - 0xFEE0) {
@@ -89,9 +91,9 @@ enum SuggestionsToken {
 
     /// `character` (normalized) can be in a token: Latin letters, digits, `. _ - @ #`.
     static func isTokenCharacter(_ character: Character) -> Bool {
-        if "._-@#".contains(character) { return true }
+        // ASCII by its value (CR LF's is LF's: neither is one), no text looked through: Code's words read a field by it.
+        if let ascii = character.asciiValue { return isLetterOrDigit(ascii) || "._-@#".utf8.contains(ascii) }
         guard character.unicodeScalars.count == 1, let scalar = character.unicodeScalars.first else { return false }
-        if scalar.isASCII { return character.isLetter || character.isNumber }
         // Latin letters with their marks (Latin-1 Supplement, Extended-A and -B): not Chinese, Japanese, Korean or
         // other scripts, which the input method's own composition puts in.
         return (0xC0...0x24F).contains(scalar.value) && character.isLetter
@@ -99,7 +101,16 @@ enum SuggestionsToken {
 
     /// `character` (normalized) can be in an identifier: Latin letters, digits, `_`.
     static func isIdentifierCharacter(_ character: Character) -> Bool {
-        character == "_" || isTokenCharacter(character) && !"._-@#".contains(character)
+        if let ascii = character.asciiValue { return isLetterOrDigit(ascii) || ascii == UInt8(ascii: "_") }
+        return isTokenCharacter(character)
+    }
+
+    /// `ascii` is a Latin letter or a digit.
+    private static func isLetterOrDigit(_ ascii: UInt8) -> Bool {
+        switch ascii {
+        case UInt8(ascii: "0")...UInt8(ascii: "9"), UInt8(ascii: "A")...UInt8(ascii: "Z"), UInt8(ascii: "a")...UInt8(ascii: "z"): return true
+        default: return false
+        }
     }
 
     /// The identifier `text` ends with (`self.co` → `co`).
