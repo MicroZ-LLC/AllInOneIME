@@ -137,6 +137,11 @@ public final class InputSession {
     private var pageWaiters: [TaskID: (PageContext?) -> Void] = [:]
     /// `@reply`'s message as the composer sent it and with the web page added, for its refines.
     private var replyWithPage: (input: String, full: String)?
+    /// The interface language's own messages the agent is named in (`nameAgent`) and what a hand-off says
+    /// (`applyChatSettings`), as last made, with the language and the terms they were made for: both run with each key
+    /// with nothing composed, and these are made again only when those change, or the settings are taken over.
+    private var agentMessages: (language: String, terms: PlatformTerms, openedTerminal: String, secureInputTerminal: String)?
+    private var chatMessages: (language: String, messages: Composer.ChatMessages)?
     /// What the shell is to do, gathered while an event is handled.
     private var outputs: [SessionOutput] = []
     private var depth = 0
@@ -236,9 +241,7 @@ public final class InputSession {
                 learnTypedInEnglish(englishModeWords.leftField())
                 tasks.close()  // what runs for the field stops (a save, a message, an agent goes on)
                 noticeToken += 1  // its timer does nothing now
-                composer.engine = nil
-                engine = nil
-                englishWords = nil
+                dropEngine()
                 fieldSession += 1  // a save still on its way tells its outcome elsewhere
             }
         }
@@ -387,9 +390,7 @@ public final class InputSession {
             appliedDefaultInput = nil  // a new session starts in the default input mode
             settings(app: nil)
         case .starting:
-            engine = nil
-            englishWords = nil
-            composer.engine = nil
+            dropEngine()
         case .none:
             engine = nil
             englishWords = nil
@@ -560,6 +561,7 @@ public final class InputSession {
         // The interface language (config `uiLanguage`, else the system's) for the panel, notices and menu.
         UIText.choice = config.uiLanguage
         composer.messages = .make(language: UIText.language, terms: terms)
+        (agentMessages, chatMessages) = (nil, nil)  // made again with them (below)
         composer.messages.startedInBackground = composer.messages.startedInBackground
             .replacingOccurrences(of: "@", with: config.commandTrigger)
         composer.messages.codeNotRun = composer.messages.codeNotRun
@@ -628,12 +630,24 @@ public final class InputSession {
     /// "已在终端打开 Claude Code": the agent picked, by name, in the messages; a custom agent by its program's name in a
     /// hand-off's.
     private func nameAgent() {
-        let base = Composer.Messages.make(language: UIText.language, terms: terms)
+        let base = agentBaseMessages()
         composer.messages.openedTerminal = base.openedTerminal.replacingOccurrences(of: "Claude Code", with: UIText.agentName)
         composer.messages.secureInputTerminal = base.secureInputTerminal.replacingOccurrences(of: "Claude Code", with: UIText.agentName)
         // Only once it has a command: otherwise the messages stay the language's own.
         composer.messages.agentNames = AgentKind.custom.program(custom: agentCommand) == nil
             ? [:] : [.custom: AgentKind.custom.displayName(custom: agentCommand)]
+    }
+
+    /// The messages `nameAgent` names the agent in, as the interface language has them with the terms
+    /// (`Composer.Messages.make`, some fifty texts): made again only when either changed (`agentMessages`).
+    private func agentBaseMessages() -> (openedTerminal: String, secureInputTerminal: String) {
+        let (language, terms) = (UIText.language, terms)
+        if let made = agentMessages, made.language == language, made.terms == terms {
+            return (made.openedTerminal, made.secureInputTerminal)
+        }
+        let base = Composer.Messages.make(language: language, terms: terms)
+        agentMessages = (language, terms, base.openedTerminal, base.secureInputTerminal)
+        return (base.openedTerminal, base.secureInputTerminal)
     }
 
     /// An `@question` conversation's settings: the rounds, and where it can go on (`ChatHandoff`): the agents installed,
@@ -644,7 +658,14 @@ public final class InputSession {
         composer.handoffChoices = ChatHandoff.choices(config.questionContinueIn, picked: config.agent,
                                                       installed: { installed($0, config.agentCommand) })
         composer.pickedAgent = installed(config.agent, config.agentCommand) ? config.agent : nil
-        composer.chatMessages = .make(language: UIText.language)
+        let language = UIText.language
+        if let made = chatMessages, made.language == language {
+            composer.chatMessages = made.messages
+        } else {
+            let messages = Composer.ChatMessages.make(language: language)
+            chatMessages = (language, messages)
+            composer.chatMessages = messages
+        }
     }
 
     /// The plugins as last looked for; looked for again once a field takes the focus (one installed or removed shows up
@@ -735,14 +756,15 @@ public final class InputSession {
         if composer.draftInPanel, selectionReported != nil { wants.insert(.selectedRange) }
         // "@" may start a command where level one would start one (`Composer.handleLevelOne`: an engine, nothing composed
         // in it, no draft): on the selection, unless it comes right after a word ("bob@example.com").
-        if key.printableText == services.loadSettings().commandTrigger, !composer.isLevelTwo, composer.draft.isEmpty, let engine = composer.engine,
+        let config = services.loadSettings()
+        if key.printableText == config.commandTrigger, !composer.isLevelTwo, composer.draft.isEmpty, let engine = composer.engine,
            !engine.snapshot().isComposing {
             let terminal = (context.field ?? field).terminal
             if lastTyped.character != nil, !terminal { wants.insert(.beforeCaret) }
             let afterWord = context.read.contains(.beforeCaret)
                 && characterBeforeCaret(in: context).map(Composer.continuesWord) == true
             if !wants.contains(.beforeCaret) || context.read.contains(.beforeCaret), !afterWord, !terminal,
-               services.loadSettings().useSelection, !secureInputActive() {
+               config.useSelection, !secureInputActive() {
                 wants.formUnion([.selection, .selectedRange])  // where it is, as the field reports it: a click moves it
             }
         }
@@ -828,8 +850,8 @@ public final class InputSession {
             }
             missingCheckWaiting = false
             composer.commandUsage = services.loadCommandUsage()  // another field may have run commands
-            composer.remembersQuestions = services.loadSettings().rememberQuestions
-            applyChatSettings(services.loadSettings())
+            composer.remembersQuestions = config.rememberQuestions
+            applyChatSettings(config)
             composer.questionHistory = services.loadQuestionHistory()  // asked in another field, or cleared
         }
         // Dead keys aren't composed for an input method (macOS): done here, from the layout the keys come from.
@@ -1632,7 +1654,13 @@ public final class InputSession {
     }
 
     private func showPanel() {
-        emit(.panel(composer.wantsPanel || clipboard.shown || suggestionsShownPanel() != nil ? panelModel() : nil))
+        emit(.panel(shownPanel()))
+    }
+
+    /// The panel to show now: `panelModel` where the composer wants one or clipboard history shows, else suggestions'
+    /// rows where they are the one shown (what `panelModel` would be then); nil: none.
+    private func shownPanel() -> PanelModel? {
+        composer.wantsPanel || clipboard.shown ? panelModel() : suggestionsShownPanel()
     }
 
     /// A short status message ("英" English mode, "已复制" copied, …): on the panel's footer when it's shown, else on its
@@ -1646,8 +1674,8 @@ public final class InputSession {
         notice = text
         noticeToken += 1
         emit(.startTimer(.notice(noticeToken), after: lasting ?? SessionText.noticeDuration(text, long: long)))
-        if composer.wantsPanel || clipboard.shown || suggestionsShownPanel() != nil {
-            showPanel()
+        if let panel = shownPanel() {
+            emit(.panel(panel))
         } else {
             emit(.notice(text))
         }
