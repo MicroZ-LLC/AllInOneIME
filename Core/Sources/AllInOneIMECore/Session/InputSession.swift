@@ -137,6 +137,11 @@ public final class InputSession {
     private var pageWaiters: [TaskID: (PageContext?) -> Void] = [:]
     /// `@reply`'s message as the composer sent it and with the web page added, for its refines.
     private var replyWithPage: (input: String, full: String)?
+    /// The interface language's own messages the agent is named in (`nameAgent`) and what a hand-off says
+    /// (`applyChatSettings`), as last made, with the language and the terms they were made for: both run with each key
+    /// with nothing composed, and these are made again only when those change, or the settings are taken over.
+    private var agentMessages: (language: String, terms: PlatformTerms, openedTerminal: String, secureInputTerminal: String)?
+    private var chatMessages: (language: String, messages: Composer.ChatMessages)?
     /// What the shell is to do, gathered while an event is handled.
     private var outputs: [SessionOutput] = []
     private var depth = 0
@@ -560,6 +565,7 @@ public final class InputSession {
         // The interface language (config `uiLanguage`, else the system's) for the panel, notices and menu.
         UIText.choice = config.uiLanguage
         composer.messages = .make(language: UIText.language, terms: terms)
+        (agentMessages, chatMessages) = (nil, nil)  // made again with them (below)
         composer.messages.startedInBackground = composer.messages.startedInBackground
             .replacingOccurrences(of: "@", with: config.commandTrigger)
         composer.messages.codeNotRun = composer.messages.codeNotRun
@@ -628,12 +634,24 @@ public final class InputSession {
     /// "已在终端打开 Claude Code": the agent picked, by name, in the messages; a custom agent by its program's name in a
     /// hand-off's.
     private func nameAgent() {
-        let base = Composer.Messages.make(language: UIText.language, terms: terms)
+        let base = agentBaseMessages()
         composer.messages.openedTerminal = base.openedTerminal.replacingOccurrences(of: "Claude Code", with: UIText.agentName)
         composer.messages.secureInputTerminal = base.secureInputTerminal.replacingOccurrences(of: "Claude Code", with: UIText.agentName)
         // Only once it has a command: otherwise the messages stay the language's own.
         composer.messages.agentNames = AgentKind.custom.program(custom: agentCommand) == nil
             ? [:] : [.custom: AgentKind.custom.displayName(custom: agentCommand)]
+    }
+
+    /// The messages `nameAgent` names the agent in, as the interface language has them with the terms
+    /// (`Composer.Messages.make`, some fifty texts): made again only when either changed (`agentMessages`).
+    private func agentBaseMessages() -> (openedTerminal: String, secureInputTerminal: String) {
+        let (language, terms) = (UIText.language, terms)
+        if let made = agentMessages, made.language == language, made.terms == terms {
+            return (made.openedTerminal, made.secureInputTerminal)
+        }
+        let base = Composer.Messages.make(language: language, terms: terms)
+        agentMessages = (language, terms, base.openedTerminal, base.secureInputTerminal)
+        return (base.openedTerminal, base.secureInputTerminal)
     }
 
     /// An `@question` conversation's settings: the rounds, and where it can go on (`ChatHandoff`): the agents installed,
@@ -644,7 +662,14 @@ public final class InputSession {
         composer.handoffChoices = ChatHandoff.choices(config.questionContinueIn, picked: config.agent,
                                                       installed: { installed($0, config.agentCommand) })
         composer.pickedAgent = installed(config.agent, config.agentCommand) ? config.agent : nil
-        composer.chatMessages = .make(language: UIText.language)
+        let language = UIText.language
+        if let made = chatMessages, made.language == language {
+            composer.chatMessages = made.messages
+        } else {
+            let messages = Composer.ChatMessages.make(language: language)
+            chatMessages = (language, messages)
+            composer.chatMessages = messages
+        }
     }
 
     /// The plugins as last looked for; looked for again once a field takes the focus (one installed or removed shows up
