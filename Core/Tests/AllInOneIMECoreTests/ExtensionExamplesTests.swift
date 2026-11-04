@@ -64,12 +64,14 @@ struct ExtensionExamplesTests {
         _ = units.handleKeyDown(tab)
         await finish(units.handleKeyDown(enterKey).effects, in: units, preferences: prefs)
         #expect(units.choices.contains { $0.text.hasPrefix("km") } && units.choices.allSatisfy { $0.kind == .shown })
-        // No input: a new UUID to insert.
-        let uuid = composer(index)
-        typeKeys("@uuid", uuid)
-        _ = uuid.handleKeyDown(tab)
-        await finish(uuid.handleKeyDown(enterKey).effects, in: uuid)
-        #expect(uuid.choices.first?.text.count == 36)
+        // No input: a new UUID to insert, by uuidgen (the Mac's; a minimal Linux, swift's image, has none).
+        if FileManager.default.isExecutableFile(atPath: "/usr/bin/uuidgen") {
+            let uuid = composer(index)
+            typeKeys("@uuid", uuid)
+            _ = uuid.handleKeyDown(tab)
+            await finish(uuid.handleKeyDown(enterKey).effects, in: uuid)
+            #expect(uuid.choices.first?.text.count == 36)
+        }
         // A show with progress.
         let countdown = composer(index)
         typeKeys("@countdown 1", countdown)
