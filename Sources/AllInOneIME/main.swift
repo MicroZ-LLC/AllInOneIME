@@ -1,6 +1,5 @@
 import AllInOneIMECore
 import AllInOneIMEMac
-import AllInOneIMECore
 import AllInOneIMERime
 import AppKit
 import Carbon
@@ -52,6 +51,11 @@ let usage = """
 
 func printError(_ message: String) {
     FileHandle.standardError.write(Data((message + "\n").utf8))
+}
+
+/// The value after `name` in a developer command's `arguments` (`--key BASE64`); nil when there is none.
+func option(_ name: String, in arguments: [String]) -> String? {
+    arguments.firstIndex(of: name).flatMap { arguments.indices.contains($0 + 1) ? arguments[$0 + 1] : nil }
 }
 
 /// Where level one keeps its data: the Chinese language pack's dictionaries, learned words per user,
@@ -392,22 +396,19 @@ func printStatus() -> Int32 {
 /// `--install-pack ID [--library URL] [--key BASE64] [--packs-dir DIR]`: the settings' download, from a
 /// terminal (and against a test library: another key, plain http to this Mac).
 func installPack(_ arguments: [String]) -> Int32 {
-    func option(_ name: String) -> String? {
-        arguments.firstIndex(of: name).flatMap { arguments.indices.contains($0 + 1) ? arguments[$0 + 1] : nil }
-    }
     guard let id = arguments.first, let pack = LanguagePack.catalog.first(where: { $0.id == id }) else {
         printError("usage: --install-pack \(LanguagePack.catalog.map(\.id).joined(separator: "|")) [--library URL] [--key BASE64] [--packs-dir DIR]")
         return 2
     }
     var library = LanguagePackLibrary(allowsLocalHTTP: true)
-    if let url = option("--library").flatMap(URL.init(string:)) { library = LanguagePackLibrary(baseURL: url, allowsLocalHTTP: true) }
-    if let key = option("--key") {
+    if let url = option("--library", in: arguments).flatMap(URL.init(string:)) { library = LanguagePackLibrary(baseURL: url, allowsLocalHTTP: true) }
+    if let key = option("--key", in: arguments) {
         guard let raw = Data(base64Encoded: key) else { printError("--key: not base64"); return 2 }
         library.publicKey = raw
     }
-    if let dir = option("--packs-dir") { library.store = LanguagePackStore(directory: URL(fileURLWithPath: dir)) }
+    if let dir = option("--packs-dir", in: arguments) { library.store = LanguagePackStore(directory: URL(fileURLWithPath: dir)) }
     let started = Date()
-    let outcome = InstallOutcome()
+    let outcome = ResultBox<LanguagePackRecord>()
     Task.detached { [library] in
         do {
             let record = try await library.install(pack) { share in
@@ -429,14 +430,6 @@ func installPack(_ arguments: [String]) -> Int32 {
         printError("✗ \((error as? LocalizedError)?.errorDescription ?? "\(error)")")
         return 1
     }
-}
-
-/// The outcome of a background install, polled by the main thread.
-final class InstallOutcome: @unchecked Sendable {
-    private let lock = NSLock()
-    private var value: Result<LanguagePackRecord, Error>?
-    func set(_ result: Result<LanguagePackRecord, Error>) { lock.withLock { value = result } }
-    func get() -> Result<LanguagePackRecord, Error>? { lock.withLock { value } }
 }
 
 /// `--adopt-pack DATA [VERSION]`: the Chinese pack from a Rime data folder, without downloading (the
