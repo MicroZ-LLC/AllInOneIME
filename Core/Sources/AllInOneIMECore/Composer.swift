@@ -897,7 +897,7 @@ public final class Composer {
         if let shown = modeShownDraft { return shown }
         guard draft.contains(triggerCharacter) else { return draft }
         let chars = Array(draft)
-        let names = commandsByName
+        let names = commandsByName, palette = self.palette
         let paletteAt = palette.map { draft.distance(from: draft.startIndex, to: $0.at) }
         let pickingCommand = palette.map { !$0.query.isEmpty && !paletteMatches.isEmpty } ?? false
         let inCommand = draftCommand != nil
@@ -1000,8 +1000,10 @@ public final class Composer {
 
     /// Index into `choices`. Defaults to the first main version, even before it has streamed in,
     /// so an early Space or Return never commits something else by accident.
-    public var highlighted: Int {
-        let all = choices
+    public var highlighted: Int { highlighted(in: choices) }
+
+    /// `highlighted`, with `all` the `choices` already worked out (each time they are, every row's wording is read).
+    private func highlighted(in all: [Choice]) -> Int {
         if let highlightOverride { return all.isEmpty ? 0 : min(highlightOverride, all.count - 1) }
         // A script's: the first row that can be picked (none for what a `show` prints).
         if activeCommand?.script != nil {
@@ -1218,7 +1220,8 @@ public final class Composer {
 
     /// The results as you type that belong to the current `liveQuery`.
     public var currentLiveResults: [SearchResult] {
-        liveQuery != nil && liveResultsQuery == liveQuery ? liveResults : []
+        guard let query = liveQuery, liveResultsQuery == query else { return [] }
+        return liveResults
     }
 
     /// Whether the action key opens the highlighted result as you type. Not the first when every row is a
@@ -1242,7 +1245,8 @@ public final class Composer {
 
     /// The recipients found that belong to the current `recipientQuery`.
     public var currentRecipients: [Recipient] {
-        recipientQuery != nil && recipientResultsQuery == recipientQuery ? recipientResults : []
+        guard let query = recipientQuery, recipientResultsQuery == query else { return [] }
+        return recipientResults
     }
 
     /// Recipients for `query` (`recipientQuery`) and a note for the panel (nil: none): ↑↓ pick, Tab, ⏎,
@@ -1319,13 +1323,13 @@ public final class Composer {
         if isLevelTwo, activeCommand?.script?.output == .show, let output = scriptOutput, !output.isEmpty { return output.copyText }
         if !isLevelTwo, let item = listItem { return item.copyText }
         if isLevelTwo {
-            let all = choices
-            guard all.indices.contains(highlighted), all[highlighted].isComplete, !all[highlighted].text.isEmpty else { return nil }
-            if case let .file(path) = all[highlighted].kind {
+            let all = choices, index = highlighted(in: all)
+            guard all.indices.contains(index), all[index].isComplete, !all[index].text.isEmpty else { return nil }
+            if case let .file(path) = all[index].kind {
                 return searchResults.first { $0.path == path }?.detail ?? path  // a task: its reply
             }
-            if case let .item(item) = all[highlighted].kind { return item.copyText }
-            return all[highlighted].text
+            if case let .item(item) = all[index].kind { return item.copyText }
+            return all[index].text
         }
         let live = currentLiveResults
         return live.indices.contains(liveHighlight) ? live[liveHighlight].path : nil
@@ -1674,8 +1678,8 @@ public final class Composer {
         }
         // A command in the list (`index` among the rows shown).
         if paletteQuery != nil {
-            let matches = paletteMatches
-            return matches.indices.contains(paletteFirstVisible + index) ? complete(matches, at: paletteFirstVisible + index) : []
+            let matches = paletteMatches, row = paletteFirstVisible + index
+            return matches.indices.contains(row) ? complete(matches, at: row) : []
         }
         // A script's list as you type: the row's action (a row of information does nothing).
         if let items = currentList?.items {
@@ -2263,14 +2267,14 @@ public final class Composer {
                 return .consumed([.updateMarkedText, .showPanel])
             }
             // A digit that goes on a name being typed (`@base6`) is part of it…
-            if c.isNumber, !query.isEmpty, paletteCommands.contains(where: { $0.name.hasPrefix(query.lowercased() + text) }) {
+            if c.isNumber, !query.isEmpty, case let name = query.lowercased() + text, paletteCommands.contains(where: { $0.name.hasPrefix(name) }) {
                 draft += text
                 paletteHighlight = 0
                 return .consumed([.updateMarkedText, .showPanel])
             }
             // …other digits pick from the rows shown (one that numbers none goes in as typed).
-            if let n = c.wholeNumberValue, n >= 1, n <= Self.paletteRows, matches.indices.contains(paletteFirstVisible + n - 1) {
-                return .consumed(complete(matches, at: paletteFirstVisible + n - 1))
+            if let n = c.wholeNumberValue, n >= 1, n <= Self.paletteRows, case let row = paletteFirstVisible + n - 1, matches.indices.contains(row) {
+                return .consumed(complete(matches, at: row))
             }
         }
         return leave()
@@ -2280,6 +2284,7 @@ public final class Composer {
     /// rest of the sentence follows.
     private func complete(_ matches: [Command], at index: Int? = nil, run: Bool = false) -> [Effect] {
         let command = matches[index ?? paletteHighlighted]
+        let palette = self.palette  // read once, before the draft becomes "@name "
         // Nothing to write after it: picked, it's done (only at the start of a draft).
         if command.kind == .settings, palette?.nested != true {
             return finish(committing: "") + [.openSettings, used(command)]
@@ -2484,7 +2489,7 @@ public final class Composer {
         // Nothing pending (the app took the text, say): no selection is kept for a later command.
         if phase == .idle { selection = nil }
         if messageRecipient != nil, draftCommand?.kind != .message { messageRecipient = nil }
-        if !pickingRecipient, recipientResultsQuery != nil { clearRecipientResults() }
+        if recipientResultsQuery != nil, !pickingRecipient { clearRecipientResults() }
         restoreInputModeAfterOpen()
     }
 
@@ -3149,7 +3154,8 @@ public final class Composer {
 
     /// The list that belongs to the current `listQuery`.
     public var currentList: ScriptList? {
-        listQuery != nil && listResultsQuery == listQuery ? listResults : nil
+        guard let query = listQuery, listResultsQuery == query else { return nil }
+        return listResults
     }
 
     /// The list printed for `query`: ↑↓ pick a row, the action key does its action, Tab completes its
@@ -3474,9 +3480,9 @@ public final class Composer {
     }
 
     private func moveHighlight(by delta: Int) -> [Effect] {
-        let count = choices.count
+        let all = choices, count = all.count
         guard count > 0 else { return [] }
-        let current = min(highlighted, count - 1)
+        let current = min(highlighted(in: all), count - 1)
         highlightOverride = (current + delta + count) % count
         return [.showPanel]
     }
