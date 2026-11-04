@@ -598,9 +598,14 @@ enum Pinyin {
     }
 
     /// Whether `letters` is pinyin still being typed: pinyin (`isPinyin`), or spellings then the beginning of one
-    /// ("zhongg", "openr" o-pen-r).
+    /// (`endsInASpellingBegun`).
     static func isPinyinBeingTyped(_ letters: String, fuzzy: [String] = []) -> Bool {
-        if isPinyin(letters, fuzzy: fuzzy) { return true }
+        isPinyin(letters, fuzzy: fuzzy) || endsInASpellingBegun(letters, fuzzy: fuzzy)
+    }
+
+    /// Whether `letters` is spellings, or none, then the beginning of one ("zhongg", "openr" o-pen-r, "zhon"): what
+    /// `isPinyinBeingTyped` adds to `isPinyin`, for a caller that has asked that already.
+    static func endsInASpellingBegun(_ letters: String, fuzzy: [String] = []) -> Bool {
         let reading = reading(fuzzy: fuzzy)
         let s = Array(letters)
         return (0..<s.count).contains { cut in
