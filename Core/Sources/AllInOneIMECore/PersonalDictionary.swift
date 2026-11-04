@@ -612,7 +612,7 @@ public struct PersonalDictionaryStore: Sendable {
                 let rawWeight = weightIndex.flatMap { fields.indices.contains($0) ? fields[$0] : nil }?.trimmingCharacters(in: .whitespaces) ?? ""
                 let weight = rawWeight.isEmpty ? "100" : rawWeight
                 guard let numeric = Double(weight), numeric.isFinite, numeric >= 0,
-                      weight.range(of: #"^[+]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$"#, options: .regularExpression) != nil else {
+                      weightPattern.firstMatch(in: weight, range: NSRange(weight.startIndex..., in: weight)) != nil else {
                     throw invalidLine(number, tr("weight 必须是有限的非负数。", "weight must be a finite, nonnegative number."))
                 }
                 if seen.insert(phrase + "\t" + code).inserted { entries.append(Entry(text: phrase, code: code, weight: weight)) }
@@ -620,6 +620,10 @@ public struct PersonalDictionaryStore: Sendable {
             guard !entries.isEmpty else { throw PersonalDictionaryError.invalid(tr("词库中没有带拼音编码的词条。", "The dictionary has no entries with pinyin codes.")) }
             return Parsed(name: name, sort: sort, entries: entries)
         }
+
+        /// What an entry's weight is written as: a plain decimal number, with an exponent or not. Made once: it is matched
+        /// against every entry of a file (up to 32 MiB of them).
+        private static let weightPattern = try! NSRegularExpression(pattern: #"^[+]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$"#)
 
         /// The table as it is written, `says` its second line (`tableSays`).
         func table(named name: String, says: String) -> String {
