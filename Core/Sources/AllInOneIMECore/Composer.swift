@@ -474,9 +474,15 @@ public final class Composer {
 
     /// The command at the start of `text` and what follows it (as `Command.parse`, by name).
     private func parse(_ text: String) -> (command: Command, content: String)? {
+        commandAtStart(of: text).map { ($0.command, String(text[$0.content...])) }
+    }
+
+    /// The command at the start of `text` (`parse`) and where what follows it starts, without copying that: what
+    /// `draftCommand` reads, many times a key, however long the text after the command is.
+    private func commandAtStart(of text: String) -> (command: Command, content: String.Index)? {
         guard text.hasPrefix(commandTrigger), let space = text.firstIndex(of: " ") else { return nil }
         guard let command = commandsByName[text[text.index(after: text.startIndex)..<space].lowercased()] else { return nil }
-        return (command, String(text[text.index(after: space)...]))
+        return (command, text.index(after: space))
     }
     /// How much each command is used: the list shows the most used first (set by the controller,
     /// shared by its text fields).
@@ -1078,7 +1084,7 @@ public final class Composer {
     }
 
     /// The command at the start of the draft, once its name is complete ("@question …").
-    public var draftCommand: Command? { parse(draft)?.command }
+    public var draftCommand: Command? { commandAtStart(of: draft)?.command }
 
     /// While a command name is typed after "@" at the start of the draft: the letters so far.
     public var paletteQuery: String? { palette?.query }
@@ -2587,10 +2593,10 @@ public final class Composer {
 
     /// `text` as it continues the draft: English words get a separating space.
     private func appendix(_ text: String) -> String {
-        text.isEmpty ? "" : separator(before: text, after: String(beforeCursor)) + text
+        text.isEmpty ? "" : separator(before: text, after: beforeCursor) + text
     }
 
-    private func separator(before text: String, after existing: String) -> String {
+    private func separator(before text: String, after existing: some StringProtocol) -> String {
         guard let last = existing.last, let first = text.first else { return "" }
         let wordy: (Character) -> Bool = { $0.isLetter && !String($0).containsHan || $0.isNumber }
         return (wordy(last) || ".,!?;:".contains(last)) && wordy(first) ? " " : ""
@@ -3544,7 +3550,7 @@ extension Composer {
     }
 
     /// Nothing is typed after "@question": the digits 1–5 pick from the list (with text, they're part of the question).
-    public var questionDigitsPick: Bool { parse(draft)?.content.isEmpty == true && !questionMatches.isEmpty }
+    public var questionDigitsPick: Bool { commandAtStart(of: draft)?.content == draft.endIndex && !questionMatches.isEmpty }
 
     /// Level two shows a saved answer (picked from the recent questions), not one just asked for; ⌘R asks again.
     public var showsSavedAnswer: Bool { phase == .choosing && recalled != nil }
