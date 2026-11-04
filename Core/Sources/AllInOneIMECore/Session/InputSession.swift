@@ -194,6 +194,12 @@ public final class InputSession {
                 let rows = panelModel().rows
                 guard rows.indices.contains(row), let choice = rows[row].choice else { return }
                 perform(composer.choose(index: choice))
+            case let .delete(row):
+                // Clipboard history's rows and suggestions' are none of the engine's.
+                guard !clipboard.shown, !suggesting.shown else { return }
+                let rows = panelModel().rows
+                guard rows.indices.contains(row), let choice = rows[row].choice else { return }
+                perform(composer.deleteCandidate(index: choice))
             case let .scroll(steps):
                 panelWheelAt = services.uptime()
                 // The wheel short of a row (a trackpad's small steps, its momentum): nothing moves.

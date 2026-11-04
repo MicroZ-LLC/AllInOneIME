@@ -20,6 +20,12 @@ final class CandidatePanel: NSPanel {
     }
 
     /// The scroll wheel or trackpad over the panel: rows to move (down is positive).
+    /// A row right-clicked: its index in `model.rows` (`SessionEvent.delete`).
+    var onDelete: ((Int) -> Void)? {
+        get { view.onDelete }
+        set { view.onDelete = newValue }
+    }
+
     var onScroll: ((Int) -> Void)? {
         get { view.onScroll }
         set { view.onScroll = newValue }
@@ -270,6 +276,8 @@ final class CandidateView: NSView {
 
     /// A row clicked: its index in `model.rows`.
     var onSelect: ((Int) -> Void)?
+    /// A row right-clicked: its index in `model.rows`.
+    var onDelete: ((Int) -> Void)?
     var onScroll: ((Int) -> Void)?
     var onChip: ((ChipPart) -> Void)?
     /// The row under the pointer, drawn lightly highlighted: what a click would pick.
@@ -747,8 +755,15 @@ final class CandidateView: NSView {
         if let part = chipPart(at: point) {
             onChip?(part)
         } else if let index = row(at: point) {
-            onSelect?(index)
+            // A Control-click is a right-click.
+            if event.modifierFlags.contains(.control) { onDelete?(index) } else { onSelect?(index) }
         }
+    }
+
+    /// A right-click deletes the row's candidate (`onDelete`), as ⌃⌦ deletes the highlighted one.
+    override func rightMouseDown(with event: NSEvent) {
+        guard let index = row(at: convert(event.locationInWindow, from: nil)) else { return }
+        onDelete?(index)
     }
 }
 

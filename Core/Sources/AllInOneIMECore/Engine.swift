@@ -56,6 +56,9 @@ public protocol PinyinEngine: AnyObject {
     func snapshot() -> EngineSnapshot
     /// Selects a candidate on the current page (mouse click). Returns true if it was selected.
     func selectCandidate(onPage index: Int) -> Bool
+    /// Deletes a candidate on the current page (a right-click, ⌃⌦): what the engine learned of it is forgotten. Returns
+    /// true if it was one the engine could delete.
+    func deleteCandidate(onPage index: Int) -> Bool
     /// Commits the current composition as converted text and returns it.
     func commitComposition() -> String?
     /// The typed letters of the current composition.
@@ -68,6 +71,8 @@ public protocol PinyinEngine: AnyObject {
 
 extension PinyinEngine {
     public var language: Language { .chinese }
+    /// An engine that learns nothing has nothing to forget.
+    public func deleteCandidate(onPage index: Int) -> Bool { false }
 }
 
 extension String {
