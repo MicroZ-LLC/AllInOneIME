@@ -68,10 +68,7 @@ public final class Converter: Sendable {
 
     private func run(_ input: String, mode: WritingMode, app: String?, turns: [Refinement.Turn], continuation: AsyncThrowingStream<ConversionUpdate, Error>.Continuation) async throws {
         let started = ContinuousClock.now
-        func elapsed() -> TimeInterval {
-            let d = ContinuousClock.now - started
-            return Double(d.components.seconds) + Double(d.components.attoseconds) / 1e18
-        }
+        func elapsed() -> TimeInterval { Self.seconds(since: started) }
 
         let config = try Self.settings(try loadConfig(), app: app)
         // Sensitive values hidden from the model (`Redaction`), put back in what it writes. A refine's turns (the
@@ -105,13 +102,7 @@ public final class Converter: Sendable {
         var lastResult = ConversionResult.empty
         for try await event in stream {
             if case let .messageStop(reason) = event { stopReason = reason }
-            if case let .textDelta(delta) = event {
-                text += delta
-            } else if case let .textReplaced(whole) = event {
-                text = whole
-            } else {
-                continue
-            }
+            guard event.apply(to: &text) else { continue }
             if firstToken == nil { firstToken = elapsed() }
             // Far more than 3 sentences plus the rewrites; treat the rest as truncated.
             if text.utf8.count > Self.maxOutputBytes {
@@ -167,10 +158,7 @@ public final class Converter: Sendable {
     private func runCommand(_ command: Command, input: String, app: String?, fresh: Bool = false, turns: [Refinement.Turn],
                             continuation: AsyncThrowingStream<ConversionUpdate, Error>.Continuation) async throws {
         let started = ContinuousClock.now
-        func elapsed() -> TimeInterval {
-            let d = ContinuousClock.now - started
-            return Double(d.components.seconds) + Double(d.components.attoseconds) / 1e18
-        }
+        func elapsed() -> TimeInterval { Self.seconds(since: started) }
         let config = try Self.settings(try loadConfig(), app: app)
         // An @question conversation (`QuestionChat`): its turns are the answers and the questions after them, sent as
         // plain user and assistant turns, not as a refine.
@@ -211,13 +199,7 @@ public final class Converter: Sendable {
         var stopReason: String?
         for try await event in stream {
             if case let .messageStop(reason) = event { stopReason = reason }
-            if case let .textDelta(delta) = event {
-                text += delta
-            } else if case let .textReplaced(whole) = event {
-                text = whole
-            } else {
-                continue
-            }
+            guard event.apply(to: &text) else { continue }
             if firstToken == nil { firstToken = elapsed() }
             if text.utf8.count > Self.maxOutputBytes { stopReason = "max_tokens"; break }
             continuation.yield(ConversionUpdate(
@@ -243,6 +225,12 @@ public final class Converter: Sendable {
         let texts = turns.flatMap { Prompt.answerLines($0.answer) + [$0.instruction] }
         let sent = redaction!.hide(texts)
         return sent.last.map(wrap)
+    }
+
+    /// The seconds from `start` until now (a conversion's `elapsed`, `firstTokenLatency`).
+    static func seconds(since start: ContinuousClock.Instant) -> TimeInterval {
+        let d = ContinuousClock.now - start
+        return Double(d.components.seconds) + Double(d.components.attoseconds) / 1e18
     }
 
     /// `config` as it applies in `app` (`Config.applying`); nothing is sent from an app with no AI.
