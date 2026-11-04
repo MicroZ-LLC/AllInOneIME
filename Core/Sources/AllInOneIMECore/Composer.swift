@@ -2834,49 +2834,48 @@ public final class Composer {
     func startAction() -> Response {
         // A Hangul syllable still being typed belongs to the text (the action key was an Option tap).
         if !hangul.isEmpty { insertIntoDraft(hangul.flush()) }
-        let parsed = parse(draft)
         // Only an @ command is ever sent: without one the input method just types.
-        guard parsed != nil else { return .consumed() }
+        guard let command = draftCommand else { return .consumed() }
         resetRefine()
         // Local, like a note: no AI, nothing sent, so neither a No-AI app nor secure input holds it back.
-        if let command = parsed?.command, command.kind == .snippet { return .consumed(insertSnippet(command)) }
-        let typed = sentText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if command.kind == .snippet { return .consumed(insertSnippet(command)) }
+        let typed = sentText
         // `@reply`, and any command while its screenshot is still being read (Composer+Reply.swift).
-        if let response = startReply(parsed!.command, typed: typed) { return response }
+        if let response = startReply(command, typed: typed) { return response }
         // The text selected when the draft started (`selectionInUse`): the command's text when nothing is typed after
         // it; a question typed after it is about it. Otherwise what is typed is the text (and for `@improve` and
         // `@translate`, below, an instruction for the selection). A screenshot's text (`screenshotText`): what
         // `@improve` and `@translate` work on when nothing is selected, what the AI's other commands are about.
-        let screenshot = screenshotText(for: parsed!.command)
-        let selected = selectionInUse ?? (parsed?.command.kind == .convert ? screenshot : nil)
+        let screenshot = screenshotText(for: command)
+        let selected = selectionInUse ?? (command.kind == .convert ? screenshot : nil)
         var input: String
         if let selected, !typed.isEmpty {
-            input = parsed?.command.kind == .generate ? Prompt.question(typed, about: selected) : typed
+            input = command.kind == .generate ? Prompt.question(typed, about: selected) : typed
         } else {
             input = selected ?? typed
         }
-        if let screenshot, parsed?.command.kind != .convert { input = Prompt.withScreenshot(input, screenshot) }
-        if let command = parsed?.command, command.kind == .message { return startMessage(command, input: input) }
-        if parsed?.command.kind == .settings, !isLevelTwo {
-            return .consumed(finish(committing: "") + [.openSettings, used(parsed!.command)])
+        if let screenshot, command.kind != .convert { input = Prompt.withScreenshot(input, screenshot) }
+        if command.kind == .message { return startMessage(command, input: input) }
+        if command.kind == .settings, !isLevelTwo {
+            return .consumed(finish(committing: "") + [.openSettings, used(command)])
         }
         // The task list needs nothing after the command.
-        if parsed?.command.kind == .agents, !isLevelTwo {
+        if command.kind == .agents, !isLevelTwo {
             requestCounter += 1
             phase = .translating(id: requestCounter)
             result = .empty
             searchResults = []
             highlightOverride = nil
-            activeCommand = parsed?.command
-            return .consumed([.listAgents(id: requestCounter), .updateMarkedText, .showPanel, used(parsed!.command)])
+            activeCommand = command
+            return .consumed([.listAgents(id: requestCounter), .updateMarkedText, .showPanel, used(command)])
         }
-        if let command = parsed?.command, let script = command.script { return startScript(command, script, input: input) }
+        if let script = command.script { return startScript(command, script, input: input) }
         // A report needs no title: it can be written on GitHub.
-        if let command = parsed?.command, command.kind == .report { return startReport(command, title: input) }
+        if command.kind == .report { return startReport(command, title: input) }
         // Nothing after the command: a hint (the clipboard's text comes in with ⌃V or ⌘V).
         guard !input.isEmpty else { return .consumed([.notice(messages.typeAfterCommand)]) }
-        if parsed?.command.usesAI == true, let refusal = aiRefusal() { return .consumed([.updateMarkedText, .notice(refusal)]) }
-        if let command = parsed?.command, command.kind == .terminal {
+        if command.usesAI, let refusal = aiRefusal() { return .consumed([.updateMarkedText, .notice(refusal)]) }
+        if command.kind == .terminal {
             guard !secureInputActive() else {
                 return .consumed([.updateMarkedText, .notice(command.custom == nil ? messages.secureInputTerminal : messages.secureInputCommand)])
             }
@@ -2892,7 +2891,7 @@ public final class Composer {
             }
             return .consumed(finish(committing: "") + [.runInTerminal(prompt: input), .notice(messages.openedTerminal), usage])
         }
-        if let command = parsed?.command, command.kind == .note {
+        if command.kind == .note {
             // Saved on this Mac (Notes, a folder) and nothing goes to a model, so secure input doesn't hold it
             // back; but a note to Notion leaves the Mac. The controller says when it is saved, or why not.
             if noteLeavesDevice, secureInputActive() { return .consumed([.updateMarkedText, .notice(messages.secureInputNote)]) }
@@ -2903,16 +2902,16 @@ public final class Composer {
         // (it stays on this Mac), and never inside code or a custom program's text: it runs exactly as typed,
         // so no command's output (a web page, a program's) is executed. With text the user didn't type in the
         // draft, commands that run code stay text (`draftHasOutsideText`).
-        let local = parsed?.command.kind == .search || parsed?.command.kind == .reminder
+        let local = command.kind == .search || command.kind == .reminder
         // Never inside a selection, text the user didn't write here (nor, with one, inside what is typed: one request).
         // Nor inside a screenshot's text.
-        let plans = !(local || parsed?.command.runsCode == true || selected != nil || screenshot != nil)
+        let plans = !(local || command.runsCode || selected != nil || screenshot != nil)
         // Snippets inside the text (`@zoom`) go in here, at once: with nothing else to run first, the request is the
         // text as if typed with them.
         let inner = plans ? innerPlan(input) : nil
         let (plan, codeLeft) = (inner?.plan, inner?.codeLeft == true)
         if let plan, plan.isEmpty { input = plan.input(outputs: []) }
-        if let command = parsed?.command, command.kind == .link, plan?.isEmpty != false {
+        if command.kind == .link, plan?.isEmpty != false {
             // A password field's text must not end up in an address (and the browser's history).
             guard !secureInputActive() else { return .consumed([.updateMarkedText, .notice(messages.secureInputCommand)]) }
             switch link(command, input) {
@@ -2920,31 +2919,30 @@ public final class Composer {
             case let .refused(message): return .consumed([.updateMarkedText, .notice(message)])  // the draft stays
             }
         }
-        let id = beginRequest(parsed?.command)
+        let id = beginRequest(command)
         let start: Effect
-        switch parsed?.command {
+        switch command {
         case _ where plan?.isEmpty == false:
-            start = .startPlan(outer: parsed?.command, plan: plan!, id: id)
-        case let command? where command.kind == .convert && selected != nil:
+            start = .startPlan(outer: command, plan: plan!, id: id)
+        case _ where command.kind == .convert && selected != nil:
             start = writing(command, typed: typed, selection: selected!, id: id)
-        case let command? where command.kind == .generate: start = .startCommand(command, input: input, id: id)
-        case let command? where command.kind == .run: start = .startRun(command, input: input, id: id)
-        case .open?: start = .search(query: input, id: id)
+        case _ where command.kind == .generate: start = .startCommand(command, input: input, id: id)
+        case _ where command.kind == .run: start = .startRun(command, input: input, id: id)
+        case .open: start = .search(query: input, id: id)
         // Read by the controller on this Mac (nothing is sent anywhere, so secure input doesn't hold it back).
-        case .reminder?: start = .previewReminder(input: input, id: id)
+        case .reminder: start = .previewReminder(input: input, id: id)
         default: start = .startConversion(input: input, id: id)
         }
         // What the results can be refined from: the AI's answers (not a program's output, nor a text with commands
         // inside it, whose outputs the model saw but the composer doesn't have).
         // Not @translate's (typing after them goes back to its text, translated again with ⏎).
         switch start {
-        case _ where parsed?.command == .translate: refineRequest = nil
-        case let .startConversion(input, _): refineRequest = .writing(parsed?.command, input: input)
+        case _ where command == .translate: refineRequest = nil
+        case let .startConversion(input, _): refineRequest = .writing(command, input: input)
         case let .startCommand(command, input, _) where command.kind == .generate: refineRequest = .command(command, input: input)
         default: refineRequest = nil
         }
-        return requestStarted(start, commands: (parsed.map { [$0.command] } ?? []) + (inner?.snippets ?? []) + (plan?.inner.map(\.command) ?? []),
-                              codeLeft: codeLeft)
+        return requestStarted(start, commands: [command] + (inner?.snippets ?? []) + (plan?.inner.map(\.command) ?? []), codeLeft: codeLeft)
     }
 
     /// A request for `command` starts (`startAction`, `startReply`): its id, level two waiting for it, the results, search
