@@ -116,9 +116,12 @@ final class GhostView: NSView {
 
     override var isFlipped: Bool { false }
 
-    /// A line of `font`, as AppKit lays it out: how tall, and how far its baseline is from its top.
-    static func lineHeight(_ font: NSFont) -> CGFloat { NSLayoutManager().defaultLineHeight(for: font) }
-    static func baselineOffset(_ font: NSFont) -> CGFloat { NSLayoutManager().defaultBaselineOffset(for: font) }
+    /// A line of `font`, as AppKit lays it out: how tall, and how far its baseline is from its top. One layout manager
+    /// answers every time (it keeps nothing of a font), not a new one each: a suggestion placed and drawn asked up to
+    /// seven.
+    static func lineHeight(_ font: NSFont) -> CGFloat { layoutManager.defaultLineHeight(for: font) }
+    static func baselineOffset(_ font: NSFont) -> CGFloat { layoutManager.defaultBaselineOffset(for: font) }
+    private static let layoutManager = NSLayoutManager()
 
     /// The font's line below its baseline, and above it.
     var descent: CGFloat { Self.lineHeight(font) - Self.baselineOffset(font) }

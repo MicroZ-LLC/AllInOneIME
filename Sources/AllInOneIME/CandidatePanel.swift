@@ -233,6 +233,9 @@ final class CandidateView: NSView {
         var textFrame: NSRect
         var labelOrigin: NSPoint
         var iconFrame: NSRect?
+        /// A candidate in a row too long for its cell, drawn cut short with "…" (`layoutCells`); one that fits is drawn
+        /// as it is, without measuring it again.
+        var cut = false
     }
 
     /// Its own solid background: off in the panel, where the system's glass is behind it (`CandidatePanel`);
@@ -397,9 +400,9 @@ final class CandidateView: NSView {
         fitTranscript(height: ceil(y + p), rowsTop: rowsTop, rowsBottom: rowsBottom, width: width)
         contentSize = NSSize(width: ceil(width), height: min(ceil(y + p), ceil(y + p) - overflow))
         needsDisplay = true
-        // Other rows under a pointer that stayed put: the one there now.
-        hovered = window.flatMap { $0.isVisible ? row(at: convert($0.mouseLocationOutsideOfEventStream, from: nil)) : nil }
-        hoveredChip = window.flatMap { $0.isVisible ? chipPart(at: convert($0.mouseLocationOutsideOfEventStream, from: nil)) : nil }
+        // Other rows under a pointer that stayed put: the one there now (the pointer asked once, for both).
+        let pointer = window.flatMap { $0.isVisible ? convert($0.mouseLocationOutsideOfEventStream, from: nil) : nil }
+        (hovered, hoveredChip) = (pointer.flatMap(row(at:)), pointer.flatMap(chipPart(at:)))
     }
 
     /// The chip at the top left: its source and target parts, the arrow between them, one line.
@@ -453,12 +456,16 @@ final class CandidateView: NSView {
         let p = Metrics.padding
         let font = Fonts.candidate
         let lineHeight = ceil(font.ascender - font.descender + font.leading)
-        var labelWidths: [CGFloat] = [], textWidths: [CGFloat] = []
+        var labelWidths: [CGFloat] = [], textWidths: [CGFloat] = [], cuts: [Bool] = []
         for row in model.rows {
             let (label, text) = strings(for: row, highlighted: false)
             labelWidths.append(row.label.isEmpty ? 0 : max(ceil(label.size().width), Metrics.labelWidth) + Metrics.cellLabelGap)
-            // A long one cut to fit, its cell as wide as what's left of it (no gap after the "…").
-            textWidths.append(ceil(Self.fitted(text, width: Metrics.maxCellTextWidth).size().width) + 1)
+            // A long one cut to fit, its cell as wide as what's left of it (no gap after the "…"); one that fits measured
+            // once. Highlighted, it is as wide: only its colors differ.
+            let width = ceil(text.size().width)
+            let cut = width > Metrics.maxCellTextWidth
+            textWidths.append((cut ? ceil(Self.fitted(text, width: Metrics.maxCellTextWidth).size().width) : width) + 1)
+            cuts.append(cut)
         }
         let sizes = zip(labelWidths, textWidths).map {
             CGSize(width: Metrics.rowInsetX * 2 + $0 + $1, height: lineHeight + 2 * Metrics.rowInsetY)
@@ -470,7 +477,7 @@ final class CandidateView: NSView {
             let textFrame = NSRect(x: frame.minX + Metrics.rowInsetX + labelWidths[index], y: frame.minY + Metrics.rowInsetY,
                                    width: textWidths[index], height: lineHeight)
             let labelOrigin = NSPoint(x: frame.minX + Metrics.rowInsetX, y: textFrame.minY + (font.ascender - Fonts.label.ascender))
-            rowLayouts.append(RowLayout(frame: frame, textFrame: textFrame, labelOrigin: labelOrigin, iconFrame: nil))
+            rowLayouts.append(RowLayout(frame: frame, textFrame: textFrame, labelOrigin: labelOrigin, iconFrame: nil, cut: cuts[index]))
         }
         return (top + (frames.map(\.maxY).max() ?? 0), (frames.map(\.maxX).max() ?? 0) + 2 * p)
     }
@@ -634,8 +641,8 @@ final class CandidateView: NSView {
             let (label, text) = strings(for: model.rows[index], highlighted: highlighted)
             label.draw(at: layout.labelOrigin)
             if icons.indices.contains(index), let icon = icons[index], let frame = layout.iconFrame { Self.draw(icon, in: frame) }
-            // A candidate in a row keeps to its one line, cut short with "…" (as measured: `layoutCells`).
-            if model.horizontal {
+            // A candidate in a row keeps to its one line, cut short with "…" where it was measured too long (`layoutCells`).
+            if layout.cut {
                 Self.fitted(text, width: Metrics.maxCellTextWidth).draw(with: layout.textFrame, options: [.usesLineFragmentOrigin, .usesFontLeading])
             } else {
                 text.draw(with: layout.textFrame, options: [.usesLineFragmentOrigin, .usesFontLeading])
