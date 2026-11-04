@@ -1532,7 +1532,12 @@ struct SettingsView: View {
             let root = folder.url.resolvingSymlinksInPath().path + "/"
             return !folder.hidden && files.contains { $0.hasPrefix(root) }
         }
-        return (model.extensionFolders.filter(brings), model.extensionFolders.filter { !brings($0) })
+        // Each folder's links resolved once, for one list or the other.
+        var bringing: [ExtensionStore.Folder] = [], others: [ExtensionStore.Folder] = []
+        for folder in model.extensionFolders {
+            if brings(folder) { bringing.append(folder) } else { others.append(folder) }
+        }
+        return (bringing, others)
     }
 
     /// An extension folder: where it is, whether it was added or found (and hidden), Show in Finder, and Remove (added)
@@ -1878,19 +1883,6 @@ struct SettingsView: View {
         }
     }
 
-    /// A row's title with a short explanation under it, as System Settings shows them.
-    private func titled(_ title: String, _ note: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-            Text(note).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    /// A row's title and what it says, as the search finds them (`SettingsSpot`).
-    @ViewBuilder private func titled(_ spot: SettingsSpot) -> some View {
-        if let note = spot.note { titled(spot.title, note) } else { Text(spot.title) }
-    }
-
     // MARK: Pages
 
     /// Like System Settings: a search field, then the pages, each with its icon (and a dot while the checks find
@@ -1929,7 +1921,7 @@ struct SettingsView: View {
         .padding(.top, 8)
         .onChange(of: query) {
             chosen = 0
-            follow()
+            follow(results)
             // The on-device model and the apps, before a request.
             if !typed.isEmpty { AIConfigSession.prewarmIfDue() }
         }
@@ -1938,7 +1930,8 @@ struct SettingsView: View {
     /// What's typed in the search field, trimmed.
     private var typed: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
 
-    /// The rows the search finds, in order; the row after them is "Change: …".
+    /// The rows the search finds, in order; the row after them is "Change: …". Searched anew each time it is read, so
+    /// each place reads it once.
     private var results: [SettingsSpot] {
         typed.isEmpty ? [] : SettingsSpot.search(typed, trigger: model.config.commandTrigger, config: model.config)
     }
@@ -1982,7 +1975,8 @@ struct SettingsView: View {
 
     /// The rows found, each with its page, the chosen one highlighted; "Change: …" last.
     private var resultList: some View {
-        ScrollView {
+        let results = self.results
+        return ScrollView {
             VStack(alignment: .leading, spacing: 2) {
                 ForEach(Array(results.enumerated()), id: \.offset) { index, spot in
                     resultRow(index) {
@@ -2023,13 +2017,14 @@ struct SettingsView: View {
     /// ↑↓ in the search field: the chosen row moves (stays in the list), and is shown.
     private func moveChoice(_ step: Int) -> KeyPress.Result {
         guard !typed.isEmpty else { return .ignored }
+        let results = self.results
         chosen = min(max(chosen + step, 0), results.count)
-        follow()
+        follow(results)
         return .handled
     }
 
-    /// The chosen row shown on its page, outlined; "Change: …" shows nothing until it is picked.
-    private func follow() {
+    /// The chosen row of `results` shown on its page, outlined; "Change: …" shows nothing until it is picked.
+    private func follow(_ results: [SettingsSpot]) {
         guard results.indices.contains(chosen) else { return }
         show(results[chosen])
     }
@@ -2037,6 +2032,7 @@ struct SettingsView: View {
     /// Return on a row, or a click: a setting is shown; "Change: …" asks the AI, as typed (the preview comes at the top of
     /// the page, with Apply and Undo).
     private func pick(_ index: Int) {
+        let results = self.results
         if results.indices.contains(index) {
             show(results[index])
         } else if index == results.count, !typed.isEmpty {
@@ -2955,11 +2951,6 @@ struct SettingsView: View {
         Binding(get: { model.config.region ?? "" },
                 set: { model.config.region = $0.trimmingCharacters(in: .whitespaces).isEmpty ? nil : $0 })
     }
-
-    private var temperatureOn: Binding<Bool> {
-        Binding(get: { model.config.temperature != nil },
-                set: { model.config.temperature = $0 ? (model.config.temperature ?? 0.3) : nil })
-    }
 }
 
 /// The single settings window of the input method process.
@@ -3108,12 +3099,6 @@ private struct LanguageChips<Item: Hashable>: View {
     var keepsOne = true
     let reorder: ([Item]) -> Void
     let remove: (Item) -> Void
-    /// Chips that open: the one open (highlighted), and a click opens another.
-    var selected: Item? = nil
-    var select: ((Item) -> Void)? = nil
-    /// What an open chip shows, in a popover under it, and which is open.
-    var options: ((Item) -> AnyView)? = nil
-    var open: Binding<Item?>? = nil
     /// Moving a chip one place left (-1) or right (1), from its context menu and for VoiceOver, as dragging does.
     var move: ((Item, Int) -> Void)? = nil
     @State private var frames: [Item: CGRect] = [:]
@@ -3143,17 +3128,14 @@ private struct LanguageChips<Item: Hashable>: View {
     private func chip(_ item: Item) -> some View {
         let first = item == items.first && firstNote != nil
         let label = first && items.count > 1 ? name(item) + " · " + (firstNote ?? "") : name(item)
-        let picked = select != nil && item == selected
         return HStack(spacing: 2) {
-            Text(label).foregroundStyle(picked || first ? .primary : .secondary)
+            Text(label).foregroundStyle(first ? .primary : .secondary)
                 .overlay {
-                    if items.count > 1 || select != nil {
-                        DragHandle(onTap: { select?(item) }, onChanged: { dx in
-                            guard items.count > 1 else { return }
+                    if items.count > 1 {
+                        DragHandle(onChanged: { dx in
                             dragging = item
                             offset = dx
                         }, onEnded: { x in
-                            guard items.count > 1 else { return }
                             let moved = ChipOrder.moved(item, in: items, to: x, midX: { frames[$0]?.midX })
                             dragging = nil
                             offset = 0
@@ -3169,15 +3151,8 @@ private struct LanguageChips<Item: Hashable>: View {
             }
         }
         .padding(.horizontal, 6).padding(.vertical, 2)
-        .background(picked ? Color.accentColor.opacity(0.2) : Color.secondary.opacity(first ? 0.22 : 0.1), in: Capsule())
-        .overlay(Capsule().strokeBorder(picked ? Color.accentColor.opacity(0.7) : .clear, lineWidth: 1))
-        .accessibilityAddTraits(picked ? .isSelected : [])
+        .background(Color.secondary.opacity(first ? 0.22 : 0.1), in: Capsule())
         .help(firstNote.map { tr("拖动排序，第一个是\($0)", "Drag to reorder; the first is \($0)") } ?? tr("拖动排序", "Drag to reorder"))
-        .popover(isPresented: Binding(get: { open?.wrappedValue == item && options != nil },
-                                      set: { if !$0, open?.wrappedValue == item { open?.wrappedValue = nil } }),
-                 arrowEdge: .bottom) {
-            options?(item)
-        }
         .contextMenu {
             if let move, items.count > 1 {
                 Button(tr("左移", "Move Left")) { move(item, -1) }.disabled(item == items.first)
@@ -3195,23 +3170,19 @@ private struct LanguageChips<Item: Hashable>: View {
 
 /// Tracks a mouse drag itself (its own event loop from mouseDown to mouseUp), so the table view under
 /// the Form never sees it: reports the horizontal distance while dragging and the pointer's x in the
-/// window where it's let go. A click without moving is a tap.
+/// window where it's let go. A click without moving does nothing.
 private struct DragHandle: NSViewRepresentable {
-    /// A click without moving.
-    var onTap: () -> Void = {}
     var onChanged: (CGFloat) -> Void
     var onEnded: (CGFloat) -> Void
 
     func makeNSView(context: Context) -> HandleView { HandleView() }
 
     func updateNSView(_ view: HandleView, context: Context) {
-        view.onTap = onTap
         view.onChanged = onChanged
         view.onEnded = onEnded
     }
 
     final class HandleView: NSView {
-        var onTap: (() -> Void)?
         var onChanged: ((CGFloat) -> Void)?
         var onEnded: ((CGFloat) -> Void)?
 
@@ -3225,7 +3196,7 @@ private struct DragHandle: NSViewRepresentable {
             while let next = window?.nextEvent(matching: [.leftMouseDragged, .leftMouseUp]) {
                 let dx = next.locationInWindow.x - start
                 if next.type == .leftMouseUp {
-                    if moved { onEnded?(next.locationInWindow.x) } else { onTap?() }
+                    if moved { onEnded?(next.locationInWindow.x) }
                     break
                 }
                 if abs(dx) > 3 { moved = true }
@@ -3425,6 +3396,21 @@ struct SectionTitle: View {
     var body: some View {
         Text(title).font(.system(size: 14, weight: .medium)).foregroundStyle(.primary).padding(.top, 6)
     }
+}
+
+/// A row's title with a short explanation under it, as System Settings shows them: every page's.
+@MainActor
+func titled(_ title: String, _ note: String) -> some View {
+    VStack(alignment: .leading, spacing: 2) {
+        Text(title)
+        Text(note).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// A row's title and what it says, as the search finds them (`SettingsSpot`).
+@MainActor @ViewBuilder
+func titled(_ spot: SettingsSpot) -> some View {
+    if let note = spot.note { titled(spot.title, note) } else { Text(spot.title) }
 }
 
 

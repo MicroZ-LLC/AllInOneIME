@@ -15,11 +15,7 @@ struct ClipboardHistorySection: View {
     var body: some View {
         Section {
             Toggle(isOn: Binding(get: { model.config.clipboardHistoryOn }, set: { model.setClipboardHistory($0) })) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(SettingsSpot.clipboardHistory.title)
-                    Text(SettingsSpot.clipboardHistory.note ?? "").font(.callout).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                titled(.clipboardHistory)
             }
             .settingsRow(.clipboardHistory, shown: model.spot)
             if model.config.clipboardHistoryOn {

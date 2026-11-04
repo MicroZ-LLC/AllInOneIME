@@ -85,15 +85,6 @@ struct AgentSettingsPage: View {
         return kind.program(custom: model.config.agentCommand) == nil
             ? tr("自定义", "Custom") : tr("自定义：", "Custom: ") + kind.displayName(custom: model.config.agentCommand)
     }
-
-    /// A row's title with a short explanation under it, as System Settings shows them.
-    private func titled(_ title: String, _ note: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-            Text(note).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
 }
 
 /// Whether an agent's program is on this Mac, for `@agent`'s settings and the `@question` hand-off: each program looked up
