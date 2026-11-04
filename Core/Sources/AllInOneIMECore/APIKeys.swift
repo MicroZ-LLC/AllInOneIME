@@ -46,12 +46,14 @@ public enum APIKeys {
     public static func load(_ provider: Provider, for host: String) throws -> String? {
         let host = host.lowercased()
         let account = provider.rawValue
-        guard let key = keychainKey(account: account) else {
+        // The item's attributes, asked once for each request: its stamp for the key kept, its comment for the host.
+        let attributes = keychain.attributes(account)
+        guard let key = keychainKey(account: account, attributes: attributes) else {
             guard let (name, key) = shellVariable(provider.keyVariables) else { return nil }
             guard shellKeyGoes(provider, to: host) else { throw ProviderError.shellKeyForAnotherHost(provider, variable: name) }
             return key
         }
-        guard let saved = savedHost(account: account) else {
+        guard let saved = savedHost(attributes) else {
             bind(account: account, to: host)
             return key
         }
@@ -59,9 +61,9 @@ public enum APIKeys {
         return key
     }
 
-    /// The host the key under `account` was saved for (nil: not tied to one).
-    static func savedHost(account: String) -> String? {
-        guard let host = keychain.attributes(account)?.comment, !host.isEmpty else { return nil }
+    /// The host a key whose item has `attributes` was saved for (nil: not tied to one).
+    private static func savedHost(_ attributes: ItemAttributes?) -> String? {
+        guard let host = attributes?.comment, !host.isEmpty else { return nil }
         return host.lowercased()
     }
 
@@ -127,12 +129,22 @@ public enum APIKeys {
     /// The key under `account`, read from the keychain once in this process (and again only when the item
     /// changed since, here or in another app).
     public static func keychainKey(account: String) -> String? {
-        cache.key(account, stamp: stamp(account: account)) { readKey(account: account) }
+        keychainKey(account: account, attributes: keychain.attributes(account))
+    }
+
+    /// `keychainKey(account:)` with the attributes of the item under `account` already asked for.
+    private static func keychainKey(account: String, attributes: ItemAttributes?) -> String? {
+        cache.key(account, stamp: attributes.map(stamp(_:))) { readKey(account: account) }
     }
 
     /// When the item under `account` was made and last changed (nil: there is none), from its attributes.
     static func stamp(account: String, in store: Keychain = keychain) -> KeyCache.Stamp? {
-        store.attributes(account).map { KeyCache.Stamp(created: $0.created, modified: $0.modified) }
+        store.attributes(account).map(stamp(_:))
+    }
+
+    /// When an item with `attributes` was made and last changed.
+    private static func stamp(_ attributes: ItemAttributes) -> KeyCache.Stamp {
+        KeyCache.Stamp(created: attributes.created, modified: attributes.modified)
     }
 
     private static func readKey(account: String) -> String? {
