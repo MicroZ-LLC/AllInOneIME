@@ -32,17 +32,26 @@ enum FocusedField {
 
     /// Its frame on the screen, in AppKit's coordinates (Accessibility's start at the main screen's top left, y down).
     static func frame() -> NSRect? {
-        guard let element = element() else { return nil }
+        element().flatMap(frame(of:))
+    }
+
+    /// `element`'s frame (its position and size, a call each), in AppKit's coordinates. Nil: either not told, or no size.
+    private static func frame(of element: AXUIElement) -> CGRect? {
         var position: CFTypeRef?, size: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &position) == .success,
               AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &size) == .success,
-              let position, let size, CFGetTypeID(position) == AXValueGetTypeID(), CFGetTypeID(size) == AXValueGetTypeID()
-        else { return nil }
+              let position, let size else { return nil }
+        return appKitFrame(position: position, size: size, top: NSScreen.screens.first?.frame.maxY ?? 0)
+    }
+
+    /// The frame an element's `position` and `size` tell (AXValues), in AppKit's coordinates (`top`: the main screen's
+    /// height). Nil: not AXValues, or no size.
+    private static func appKitFrame(position: CFTypeRef, size: CFTypeRef, top: CGFloat) -> CGRect? {
+        guard CFGetTypeID(position) == AXValueGetTypeID(), CFGetTypeID(size) == AXValueGetTypeID() else { return nil }
         var origin = CGPoint.zero, extent = CGSize.zero
         guard AXValueGetValue(position as! AXValue, .cgPoint, &origin), AXValueGetValue(size as! AXValue, .cgSize, &extent),  // checked
               extent.width > 0, extent.height > 0 else { return nil }
-        let top = NSScreen.screens.first?.frame.maxY ?? 0
-        return NSRect(x: origin.x, y: top - origin.y - extent.height, width: extent.width, height: extent.height)
+        return PanelAnchor.appKit(CGRect(origin: origin, size: extent), top: top)
     }
 
     // MARK: The caret, for a panel
@@ -76,15 +85,7 @@ enum FocusedField {
         }
         let window = found as! AXUIElement  // checked just above
         AXUIElementSetMessagingTimeout(window, timeout)
-        var position: CFTypeRef?, size: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString, &position) == .success,
-              AXUIElementCopyAttributeValue(window, kAXSizeAttribute as CFString, &size) == .success,
-              let position, let size, CFGetTypeID(position) == AXValueGetTypeID(), CFGetTypeID(size) == AXValueGetTypeID()
-        else { return (nil, false) }
-        var origin = CGPoint.zero, extent = CGSize.zero
-        guard AXValueGetValue(position as! AXValue, .cgPoint, &origin), AXValueGetValue(size as! AXValue, .cgSize, &extent),  // checked
-              extent.width > 0, extent.height > 0 else { return (nil, false) }
-        return (PanelAnchor.appKit(CGRect(origin: origin, size: extent), top: NSScreen.screens.first?.frame.maxY ?? 0), false)
+        return (frame(of: window), false)
     }
 
     /// What Accessibility tells of the caret in `app`'s focused element, where its field told the panel no rect to trust
@@ -123,12 +124,8 @@ enum FocusedField {
             return AXValueGetValue(found as! AXValue, .cgRect, &told) ? PanelAnchor.appKit(told, top: top) : nil  // checked
         }
         func frame(_ element: AXUIElement) -> CGRect? {
-            guard let position = value(element, kAXPositionAttribute), let size = value(element, kAXSizeAttribute),
-                  CFGetTypeID(position) == AXValueGetTypeID(), CFGetTypeID(size) == AXValueGetTypeID() else { return nil }
-            var origin = CGPoint.zero, extent = CGSize.zero
-            guard AXValueGetValue(position as! AXValue, .cgPoint, &origin), AXValueGetValue(size as! AXValue, .cgSize, &extent),  // checked
-                  extent.width > 0, extent.height > 0 else { return nil }
-            return PanelAnchor.appKit(CGRect(origin: origin, size: extent), top: top)
+            guard let position = value(element, kAXPositionAttribute), let size = value(element, kAXSizeAttribute) else { return nil }
+            return appKitFrame(position: position, size: size, top: top)
         }
         func bounds(_ element: AXUIElement, _ location: Int, _ length: Int) -> CGRect? {
             var range = CFRange(location: location, length: length)

@@ -31,18 +31,15 @@ final class KeyGuard {
     private var takenKeys: Set<Int64> = []
     /// Asked for each key down: nil, not one for the input method now (it goes on untouched); true, the input method took
     /// it (it goes no further); false, the input method had it and left it to the app.
-    private var handler: ((NSEvent) -> Bool?)?
+    private var handler: ((CGEvent) -> Bool?)?
     private var saidUntrusted = false
     private weak var owner: AnyObject?
-
-    /// Whether keys are taken at the tap now (the permission given and the tap made).
-    var isOn: Bool { tap != nil && handler != nil }
 
     /// Off for the self-test: its controller drives fake fields, and the user's real keys meanwhile are no keys for it.
     var disabled = false
 
     /// `owner`'s handler, from its field's activation: the tap made first if it isn't yet and Accessibility allows it.
-    func attach(_ owner: AnyObject, handler: @escaping (NSEvent) -> Bool?) {
+    func attach(_ owner: AnyObject, handler: @escaping (CGEvent) -> Bool?) {
         guard !disabled else { return }
         self.owner = owner
         self.handler = handler
@@ -109,7 +106,7 @@ final class KeyGuard {
         if event.getIntegerValueField(.eventSourceUserData) == TerminalPaste.marker { return false }
         let code = event.getIntegerValueField(.keyboardEventKeycode)
         if type == .keyUp { return takenKeys.remove(code) != nil }
-        guard type == .keyDown, let key = NSEvent(cgEvent: event), let took = handler(key) else { return false }
+        guard type == .keyDown, let took = handler(event) else { return false }
         if took { takenKeys.insert(code) }
         return took
     }
