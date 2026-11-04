@@ -163,7 +163,8 @@ public struct Redaction: Sendable {
         guard !hidden.isEmpty else { return request }
         var out = request
         for i in out.system.indices { out.system[i].text = scrub(out.system[i].text) }
-        for i in out.messages.indices {
+        // The last message is `sent` whatever it held: only the ones before it are scrubbed.
+        for i in out.messages.indices.dropLast() {
             for j in out.messages[i].content.indices { out.messages[i].content[j].text = scrub(out.messages[i].content[j].text) }
         }
         if let last = out.messages.indices.last { out.messages[last].content = [.init(sent)] }
