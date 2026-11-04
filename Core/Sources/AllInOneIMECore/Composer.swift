@@ -1636,6 +1636,18 @@ public final class Composer {
     /// list, a script's list, `@open`'s results, the recipients.
     public func choose(index: Int) -> [Effect] { forField(chooseRow(index)) }
 
+    /// A row right-clicked in the panel (`index` among the rows it shows), or the highlighted one's ⌃⌦: the engine's
+    /// candidate deleted (`PinyinEngine.deleteCandidate`, librime's: what it learned of it forgotten), the page laid out
+    /// anew. Nothing on any other row.
+    public func deleteCandidate(index: Int) -> [Effect] { forField(deleteRow(index)) }
+
+    /// `deleteCandidate`, before `forField`.
+    private func deleteRow(_ index: Int) -> [Effect] {
+        guard voice == .off, !isLevelTwo || refineIsComposing, engineState.isComposing, let engine,
+              engine.deleteCandidate(onPage: index) else { return [] }
+        return afterEngineChange(engine, effects: [])
+    }
+
     /// `choose`, before `forField`.
     private func chooseRow(_ index: Int) -> [Effect] {
         // While a refine instruction's pinyin is typed the panel shows its candidates.
@@ -1950,6 +1962,11 @@ public final class Composer {
         let composing = engine.snapshot().isComposing
         let modifiers = event.modifiers.subtracting(.capsLock)
         if let response = handleModeKey(event) { return response }
+        // ⌃⌦ (rime-ice's `delete_candidate`): the highlighted candidate, as the panel shows it, deleted as a right-click
+        // on its row deletes it; librime's own would take its highlight, not a word put in among its candidates.
+        if composing, event.key == .forwardDelete, modifiers == .control {
+            return .consumed(deleteRow(engineState.highlighted))
+        }
         if composing, let response = endForSuggestionPrefix(event, engine) { return response }
         if !composing, let response = handlePaletteKey(event) { return response }
         // Return runs a command draft ("@question …"), like the action key; text keeps Return = as typed.

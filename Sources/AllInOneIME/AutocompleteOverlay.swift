@@ -305,6 +305,7 @@ extension AllInOneIMEInputController {
         let panel = CandidatePanel.shared
         panel.owner = self
         panel.onSelect = nil
+        panel.onDelete = nil
         panel.show(.autocomplete(text, language: UIText.language), anchor: anchor(client))
         ghostInPanel = true
     }

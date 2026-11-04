@@ -4,6 +4,10 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ## 0.6.8.3 (2026-11-02)
 
+### Added
+
+- A right-click on a pinyin candidate (or a Control-click, or ⌃⌦ on the highlighted one: ⌃Fn⌫ on a laptop keyboard) deletes it, as rime-ice's Control+Delete does: a word the input method learned is forgotten, a phrase you made by picking characters one by one too, and a word of the dictionary goes back to where the dictionary puts it. Nothing is put in, and you go on typing. Your English words among the candidates are still removed in Settings.
+
 ### Changed
 
 - A key from your login shell (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `GOOGLE_API_KEY`) now goes only to its own provider's service, or to a server on this Mac. With another base URL (a relay, DeepSeek), save a key for that service in Settings; until then requests fail with a message that says so, and Settings no longer shows the shell's key as set there.

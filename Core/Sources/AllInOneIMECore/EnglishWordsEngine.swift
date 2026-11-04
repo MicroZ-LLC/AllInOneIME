@@ -267,6 +267,15 @@ public final class EnglishWordsEngine: PinyinEngine {
         return select(entries[index])
     }
 
+    /// librime's candidate deleted (`PinyinEngine.deleteCandidate`); a word put in here isn't librime's to forget: nothing
+    /// (Settings removes the user's English words).
+    public func deleteCandidate(onPage index: Int) -> Bool {
+        let (_, entries) = current()
+        guard entries.contains(where: Self.isWord) else { return base.deleteCandidate(onPage: index) }
+        guard entries.indices.contains(index), case let .base(i) = entries[index] else { return false }
+        return base.deleteCandidate(onPage: i)
+    }
+
     /// The composition as converted text: the word highlighted, else librime's.
     public func commitComposition() -> String? {
         let (_, entries) = current()
