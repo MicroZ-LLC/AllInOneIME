@@ -213,7 +213,13 @@ public enum Prompt {
     }
 
     public static func request(for input: String, mode: WritingMode, config: Config, jargon: [JargonEntry] = []) -> ConverseRequest {
-        let plan = WritingPlan.make(mode, text: input, config: config)
+        request(for: input, mode: mode, plan: WritingPlan.make(mode, text: input, config: config), config: config, jargon: jargon)
+    }
+
+    /// `request(for:mode:config:jargon:)` with `plan`, the plan `WritingPlan.make(mode, text: input, config: config)`
+    /// made already (`Converter`'s, for its cache key).
+    static func request(for input: String, mode: WritingMode, plan: WritingPlan, config: Config,
+                        jargon: [JargonEntry] = []) -> ConverseRequest {
         var messages: [ConverseRequest.Message] = []
         // Each example is answered as the user's sentence would be (its own language decides what is
         // polished and what translated). Examples needing a language they aren't written in are left out:
@@ -353,8 +359,14 @@ public enum Prompt {
     /// The answer is in the same line format (`CandidateParser`), with the same tags.
     public static func refineRequest(for input: String, mode: WritingMode, config: Config, jargon: [JargonEntry] = [],
                                      turns: [Refinement.Turn]) -> ConverseRequest {
-        let plan = WritingPlan.make(mode, text: input, config: config)
-        var request = request(for: input, mode: mode, config: config, jargon: jargon)
+        refineRequest(for: input, mode: mode, plan: WritingPlan.make(mode, text: input, config: config), config: config,
+                      jargon: jargon, turns: turns)
+    }
+
+    /// `refineRequest(for:mode:config:jargon:turns:)` with `plan` made already, as for `request`.
+    static func refineRequest(for input: String, mode: WritingMode, plan: WritingPlan, config: Config, jargon: [JargonEntry] = [],
+                              turns: [Refinement.Turn]) -> ConverseRequest {
+        var request = request(for: input, mode: mode, plan: plan, config: config, jargon: jargon)
         request.system = [.init(system(plan, jargon: jargon) + "\n\n" + writingRefineRules)]
         for turn in turns {
             request.messages.append(.init(role: "assistant", text: answerText(turn.answer, plan: plan)))

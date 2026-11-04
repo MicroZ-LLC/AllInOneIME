@@ -295,10 +295,7 @@ extension Converter {
     func runReply(input: String, app: String?, fresh: Bool, turns: [Refinement.Turn],
                   continuation: AsyncThrowingStream<ConversionUpdate, Error>.Continuation) async throws {
         let started = ContinuousClock.now
-        func elapsed() -> TimeInterval {
-            let d = ContinuousClock.now - started
-            return Double(d.components.seconds) + Double(d.components.attoseconds) / 1e18
-        }
+        func elapsed() -> TimeInterval { Self.seconds(since: started) }
         let config = try Self.settings(try loadConfig(), app: app)
         let tone = TranslateMode.tone(app: app, config: config)
         let appClass = AppClass(app: app)
@@ -328,13 +325,7 @@ extension Converter {
         var last = ConversionResult.empty
         for try await event in stream {
             if case let .messageStop(reason) = event { stopReason = reason }
-            if case let .textDelta(delta) = event {
-                text += delta
-            } else if case let .textReplaced(whole) = event {
-                text = whole
-            } else {
-                continue
-            }
+            guard event.apply(to: &text) else { continue }
             if firstToken == nil { firstToken = elapsed() }
             if text.utf8.count > Self.maxOutputBytes { stopReason = "max_tokens"; break }
             let result = replies(text, final: false)
