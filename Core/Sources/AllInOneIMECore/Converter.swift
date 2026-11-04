@@ -94,8 +94,8 @@ public final class Converter: Sendable {
             return
         }
 
-        let request = turns.isEmpty ? Prompt.request(for: input, mode: mode, config: config, jargon: jargon)
-            : Prompt.refineRequest(for: input, mode: mode, config: config, jargon: jargon, turns: turns)
+        let request = turns.isEmpty ? Prompt.request(for: input, mode: mode, plan: plan, config: config, jargon: jargon)
+            : Prompt.refineRequest(for: input, mode: mode, plan: plan, config: config, jargon: jargon, turns: turns)
         let stream = client.stream(redaction?.protect(request, sent: lastMessage) ?? request, config: config,
                                    loadCredentials: loadCredentials, loadKey: loadKey)
 
