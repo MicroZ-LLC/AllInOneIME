@@ -32,20 +32,19 @@ enum TerminalPaste {
     /// ⌃V to the app, marked as ours (`isOurs`), once no modifier is held: the app's own paste in a terminal or a code
     /// editor (clipboard history's image, ⌃V again).
     @MainActor
-    static func postControlV() {
-        Task { @MainActor in
-            await modifiersUp()
-            postV(.maskControl)
-        }
-    }
+    static func postControlV() { postVWhenUp(.maskControl) }
 
     /// ⌘V to the app, marked as ours, once no modifier is held: an app's own paste (clipboard history's image, ⌃V again
     /// elsewhere). Posted while ⌃ is still held from ⌃V, an app could read ⌃⌘V.
     @MainActor
-    static func postCommandV() {
+    static func postCommandV() { postVWhenUp(.maskCommand) }
+
+    /// V with `flags`, posted once no modifier is held (`modifiersUp`).
+    @MainActor
+    private static func postVWhenUp(_ flags: CGEventFlags) {
         Task { @MainActor in
             await modifiersUp()
-            postV(.maskCommand)
+            postV(flags)
         }
     }
 
@@ -134,27 +133,36 @@ enum TerminalPaste {
     /// (a password, a token).
     @MainActor
     static func paste(_ text: String) async {
-        let pasteboard = NSPasteboard.general
-        let before = userClipboard(pasteboard)
-        pasteboard.clearContents()
         let provider = TextProvider(text: text)
-        let item = NSPasteboardItem()
-        item.setDataProvider(provider, forTypes: [.string])
-        // Clipboard managers skip transient content (nspasteboard.org), clipboard history too (it reads types only then).
-        item.setData(Data(), forType: NSPasteboard.PasteboardType("org.nspasteboard.TransientType"))
-        pasteboard.writeObjects([item])
-        let ours = pasteboard.changeCount
-        pending = (ours, before)
-        await modifiersUp()
-        postV(.maskCommand)
+        let ours = await write(provider, for: [.string], thenPost: .maskCommand)
         // The app reads the clipboard when the ⌘V reaches it: wait for that before typing on or putting it back (not once
         // a later paste of ours took it over: that one puts it back). The provider stays until then.
         let steps = Int(textReadTimeout / 0.02)
         for _ in 0..<steps where !provider.read && pending?.ours == ours { try? await Task.sleep(nanoseconds: 20_000_000) }
         Task { @MainActor in
             if provider.read { try? await Task.sleep(nanoseconds: UInt64(textPutBackAfterRead * 1_000_000_000)) }
-            putBack(after: ours, to: pasteboard)
+            putBack(after: ours, to: NSPasteboard.general)
         }
+    }
+
+    /// `provider`'s item on the clipboard for `types`, what was there kept to be put back (`pending`), then V with `flags`
+    /// posted once no modifier is held: the change count of our write.
+    @MainActor
+    private static func write(_ provider: any NSPasteboardItemDataProvider, for types: [NSPasteboard.PasteboardType],
+                              thenPost flags: CGEventFlags) async -> Int {
+        let pasteboard = NSPasteboard.general
+        let before = userClipboard(pasteboard)
+        pasteboard.clearContents()
+        let item = NSPasteboardItem()
+        item.setDataProvider(provider, forTypes: types)
+        // Clipboard managers skip transient content (nspasteboard.org), clipboard history too (it reads types only then).
+        item.setData(Data(), forType: NSPasteboard.PasteboardType("org.nspasteboard.TransientType"))
+        pasteboard.writeObjects([item])
+        let ours = pasteboard.changeCount
+        pending = (ours, before)
+        await modifiersUp()
+        postV(flags)
+        return ours
     }
 
     /// Hands a kept image to the app when it reads the clipboard (`NSPasteboardItemDataProvider`), so the clipboard is put
@@ -185,23 +193,12 @@ enum TerminalPaste {
     /// was on the clipboard before.
     @MainActor
     static func pasteImage(_ png: Data, controlV: Bool) async {
-        let pasteboard = NSPasteboard.general
-        let before = userClipboard(pasteboard)
-        pasteboard.clearContents()
         let provider = ImageProvider(png: png)
         providing = provider
-        let item = NSPasteboardItem()
-        item.setDataProvider(provider, forTypes: [.png, .tiff])
-        // Clipboard managers skip transient content (nspasteboard.org), clipboard history too (it reads types only then).
-        item.setData(Data(), forType: NSPasteboard.PasteboardType("org.nspasteboard.TransientType"))
-        pasteboard.writeObjects([item])
-        let ours = pasteboard.changeCount
-        pending = (ours, before)
-        await modifiersUp()
-        postV(controlV ? .maskControl : .maskCommand)
+        let ours = await write(provider, for: [.png, .tiff], thenPost: controlV ? .maskControl : .maskCommand)
         for _ in 0..<60 where !provider.read { try? await Task.sleep(nanoseconds: 50_000_000) }
         if provider.read { try? await Task.sleep(nanoseconds: 1_500_000_000) }  // its reads after the first
         if providing === provider { providing = nil }
-        putBack(after: ours, to: pasteboard)
+        putBack(after: ours, to: NSPasteboard.general)
     }
 }

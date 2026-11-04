@@ -352,13 +352,12 @@ final class CandidateView: NSView {
         for row in model.rows where !horizontal {
             let (_, text) = strings(for: row, highlighted: false)
             let font = Fonts.text(for: row.kind)
-            let size = Self.measure(text, minHeight: max(ceil(font.ascender - font.descender + font.leading),
-                                                          iconColumn > 0 ? Metrics.iconSize : 0))
+            let lineHeight = ceil(font.ascender - font.descender + font.leading)
+            let size = Self.measure(text, minHeight: max(lineHeight, iconColumn > 0 ? Metrics.iconSize : 0))
             widest = max(widest, size.width + iconColumn)
             // Drawn at the width it was measured at: laid out only as wide as its longest line, the
             // text can wrap once more and lose its last line.
             // One line next to an icon is centered on it.
-            let lineHeight = ceil(font.ascender - font.descender + font.leading)
             let textY = y + Metrics.rowInsetY + (iconColumn > 0 && size.height <= Metrics.iconSize ? (Metrics.iconSize - lineHeight) / 2 : 0)
             let textFrame = NSRect(x: inset + iconColumn, y: textY, width: Metrics.maxTextWidth, height: size.height)
             let labelOrigin = NSPoint(
