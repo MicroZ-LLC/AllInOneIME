@@ -243,7 +243,7 @@ enum ExtensionSourceGate {
 
     static func folders(_ config: Config, found: [String], recheck: Bool = false) -> [ExtensionStore.Folder] {
         let statuses = statuses(root)
-        let key = [root.path, String(describing: cachedStatuses?.date), String(config.findRaycastScripts)]
+        let key = [root.path, String(describing: cachedStatuses?.date?.timeIntervalSinceReferenceDate), String(config.findRaycastScripts)]
             + config.extensionFolders + ["|"] + config.hiddenExtensionFolders + ["|"] + found
             + config.extensionSources.map { $0.url + "\u{0}" + ($0.path ?? "") }
         if !recheck, let cachedFolders, cachedFolders.key == key { return cachedFolders.folders }
