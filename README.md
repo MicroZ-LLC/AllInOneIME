@@ -69,6 +69,7 @@ A new install writes English; to type Chinese (pinyin), French, Korean or Hindi 
 | Letters, once AI results are up | A follow-up: after `@question` the next question (see [Conversations](#conversations-with-question-new)), after `@improve` or a prompt command an instruction such as `shorter` (see [Refining the results](#refining-the-results-new)); ⇧⏎ sends it. After `@translate` letters continue the sentence, and ⏎ translates it again |
 | ⌘⏎, ⌘1–⌘9 | In an `@question` conversation: shows where to continue it (the coding agents installed, the one `@agent` hands to first; Claude, ChatGPT, Gemini; or copy it); ⌘1, ⌘2 … pick one |
 | Click a row | In the candidate panel: picks it, as its digit would (a word, a command in the list, a result, an `@open` file, a recipient, an extension's row); the row under the pointer is highlighted. The text field keeps the focus |
+| Right-click a candidate, ⌃⌦ | While you type pinyin: deletes the candidate right-clicked (or Control-clicked), or the highlighted one with ⌃⌦ (⌃Fn⌫ on a laptop keyboard), as rime-ice's Control+Delete does: a word the input method learned is forgotten (a phrase you made by picking characters one by one too), one of the dictionary's goes back to where the dictionary puts it. Nothing is put in. Your English words among the candidates are removed in Settings |
 | Tap Shift | With more than one input language: the next one, in their order (English → Chinese → French → …, then back to the first) |
 
 ## Commands
