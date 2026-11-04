@@ -245,11 +245,7 @@ public enum ICloudSync {
         /// The file without `keys`: only their text goes.
         public func removing(_ keys: Set<String>) -> Data {
             if let text, let out = JSONFileText.patched(text, setting: [:], keys: keys) { return Data(out.utf8) }
-            var all = entries.mapValues(\.json)
-            for key in keys { all[key] = nil }
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-            return (try? encoder.encode(AIConfig.JSONValue.object(all))) ?? Data("{}".utf8)
+            return whole { all in for key in keys { all[key] = nil } }
         }
 
         /// The file with `changes` written in: only those keys' text changes.
@@ -257,8 +253,14 @@ public enum ICloudSync {
             let values = changes.mapValues(\.json)
             if let text, let out = JSONFileText.patched(text, setting: values, keys: Set(values.keys)) { return Data(out.utf8) }
             // No file yet (or text it can't patch in place): the entries it could read, and the changes.
+            return whole { all in for (key, value) in values { all[key] = value } }
+        }
+
+        /// The file written whole, where there is no text to patch in place: the entries it could read, as `edit` leaves
+        /// them.
+        private func whole(_ edit: (inout [String: AIConfig.JSONValue]) -> Void) -> Data {
             var all = entries.mapValues(\.json)
-            for (key, value) in values { all[key] = value }
+            edit(&all)
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
             return (try? encoder.encode(AIConfig.JSONValue.object(all))) ?? Data("{}".utf8)
