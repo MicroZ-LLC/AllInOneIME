@@ -585,7 +585,7 @@ public struct PersonalDictionaryStore: Sendable {
             guard started, ended, let name, !name.isEmpty else {
                 throw PersonalDictionaryError.invalid(tr("词库头必须包含 name，并以 --- 和 ... 分隔。", "The dictionary header must contain name and be delimited by --- and ... ."))
             }
-            guard name.utf8.count <= 128, name.utf8.allSatisfy({ (65...90).contains($0) || (97...122).contains($0) || (48...57).contains($0) || [45, 46, 95].contains($0) }), name != ".", name != ".." else {
+            guard PersonalDictionaryStore.isName(name) else {
                 throw PersonalDictionaryError.unsupported(tr("name 只能包含英文字母、数字、-、_ 和 .，最多 128 字节。", "name may contain Latin letters, digits, -, _ and ., up to 128 bytes."))
             }
             let layout = columns ?? ["text", "code", "weight"]
