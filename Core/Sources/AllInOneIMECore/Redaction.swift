@@ -338,7 +338,8 @@ public struct Redaction: Sendable {
             var text = "", starts: [Int] = [], ends: [Int] = [], at = 0
             for character in original {
                 let length = String(character).utf16.count
-                let folded = String(character).precomposedStringWithCompatibilityMapping
+                // ASCII is its own NFKC form: only the other characters are folded.
+                let folded = character.isASCII ? String(character) : String(character).precomposedStringWithCompatibilityMapping
                 for _ in folded.utf16 {
                     starts.append(at)
                     ends.append(at + length)
@@ -542,10 +543,12 @@ public struct Redaction: Sendable {
     /// the vowels of English ("internationalization_and_localization").
     static func isOrdinary(_ s: String) -> Bool {
         let letters = s.filter { $0.isASCII && $0.isLetter }
-        guard !letters.isEmpty, coverage(s) < 0.8 else { return true }
+        guard !letters.isEmpty else { return true }
+        let covered = coverage(s)
+        guard covered < 0.8 else { return true }
         guard !s.contains(where: \.isNumber) else { return false }
         let mixed = letters.contains(where: \.isUppercase) && letters.contains(where: \.isLowercase)
-        if mixed { return isCamelCase(s) && coverage(s) >= 0.4 }
+        if mixed { return isCamelCase(s) && covered >= 0.4 }
         let vowels = Double(letters.filter { "aeiouAEIOU".contains($0) }.count) / Double(letters.count)
         return s.count < 32 || (0.3...0.6).contains(vowels)
     }
