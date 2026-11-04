@@ -129,15 +129,7 @@ enum LiveConfig {
         cached = (read.url, read.date, read.config)
     }
 
-    /// The file's modification date as `FileManager.attributesOfItem` gives it (a symbolic link's own), from a single
-    /// `lstat`: that dictionary of every attribute, the owner's and group's names looked up, takes about 50 times as long,
-    /// and this is read several times for each key.
-    fileprivate static func modificationDate(_ url: URL) -> Date? {
-        var info = stat()
-        guard lstat(url.path, &info) == 0 else { return nil }
-        let time = info.st_mtimespec
-        return Date(timeIntervalSince1970: TimeInterval(time.tv_sec) + TimeInterval(time.tv_nsec) / 1_000_000_000)
-    }
+    fileprivate static func modificationDate(_ url: URL) -> Date? { FileDate.own(url.path) }
 }
 
 /// The user's jargon list (for explaining the terms a jargon (黑话) line uses), re-read when the file changes.
@@ -151,6 +143,19 @@ enum LiveJargon {
         let entries = date == nil ? [] : JargonLibrary.load(from: url)
         cached = (url, date, entries)
         return entries
+    }
+}
+
+/// A file's modification date as `FileManager.attributesOfItem` gives it (a symbolic link's own, not its target's), from
+/// a single `lstat`: that dictionary of every attribute, the owner's and group's names looked up, takes about 50 times as
+/// long. For the files read again only when they change, several of them on each key (the config, the jargon list, the
+/// recent questions, an extension source's statuses, an extension's image).
+enum FileDate {
+    static func own(_ path: String) -> Date? {
+        var info = stat()
+        guard lstat(path, &info) == 0 else { return nil }
+        let time = info.st_mtimespec
+        return Date(timeIntervalSince1970: TimeInterval(time.tv_sec) + TimeInterval(time.tv_nsec) / 1_000_000_000)
     }
 }
 
