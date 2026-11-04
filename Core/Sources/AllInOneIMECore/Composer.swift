@@ -1093,13 +1093,27 @@ public final class Composer {
     /// (`@reply 告诉他 @st`, not inside a word), where the commands that can run inside a text are offered.
     /// Not inside a note, a reminder, a search, code or a terminal command: they take their text as typed (`takesTextAsTyped`).
     private var palette: (query: String, nested: Bool, at: String.Index)? {
-        guard !isLevelTwo, voice == .off, !engineState.isComposing, tail.isEmpty, let at = draft.lastIndex(of: triggerCharacter) else { return nil }
+        guard !isLevelTwo, voice == .off, !engineState.isComposing, tail.isEmpty, let at = triggerBeforeName else { return nil }
         let query = draft[draft.index(after: at)...]
-        guard query.first?.isNumber != true, query.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber) }) else { return nil }
+        guard query.first?.isNumber != true else { return nil }
         if at == draft.startIndex { return (String(query), false, at) }
         let before = draft[draft.index(before: at)]
         guard draftCommand != nil, !takesTextAsTyped, !(before.isASCII && (before.isLetter || before.isNumber)) else { return nil }
         return (String(query), true, at)
+    }
+
+    /// The draft's last trigger, when only ASCII letters and digits follow it (nil otherwise): looked for from the end,
+    /// past those alone. `palette` is read many times a key, and a key in a long text mustn't go back through all of it.
+    private var triggerBeforeName: String.Index? {
+        let trigger = triggerCharacter
+        var at = draft.endIndex
+        while at > draft.startIndex {
+            at = draft.index(before: at)
+            let c = draft[at]
+            if c == trigger { return at }
+            guard c.isASCII, c.isLetter || c.isNumber else { return nil }
+        }
+        return nil
     }
 
     /// The draft is a note, a reminder, a search, code (`@py`, `@js`), a terminal command (`@agent`, a custom
