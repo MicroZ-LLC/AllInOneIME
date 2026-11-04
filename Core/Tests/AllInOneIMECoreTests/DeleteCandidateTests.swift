@@ -296,6 +296,35 @@ struct DeleteCandidateSessionTests {
             #expect(texts(host) == ["gamma", "beta", "alpha"] && host.session.clipboardShown, "\(texts(host))")
         }
     }
+
+    /// ⌃⌦ over clipboard history (⌃V in a command, over the pinyin of its text being typed) only hides it: the key is
+    /// taken (the app never has it) and the engine's highlighted candidate, which the history hid, isn't deleted. With
+    /// the history gone and the pinyin still typed, ⌃⌦ deletes the highlighted one.
+    @Test func controlForwardDeleteOverClipboardHistoryDeletesNothing() async {
+        await inEnglish {
+            let engine = FakeEngine()
+            let host = host(engine, history: ["gamma", "beta", "alpha"])
+            host.press(FakeHost.at)
+            host.type("i")
+            host.press(FakeHost.tab)
+            host.type("nihao")
+            #expect(host.composer.engineState.isComposing && host.composer.draftCommand != nil)
+            let (draft, highlighted) = (host.composer.draft, host.composer.engineState.highlighted)
+            host.press(FakeHost.controlV)
+            #expect(texts(host) == ["gamma", "beta", "alpha"] && host.session.clipboardShown, "clipboard history: \(texts(host))")
+            #expect(host.press(DeleteKeys.controlForwardDelete), "taken: the app never has it")
+            #expect(!host.session.clipboardShown && !texts(host).contains("gamma"), "the history hidden: \(texts(host))")
+            #expect(engine.deleted.isEmpty, "no candidate deleted: \(engine.deleted)")
+            #expect(host.composer.engineState.isComposing && engine.input == "nihao" && host.composer.draft == draft,
+                    "still composing: \(engine.input) \(host.composer.draft)")
+            #expect(host.document.isEmpty, "nothing put in: \(host.document)")
+            // The history gone: ⌃⌦ deletes the highlighted candidate, once.
+            #expect(host.composer.engineState.highlighted == highlighted)
+            #expect(host.press(DeleteKeys.controlForwardDelete), "taken")
+            #expect(engine.deleted == [highlighted], "the highlighted one: \(engine.deleted)")
+            #expect(host.composer.engineState.isComposing && engine.input == "nihao" && host.document.isEmpty)
+        }
+    }
 }
 
 /// Suggestions' rows (a GitHub issue's, as "#7" is typed) are none of the engine's: a right-click does nothing, and ⌃⌦
