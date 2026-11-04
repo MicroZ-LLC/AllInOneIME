@@ -241,9 +241,7 @@ public final class InputSession {
                 learnTypedInEnglish(englishModeWords.leftField())
                 tasks.close()  // what runs for the field stops (a save, a message, an agent goes on)
                 noticeToken += 1  // its timer does nothing now
-                composer.engine = nil
-                engine = nil
-                englishWords = nil
+                dropEngine()
                 fieldSession += 1  // a save still on its way tells its outcome elsewhere
             }
         }
@@ -392,9 +390,7 @@ public final class InputSession {
             appliedDefaultInput = nil  // a new session starts in the default input mode
             settings(app: nil)
         case .starting:
-            engine = nil
-            englishWords = nil
-            composer.engine = nil
+            dropEngine()
         case .none:
             engine = nil
             englishWords = nil
