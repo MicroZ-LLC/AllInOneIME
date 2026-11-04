@@ -19,13 +19,13 @@ final class CandidatePanel: NSPanel {
         set { view.onSelect = newValue }
     }
 
-    /// The scroll wheel or trackpad over the panel: rows to move (down is positive).
     /// A row right-clicked: its index in `model.rows` (`SessionEvent.delete`).
     var onDelete: ((Int) -> Void)? {
         get { view.onDelete }
         set { view.onDelete = newValue }
     }
 
+    /// The scroll wheel or trackpad over the panel: rows to move (down is positive).
     var onScroll: ((Int) -> Void)? {
         get { view.onScroll }
         set { view.onScroll = newValue }

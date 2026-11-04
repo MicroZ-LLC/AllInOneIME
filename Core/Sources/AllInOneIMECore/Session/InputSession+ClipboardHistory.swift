@@ -156,7 +156,7 @@ extension InputSession {
     /// row chosen when it started, ⏎ keypad Enter and Tab put in what is selected, → and Esc hide the panel, ⌃V again hides
     /// it and pastes as the app does (0.6.8.2: outside a command the app's own paste key where it can be posted,
     /// `PlatformAction.passPasteKey`, ⌘V in an app and ⌃V in a terminal; else ⌃V as it is, the app's: false; in a command the
-    /// composer's: nil). Any other key hides it and goes on (nil): digits are typed, never pick.
+    /// composer's: nil), ⌃⌦ only hides it. Any other key hides it and goes on (nil): digits are typed, never pick.
     func clipboardKey(_ event: KeyEvent) -> Bool? {
         if isPasteAnywhere(event) {
             clipboardTookKey()
@@ -182,8 +182,11 @@ extension InputSession {
             return true
         }
         guard modifiers.isEmpty else {
+            // ⌃⌦ deletes the highlighted candidate (`Composer.deleteCandidate`): not one the history's rows hid.
+            let deletes = event.key == .forwardDelete && modifiers == .control
+            if deletes { clipboardTookKey() }
             clipboardHide()
-            return nil
+            return deletes ? true : nil
         }
         switch event.key {
         case .enter, .keypadEnter, .tab:
