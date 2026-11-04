@@ -405,19 +405,21 @@ public enum AWSProcessRunner {
             for (pipe, isOutput) in [(stdout, true), (stderr, false)] {
                 pipes.enter()
                 pipe.fileHandleForReading.readabilityHandler = { [self] handle in
-                    let chunk = handle.availableData
-                    if chunk.isEmpty {
-                        handle.readabilityHandler = nil
-                        pipes.leave()
-                        return
-                    }
-                    lock.lock()
-                    if isOutput {
-                        if output.count < AWSProcessRunner.maxOutput { output.append(chunk.prefix(AWSProcessRunner.maxOutput - output.count)) }
-                    } else if errors.count < AWSProcessRunner.maxOutput {
-                        errors.append(chunk.prefix(AWSProcessRunner.maxOutput - errors.count))
-                    }
-                    lock.unlock()
+                    repeat {  // all there is now (`FileHandle.hasMoreToRead`)
+                        let chunk = handle.availableData
+                        if chunk.isEmpty {
+                            handle.readabilityHandler = nil
+                            pipes.leave()
+                            return
+                        }
+                        lock.lock()
+                        if isOutput {
+                            if output.count < AWSProcessRunner.maxOutput { output.append(chunk.prefix(AWSProcessRunner.maxOutput - output.count)) }
+                        } else if errors.count < AWSProcessRunner.maxOutput {
+                            errors.append(chunk.prefix(AWSProcessRunner.maxOutput - errors.count))
+                        }
+                        lock.unlock()
+                    } while handle.hasMoreToRead
                 }
             }
             let spec = LaunchSpec(executable: url, arguments: Array(request.arguments.dropFirst()), environment: request.environment,
