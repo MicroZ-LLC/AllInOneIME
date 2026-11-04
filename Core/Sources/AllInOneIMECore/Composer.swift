@@ -895,7 +895,8 @@ public final class Composer {
     /// the draft as typed.
     public var shownDraft: String {
         if let shown = modeShownDraft { return shown }
-        guard draft.contains(triggerCharacter) else { return draft }
+        let trigger = triggerCharacter  // read once, not again for every character
+        guard draft.contains(trigger) else { return draft }
         let chars = Array(draft)
         let names = commandsByName, palette = self.palette
         let paletteAt = palette.map { draft.distance(from: draft.startIndex, to: $0.at) }
@@ -907,7 +908,7 @@ public final class Composer {
         var out = ""
         var i = 0
         while i < chars.count {
-            guard chars[i] == triggerCharacter else {
+            guard chars[i] == trigger else {
                 // A note keeps its lines (`pasted`); the draft is shown on one line.
                 if chars[i].isNewline { out += Self.lineBreak } else { out.append(chars[i]) }
                 i += 1
