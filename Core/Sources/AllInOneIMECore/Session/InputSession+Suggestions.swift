@@ -676,7 +676,8 @@ extension InputSession {
 
     /// `text` went into the field: its token characters extend the token, any other character ends it.
     func suggestionsTyped(_ text: String) {
-        let trigger = services.loadSettings().commandTrigger
+        // Read once a token could start with it: most characters go on one, or end it.
+        lazy var trigger = services.loadSettings().commandTrigger
         for character in text {
             let normalized = Character(SuggestionsToken.normalized(String(character)))
             guard SuggestionsToken.isTokenCharacter(normalized) else {
@@ -964,16 +965,15 @@ extension InputSession {
         }
         if prune, s.settingsValid() {
             // Those on by default with no approval (the user's own extension's, a trusted source's) keep their lists too.
-            let declared = services.loadExtensions(services.loadSettings(), false).commands
+            let config = services.loadSettings()
+            let declared = services.loadExtensions(config, false).commands
             s.store.prune(keeping: settings.sourceKeys(extensions: declared), folder: s.cacheFolder)
             var lapsed = CompletionSourceApproval.lapsed(settings.enabled, plugins: plugins, sha256: s.store.sha256)
             if settings.enabled.contains(where: { $0.plugin == CompletionSourceKey.scriptExtensions }) {
-                let config = services.loadSettings()
-                let commands = services.loadExtensions(config, false).commands
                 let (follows, digest) = ({ self.extensionPin($0, config: config).follows }, { self.extensionPin($0, config: config).digest })
-                lapsed += CompletionSourceApproval.lapsed(settings.enabled, extensions: commands, follows: follows, digest: digest)
+                lapsed += CompletionSourceApproval.lapsed(settings.enabled, extensions: declared, follows: follows, digest: digest)
                 // Of those that follow, only the query and terms: nothing of them is read.
-                let followed = CompletionSourceApproval.followed(settings.enabled, extensions: commands, follows: follows)
+                let followed = CompletionSourceApproval.followed(settings.enabled, extensions: declared, follows: follows)
                 if !followed.isEmpty {
                     log.notice("suggestions: \(followed.count) script extension source(s) changed, kept on (their own, or a trusted source's)")
                     s.approvalsFollowed(followed)

@@ -735,14 +735,15 @@ public final class InputSession {
         if composer.draftInPanel, selectionReported != nil { wants.insert(.selectedRange) }
         // "@" may start a command where level one would start one (`Composer.handleLevelOne`: an engine, nothing composed
         // in it, no draft): on the selection, unless it comes right after a word ("bob@example.com").
-        if key.printableText == services.loadSettings().commandTrigger, !composer.isLevelTwo, composer.draft.isEmpty, let engine = composer.engine,
+        let config = services.loadSettings()
+        if key.printableText == config.commandTrigger, !composer.isLevelTwo, composer.draft.isEmpty, let engine = composer.engine,
            !engine.snapshot().isComposing {
             let terminal = (context.field ?? field).terminal
             if lastTyped.character != nil, !terminal { wants.insert(.beforeCaret) }
             let afterWord = context.read.contains(.beforeCaret)
                 && characterBeforeCaret(in: context).map(Composer.continuesWord) == true
             if !wants.contains(.beforeCaret) || context.read.contains(.beforeCaret), !afterWord, !terminal,
-               services.loadSettings().useSelection, !secureInputActive() {
+               config.useSelection, !secureInputActive() {
                 wants.formUnion([.selection, .selectedRange])  // where it is, as the field reports it: a click moves it
             }
         }
@@ -828,8 +829,8 @@ public final class InputSession {
             }
             missingCheckWaiting = false
             composer.commandUsage = services.loadCommandUsage()  // another field may have run commands
-            composer.remembersQuestions = services.loadSettings().rememberQuestions
-            applyChatSettings(services.loadSettings())
+            composer.remembersQuestions = config.rememberQuestions
+            applyChatSettings(config)
             composer.questionHistory = services.loadQuestionHistory()  // asked in another field, or cleared
         }
         // Dead keys aren't composed for an input method (macOS): done here, from the layout the keys come from.

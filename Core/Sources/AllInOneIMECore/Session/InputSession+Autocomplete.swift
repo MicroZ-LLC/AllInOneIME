@@ -103,8 +103,9 @@ extension InputSession {
         autocomplete = AutocompleteField()
         autocomplete.pause = pause
         tasks.cancel(.autocomplete)
-        autocompleteTakeSettings(services.loadSettings())
-        guard autocompleteMayRun(), Autocomplete.route(services.loadSettings()) == .onDevice,
+        let config = services.loadSettings()
+        autocompleteTakeSettings(config)
+        guard autocompleteMayRun(), Autocomplete.route(config) == .onDevice,
               services.autocomplete.prewarmDue(at: services.uptime()) else { return }
         services.converter.prewarmOnDevice()
     }
