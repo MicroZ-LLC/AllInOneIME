@@ -59,11 +59,11 @@ public enum SuggestionsAppClass: Equatable, Sendable {
     }
 
     /// A Windows app id by its program's name; a bundle id that is one of `prefixes` or starts with one and a dot (or
-    /// one ending in a dot itself).
+    /// one ending in a dot itself). Asked with each key: one with the dot is made only for an id that starts with it.
     private static func matches(_ id: String, _ prefixes: [String], _ programs: Set<String>) -> Bool {
         if id.hasPrefix("win:") { return programs.contains(String(id.dropFirst(4))) }
         return prefixes.contains { prefix in
-            prefix.hasSuffix(".") ? id.hasPrefix(prefix) : id == prefix || id.hasPrefix(prefix + ".")
+            id.hasPrefix(prefix) && (prefix.hasSuffix(".") || id == prefix || id.hasPrefix(prefix + "."))
         }
     }
 }
