@@ -216,8 +216,7 @@ public enum EnglishWords {
                 keys.remove(at: i)
                 return true
             }
-            keys.append(k)
-            if keys.count > Self.limit { keys.removeFirst(keys.count - Self.limit) }
+            keys.append(k, keepingLast: Self.limit)
             return false
         }
     }

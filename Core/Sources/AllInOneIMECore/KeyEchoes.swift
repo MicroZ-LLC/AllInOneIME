@@ -66,8 +66,7 @@ public struct KeyEchoes: Equatable, Sendable {
     public mutating func answered(_ key: Key, now: TimeInterval, handled: Bool) {
         answered.removeAll { $0.came > now || now - $0.came > Self.window }
         guard Self.keepable(key, now: now) else { return }
-        answered.append(Answered(key: key, came: now, handled: handled))
-        if answered.count > Self.kept { answered.removeFirst(answered.count - Self.kept) }
+        answered.append(Answered(key: key, came: now, handled: handled), keepingLast: Self.kept)
     }
 
     /// A key at a time of its own, not yet to come.

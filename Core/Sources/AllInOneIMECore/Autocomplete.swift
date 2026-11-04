@@ -588,8 +588,11 @@ public enum Autocomplete {
 
         public init() {}
 
+        /// `typed` put in after the rest (what a key typed, a suggestion taken), the last `beforeLimit` characters kept:
+        /// cut only once it may be longer than that, as it has no more characters than UTF-8 bytes.
         public mutating func add(_ typed: String) {
-            text = String((text + typed).suffix(Autocomplete.beforeLimit))
+            text += typed
+            if text.utf8.count > Autocomplete.beforeLimit { text = String(text.suffix(Autocomplete.beforeLimit)) }
         }
 
         public mutating func backspace() {
@@ -620,7 +623,7 @@ public enum Autocomplete {
         /// A key that typed, at `time` (seconds of uptime).
         public mutating func key(at time: TimeInterval) {
             if let last, time >= last, time - last < Self.stop {
-                intervals = Array((intervals + [time - last]).suffix(Self.kept))
+                intervals.append(time - last, keepingLast: Self.kept)
             }
             last = time
         }
@@ -678,8 +681,7 @@ public enum Autocomplete {
 
         public mutating func add(_ entry: Entry) {
             entries.removeAll { $0.before == entry.before && $0.after == entry.after && $0.app == entry.app }
-            entries.append(entry)
-            if entries.count > Self.capacity { entries.removeFirst(entries.count - Self.capacity) }
+            entries.append(entry, keepingLast: Self.capacity)
         }
 
         /// `text` for `before` alone: no text after the caret, no app.
@@ -710,8 +712,7 @@ public enum Autocomplete {
         public mutating func reject(_ entry: Entry) {
             entries.removeAll { $0.before == entry.before && $0.after == entry.after && $0.app == entry.app }
             rejected.removeAll { $0 == entry }
-            rejected.append(entry)
-            if rejected.count > Self.capacity { rejected.removeFirst(rejected.count - Self.capacity) }
+            rejected.append(entry, keepingLast: Self.capacity)
         }
 
         /// Whether `text`, a suggestion for `context` in `app`, is one waved away there: what was left of it at that
@@ -771,7 +772,7 @@ public enum Autocomplete {
         public mutating func record(_ taken: Bool, in app: String, mayStop: Bool = true) -> Bool {
             let key = app.lowercased()
             var entry = apps[key] ?? App()
-            entry.outcomes = Array((entry.outcomes + [taken]).suffix(Self.window))
+            entry.outcomes.append(taken, keepingLast: Self.window)
             entry.dismissedInARow = taken ? 0 : entry.dismissedInARow + 1
             return settle(entry, key, mayStop: mayStop)
         }
@@ -855,7 +856,7 @@ public enum Autocomplete {
             shown += 1
             shownCharacters += text.count
             if cached { fromCache += 1 }
-            latencies = Array((latencies + [Int((seconds * 1000).rounded())]).suffix(Self.latenciesKept))
+            latencies.append(Int((seconds * 1000).rounded()), keepingLast: Self.latenciesKept)
         }
 
         /// The switch turned on or off at `date`.
@@ -911,6 +912,15 @@ extension Character {
 
     /// A letter of Chinese, Japanese or Korean (not one of their marks: "，" "。"), what tells text is in one of them.
     var isWideLetter: Bool { isWide && isLetter }
+}
+
+extension Array {
+    /// `element` added at the end, and the first ones dropped beyond `limit`: the latest `limit` kept, in place (the
+    /// keys' rhythm, the suggestions kept, the rows picked, the key downs answered).
+    mutating func append(_ element: Element, keepingLast limit: Int) {
+        append(element)
+        if count > limit { removeFirst(count - limit) }
+    }
 }
 
 // MARK: - What is kept between fields
