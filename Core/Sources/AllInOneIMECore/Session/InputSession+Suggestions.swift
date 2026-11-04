@@ -861,13 +861,14 @@ extension InputSession {
     /// them are made with each key (a key making 100 costs a few hundredths of a millisecond), so the footer's count is
     /// the rows there are from the first key, an item none of whose templates can go in here never counted.
     func suggestionsRows(askAgain: Bool) -> [SuggestionRow] {
+        // The token and what is composed first: most keys (pinyin's, the key after a boundary) end there, with neither the
+        // settings nor the app's class read.
+        guard !suggesting.token.isEmpty, !suggesting.dead, suggesting.hiddenFor != suggesting.token,
+              !composesBesidesCodeWord, !composer.wantsPanel, !fieldIsPrivate(unknown: true) else { return [] }
         let appClass = SuggestionsAppClass(app: app, terminal: terminal)
         let s = services.suggestions
         let settings = s.settings()
-        guard !suggesting.token.isEmpty, !suggesting.dead, suggesting.hiddenFor != suggesting.token,
-              !composesBesidesCodeWord, !composer.wantsPanel, !fieldIsPrivate(unknown: true), appClass != .none,
-              suggestionsOn(settings)
-        else { return [] }
+        guard appClass != .none, suggestionsOn(settings) else { return [] }
         let now = s.now()
         let t = InterfaceWords(language: UIText.language)
         let scores = Frecency.scores(s.loadPicks())
