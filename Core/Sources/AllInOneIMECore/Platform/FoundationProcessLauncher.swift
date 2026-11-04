@@ -38,6 +38,16 @@ public struct FoundationProcessLauncher: ProcessLauncher {
         if let io = Self.handle(spec.standardError) { process.standardError = io }
         let child = FoundationProcess(process)
         if let onExit = spec.onExit { process.terminationHandler = { _ in onExit(child) } }
+        #if canImport(Glibc) || canImport(Musl)
+        // A program starts with the signal mask of the thread that starts it, and libdispatch's threads block nearly
+        // every signal (SIGTERM, SIGINT, SIGCHLD …): started from one (`CommandRunner` starts programs on a queue), it
+        // could never be asked to end, only killed. Started with none blocked, as a shell starts it; this thread's mask
+        // as it was after.
+        var none = sigset_t(), mask = sigset_t()
+        sigemptyset(&none)
+        pthread_sigmask(SIG_SETMASK, &none, &mask)
+        defer { pthread_sigmask(SIG_SETMASK, &mask, nil) }
+        #endif
         try process.run()
         return child
     }
