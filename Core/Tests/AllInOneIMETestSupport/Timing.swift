@@ -4,15 +4,17 @@ import WinSDK
 #endif
 
 /// Time in tests that run alongside more than a thousand others, many starting git and other programs in parallel:
-/// there, starting a process or getting a turn on a core can take seconds. So a bound on how long something took is
-/// set against what it would take if the code were wrong (a program that sleeps a minute), not against how fast this
-/// Mac is; what is timed for speed is the CPU time of the thread doing the work, which waiting for a turn doesn't add
-/// to; and what should happen soon is waited for, up to a generous limit.
+/// there, starting a process or getting a turn on a core can take seconds, and on a small shared machine (a CI runner's
+/// three or four cores, all the tests starting at once) the first minute of a run holds a test up for most of that
+/// minute. So a bound on how long something took is set against what it would take if the code were wrong (a program
+/// that sleeps five minutes), not against how fast this Mac is; what is timed for speed is the CPU time of the thread
+/// doing the work, which waiting for a turn doesn't add to; and what should happen soon is waited for, up to a generous
+/// limit.
 public enum Timing {
     /// How long a program in a test sleeps when the test checks that it is stopped before it ends by itself.
-    public static let longSleep = 60
+    public static let longSleep = 300
     /// Stopped "well before" `longSleep` seconds: whatever the load, far more than stopping takes.
-    public static let wellBeforeLongSleep: TimeInterval = 30
+    public static let wellBeforeLongSleep: TimeInterval = 150
 
     /// The CPU time this thread spends in `body` (as `ContinuousClock.measure`, without the time spent waiting).
     public static func cpuTime(_ body: () throws -> Void) rethrows -> Duration {
@@ -45,7 +47,7 @@ public enum Timing {
     }
 
     /// Whether `condition` holds within `timeout` seconds, asked every 20 ms.
-    public static func eventually(within timeout: TimeInterval = 20, _ condition: () -> Bool) async -> Bool {
+    public static func eventually(within timeout: TimeInterval = 60, _ condition: () -> Bool) async -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while !condition() {
             if Date() >= deadline { return false }

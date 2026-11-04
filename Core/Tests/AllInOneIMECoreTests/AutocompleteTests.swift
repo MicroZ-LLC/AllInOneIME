@@ -1064,11 +1064,16 @@ struct AutocompleteTests {
 
         var pauses: [TimerID] { host.timers.filter { if case .autocomplete = $0 { true } else { false } } }
 
-        /// The pause runs out: the field is read, and what it asks is answered.
+        /// The pause runs out: the field is read, and what it asks is answered. Expecting nothing to show, a moment as
+        /// before, then until the field's reading and the request it made (if any) are over, which a busy test run can
+        /// hold up past that moment.
         func pauseEnds(expecting text: String? = nil) {
             clock.advance(0.2)
             host.fireTimers { if case .autocomplete = $0 { true } else { false } }
-            if text != nil { host.settle(timeout: 5) { host.ghost != nil } } else { host.settle(timeout: 0.3) { false } }
+            if text != nil { host.settle(timeout: 5) { host.ghost != nil } } else {
+                host.settle(timeout: 0.3) { false }
+                host.settle(timeout: 20) { host.session.autocomplete.reading == nil && host.session.autocomplete.asked == nil }
+            }
         }
     }
 

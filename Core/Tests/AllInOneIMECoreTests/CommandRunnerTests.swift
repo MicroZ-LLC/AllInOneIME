@@ -44,8 +44,10 @@ struct CommandRunnerTests {
         // Git for Windows has no rev: its perl reverses the line.
         let rev = CustomCommand(name: "rev", type: .run, argv: ["perl", "-nle", "print scalar reverse"], stdin: "{input}\n")
         #else
-        // tr, which every system has (a minimal Linux, swift:6.4's image, has no rev), turns "abc" around as rev would.
-        let rev = CustomCommand(name: "rev", type: .run, argv: ["tr", "abc", "cba"], stdin: "{input}\n")
+        // tr, which every system has (a minimal Linux, swift:6.4's image, has no rev), turns "abc" around as rev would;
+        // a time limit no busy test run reaches (`Timing`), as what it's given is checked, not how long it takes.
+        let rev = CustomCommand(name: "rev", type: .run, argv: ["tr", "abc", "cba"], stdin: "{input}\n",
+                                timeoutSeconds: Double(Timing.longSleep))
         #endif
         #expect(try await run(rev, "abc").get() == "cba")
     }
@@ -75,7 +77,7 @@ struct CommandRunnerTests {
     }
 
     @Test func slowProgramsAreStopped() async {
-        // Stopped at the 0.3 s limit, well before the minute it would sleep (`Timing`: the bound holds under load).
+        // Stopped at the 0.3 s limit, well before the five minutes it would sleep (`Timing`: the bound holds under load).
         let sleep = CustomCommand(name: "sleep", type: .run, argv: ["sleep", "{input}"], timeoutSeconds: 0.3)
         let started = Date()
         #expect(await run(sleep, "\(Timing.longSleep)").error == .timedOut(0.3))
@@ -88,7 +90,7 @@ struct CommandRunnerTests {
     }
 
     @Test func cancellingStopsTheProgram() async throws {
-        // A minute's sleep with a limit past it: only the cancel can stop it well before.
+        // Five minutes of sleep with a limit past it: only the cancel can stop it well before.
         let sleep = CustomCommand(name: "sleep", type: .run, argv: ["sleep", "\(Timing.longSleep)"],
                                   timeoutSeconds: Double(Timing.longSleep * 2))
         let started = Date()

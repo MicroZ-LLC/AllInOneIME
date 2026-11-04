@@ -44,9 +44,11 @@ struct PluginCompletionRuntimeTests {
     /// it is.
     @Test func itRunsTheChildWithEverythingOnStandardInput() async throws {
         let standIn = try StandIn("cat")
-        let output = try await standIn.runtime.query("12", Self.call(timeout: 10))
+        // A time limit no busy test run reaches (`Timing`): what it's given is checked, not how long it takes.
+        let call = Self.call(timeout: Double(Timing.longSleep))
+        let output = try await standIn.runtime.query("12", call)
         let input = try JSONDecoder().decode(PluginHost.CompletionInput.self, from: output)
-        #expect(input == PluginHost.CompletionInput(Self.call(timeout: 10).context, text: "12", hosts: ["api.github.com"],
+        #expect(input == PluginHost.CompletionInput(call.context, text: "12", hosts: ["api.github.com"],
                                                     scriptSHA256: Self.sha))
         let arguments = try String(contentsOf: standIn.arguments, encoding: .utf8).split(separator: "\n").map(String.init)
         #expect(arguments == ["--run-plugin", "/tmp/plugins/github", "--completion", "query"], "\(arguments)")
@@ -97,10 +99,8 @@ struct PluginCompletionRuntimeTests {
         task.cancel()
         _ = try? await task.value
         #expect(Date().timeIntervalSince(cancelled) < Timing.wellBeforeLongSleep)
-        // Gone (asked to end, killed after a grace): signal 0 reaches no process.
-        let deadline = Date().addingTimeInterval(5)
-        while kill(child, 0) == 0, Date() < deadline { try await Task.sleep(for: .milliseconds(50)) }
-        #expect(kill(child, 0) != 0, "the child \(child) still runs")
+        // Gone (asked to end, killed after a grace): signal 0 reaches no process, soon (`Timing`).
+        #expect(await Timing.eventually { kill(child, 0) != 0 }, "the child \(child) still runs")
     }
 }
 #endif

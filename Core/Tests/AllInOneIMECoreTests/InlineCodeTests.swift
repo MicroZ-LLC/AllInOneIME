@@ -171,10 +171,12 @@ struct InlineCodeTests {
         }
     }()
 
-    /// `code` through `@py`'s program, the way the input method runs it, with the python3 in `folder`.
-    func python(_ code: String, in folder: String, timeout: Double? = nil) async -> Result<String, Error> {
+    /// `code` through `@py`'s program, the way the input method runs it, with the python3 in `folder`: within `timeout`
+    /// seconds, by default a limit no busy test run reaches (`Timing`; a Python started for the first time on a runner
+    /// takes seconds), since what it prints is checked, not how long it takes.
+    func python(_ code: String, in folder: String, timeout: Double = Double(Timing.longSleep)) async -> Result<String, Error> {
         guard var definition = InlineCode.definition(for: .py) else { return .failure(InlineCodeError("no definition")) }
-        if let timeout { definition.timeoutSeconds = timeout }
+        definition.timeoutSeconds = timeout
         do {
             var text = ""
             let environment = ["PATH": folder, "HOME": NSHomeDirectory()]
