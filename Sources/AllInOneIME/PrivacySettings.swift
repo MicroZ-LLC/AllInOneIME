@@ -17,7 +17,7 @@ struct PrivacySection: View {
     var body: some View {
         Section {
             Toggle(isOn: $model.config.redaction.enabled) {
-                titled(SettingsSpot.hideSensitive.title, SettingsSpot.hideSensitive.note ?? "")
+                titled(.hideSensitive)
             }
             .settingsRow(.hideSensitive, shown: model.spot)
             // Each kind is hidden with the switch on; one set off in the config (by hand, an earlier version) shows here.
@@ -37,7 +37,7 @@ struct PrivacySection: View {
                     .onSubmit(saveWords)
                     .frame(minWidth: 240)
             } label: {
-                titled(SettingsSpot.wordsToHide.title, SettingsSpot.wordsToHide.note ?? "")
+                titled(.wordsToHide)
             }
             .disabled(!model.config.redaction.enabled)
             .settingsRow(.wordsToHide, shown: model.spot)
@@ -63,7 +63,7 @@ struct PrivacySection: View {
             // `@agent` (and `@reply` with nothing selected or pasted) in Chrome takes the page along (`PageContext`), with
             // Accessibility allowed. The key stays `agentPageContext`.
             Toggle(isOn: $model.config.agentPageContext) {
-                titled(SettingsSpot.pageContext.title, SettingsSpot.pageContextNote)
+                titled(.pageContext)
             }
             .settingsRow(.pageContext, shown: model.spot)
             // The recent @questions (`QuestionHistory`); off forgets them too.
@@ -84,7 +84,7 @@ struct PrivacySection: View {
             }
             // The words themselves are in the English chip (Chinese's without English), General → Input languages.
             Toggle(isOn: $model.config.learnsEnglishWords) {
-                titled(SettingsSpot.learnEnglishWords.title, SettingsSpot.learnEnglishWordsNote)
+                titled(.learnEnglishWords)
             }
             .settingsRow(.learnEnglishWords, shown: model.spot)
             // What this Mac learned (Settings v2, 3.2: apps' starting inputs, where autocomplete stopped, where typos
@@ -117,13 +117,6 @@ struct PrivacySection: View {
     private func saveWords() {
         guard edited else { return }
         show(model.saveWords(field: words, shown: shown))
-    }
-
-    private func titled(_ title: String, _ note: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-            Text(note).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-        }
     }
 }
 

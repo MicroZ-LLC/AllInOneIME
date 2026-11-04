@@ -84,13 +84,6 @@ struct CodeInputRow: View {
             EmptyView()
         }
     }
-
-    private func titled(_ title: String, _ note: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-            Text(note).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-        }
-    }
 }
 
 /// Code's chip opened (Settings → General → Input languages, decision 22): its coding language, picked from the

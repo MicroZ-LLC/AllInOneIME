@@ -257,11 +257,4 @@ struct ICloudSyncSection: View {
             if let url = URL(string: pane), NSWorkspace.shared.open(url) { return }
         }
     }
-
-    private func titled(_ title: String, _ note: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-            Text(note).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-        }
-    }
 }
