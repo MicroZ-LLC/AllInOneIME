@@ -152,6 +152,9 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         var appliedDefaultInput: Language?
         /// What the English words on its librime session were last made of (the user's, the jargon list's terms).
         var englishWordsMadeOf: [String]?
+        /// The candidates removed the settings last gave its Composer (`Composer.removedCandidates`): given again only
+        /// when the settings' list changes, so that one removed meanwhile (written a moment later) stays out.
+        var removedCandidatesGiven: [String]?
         /// What a click on each row of the panel shown last picks (`PanelModel.Row.choice`): the row's own index, in a
         /// conversation an answer's round, nil for a question.
         let choices: Locked<[Int?]>
@@ -232,6 +235,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         composer.engine = engine
         state.appliedDefaultInput = nil  // a new session starts in the default input mode
         state.englishWordsMadeOf = nil  // its words are given by `apply`
+        state.removedCandidatesGiven = nil  // and the candidates removed
         return true
     }
 
@@ -304,6 +308,11 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         let languages = usable.isEmpty ? [.english] : usable
         composer.inputLanguages = languages
         if let words = composer.primaryEngine as? EnglishWordsEngine { applyEnglishWords(config, to: words, in: session, state: state) }
+        // The candidates the user removed, left out whatever the engine (the Mac's `InputSession.settings`).
+        if config.removedCandidates != state.removedCandidatesGiven {
+            state.removedCandidatesGiven = config.removedCandidates
+            composer.removedCandidates = config.removedCandidates
+        }
         let defaultInput = config.startingInput(in: app, among: languages)
         if state.appliedDefaultInput != defaultInput || languages.count == 1, composer.engine != nil, !composer.isComposing {
             composer.setInputMode(defaultInput)
@@ -512,6 +521,8 @@ public final class EngineHost: WireHost, @unchecked Sendable {
             session.feed { [notOnWindows] in $0.recognitionFailed(notOnWindows, id: id) }
         case let .startVoice(id, _):
             session.feed { [notOnWindows] in $0.voiceFailed(notOnWindows, id: id) }
+        case let .candidateRemoved(text):
+            removeCandidate(text, in: session)
         case .armVoice, .stopVoice, .cancelVoice, .inputLanguageChanged, .commandUsed, .rememberQuestion, .detachScript,
              .refreshList, .moveCaret:
             log("session \(session.sid): \(kind): nothing to do on Windows")
@@ -836,7 +847,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         let settings = self.settings
         let learned = learning.withLock {
             EnglishWords.learns(typed, in: info, secureInput: false, config: { settings.current }, offered: engine.words,
-                                dictionary: engine.dictionary, typedOnce: typedOnce)
+                                dictionary: engine.dictionary, removed: engine.removedKeys, typedOnce: typedOnce)
         }
         guard learned else { return }
         engine.words.append(typed)
@@ -860,7 +871,31 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         }
     }
 
-    /// Waits for the words learned so far to be written (the tests).
+    /// A candidate removed in `session`'s field (`Composer.Effect.candidateRemoved`: ⌃⌦ while typing pinyin), left out
+    /// there already: written into the settings file (`RemovedCandidates.remove`: on the list of those removed, out of
+    /// the user's English words if it is one) off the session's queue, in order with the words learned, through
+    /// `writingSettings`, for every field.
+    func removeCandidate(_ text: String, in session: ComposerSession) {
+        log("session \(session.sid): removed a candidate (\(text.count) characters)")
+        let (log, settings, writing) = (self.log, self.settings, writingSettings)
+        learnedWords.async {
+            do {
+                try writing {
+                    // A new user's file is Windows' (Chinese with English), as for a word learned.
+                    if !FileManager.default.fileExists(atPath: settings.url.path) {
+                        try FileManager.default.createDirectory(at: settings.url.deletingLastPathComponent(),
+                                                                withIntermediateDirectories: true)
+                        try EngineSettings.fresh.write(to: settings.url)
+                    }
+                    try RemovedCandidates.remove(text, at: settings.url)
+                }
+            } catch {
+                log("couldn't keep a removed candidate: \(error)")
+            }
+        }
+    }
+
+    /// Waits for the words learned (and candidates removed) so far to be written (the tests).
     func flushLearnedWords() { learnedWords.sync {} }
 
     /// Whether what is typed in `session`'s field is run: a terminal's program (`ComposerSession.isTerminal`), PowerShell

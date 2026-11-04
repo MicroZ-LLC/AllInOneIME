@@ -121,6 +121,10 @@ public final class Composer {
         case sendMessage(Recipient, text: String, command: Command)
         /// A command was run (`commandUsage` has it): keep the usage for the order of the command list.
         case commandUsed(String)
+        /// A candidate the user removed (`deleteCandidate(index:)`), by its text as shown: the engine shows it no more
+        /// already (`removedCandidates`); keep it on the list of those removed (`Config.removedCandidates`), and out of
+        /// the user's English words if it is one.
+        case candidateRemoved(String)
         /// Keep an `@question` and its answer on this Mac (`questionHistory` has it already): the recent questions.
         case rememberQuestion(QuestionHistory.Entry)
         /// `@question` on `input` again, past any answer kept from before (the re-ask key on a saved answer): a fresh one
@@ -670,18 +674,41 @@ public final class Composer {
     /// The action key was pressed during dictation: the sentence goes once the transcript is final.
     public private(set) var actsAfterVoice = false
     /// Level one. Nil while the dictionaries are being prepared; keys then go to the application.
-    /// Level one: librime (or `LatinEngine` without the Chinese pack), as the controller sets it; in Hindi,
-    /// `HindiEngine` in its place.
+    /// Level one: librime (or `LatinEngine` without the Chinese pack), as the controller sets it, its candidates shown
+    /// without those the user removed (`levelOne`); in Hindi, `HindiEngine` in its place.
     public var engine: PinyinEngine? {
-        get { hindiActive && primaryEngine != nil ? hindiEngine ?? primaryEngine : primaryEngine }
+        get { hindiActive && primaryEngine != nil ? hindiEngine ?? levelOne : levelOne }
         set {
             primaryEngine = newValue
+            levelOne = shown(newValue)
             engineState = engine?.snapshot() ?? .empty
         }
     }
     /// The engine the controller set (`engine`), also while Hindi's is in its place: what to check for which
     /// engine level one has (`LatinEngine` without the Chinese pack).
     public private(set) var primaryEngine: PinyinEngine?
+    /// It as level one shows it (`shown`).
+    private var levelOne: PinyinEngine?
+    /// The candidates the user removed (`Config.removedCandidates`), by their text: level one never shows them
+    /// (`EnglishWordsEngine.removedCandidates`). The session sets them from the settings; one removed here
+    /// (`deleteCandidate(index:)`) is among them at once.
+    public var removedCandidates: [String] {
+        get { (levelOne as? EnglishWordsEngine)?.removedCandidates ?? removedKept }
+        set {
+            removedKept = newValue
+            (levelOne as? EnglishWordsEngine)?.removedCandidates = newValue
+        }
+    }
+    /// What `removedCandidates` was last set to: an engine put in without English words gets it.
+    private var removedKept: [String] = []
+
+    /// `engine` as level one shows it: an engine with English words among its candidates (`EnglishWordsEngine`) as it
+    /// is, which leaves out those removed; any other in one without words, which leaves them out all the same (an engine
+    /// set without rime-ice's English dictionary, a test's). `LatinEngine` has no candidates.
+    private func shown(_ engine: PinyinEngine?) -> PinyinEngine? {
+        guard let engine, !(engine is EnglishWordsEngine), !(engine is LatinEngine) else { return engine }
+        return EnglishWordsEngine(base: engine, dictionary: EnglishDictionary([]), removedCandidates: removedKept)
+    }
     /// Hindi's engine, on the Hindi pack's tables (`hindiTables`, set by the controller once the pack is installed).
     private var hindiEngine: HindiEngine?
     public var hindiTables: HindiTables? {
@@ -767,7 +794,8 @@ public final class Composer {
         primaryEngine = engine
         self.voiceEnabled = voiceEnabled
         self.actionKey = actionKey
-        engineState = engine?.snapshot() ?? .empty
+        levelOne = shown(engine)
+        engineState = levelOne?.snapshot() ?? .empty
     }
 
     // MARK: - State for rendering
@@ -1637,15 +1665,21 @@ public final class Composer {
     public func choose(index: Int) -> [Effect] { forField(chooseRow(index)) }
 
     /// A row right-clicked in the panel (`index` among the rows it shows), or the highlighted one's ⌃⌦: the engine's
-    /// candidate deleted (`PinyinEngine.deleteCandidate`, librime's: what it learned of it forgotten), the page laid out
-    /// anew. Nothing on any other row.
+    /// candidate removed for good (`EnglishWordsEngine.deleteCandidate`: on `removedCandidates`, never shown again, any
+    /// word of librime's, an English word put among them too; librime's deleted as well, what it learned of it
+    /// forgotten), kept (`Effect.candidateRemoved`), the page laid out anew without it; nothing committed, the letters
+    /// stay. Nothing on any other row.
     public func deleteCandidate(index: Int) -> [Effect] { forField(deleteRow(index)) }
 
     /// `deleteCandidate`, before `forField`.
     private func deleteRow(_ index: Int) -> [Effect] {
-        guard voice == .off, !isLevelTwo || refineIsComposing, engineState.isComposing, let engine,
-              engine.deleteCandidate(onPage: index) else { return [] }
-        return afterEngineChange(engine, effects: [])
+        guard voice == .off, !isLevelTwo || refineIsComposing, engineState.isComposing, let engine else { return [] }
+        let shown = engine.snapshot().candidates
+        guard shown.indices.contains(index), engine.deleteCandidate(onPage: index) else { return [] }
+        // Removed for good where level one leaves those removed out (Hindi's engine deletes nothing).
+        guard let level = engine as? EnglishWordsEngine else { return afterEngineChange(engine, effects: []) }
+        removedKept = level.removedCandidates  // an engine put in later (librime deployed again) leaves it out too
+        return afterEngineChange(engine, effects: [.candidateRemoved(shown[index].text)])
     }
 
     /// `choose`, before `forField`.

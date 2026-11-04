@@ -1,17 +1,22 @@
 import Foundation
 
-/// Level one's engine (librime with rime-ice) with English words among its candidates (`EnglishWords`). While Latin
-/// letters alone are typed, the words of `words` whose letters begin with them (all of a word's letters, or
-/// `EnglishWords.minPrefix` typed at least) go on the first page, numbered with librime's candidates, unless the page (in
-/// any case) or rime-ice's English dictionary (`dictionary`: librime offers those itself) has them. They go where rime-ice
-/// puts English (its `melt_eng` weighs less than pinyin; its `reduce_english_filter` puts a short word pinyin reads too
-/// second): a word whose letters are all that was typed first, or second when that is pinyin too ("xiaomi"); a longer one
-/// second, or after the page while what's typed may still be pinyin ("zhon", and up to four letters, which rime-ice reads
-/// as initials: "bed" b-e-d). At most `maxPerPage`, the shorter first.
+/// Level one's engine (librime with rime-ice) with English words among its candidates (`EnglishWords`), and without the
+/// candidates the user removed (`RemovedCandidates`). While Latin letters alone are typed, the words of `words` whose
+/// letters begin with them (all of a word's letters, or `EnglishWords.minPrefix` typed at least) go on the first page,
+/// numbered with librime's candidates, unless the page (in any case) or rime-ice's English dictionary (`dictionary`:
+/// librime offers those itself) has them. They go where rime-ice puts English (its `melt_eng` weighs less than pinyin; its
+/// `reduce_english_filter` puts a short word pinyin reads too second): a word whose letters are all that was typed first,
+/// or second when that is pinyin too ("xiaomi"); a longer one second, or after the page while what's typed may still be
+/// pinyin ("zhon", and up to four letters, which rime-ice reads as initials: "bed" b-e-d). At most `maxPerPage`, the
+/// shorter first. A candidate removed (`removedCandidates`) is left out of every page, librime's by its whole text, a word
+/// by its letters; a page with nothing left is skipped (`skipEmptyPages`).
 ///
-/// ↑↓ (← → in a row), Space, the digits and a click pick them as they pick librime's own; a punctuation key puts the word
-/// highlighted in before its mark; anything else goes to librime as it would. Letters librime commits exactly as they were
-/// typed (⏎, a tap of Shift) are told (`rawCommitted`): what the session learns words from. Main thread only, as librime.
+/// While the page shown isn't librime's (words on it, candidates left out), ↑↓ (← → in a row), Space, the digits and a
+/// click pick by the place shown, numbered as shown; a punctuation key puts the word highlighted in before its mark; a
+/// key librime commits its highlighted candidate on (Space, a punctuation mark, rime-ice's [ ]) finds librime's highlight
+/// moved onto the candidate shown highlighted first, never one left out; anything else goes to librime as it would.
+/// Letters librime commits exactly as they were typed (⏎, a tap of Shift) are told (`rawCommitted`): what the session
+/// learns words from. Main thread only, as librime.
 public final class EnglishWordsEngine: PinyinEngine {
     public let base: PinyinEngine
     /// rime-ice's English words: those librime offers itself.
@@ -26,15 +31,31 @@ public final class EnglishWordsEngine: PinyinEngine {
     }
     /// Their letters (`EnglishWords.key`): what is learned isn't one of them (`EnglishWords.learns`).
     public private(set) var keys: Set<String>
+    /// The candidates the user removed (`Config.removedCandidates`), by their text as shown, oldest first: on no page.
+    /// One deleted here (`deleteCandidate`) goes on at once.
+    public var removedCandidates: [String] {
+        didSet {
+            guard removedCandidates != oldValue else { return }
+            removed = Set(removedCandidates)
+            removedKeys = RemovedCandidates.keys(removedCandidates)
+        }
+    }
+    /// The letters of those that are English words (`RemovedCandidates.keys`): what a word is left out by, and what is
+    /// never learned again (`EnglishWords.learns`).
+    public private(set) var removedKeys: Set<String>
     /// Letters librime committed exactly as they were typed, the whole composition (⏎, a tap of Shift).
     public var rawCommitted: ((String) -> Void)?
     /// The user's fuzzy pinyin (`Config.fuzzyPinyin`): what librime reads as pinyin with it is pinyin here too.
     public var fuzzyPinyin: [String] = []
     /// The most words put on a page.
     public static let maxPerPage = 3
+    /// The most pages turned on past one with nothing shown (`skipEmptyPages`): the key never waits on many.
+    public static let maxSkipped = 5
 
     /// The words by their letters (`EnglishWords.key`), sorted: those a prefix begins are side by side.
     private var index: [(key: String, word: String)]
+    /// `removedCandidates`, what librime's candidates are looked up in.
+    private var removed: Set<String>
     /// A place on the page as shown: librime's candidate (its place on librime's page), or a word.
     private enum Entry: Equatable {
         case base(Int)
@@ -44,17 +65,22 @@ public final class EnglishWordsEngine: PinyinEngine {
     private var cursor: Int?
     /// The input, page and preedit (without its spaces) the page was last laid out for: a change sets the highlight anew.
     private var laidOutFor: String?
+    /// The way the pages were last turned: back (a page with nothing shown is skipped that way, `skipEmptyPages`).
+    private var pagedBack = false
     /// The word picked, for `takeCommit`.
     private var picked: String?
     /// The letters typed before the last key (what a commit as typed equals).
     private var rawBefore: String?
 
-    public init(base: PinyinEngine, dictionary: EnglishDictionary, words: [String] = []) {
+    public init(base: PinyinEngine, dictionary: EnglishDictionary, words: [String] = [], removedCandidates: [String] = []) {
         self.base = base
         self.dictionary = dictionary
         self.words = words
+        self.removedCandidates = removedCandidates
         index = Self.index(words)
         keys = Set(index.map(\.key))
+        removed = Set(removedCandidates)
+        removedKeys = RemovedCandidates.keys(removedCandidates)
     }
 
     private static func index(_ words: [String]) -> [(key: String, word: String)] {
@@ -67,9 +93,10 @@ public final class EnglishWordsEngine: PinyinEngine {
 
     // MARK: The page
 
-    /// librime's page with the words for what is typed put in.
+    /// librime's page without the candidates removed, with the words for what is typed put in.
     private func layout(_ snap: EngineSnapshot) -> [Entry] {
-        let rime = snap.candidates.indices.map(Entry.base)
+        let rime = removed.isEmpty ? snap.candidates.indices.map(Entry.base)
+            : snap.candidates.indices.filter { !removed.contains(snap.candidates[$0].text) }.map(Entry.base)
         guard snap.isComposing, !snap.isAsciiMode, snap.pageNumber == 0, !index.isEmpty else { return rime }
         let raw = base.rawInput
         guard !raw.isEmpty, raw.allSatisfy({ $0.isASCII && $0.isLetter }),
@@ -79,7 +106,9 @@ public final class EnglishWordsEngine: PinyinEngine {
               snap.candidates.count + Self.maxPerPage <= 10 else { return rime }
         let typed = raw.lowercased()
         let shown = Set(snap.candidates.map { $0.text.lowercased() })
-        let found = matches(typed).filter { !shown.contains($0.word.lowercased()) && !dictionary.contains($0.key) }.prefix(Self.maxPerPage)
+        let found = matches(typed).filter {
+            !shown.contains($0.word.lowercased()) && !dictionary.contains($0.key) && !removedKeys.contains($0.key)
+        }.prefix(Self.maxPerPage)
         guard !found.isEmpty else { return rime }
         let pinyin = Pinyin.isPinyin(typed, fuzzy: fuzzyPinyin), maybePinyin = Pinyin.isPinyinBeingTyped(typed, fuzzy: fuzzyPinyin)
         // Before librime's candidate of each place (the last: after them all).
@@ -127,10 +156,25 @@ public final class EnglishWordsEngine: PinyinEngine {
         return false
     }
 
+    /// Whether the page shown is librime's own: no word put in, no candidate left out.
+    private static func isLibrimes(_ entries: [Entry], of snap: EngineSnapshot) -> Bool {
+        entries.count == snap.candidates.count && !entries.contains(where: isWord)
+    }
+
+    /// The place shown highlighted: the word's (`cursor`), else librime's candidate highlighted; one left out, the next
+    /// shown after it, else the last before it (the page came from the next one). Nil: nothing shown.
+    private func highlighted(_ snap: EngineSnapshot, _ entries: [Entry]) -> Int? {
+        if let cursor { return cursor }
+        if let at = entries.firstIndex(of: .base(snap.highlighted)) { return at }
+        func place(_ entry: Entry) -> Int? { if case let .base(i) = entry { return i } else { return nil } }
+        return entries.firstIndex { place($0).map { $0 > snap.highlighted } ?? false }
+            ?? entries.lastIndex { place($0) != nil } ?? entries.indices.first
+    }
+
     public func snapshot() -> EngineSnapshot {
         let (shown, entries) = current()
         var snap = shown
-        guard entries.contains(where: Self.isWord) else { return snap }
+        guard !Self.isLibrimes(entries, of: snap) else { return snap }
         let rime = snap.candidates
         snap.candidates = entries.enumerated().map { place, entry in
             let label = String((place + 1) % 10)
@@ -145,7 +189,7 @@ public final class EnglishWordsEngine: PinyinEngine {
             snap.preedit = base.rawInput
             snap.cursor = snap.preedit.count
         } else {
-            snap.highlighted = entries.firstIndex(of: .base(snap.highlighted)) ?? snap.highlighted
+            snap.highlighted = highlighted(shown, entries) ?? 0
         }
         return snap
     }
@@ -156,39 +200,63 @@ public final class EnglishWordsEngine: PinyinEngine {
         let raw = base.rawInput
         if !raw.isEmpty { rawBefore = raw }
         if let handled = onPage(keycode, mask: mask) { return handled }
-        return base.processKey(keycode, mask: mask)
+        return changing { base.processKey(keycode, mask: mask) }
     }
 
-    /// A key that moves on the page or picks from it when it shows words; nil: librime's.
+    /// A key that moves on the page or picks from it when the page shown isn't librime's; nil: librime's.
     private func onPage(_ keycode: Int32, mask: Int32) -> Bool? {
         guard mask & ~RimeKey.shiftMask == 0 else { return nil }  // releases and shortcuts are librime's
         let (snap, entries) = current()
-        guard entries.contains(where: Self.isWord) else { return nil }
-        let at = cursor ?? entries.firstIndex(of: .base(snap.highlighted)) ?? 0
+        guard !Self.isLibrimes(entries, of: snap) else { return nil }
+        guard let at = highlighted(snap, entries) else { return nothingShown(keycode, mask: mask) }
         let word: String? = cursor.flatMap { if case let .word(word) = entries[$0] { return word } else { return nil } }
         if mask == RimeKey.shiftMask {
             // ⇧Space picks as Space does; ⇧ and a punctuation key ("!", "?"): the word highlighted goes in before it.
-            guard let word else { return nil }
+            guard keycode == RimeKey.space || Self.isPunctuation(keycode) else { return nil }
+            guard let word else { return toLibrime(highlighting: entries[at]) }
             if keycode == RimeKey.space { return pick(word) }
-            return Self.isPunctuation(keycode) ? pick(word, then: keycode, mask: mask) : nil
+            return pick(word, then: keycode, mask: mask)
         }
         switch keycode {
-        case RimeKey.down: return move(to: at + 1, in: entries)
-        case RimeKey.up: return move(to: at - 1, in: entries)
+        case RimeKey.down: return move(to: at + 1, in: entries, snap)
+        case RimeKey.up: return move(to: at - 1, in: entries, snap)
         case RimeKey.space:
-            guard let word else { return nil }
+            guard let word else { return toLibrime(highlighting: entries[at]) }
             return pick(word)
         case 0x30...0x39:
             let place = keycode == 0x30 ? 9 : Int(keycode - 0x31)
-            guard entries.indices.contains(place) else { return nil }
-            return select(entries[place])
+            if entries.indices.contains(place) { return select(entries[place]) }
+            // No row with that number: librime's own digit past its page (it would pick nothing there), else nothing (it
+            // would pick a candidate not shown).
+            return place >= snap.candidates.count ? toLibrime(highlighting: entries[at]) : true
         case 0x5B, 0x5D:
             // [ and ] pick a candidate's first or last character (rime-ice): a word has none to pick.
-            return word == nil ? nil : true
+            guard word == nil else { return true }
+            return toLibrime(highlighting: entries[at])
         default:
-            guard let word, Self.isPunctuation(keycode) else { return nil }
+            guard Self.isPunctuation(keycode) else { return nil }
+            guard let word else { return toLibrime(highlighting: entries[at]) }
             return pick(word, then: keycode, mask: mask)
         }
+    }
+
+    /// A key librime commits its highlighted candidate on (Space, a punctuation mark, [ ]), with `entry` (librime's
+    /// candidate) shown highlighted: librime's highlight moved onto it first, then the key is librime's (nil).
+    private func toLibrime(highlighting entry: Entry) -> Bool? {
+        if case let .base(i) = entry { highlightBase(i) }
+        return nil
+    }
+
+    /// A key on a page with nothing shown (each candidate on it removed, and on the pages `skipEmptyPages` turned past):
+    /// Space puts the letters in as typed, as Return does, and a punctuation key puts them in before its mark; a digit,
+    /// [ and ] pick nothing; anything else (a letter, ⌫, the page keys) is librime's.
+    private func nothingShown(_ keycode: Int32, mask: Int32) -> Bool? {
+        if keycode == RimeKey.space { return base.processKey(RimeKey.returnKey, mask: 0) }
+        if Self.isPunctuation(keycode) {
+            _ = base.processKey(RimeKey.returnKey, mask: 0)
+            return base.processKey(keycode, mask: mask)
+        }
+        return mask == 0 && ((0x30...0x39).contains(keycode) || keycode == 0x5B || keycode == 0x5D) ? true : nil
     }
 
     /// Marks that go in after the word highlighted: not those librime uses while composing (' between syllables, - =
@@ -200,12 +268,18 @@ public final class EnglishWordsEngine: PinyinEngine {
     }
 
     /// The highlight moved to `place`: a word, or librime's candidate (its highlight moved there); past the page's
-    /// ends, librime's key (its page turns).
-    private func move(to place: Int, in entries: [Entry]) -> Bool? {
-        if place < 0 { return cursor == nil ? nil : true }  // nothing before the first page
+    /// ends, librime's key (its page turns, from its own last or first candidate, whether shown or not).
+    private func move(to place: Int, in entries: [Entry], _ snap: EngineSnapshot) -> Bool? {
+        if place < 0 {
+            // Nothing before the first page.
+            guard snap.pageNumber > 0 else { return cursor == nil && entries.first == .base(snap.highlighted) ? nil : true }
+            cursor = nil
+            highlightBase(0)
+            return nil
+        }
         guard place < entries.count else {
             cursor = nil
-            if case let .base(last)? = entries.last(where: { !Self.isWord($0) }) { highlightBase(last) }
+            if !snap.candidates.isEmpty { highlightBase(snap.candidates.count - 1) }
             return nil
         }
         switch entries[place] {
@@ -227,11 +301,37 @@ public final class EnglishWordsEngine: PinyinEngine {
         }
     }
 
+    /// `change` made to librime; with candidates removed, a page it leaves with nothing shown skipped (`skipEmptyPages`).
+    private func changing(_ change: () -> Bool) -> Bool {
+        guard !removed.isEmpty else { return change() }
+        let page = base.snapshot().pageNumber
+        let done = change()
+        skipEmptyPages(from: page)
+        return done
+    }
+
+    /// librime's page, every candidate on it removed: the next page in the way the pages were turned (from `before`, the
+    /// page before; on from the first), until one has something shown, `maxSkipped` at most. None has: the page shows no
+    /// candidates (`snapshot`), and Space puts the letters in as typed (`nothingShown`).
+    private func skipEmptyPages(from before: Int) {
+        var snap = base.snapshot()
+        if snap.pageNumber != before { pagedBack = snap.pageNumber < before }
+        for _ in 0..<Self.maxSkipped {
+            guard snap.isComposing, !snap.candidates.isEmpty, layout(snap).isEmpty else { return }
+            if snap.pageNumber == 0 { pagedBack = false }  // nothing before it: on from there
+            guard pagedBack || !snap.isLastPage else { return }
+            _ = base.processKey(pagedBack ? RimeKey.pageUp : RimeKey.pageDown, mask: 0)
+            let next = base.snapshot()
+            guard next.pageNumber != snap.pageNumber else { return }
+            snap = next
+        }
+    }
+
     /// A place on the page picked: a word goes in, librime's candidate is librime's to pick.
     private func select(_ entry: Entry) -> Bool {
         switch entry {
         case let .word(word): return pick(word)
-        case let .base(i): return base.selectCandidate(onPage: i)
+        case let .base(i): return changing { base.selectCandidate(onPage: i) }
         }
     }
 
@@ -261,29 +361,48 @@ public final class EnglishWordsEngine: PinyinEngine {
     public func selectCandidate(onPage index: Int) -> Bool {
         let raw = base.rawInput
         if !raw.isEmpty { rawBefore = raw }
-        let (_, entries) = current()
-        guard entries.contains(where: Self.isWord) else { return base.selectCandidate(onPage: index) }
+        let (snap, entries) = current()
+        guard !Self.isLibrimes(entries, of: snap) else { return changing { base.selectCandidate(onPage: index) } }
         guard entries.indices.contains(index) else { return false }
         return select(entries[index])
     }
 
-    /// librime's candidate deleted (`PinyinEngine.deleteCandidate`); a word put in here isn't librime's to forget: nothing
-    /// (Settings removes the user's English words).
+    /// The candidate shown at `index` removed (a right-click, ⌃⌦): on `removedCandidates`, never shown again, and
+    /// librime's deleted there too (`PinyinEngine.deleteCandidate`: what it learned of it forgotten). The page is laid out
+    /// anew without it, the highlight set anew; a page left with nothing shown is skipped. Whether one was removed.
     public func deleteCandidate(onPage index: Int) -> Bool {
-        let (_, entries) = current()
-        guard entries.contains(where: Self.isWord) else { return base.deleteCandidate(onPage: index) }
-        guard entries.indices.contains(index), case let .base(i) = entries[index] else { return false }
-        return base.deleteCandidate(onPage: i)
+        let (snap, entries) = current()
+        guard entries.indices.contains(index) else { return false }
+        let text: String
+        switch entries[index] {
+        case let .base(i):
+            text = snap.candidates[i].text
+            _ = base.deleteCandidate(onPage: i)
+        case let .word(word):
+            text = word
+        }
+        removedCandidates = RemovedCandidates.adding(text, to: removedCandidates)
+        laidOutFor = nil
+        skipEmptyPages(from: snap.pageNumber)
+        return true
     }
 
-    /// The composition as converted text: the word highlighted, else librime's.
+    /// The composition as converted text: the word highlighted, else librime's (its highlight moved onto the candidate
+    /// shown highlighted first); with nothing shown, the letters as typed.
     public func commitComposition() -> String? {
-        let (_, entries) = current()
+        let (snap, entries) = current()
         if let cursor, case let .word(word) = entries[cursor] {
             _ = pick(word)
             return takeCommit()
         }
         rawBefore = nil
+        if !Self.isLibrimes(entries, of: snap) {
+            guard let at = highlighted(snap, entries) else {
+                _ = base.processKey(RimeKey.returnKey, mask: 0)
+                return takeCommit()
+            }
+            _ = toLibrime(highlighting: entries[at])
+        }
         return base.commitComposition()
     }
 

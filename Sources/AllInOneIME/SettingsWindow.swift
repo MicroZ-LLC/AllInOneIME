@@ -135,6 +135,9 @@ final class SettingsModel: ObservableObject {
     /// A word's ✕ (`SettingsStore.removeEnglishWord`).
     func removeEnglishWord(_ word: String) { store.removeEnglishWord(word) }
 
+    /// A removed candidate's ✕ (`SettingsStore.restoreCandidate`).
+    func restoreCandidate(_ text: String) { store.restoreCandidate(text) }
+
     /// The custom commands an edit of the one named `original` (nil: one being added) is checked against.
     func otherCommands(than original: String?) -> [CustomCommand] { store.otherCommands(than: original) }
 
@@ -2039,9 +2042,9 @@ struct SettingsView: View {
         model.spot = spot
     }
 
-    /// What an input's chip opens: a language's pack, its own settings (Chinese's fuzzy pinyin and personal dictionaries,
-    /// French's keyboard layout), the English words pinyin offers (English's, or Chinese's without English), and its
-    /// place among the languages; Code's coding language and packs.
+    /// What an input's chip opens: a language's pack, its own settings (Chinese's fuzzy pinyin, personal dictionaries and
+    /// the candidates removed, French's keyboard layout), the English words pinyin offers (English's, or Chinese's without
+    /// English), and its place among the languages; Code's coding language and packs.
     @ViewBuilder private func inputOptions(_ input: Input) -> some View {
         switch input {
         case .code:
@@ -2053,6 +2056,7 @@ struct SettingsView: View {
             }
             if language == .chinese {
                 PersonalDictionariesSection(model: model, dictionaries: personalDictionaries)
+                RemovedCandidatesSection(model: model)
             }
             if language == .english || (language == .chinese && !model.config.inputLanguages.contains(.english)) {
                 EnglishWordsSection(model: model)

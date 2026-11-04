@@ -60,6 +60,9 @@ public final class InputSession {
     private var englishWords: EnglishWordsEngine?
     /// What its words were last made of (the user's, the jargon list's terms): made again only when that changes.
     private var englishWordsMadeOf: [String]?
+    /// The candidates removed the settings last gave level one (`Composer.removedCandidates`): given again only when the
+    /// settings' list changes, so that one removed meanwhile (left out at once, written a moment later) stays out.
+    private var removedCandidatesGiven: [String]?
     /// The words typed in English mode in this field, learned once they stand (`learnTypedInEnglish`).
     private var englishModeWords = EnglishModeWords()
     /// The default input last applied (applied again when the setting changes, or what the app learned).
@@ -383,6 +386,7 @@ public final class InputSession {
             engine = fresh
             composer.engine = levelOneEngine(fresh)
             appliedDefaultInput = nil  // a new session starts in the default input mode
+            removedCandidatesGiven = nil  // given by `settings`
             settings(app: nil)
         case .starting:
             engine = nil
@@ -428,7 +432,7 @@ public final class InputSession {
               EnglishWords.learns(typed, in: FieldInfo(app: app, terminal: terminal, secure: field.secure),
                                   secureInput: fieldIsPrivate(unknown: true, untold: true), config: services.loadSettings,
                                   known: englishWords.keys, dictionary: englishWords.dictionary,
-                                  typedOnce: services.englishTypedOnce) else { return }
+                                  removed: englishWords.removedKeys, typedOnce: services.englishTypedOnce) else { return }
         learned(typed, englishWords)
         log.notice("learned an English word (\(typed.count) letters)")
     }
@@ -446,6 +450,7 @@ public final class InputSession {
                                                     secureInput: fieldIsPrivate(unknown: true, untold: true),
                                                     config: services.loadSettings,
                                                     known: englishWords.keys, dictionary: englishWords.dictionary,
+                                                    removed: englishWords.removedKeys,
                                                     typedOnce: services.englishTypedOnce) else { continue }
             learned(typed, englishWords)
             log.notice("learned an English word typed in English mode (\(typed.count) letters)")
@@ -540,6 +545,11 @@ public final class InputSession {
                 englishWordsMadeOf = madeOf
                 englishWords.words = EnglishWords.offered(config, jargon: jargon)
             }
+        }
+        // The candidates the user removed, left out by level one whatever its engine.
+        if config.removedCandidates != removedCandidatesGiven {
+            removedCandidatesGiven = config.removedCandidates
+            composer.removedCandidates = config.removedCandidates
         }
         composer.outputLanguages = config.outputLanguages
         composer.provider = config.provider  // the on-device model gets less of a screenshot (`ReplyContext.Limits`)
@@ -1104,6 +1114,10 @@ public final class InputSession {
                 handOff(prompt, to: kind)
             case .commandUsed:
                 services.saveCommandUsage(composer.commandUsage)
+            case let .candidateRemoved(text):
+                // Left out in this field already; kept for every field a moment later, never while the key is handled.
+                services.removeCandidate(text)
+                log.notice("removed a candidate (\(text.count) characters)")
             case let .rememberQuestion(entry):
                 // Kept only on this device, never while secure input is on (the composer checks too).
                 guard services.loadSettings().rememberQuestions, !secureInputActive() else { break }

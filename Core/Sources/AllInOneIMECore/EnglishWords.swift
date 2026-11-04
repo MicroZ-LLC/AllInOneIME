@@ -43,14 +43,15 @@ public enum EnglishWords {
     // MARK: Learning
 
     /// Whether `typed`, letters the user put in as they are (`EnglishWordsEngine.rawCommitted`), is learned: Latin letters
-    /// only, 3 to `maxLearned` of them, a word not offered already (`known`, by key) nor in rime-ice's dictionary, not
-    /// pinyin (`Pinyin.isPinyin`: "nihao", "yyds"; with the user's fuzzy pinyin, `fuzzy`: "fongxian" with f ↔ h), with a
-    /// vowel, and nothing like a secret (`looksSecret`, the user's hidden words included, anywhere in it).
+    /// only, 3 to `maxLearned` of them, a word not offered already (`known`, by key) nor in rime-ice's dictionary, not one
+    /// the user removed (`removed`, by key: `RemovedCandidates.keys`), not pinyin (`Pinyin.isPinyin`: "nihao", "yyds";
+    /// with the user's fuzzy pinyin, `fuzzy`: "fongxian" with f ↔ h), with a vowel, and nothing like a secret
+    /// (`looksSecret`, the user's hidden words included, anywhere in it).
     public static func learnable(_ typed: String, known: Set<String>, dictionary: EnglishDictionary, hidden: [String],
-                                 fuzzy: [String] = []) -> Bool {
+                                 fuzzy: [String] = [], removed: Set<String> = []) -> Bool {
         guard (3...maxLearned).contains(typed.count), typed.allSatisfy({ $0.isASCII && $0.isLetter }) else { return false }
         let k = key(typed)
-        return !known.contains(k) && !dictionary.contains(k) && !Pinyin.isPinyin(k, fuzzy: fuzzy)
+        return !known.contains(k) && !dictionary.contains(k) && !removed.contains(k) && !Pinyin.isPinyin(k, fuzzy: fuzzy)
             && k.contains(where: { "aeiouy".contains($0) }) && !looksSecret(typed, hidden: hidden)
     }
 
@@ -114,22 +115,24 @@ public enum EnglishWords {
     /// (`FieldInfo.secure`), in a terminal (a password prompt of sudo's or ssh's
     /// doesn't turn secure input on in every one), in a remote desktop, a virtual machine or an SSH client (`isRemote`),
     /// in a password manager (`PasswordManagers`: a password shown in a plain field there), in an app with no AI, or with
-    /// learning off (`Config.learnsEnglishWords`). `config` is read only past those.
+    /// learning off (`Config.learnsEnglishWords`). Never one the user removed (`removed`, by key: the engine's
+    /// `EnglishWordsEngine.removedKeys`). `config` is read only past those.
     public static func learns(_ typed: String, in field: FieldInfo, secureInput: Bool, config: () -> Config, offered: [String],
-                              dictionary: EnglishDictionary, typedOnce: TypedOnce) -> Bool {
+                              dictionary: EnglishDictionary, removed: @autoclosure () -> Set<String> = [],
+                              typedOnce: TypedOnce) -> Bool {
         learns(typed, in: field, secureInput: secureInput, config: config, known: Set(offered.map(key)),
-               dictionary: dictionary, typedOnce: typedOnce)
+               dictionary: dictionary, removed: removed(), typedOnce: typedOnce)
     }
 
     /// `learns` with the words offered by their letters (`known`, made only past the field's checks: the session's are
     /// kept, `EnglishWordsEngine.keys`, not made again for each word).
     public static func learns(_ typed: String, in field: FieldInfo, secureInput: Bool, config: () -> Config,
                               known: @autoclosure () -> Set<String>, dictionary: EnglishDictionary,
-                              typedOnce: TypedOnce) -> Bool {
+                              removed: @autoclosure () -> Set<String> = [], typedOnce: TypedOnce) -> Bool {
         guard let config = learningConfig(in: field, secureInput: secureInput, config: config) else { return false }
         return !dictionary.contains(typed)  // most words typed in English mode: told before the words offered are gone through
             && learnable(typed, known: known(), dictionary: dictionary, hidden: config.redaction.customWords,
-                         fuzzy: config.fuzzyPinyin)
+                         fuzzy: config.fuzzyPinyin, removed: removed())
             && typedOnce.again(typed)
     }
 
@@ -157,18 +160,19 @@ public enum EnglishWords {
     /// pinyin, a word rime-ice or the user has, what looks like a secret or holds a hidden word), and never one with a
     /// capital first, which in prose is a name (a person's, a place's) or a sentence's first word: not even remembered.
     public static func learnsTypedInEnglish(_ typed: String, in field: FieldInfo, secureInput: Bool, config: () -> Config,
-                                            offered: [String], dictionary: EnglishDictionary, typedOnce: TypedOnce) -> Bool {
+                                            offered: [String], dictionary: EnglishDictionary,
+                                            removed: @autoclosure () -> Set<String> = [], typedOnce: TypedOnce) -> Bool {
         learnsTypedInEnglish(typed, in: field, secureInput: secureInput, config: config, known: Set(offered.map(key)),
-                             dictionary: dictionary, typedOnce: typedOnce)
+                             dictionary: dictionary, removed: removed(), typedOnce: typedOnce)
     }
 
     /// `learnsTypedInEnglish` with the words offered by their letters (`learns(_:in:secureInput:config:known:…)`).
     public static func learnsTypedInEnglish(_ typed: String, in field: FieldInfo, secureInput: Bool, config: () -> Config,
                                             known: @autoclosure () -> Set<String>, dictionary: EnglishDictionary,
-                                            typedOnce: TypedOnce) -> Bool {
+                                            removed: @autoclosure () -> Set<String> = [], typedOnce: TypedOnce) -> Bool {
         guard let first = typed.first, !first.isUppercase else { return false }
         return learns(typed, in: field, secureInput: secureInput, config: config, known: known(), dictionary: dictionary,
-                      typedOnce: typedOnce)
+                      removed: removed(), typedOnce: typedOnce)
     }
 
     /// What is never learned or taken from the jargon list: what hiding sensitive information would hide from the AI
@@ -223,8 +227,9 @@ public enum EnglishWords {
     }
 
     /// `typed` learned into the config file at `url` (`Config.englishWords`): added at the end unless a word with its
-    /// letters is there, within `maxWords` (`capped`, by the file's `addedEnglishWords`). Only that key of the file changes;
-    /// a missing file is written with this Mac's new user's settings. Whether it was added.
+    /// letters is there or the user removed it (`Config.removedCandidates`, by its letters), within `maxWords` (`capped`,
+    /// by the file's `addedEnglishWords`). Only that key of the file changes; a missing file is written with this Mac's
+    /// new user's settings. Whether it was added.
     @discardableResult
     public static func learn(_ typed: String, at url: URL) throws -> Bool {
         try learn([typed], at: url)
@@ -234,71 +239,130 @@ public enum EnglishWords {
     /// as it is now (under `AIConfig.fileLock`). Whether any was added.
     @discardableResult
     public static func learn(_ words: [String], at url: URL) throws -> Bool {
+        try write(words.map(Change.learn), at: url)
+    }
+
+    /// What `Writer` writes into the config file.
+    public enum Change: Equatable, Sendable {
+        /// An English word learned (`learn(_:at:)`).
+        case learn(String)
+        /// A candidate the user removed (`RemovedCandidates.remove(_:at:)`): on the list of those removed, and out of the
+        /// English words when it is one.
+        case remove(String)
+    }
+
+    /// `changes` made to the config file at `url`, each in turn, in one write of the file as it is now (under
+    /// `AIConfig.fileLock`): only the keys they change (`englishWords`; for a candidate removed `removedCandidates` and
+    /// `addedEnglishWords` too); a missing file is written with this Mac's new user's settings. Whether anything changed.
+    @discardableResult
+    public static func write(_ changes: [Change], at url: URL) throws -> Bool {
         AIConfig.fileLock.lock(); defer { AIConfig.fileLock.unlock() }
         guard FileManager.default.fileExists(atPath: url.path) else {
             var config = try Config.load(from: url)
-            let list = words.reduce(config.englishWords) { learning($1, into: $0, added: config.addedEnglishWords) }
-            guard list != config.englishWords else { return false }
-            config.englishWords = list
+            let lists = Lists(words: config.englishWords, added: config.addedEnglishWords, removed: config.removedCandidates)
+            let new = lists.with(changes)
+            guard new != lists else { return false }
+            (config.englishWords, config.addedEnglishWords, config.removedCandidates) = (new.words, new.added, new.removed)
             try config.write(to: url)
             return true
         }
-        var added = false
+        var changed = false
         try AIConfig.patchingFile(at: url) { file in
-            let list = file[Config.englishWordsKey]?.strings ?? []
-            let marked = file[Config.addedEnglishWordsKey]?.strings ?? []
-            let new = words.reduce(list) { learning($1, into: $0, added: marked) }
-            guard new != list else { return }
-            file[Config.englishWordsKey] = .array(new.map { .string($0) })
-            added = true
+            let lists = Lists(words: file[Config.englishWordsKey]?.strings ?? [],
+                              added: file[Config.addedEnglishWordsKey]?.strings ?? [],
+                              removed: file[Config.removedCandidatesKey]?.strings ?? [])
+            let new = lists.with(changes)
+            for (key, old, list) in [(Config.englishWordsKey, lists.words, new.words), (Config.addedEnglishWordsKey, lists.added, new.added),
+                                     (Config.removedCandidatesKey, lists.removed, new.removed)] where list != old {
+                // An emptied list goes, as the config writes none.
+                file[key] = list.isEmpty ? nil : .array(list.map { .string($0) })
+                changed = true
+            }
         }
-        return added
+        return changed
     }
 
-    /// English words learned into the config file (`learn(_:at:)`) off the caller's thread, so that a key's handling
-    /// never waits for the file to be read, parsed and written: in order, on a queue of their own, those learned
-    /// meanwhile in one write, each into the file as it is then (what another writer changed stays, keys this version
-    /// doesn't know too; under `AIConfig.fileLock`, so that no writer of this process writes between its read and its
-    /// write). The session offers a word at once (`EnglishWordsEngine.words`). A word whose write fails (a file that
-    /// doesn't parse, one that can't be written) is kept and written with the next word learned, or once the shell
-    /// says the file may take it again (`retry`), never tried again on its own; the process drains them before it ends
-    /// (`drain`). Safe from any thread.
+    /// The lists of the config file `write` changes.
+    private struct Lists: Equatable {
+        var words: [String]
+        var added: [String]
+        var removed: [String]
+
+        /// With `changes` made, in turn.
+        func with(_ changes: [Change]) -> Lists {
+            var out = self
+            for change in changes {
+                switch change {
+                case let .learn(typed):
+                    // Never one removed meanwhile (in another field, on another Mac).
+                    if RemovedCandidates.keys(out.removed).contains(key(typed)) { continue }
+                    out.words = learning(typed, into: out.words, added: out.added)
+                case let .remove(text):
+                    out.removed = RemovedCandidates.adding(text, to: out.removed)
+                    guard word(text) != nil else { continue }
+                    out.words = removing(text, from: out.words)
+                    out.added = removing(text, from: out.added)
+                }
+            }
+            return out
+        }
+    }
+
+    /// English words learned and candidates removed written into the config file (`write`) off the caller's thread, so
+    /// that a key's handling never waits for the file to be read, parsed and written: in order, on a queue of their own,
+    /// those told meanwhile in one write, each into the file as it is then (what another writer changed stays, keys this
+    /// version doesn't know too; under `AIConfig.fileLock`, so that no writer of this process writes between its read and
+    /// its write). The session offers a word, and leaves out a candidate removed, at once (`EnglishWordsEngine.words`,
+    /// `EnglishWordsEngine.removedCandidates`). A change whose write fails (a file that doesn't parse, one that can't be
+    /// written) is kept and written with the next one, or once the shell says the file may take it again (`retry`),
+    /// never tried again on its own; the process drains them before it ends (`drain`). Safe from any thread.
     public final class Writer: @unchecked Sendable {
-        /// Told on the writer's queue once words are in the file at a URL: what the shell may read there, off its thread.
+        /// Told on the writer's queue once changes are in the file at a URL: what the shell may read there, off its thread.
         private let written: @Sendable (URL) -> Void
-        /// The words waiting to be written, and where.
-        private let waiting = Locked<[(word: String, url: URL)]>(initialState: [])
-        /// Those whose write failed, in order, the latest `maxWords` at most: written before the next ones. On the queue only.
-        private var kept: [(word: String, url: URL)] = []
+        /// The changes waiting to be written, and where.
+        private let waiting = Locked<[(change: Change, url: URL)]>(initialState: [])
+        /// Those whose write failed, in order, the latest `maxWords` and `RemovedCandidates.maxCount` at most: written
+        /// before the next ones. On the queue only.
+        private var kept: [(change: Change, url: URL)] = []
         private let queue = DispatchQueue(label: "com.aipinyin.english-words", qos: .utility)
 
         public init(written: @escaping @Sendable (URL) -> Void = { _ in }) {
             self.written = written
         }
 
-        /// `typed` learned into the config file at `url` a moment later, with the words learned meanwhile (and those
+        /// `typed` learned into the config file at `url` a moment later, with the changes told meanwhile (and those
         /// kept since their write failed).
         public func learn(_ typed: String, at url: URL) {
+            add(.learn(typed), at: url)
+        }
+
+        /// `candidate` removed in the config file at `url` (`RemovedCandidates.remove(_:at:)`) a moment later, in order
+        /// with the words learned.
+        public func remove(_ candidate: String, at url: URL) {
+            add(.remove(candidate), at: url)
+        }
+
+        private func add(_ change: Change, at url: URL) {
             let first = waiting.withLock { waiting -> Bool in
-                defer { waiting.append((typed, url)) }
+                defer { waiting.append((change, url)) }
                 return waiting.isEmpty
             }
             if first { queue.async { self.write() } }
         }
 
-        /// The words kept since their write failed written again, a moment later: what the shell calls once it reads the
+        /// The changes kept since their write failed written again, a moment later: what the shell calls once it reads the
         /// file anew and it parses (fixed in an editor, say). Nothing when none is kept.
         public func retry() {
             queue.async { if !self.kept.isEmpty { self.write() } }
         }
 
-        /// Waits until the words learned so far are in the file (a self-test reads it then). Never under
+        /// Waits until the changes told so far are in the file (a self-test reads it then). Never under
         /// `AIConfig.fileLock`.
         public func flush() {
             queue.sync { write() }
         }
 
-        /// Waits `seconds` at most for the words learned so far to be in the file, those kept since their write failed
+        /// Waits `seconds` at most for the changes told so far to be in the file, those kept since their write failed
         /// tried once more: what the process does before it ends. Whether they all went in. Never under
         /// `AIConfig.fileLock`.
         @discardableResult
@@ -312,27 +376,28 @@ public enum EnglishWords {
             return finished.wait(timeout: .now() + seconds) == .success && done.withLock { $0 }
         }
 
-        /// The words kept, then those waiting, written on the queue: one write for each file, in turn; those of a write
+        /// The changes kept, then those waiting, written on the queue: one write for each file, in turn; those of a write
         /// that fails kept for the next.
         private func write() {
-            let words = kept + waiting.withLock { waiting -> [(word: String, url: URL)] in
+            let changes = kept + waiting.withLock { waiting -> [(change: Change, url: URL)] in
                 defer { waiting = [] }
                 return waiting
             }
             kept = []
-            var start = words.startIndex
-            while start < words.endIndex {
-                let url = words[start].url
-                let end = words[start...].firstIndex { $0.url != url } ?? words.endIndex
+            var start = changes.startIndex
+            while start < changes.endIndex {
+                let url = changes[start].url
+                let end = changes[start...].firstIndex { $0.url != url } ?? changes.endIndex
                 do {
-                    if try EnglishWords.learn(words[start..<end].map(\.word), at: url) { written(url) }
+                    if try EnglishWords.write(changes[start..<end].map(\.change), at: url) { written(url) }
                 } catch {
-                    kept += words[start..<end]
-                    EnglishWords.log.error("could not keep an English word yet, kept to try again (\(String(describing: type(of: error))))")
+                    kept += changes[start..<end]
+                    EnglishWords.log.error("could not keep an English word or a removed candidate yet, kept to try again (\(String(describing: type(of: error))))")
                 }
                 start = end
             }
-            if kept.count > EnglishWords.maxWords { kept.removeFirst(kept.count - EnglishWords.maxWords) }
+            let most = EnglishWords.maxWords + RemovedCandidates.maxCount
+            if kept.count > most { kept.removeFirst(kept.count - most) }
         }
     }
 

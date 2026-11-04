@@ -230,6 +230,19 @@ public final class SettingsStore {
         save()
     }
 
+    /// Settings → Input → Removed Candidates' ✕: `text` back among pinyin's candidates (`RemovedCandidates.restoring`),
+    /// wherever it is in the list now. What librime forgot of it stays forgotten, and an English word of the user's taken
+    /// out of them stays out.
+    public func restoreCandidate(_ text: String) {
+        // From the file's read to its write: a candidate removed meanwhile (`EnglishWords.Writer`) stays.
+        AIConfig.fileLock.lock(); defer { AIConfig.fileLock.unlock() }
+        refresh()
+        let list = RemovedCandidates.restoring(text, from: config.removedCandidates)
+        guard list != config.removedCandidates else { return }
+        config.removedCandidates = list
+        save()
+    }
+
     /// The custom commands an edit of the one named `original` (nil: one being added) is checked against.
     public func otherCommands(than original: String?) -> [CustomCommand] {
         CustomCommand.others(than: original, in: config.customCommands)

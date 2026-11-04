@@ -2,6 +2,16 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
+## 0.6.8.4 (unreleased)
+
+### Added
+
+- Settings → Input → Chinese (pinyin) → Removed candidates lists the candidates you removed, the newest first; ✕ brings one back. They sync through iCloud with the learned words.
+
+### Changed
+
+- A right-click on a pinyin candidate (or a Control-click, or ⌃⌦ on the highlighted one) now removes it for good: it no longer comes up as a candidate, whatever you type, until you bring it back in Settings. Any candidate can be removed, a word of the dictionary too (before, one the input method hadn't learned stayed where it was), and so can the English words among the candidates: one of your own English words is also taken off that list, and isn't learned again. What the input method learned of it is still forgotten. A longer phrase or a sentence with the word in it still comes up.
+
 ## 0.6.8.3 (2026-11-02)
 
 ### Added

@@ -206,6 +206,10 @@ public struct Config: Codable, Equatable, Sendable {
     /// never during secure input, in a terminal, a remote desktop or a virtual machine, in an app with no AI, or for what
     /// looks like a secret. On by default.
     public var learnsEnglishWords: Bool
+    /// The candidates the user removed (`RemovedCandidates`: a right-click on a candidate, ⌃⌦ on the highlighted one),
+    /// as they were shown ("鸡虎", "Bedrock"), oldest first: never offered again (an English word by its letters), until
+    /// restored in Settings. At most `RemovedCandidates.maxCount`, the oldest going first; none by default.
+    public var removedCandidates: [String]
     /// The keyboard layout each input language types with, by language code ("fr": "com.apple.keylayout.French"),
     /// where it isn't the language's default (`Language.defaultKeyboardLayout`).
     public var keyboardLayouts: [String: String]
@@ -297,6 +301,8 @@ public struct Config: Codable, Equatable, Sendable {
     /// The config file's key of `englishWords` (`EnglishWords.learn` writes it alone), and of `addedEnglishWords`.
     public static let englishWordsKey = CodingKeys.englishWords.rawValue
     public static let addedEnglishWordsKey = CodingKeys.addedEnglishWords.rawValue
+    /// The config file's key of `removedCandidates` (`RemovedCandidates.remove` writes it, and the English words, alone).
+    public static let removedCandidatesKey = CodingKeys.removedCandidates.rawValue
 
     /// `jargonFile` with "~" expanded (on Windows its `%NAME%`s too, as Windows' settings window shows the default file:
     /// "%APPDATA%\AllInOneIME\jargon.txt"), or `JargonLibrary.defaultURL`.
@@ -362,6 +368,7 @@ public struct Config: Codable, Equatable, Sendable {
         self.englishWords = []
         self.addedEnglishWords = []
         self.learnsEnglishWords = true
+        self.removedCandidates = []
         self.keyboardLayouts = [:]
         self.typeOut = false
         self.typeOutRate = TypeOut.defaultRate
@@ -397,7 +404,7 @@ public struct Config: Codable, Equatable, Sendable {
         case outputLanguage, outputLanguages, inputLanguages, defaultInput, codingLanguage, improveTranslates, voiceInput, jargonFile, actionKey, commandTrigger, uiLanguage, customCommands, claudeInBackground, agent, agentCommand, agentPageContext
         case extensionFolders, findRaycastScripts, hiddenExtensionFolders, disabledExtensions, hiddenFromCommandList, extensionPreferences
         case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutMistakes, typeOutSpeed, fuzzyPinyin, keyboardLayouts, candidateLayout
-        case englishWords, addedEnglishWords, learnsEnglishWords
+        case englishWords, addedEnglishWords, learnsEnglishWords, removedCandidates
         case checkForUpdates, useSelection, appProfiles
         case rememberQuestions, questionRounds, questionContinueIn
         case redaction
@@ -490,6 +497,9 @@ public struct Config: Codable, Equatable, Sendable {
         englishWords = (try? c.decodeIfPresent([String].self, forKey: .englishWords)).flatMap { $0 } ?? d.englishWords
         addedEnglishWords = (try? c.decodeIfPresent([String].self, forKey: .addedEnglishWords)).flatMap { $0 } ?? d.addedEnglishWords
         learnsEnglishWords = try c.decodeIfPresent(Bool.self, forKey: .learnsEnglishWords) ?? d.learnsEnglishWords
+        // The same, within the limit (the newest kept).
+        removedCandidates = Array(((try? c.decodeIfPresent([String].self, forKey: .removedCandidates)).flatMap { $0 }
+            ?? d.removedCandidates).suffix(RemovedCandidates.maxCount))
         keyboardLayouts = (try? c.decodeIfPresent([String: String].self, forKey: .keyboardLayouts)).flatMap { $0 } ?? [:]
         typeOut = try c.decodeIfPresent(Bool.self, forKey: .typeOut) ?? d.typeOut
         // A file from before the slider: "slow", "normal", "fast" or "random" (normal, varying).
@@ -677,10 +687,12 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encodeIfPresent(questionContinueIn, forKey: .questionContinueIn)
         try c.encode(menuBarIcon, forKey: .menuBarIcon)
         try c.encode(fuzzyPinyin, forKey: .fuzzyPinyin)
-        // Only once there are words, and learning only when it's off: a file from before them doesn't gain the keys.
+        // Only once there are words (or candidates removed), and learning only when it's off: a file from before them
+        // doesn't gain the keys.
         if !englishWords.isEmpty { try c.encode(englishWords, forKey: .englishWords) }
         if !addedEnglishWords.isEmpty { try c.encode(addedEnglishWords, forKey: .addedEnglishWords) }
         if !learnsEnglishWords { try c.encode(learnsEnglishWords, forKey: .learnsEnglishWords) }
+        if !removedCandidates.isEmpty { try c.encode(removedCandidates, forKey: .removedCandidates) }
         try c.encode(keyboardLayouts, forKey: .keyboardLayouts)
         try c.encode(typeOut, forKey: .typeOut)
         try c.encode(typeOutRate, forKey: .typeOutRate)
