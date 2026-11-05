@@ -10,7 +10,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ### Changed
 
-- A right-click on a pinyin candidate (or a Control-click, or ⌃⌦ on the highlighted one) now removes it for good: it no longer comes up as a candidate, whatever you type, until you bring it back in Settings. Any candidate can be removed, a word of the dictionary too (before, one the input method hadn't learned stayed where it was), and so can the English words among the candidates: one removed isn't learned again, and one of your own stays on your list of English words, so ✕ brings it back as it was. What the input method learned of it is still forgotten. A longer phrase or a sentence with the word in it still comes up.
+- A right-click on a pinyin candidate (or a Control-click, or ⌃⌦ on the highlighted one) now removes it for good: it no longer comes up as a candidate, whatever you type, until you bring it back in Settings. Any candidate can be removed, a word of the dictionary too (before, one the input method hadn't learned stayed where it was), and so can the English words among the candidates (by their letters, whatever the capitals): one removed isn't learned again, and one on your list of English words, added or learned, stays there, so ✕ brings it back as it was; adding it again in Settings → Input → English Words brings it back too. What pinyin learned of a candidate from your choices is still forgotten. A longer phrase or a sentence with the word in it still comes up.
 
 ## 0.6.8.3 (2026-11-02)
 

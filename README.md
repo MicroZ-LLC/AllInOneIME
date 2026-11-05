@@ -69,7 +69,7 @@ A new install writes English; to type Chinese (pinyin), French, Korean or Hindi 
 | Letters, once AI results are up | A follow-up: after `@question` the next question (see [Conversations](#conversations-with-question-new)), after `@improve` or a prompt command an instruction such as `shorter` (see [Refining the results](#refining-the-results-new)); ⇧⏎ sends it. After `@translate` letters continue the sentence, and ⏎ translates it again |
 | ⌘⏎, ⌘1–⌘9 | In an `@question` conversation: shows where to continue it (the coding agents installed, the one `@agent` hands to first; Claude, ChatGPT, Gemini; or copy it); ⌘1, ⌘2 … pick one |
 | Click a row | In the candidate panel: picks it, as its digit would (a word, a command in the list, a result, an `@open` file, a recipient, an extension's row); the row under the pointer is highlighted. The text field keeps the focus |
-| Right-click a candidate, ⌃⌦ | While you type pinyin: removes the candidate right-clicked (or Control-clicked), or the highlighted one with ⌃⌦ (⌃Fn⌫ on a laptop keyboard), for good: any word, the dictionary's too, and the English words among the candidates; it no longer comes up, whatever you type, and what the input method learned of it is forgotten. Nothing is put in. Settings → Input → Chinese (pinyin) → Removed candidates brings one back (✕); they sync through iCloud with the learned words |
+| Right-click a candidate, ⌃⌦ | While you type pinyin: removes the candidate right-clicked (or Control-clicked), or the highlighted one with ⌃⌦ (⌃Fn⌫ on a laptop keyboard), for good: any candidate, the dictionary's words and emoji too, and the English words among the candidates (by their letters); it no longer comes up as a candidate, whatever you type (a longer phrase or a sentence with it in it still does), and what pinyin learned of it from your choices is forgotten. An English word stays on your list of English words. Nothing is put in. Settings → Input → Chinese (pinyin) → Removed candidates brings one back (✕), and so does adding an English word again in English Words; they sync through iCloud with the learned words |
 | Tap Shift | With more than one input language: the next one, in their order (English → Chinese → French → …, then back to the first) |
 
 ## Commands
@@ -647,7 +647,7 @@ Hidden words and recent questions.
 | --- | --- | --- |
 | Settings | the settings in `config.json`: languages, rewrite styles, the action key, the magic key, typing out, per-app settings, hiding sensitive information (its switches), the AI provider and model (never a key) … | on |
 | Jargon and custom commands | your jargon list and `customCommands` | on |
-| Learned words | what pinyin learned from your choices (Rime's user dictionary, through librime's user-dictionary sync), words picked from a personal dictionary too, and your English words, added or learned (`englishWords`); your own Rime files, such as custom phrases, and the personal dictionaries themselves stay on the Mac | on |
+| Learned words | what pinyin learned from your choices (Rime's user dictionary, through librime's user-dictionary sync), words picked from a personal dictionary too, and your English words, added or learned (`englishWords`), and the candidates you removed (`removedCandidates`); your own Rime files, such as custom phrases, and the personal dictionaries themselves stay on the Mac | on |
 | Hidden words and recent questions (one switch) | the words you hide from the AI, and `@question`'s recent questions and answers (while "Remember recent questions" is on); iCloud Drive is end-to-end encrypted only with Advanced Data Protection | off |
 | API keys and passwords (in the ⋯ menu) | your API keys and extensions' passwords, through iCloud Keychain, which is always end-to-end encrypted (needs Passwords & Keychain on in System Settings → Apple Account → iCloud) | off |
 
@@ -1253,6 +1253,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 | `fuzzyPinyin` | Fuzzy pinyin pairs: `["z-zh", "n-l", "in-ing"]` (z-zh, c-ch, s-sh, n-l, f-h, r-l, an-ang, en-eng, in-ing, ian-iang, uan-uang) | `[]` |
 | `englishWords` | Your English words among pinyin's candidates, as written: `["Bedrock", "OpenRouter Chat"]` (added in Settings or learned) | `[]` |
 | `addedEnglishWords` | Those of `englishWords` you added in Settings (the others were learned): past 2,000 words the oldest learned go first | `[]` |
+| `removedCandidates` | The candidates you removed (a right-click or ⌃⌦ while typing pinyin), as shown, the oldest first: none comes up again as a candidate until removed from here (Settings → Input → Chinese (pinyin) → Removed candidates, ✕). At most 5,000, the oldest go first. Syncs with the learned words | `[]` |
 | `learnsEnglishWords` | The same letters put in as typed twice while typing pinyin (bedrock ⏎), or a word typed twice in English mode, are learned as an English word | `true` |
 | `useSelection` | Commands work on the text selected in the field (see On the selected text) | `true` |
 | `checkForUpdates` | Look for a new version once a day, in the background; nothing is installed until you click | `true` |
