@@ -231,7 +231,7 @@ final class GitRecorder: GitRunning, @unchecked Sendable {
     @Test func timeout() async {
         let runner = ProcessGitRunner(executable: URL(fileURLWithPath: "/bin/sleep"), environment: [:], timeout: 0.3)
         let start = Date()
-        // A sleep of a minute (`Timing`): a busy test run can take seconds to get to the timeout, and a sleep that
+        // A sleep of five minutes (`Timing`): a busy test run can take seconds to get to the timeout, and a sleep that
         // ended by itself first would be a plain exit, not a timeout.
         await #expect(throws: ExtensionSourceError.timedOut(0.3)) { try await runner.run(["\(Timing.longSleep)"], in: nil) }
         #expect(Date().timeIntervalSince(start) < Timing.wellBeforeLongSleep)
@@ -775,7 +775,7 @@ final class GitRecorder: GitRunning, @unchecked Sendable {
     @Test func signalsReset() async throws {
         let before = signal(SIGTERM, SIG_IGN)
         defer { signal(SIGTERM, before) }
-        // Surviving its SIGTERM, it would sleep a minute (`Timing`), with a limit past that.
+        // Surviving its SIGTERM, it would sleep five minutes (`Timing`), with a limit past that.
         let runner = ProcessGitRunner(executable: URL(fileURLWithPath: "/bin/sh"), environment: ["PATH": "/usr/bin:/bin"],
                                       timeout: Double(Timing.longSleep * 2))
         let started = Date()

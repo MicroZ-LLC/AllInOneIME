@@ -380,26 +380,28 @@ public enum CommandRunner {
         private func capture(_ pipe: Pipe, into append: @escaping @Sendable (Run, Data) -> Void) {
             pipes.enter()
             pipe.fileHandleForReading.readabilityHandler = { [self] handle in
-                let chunk = handle.availableData
-                if chunk.isEmpty {
-                    handle.readabilityHandler = nil
-                    pipes.leave()
-                    return
-                }
-                lock.lock()
-                append(self, chunk)
-                let tooMuch = output.count + errors.count > launch.maxOutput
-                var sofar: Data?
-                if streamPending, !finished, ContinuousClock.now - lastStreamed >= .seconds(CommandRunner.streamInterval) {
-                    (sofar, streamPending, lastStreamed) = (output, false, ContinuousClock.now)
-                }
-                lock.unlock()
-                if tooMuch { stop(.tooMuchOutput) }
-                if let sofar {
-                    let text = CommandRunner.cleanOutput(sofar)
-                    continuation.yield(ConversionUpdate(result: .empty, rawText: text, isFinal: false, elapsed: 0,
-                                                        firstTokenLatency: nil, fromCache: false))
-                }
+                repeat {
+                    let chunk = handle.availableData
+                    if chunk.isEmpty {
+                        handle.readabilityHandler = nil
+                        pipes.leave()
+                        return
+                    }
+                    lock.lock()
+                    append(self, chunk)
+                    let tooMuch = output.count + errors.count > launch.maxOutput
+                    var sofar: Data?
+                    if streamPending, !finished, ContinuousClock.now - lastStreamed >= .seconds(CommandRunner.streamInterval) {
+                        (sofar, streamPending, lastStreamed) = (output, false, ContinuousClock.now)
+                    }
+                    lock.unlock()
+                    if tooMuch { stop(.tooMuchOutput) }
+                    if let sofar {
+                        let text = CommandRunner.cleanOutput(sofar)
+                        continuation.yield(ConversionUpdate(result: .empty, rawText: text, isFinal: false, elapsed: 0,
+                                                            firstTokenLatency: nil, fromCache: false))
+                    }
+                } while handle.hasMoreToRead
             }
         }
 
@@ -446,5 +448,21 @@ public enum CommandRunner {
                                                 firstTokenLatency: nil, fromCache: false))
             continuation.finish()
         }
+    }
+}
+
+extension FileHandle {
+    /// Whether more of what this reading end of a pipe has is there now: data, or its end. Corelibs Foundation reads
+    /// 8 KB a time for `readabilityHandler`, and libdispatch on Linux tells a pipe readable again only as more arrives:
+    /// what a program printed faster than that and left in the pipe as it ended (a list of hundreds of kilobytes) was
+    /// never read, nor its end, so a handler there reads on while this holds. Apple's Foundation tells it again while
+    /// there's more; elsewhere false.
+    var hasMoreToRead: Bool {
+        #if canImport(Glibc) || canImport(Musl)
+        var pipe = pollfd(fd: fileDescriptor, events: Int16(POLLIN), revents: 0)
+        return poll(&pipe, 1, 0) > 0
+        #else
+        return false
+        #endif
     }
 }

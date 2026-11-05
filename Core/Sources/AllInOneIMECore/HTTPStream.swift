@@ -28,11 +28,15 @@ public enum HTTPStream {
         task.resume()
         own.finishTasksAndInvalidate()
         #endif
+        #if canImport(Darwin)
         let body = Body(reader: Reader(receiver: receiver, task: task))
+        #else
+        let body = Body(reader: Reader(receiver: receiver, task: task, delegateQueue: own.delegateQueue))
+        #endif
         let response = try await withTaskCancellationHandler {
             try await receiver.response()
         } onCancel: {
-            task.cancel()
+            body.reader.cancel()
         }
         return (body, response)
     }
@@ -155,21 +159,45 @@ public enum HTTPStream {
     fileprivate final class Reader: @unchecked Sendable {
         let receiver: Receiver
         let task: URLSessionDataTask
+        /// Where the task's delegate is told what happens to it, one thing at a time: the queue of corelibs Foundation's
+        /// session of its own (nil on Apple's, where the caller's session runs it).
+        let delegateQueue: OperationQueue?
 
-        init(receiver: Receiver, task: URLSessionDataTask) {
+        init(receiver: Receiver, task: URLSessionDataTask, delegateQueue: OperationQueue? = nil) {
             self.receiver = receiver
             self.task = task
+            self.delegateQueue = delegateQueue
         }
 
         deinit {
-            task.cancel()
+            cancel()
         }
 
         func next() async throws -> Data? {
             try await withTaskCancellationHandler {
                 try await receiver.next()
-            } onCancel: { [task] in
+            } onCancel: {
+                cancel()
+            }
+        }
+
+        /// Cancels the request, unless it's over. Apple's Foundation ignores a cancel once it's done. Corelibs
+        /// Foundation (Linux, Windows) cancels later, on the task's own queue, and if the task completes meanwhile its
+        /// session lets go of it first: the cancel then asks the session about a task it no longer has, which stops the
+        /// process ("Trying to access a behaviour for a task that in not in the registry"). There the cancel is asked
+        /// on the delegate's queue, where the delegate is told the task completed, and that queue waits until the task
+        /// has it (its error set): told it completed before, nothing is cancelled; after, it completes as cancelled.
+        func cancel() {
+            guard let delegateQueue else {
+                if !receiver.isDone { task.cancel() }
+                return
+            }
+            delegateQueue.addOperation { [receiver, task] in
+                guard !receiver.isDone else { return }
                 task.cancel()
+                // Its queue can be slow to come to it (a busy machine): only this request's delegate waits meanwhile.
+                let deadline = Date().addingTimeInterval(30)
+                while task.error == nil, task.state != .completed, Date() < deadline { Thread.sleep(forTimeInterval: 0.0005) }
             }
         }
     }
@@ -190,6 +218,9 @@ public enum HTTPStream {
         init(redirect: (@Sendable (URLRequest) -> URLRequest?)?) {
             self.redirect = redirect
         }
+
+        /// Whether the task told it it completed (`didCompleteWithError`).
+        var isDone: Bool { state.withLock { $0.done } }
 
         func response() async throws -> URLResponse {
             while true {

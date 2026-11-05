@@ -118,6 +118,21 @@ struct ExtensionRobustnessTests {
 
     // MARK: - Processes
 
+    /// Whether process `pid` has ended: gone, or dead and not yet reaped. What a killed script started is reaped by the
+    /// system's first process, which on the Mac (launchd) does it at once; in a container whose first process isn't an
+    /// init (GitHub's job containers run `tail -f /dev/null`) nothing ever does, and it stays a zombie (`ps`'s Z).
+    static func ended(_ pid: pid_t) -> Bool {
+        guard kill(pid, 0) == 0 else { return true }
+        #if os(Linux)
+        // /proc/<pid>/stat: "pid (name) state …", the name in brackets maybe with spaces or brackets of its own.
+        guard let stat = try? String(contentsOfFile: "/proc/\(pid)/stat", encoding: .utf8),
+              let close = stat.lastIndex(of: ")") else { return false }
+        return stat[close...].dropFirst().trimmingCharacters(in: .whitespaces).hasPrefix("Z")
+        #else
+        return false
+        #endif
+    }
+
     /// A script that ignores SIGTERM, and what it started, are killed soon after its timeout.
     @Test func aStoppedScriptsChildrenGoToo() async throws {
         let folder = ScriptFolder()
@@ -137,8 +152,8 @@ struct ExtensionRobustnessTests {
         #expect(failure == .timedOut(1))
         #expect(Date().timeIntervalSince(started) < Timing.wellBeforeLongSleep)
         let child = try #require(pid_t(String(decoding: try Data(contentsOf: pids), as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)))
-        // Gone once it's reaped, which a busy test run can hold up (`Timing`).
-        #expect(await Timing.eventually { kill(child, 0) != 0 }, "the script's child \(child) is still running")
+        // Ended soon, which a busy test run can hold up (`Timing`).
+        #expect(await Timing.eventually { Self.ended(child) }, "the script's child \(child) is still running")
     }
 
     /// When the input method quits (`CommandRunner.stopAll`), a running program's group goes, children and all.
@@ -163,7 +178,7 @@ struct ExtensionRobustnessTests {
         let child = started
         // `stopAll` with only this test's program.
         CommandRunner.stop(CommandRunner.runningPrograms.filter { $0.processIdentifier == leader }, grace: 0.3)
-        #expect(await Timing.eventually { kill(child, 0) != 0 && kill(leader, 0) != 0 })
+        #expect(await Timing.eventually { Self.ended(child) && Self.ended(leader) })
         _ = try? await task.value
     }
 
@@ -261,9 +276,14 @@ struct ExtensionRobustnessTests {
 
     // MARK: - How a file is started
 
+    /// The system's C compiler: cc on the Mac and most systems; a Linux with only the Swift toolchain (swift:6.4's
+    /// image) has its clang alone.
+    static let compiler = ["/usr/bin/cc", "/usr/bin/clang"].first { FileManager.default.isExecutableFile(atPath: $0) }
+
     /// A compiled program in a bundle runs as itself, as a shell would run it. (Compiled here: macOS kills a copy
     /// of one of its own programs, like /bin/echo, run from elsewhere.)
-    @Test func aCompiledProgramRunsAsItself() async throws {
+    @Test(.enabled(if: ExtensionRobustnessTests.compiler != nil, "no C compiler"))
+    func aCompiledProgramRunsAsItself() async throws {
         let folder = ScriptFolder()
         folder.add("tools/extension.json", #"{"schemaVersion": 1, "name": "tools", "commands": [{"script": "bin/hello", "name": "hello"}]}"#)
         let binary = folder.url.appendingPathComponent("tools/bin/hello")
@@ -271,7 +291,7 @@ struct ExtensionRobustnessTests {
         let source = folder.add("hello.c", "#include <stdio.h>\nint main(int c, char **v) { printf(\"%s\\n\", c > 1 ? v[1] : \"\"); return 0; }\n",
                                 executable: false)
         let cc = Process()
-        cc.executableURL = URL(fileURLWithPath: "/usr/bin/cc")
+        cc.executableURL = URL(fileURLWithPath: try #require(Self.compiler))
         cc.arguments = [source.path, "-o", binary.path]
         try cc.run()
         cc.waitUntilExit()

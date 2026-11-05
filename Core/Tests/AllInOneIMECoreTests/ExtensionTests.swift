@@ -580,7 +580,8 @@ struct ExtensionTests {
         let folder = ScriptFolder()
         folder.add("fails.sh", script(["input none"], "echo working; echo 'City not found'; exit 2"))
         folder.add("stderr.sh", script(["input none"], "echo out; echo 'the reason' >&2; exit 1"))
-        folder.add("slow.sh", script(["input none", "timeout 0.3"], "sleep 5"))
+        // A sleep it can't end by itself first, however busy the test run (`Timing`).
+        folder.add("slow.sh", script(["input none", "timeout 0.3"], "sleep \(Timing.longSleep)"))
         let commands = folder.load().commands
         func error(_ name: String) async throws -> CommandRunner.RunError? {
             let c = try #require(commands.first { $0.name == name })

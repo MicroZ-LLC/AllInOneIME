@@ -3,7 +3,7 @@ import Testing
 @testable import AllInOneIMECore
 
 /// Stands in for the on-device model: records the requests, answers with the snapshots given (each the whole answer
-/// so far), then fails with `error`, or sends nothing more for a minute (`hangs`, `Timing.longSleep`).
+/// so far), then fails with `error`, or sends nothing more for five minutes (`hangs`, `Timing.longSleep`).
 final class StubAppleModel: AppleModelBackend, @unchecked Sendable {
     let availability: AppleModelAvailability
     let contextSize: Int

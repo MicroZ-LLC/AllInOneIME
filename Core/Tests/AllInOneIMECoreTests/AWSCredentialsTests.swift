@@ -751,10 +751,8 @@ struct AWSCredentialResolverTests {
                 outcomes.withLock { $0[profile, default: ""] += outcome + ";" }
             }
         }
-        let deadline = Date().addingTimeInterval(10)
-        while outcomes.withLock({ $0.values.reduce(0) { $0 + $1.split(separator: ";").count } }) < 5, Date() < deadline {
-            try await Task.sleep(nanoseconds: 20_000_000)
-        }
+        // All five, which a busy test run can hold up for seconds (`Timing`): a hang would never.
+        _ = await Timing.eventually { outcomes.withLock { $0.values.reduce(0) { $0 + $1.split(separator: ";").count } } == 5 }
         let seen = outcomes.withLock { $0 }
         #expect(seen["a"] == "\(AWSCredentialError.sourceProfileLoop(["a", "b", "a"]));\(AWSCredentialError.sourceProfileLoop(["a", "b", "a"]));",
                 "\(seen)")
@@ -1333,8 +1331,9 @@ struct AWSProcessRunnerTests {
             echo "stdin had ${#input} bytes; args: $1|$2; dir: $(pwd)" >&2
             printf '{"Version": 1, "AccessKeyId": "ASIAFAKE", "SecretAccessKey": "fake-secret", "Expiration": "2099-01-01T00:00:00Z"}'
             """)
+        // A time limit no busy test run reaches (`Timing`): how it's run is checked, not how long it takes.
         let result = try await AWSProcessRunner.run(AWSProcessRequest(arguments: [script, "a b", "$HOME"], environment: ["PATH": "/usr/bin:/bin"],
-                                                                      directory: home.root, timeout: 10))
+                                                                      directory: home.root, timeout: Double(Timing.longSleep)))
         #expect(result.status == 0)
         let said = String(decoding: result.standardError, as: UTF8.self).trimmingCharacters(in: .newlines)
         #expect(said.hasPrefix("stdin had 0 bytes; args: a b|$HOME; dir: /") && said.hasSuffix("/" + home.root.lastPathComponent), "\(said)")
@@ -1349,7 +1348,7 @@ struct AWSProcessRunnerTests {
         await #expect(throws: AWSProcessError.timedOut(0.5)) {
             try await AWSProcessRunner.run(AWSProcessRequest(arguments: [script], environment: ["PATH": "/usr/bin:/bin"], directory: home.root, timeout: 0.5))
         }
-        #expect(Date().timeIntervalSince(started) < Timing.wellBeforeLongSleep, "stopped long before the script's minute")
+        #expect(Date().timeIntervalSince(started) < Timing.wellBeforeLongSleep, "stopped long before the script would end")
         await #expect(throws: AWSProcessError.notFound("no-such-creds-program")) {
             try await AWSProcessRunner.run(AWSProcessRequest(arguments: ["no-such-creds-program"], environment: ["PATH": "/usr/bin:/bin"],
                                                              directory: home.root, timeout: 5))
