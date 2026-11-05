@@ -621,17 +621,18 @@ final class AllInOneIMEInputController: IMKInputController {
     /// is the field being typed in, nothing of ours is marked in it (marked text keeps keys from any app already), and a
     /// panel shows (suggestion rows, clipboard history's), this field's autocomplete suggestion shows after the caret
     /// (`GhostOverlay`: its Esc and Tab, which a Chromium page acted on too), or the key is ⌃V (which opens clipboard
-    /// history's).
+    /// history's). The tap's event is made an NSEvent only then: the tap has every key of every app.
     @MainActor
-    func keyAtTap(_ event: NSEvent) -> Bool? {
+    func keyAtTap(_ event: CGEvent) -> Bool? {
         guard !hasMarkedText, let client = client() else { return nil }
         // ⌃ alone of the four (a key posted by another program carries other bits besides).
-        let controlV = event.keyCode == 0x09 && event.modifierFlags.intersection([.command, .option, .control, .shift]) == .control
+        let controlV = event.getIntegerValueField(.keyboardEventKeycode) == 0x09
+            && event.flags.intersection([.maskCommand, .maskAlternate, .maskControl, .maskShift]) == .maskControl
         let ghost = GhostOverlay.shared.isVisible && GhostOverlay.shared.owner === self
-        guard CandidatePanel.shared.isShowing || ghost || controlV else { return nil }
+        guard CandidatePanel.shared.isShowing || ghost || controlV, let key = NSEvent(cgEvent: event) else { return nil }
         atTap = true
         defer { atTap = false }
-        return handleKeyDown(event, client: client)
+        return handleKeyDown(key, client: client)
     }
 
     /// This controller's `keyAtTap` the one the key tap asks: from its field's activation, and from a key it is handed
