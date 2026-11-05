@@ -9,8 +9,12 @@ public struct PanelPresenter {
     /// `text` with "@" before a command's name ("@calculator 23*17") written with `trigger`; an "@" not followed by a
     /// letter (an address's, "%@") left as it is.
     static func withTrigger(_ text: String, _ trigger: String) -> String {
-        trigger == "@" ? text : text.replacingOccurrences(of: #"(?<![\w.])@(?=[A-Za-z])"#, with: trigger, options: .regularExpression)
+        guard trigger != "@" else { return text }
+        return commandAt.stringByReplacingMatches(in: text, range: NSRange(text.startIndex..., in: text), withTemplate: trigger)
     }
+
+    /// An "@" before a command's name (`withTrigger`), compiled once: each row of the command list asks, with each key.
+    private static let commandAt = try! NSRegularExpression(pattern: #"(?<![\w.])@(?=[A-Za-z])"#)
 
     /// The settings, as they are now.
     public var config: Config
