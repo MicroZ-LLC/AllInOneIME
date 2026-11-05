@@ -80,10 +80,10 @@ public enum PluginScript {
         return context
     }
 
-    public static func evaluate(source: String, input: String, language: Language? = nil, preferences: [String: String]? = nil,
-                                fetcher: PluginFetcher, engine: any ScriptEngine = Platform.current.scripts) throws -> String {
-        guard let context = engine.makeContext() else { throw PluginScriptError.failed("JavaScript is not available") }
-        var thrown: String? { context.exception.map { $0.toString() ?? "error" } }
+    /// A context of `engine` with nothing but `fetch` (`prelude`), its requests carried out by `fetcher`: where `run`,
+    /// `load` and `query` are called. Nil: no JavaScript here.
+    static func makeContext(_ engine: any ScriptEngine, fetcher: PluginFetcher) -> (any ScriptEngineContext)? {
+        guard let context = engine.makeContext() else { return nil }
         let native = context.function { arguments in
             let list = (arguments.first?.toArray() ?? []).map { "\($0)" }
             let fields = ((arguments.count > 1 ? arguments[1].toDictionary() : nil) ?? [:]).mapValues { "\($0)" }
@@ -95,6 +95,13 @@ public enum PluginScript {
         }
         context.setGlobal("__fetch", native)
         context.evaluate(prelude)
+        return context
+    }
+
+    public static func evaluate(source: String, input: String, language: Language? = nil, preferences: [String: String]? = nil,
+                                fetcher: PluginFetcher, engine: any ScriptEngine = Platform.current.scripts) throws -> String {
+        guard let context = makeContext(engine, fetcher: fetcher) else { throw PluginScriptError.failed("JavaScript is not available") }
+        var thrown: String? { context.exception.map { $0.toString() ?? "error" } }
         context.evaluate(source)
         if let thrown { throw PluginScriptError.failed(thrown) }
         guard let run = context.global("run"), run.isObject, !run.isUndefined else {

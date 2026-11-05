@@ -93,14 +93,16 @@ public enum ExtensionDigest {
     /// `root` neither way (the user's own).
     public static func repositoryFolder(of command: ScriptCommand, root: URL = ExtensionSources.directory) -> URL? {
         let folder = command.extensionDirectory.path
-        for (path, base) in [(ExtensionSources.asWritten(folder), ExtensionSources.asWritten(root.path)),
-                             (ExtensionSources.comparable(folder), ExtensionSources.comparable(root.path))] {
+        func found(_ path: String, _ base: String) -> URL? {
             if path == base { return root }
             if path.hasPrefix(base + "/"), let first = path.dropFirst(base.count + 1).split(separator: "/").first {
                 return root.appendingPathComponent(String(first), isDirectory: true)
             }
+            return nil
         }
-        return nil
+        // As written first; with links resolved (`realpath`, asked of the file system) only when that finds none.
+        return found(ExtensionSources.asWritten(folder), ExtensionSources.asWritten(root.path))
+            ?? found(ExtensionSources.comparable(folder), ExtensionSources.comparable(root.path))
     }
 
     /// The SHA-256 (lowercase hex) of every file under `folder`: each one's path in it with its own SHA-256, in the order
@@ -117,7 +119,8 @@ public enum ExtensionDigest {
         }
         var entries: [(path: String, content: String)] = []
         for item in items {
-            var file = URL(fileURLWithPath: item.full)
+            // Its kind known (`walk`): no look at the file system for whether it's a folder.
+            var file = URL(fileURLWithPath: item.full, isDirectory: false)
             if item.kind == .link {
                 // The file it leads to, hashed by its own path (a hash kept by its stamp then sees it change).
                 file = file.resolvingSymlinksInPath()
@@ -150,7 +153,8 @@ public enum ExtensionDigest {
                     guard let target = linkTarget(item.full) else { return nil }
                     entries.append((item.path, "link " + target))
                 } else {
-                    guard let sha = sha256(URL(fileURLWithPath: item.full)) else { return nil }
+                    // A file (`walk`): its URL made without asking the file system whether it's a folder.
+                    guard let sha = sha256(URL(fileURLWithPath: item.full, isDirectory: false)) else { return nil }
                     entries.append((item.path, sha))
                 }
             }

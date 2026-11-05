@@ -14,19 +14,8 @@ extension PluginScript {
     public static func evaluateCompletion(source: String, function: CompletionFunction, text: String = "",
                                           context: CompletionContext, fetcher: PluginFetcher,
                                           engine: any ScriptEngine = Platform.current.scripts) throws -> String {
-        guard let script = engine.makeContext() else { throw PluginScriptError.failed("JavaScript is not available") }
+        guard let script = makeContext(engine, fetcher: fetcher) else { throw PluginScriptError.failed("JavaScript is not available") }
         var thrown: String? { script.exception.map { $0.toString() ?? "error" } }
-        let native = script.function { arguments in
-            let list = (arguments.first?.toArray() ?? []).map { "\($0)" }
-            let fields = ((arguments.count > 1 ? arguments[1].toDictionary() : nil) ?? [:]).mapValues { "\($0)" }
-            return fetcher.fetch(list.map { PluginRequest(url: $0, headers: fields) }).map { r -> [String: Any] in
-                var out: [String: Any] = ["status": r.status, "text": r.text]
-                if let error = r.error { out["error"] = error }
-                return out
-            }
-        }
-        script.setGlobal("__fetch", native)
-        script.evaluate(prelude)
         script.evaluate(source)
         if let thrown { throw PluginScriptError.failed(clean(thrown)) }
         guard let declared = script.global(function.rawValue), declared.isObject, !declared.isUndefined else {
@@ -81,16 +70,10 @@ extension PluginHost {
     public static func completion(directory path: String, function: PluginScript.CompletionFunction, input: Data,
                                   appVersion: String = AppVersion.string,
                                   fetcher: ([String]) -> PluginFetcher = { URLSessionFetcher(hosts: $0) }) -> Result<String, CompletionFailure> {
-        let directory = URL(fileURLWithPath: path, isDirectory: true)
-        guard let data = try? Data(contentsOf: directory.appendingPathComponent("plugin.json")),
-              let manifest = try? JSONDecoder().decode(PluginManifest.self, from: data) else {
-            return .failure("The plugin has no readable plugin.json")
-        }
-        if let problem = manifest.problem(appVersion: appVersion) { return .failure(.init("Plugin \(manifest.name): \(problem)")) }
-        guard manifest.type == .script, let script = manifest.script,
-              let source = try? Data(contentsOf: directory.appendingPathComponent(script)),
-              source.count <= PluginManifest.maxScriptBytes else {
-            return .failure(.init("Plugin \(manifest.name): no script, or larger than \(PluginManifest.maxScriptBytes / 1024) KB"))
+        let manifest: PluginManifest, source: Data
+        switch script(in: path, appVersion: appVersion) {
+        case let .success(found): (manifest, source) = found
+        case let .failure(failure): return .failure(failure)
         }
         guard let input = try? JSONDecoder().decode(CompletionInput.self, from: input),
               let language = Language(rawValue: input.language) else { return .failure("No completion context on standard input") }
