@@ -8,6 +8,18 @@ enum Available {
     static let javaScript = Platform.current.scripts.makeContext() != nil
     /// The system's date detection (`Platform.dates`: NSDataDetector), which reads 明天 and "tomorrow" too.
     static let systemDates = !(Platform.current.dates is RulesOnlyDateDetector)
+    /// The system's date detection reading Chinese: NSDataDetector reads 明天 or 周五 only for a user with Chinese among
+    /// their languages (System Settings › Language & Region), as a Chinese typist's Mac has; a Mac in English alone (a
+    /// GitHub runner's) finds no date in 明天. Asked of NSDataDetector itself, not of the core.
+    static let chineseSystemDates: Bool = {
+        #if canImport(Darwin)
+        let text = "明天"
+        let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.date.rawValue)
+        return systemDates && detector?.firstMatch(in: text, range: NSRange(text.startIndex..., in: text))?.date != nil
+        #else
+        return false
+        #endif
+    }()
     /// Messages.app, the program `@imessage` needs: a Mac's.
     static let messagesApp = FileManager.default.fileExists(atPath: "/System/Applications/Messages.app")
     /// Whether a file's or a folder's permissions keep this process out: not as root, who reads, lists and searches
