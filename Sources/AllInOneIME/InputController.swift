@@ -285,7 +285,7 @@ final class AllInOneIMEInputController: IMKInputController {
             let app = (sender as? IMKTextInput)?.bundleIdentifier()
             if let app { recordApp(app) }
             // The app's own starting language, rewrite styles, typing out (`AppProfile`); a terminal pastes on ⌘V itself.
-            let field = FieldInfo(app: app, terminal: app.map(SecureInput.terminals.contains) ?? false)
+            let field = FieldInfo(app: app, terminal: Self.isTerminal(app: app))
             apply(session.handle(.focus(field)).outputs, client: sender as? IMKTextInput)
             // Translate as You Type's target removed: the first output language typed text goes into, else off.
             translateModeFollow(services.loadSettings())
@@ -734,9 +734,10 @@ final class AllInOneIMEInputController: IMKInputController {
         }
     }
 
-    /// The field a key or a modifier change comes from.
+    /// The field a key or a modifier change comes from (its app asked of the client once).
     static func fieldInfo(_ client: IMKTextInput?) -> FieldInfo {
-        FieldInfo(app: client?.bundleIdentifier(), terminal: isTerminal(client))
+        let app = client?.bundleIdentifier()
+        return FieldInfo(app: app, terminal: isTerminal(app: app))
     }
 
     /// Reads `parts` of what the field says (`FieldContext`). Password fields and prompts turn on secure event input: the
@@ -1026,8 +1027,9 @@ final class AllInOneIMEInputController: IMKInputController {
     /// on a key the input method took. The same keys and rows everywhere; only how they go in differs.
     @MainActor
     private func marksRow(in client: IMKTextInput?) -> Bool {
-        guard !atTap, let client, !Self.isTerminal(client), !hasMarkedText else { return false }
-        guard chromiumApp(client.bundleIdentifier()) else { return false }
+        guard !atTap, let client, !hasMarkedText else { return false }
+        let app = client.bundleIdentifier()
+        guard !Self.isTerminal(app: app), chromiumApp(app) else { return false }
         KeyGuard.shared.markedInstead()
         return true
     }
@@ -1284,7 +1286,12 @@ final class AllInOneIMEInputController: IMKInputController {
 
     /// Whether `client` is a terminal, which runs every line it is given.
     static func isTerminal(_ client: IMKTextInput?) -> Bool {
-        client?.bundleIdentifier().map(SecureInput.terminals.contains) ?? false
+        isTerminal(app: client?.bundleIdentifier())
+    }
+
+    /// Whether `app` (a bundle id) is a terminal.
+    static func isTerminal(app: String?) -> Bool {
+        app.map(SecureInput.terminals.contains) ?? false
     }
 
     // MARK: - Candidate panel
@@ -1296,18 +1303,21 @@ final class AllInOneIMEInputController: IMKInputController {
     @MainActor
     func anchor(_ client: IMKTextInput) -> NSRect {
         anchorToken += 1
+        // The field's app, asked of the client once.
+        let app = client.bundleIdentifier()
         // The field by this controller and its focus session: the client object handed over may be another proxy each time.
-        panelAnchor.enter(PanelAnchor.Field(client: ObjectIdentifier(self), app: client.bundleIdentifier(), session: fieldSession))
+        panelAnchor.enter(PanelAnchor.Field(client: ObjectIdentifier(self), app: app, session: fieldSession))
         // The window's frame once in the field (a rect on its left edge near its top is the page's corner, `PanelAnchor`).
-        if clientOverride == nil, !session.secureInputActive(), let app = client.bundleIdentifier() {
+        if clientOverride == nil, !session.secureInputActive(), let app {
             panelAnchor.learnWindow { FocusedField.listedWindowFrame(in: app).map { ($0, false) } ?? FocusedField.windowFrame(in: app) }
         }
         var told = toldAnchor(client)
         let screens = NSScreen.screens.map(\.frame)
         // The left edges distrust a rect only where the field tells nothing of its marked text (`PanelAnchor.trusted`).
-        let edges = Self.markedAnchor(client) == nil
+        let marked = Self.markedAnchor(client)
+        let edges = marked == nil
         if !PanelAnchor.trusted(told, screens: screens, window: panelAnchor.window, page: panelAnchor.page, edges: edges),
-           let marked = Self.markedAnchor(client),
+           let marked,
            PanelAnchor.trusted(marked, screens: screens, window: panelAnchor.window, page: panelAnchor.page, edges: false) {
             told = marked  // the line's rect not one to trust, the marked text's own is
         }
@@ -1316,17 +1326,16 @@ final class AllInOneIMEInputController: IMKInputController {
         let needsPage = panelAnchor.page == nil
         var placement = panelAnchor.place(told, screens: screens, edges: edges) {
             let start = ProcessInfo.processInfo.systemUptime
-            let read = caretByAccessibility(client, page: needsPage)
+            let read = caretByAccessibility(in: app, page: needsPage)
             asked = String(format: "Accessibility %.1f ms", (ProcessInfo.processInfo.systemUptime - start) * 1000)
                 + (read?.timedOut == true ? ", timed out" : read?.caret == nil ? ", no caret" : "")
             return read
         }
         // Nothing better in this field yet (its first panel since the app came back, the field telling the page's corner):
         // the app's last rect to trust, from another field or focus session of it, where it was typed in last.
-        let app = client.bundleIdentifier() ?? ""
         if placement.source == .field {
-            Self.lastAnchorByApp[app] = placement.rect
-        } else if placement.source == .told, let previous = Self.lastAnchorByApp[app] {
+            Self.lastAnchorByApp[app ?? ""] = placement.rect
+        } else if placement.source == .told, let previous = Self.lastAnchorByApp[app ?? ""] {
             placement = PanelAnchor.Placement(rect: previous, source: .last)
         } else if placement.source == .told, let pointer = Self.pointerAnchor(in: panelAnchor.window, screens: screens) {
             // Nothing known of the caret at all (Google Docs telling only its page's corner): by the pointer, where the
@@ -1349,7 +1358,7 @@ final class AllInOneIMEInputController: IMKInputController {
         if said != anchorSaid {
             anchorSaid = said
             log.notice("""
-                panel anchor not trusted in \(client.bundleIdentifier() ?? "", privacy: .private): told \(Self.describe(told), privacy: .public), \
+                panel anchor not trusted in \(app ?? "", privacy: .private): told \(Self.describe(told), privacy: .public), \
                 marked \(Self.describe(Self.markedRect(client)), privacy: .public), window \(Self.describe(self.panelAnchor.window), privacy: .public); \
                 \(placement.source.rawValue, privacy: .public) used, \(Self.describe(placement.rect), privacy: .public) (\(asked, privacy: .public)), \
                 pointer \(Self.describe(NSRect(origin: NSEvent.mouseLocation, size: .zero)), privacy: .public)
@@ -1403,12 +1412,12 @@ final class AllInOneIMEInputController: IMKInputController {
         return rect == .zero ? nil : rect
     }
 
-    /// What Accessibility tells of the caret in `client`'s app (`FocusedField.caret`; the page's frame till it is known):
-    /// never during secure input or in a password field, never for the self-test's fields (it would read the user's own
-    /// frontmost app).
+    /// What Accessibility tells of the caret in `app`, the field's app (`FocusedField.caret`; the page's frame till it is
+    /// known): never during secure input or in a password field, never for the self-test's fields (it would read the
+    /// user's own frontmost app).
     @MainActor
-    private func caretByAccessibility(_ client: IMKTextInput, page: Bool) -> PanelAnchor.Accessibility? {
-        guard clientOverride == nil, !session.secureInputActive(), let app = client.bundleIdentifier() else { return nil }
+    private func caretByAccessibility(in app: String?, page: Bool) -> PanelAnchor.Accessibility? {
+        guard clientOverride == nil, !session.secureInputActive(), let app else { return nil }
         return FocusedField.caret(in: app, page: page)
     }
 

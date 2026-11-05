@@ -347,7 +347,11 @@ extension AllInOneIMEInputController {
     /// Where the caret is on the screen (as tall as its line), as the field tells it for an empty range there: nil
     /// where it tells none (no caret, an empty rect, off every screen).
     static func caretRect(_ client: IMKTextInput) -> NSRect? {
-        let selected = client.selectedRange()
+        caretRect(client, selected: client.selectedRange())
+    }
+
+    /// `caretRect` for `selected`, the selection `client` told.
+    private static func caretRect(_ client: IMKTextInput, selected: NSRange) -> NSRect? {
         guard selected.location != NSNotFound else { return nil }
         return onScreen(client.firstRect(forCharacterRange: NSRange(location: selected.location, length: 0), actualRange: nil))
     }
@@ -363,8 +367,9 @@ extension AllInOneIMEInputController {
     }
 
     static func caretRects(_ client: IMKTextInput) -> CaretRects {
-        var rects = CaretRects(caret: caretRect(client))
+        // The selection asked once, for the caret and the character before it.
         let selected = client.selectedRange()
+        var rects = CaretRects(caret: caretRect(client, selected: selected))
         if selected.location != NSNotFound, selected.location > 0 {
             rects.previous = onScreen(client.firstRect(forCharacterRange: NSRange(location: selected.location - 1, length: 1), actualRange: nil))
         }
