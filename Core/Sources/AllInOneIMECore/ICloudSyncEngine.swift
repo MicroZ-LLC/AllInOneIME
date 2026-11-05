@@ -418,7 +418,6 @@ public struct ICloudSyncEngine: @unchecked Sendable {  // used from one queue at
     static func topKey(_ key: String) -> String {
         if key.hasPrefix(ICloudSync.appPrefix) { return "appProfiles" }
         if key == ICloudSync.hiddenWordsKey { return "redaction" }
-        if key == "inputLanguages" || key == "outputLanguages" { return key }
         return key
     }
 

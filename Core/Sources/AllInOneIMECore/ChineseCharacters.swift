@@ -199,14 +199,22 @@ extension OutputLanguage {
     /// Chinese, in either script: "zh", "zh-Hant", "zh-Hant-TW".
     public var isChinese: Bool { InterfaceLanguage.isChinese(code) }
 
-    /// Chinese in Traditional characters: "zh-Hant", "zh-Hant-TW", "zh-TW".
-    public var isTraditionalChinese: Bool { isChinese && !InterfaceLanguage.isSimplifiedChinese(code) }
+    /// Chinese in Traditional characters: "zh-Hant", "zh-Hant-TW", "zh-TW". Chinese and not Simplified, as
+    /// `InterfaceLanguage` tells them, from one reading of its code.
+    public var isTraditionalChinese: Bool {
+        let tag = InterfaceLanguage.Tag(code)
+        return tag.language == "zh" && tag.traditional
+    }
 
     /// Whether a sentence in it is one in `other`: the same code, or Chinese in the same script (what is typed in Taiwan's
     /// characters is in "zh-Hant", what is typed in Simplified ones in "zh"). Never translated from one into the other.
+    /// Each code is read once (`InterfaceLanguage.Tag`), as `isChinese` and `isTraditionalChinese` tell them.
     public func isSame(as other: OutputLanguage) -> Bool {
         if self == other { return true }
-        return isChinese && other.isChinese && isTraditionalChinese == other.isTraditionalChinese
+        let tag = InterfaceLanguage.Tag(code)
+        guard tag.language == "zh" else { return false }
+        let otherTag = InterfaceLanguage.Tag(other.code)
+        return otherTag.language == "zh" && tag.traditional == otherTag.traditional
     }
 
     /// The language `text` is written in (`language`, as `Language.of` tells it), Chinese by its own characters when they

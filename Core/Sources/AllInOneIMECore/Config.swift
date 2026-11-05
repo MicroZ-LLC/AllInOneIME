@@ -47,7 +47,8 @@ public struct Config: Codable, Equatable, Sendable {
     /// languages (text already in the language goes in as it is). A new user whose Mac has English alone has none until
     /// one is added: English typed, English out.
     public var hasLanguageToTranslateInto: Bool {
-        outputLanguages.contains { output in inputLanguages.contains { !$0.matches(output, chinese: typedChinese) } }
+        let chinese = typedChinese  // read once, not for each pair (it may read the system's languages)
+        return outputLanguages.contains { output in inputLanguages.contains { !$0.matches(output, chinese: chinese) } }
     }
 
     /// The characters Chinese is typed in: the ones picked (`chineseCharacters`), else those of the system's preferred

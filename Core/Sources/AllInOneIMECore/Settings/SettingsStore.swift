@@ -429,12 +429,8 @@ public final class SettingsStore {
     /// Saves the provider's API key, tied to the base URL it is saved with: it isn't sent to another one set later.
     public func saveKey(_ key: String, for provider: Provider) -> String? {
         guard persists, !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
-        defer { notify(.keys) }
-        do {
+        return changingSecret(failing: Self.couldntSaveKey) {
             try APIKeys.save(key, for: provider, host: HTTPProviders.host(of: config.settings(for: provider)))
-            return nil
-        } catch {
-            return Self.couldntSaveKey + UIText.describe(error)
         }
     }
 
@@ -452,59 +448,43 @@ public final class SettingsStore {
     /// Removes the provider's API key: Remove Key…, confirmed.
     public func removeKey(_ provider: Provider) -> String? {
         guard persists else { return nil }
-        defer { notify(.keys) }
-        do {
+        return changingSecret(failing: Self.couldntRemoveKey) {
             try APIKeys.remove(provider)
             Self.log.notice("Settings: the \(provider.rawValue) key removed (Remove Key…, confirmed)")
-            return nil
-        } catch {
-            return Self.couldntRemoveKey + UIText.describe(error)
         }
     }
 
     /// Saves the web search key (`WebSearch`).
     public func saveSearchKey(_ key: String) -> String? {
         guard persists, !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
-        defer { notify(.keys) }
-        do {
-            try WebSearch.saveKey(key)
-            return nil
-        } catch {
-            return Self.couldntSaveKey + UIText.describe(error)
-        }
+        return changingSecret(failing: Self.couldntSaveKey) { try WebSearch.saveKey(key) }
     }
 
     public func removeSearchKey() -> String? {
         guard persists else { return nil }
-        defer { notify(.keys) }
-        do {
-            try WebSearch.removeKey()
-            return nil
-        } catch {
-            return Self.couldntRemoveKey + UIText.describe(error)
-        }
+        return changingSecret(failing: Self.couldntRemoveKey) { try WebSearch.removeKey() }
     }
 
     /// Saves the Notion token, sent to api.notion.com only.
     public func saveNotionToken(_ token: String) -> String? {
         guard persists, !token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
-        defer { notify(.keys) }
-        do {
-            try NotionAPI.saveToken(token)
-            return nil
-        } catch {
-            return Self.couldntSaveKey + UIText.describe(error)
-        }
+        return changingSecret(failing: Self.couldntSaveKey) { try NotionAPI.saveToken(token) }
     }
 
     public func removeNotionToken() -> String? {
         guard persists else { return nil }
+        return changingSecret(failing: Self.couldntRemoveKey) { try NotionAPI.removeToken() }
+    }
+
+    /// `change` made in the secret store (a key or a token saved or removed), then `keys` told: nil when it was done,
+    /// else what went wrong as the window shows it, `failing` and the error.
+    private func changingSecret(failing: @autoclosure () -> String, _ change: () throws -> Void) -> String? {
         defer { notify(.keys) }
         do {
-            try NotionAPI.removeToken()
+            try change()
             return nil
         } catch {
-            return Self.couldntRemoveKey + UIText.describe(error)
+            return failing() + UIText.describe(error)
         }
     }
 

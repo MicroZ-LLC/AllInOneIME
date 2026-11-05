@@ -750,13 +750,8 @@ public enum Doctor {
     /// name may be the user's. A folder's name may hold spaces (it ends before a "/"); the last component's only before a
     /// word that doesn't start in lowercase ("Report Q3 2026.zip"), so the text after a path ("… to /tmp") stays.
     static func maskingAbsolutePaths(_ text: String) -> String {
-        let folder = #"[^/\n:"“”'‘’「」]*[^/\s:"“”'‘’「」]"#
-        let last = #"[^/\s:"“”'‘’「」,;()]+(?:[ \t](?![a-z])[^/\s:"“”'‘’「」,;()]+)*"#
-        // A file URL's path too ("file:///Users/…", "file://localhost/…"); not one masked already ("…/a.zip").
-        let fileURL = try! NSRegularExpression(pattern: #"(?i)(file://)(?:localhost)?/(?:\#(folder)/)*\#(last)"#)
-        let path = try! NSRegularExpression(pattern: #"(?<![\w~./:\\…-])/(?:\#(folder)/)*\#(last)"#)
         var out = text
-        for (regex, keepsScheme) in [(fileURL, true), (path, false)] {
+        for (regex, keepsScheme) in [(fileURLPath, true), (absolutePath, false)] {
             let ns = out as NSString
             let masked = NSMutableString(string: out)
             for match in regex.matches(in: out, range: NSRange(location: 0, length: ns.length)).reversed() {
@@ -770,6 +765,14 @@ public enum Doctor {
         }
         return out
     }
+
+    /// What `maskingAbsolutePaths` masks, made once (it runs on every finding's title and detail, and again on each line
+    /// of `report`): a path's folders and its last component; a file URL's path too ("file:///Users/…",
+    /// "file://localhost/…"), and any other absolute path, not one masked already ("…/a.zip").
+    private static let pathFolder = #"[^/\n:"“”'‘’「」]*[^/\s:"“”'‘’「」]"#
+    private static let pathLast = #"[^/\s:"“”'‘’「」,;()]+(?:[ \t](?![a-z])[^/\s:"“”'‘’「」,;()]+)*"#
+    private static let fileURLPath = try! NSRegularExpression(pattern: #"(?i)(file://)(?:localhost)?/(?:\#(pathFolder)/)*\#(pathLast)"#)
+    private static let absolutePath = try! NSRegularExpression(pattern: #"(?<![\w~./:\\…-])/(?:\#(pathFolder)/)*\#(pathLast)"#)
 
     /// The repeated languages taken out of `outputLanguages` and `inputLanguages` in the config file at `url`, the first
     /// of each kept, at the JSON level (`AIConfig.patchingFile`): every other key, one this version doesn't know too,

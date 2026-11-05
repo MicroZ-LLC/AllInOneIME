@@ -24,6 +24,10 @@ struct SettingsSchema {
     let tests: [String: SettingsStore.TestStatus]
     let libraryEntries: [PluginIndex.Entry]?
     let library: PluginLibrary
+    /// The settings the document is made from: the store's as the schema is made, read once rather than copied out of
+    /// the store by each field (nothing changes them while the document is made; the setters and handlers change the
+    /// store's, later).
+    let config: Config
     /// How each changeable field is set.
     private(set) var setters: [String: (JSON) throws -> Void] = [:]
     /// The actions done here, by field.
@@ -51,9 +55,8 @@ struct SettingsSchema {
         self.tests = tests
         self.libraryEntries = libraryEntries
         self.library = library
+        config = store.config
     }
-
-    var config: Config { store.config }
 
     /// What the document's platform calls its keys and places (Enter, a terminal window, this PC on Windows).
     var terms: PlatformTerms { platform == .mac ? .mac : .windows }
@@ -296,8 +299,10 @@ struct SettingsSchema {
                               help: config.inputLanguages.count > 1 ? tr("单按 Shift 切换；新的输入框从第一个开始。", "Tap Shift to switch; new text fields start in the first.")
                                   : tr("只有一种时 Shift 不切换", "With one, Shift doesn't switch"),
                               value: .array(config.inputLanguages.map { .string($0.rawValue) }))
+        // The characters Chinese is typed in (`Config.typedChinese`, which may read the system's languages): read once.
+        let chinese = config.typedChinese
         languages.choices = Language.allCases.map {
-            Choice($0.rawValue, SessionText.inputName($0, language: UIText.language, chinese: config.typedChinese))
+            Choice($0.rawValue, SessionText.inputName($0, language: UIText.language, chinese: chinese))
         }
         (languages.ordered, languages.minCount, languages.maxCount) = (true, 1, Config.maxInputLanguages)
         add(languages, to: &fields) { value in
@@ -319,7 +324,7 @@ struct SettingsSchema {
         if config.inputLanguages.contains(.chinese) {
             // As the system's languages say until one is picked (`Config.typedChinese`).
             add(choice("chineseCharacters", UIText.chineseCharactersLabel, UIText.chineseCharactersHelp,
-                       value: .string(config.typedChinese.rawValue),
+                       value: .string(chinese.rawValue),
                        choices: ChineseCharacters.allCases.map { (Choice($0.rawValue, $0.name(in: UIText.language)), nil) }),
                 to: &fields) { value in
                 store.setChineseCharacters(value.string.flatMap(ChineseCharacters.init(rawValue:)) ?? store.config.typedChinese)
@@ -388,8 +393,10 @@ struct SettingsSchema {
         var languages = Field(id: "outputLanguages", kind: .choices, label: tr("翻译成", "Translate to"),
                               help: tr("每种一行，拖动排序", "A line in each; drag to reorder"),
                               value: .array(codes.map(JSON.string)))
-        // "zh" is Simplified Chinese by name for someone typing Traditional characters: into it is a translation.
-        languages.choices = OutputLanguage.catalog.map { Choice($0.code, UIText.name($0, typing: config.typedChinese)) }
+        // "zh" is Simplified Chinese by name for someone typing Traditional characters: into it is a translation. The
+        // characters typed are read once, not for each language of the catalog (`Config.typedChinese`).
+        let chinese = config.typedChinese
+        languages.choices = OutputLanguage.catalog.map { Choice($0.code, UIText.name($0, typing: chinese)) }
             + config.outputLanguages.filter { !inCatalog($0.code) }.map { Choice(value: .string($0.code), label: UIText.name($0), disabled: true) }
         (languages.ordered, languages.minCount) = (true, 1)
         add(languages, to: &fields) { value in
