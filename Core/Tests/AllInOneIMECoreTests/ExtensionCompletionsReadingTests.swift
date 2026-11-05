@@ -193,7 +193,8 @@ struct ExtensionCompletionsReadingTests {
     /// digest as much. Such an extension can't be turned on (Settings and the settings document say its files can't be
     /// read; the document refuses), and one approved is turned off as on a change (found lapsed, its program not run).
     /// Readable again, it is what it was.
-    @Test func whatCantBeReadIsNeverPinned() async throws {
+    @Test(.enabled(if: Available.permissionsApply, "as root, what its mode keeps out is read"))
+    func whatCantBeReadIsNeverPinned() async throws {
         let place = try Place(.untrusted)
         try place.desk()
         let clone = try #require(place.clone)

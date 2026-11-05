@@ -10,6 +10,15 @@ enum Available {
     static let systemDates = !(Platform.current.dates is RulesOnlyDateDetector)
     /// Messages.app, the program `@imessage` needs: a Mac's.
     static let messagesApp = FileManager.default.fileExists(atPath: "/System/Applications/Messages.app")
+    /// Whether a file's or a folder's permissions keep this process out: not as root, who reads, lists and searches
+    /// whatever their mode says (a container's user: swift's image and GitHub's job containers run as root).
+    static let permissionsApply: Bool = {
+        #if os(Windows)
+        return true
+        #else
+        return geteuid() != 0
+        #endif
+    }()
     /// The language packs' archives (.tar.xz), made and unpacked by the system's tar as bsdtar is asked to
     /// (`LanguagePackLibrary.unpack`): the Mac's and Windows'. Linux has no packs yet (no Rime there): its tar is GNU
     /// tar, which has no --no-mac-metadata or --no-fflags, and a minimal one (swift's image) has no xz.

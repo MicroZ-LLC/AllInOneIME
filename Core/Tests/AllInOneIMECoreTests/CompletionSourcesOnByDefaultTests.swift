@@ -491,7 +491,8 @@ struct CompletionSourcesOnByDefaultTests {
 
     /// Where it can't be pinned (its repository too large, or not all of it readable) a source not trusted can't be on:
     /// adding the source approves nothing, and Settings says why.
-    @Test func whatCantBePinnedStaysOff() throws {
+    @Test(.enabled(if: Available.permissionsApply, "as root, what its mode keeps out is read"))
+    func whatCantBePinnedStaysOff() throws {
         let large = try ExtensionCompletionsRepositoryTests.place(.untrusted, files: ExtensionDigest.maxFiles + 1)
         let command = try large.command()
         guard case let .success(source)? = command.completion else { Issue.record("no source"); return }
