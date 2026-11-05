@@ -311,14 +311,17 @@ public enum EnglishWords {
     /// those told meanwhile in one write, each into the file as it is then (what another writer changed stays, keys this
     /// version doesn't know too; under `AIConfig.fileLock`, so that no writer of this process writes between its read and
     /// its write). The session offers a word, and leaves out a candidate removed, at once (`EnglishWordsEngine.words`,
-    /// `EnglishWordsEngine.removedCandidates`). A change whose write fails (a file that doesn't parse, one that can't be
-    /// written) is kept and written with the next one, or once the shell says the file may take it again (`retry`),
-    /// never tried again on its own; the process drains them before it ends (`drain`). Safe from any thread.
+    /// `EnglishWordsEngine.removedCandidates`), and every field until it is written (`unwrittenRemovals`). A change whose
+    /// write fails (a file that doesn't parse, one that can't be written) is kept and written with the next one, or once
+    /// the shell says the file may take it again (`retry`), never tried again on its own; the process drains them before
+    /// it ends (`drain`). Safe from any thread.
     public final class Writer: @unchecked Sendable {
         /// Told on the writer's queue once changes are in the file at a URL: what the shell may read there, off its thread.
         private let written: @Sendable (URL) -> Void
         /// The changes waiting to be written, and where.
         private let waiting = Locked<[(change: Change, url: URL)]>(initialState: [])
+        /// The candidates removed not in their file yet (`unwrittenRemovals`), in order: waiting, being written, or kept.
+        private let unwritten = Locked<[(candidate: String, url: URL)]>(initialState: [])
         /// Those whose write failed, in order, the latest `maxWords` and `RemovedCandidates.maxCount` at most: written
         /// before the next ones. On the queue only.
         private var kept: [(change: Change, url: URL)] = []
@@ -340,7 +343,17 @@ public enum EnglishWords {
             add(.remove(candidate), at: url)
         }
 
+        /// The candidates removed (`remove`) not in the config file at `url` yet, oldest first: told and not written yet,
+        /// or kept since their write failed. What every field's session leaves out besides the file's list, until it is
+        /// written: the list's from then on (`RemovedCandidates.Given`). Asked just before the file is read, so that one
+        /// written in between is in what is read; never waits for a write.
+        public func unwrittenRemovals(at url: URL) -> [String] {
+            unwritten.withLock { $0.filter { $0.url == url }.map(\.candidate) }
+        }
+
         private func add(_ change: Change, at url: URL) {
+            // Unwritten before it can be written.
+            if case let .remove(candidate) = change { unwritten.withLock { $0.append((candidate, url)) } }
             let first = waiting.withLock { waiting -> Bool in
                 defer { waiting.append((change, url)) }
                 return waiting.isEmpty
@@ -388,6 +401,7 @@ public enum EnglishWords {
                 let end = changes[start...].firstIndex { $0.url != url } ?? changes.endIndex
                 do {
                     if try EnglishWords.write(changes[start..<end].map(\.change), at: url) { written(url) }
+                    settled(changes[start..<end])
                 } catch {
                     kept += changes[start..<end]
                     EnglishWords.log.error("could not keep an English word or a removed candidate yet, kept to try again (\(String(describing: type(of: error))))")
@@ -395,7 +409,22 @@ public enum EnglishWords {
                 start = end
             }
             let most = EnglishWords.maxWords + RemovedCandidates.maxCount
-            if kept.count > most { kept.removeFirst(kept.count - most) }
+            if kept.count > most {
+                settled(kept.prefix(kept.count - most))  // lost: never written
+                kept.removeFirst(kept.count - most)
+            }
+        }
+
+        /// The candidates removed among `changes` no longer unwritten: in their file now, or given up.
+        private func settled(_ changes: ArraySlice<(change: Change, url: URL)>) {
+            unwritten.withLock { unwritten in
+                for (change, url) in changes {
+                    guard case let .remove(candidate) = change,
+                          let at = unwritten.firstIndex(where: { $0.candidate == candidate && $0.url == url })
+                    else { continue }
+                    unwritten.remove(at: at)
+                }
+            }
         }
     }
 
@@ -461,19 +490,23 @@ public enum EnglishWords {
     /// Settings' Add: the words of `text` the user hasn't added yet (`newWords`) added at the end of `config`'s English
     /// words and marked as the user's (`Config.addedEnglishWords`), within `maxWords` (`capped`: the oldest learned go
     /// first); those `isSensitive` refused. One learned already becomes the user's, as written now: as if removed and
-    /// added again.
+    /// added again; one of theirs removed among the candidates is added again the same way. Each added comes off the
+    /// list of those removed (`Config.removedCandidates`, by its letters: `RemovedCandidates.restoring(words:from:)`), so
+    /// that it comes up as the user asked.
     @discardableResult
     public static func add(_ text: String, to config: inout Config) -> Added {
-        let found = newWords(text, besides: config.addedEnglishWords)
+        let removed = RemovedCandidates.keys(config.removedCandidates)
+        let found = newWords(text, besides: config.addedEnglishWords.filter { !removed.contains(key($0)) })
         let refused = found.filter(isSensitive)
         let new = found.filter { !isSensitive($0) }
         guard !new.isEmpty else { return Added(refused: refused) }
-        let added = config.addedEnglishWords + new
         let marked = Set(new.map(key))
+        let added = config.addedEnglishWords.filter { !marked.contains(key($0)) } + new
         config.englishWords = capped(config.englishWords.filter { !marked.contains(key($0)) } + new, added: added)
         // Each once, and only those the list still has.
         var keys = Set(config.englishWords.map(key))
         config.addedEnglishWords = added.filter { keys.remove(key($0)) != nil }
+        config.removedCandidates = RemovedCandidates.restoring(words: new, from: config.removedCandidates)
         return Added(words: new, refused: refused)
     }
 

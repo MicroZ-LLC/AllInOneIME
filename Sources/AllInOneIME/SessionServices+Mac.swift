@@ -36,6 +36,9 @@ extension SessionServices {
         services.englishTypedOnce = lettersTypedOnce
         services.learnEnglishWord = { englishWordsWriter.learn($0, at: Config.defaultURL) }
         services.removeCandidate = { englishWordsWriter.remove($0, at: Config.defaultURL) }
+        // Until it is in the file every field leaves it out; once it is, the file's list has the say (a restore there
+        // reaches every field).
+        services.unwrittenRemovals = { englishWordsWriter.unwrittenRemovals(at: Config.defaultURL) }
         services.hangulTables = { LanguagePackManager.shared.hangulTables() }
         services.hindiTables = { LanguagePackManager.shared.hindiTables() }
         services.usableLanguages = { LanguagePackManager.shared.usable($0) }

@@ -61,8 +61,9 @@ public final class InputSession {
     /// What its words were last made of (the user's, the jargon list's terms): made again only when that changes.
     private var englishWordsMadeOf: [String]?
     /// The candidates removed level one is given (`Composer.removedCandidates`): the settings' list, given again only when
-    /// it changes, with those removed in this field it doesn't have yet (left out at once, written a moment later), so
-    /// that neither a new engine nor a list read before they were written brings one back (`RemovedCandidates.Given`).
+    /// it changes, with those removed it doesn't have yet (left out at once, written a moment later: in this field, and
+    /// in any the shell tells aren't written yet), so that neither a new engine nor a list read before they were written
+    /// brings one back; one written is the list's (`RemovedCandidates.Given`).
     private var removedCandidates = RemovedCandidates.Given()
     /// The words typed in English mode in this field, learned once they stand (`learnTypedInEnglish`).
     private var englishModeWords = EnglishModeWords()
@@ -183,7 +184,8 @@ public final class InputSession {
                 perform(composer.commitAll())
                 learnTypedInEnglish(englishModeWords.leftField())
                 // Left for Settings, say: one removed here that the file has by now is the file's, which ✕ there brings back.
-                takeRemovedCandidates(services.loadSettings().removedCandidates)
+                let unwritten = services.unwrittenRemovals?()
+                takeRemovedCandidates(services.loadSettings().removedCandidates, unwritten: unwritten)
                 releasePage()  // `@agent` asked for a page it didn't send
                 fieldSession += 1
                 fieldText = nil
@@ -527,6 +529,8 @@ public final class InputSession {
     public func applySettings(app: String? = nil) -> [SessionOutput] { collect { settings(app: app) } }
 
     private func settings(app: String?) {
+        // Before the settings are read: a candidate removed that is written in between is in what is read.
+        let unwritten = services.unwrittenRemovals?()
         let config = services.loadSettings()
         // Autocomplete's switch turned on or off elsewhere (Settings → Assistant, the file): counted, every app over. Whether
         // it may run in this field now (what a key looks at first).
@@ -549,7 +553,7 @@ public final class InputSession {
             }
         }
         // The candidates the user removed, left out by level one whatever its engine.
-        takeRemovedCandidates(config.removedCandidates)
+        takeRemovedCandidates(config.removedCandidates, unwritten: unwritten)
         composer.outputLanguages = config.outputLanguages
         composer.provider = config.provider  // the on-device model gets less of a screenshot (`ReplyContext.Limits`)
         // `@reportissue`: the versions and settings it shows, read when it runs (the extensions as this field has them).
@@ -613,10 +617,11 @@ public final class InputSession {
         return services.suggestions.codingPacks().first { $0.language == language }
     }
 
-    /// The candidates the user removed as the settings list them now (`listed`) given to level one when the list changed,
-    /// with those removed in this field it doesn't have yet (`RemovedCandidates.Given`).
-    private func takeRemovedCandidates(_ listed: [String]) {
-        if let list = removedCandidates.taking(listed) { composer.removedCandidates = list }
+    /// The candidates the user removed as the settings list them now (`listed`) given to level one when that changed,
+    /// with those removed it doesn't have yet: in this field, and those the shell told weren't written yet just before
+    /// the list was read (`unwritten`, `SessionServices.unwrittenRemovals`; `RemovedCandidates.Given`).
+    private func takeRemovedCandidates(_ listed: [String], unwritten: [String]?) {
+        if let list = removedCandidates.taking(listed, unwritten: unwritten) { composer.removedCandidates = list }
     }
 
     /// What the keys and places are called here (`Platform.terms`), the keys by the roles the composer acts on
@@ -1121,7 +1126,8 @@ public final class InputSession {
                 services.saveCommandUsage(composer.commandUsage)
             case let .candidateRemoved(text):
                 // Left out in this field already, also under a new engine and a list read before it is written; kept for
-                // every field a moment later, never while the key is handled.
+                // every field a moment later, never while the key is handled (left out there meanwhile:
+                // `SessionServices.unwrittenRemovals`).
                 removedCandidates.removed(text)
                 services.removeCandidate(text)
                 log.notice("removed a candidate (\(text.count) characters)")

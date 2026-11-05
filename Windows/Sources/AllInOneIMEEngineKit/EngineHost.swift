@@ -874,7 +874,8 @@ public final class EngineHost: WireHost, @unchecked Sendable {
     /// there already: written into the settings file (`RemovedCandidates.remove`: on the list of those removed) off the
     /// session's queue, in order with the words learned, through `writingSettings`, for every field. Once it is in the
     /// file, the session takes the list as the file has it: the file's from then on, which a restore there brings back
-    /// (the Mac's session takes it as its field is left).
+    /// (the Mac's session as soon as it reads the settings again, its writer telling what isn't written yet:
+    /// `EnglishWords.Writer.unwrittenRemovals`).
     func removeCandidate(_ text: String, in session: ComposerSession) {
         log("session \(session.sid): removed a candidate (\(text.count) characters)")
         let (log, settings, writing) = (self.log, self.settings, writingSettings)

@@ -26,6 +26,13 @@ public enum RemovedCandidates {
         list.filter { $0 != text }
     }
 
+    /// Settings → English Words' Add (`EnglishWords.add`): `list` without the English words that have the letters of one
+    /// of `words` (`keys`), which come up among the candidates again as the user asked.
+    public static func restoring(words: [String], from list: [String]) -> [String] {
+        let added = Set(words.map(EnglishWords.key))
+        return list.filter { keys([$0]).isDisjoint(with: added) }
+    }
+
     /// The letters (`EnglishWords.key`) of those of `list` that are English words (`EnglishWords.word`): what an
     /// English word put among the candidates is matched by, and what is never learned again.
     public static func keys(_ list: [String]) -> Set<String> {
@@ -49,31 +56,37 @@ public enum RemovedCandidates {
     }
 
     /// What a field's session gives level one of them (`Composer.removedCandidates`): the settings' list, with those
-    /// removed in the field that it doesn't have yet (written a moment later, `EnglishWords.Writer`; never while the file
-    /// doesn't parse), so that neither a new engine (librime deployed again) nor a list read before they were written
-    /// brings one back. One the list has is the list's from then on: restored there (Settings' ✕, the config without
-    /// it), it comes back.
+    /// removed that the file doesn't have yet (written a moment later, `EnglishWords.Writer`; never while the file doesn't
+    /// parse), so that neither a new engine (librime deployed again) nor a list read before they were written brings one
+    /// back: those of any field the writer hasn't written (`EnglishWords.Writer.unwrittenRemovals`), else, where the
+    /// shell can't tell, those removed in the field until the list has them. One written, or that the list has, is the
+    /// list's from then on: restored there (Settings' ✕, the config without it), whether before the field reads the
+    /// settings again or after, it comes back.
     public struct Given: Equatable, Sendable {
         /// The settings' list last taken (`taking`).
         private var listed: [String]?
-        /// Those removed in the field the settings' list didn't have when last taken, oldest first.
-        private var removedHere: [String] = []
+        /// Those removed the settings' list didn't have when last taken, oldest first: in the field, and in any field
+        /// the shell told weren't written yet.
+        private var pending: [String] = []
 
         public init() {}
 
         /// `text` removed in the field (`Composer.Effect.candidateRemoved`): level one leaves it out already.
         public mutating func removed(_ text: String) {
-            removedHere = adding(text, to: removedHere)
+            pending = adding(text, to: pending)
         }
 
-        /// The settings' list as read now (`Config.removedCandidates`) taken: what level one is to be given, nil when the
-        /// list is the one taken last. Those removed here that it has are its own from then on.
-        public mutating func taking(_ listed: [String]) -> [String]? {
-            guard listed != self.listed else { return nil }
-            self.listed = listed
-            let caughtUp = Set(listed)
-            removedHere.removeAll { caughtUp.contains($0) }
-            return listed + removedHere
+        /// The settings' list as read now (`Config.removedCandidates`) taken, with `unwritten`, those removed in any field
+        /// that the shell told weren't written yet just before the list was read (nil: it can't tell): what level one is
+        /// to be given, nil when the list is the one taken last and those it adds are the same. Those removed here that
+        /// the list has, or that the shell no longer tells unwritten, are the list's from then on.
+        public mutating func taking(_ listed: [String], unwritten: [String]? = nil) -> [String]? {
+            let caughtUp = Set(listed), told = unwritten.map(Set.init)
+            var adds = pending.filter { !caughtUp.contains($0) && told?.contains($0) != false }
+            for text in unwritten ?? [] where !caughtUp.contains(text) { adds = adding(text, to: adds) }
+            guard listed != self.listed || adds != pending else { return nil }
+            (self.listed, pending) = (listed, adds)
+            return listed + adds
         }
     }
 }

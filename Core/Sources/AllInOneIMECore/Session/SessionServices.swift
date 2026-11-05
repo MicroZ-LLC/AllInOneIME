@@ -41,6 +41,12 @@ public struct SessionServices {
     /// (`EnglishWords.Writer`), as it is told while a key (or a click) is handled; the session's engine leaves it out at
     /// once.
     public var removeCandidate: (String) -> Void
+    /// The candidates removed (`removeCandidate`), in any field, not in the settings yet (`EnglishWords.Writer`: being
+    /// written, or kept since their write failed), oldest first: level one leaves them out besides the settings' list,
+    /// and one written is the list's from then on, which a restore there brings back (`RemovedCandidates.Given`). Asked
+    /// just before the settings are read; never waits for a write. Nil: the shell can't tell (a test's): one removed in a
+    /// field stays out there until the settings list it.
+    public var unwrittenRemovals: (() -> [String])?
     /// The letters put in as typed once (learned the second time), shared by every field of a launch: the shell gives one
     /// for them all; the default is these services' own.
     public var englishTypedOnce: EnglishWords.TypedOnce

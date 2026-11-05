@@ -9,8 +9,8 @@ import Foundation
 /// or second when that is pinyin too ("xiaomi"); a longer one second, or after the page while what's typed may still be
 /// pinyin ("zhon", and up to four letters, which rime-ice reads as initials: "bed" b-e-d). At most `maxPerPage`, the
 /// shorter first. A candidate removed (`removedCandidates`) is left out of every page, librime's by its whole text, a word
-/// by its letters; a page with nothing left is skipped (`skipEmptyPages`). One removed here leaves the page where it was,
-/// laid out anew without it (`deleteCandidate`).
+/// by its letters; a page with nothing left is skipped (`skipEmptyPages`; back from the last). One removed here leaves
+/// the page where it was, laid out anew without it (`deleteCandidate`).
 ///
 /// While the page shown isn't librime's (words on it, candidates left out), ↑↓ (← → in a row), Space, the digits and a
 /// click pick by the place shown, numbered as shown; a punctuation key puts the word highlighted in before its mark; a
@@ -50,7 +50,8 @@ public final class EnglishWordsEngine: PinyinEngine {
     public var fuzzyPinyin: [String] = []
     /// The most words put on a page.
     public static let maxPerPage = 3
-    /// The most pages turned on past one with nothing shown (`skipEmptyPages`): the key never waits on many.
+    /// The most pages turned on past one with nothing shown (`skipEmptyPages`), and back from the last before those: the
+    /// key never waits on many.
     public static let maxSkipped = 5
     /// The most pages turned on back to the one a candidate was removed on (`deleteCandidate`: librime lays the
     /// composition out anew from its first page), for the same reason.
@@ -217,7 +218,8 @@ public final class EnglishWordsEngine: PinyinEngine {
         let raw = base.rawInput
         if !raw.isEmpty { rawBefore = raw }
         if let handled = onPage(keycode, mask: mask) { return handled }
-        return changing(up: keycode == RimeKey.up && mask == 0) { base.processKey(keycode, mask: mask) }
+        let arrow = (keycode == RimeKey.up || keycode == RimeKey.down) && mask == 0
+        return changing(arrow: arrow) { base.processKey(keycode, mask: mask) }
     }
 
     /// A key that moves on the page or picks from it when the page shown isn't librime's; nil: librime's.
@@ -319,35 +321,53 @@ public final class EnglishWordsEngine: PinyinEngine {
     }
 
     /// `change` made to librime; with candidates removed, a page it leaves with nothing shown skipped (`skipEmptyPages`;
-    /// `up`: librime's ↑, from a page's first candidate onto the last of the page before).
-    private func changing(up: Bool = false, _ change: () -> Bool) -> Bool {
+    /// `arrow`: librime's ↑ or ↓, from a page's first or last candidate onto the page before or after).
+    private func changing(arrow: Bool = false, _ change: () -> Bool) -> Bool {
         guard !removed.isEmpty else { return change() }
         let page = base.snapshot().pageNumber
         let done = change()
-        skipEmptyPages(from: page, up: up)
+        skipEmptyPages(from: page, arrow: arrow)
         return done
     }
 
     /// librime's page, every candidate on it removed: the next page in the way the pages were turned (from `before`, the
-    /// page before; on from the first), until one has something shown, `maxSkipped` at most. None has: the page shows no
-    /// candidates (`snapshot`), and Space puts the letters in as typed (`nothingShown`). After ↑ (`up`), the highlight on
-    /// the page reached as ↑ puts it: back, on its last row shown; on again (nothing shown before), on its first.
-    private func skipEmptyPages(from before: Int, up: Bool = false) {
+    /// page before; on from the first), until one has something shown, `maxSkipped` at most. On to the last page with
+    /// none shown yet (nothing after it): back to the nearest page before with something shown, past those just turned
+    /// on and `maxSkipped` more at most. None has: the page shows no candidates (`snapshot`), and Space puts the letters
+    /// in as typed (`nothingShown`). After ↑ or ↓ (`arrow`), the highlight on the page reached as the arrow puts it:
+    /// back, on its last row shown; on, on its first.
+    private func skipEmptyPages(from before: Int, arrow: Bool = false) {
         var snap = base.snapshot()
         if snap.pageNumber != before { pagedBack = snap.pageNumber < before }
         var skipped = false
+        // The lowest page looked at (one after another): from it to the one reached, none shows anything but that one.
+        var lowest = snap.pageNumber
+        func empty() -> Bool { snap.isComposing && !snap.candidates.isEmpty && layout(snap).isEmpty }
+        // librime's page turned back or on; false: it didn't turn.
+        func turn(back: Bool) -> Bool {
+            _ = base.processKey(back ? RimeKey.pageUp : RimeKey.pageDown, mask: 0)
+            let next = base.snapshot()
+            guard next.pageNumber != snap.pageNumber else { return false }
+            snap = next
+            lowest = min(lowest, snap.pageNumber)
+            skipped = true
+            return true
+        }
         for _ in 0..<Self.maxSkipped {
-            guard snap.isComposing, !snap.candidates.isEmpty, layout(snap).isEmpty else { break }
+            guard empty() else { break }
             if snap.pageNumber == 0 { pagedBack = false }  // nothing before it: on from there
             guard pagedBack || !snap.isLastPage else { break }
-            _ = base.processKey(pagedBack ? RimeKey.pageUp : RimeKey.pageDown, mask: 0)
-            let next = base.snapshot()
-            guard next.pageNumber != snap.pageNumber else { break }
-            snap = next
-            skipped = true
+            guard turn(back: pagedBack) else { break }
+        }
+        // Nothing after the last page: back from it, over those looked at, to the nearest before them that shows some.
+        if empty(), !pagedBack, snap.isLastPage, lowest > 0 {
+            pagedBack = true
+            for _ in 0..<(snap.pageNumber - lowest + Self.maxSkipped) {
+                guard turn(back: true), empty(), snap.pageNumber > 0 else { break }
+            }
         }
         // Page Up and Down, - and = leave the highlight where librime's page keys put it.
-        guard up, skipped, !snap.candidates.isEmpty else { return }
+        guard arrow, skipped, !snap.candidates.isEmpty else { return }
         highlightBase(pagedBack ? snap.candidates.count - 1 : 0)
     }
 
@@ -395,7 +415,8 @@ public final class EnglishWordsEngine: PinyinEngine {
     /// librime's deleted there too (`PinyinEngine.deleteCandidate`: what it learned of it forgotten). The page stays the
     /// one the user is on (librime lays the composition out anew from its first page: `returnToPage`), laid out anew
     /// without it, the highlight where it was; on the one removed, on the one shown after it, else the one before. A page
-    /// left with nothing shown is skipped, on forward. Whether one was removed.
+    /// left with nothing shown is skipped, on forward, else (the last) back: the highlight on the first row shown on a
+    /// page after, the last on one before. Whether one was removed.
     public func deleteCandidate(onPage index: Int) -> Bool {
         let (snap, entries) = current()
         guard entries.indices.contains(index) else { return false }
@@ -404,10 +425,10 @@ public final class EnglishWordsEngine: PinyinEngine {
         if case let .base(i) = entries[index] { _ = base.deleteCandidate(onPage: i) }
         removedCandidates = RemovedCandidates.adding(shown[index], to: removedCandidates)
         let page = returnToPage(snap.pageNumber)
-        pagedBack = false  // nothing shown on it now: on forward
+        pagedBack = false  // nothing shown on it now: on forward, else back from the last
         skipEmptyPages(from: page)
         let near = Array(shown[(index + 1)...]) + shown[..<index].reversed()
-        highlight(at == index ? near : [shown[at]] + near)
+        highlight(at == index ? near : [shown[at]] + near, orLast: base.snapshot().pageNumber < snap.pageNumber)
         return true
     }
 
@@ -426,15 +447,17 @@ public final class EnglishWordsEngine: PinyinEngine {
     }
 
     /// The page laid out anew, the highlight on the first of `texts` it shows (the one highlighted before a candidate was
-    /// removed, else the one after it, else the one before); none: as on a page laid out anew (on a word that comes
-    /// first, else librime's).
-    private func highlight(_ texts: [String]) {
+    /// removed, else the one after it, else the one before); none: on its last row shown with `last` (a page before the
+    /// one it was removed on: the one before it), else as on a page laid out anew (on a word that comes first, else
+    /// librime's).
+    private func highlight(_ texts: [String], orLast last: Bool) {
         let snap = base.snapshot()
         let entries = layout(snap)
         laidOutFor = laidOutKey(snap)
         cursor = entries.first.map(Self.isWord) == true ? 0 : nil
         let shown = entries.map { Self.text(of: $0, in: snap) }
-        guard let place = texts.lazy.compactMap({ shown.firstIndex(of: $0) }).first else { return }
+        guard let place = texts.lazy.compactMap({ shown.firstIndex(of: $0) }).first ?? (last ? shown.indices.last : nil)
+        else { return }
         switch entries[place] {
         case .word:
             cursor = place

@@ -205,10 +205,13 @@ public final class SettingsStore {
 
     /// Settings → Input → English Words' Add: the words of `text` added to the English words pinyin offers, marked as the
     /// user's (`EnglishWords.add`), on the list as the file has it now: those added (each a word the user hadn't added; one
-    /// learned becomes theirs), and those refused as what hiding sensitive information hides.
+    /// learned becomes theirs, one of theirs removed among the candidates is added again), and those refused as what
+    /// hiding sensitive information hides. Each added is taken off the list of those removed too (Removed candidates,
+    /// `Config.removedCandidates`, by its letters: `EnglishWords.key`), so that it comes up as the user asked.
     @discardableResult
     public func addEnglishWords(_ text: String) -> EnglishWords.Added {
-        // From the file's read to its write: a word learned meanwhile (`EnglishWords.Writer`) stays.
+        // From the file's read to its write: a word learned or a candidate removed meanwhile (`EnglishWords.Writer`)
+        // stays.
         AIConfig.fileLock.lock(); defer { AIConfig.fileLock.unlock() }
         refresh()
         var changed = config
