@@ -95,14 +95,17 @@ public struct IconToken: Equatable, Sendable {
             if name.hasPrefix("#"), name.count == 7, let value = Int(name.dropFirst(), radix: 16) {
                 return .rgb(red: UInt8((value >> 16) & 0xFF), green: UInt8((value >> 8) & 0xFF), blue: UInt8(value & 0xFF))
             }
-            let named: [String: Color] = [
-                "red": .red, "orange": .orange, "yellow": .yellow, "green": .green,
-                "mint": .mint, "teal": .teal, "cyan": .cyan, "blue": .blue,
-                "indigo": .indigo, "purple": .purple, "pink": .pink, "brown": .brown,
-                "gray": .gray, "grey": .gray, "black": .grayscale(0.15),
-            ]
-            return named[name.hasPrefix("system") ? String(name.dropFirst(6)) : name]
+            return byName[name.hasPrefix("system") ? String(name.dropFirst(6)) : name]
         }
+
+        /// The colors `named` knows by name, made once: each row of the command list with a plugin's or a custom command's
+        /// color asks, with each key.
+        private static let byName: [String: Color] = [
+            "red": .red, "orange": .orange, "yellow": .yellow, "green": .green,
+            "mint": .mint, "teal": .teal, "cyan": .cyan, "blue": .blue,
+            "indigo": .indigo, "purple": .purple, "pink": .pink, "brown": .brown,
+            "gray": .gray, "grey": .gray, "black": .grayscale(0.15),
+        ]
     }
 
     public var glyph: Glyph

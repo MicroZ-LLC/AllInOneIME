@@ -676,7 +676,8 @@ extension InputSession {
 
     /// `text` went into the field: its token characters extend the token, any other character ends it.
     func suggestionsTyped(_ text: String) {
-        let trigger = services.loadSettings().commandTrigger
+        // Read once a token could start with it: most characters go on one, or end it.
+        lazy var trigger = services.loadSettings().commandTrigger
         for character in text {
             let normalized = Character(SuggestionsToken.normalized(String(character)))
             guard SuggestionsToken.isTokenCharacter(normalized) else {
@@ -860,13 +861,14 @@ extension InputSession {
     /// them are made with each key (a key making 100 costs a few hundredths of a millisecond), so the footer's count is
     /// the rows there are from the first key, an item none of whose templates can go in here never counted.
     func suggestionsRows(askAgain: Bool) -> [SuggestionRow] {
+        // The token and what is composed first: most keys (pinyin's, the key after a boundary) end there, with neither the
+        // settings nor the app's class read.
+        guard !suggesting.token.isEmpty, !suggesting.dead, suggesting.hiddenFor != suggesting.token,
+              !composesBesidesCodeWord, !composer.wantsPanel, !fieldIsPrivate(unknown: true) else { return [] }
         let appClass = SuggestionsAppClass(app: app, terminal: terminal)
         let s = services.suggestions
         let settings = s.settings()
-        guard !suggesting.token.isEmpty, !suggesting.dead, suggesting.hiddenFor != suggesting.token,
-              !composesBesidesCodeWord, !composer.wantsPanel, !fieldIsPrivate(unknown: true), appClass != .none,
-              suggestionsOn(settings)
-        else { return [] }
+        guard appClass != .none, suggestionsOn(settings) else { return [] }
         let now = s.now()
         let t = InterfaceWords(language: UIText.language)
         let scores = Frecency.scores(s.loadPicks())
@@ -964,16 +966,15 @@ extension InputSession {
         }
         if prune, s.settingsValid() {
             // Those on by default with no approval (the user's own extension's, a trusted source's) keep their lists too.
-            let declared = services.loadExtensions(services.loadSettings(), false).commands
+            let config = services.loadSettings()
+            let declared = services.loadExtensions(config, false).commands
             s.store.prune(keeping: settings.sourceKeys(extensions: declared), folder: s.cacheFolder)
             var lapsed = CompletionSourceApproval.lapsed(settings.enabled, plugins: plugins, sha256: s.store.sha256)
             if settings.enabled.contains(where: { $0.plugin == CompletionSourceKey.scriptExtensions }) {
-                let config = services.loadSettings()
-                let commands = services.loadExtensions(config, false).commands
                 let (follows, digest) = ({ self.extensionPin($0, config: config).follows }, { self.extensionPin($0, config: config).digest })
-                lapsed += CompletionSourceApproval.lapsed(settings.enabled, extensions: commands, follows: follows, digest: digest)
+                lapsed += CompletionSourceApproval.lapsed(settings.enabled, extensions: declared, follows: follows, digest: digest)
                 // Of those that follow, only the query and terms: nothing of them is read.
-                let followed = CompletionSourceApproval.followed(settings.enabled, extensions: commands, follows: follows)
+                let followed = CompletionSourceApproval.followed(settings.enabled, extensions: declared, follows: follows)
                 if !followed.isEmpty {
                     log.notice("suggestions: \(followed.count) script extension source(s) changed, kept on (their own, or a trusted source's)")
                     s.approvalsFollowed(followed)
