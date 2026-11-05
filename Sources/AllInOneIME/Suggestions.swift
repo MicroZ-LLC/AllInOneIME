@@ -239,11 +239,7 @@ final class CodingPackManager: ObservableObject {
         let language = entry.language
         tasks[language] = Task {
             do {
-                try await library.install(entry) { share in
-                    Task { @MainActor in
-                        if case .downloading = CodingPackManager.shared.states[language] { CodingPackManager.shared.states[language] = .downloading(share) }
-                    }
-                }
+                try await library.install(entry, progress: Self.progress(language))
                 states[language] = .idle
                 log.notice("coding pack installed")
             } catch {
@@ -270,11 +266,7 @@ final class CodingPackManager: ObservableObject {
         let library = library
         tasks[language] = Task {
             do {
-                try await library.install(language: language) { share in
-                    Task { @MainActor in
-                        if case .downloading = CodingPackManager.shared.states[language] { CodingPackManager.shared.states[language] = .downloading(share) }
-                    }
-                }
+                try await library.install(language: language, progress: Self.progress(language))
                 states[language] = .idle
                 tasks[language] = nil
                 if picked == language { picked = nil }
@@ -286,6 +278,16 @@ final class CodingPackManager: ObservableObject {
                 tasks[language] = nil
                 let cancelled = Task.isCancelled || (error as? LanguagePackError) == .cancelled
                 states[language] = cancelled ? .idle : .failed(UIText.describe(error))
+            }
+        }
+    }
+
+    /// What a download of `language`'s pack reports as it goes: its share in `states`, while it is still downloading (not
+    /// once cancelled).
+    private static func progress(_ language: String) -> @Sendable (Double) -> Void {
+        { share in
+            Task { @MainActor in
+                if case .downloading = CodingPackManager.shared.states[language] { CodingPackManager.shared.states[language] = .downloading(share) }
             }
         }
     }

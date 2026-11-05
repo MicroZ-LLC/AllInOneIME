@@ -190,14 +190,11 @@ enum UpdateHelper {
     }
 
     static func run(_ arguments: [String]) -> Int32 {
-        func option(_ name: String) -> String? {
-            arguments.firstIndex(of: name).flatMap { arguments.indices.contains($0 + 1) ? arguments[$0 + 1] : nil }
-        }
         guard let path = arguments.first, !path.hasPrefix("--") else {
             printError("usage: --apply-update STAGED [--wait-pid PID] [--target-dir DIR] [--reopen-settings] [--simulate-failure after-swap]")
             return 2
         }
-        let locations = option("--target-dir").map { UpdateLocations.test(root: URL(fileURLWithPath: $0)) } ?? .real
+        let locations = option("--target-dir", in: arguments).map { UpdateLocations.test(root: URL(fileURLWithPath: $0)) } ?? .real
         let staged = URL(fileURLWithPath: path).standardizedFileURL
         // Only an update staged where the input method stages them (a folder of the user's, not any folder).
         guard staged.deletingLastPathComponent().resolvingSymlinksInPath().path == locations.work.resolvingSymlinksInPath().path,
@@ -206,8 +203,8 @@ enum UpdateHelper {
             return 2
         }
         // A failure on purpose, for the tests' rollback: never on the user's own install.
-        let simulate = locations.isTest ? option("--simulate-failure") : nil
-        return apply(staged: staged, locations: locations, waitPID: option("--wait-pid").flatMap { pid_t($0) },
+        let simulate = locations.isTest ? option("--simulate-failure", in: arguments) : nil
+        return apply(staged: staged, locations: locations, waitPID: option("--wait-pid", in: arguments).flatMap { pid_t($0) },
                      reopenSettings: arguments.contains("--reopen-settings"), simulateFailure: simulate)
     }
 
@@ -274,9 +271,7 @@ enum UpdateHelper {
             try UpdateStaging.launchCheck(locations.inputMethod, version: to)
             if !locations.isTest {
                 stopInputMethod(locations, staged: staged)  // in case macOS started the previous one again meanwhile
-                _ = UpdateProcess.run(lsregister, ["-f", locations.inputMethod.path, locations.settingsApp.path], timeout: 60)
-                let register = UpdateProcess.run(locations.inputMethod.appendingPathComponent("Contents/MacOS/AllInOneIME").path,
-                                                 ["--register"], timeout: 300)
+                let register = registerInstalled(locations)
                 say("--register (\(register.status)):\n\(register.output)")
                 guard register.status == 0 else { throw UpdateError.invalidApp("registering \(to) failed (\(register.status))") }
             }
@@ -294,15 +289,20 @@ enum UpdateHelper {
                 return finish(error.localizedDescription)
             }
             if !locations.isTest {
-                _ = UpdateProcess.run(lsregister, ["-f", locations.inputMethod.path, locations.settingsApp.path], timeout: 60)
-                let register = UpdateProcess.run(locations.inputMethod.appendingPathComponent("Contents/MacOS/AllInOneIME").path,
-                                                 ["--register"], timeout: 300)
-                say("previous version registered again (\(register.status))")
+                say("previous version registered again (\(registerInstalled(locations).status))")
             }
             return finish("\(reason); AllInOneIME \(from) is back")
         }
         swap.commit()
         return finish(nil)
+    }
+
+    /// The apps installed now registered with Launch Services, and the input method with the text input system by its own
+    /// `--register`: what that said.
+    static func registerInstalled(_ locations: UpdateLocations) -> UpdateProcess.Result {
+        _ = UpdateProcess.run(lsregister, ["-f", locations.inputMethod.path, locations.settingsApp.path], timeout: 60)
+        return UpdateProcess.run(locations.inputMethod.appendingPathComponent("Contents/MacOS/AllInOneIME").path,
+                                 ["--register"], timeout: 300)
     }
 
     /// Waits for the input method that started this helper to quit (it does once the helper runs); ends it
@@ -348,10 +348,6 @@ enum UpdateHelper {
 /// `--check-update` and `--install-update`: what About does, from a terminal, and against a test server (another
 /// key, plain http to this Mac) and a test install (`--target-dir`).
 enum UpdateCommands {
-    static func option(_ name: String, in arguments: [String]) -> String? {
-        arguments.firstIndex(of: name).flatMap { arguments.indices.contains($0 + 1) ? arguments[$0 + 1] : nil }
-    }
-
     static func updater(_ arguments: [String], currentVersion: String) -> Updater? {
         var updater = Updater(manifestURL: Updater.defaultManifestURL, currentVersion: currentVersion, allowsLocalHTTP: true)
         if let url = option("--manifest-url", in: arguments) {
@@ -449,6 +445,8 @@ enum UpdateCommands {
     }
 }
 
+/// The outcome of work in the background, polled by the main thread (a developer command's: `UpdateCommands.wait`,
+/// `installPack`).
 final class ResultBox<T>: @unchecked Sendable {
     private let lock = NSLock()
     private var value: Result<T, Error>?
