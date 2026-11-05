@@ -48,6 +48,17 @@ public enum BedrockStreamEvent: Equatable, Sendable {
     case textReplaced(String)
     case messageStop(reason: String?)
     case metadata(latencyMs: Int?, inputTokens: Int?, outputTokens: Int?)
+
+    /// `text`, the answer so far, with this event's text in it: a delta added, a replacement in its place. False for the
+    /// other events, which leave it as it is.
+    func apply(to text: inout String) -> Bool {
+        switch self {
+        case let .textDelta(delta): text += delta
+        case let .textReplaced(whole): text = whole
+        case .messageStop, .metadata: return false
+        }
+        return true
+    }
 }
 
 public enum BedrockError: Error, LocalizedError, Equatable {

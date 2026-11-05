@@ -74,15 +74,16 @@ public enum AppleModel {
 
     /// Whether most of the letters in `text` are Latin (with accents, Vietnamese's too).
     static func mostlyLatin(_ text: String) -> Bool {
-        let letters = text.unicodeScalars.filter(\.properties.isAlphabetic)
-        let latin = letters.filter { scalar in
+        var letters = 0, latin = 0
+        for scalar in text.unicodeScalars where scalar.properties.isAlphabetic {
+            letters += 1
             switch scalar.value {
             case 0x41...0x5A, 0x61...0x7A, 0xC0...0x24F, 0x1E00...0x1EFF, 0x2C60...0x2C7F, 0xA720...0xA7FF,
-                 0xFF21...0xFF3A, 0xFF41...0xFF5A: return true
-            default: return false
+                 0xFF21...0xFF3A, 0xFF41...0xFF5A: latin += 1
+            default: break
             }
         }
-        return latin.count * 2 > letters.count
+        return latin * 2 > letters
     }
 
     /// The start of a refine's instruction (`Prompt.refineMessage`).
