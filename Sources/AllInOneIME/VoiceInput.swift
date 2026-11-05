@@ -185,10 +185,6 @@ final class DictationSession: @unchecked Sendable {
         self.onFinish = onFinish
     }
 
-    /// Whether the file source has delivered all of its audio (self-test).
-    var isFileFed: Bool { lock.withLock { fileFed } }
-    private var fileFed = false
-
     func start(source: Source) {
         let (stream, continuation) = AsyncStream<AnalyzerInput>.makeStream()
         self.continuation = continuation
@@ -329,8 +325,6 @@ final class DictationSession: @unchecked Sendable {
                 let seconds = Double(buffer.frameLength) / file.processingFormat.sampleRate / max(speed, 0.1)
                 try? await Task.sleep(for: .seconds(seconds))
             }
-            guard let self else { return }
-            self.lock.withLock { self.fileFed = true }
         }
         lock.withLock { feeder = task }
     }

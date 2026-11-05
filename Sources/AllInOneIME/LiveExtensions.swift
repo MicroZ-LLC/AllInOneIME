@@ -14,16 +14,13 @@ enum LiveExtensions {
     private static var indexed: [ExtensionStore.Folder]?
     private static var rebuilding = false
     private static var rebuildAgain = false
-    /// What wants to know when the rebuilds under way and wanted are in.
-    private static var waiting: [() -> Void] = []
     private static let cache = ExtensionCache()
 
     /// The index as last built. `rescan`: build it again in the background (a text field became active), its folders
-    /// worked out again (`ExtensionSourceGate`'s `recheck`); it is rebuilt too when `config` names other folders. `done`
-    /// runs once a rebuild it started is in.
-    static func current(_ config: Config, rescan: Bool = false, done: (() -> Void)? = nil) -> ExtensionIndex {
+    /// worked out again (`ExtensionSourceGate`'s `recheck`); it is rebuilt too when `config` names other folders.
+    static func current(_ config: Config, rescan: Bool = false) -> ExtensionIndex {
         let folders = ExtensionSourceGate.folders(config, found: found, recheck: rescan)
-        if rescan || folders != indexed { rebuild(folders, done: done) }
+        if rescan || folders != indexed { rebuild(folders) }
         return index
     }
 
@@ -37,8 +34,7 @@ enum LiveExtensions {
         return index
     }
 
-    private static func rebuild(_ folders: [ExtensionStore.Folder], done: (() -> Void)?) {
-        if let done { waiting.append(done) }
+    private static func rebuild(_ folders: [ExtensionStore.Folder]) {
         guard !rebuilding else {
             rebuildAgain = true
             return
@@ -60,12 +56,8 @@ enum LiveExtensions {
                 rebuilding = false
                 if rebuildAgain {
                     rebuildAgain = false
-                    rebuild(ExtensionSourceGate.folders(LiveConfig.current, found: found), done: nil)
-                    return
+                    rebuild(ExtensionSourceGate.folders(LiveConfig.current, found: found))
                 }
-                let done = waiting
-                waiting = []
-                done.forEach { $0() }
             }
         }
     }

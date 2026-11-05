@@ -1,6 +1,5 @@
 import AllInOneIMECore
 import AllInOneIMEMac
-import AllInOneIMECore
 import AllInOneIMERime
 import AppKit
 import Carbon

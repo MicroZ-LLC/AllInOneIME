@@ -68,12 +68,6 @@ final class LanguagePackManager: ObservableObject {
         return usable.isEmpty ? [.english] : usable
     }
 
-    /// Reads the packs folder again (a pack may have been installed by the installer or another process).
-    func refresh() {
-        for pack in LanguagePack.catalog where downloads[pack.id] == nil { states[pack.id] = nil }
-        objectWillChange.send()
-    }
-
     // MARK: Launch
 
     /// At launch: starts the engines of the installed packs. An upgrade from a version that bundled the
