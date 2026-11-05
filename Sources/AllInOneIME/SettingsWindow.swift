@@ -1532,7 +1532,12 @@ struct SettingsView: View {
             let root = folder.url.resolvingSymlinksInPath().path + "/"
             return !folder.hidden && files.contains { $0.hasPrefix(root) }
         }
-        return (model.extensionFolders.filter(brings), model.extensionFolders.filter { !brings($0) })
+        // Each folder's links resolved once, for one list or the other.
+        var bringing: [ExtensionStore.Folder] = [], others: [ExtensionStore.Folder] = []
+        for folder in model.extensionFolders {
+            if brings(folder) { bringing.append(folder) } else { others.append(folder) }
+        }
+        return (bringing, others)
     }
 
     /// An extension folder: where it is, whether it was added or found (and hidden), Show in Finder, and Remove (added)
@@ -1929,7 +1934,7 @@ struct SettingsView: View {
         .padding(.top, 8)
         .onChange(of: query) {
             chosen = 0
-            follow()
+            follow(results)
             // The on-device model and the apps, before a request.
             if !typed.isEmpty { AIConfigSession.prewarmIfDue() }
         }
@@ -1938,7 +1943,8 @@ struct SettingsView: View {
     /// What's typed in the search field, trimmed.
     private var typed: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
 
-    /// The rows the search finds, in order; the row after them is "Change: …".
+    /// The rows the search finds, in order; the row after them is "Change: …". Searched anew each time it is read, so
+    /// each place reads it once.
     private var results: [SettingsSpot] {
         typed.isEmpty ? [] : SettingsSpot.search(typed, trigger: model.config.commandTrigger, config: model.config)
     }
@@ -1982,7 +1988,8 @@ struct SettingsView: View {
 
     /// The rows found, each with its page, the chosen one highlighted; "Change: …" last.
     private var resultList: some View {
-        ScrollView {
+        let results = self.results
+        return ScrollView {
             VStack(alignment: .leading, spacing: 2) {
                 ForEach(Array(results.enumerated()), id: \.offset) { index, spot in
                     resultRow(index) {
@@ -2023,13 +2030,14 @@ struct SettingsView: View {
     /// ↑↓ in the search field: the chosen row moves (stays in the list), and is shown.
     private func moveChoice(_ step: Int) -> KeyPress.Result {
         guard !typed.isEmpty else { return .ignored }
+        let results = self.results
         chosen = min(max(chosen + step, 0), results.count)
-        follow()
+        follow(results)
         return .handled
     }
 
-    /// The chosen row shown on its page, outlined; "Change: …" shows nothing until it is picked.
-    private func follow() {
+    /// The chosen row of `results` shown on its page, outlined; "Change: …" shows nothing until it is picked.
+    private func follow(_ results: [SettingsSpot]) {
         guard results.indices.contains(chosen) else { return }
         show(results[chosen])
     }
@@ -2037,6 +2045,7 @@ struct SettingsView: View {
     /// Return on a row, or a click: a setting is shown; "Change: …" asks the AI, as typed (the preview comes at the top of
     /// the page, with Apply and Undo).
     private func pick(_ index: Int) {
+        let results = self.results
         if results.indices.contains(index) {
             show(results[index])
         } else if index == results.count, !typed.isEmpty {
