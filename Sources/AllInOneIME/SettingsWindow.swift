@@ -1883,19 +1883,6 @@ struct SettingsView: View {
         }
     }
 
-    /// A row's title with a short explanation under it, as System Settings shows them.
-    private func titled(_ title: String, _ note: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-            Text(note).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    /// A row's title and what it says, as the search finds them (`SettingsSpot`).
-    @ViewBuilder private func titled(_ spot: SettingsSpot) -> some View {
-        if let note = spot.note { titled(spot.title, note) } else { Text(spot.title) }
-    }
-
     // MARK: Pages
 
     /// Like System Settings: a search field, then the pages, each with its icon (and a dot while the checks find
@@ -3434,6 +3421,21 @@ struct SectionTitle: View {
     var body: some View {
         Text(title).font(.system(size: 14, weight: .medium)).foregroundStyle(.primary).padding(.top, 6)
     }
+}
+
+/// A row's title with a short explanation under it, as System Settings shows them: every page's.
+@MainActor
+func titled(_ title: String, _ note: String) -> some View {
+    VStack(alignment: .leading, spacing: 2) {
+        Text(title)
+        Text(note).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// A row's title and what it says, as the search finds them (`SettingsSpot`).
+@MainActor @ViewBuilder
+func titled(_ spot: SettingsSpot) -> some View {
+    if let note = spot.note { titled(spot.title, note) } else { Text(spot.title) }
 }
 
 
