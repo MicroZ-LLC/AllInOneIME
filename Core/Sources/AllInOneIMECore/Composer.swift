@@ -474,9 +474,15 @@ public final class Composer {
 
     /// The command at the start of `text` and what follows it (as `Command.parse`, by name).
     private func parse(_ text: String) -> (command: Command, content: String)? {
+        commandAtStart(of: text).map { ($0.command, String(text[$0.content...])) }
+    }
+
+    /// The command at the start of `text` (`parse`) and where what follows it starts, without copying that: what
+    /// `draftCommand` reads, many times a key, however long the text after the command is.
+    private func commandAtStart(of text: String) -> (command: Command, content: String.Index)? {
         guard text.hasPrefix(commandTrigger), let space = text.firstIndex(of: " ") else { return nil }
         guard let command = commandsByName[text[text.index(after: text.startIndex)..<space].lowercased()] else { return nil }
-        return (command, String(text[text.index(after: space)...]))
+        return (command, text.index(after: space))
     }
     /// How much each command is used: the list shows the most used first (set by the controller,
     /// shared by its text fields).
@@ -889,9 +895,10 @@ public final class Composer {
     /// the draft as typed.
     public var shownDraft: String {
         if let shown = modeShownDraft { return shown }
-        guard draft.contains(triggerCharacter) else { return draft }
+        let trigger = triggerCharacter  // read once, not again for every character
+        guard draft.contains(trigger) else { return draft }
         let chars = Array(draft)
-        let names = commandsByName
+        let names = commandsByName, palette = self.palette
         let paletteAt = palette.map { draft.distance(from: draft.startIndex, to: $0.at) }
         let pickingCommand = palette.map { !$0.query.isEmpty && !paletteMatches.isEmpty } ?? false
         let inCommand = draftCommand != nil
@@ -901,7 +908,7 @@ public final class Composer {
         var out = ""
         var i = 0
         while i < chars.count {
-            guard chars[i] == triggerCharacter else {
+            guard chars[i] == trigger else {
                 // A note keeps its lines (`pasted`); the draft is shown on one line.
                 if chars[i].isNewline { out += Self.lineBreak } else { out.append(chars[i]) }
                 i += 1
@@ -994,8 +1001,10 @@ public final class Composer {
 
     /// Index into `choices`. Defaults to the first main version, even before it has streamed in,
     /// so an early Space or Return never commits something else by accident.
-    public var highlighted: Int {
-        let all = choices
+    public var highlighted: Int { highlighted(in: choices) }
+
+    /// `highlighted`, with `all` the `choices` already worked out (each time they are, every row's wording is read).
+    private func highlighted(in all: [Choice]) -> Int {
         if let highlightOverride { return all.isEmpty ? 0 : min(highlightOverride, all.count - 1) }
         // A script's: the first row that can be picked (none for what a `show` prints).
         if activeCommand?.script != nil {
@@ -1078,7 +1087,7 @@ public final class Composer {
     }
 
     /// The command at the start of the draft, once its name is complete ("@question …").
-    public var draftCommand: Command? { parse(draft)?.command }
+    public var draftCommand: Command? { commandAtStart(of: draft)?.command }
 
     /// While a command name is typed after "@" at the start of the draft: the letters so far.
     public var paletteQuery: String? { palette?.query }
@@ -1087,13 +1096,27 @@ public final class Composer {
     /// (`@reply 告诉他 @st`, not inside a word), where the commands that can run inside a text are offered.
     /// Not inside a note, a reminder, a search, code or a terminal command: they take their text as typed (`takesTextAsTyped`).
     private var palette: (query: String, nested: Bool, at: String.Index)? {
-        guard !isLevelTwo, voice == .off, !engineState.isComposing, tail.isEmpty, let at = draft.lastIndex(of: triggerCharacter) else { return nil }
+        guard !isLevelTwo, voice == .off, !engineState.isComposing, tail.isEmpty, let at = triggerBeforeName else { return nil }
         let query = draft[draft.index(after: at)...]
-        guard query.first?.isNumber != true, query.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber) }) else { return nil }
+        guard query.first?.isNumber != true else { return nil }
         if at == draft.startIndex { return (String(query), false, at) }
         let before = draft[draft.index(before: at)]
         guard draftCommand != nil, !takesTextAsTyped, !(before.isASCII && (before.isLetter || before.isNumber)) else { return nil }
         return (String(query), true, at)
+    }
+
+    /// The draft's last trigger, when only ASCII letters and digits follow it (nil otherwise): looked for from the end,
+    /// past those alone. `palette` is read many times a key, and a key in a long text mustn't go back through all of it.
+    private var triggerBeforeName: String.Index? {
+        let trigger = triggerCharacter
+        var at = draft.endIndex
+        while at > draft.startIndex {
+            at = draft.index(before: at)
+            let c = draft[at]
+            if c == trigger { return at }
+            guard c.isASCII, c.isLetter || c.isNumber else { return nil }
+        }
+        return nil
     }
 
     /// The draft is a note, a reminder, a search, code (`@py`, `@js`), a terminal command (`@agent`, a custom
@@ -1198,7 +1221,8 @@ public final class Composer {
 
     /// The results as you type that belong to the current `liveQuery`.
     public var currentLiveResults: [SearchResult] {
-        liveQuery != nil && liveResultsQuery == liveQuery ? liveResults : []
+        guard let query = liveQuery, liveResultsQuery == query else { return [] }
+        return liveResults
     }
 
     /// Whether the action key opens the highlighted result as you type. Not the first when every row is a
@@ -1222,7 +1246,8 @@ public final class Composer {
 
     /// The recipients found that belong to the current `recipientQuery`.
     public var currentRecipients: [Recipient] {
-        recipientQuery != nil && recipientResultsQuery == recipientQuery ? recipientResults : []
+        guard let query = recipientQuery, recipientResultsQuery == query else { return [] }
+        return recipientResults
     }
 
     /// Recipients for `query` (`recipientQuery`) and a note for the panel (nil: none): ↑↓ pick, Tab, ⏎,
@@ -1299,13 +1324,13 @@ public final class Composer {
         if isLevelTwo, activeCommand?.script?.output == .show, let output = scriptOutput, !output.isEmpty { return output.copyText }
         if !isLevelTwo, let item = listItem { return item.copyText }
         if isLevelTwo {
-            let all = choices
-            guard all.indices.contains(highlighted), all[highlighted].isComplete, !all[highlighted].text.isEmpty else { return nil }
-            if case let .file(path) = all[highlighted].kind {
+            let all = choices, index = highlighted(in: all)
+            guard all.indices.contains(index), all[index].isComplete, !all[index].text.isEmpty else { return nil }
+            if case let .file(path) = all[index].kind {
                 return searchResults.first { $0.path == path }?.detail ?? path  // a task: its reply
             }
-            if case let .item(item) = all[highlighted].kind { return item.copyText }
-            return all[highlighted].text
+            if case let .item(item) = all[index].kind { return item.copyText }
+            return all[index].text
         }
         let live = currentLiveResults
         return live.indices.contains(liveHighlight) ? live[liveHighlight].path : nil
@@ -1654,8 +1679,8 @@ public final class Composer {
         }
         // A command in the list (`index` among the rows shown).
         if paletteQuery != nil {
-            let matches = paletteMatches
-            return matches.indices.contains(paletteFirstVisible + index) ? complete(matches, at: paletteFirstVisible + index) : []
+            let matches = paletteMatches, row = paletteFirstVisible + index
+            return matches.indices.contains(row) ? complete(matches, at: row) : []
         }
         // A script's list as you type: the row's action (a row of information does nothing).
         if let items = currentList?.items {
@@ -2243,14 +2268,14 @@ public final class Composer {
                 return .consumed([.updateMarkedText, .showPanel])
             }
             // A digit that goes on a name being typed (`@base6`) is part of it…
-            if c.isNumber, !query.isEmpty, paletteCommands.contains(where: { $0.name.hasPrefix(query.lowercased() + text) }) {
+            if c.isNumber, !query.isEmpty, case let name = query.lowercased() + text, paletteCommands.contains(where: { $0.name.hasPrefix(name) }) {
                 draft += text
                 paletteHighlight = 0
                 return .consumed([.updateMarkedText, .showPanel])
             }
             // …other digits pick from the rows shown (one that numbers none goes in as typed).
-            if let n = c.wholeNumberValue, n >= 1, n <= Self.paletteRows, matches.indices.contains(paletteFirstVisible + n - 1) {
-                return .consumed(complete(matches, at: paletteFirstVisible + n - 1))
+            if let n = c.wholeNumberValue, n >= 1, n <= Self.paletteRows, case let row = paletteFirstVisible + n - 1, matches.indices.contains(row) {
+                return .consumed(complete(matches, at: row))
             }
         }
         return leave()
@@ -2260,6 +2285,7 @@ public final class Composer {
     /// rest of the sentence follows.
     private func complete(_ matches: [Command], at index: Int? = nil, run: Bool = false) -> [Effect] {
         let command = matches[index ?? paletteHighlighted]
+        let palette = self.palette  // read once, before the draft becomes "@name "
         // Nothing to write after it: picked, it's done (only at the start of a draft).
         if command.kind == .settings, palette?.nested != true {
             return finish(committing: "") + [.openSettings, used(command)]
@@ -2464,7 +2490,7 @@ public final class Composer {
         // Nothing pending (the app took the text, say): no selection is kept for a later command.
         if phase == .idle { selection = nil }
         if messageRecipient != nil, draftCommand?.kind != .message { messageRecipient = nil }
-        if !pickingRecipient, recipientResultsQuery != nil { clearRecipientResults() }
+        if recipientResultsQuery != nil, !pickingRecipient { clearRecipientResults() }
         restoreInputModeAfterOpen()
     }
 
@@ -2587,10 +2613,10 @@ public final class Composer {
 
     /// `text` as it continues the draft: English words get a separating space.
     private func appendix(_ text: String) -> String {
-        text.isEmpty ? "" : separator(before: text, after: String(beforeCursor)) + text
+        text.isEmpty ? "" : separator(before: text, after: beforeCursor) + text
     }
 
-    private func separator(before text: String, after existing: String) -> String {
+    private func separator(before text: String, after existing: some StringProtocol) -> String {
         guard let last = existing.last, let first = text.first else { return "" }
         let wordy: (Character) -> Bool = { $0.isLetter && !String($0).containsHan || $0.isNumber }
         return (wordy(last) || ".,!?;:".contains(last)) && wordy(first) ? " " : ""
@@ -2809,49 +2835,48 @@ public final class Composer {
     func startAction() -> Response {
         // A Hangul syllable still being typed belongs to the text (the action key was an Option tap).
         if !hangul.isEmpty { insertIntoDraft(hangul.flush()) }
-        let parsed = parse(draft)
         // Only an @ command is ever sent: without one the input method just types.
-        guard parsed != nil else { return .consumed() }
+        guard let command = draftCommand else { return .consumed() }
         resetRefine()
         // Local, like a note: no AI, nothing sent, so neither a No-AI app nor secure input holds it back.
-        if let command = parsed?.command, command.kind == .snippet { return .consumed(insertSnippet(command)) }
-        let typed = sentText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if command.kind == .snippet { return .consumed(insertSnippet(command)) }
+        let typed = sentText
         // `@reply`, and any command while its screenshot is still being read (Composer+Reply.swift).
-        if let response = startReply(parsed!.command, typed: typed) { return response }
+        if let response = startReply(command, typed: typed) { return response }
         // The text selected when the draft started (`selectionInUse`): the command's text when nothing is typed after
         // it; a question typed after it is about it. Otherwise what is typed is the text (and for `@improve` and
         // `@translate`, below, an instruction for the selection). A screenshot's text (`screenshotText`): what
         // `@improve` and `@translate` work on when nothing is selected, what the AI's other commands are about.
-        let screenshot = screenshotText(for: parsed!.command)
-        let selected = selectionInUse ?? (parsed?.command.kind == .convert ? screenshot : nil)
+        let screenshot = screenshotText(for: command)
+        let selected = selectionInUse ?? (command.kind == .convert ? screenshot : nil)
         var input: String
         if let selected, !typed.isEmpty {
-            input = parsed?.command.kind == .generate ? Prompt.question(typed, about: selected) : typed
+            input = command.kind == .generate ? Prompt.question(typed, about: selected) : typed
         } else {
             input = selected ?? typed
         }
-        if let screenshot, parsed?.command.kind != .convert { input = Prompt.withScreenshot(input, screenshot) }
-        if let command = parsed?.command, command.kind == .message { return startMessage(command, input: input) }
-        if parsed?.command.kind == .settings, !isLevelTwo {
-            return .consumed(finish(committing: "") + [.openSettings, used(parsed!.command)])
+        if let screenshot, command.kind != .convert { input = Prompt.withScreenshot(input, screenshot) }
+        if command.kind == .message { return startMessage(command, input: input) }
+        if command.kind == .settings, !isLevelTwo {
+            return .consumed(finish(committing: "") + [.openSettings, used(command)])
         }
         // The task list needs nothing after the command.
-        if parsed?.command.kind == .agents, !isLevelTwo {
+        if command.kind == .agents, !isLevelTwo {
             requestCounter += 1
             phase = .translating(id: requestCounter)
             result = .empty
             searchResults = []
             highlightOverride = nil
-            activeCommand = parsed?.command
-            return .consumed([.listAgents(id: requestCounter), .updateMarkedText, .showPanel, used(parsed!.command)])
+            activeCommand = command
+            return .consumed([.listAgents(id: requestCounter), .updateMarkedText, .showPanel, used(command)])
         }
-        if let command = parsed?.command, let script = command.script { return startScript(command, script, input: input) }
+        if let script = command.script { return startScript(command, script, input: input) }
         // A report needs no title: it can be written on GitHub.
-        if let command = parsed?.command, command.kind == .report { return startReport(command, title: input) }
+        if command.kind == .report { return startReport(command, title: input) }
         // Nothing after the command: a hint (the clipboard's text comes in with ⌃V or ⌘V).
         guard !input.isEmpty else { return .consumed([.notice(messages.typeAfterCommand)]) }
-        if parsed?.command.usesAI == true, let refusal = aiRefusal() { return .consumed([.updateMarkedText, .notice(refusal)]) }
-        if let command = parsed?.command, command.kind == .terminal {
+        if command.usesAI, let refusal = aiRefusal() { return .consumed([.updateMarkedText, .notice(refusal)]) }
+        if command.kind == .terminal {
             guard !secureInputActive() else {
                 return .consumed([.updateMarkedText, .notice(command.custom == nil ? messages.secureInputTerminal : messages.secureInputCommand)])
             }
@@ -2867,7 +2892,7 @@ public final class Composer {
             }
             return .consumed(finish(committing: "") + [.runInTerminal(prompt: input), .notice(messages.openedTerminal), usage])
         }
-        if let command = parsed?.command, command.kind == .note {
+        if command.kind == .note {
             // Saved on this Mac (Notes, a folder) and nothing goes to a model, so secure input doesn't hold it
             // back; but a note to Notion leaves the Mac. The controller says when it is saved, or why not.
             if noteLeavesDevice, secureInputActive() { return .consumed([.updateMarkedText, .notice(messages.secureInputNote)]) }
@@ -2878,16 +2903,16 @@ public final class Composer {
         // (it stays on this Mac), and never inside code or a custom program's text: it runs exactly as typed,
         // so no command's output (a web page, a program's) is executed. With text the user didn't type in the
         // draft, commands that run code stay text (`draftHasOutsideText`).
-        let local = parsed?.command.kind == .search || parsed?.command.kind == .reminder
+        let local = command.kind == .search || command.kind == .reminder
         // Never inside a selection, text the user didn't write here (nor, with one, inside what is typed: one request).
         // Nor inside a screenshot's text.
-        let plans = !(local || parsed?.command.runsCode == true || selected != nil || screenshot != nil)
+        let plans = !(local || command.runsCode || selected != nil || screenshot != nil)
         // Snippets inside the text (`@zoom`) go in here, at once: with nothing else to run first, the request is the
         // text as if typed with them.
         let inner = plans ? innerPlan(input) : nil
         let (plan, codeLeft) = (inner?.plan, inner?.codeLeft == true)
         if let plan, plan.isEmpty { input = plan.input(outputs: []) }
-        if let command = parsed?.command, command.kind == .link, plan?.isEmpty != false {
+        if command.kind == .link, plan?.isEmpty != false {
             // A password field's text must not end up in an address (and the browser's history).
             guard !secureInputActive() else { return .consumed([.updateMarkedText, .notice(messages.secureInputCommand)]) }
             switch link(command, input) {
@@ -2895,31 +2920,30 @@ public final class Composer {
             case let .refused(message): return .consumed([.updateMarkedText, .notice(message)])  // the draft stays
             }
         }
-        let id = beginRequest(parsed?.command)
+        let id = beginRequest(command)
         let start: Effect
-        switch parsed?.command {
+        switch command {
         case _ where plan?.isEmpty == false:
-            start = .startPlan(outer: parsed?.command, plan: plan!, id: id)
-        case let command? where command.kind == .convert && selected != nil:
+            start = .startPlan(outer: command, plan: plan!, id: id)
+        case _ where command.kind == .convert && selected != nil:
             start = writing(command, typed: typed, selection: selected!, id: id)
-        case let command? where command.kind == .generate: start = .startCommand(command, input: input, id: id)
-        case let command? where command.kind == .run: start = .startRun(command, input: input, id: id)
-        case .open?: start = .search(query: input, id: id)
+        case _ where command.kind == .generate: start = .startCommand(command, input: input, id: id)
+        case _ where command.kind == .run: start = .startRun(command, input: input, id: id)
+        case .open: start = .search(query: input, id: id)
         // Read by the controller on this Mac (nothing is sent anywhere, so secure input doesn't hold it back).
-        case .reminder?: start = .previewReminder(input: input, id: id)
+        case .reminder: start = .previewReminder(input: input, id: id)
         default: start = .startConversion(input: input, id: id)
         }
         // What the results can be refined from: the AI's answers (not a program's output, nor a text with commands
         // inside it, whose outputs the model saw but the composer doesn't have).
         // Not @translate's (typing after them goes back to its text, translated again with ⏎).
         switch start {
-        case _ where parsed?.command == .translate: refineRequest = nil
-        case let .startConversion(input, _): refineRequest = .writing(parsed?.command, input: input)
+        case _ where command == .translate: refineRequest = nil
+        case let .startConversion(input, _): refineRequest = .writing(command, input: input)
         case let .startCommand(command, input, _) where command.kind == .generate: refineRequest = .command(command, input: input)
         default: refineRequest = nil
         }
-        return requestStarted(start, commands: (parsed.map { [$0.command] } ?? []) + (inner?.snippets ?? []) + (plan?.inner.map(\.command) ?? []),
-                              codeLeft: codeLeft)
+        return requestStarted(start, commands: [command] + (inner?.snippets ?? []) + (plan?.inner.map(\.command) ?? []), codeLeft: codeLeft)
     }
 
     /// A request for `command` starts (`startAction`, `startReply`): its id, level two waiting for it, the results, search
@@ -3129,7 +3153,8 @@ public final class Composer {
 
     /// The list that belongs to the current `listQuery`.
     public var currentList: ScriptList? {
-        listQuery != nil && listResultsQuery == listQuery ? listResults : nil
+        guard let query = listQuery, listResultsQuery == query else { return nil }
+        return listResults
     }
 
     /// The list printed for `query`: ↑↓ pick a row, the action key does its action, Tab completes its
@@ -3454,9 +3479,9 @@ public final class Composer {
     }
 
     private func moveHighlight(by delta: Int) -> [Effect] {
-        let count = choices.count
+        let all = choices, count = all.count
         guard count > 0 else { return [] }
-        let current = min(highlighted, count - 1)
+        let current = min(highlighted(in: all), count - 1)
         highlightOverride = (current + delta + count) % count
         return [.showPanel]
     }
@@ -3544,7 +3569,7 @@ extension Composer {
     }
 
     /// Nothing is typed after "@question": the digits 1–5 pick from the list (with text, they're part of the question).
-    public var questionDigitsPick: Bool { parse(draft)?.content.isEmpty == true && !questionMatches.isEmpty }
+    public var questionDigitsPick: Bool { commandAtStart(of: draft)?.content == draft.endIndex && !questionMatches.isEmpty }
 
     /// Level two shows a saved answer (picked from the recent questions), not one just asked for; ⌘R asks again.
     public var showsSavedAnswer: Bool { phase == .choosing && recalled != nil }

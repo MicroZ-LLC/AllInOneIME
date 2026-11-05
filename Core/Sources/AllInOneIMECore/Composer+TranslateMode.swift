@@ -50,7 +50,7 @@ extension Composer {
     /// The draft as marked in the field: any "@" full-width (an app may take "@…" for a mention), and while it's
     /// translating, saying so. Which languages is the chip's to show (「中 → 英」), not the field's.
     var modeShownDraft: String? {
-        guard inModeComposition, translateMode != nil else { return nil }
+        guard inModeComposition else { return nil }
         let text = draft.replacingOccurrences(of: commandTrigger, with: hiddenTrigger).replacingOccurrences(of: "\n", with: Self.lineBreak)
         return text + (modeTranslating ? " · " + translateModeMessages.translating : "")
     }

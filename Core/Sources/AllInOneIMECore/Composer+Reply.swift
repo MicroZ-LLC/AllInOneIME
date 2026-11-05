@@ -222,7 +222,8 @@ extension Composer {
     /// `@reply`'s rows: "0" what was typed (none when nothing was), "1"–"3" the replies.
     var replyChoices: [Choice] {
         var out: [Choice] = []
-        if !sentText.isEmpty { out.append(Choice(label: "0", kind: .original, text: sentText, isComplete: true)) }
+        let typed = sentText
+        if !typed.isEmpty { out.append(Choice(label: "0", kind: .original, text: typed, isComplete: true)) }
         for (index, line) in result.versions.prefix(ReplyParser.maxReplies).enumerated() {
             out.append(Choice(label: String(index + 1), kind: .answer, text: line.text, isComplete: line.isComplete))
         }
