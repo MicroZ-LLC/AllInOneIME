@@ -671,7 +671,7 @@ final class AllInOneIMEInputController: IMKInputController {
         let key = KeyEvent(keyCode: event.keyCode, usage: MacKeyboard.usage(event.keyCode), characters: event.characters ?? "",
                            charactersIgnoringModifiers: event.charactersIgnoringModifiers ?? "",
                            modifiers: Self.modifiers(event.modifierFlags), isRepeat: event.isARepeat)
-        let context = fieldContext(for: key, in: target)
+        let context = fieldContext(in: target) { session.fieldWants(for: key, given: $0) }
         // Translate as You Type's target removed from the settings: the first output language typed text is translated
         // into (else off), before the key.
         if !context.secure, !composer.isComposing { translateModeFollow(services.loadSettings()) }
@@ -713,23 +713,18 @@ final class AllInOneIMEInputController: IMKInputController {
         if event.modifierFlags.contains(.function) { modifiers.insert(.function) }
         let change = ModifierChange(key: MacKeyCodes.key(event.keyCode), modifiers: modifiers,
                                     timestamp: event.timestamp, late: max(ProcessInfo.processInfo.systemUptime - event.timestamp, 0))
-        var context = FieldContext(field: Self.fieldInfo(target))
-        while true {
-            let missing = session.fieldWants(forModifiers: change, given: context).subtracting(context.read)
-            if missing.isEmpty { break }
-            read(missing, of: target, into: &context)
-        }
+        let context = fieldContext(in: target) { session.fieldWants(forModifiers: change, given: $0) }
         // The session times a long press of Shift itself: Translate as You Type on or off (not in Code).
         apply(session.handle(.modifiers(change, context)).outputs, client: client)
     }
 
-    /// What the field says around the caret as `key` goes down: what the session wants of it (`fieldWants`), asked again
-    /// until it wants nothing more.
+    /// What the field says around the caret as a key goes down or a modifier changes: what the session wants of it
+    /// (`wants`, its `fieldWants` given what was read so far), asked again until it wants nothing more.
     @MainActor
-    private func fieldContext(for key: KeyEvent, in target: IMKTextInput?) -> FieldContext {
+    private func fieldContext(in target: IMKTextInput?, wants: (FieldContext) -> FieldContext.Parts) -> FieldContext {
         var context = FieldContext(field: Self.fieldInfo(target))
         while true {
-            let missing = session.fieldWants(for: key, given: context).subtracting(context.read)
+            let missing = wants(context).subtracting(context.read)
             if missing.isEmpty { return context }
             read(missing, of: target, into: &context)
         }
