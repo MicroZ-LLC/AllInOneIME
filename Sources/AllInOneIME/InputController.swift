@@ -318,7 +318,6 @@ final class AllInOneIMEInputController: IMKInputController {
     /// The plan being typed, and the field it goes into (`TypeOut.Typist`: it keeps the field right while a typo is in it).
     private var typist = TypeOut.Typist([], start: 0)
     private var typingField: TypingField?
-    private var typingClient: IMKTextInput? { typingField?.client }
     /// Line breaks go in as a paste (a terminal; `TerminalPaste`).
     private var typingPastes = false
     /// A snippet being typed out: where its caret goes once it's all in (`moveCaret`).
@@ -1502,10 +1501,6 @@ final class AllInOneIMEInputController: IMKInputController {
     /// The candidate panel for the composer as it is now (`InputSession.panelModel`).
     @MainActor
     func panelModel() -> PanelModel { session.panelModel() }
-
-    /// What the panel is made from besides the composer.
-    @MainActor
-    func panelPresenter() -> PanelPresenter { session.panelPresenter() }
 
     /// The longest 「正在存到备忘录…」 / 「正在加到提醒事项…」 stays up (`InputSession.progressNoticeLimit`; the self-test
     /// shortens it).

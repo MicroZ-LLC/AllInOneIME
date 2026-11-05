@@ -35,9 +35,6 @@ final class KeyGuard {
     private var saidUntrusted = false
     private weak var owner: AnyObject?
 
-    /// Whether keys are taken at the tap now (the permission given and the tap made).
-    var isOn: Bool { tap != nil && handler != nil }
-
     /// Off for the self-test: its controller drives fake fields, and the user's real keys meanwhile are no keys for it.
     var disabled = false
 
