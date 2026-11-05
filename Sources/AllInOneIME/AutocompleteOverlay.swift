@@ -116,9 +116,12 @@ final class GhostView: NSView {
 
     override var isFlipped: Bool { false }
 
-    /// A line of `font`, as AppKit lays it out: how tall, and how far its baseline is from its top.
-    static func lineHeight(_ font: NSFont) -> CGFloat { NSLayoutManager().defaultLineHeight(for: font) }
-    static func baselineOffset(_ font: NSFont) -> CGFloat { NSLayoutManager().defaultBaselineOffset(for: font) }
+    /// A line of `font`, as AppKit lays it out: how tall, and how far its baseline is from its top. One layout manager
+    /// answers every time (it keeps nothing of a font), not a new one each: a suggestion placed and drawn asked up to
+    /// seven.
+    static func lineHeight(_ font: NSFont) -> CGFloat { layoutManager.defaultLineHeight(for: font) }
+    static func baselineOffset(_ font: NSFont) -> CGFloat { layoutManager.defaultBaselineOffset(for: font) }
+    private static let layoutManager = NSLayoutManager()
 
     /// The font's line below its baseline, and above it.
     var descent: CGFloat { Self.lineHeight(font) - Self.baselineOffset(font) }
@@ -347,7 +350,11 @@ extension AllInOneIMEInputController {
     /// Where the caret is on the screen (as tall as its line), as the field tells it for an empty range there: nil
     /// where it tells none (no caret, an empty rect, off every screen).
     static func caretRect(_ client: IMKTextInput) -> NSRect? {
-        let selected = client.selectedRange()
+        caretRect(client, selected: client.selectedRange())
+    }
+
+    /// `caretRect` for `selected`, the selection `client` told.
+    private static func caretRect(_ client: IMKTextInput, selected: NSRange) -> NSRect? {
         guard selected.location != NSNotFound else { return nil }
         return onScreen(client.firstRect(forCharacterRange: NSRange(location: selected.location, length: 0), actualRange: nil))
     }
@@ -363,8 +370,9 @@ extension AllInOneIMEInputController {
     }
 
     static func caretRects(_ client: IMKTextInput) -> CaretRects {
-        var rects = CaretRects(caret: caretRect(client))
+        // The selection asked once, for the caret and the character before it.
         let selected = client.selectedRange()
+        var rects = CaretRects(caret: caretRect(client, selected: selected))
         if selected.location != NSNotFound, selected.location > 0 {
             rects.previous = onScreen(client.firstRect(forCharacterRange: NSRange(location: selected.location - 1, length: 1), actualRange: nil))
         }

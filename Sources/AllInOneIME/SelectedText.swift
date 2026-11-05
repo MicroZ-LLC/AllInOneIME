@@ -40,16 +40,10 @@ enum SelectedText {
         return readWithAccessibility().map { ($0, .accessibility, nil) }
     }
 
-    /// The focused element of the frontmost app, if Accessibility may be used (a quarter of a second at most per call).
+    /// The focused element of the frontmost app, if Accessibility may be used (`FocusedField.element`: a quarter of a
+    /// second at most per call), unless it is a password field.
     private static func focusedElement() -> AXUIElement? {
-        guard AXIsProcessTrusted() else { return nil }
-        let system = AXUIElementCreateSystemWide()
-        AXUIElementSetMessagingTimeout(system, 0.25)
-        var focused: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(system, kAXFocusedUIElementAttribute as CFString, &focused) == .success,
-              let focused, CFGetTypeID(focused) == AXUIElementGetTypeID() else { return nil }
-        let element = focused as! AXUIElement  // checked just above
-        AXUIElementSetMessagingTimeout(element, 0.25)
+        guard let element = FocusedField.element() else { return nil }
         var subrole: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &subrole) == .success,
            subrole as? String == kAXSecureTextFieldSubrole as String { return nil }

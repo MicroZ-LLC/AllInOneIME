@@ -475,16 +475,10 @@ final class FloatingPanel: ObservableObject {
 
     /// Its own looks at the tasks, every 15 s while it's expanded and a task it lists isn't done
     /// (skipped while AgentMonitor looks). Finished tasks don't change: `claude agents` isn't run
-    /// for them.
+    /// for them. Started as it opens (`shut` stops it).
     private func scheduleAgents() {
-        let wanted = isShowing
-        if wanted, agentTimer == nil {
-            agentTimer = repeating(agentInterval) { panel in
-                if panel.isOnScreen, panel.tasksUnfinished { panel.lookAtTasks(force: false) }
-            }
-        } else if !wanted {
-            agentTimer?.invalidate()
-            agentTimer = nil
+        agentTimer = repeating(agentInterval) { panel in
+            if panel.isOnScreen, panel.tasksUnfinished { panel.lookAtTasks(force: false) }
         }
     }
 
