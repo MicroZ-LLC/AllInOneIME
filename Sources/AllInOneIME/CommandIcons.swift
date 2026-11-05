@@ -22,7 +22,7 @@ enum CommandIcons {
     private static var images: [String: (date: Date?, image: NSImage?)] = [:]
 
     static func image(_ path: String) -> NSImage? {
-        let date = Platform.current.files.modificationDate(atPath: path)
+        let date = FileDate.own(path)
         if let known = images[path], known.date == date { return known.image }
         let image = date == nil ? nil : NSImage(contentsOfFile: path)
         images[path] = (date, image)

@@ -40,8 +40,6 @@ enum QuestionHistoryStore {
         loaded = (modificationDate(), history)
     }
 
-    /// By `stat` (a microsecond; the file manager's attributes take some forty): the history is asked for with each key.
-    private static func modificationDate() -> Date? {
-        Platform.current.files.modificationDate(atPath: url.path)
-    }
+    /// By `lstat` (a microsecond; the file manager's attributes take some forty): the history is asked for with each key.
+    private static func modificationDate() -> Date? { FileDate.own(url.path) }
 }

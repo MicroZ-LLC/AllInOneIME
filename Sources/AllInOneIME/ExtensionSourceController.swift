@@ -275,7 +275,7 @@ enum ExtensionSourceGate {
 
     private static func statuses(_ root: URL) -> [String: ExtensionSourceStatus] {
         let file = root.appendingPathComponent(ExtensionSources.statusFileName)
-        let date = Platform.current.files.modificationDate(atPath: file.path)
+        let date = FileDate.own(file.path)
         if let cachedStatuses, cachedStatuses.url == file, cachedStatuses.date == date { return cachedStatuses.statuses }
         let statuses = ExtensionSourceStatus.load(from: file)
         cachedStatuses = (file, date, statuses)
