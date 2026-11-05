@@ -34,8 +34,8 @@ public struct KeyboardLayout: KeyTranslator, @unchecked Sendable {
     /// The layout the keys come from. Under an input method macOS uses the last ASCII-capable one the
     /// user had (AZERTY, QWERTZ, US International …; never Russian or Hindi, which can't type Latin letters).
     public static func current() -> KeyboardLayout? {
-        for source in [TISCopyCurrentKeyboardLayoutInputSource(), TISCopyCurrentASCIICapableKeyboardLayoutInputSource()] {
-            if let source = source?.takeRetainedValue(), let layout = KeyboardLayout(source: source) { return layout }
+        for copy in [TISCopyCurrentKeyboardLayoutInputSource, TISCopyCurrentASCIICapableKeyboardLayoutInputSource] {
+            if let source = copy()?.takeRetainedValue(), let layout = KeyboardLayout(source: source) { return layout }
         }
         return nil
     }
