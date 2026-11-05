@@ -44,7 +44,8 @@ struct CommandRunnerTests {
         // Git for Windows has no rev: its perl reverses the line.
         let rev = CustomCommand(name: "rev", type: .run, argv: ["perl", "-nle", "print scalar reverse"], stdin: "{input}\n")
         #else
-        let rev = CustomCommand(name: "rev", type: .run, argv: ["rev"], stdin: "{input}\n")
+        // tr, which every system has (a minimal Linux, swift:6.4's image, has no rev), turns "abc" around as rev would.
+        let rev = CustomCommand(name: "rev", type: .run, argv: ["tr", "abc", "cba"], stdin: "{input}\n")
         #endif
         #expect(try await run(rev, "abc").get() == "cba")
     }

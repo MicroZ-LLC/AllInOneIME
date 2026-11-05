@@ -261,9 +261,14 @@ struct ExtensionRobustnessTests {
 
     // MARK: - How a file is started
 
+    /// The system's C compiler: cc on the Mac and most systems; a Linux with only the Swift toolchain (swift:6.4's
+    /// image) has its clang alone.
+    static let compiler = ["/usr/bin/cc", "/usr/bin/clang"].first { FileManager.default.isExecutableFile(atPath: $0) }
+
     /// A compiled program in a bundle runs as itself, as a shell would run it. (Compiled here: macOS kills a copy
     /// of one of its own programs, like /bin/echo, run from elsewhere.)
-    @Test func aCompiledProgramRunsAsItself() async throws {
+    @Test(.enabled(if: ExtensionRobustnessTests.compiler != nil, "no C compiler"))
+    func aCompiledProgramRunsAsItself() async throws {
         let folder = ScriptFolder()
         folder.add("tools/extension.json", #"{"schemaVersion": 1, "name": "tools", "commands": [{"script": "bin/hello", "name": "hello"}]}"#)
         let binary = folder.url.appendingPathComponent("tools/bin/hello")
@@ -271,7 +276,7 @@ struct ExtensionRobustnessTests {
         let source = folder.add("hello.c", "#include <stdio.h>\nint main(int c, char **v) { printf(\"%s\\n\", c > 1 ? v[1] : \"\"); return 0; }\n",
                                 executable: false)
         let cc = Process()
-        cc.executableURL = URL(fileURLWithPath: "/usr/bin/cc")
+        cc.executableURL = URL(fileURLWithPath: try #require(Self.compiler))
         cc.arguments = [source.path, "-o", binary.path]
         try cc.run()
         cc.waitUntilExit()

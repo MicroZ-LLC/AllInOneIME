@@ -161,6 +161,9 @@ struct ExtensionCompletionsReadingTests {
         let digest = try #require(ExtensionDigest.of(command, root: place.sources, sha256: store.sha256(of:)))
         #expect(FileHashes.stamp(file.path) == before, "unchanged: the same stamp")
 
+        // Changed later than the stamp was read: Linux sets a file's times by a clock that moves every few milliseconds,
+        // so a change within the same few milliseconds as the date set before it would get the same status-change time.
+        Thread.sleep(forTimeInterval: 0.05)
         try Data("farewell=cya\n".utf8).write(to: file)  // as many bytes as "farewell=bye\n"
         try dated(file)
         let after = try #require(FileHashes.stamp(file.path))
