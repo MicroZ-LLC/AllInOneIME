@@ -81,14 +81,27 @@ public enum InterfaceLanguage {
     }
 
     /// Whether `code` is Chinese ("zh-Hans", "zh-Hant"): what only comes in Chinese and English (a plugin's summary, an
-    /// update's notes) is Chinese then.
-    public static func isChinese(_ code: String) -> Bool { Tag(code).language == "zh" }
+    /// update's notes) is Chinese then. The built-in codes are told without taking them apart (`Tag`): the panels ask as
+    /// they draw.
+    public static func isChinese(_ code: String) -> Bool {
+        switch code {
+        case "zh-Hans": return true
+        case "en": return false
+        default: return Tag(code).language == "zh"
+        }
+    }
 
     /// Whether `code` is Simplified Chinese ("zh-Hans", "zh-CN", "zh"), whose interface text is `tr`'s first argument
-    /// and the fixed wording written next to it. Traditional Chinese ("zh-Hant") is not: its text is the catalog's.
+    /// and the fixed wording written next to it. Traditional Chinese ("zh-Hant") is not: its text is the catalog's. The
+    /// built-in codes are told without taking them apart, as in `isChinese`.
     public static func isSimplifiedChinese(_ code: String) -> Bool {
-        let tag = Tag(code)
-        return tag.language == "zh" && !tag.traditional
+        switch code {
+        case "zh-Hans": return true
+        case "en": return false
+        default:
+            let tag = Tag(code)
+            return tag.language == "zh" && !tag.traditional
+        }
     }
 
     /// The code of Simplified Chinese or English: for what only knows whether the interface is Chinese.
@@ -119,7 +132,8 @@ public enum InterfaceLanguage {
         public let region: String?
 
         public init(_ identifier: String) {
-            code = identifier.replacingOccurrences(of: "_", with: "-")
+            // Foundation's search only for an identifier with a "_" ("zh_Hant_TW"): most are written with "-".
+            code = identifier.utf8.contains(UInt8(ascii: "_")) ? identifier.replacingOccurrences(of: "_", with: "-") : identifier
             let parts = code.split(separator: "-").map(String.init)
             language = parts.first?.lowercased() ?? ""
             script = parts.dropFirst().first { $0.count == 4 && $0.allSatisfy(\.isLetter) }?.lowercased()
