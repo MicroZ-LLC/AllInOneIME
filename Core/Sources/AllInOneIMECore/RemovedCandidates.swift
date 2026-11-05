@@ -15,6 +15,14 @@ public enum RemovedCandidates {
     /// The most kept: beyond it, the oldest go first.
     public static let maxCount = 5000
 
+    /// librime's context property level one gives them as (`PinyinEngine.setRemovedCandidates`), one text per line;
+    /// not starting with "_", which librime clears as transient.
+    public static let property = "allinoneime_removed"
+    /// AllInOneIME's Lua filter that reads it (Resources/rime/lua, in the app beside rime-ice's scripts), last of the
+    /// schema's filters where the patch puts it (`PersonalDictionaryStore`): librime leaves them out itself, and lays its
+    /// pages out from what is left, each full.
+    public static let luaFilter = "allinoneime_removed"
+
     /// `list` with `text` removed too: at the end, once, within `maxCount`.
     public static func adding(_ text: String, to list: [String]) -> [String] {
         guard !text.isEmpty, !list.contains(text) else { return list }

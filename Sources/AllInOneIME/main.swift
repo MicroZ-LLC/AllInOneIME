@@ -79,7 +79,8 @@ enum RimeDirectories {
     }
 }
 
-/// Fuzzy pinyin (`FuzzyPinyin`) in the Rime user folder: the patch for the pairs the config turns on.
+/// Fuzzy pinyin (`FuzzyPinyin`) in the Rime user folder: the patch for the pairs the config turns on, and for the filter
+/// of the candidates removed that the app's Lua has (`RemovedCandidates.luaFilter`), so written with no pairs too.
 enum RimeFuzzy {
     /// Writes (or removes) the patch; nil when it couldn't. `.written` and `.removed` need a deployment.
     @discardableResult
