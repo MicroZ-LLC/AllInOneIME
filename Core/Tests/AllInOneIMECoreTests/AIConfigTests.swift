@@ -857,7 +857,7 @@ struct AIConfigTests {
         // for the file by the time the learner makes it, if it looks without the lock.
         AIConfig.fileLock.lock()
         let done = DispatchSemaphore(value: 0)
-        DispatchQueue.global().async {
+        DispatchQueue.global().async { [saved] in
             try? AIConfig.writing(saved, from: fresh, keys: AIConfig.changedKeys(fresh, saved), at: url)
             done.signal()
         }
