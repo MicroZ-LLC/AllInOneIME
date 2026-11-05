@@ -434,6 +434,179 @@ extension RimeEngineTests {
     }
 }
 
+/// The last page with nothing shown, with the real librime: the page before it is where the user lands (claim 1 of the
+/// fix after 0.6.8.4's first: `EnglishWordsEngine.skipEmptyPages` back from the last). Spellings no other test types.
+extension RimeEngineTests {
+
+    /// "fangfa"'s last page shows 牥 alone: removed (a right-click), the user is on the page before, the highlight on its
+    /// last row, nothing put in, the letters as they were; librime was given page and arrow keys only besides the
+    /// delete, nothing picked or cleared. Page Down and ↓ past its last row there: the same page, the highlight on its
+    /// last row. Its pages from the first then: 牥 on none, the page before the last one the user gets to.
+    @Test func removingTheOnlyShownOfTheLastPageGoesBackAPage() throws {
+        let pages = pagesOf("fangfa", Composer(engine: try RimeFixture.session(), actionKey: .enter), count: 12)
+        try #require(pages.count >= 3 && pages.last == ["牥"] && pages[pages.count - 2].count == 5, "\(pages.suffix(2))")
+        let last = pages.count - 1, before = pages[last - 1]
+        let told = KeysTold(try RimeFixture.session())
+        let composer = Composer(engine: told, actionKey: .enter)
+        typing("fangfa", composer)
+        for _ in 0..<last { _ = composer.handleKeyDown(pageDownKey) }
+        try #require(composer.engineState.pageNumber == last && rows(composer) == ["牥"] && composer.engineState.isLastPage,
+                     "\(composer.engineState.pageNumber): \(rows(composer))")
+        let keys = told.keys.count
+        let effects = composer.deleteCandidate(index: 0)
+        #expect(removals(effects) == ["牥"] && putIn(effects).isEmpty, "\(effects)")
+        #expect(composer.engineState.pageNumber == last - 1 && rows(composer) == before,
+                "page \(composer.engineState.pageNumber): \(rows(composer))")
+        #expect(highlightedRow(composer) == before.last, "on its last row: \(String(describing: highlightedRow(composer)))")
+        #expect(numberedAsShown(composer) && composer.engineState.isComposing && composer.engine?.rawInput == "fangfa")
+        #expect(composer.removedCandidates == ["牥"] && told.deleted == [0] && told.picked.isEmpty && told.cleared == 0)
+        let moves = [RimeKey.pageDown, RimeKey.pageUp, RimeKey.down, RimeKey.up]
+        let others = told.keys[keys...].filter { !moves.contains($0) }
+        #expect(others.isEmpty, "only page and arrow keys: \(others)")
+
+        _ = composer.handleKeyDown(pageDownKey)
+        #expect(composer.engineState.pageNumber == last - 1 && rows(composer) == before,
+                "Page Down: \(composer.engineState.pageNumber): \(rows(composer))")
+        #expect(highlightedRow(composer).map(before.contains) == true)
+        for _ in 0..<5 where highlightedRow(composer) != before.last { _ = composer.handleKeyDown(arrowDown) }
+        _ = composer.handleKeyDown(arrowDown)
+        #expect(composer.engineState.pageNumber == last - 1 && highlightedRow(composer) == before.last,
+                "↓: \(composer.engineState.pageNumber), \(String(describing: highlightedRow(composer)))")
+        escaping(composer)
+
+        typing("fangfa", composer)
+        var seen = [rows(composer)]
+        for _ in 0..<12 {
+            let page = composer.engineState.pageNumber
+            _ = composer.handleKeyDown(pageDownKey)
+            guard composer.engineState.pageNumber > page else { break }
+            seen.append(rows(composer))
+        }
+        #expect(seen.count == last && seen.last == before && !seen.joined().contains("牥"), "\(seen.suffix(2))")
+        escaping(composer)
+    }
+
+    /// "shengri"'s last page (陞 alone) with nothing shown, on the list: Page Down, = and ↓ past the last row shown of the
+    /// page before land back on it, never on an empty panel; after ↓ the highlight on its last row shown, also when
+    /// librime's last there is removed, which Space puts in.
+    @Test func pageDownOrDownOntoAnEmptiedLastPageStaysOnThePageBefore() throws {
+        let pages = pagesOf("shengri", Composer(engine: try RimeFixture.session(), actionKey: .enter), count: 12)
+        try #require(pages.count >= 3 && pages.last?.count == 1 && pages[pages.count - 2].count == 5, "\(pages.suffix(2))")
+        let last = pages.count - 1, before = pages[last - 1]
+        for lastRowRemoved in [false, true] {
+            let composer = Composer(engine: try RimeFixture.session(), actionKey: .enter)
+            composer.removedCandidates = pages[last] + (lastRowRemoved ? [before[4]] : [])
+            let shown = lastRowRemoved ? Array(before.prefix(4)) : before
+            typing("shengri", composer)
+            for _ in 0..<(last - 1) { _ = composer.handleKeyDown(pageDownKey) }
+            try #require(composer.engineState.pageNumber == last - 1 && rows(composer) == shown,
+                         "\(composer.engineState.pageNumber): \(rows(composer))")
+            for (name, key) in [("Page Down", pageDownKey), ("=", key("="))] {
+                _ = composer.handleKeyDown(key)
+                #expect(composer.engineState.pageNumber == last - 1 && rows(composer) == shown && composer.engineState.isComposing,
+                        "\(lastRowRemoved) \(name): \(composer.engineState.pageNumber): \(rows(composer))")
+                #expect(highlightedRow(composer).map(shown.contains) == true, "\(lastRowRemoved) \(name): a row shown")
+            }
+            for _ in 0..<5 where highlightedRow(composer) != shown.last { _ = composer.handleKeyDown(arrowDown) }
+            #expect(highlightedRow(composer) == shown.last)
+            _ = composer.handleKeyDown(arrowDown)
+            #expect(composer.engineState.pageNumber == last - 1 && rows(composer) == shown && highlightedRow(composer) == shown.last,
+                    "\(lastRowRemoved) ↓: \(composer.engineState.pageNumber), \(String(describing: highlightedRow(composer)))")
+            #expect(numberedAsShown(composer) && composer.engine?.rawInput == "shengri")
+            if lastRowRemoved {
+                // Last, as what is put in is learned: the order of these pages may change.
+                let picked = putIn(composer.handleKeyDown(KeyEvent(keyCode: VirtualKey.space, characters: " "))).first
+                    ?? composer.engineState.preedit
+                #expect(picked.hasPrefix(shown.last!), "\(picked) for \(shown.last!)")
+            }
+            for _ in 0..<3 where composer.engineState.isComposing { escaping(composer) }
+        }
+    }
+
+    /// "zhuanye"'s two last pages with nothing shown: Page Down from the page before them goes on over them to the last
+    /// and back to it; ↓ past its last row the same, the highlight on its last row.
+    @Test func twoEmptiedPagesAtTheEndAreGoneOverBack() throws {
+        let pages = pagesOf("zhuanye", Composer(engine: try RimeFixture.session(), actionKey: .enter), count: 24)
+        try #require(pages.count >= 4 && pages.count < 24 && pages[pages.count - 3].count == 5, "\(pages.count): \(pages.suffix(3))")
+        let last = pages.count - 1, before = pages[last - 2]
+        let told = KeysTold(try RimeFixture.session())
+        let composer = Composer(engine: told, actionKey: .enter)
+        composer.removedCandidates = pages[last - 1] + pages[last]
+        typing("zhuanye", composer)
+        for _ in 0..<(last - 2) { _ = composer.handleKeyDown(pageDownKey) }
+        try #require(composer.engineState.pageNumber == last - 2 && rows(composer) == before, "\(composer.engineState.pageNumber)")
+        let keys = told.keys.count
+        _ = composer.handleKeyDown(pageDownKey)
+        #expect(composer.engineState.pageNumber == last - 2 && rows(composer) == before, "\(composer.engineState.pageNumber): \(rows(composer))")
+        #expect(told.keys[keys...].filter { $0 == RimeKey.pageDown }.count == 2, "on to the last: \(told.keys[keys...])")
+        for _ in 0..<5 where highlightedRow(composer) != before.last { _ = composer.handleKeyDown(arrowDown) }
+        _ = composer.handleKeyDown(arrowDown)
+        #expect(composer.engineState.pageNumber == last - 2 && highlightedRow(composer) == before.last,
+                "\(composer.engineState.pageNumber), \(String(describing: highlightedRow(composer)))")
+        let others = told.keys[keys...].filter { ![RimeKey.pageDown, RimeKey.pageUp, RimeKey.down, RimeKey.up].contains($0) }
+        #expect(others.isEmpty && told.picked.isEmpty && told.cleared == 0, "\(others)")
+        escaping(composer)
+    }
+
+    /// "zengjia": every page but the first with nothing shown, Page Down goes over them to the last and back to the
+    /// first; every page with nothing shown, the panel has no candidates (no page has any) and Space puts the letters in.
+    @Test func thePanelIsEmptyOnlyWhenNoPageShowsAnything() throws {
+        let pages = pagesOf("zengjia", Composer(engine: try RimeFixture.session(), actionKey: .enter), count: 6)
+        try #require(pages.count >= 3 && pages.count < 6, "\(pages.count)")
+        let composer = Composer(engine: try RimeFixture.session(), actionKey: .enter)
+        composer.removedCandidates = Array(pages.dropFirst().joined())
+        typing("zengjia", composer)
+        #expect(composer.engineState.pageNumber == 0 && rows(composer) == pages[0])
+        _ = composer.handleKeyDown(pageDownKey)
+        #expect(composer.engineState.pageNumber == 0 && rows(composer) == pages[0], "\(composer.engineState.pageNumber): \(rows(composer))")
+        escaping(composer)
+        composer.removedCandidates = Array(pages.joined())
+        typing("zengjia", composer)
+        #expect(rows(composer).isEmpty && composer.engineState.isComposing, "\(rows(composer))")
+        #expect(putIn(composer.handleKeyDown(KeyEvent(keyCode: VirtualKey.space, characters: " "))) == ["zengjia"])
+        #expect(!composer.engineState.isComposing)
+    }
+}
+
+/// librime as level one has it (wrapped, as any engine but an `EnglishWordsEngine` is), what it is given recorded: every
+/// key, the candidates picked and deleted by their place on its page, how often its composition was cleared or
+/// committed.
+private final class KeysTold: PinyinEngine {
+    let base: PinyinEngine
+    private(set) var keys: [Int32] = []
+    private(set) var picked: [Int] = []
+    private(set) var deleted: [Int] = []
+    private(set) var cleared = 0
+
+    init(_ base: PinyinEngine) { self.base = base }
+
+    func processKey(_ keycode: Int32, mask: Int32) -> Bool {
+        keys.append(keycode)
+        return base.processKey(keycode, mask: mask)
+    }
+    func takeCommit() -> String? { base.takeCommit() }
+    func snapshot() -> EngineSnapshot { base.snapshot() }
+    func selectCandidate(onPage index: Int) -> Bool {
+        picked.append(index)
+        return base.selectCandidate(onPage: index)
+    }
+    func deleteCandidate(onPage index: Int) -> Bool {
+        deleted.append(index)
+        return base.deleteCandidate(onPage: index)
+    }
+    func commitComposition() -> String? {
+        cleared += 1
+        return base.commitComposition()
+    }
+    var rawInput: String { base.rawInput }
+    func clearComposition() {
+        cleared += 1
+        base.clearComposition()
+    }
+    func setAsciiMode(_ on: Bool) { base.setAsciiMode(on) }
+    var language: Language { base.language }
+}
+
 private let arrowDown = KeyEvent(keyCode: VirtualKey.down, characters: "\u{F701}")
 private let arrowUp = KeyEvent(keyCode: VirtualKey.up, characters: "\u{F700}")
 private let controlForwardDelete = KeyEvent(keyCode: VirtualKey.forwardDelete, characters: "\u{F728}", modifiers: .control)

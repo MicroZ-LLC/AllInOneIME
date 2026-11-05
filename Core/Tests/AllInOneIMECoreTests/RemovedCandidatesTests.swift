@@ -424,6 +424,109 @@ struct RemovedCandidatesTests {
         }
     }
 
+    // MARK: - An emptied last page
+
+    /// The last page with nothing shown (every candidate on it removed): Page Down, = and ↓ past the last row shown
+    /// land back on the page before, never on an empty panel; after ↓ (→ in a row) the highlight is on its last row
+    /// shown, also when librime's last there is removed. librime gets page and arrow keys only, nothing that puts
+    /// anything in or changes the letters. Two pages ("dian") the same.
+    @Test func anEmptiedLastPageGoesBackToThePageBefore() {
+        let moves = [RimeKey.pageDown, RimeKey.pageUp, RimeKey.down, RimeKey.up, 0x3D]
+        for (extra, horizontal) in [([String](), false), (["一34"], false), ([], true), (["一34"], true)] {
+            let (c, engine) = composer(Array(Self.yi[35..<40]) + extra)
+            c.horizontalCandidates = horizontal
+            let next = horizontal ? right : downKey
+            let shown = Array(Self.yi[30..<35]).filter { !extra.contains($0) }
+            _ = type("yi", c)
+            _ = press(pageDown, c, times: 6)
+            #expect(c.engineState.pageNumber == 6 && rows(c) == shown, "\(extra) \(horizontal): \(c.engineState)")
+            let keys = engine.keys.count
+            _ = press(pageDown, c)
+            #expect(c.engineState.pageNumber == 6 && rows(c) == shown, "\(extra) \(horizontal): Page Down: \(c.engineState)")
+            #expect(highlighted(c).map(shown.contains) == true, "a row shown: \(c.engineState)")
+            _ = type("=", c)
+            #expect(c.engineState.pageNumber == 6 && rows(c) == shown, "\(extra) \(horizontal): =: \(c.engineState)")
+            _ = press(next, c, times: shown.count - 1)
+            #expect(highlighted(c) == shown.last, "\(extra) \(horizontal): \(c.engineState)")
+            _ = press(next, c)
+            #expect(c.engineState.pageNumber == 6 && rows(c) == shown && highlighted(c) == shown.last,
+                    "\(extra) \(horizontal): past the last row: \(c.engineState)")
+            #expect(labels(c) == shown.indices.map { String($0 + 1) })
+            let others = engine.keys[keys...].filter { !moves.contains($0) }
+            #expect(others.isEmpty, "only page and arrow keys: \(others)")
+            #expect(c.engineState.isComposing && c.markedText == "yi" && engine.input == "yi")
+            #expect(commits(press(spaceKey, c)) == [shown.last!], "\(extra) \(horizontal)")
+        }
+        let (c, _) = composer(Array(Self.dian[5...]))
+        _ = type("dian", c)
+        _ = press(pageDown, c)
+        #expect(c.engineState.pageNumber == 0 && rows(c) == Array(Self.dian[0..<5]), "\(c.engineState)")
+        _ = press(downKey, c, times: 5)
+        #expect(c.engineState.pageNumber == 0 && highlighted(c) == "殿", "\(c.engineState)")
+    }
+
+    /// The only candidate shown on the last page removed (a right-click, ⌃⌦), librime laying the composition out anew
+    /// from its first page as its `delete_candidate` does: back on the page before, the highlight on its last row shown
+    /// (librime's last there removed: the one before it), which Space puts in. librime gets page and arrow keys only.
+    @Test func removingTheOnlyShownOfTheLastPageGoesBack() {
+        for (byKey, extra) in [(false, [String]()), (true, []), (false, ["一34"]), (true, ["一33", "一34"])] {
+            let (c, engine) = composer(Array(Self.yi[36..<40]) + extra)
+            engine.resetsOnDelete = true
+            _ = type("yi", c)
+            _ = press(pageDown, c, times: 7)
+            #expect(c.engineState.pageNumber == 7 && rows(c) == ["一35"], "\(extra): \(c.engineState)")
+            let keys = engine.keys.count
+            let effects = byKey ? c.handleKeyDown(DeleteKeys.controlForwardDelete).effects : c.deleteCandidate(index: 0)
+            #expect(removed(effects) == ["一35"] && commits(effects).isEmpty, "\(byKey) \(extra): \(effects)")
+            let shown = Array(Self.yi[30..<35]).filter { !extra.contains($0) }
+            #expect(c.engineState.pageNumber == 6 && rows(c) == shown, "\(byKey) \(extra): \(c.engineState)")
+            #expect(highlighted(c) == shown.last, "\(byKey) \(extra): on its last row shown: \(c.engineState)")
+            #expect(labels(c) == shown.indices.map { String($0 + 1) })
+            #expect(engine.deleted == ["一35"] && engine.input == "yi" && c.markedText == "yi" && c.removedCandidates.last == "一35")
+            let others = engine.keys[keys...].filter { ![RimeKey.pageDown, RimeKey.pageUp, RimeKey.down, RimeKey.up].contains($0) }
+            #expect(others.isEmpty, "only page and arrow keys: \(others)")
+            #expect(commits(press(spaceKey, c)) == [shown.last!])
+        }
+    }
+
+    /// Pages emptied up to the last: Page Down goes on over them to the last, then back over them to the page it came
+    /// from; ↓ past that page's last row the same, the highlight on its last row.
+    @Test func severalEmptiedPagesAtTheEndAreGoneOverBack() {
+        let (c, engine) = composer(Array(Self.yi[20..<40]))
+        _ = type("yi", c)
+        _ = press(pageDown, c, times: 3)
+        #expect(c.engineState.pageNumber == 3 && rows(c) == Array(Self.yi[15..<20]), "\(c.engineState)")
+        let keys = engine.keys.count
+        _ = press(pageDown, c)
+        #expect(c.engineState.pageNumber == 3 && rows(c) == Array(Self.yi[15..<20]), "\(c.engineState)")
+        #expect(engine.keys[keys...].filter { $0 == RimeKey.pageDown }.count == 4, "on to the last: \(engine.keys[keys...])")
+        _ = press(downKey, c, times: 5)
+        #expect(c.engineState.pageNumber == 3 && highlighted(c) == "一19", "\(c.engineState)")
+        #expect(engine.page == 3 && c.engineState.isComposing)
+    }
+
+    /// Back from the last page: `maxSkipped` pages at most past those just turned on. Five emptied before it: the fifth
+    /// back, which shows nothing either (Space puts the letters in as typed); four: the one before them, the highlight on
+    /// its last row.
+    @Test func backFromTheLastPageFivePagesAtMost() {
+        for (emptied, shown) in [(Array(Self.yi[10..<35]), [String]()), (Array(Self.yi[15..<35]), Array(Self.yi[10..<15]))] {
+            let (c, engine) = composer()
+            _ = type("yi", c)
+            _ = press(pageDown, c, times: 7)
+            c.removedCandidates = emptied + Array(Self.yi[36..<40])
+            let keys = engine.keys.count
+            #expect(removed(c.deleteCandidate(index: 0)) == ["一35"])
+            let back = engine.keys[keys...].filter { $0 == RimeKey.pageUp }.count
+            #expect(back == EnglishWordsEngine.maxSkipped && engine.page == 2, "\(back) back, on \(engine.page)")
+            #expect(c.engineState.pageNumber == 2 && rows(c) == shown && c.engineState.isComposing, "\(c.engineState)")
+            if shown.isEmpty {
+                #expect(commits(press(spaceKey, c)) == ["yi"], "nothing shown: the letters")
+            } else {
+                #expect(highlighted(c) == shown.last, "\(c.engineState)")
+            }
+        }
+    }
+
     // MARK: - After a removal: the page and the highlight
 
     /// librime's `delete_candidate` lays the composition out anew from its first page (`PagesEngine.resetsOnDelete`): one
@@ -836,6 +939,180 @@ struct RemovedCandidatesSessionTests {
         }
     }
 
+    /// A field as the Mac's shell makes it (`SessionServices.mac`): a candidate removed goes to `writer`
+    /// (`EnglishWords.Writer`), into the config file at `url` a moment later; the settings are read from there, and the
+    /// session asks the writer what it hasn't written yet (`SessionServices.unwrittenRemovals`).
+    func field(_ url: URL, _ writer: EnglishWords.Writer, dictionary: Bool = false) -> FakeHost {
+        var services = SessionServices(loadSettings: { (try? Config.load(from: url)) ?? .default })
+        services.levelOne = { .engine(FakeEngine()) }
+        services.programInstalled = { _ in true }
+        services.removeCandidate = { writer.remove($0, at: url) }
+        services.unwrittenRemovals = { writer.unwrittenRemovals(at: url) }
+        if dictionary { services.englishDictionary = { EnglishDictionary(["hello"]) } }
+        let host = FakeHost(services: services)
+        host.app = "com.example.editor"
+        host.focus()
+        return host
+    }
+
+    /// A config file of these tests' settings (`change`d) in a folder of its own.
+    func configFile(_ change: (inout Config) -> Void = { _ in }) throws -> URL {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("removed-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let url = folder.appendingPathComponent("config.json")
+        try Settings(change).config.write(to: url)
+        return url
+    }
+
+    /// What `host` shows for `letters`, the composition then cleared.
+    func shown(_ letters: String, _ host: FakeHost) -> [String] {
+        host.type(letters)
+        defer { host.press(FakeHost.escape) }
+        return candidates(host)
+    }
+
+    /// Removed, the field left (for Settings, say) before the writer wrote it: out until it is written, through the blur
+    /// and a focus again (the file without it then). Written after the blur, restored in Settings (✕), the field takes
+    /// the focus again: it shows, though the field never read the file with it.
+    @Test func writtenAfterTheFieldWasLeftThenRestoredInSettingsItShows() async throws {
+        try await inEnglish {
+            let url = try configFile()
+            defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+            let writer = EnglishWords.Writer()
+            let host = field(url, writer)
+            #expect(shown("nihao", host) == ["你好", "拟好"])
+            AIConfig.fileLock.lock()  // another writer holds the file: this one's write waits
+            host.type("nihao")
+            host.send(.delete(1))
+            let removedThere = candidates(host)
+            host.press(FakeHost.escape)
+            host.send(.blur)
+            let unwritten = writer.unwrittenRemovals(at: url)
+            let file = (try? Config.load(from: url))?.removedCandidates
+            host.focus()
+            let focusedAgain = shown("nihao", host)
+            host.send(.blur)
+            AIConfig.fileLock.unlock()
+            #expect(removedThere == ["你好"] && unwritten == ["拟好"] && file == [], "\(unwritten) \(String(describing: file))")
+            #expect(focusedAgain == ["你好"], "out until it is written: \(focusedAgain)")
+            writer.flush()
+            #expect(try Config.load(from: url).removedCandidates == ["拟好"] && writer.unwrittenRemovals(at: url).isEmpty)
+            SettingsStore(configURL: url).restoreCandidate("拟好")
+            #expect(try Config.load(from: url).removedCandidates.isEmpty)
+            host.focus()
+            #expect(shown("nihao", host) == ["你好", "拟好"], "restored")
+        }
+    }
+
+    /// Removed in a field that keeps the focus throughout: written, then restored on another Mac (iCloud sync writes
+    /// this Mac's file without it), and the field reads the settings (another setting changed, the file watched): it
+    /// shows, whether the field read the settings before the write (with it unwritten) or not at all.
+    @Test func focusedThroughoutWhileAnotherMacRestoresItItShows() async throws {
+        try await inEnglish {
+            for readBeforeTheWrite in [false, true] {
+                let url = try configFile()
+                defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+                let writer = EnglishWords.Writer()
+                let host = field(url, writer)
+                AIConfig.fileLock.lock()
+                host.type("nihao")
+                host.send(.delete(1))
+                host.press(FakeHost.escape)
+                if readBeforeTheWrite { host.send(.configChanged) }
+                let before = shown("nihao", host)
+                AIConfig.fileLock.unlock()
+                #expect(before == ["你好"], "\(readBeforeTheWrite): \(before)")
+                writer.flush()
+                #expect(try Config.load(from: url).removedCandidates == ["拟好"])
+                try AIConfig.patchingFile(at: url) { $0[Config.removedCandidatesKey] = nil }
+                #expect(try Config.load(from: url).removedCandidates.isEmpty)
+                host.send(.configChanged)
+                #expect(shown("nihao", host) == ["你好", "拟好"], "\(readBeforeTheWrite): restored on another Mac")
+            }
+        }
+    }
+
+    /// Two fields: one removed in the first is out in the second before it is written (asked of the writer as the second
+    /// takes the focus, and again as it reads the settings); written, the list's; restored in Settings before the second
+    /// read the file with it, it shows there and in the first. The other way round the same.
+    @Test func aRemovalInOneFieldIsOutInAnotherBeforeTheWrite() async throws {
+        try await inEnglish {
+            let url = try configFile()
+            defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+            let writer = EnglishWords.Writer()
+            let first = field(url, writer), second = field(url, writer)
+            #expect(shown("nihao", second) == ["你好", "拟好"])
+            second.send(.blur)
+            AIConfig.fileLock.lock()
+            first.type("nihao")
+            first.send(.delete(1))
+            first.press(FakeHost.escape)
+            first.send(.blur)
+            second.focus()
+            let focused = shown("nihao", second)
+            second.send(.configChanged)
+            let read = shown("nihao", second)
+            AIConfig.fileLock.unlock()
+            #expect(focused == ["你好"] && read == ["你好"], "before the write: \(focused) \(read)")
+            writer.flush()
+            #expect(try Config.load(from: url).removedCandidates == ["拟好"])
+            SettingsStore(configURL: url).restoreCandidate("拟好")
+            second.send(.configChanged)
+            #expect(shown("nihao", second) == ["你好", "拟好"], "restored")
+            second.send(.blur)
+            first.focus()
+            #expect(shown("nihao", first) == ["你好", "拟好"], "restored, the first field")
+
+            // The other way round, and the list read meanwhile is an old one.
+            first.send(.blur)
+            second.focus()
+            AIConfig.fileLock.lock()
+            second.type("wo")
+            second.send(.delete(0))
+            let there = candidates(second)
+            second.press(FakeHost.escape)
+            second.send(.blur)
+            first.focus()
+            let other = shown("wo", first)
+            AIConfig.fileLock.unlock()
+            #expect(there == ["窝"] && other == ["窝"], "\(there) \(other)")
+            writer.flush()
+            first.send(.configChanged)
+            #expect(shown("wo", first) == ["窝"], "written: the list's")
+            #expect(try Config.load(from: url).removedCandidates == ["我"] && writer.unwrittenRemovals(at: url).isEmpty)
+        }
+    }
+
+    /// One of the user's English words removed, then added again in Settings → English Words (`SettingsStore
+    /// .addEnglishWords`): off the list of those removed, it comes up in the field again as it reads the settings.
+    @Test func anEnglishWordAddedAgainInSettingsComesUp() async throws {
+        try await inEnglish {
+            let url = try configFile {
+                $0.englishWords = ["Frobnicate"]
+                $0.addedEnglishWords = ["Frobnicate"]
+            }
+            defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+            let writer = EnglishWords.Writer()
+            let host = field(url, writer, dictionary: true)
+            host.type("frobn")
+            let before = candidates(host)
+            let row = try #require(before.firstIndex(of: "Frobnicate"), "\(before)")
+            host.send(.delete(row))
+            host.press(FakeHost.escape)
+            writer.flush()
+            #expect(try Config.load(from: url).removedCandidates == ["Frobnicate"])
+            host.send(.configChanged)
+            #expect(!shown("frobn", host).contains("Frobnicate"))
+            let added = SettingsStore(configURL: url).addEnglishWords("frobnicate")
+            #expect(added.words == ["frobnicate"], "\(added)")
+            let config = try Config.load(from: url)
+            #expect(config.removedCandidates.isEmpty && config.englishWords == ["frobnicate"] && config.addedEnglishWords == ["frobnicate"],
+                    "\(config.removedCandidates) \(config.englishWords)")
+            host.send(.configChanged)
+            #expect(shown("frobn", host).contains("frobnicate"), "comes up again: \(shown("frobn", host))")
+        }
+    }
+
     /// Removed here while the file lags (written a moment later): the settings' list changing meanwhile (another Mac's
     /// removal through iCloud), librime deployed again (a new engine, with English words among its candidates or
     /// without) and another setting changed don't bring it back. The file caught up, it is the file's: restored there,
@@ -1042,6 +1319,122 @@ struct RemovedCandidatesStorageTests {
         given.removed("鸭虎")
         #expect(given.taking(["压机"]) == ["压机", "你好", "鸭虎"], "oldest first")
         #expect(given.taking(["压机", "鸭虎"]) == ["压机", "鸭虎", "你好"], "one caught up, the other not yet")
+    }
+
+    /// The same where the shell tells those not written yet (`unwritten`, the Mac's `EnglishWords.Writer`): every one of
+    /// them is given, removed in this field or another, whatever list is read meanwhile; once written (no longer told),
+    /// the list's: one the list doesn't have then (restored there, before the field read it with it or after) comes
+    /// back, also when the list is the one taken last.
+    @Test func whatAFieldGivesLevelOneWithWhatIsntWrittenYet() {
+        var given = RemovedCandidates.Given()
+        #expect(given.taking([], unwritten: []) == [])
+        given.removed("拟好")
+        #expect(given.taking([], unwritten: ["拟好"]) == nil, "level one leaves it out already")
+        #expect(given.taking([], unwritten: ["拟好", "窝"]) == ["拟好", "窝"], "another field's, not written yet")
+        #expect(given.taking(["压机"], unwritten: ["拟好", "窝"]) == ["压机", "拟好", "窝"], "an old list or another")
+        #expect(given.taking(["压机", "拟好"], unwritten: ["窝"]) == ["压机", "拟好", "窝"], "one written")
+        #expect(given.taking(["压机", "拟好", "窝"], unwritten: []) == ["压机", "拟好", "窝"], "both written")
+        #expect(given.taking(["压机", "窝"], unwritten: []) == ["压机", "窝"], "restored")
+        #expect(given.taking(["压机", "窝"], unwritten: []) == nil)
+
+        // Written while the field didn't read the list, then restored: the list read then is the one taken last.
+        var focused = RemovedCandidates.Given()
+        #expect(focused.taking(["窝"], unwritten: []) == ["窝"])
+        focused.removed("拟好")
+        #expect(focused.taking(["窝"], unwritten: ["拟好"]) == nil, "not written yet")
+        #expect(focused.taking(["窝"], unwritten: []) == ["窝"], "written and restored before the field read it")
+        #expect(focused.taking(["窝"], unwritten: []) == nil)
+        // Another field's, not written yet, then written and restored before this one read the list again.
+        #expect(focused.taking(["窝"], unwritten: ["你好"]) == ["窝", "你好"])
+        #expect(focused.taking(["窝"], unwritten: []) == ["窝"])
+
+        // The shell can't tell (nil): those removed here until the list has them, as before.
+        var untold = RemovedCandidates.Given()
+        #expect(untold.taking([], unwritten: nil) == [])
+        untold.removed("拟好")
+        #expect(untold.taking([], unwritten: nil) == nil)
+        #expect(untold.taking(["窝"], unwritten: nil) == ["窝", "拟好"])
+        #expect(untold.taking(["窝", "拟好"], unwritten: nil) == ["窝", "拟好"])
+        #expect(untold.taking(["窝"], unwritten: nil) == ["窝"])
+    }
+
+    /// The writer tells the candidates removed it hasn't written into a file yet (`unwrittenRemovals(at:)`), oldest
+    /// first, that file's only, never the words learned: waiting (the file held by another writer), kept after their
+    /// write failed (a file that doesn't parse), and drops each once it is in the file. Never waits for a write.
+    @Test func theWriterTellsTheRemovalsNotWrittenYet() throws {
+        let dir = try folder()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let url = dir.appendingPathComponent("config.json"), other = dir.appendingPathComponent("other.json")
+        let broken = Data(#"{"typeOut": true,, "englishWords": ["Bedrock"]}"#.utf8)
+        try broken.write(to: url)
+        try Data(#"{"typeOut": true}"#.utf8).write(to: other)
+        let writer = EnglishWords.Writer()
+        #expect(writer.unwrittenRemovals(at: url).isEmpty)
+
+        // Waiting: the file held by another writer.
+        AIConfig.fileLock.lock()
+        writer.remove("鸡虎", at: url)
+        writer.learn("zorblax", at: url)
+        writer.remove("鸭虎", at: other)
+        writer.remove("😂", at: url)
+        let waiting = writer.unwrittenRemovals(at: url), elsewhere = writer.unwrittenRemovals(at: other)
+        AIConfig.fileLock.unlock()
+        #expect(waiting == ["鸡虎", "😂"] && elsewhere == ["鸭虎"], "\(waiting) \(elsewhere)")
+
+        // Written where the file parses; kept where it doesn't, still unwritten.
+        writer.flush()
+        #expect(try Data(contentsOf: url) == broken)
+        #expect(writer.unwrittenRemovals(at: url) == ["鸡虎", "😂"], "kept after a failed write")
+        #expect(try writer.unwrittenRemovals(at: other).isEmpty && Config.load(from: other).removedCandidates == ["鸭虎"])
+        writer.remove("鸡虎", at: url)  // removed again in another field meanwhile
+        writer.flush()
+        #expect(writer.unwrittenRemovals(at: url) == ["鸡虎", "😂", "鸡虎"])
+
+        // The file fixed: written, and no longer unwritten.
+        try Data(#"{"typeOut": true, "englishWords": ["Bedrock"]}"#.utf8).write(to: url)
+        writer.retry()
+        writer.flush()
+        let config = try Config.load(from: url)
+        #expect(config.removedCandidates == ["鸡虎", "😂"] && config.englishWords == ["Bedrock", "zorblax"], "\(config.removedCandidates)")
+        #expect(writer.unwrittenRemovals(at: url).isEmpty)
+        // One the file has already: nothing written, no longer unwritten either.
+        writer.remove("😂", at: url)
+        writer.flush()
+        #expect(try writer.unwrittenRemovals(at: url).isEmpty && Config.load(from: url).removedCandidates == ["鸡虎", "😂"])
+        // Learned only: nothing unwritten.
+        AIConfig.fileLock.lock()
+        writer.learn("quuxify", at: url)
+        let learned = writer.unwrittenRemovals(at: url)
+        AIConfig.fileLock.unlock()
+        #expect(learned.isEmpty)
+        #expect(writer.drain(within: 10))
+    }
+
+    /// Read from another thread while the writer's queue writes (as the session asks it, just before it reads the file):
+    /// from the moment it is told, each candidate removed is unwritten or in the file, never neither; at the end, all in
+    /// the file, none unwritten.
+    @Test func eachRemovalIsUnwrittenOrInTheFile() throws {
+        let dir = try folder()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let url = dir.appendingPathComponent("config.json")
+        try Data(#"{"typeOut": true}"#.utf8).write(to: url)
+        let writer = EnglishWords.Writer()
+        var told: [String] = []
+        var misses: [String] = []
+        for i in 0..<60 {
+            let text = "词\(i)"
+            writer.remove(text, at: url)
+            if i.isMultiple(of: 3) { writer.learn("zorb" + String(repeating: "a", count: i / 3 + 1), at: url) }
+            told.append(text)
+            // The order the session asks in: what isn't written, then the file.
+            let unwritten = Set(writer.unwrittenRemovals(at: url))
+            let listed = Set((try? Config.load(from: url))?.removedCandidates ?? [])
+            misses += told.filter { !unwritten.contains($0) && !listed.contains($0) }
+        }
+        #expect(misses.isEmpty, "neither unwritten nor in the file: \(misses)")
+        writer.flush()
+        #expect(writer.unwrittenRemovals(at: url).isEmpty)
+        #expect(try Config.load(from: url).removedCandidates == told)
     }
 
     /// A removal patches the file as it is: only `removedCandidates` changes, every other key keeps its text (spacing,
@@ -1290,6 +1683,68 @@ struct RemovedCandidatesSettingsTests {
         let last = try text(url)
         #expect(!last.contains("removedCandidates") && store.config.removedCandidates.isEmpty, "\(last)")
         #expect(try text(url).contains("\"maxTokens\": 1000"))
+    }
+
+    /// Settings → English Words' Add (`EnglishWords.add`): each word added comes off the list of those removed by its
+    /// letters, whatever its spelling there (one of the user's own removed is added again, a learned one becomes theirs),
+    /// so that it comes up again; nothing else on the list does (Chinese, another word, a longer one with its letters
+    /// in it). Nothing added (not a word, one of theirs not removed): the list as it was. The settings window's list
+    /// (`EnglishWords.edit`, Windows' Settings app) the same for a word it adds.
+    @Test func anEnglishWordAddedComesOffTheRemovedList() {
+        var config = Config.default
+        config.englishWords = ["BEDROCK", "frobnicate"]
+        config.addedEnglishWords = ["BEDROCK"]
+        config.removedCandidates = ["Bedrock", "鸡虎", "Zorblax", "frobnicate", "Bedrocks", "GitHub Pages"]
+        let added = EnglishWords.add("bedrock, zorblax", to: &config)
+        #expect(added.words == ["bedrock", "zorblax"] && added.refused.isEmpty, "\(added)")
+        #expect(config.removedCandidates == ["鸡虎", "frobnicate", "Bedrocks", "GitHub Pages"], "\(config.removedCandidates)")
+        #expect(config.englishWords == ["frobnicate", "bedrock", "zorblax"], "\(config.englishWords)")
+        #expect(config.addedEnglishWords == ["bedrock", "zorblax"], "\(config.addedEnglishWords)")
+        let before = config
+        for nothing in ["鸡虎", "Bedrock", "BEDROCK, zorblax", "2026"] {
+            #expect(EnglishWords.add(nothing, to: &config) == EnglishWords.Added() && config == before, "\(nothing)")
+        }
+        // A learned word of theirs removed: added, theirs now, off the list.
+        #expect(EnglishWords.add("Frobnicate", to: &config).words == ["Frobnicate"])
+        #expect(config.removedCandidates == ["鸡虎", "Bedrocks", "GitHub Pages"] && config.addedEnglishWords == ["bedrock", "zorblax", "Frobnicate"])
+        // The settings window's list.
+        var listed = Config.default
+        listed.englishWords = ["Bedrock"]
+        listed.removedCandidates = ["鸡虎", "Quuxify"]
+        #expect(EnglishWords.edit(&listed, to: ["Bedrock", "quuxify"]) == nil)
+        #expect(listed.removedCandidates == ["鸡虎"] && listed.englishWords == ["Bedrock", "quuxify"], "\(listed.removedCandidates)")
+    }
+
+    /// The same through Settings (`SettingsStore.addEnglishWords`) on the file as it is: Settings' list of those removed
+    /// shows it gone at once, the file has it off the list and the other keys as they were, and the engine made from the
+    /// file offers it again.
+    @Test func addedInSettingsItComesOffTheFileAndComesUp() throws {
+        let url = try file("""
+            {"typeOut": true, "englishWords": ["Bedrock"], "addedEnglishWords": ["Bedrock"],
+             "removedCandidates": ["鸡虎", "Bedrock", "Zorblax"], "futureKey": [1]}
+            """)
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        /// What the engine made from the file shows for "bedrock" (librime's one candidate for it: 贝德).
+        func shown() throws -> [String] {
+            let config = try Config.load(from: url)
+            let mixed = EnglishWordsEngine(base: PagesEngine(["bedrock": ["贝德"]]), dictionary: EnglishDictionary([]),
+                                           words: EnglishWords.offered(config, jargon: []), removedCandidates: config.removedCandidates)
+            let c = Composer(engine: mixed, actionKey: .enter)
+            for letter in "bedrock" { _ = c.handleKeyDown(k(String(letter))) }
+            return c.engineState.candidates.map(\.text)
+        }
+        #expect(try shown() == ["贝德"])
+        let store = SettingsStore(configURL: url)
+        #expect(store.config.removedCandidates == ["鸡虎", "Bedrock", "Zorblax"])
+        #expect(store.addEnglishWords("bedrock").words == ["bedrock"])
+        #expect(store.config.removedCandidates == ["鸡虎", "Zorblax"], "Settings' list: \(store.config.removedCandidates)")
+        let saved = try Config.load(from: url)
+        #expect(saved.removedCandidates == ["鸡虎", "Zorblax"] && saved.englishWords == ["bedrock"] && saved.addedEnglishWords == ["bedrock"])
+        #expect(try saved.typeOut && text(url).contains("futureKey"))
+        let back = try shown()
+        #expect(back.contains("bedrock"), "\(back)")
+        #expect(store.addEnglishWords("ZORBLAX").words == ["ZORBLAX"])
+        #expect(try store.config.removedCandidates == ["鸡虎"] && Config.load(from: url).removedCandidates == ["鸡虎"])
     }
 
     /// Another setting saved by a window that read the file before a candidate was removed doesn't put the list back.
