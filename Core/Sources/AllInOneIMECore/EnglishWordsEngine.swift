@@ -419,8 +419,9 @@ public final class EnglishWordsEngine: PinyinEngine {
     /// The candidate shown at `index` removed (a right-click, ⌃⌦): on `removedCandidates`, never shown again, and
     /// librime's deleted there too (`PinyinEngine.deleteCandidate`: what it learned of it forgotten). The page stays the
     /// one the user is on (librime lays the composition out anew from its first page: `returnToPage`), laid out anew
-    /// without it, the highlight where it was; on the one removed, on the one shown after it, else the one before. A page
-    /// left with nothing shown is skipped, on forward, else (the last) back: the highlight on the first row shown on a
+    /// without it, the highlight where it was; on the one removed, on its row (what moved up into its place: the one
+    /// shown after it, from the page after too where librime refills the page), else the one before. A page left with
+    /// nothing shown is skipped, on forward, else (the last) back: the highlight on the first row shown on a
     /// page after, the last on one before. Whether one was removed.
     public func deleteCandidate(onPage index: Int) -> Bool {
         let (snap, entries) = current()
@@ -434,7 +435,9 @@ public final class EnglishWordsEngine: PinyinEngine {
         pagedBack = false  // nothing shown on it now: on forward, else back from the last
         skipEmptyPages(from: page)
         let near = Array(shown[(index + 1)...]) + shown[..<index].reversed()
-        highlight(at == index ? near : [shown[at]] + near, orLast: base.snapshot().pageNumber < snap.pageNumber)
+        let now = base.snapshot().pageNumber
+        highlight(at == index ? near : [shown[at]] + near, row: at == index && now == snap.pageNumber ? index : nil,
+                  orLast: now < snap.pageNumber)
         return true
     }
 
@@ -452,17 +455,18 @@ public final class EnglishWordsEngine: PinyinEngine {
         return snap.pageNumber
     }
 
-    /// The page laid out anew, the highlight on the first of `texts` it shows (the one highlighted before a candidate was
-    /// removed, else the one after it, else the one before); none: on its last row shown with `last` (a page before the
-    /// one it was removed on: the one before it), else as on a page laid out anew (on a word that comes first, else
-    /// librime's).
-    private func highlight(_ texts: [String], orLast last: Bool) {
+    /// The page laid out anew, the highlight on `row` where the page has it (the removed one's, on the page it was on),
+    /// else on the first of `texts` it shows (the one highlighted before a candidate was removed, else the one after it,
+    /// else the one before); none: on its last row shown with `last` (a page before the one it was removed on: the one
+    /// before it), else as on a page laid out anew (on a word that comes first, else librime's).
+    private func highlight(_ texts: [String], row: Int? = nil, orLast last: Bool) {
         let snap = base.snapshot()
         let entries = layout(snap)
         laidOutFor = laidOutKey(snap)
         cursor = entries.first.map(Self.isWord) == true ? 0 : nil
         let shown = entries.map { Self.text(of: $0, in: snap) }
-        guard let place = texts.lazy.compactMap({ shown.firstIndex(of: $0) }).first ?? (last ? shown.indices.last : nil)
+        guard let place = row.flatMap({ shown.indices.contains($0) ? $0 : nil })
+            ?? texts.lazy.compactMap({ shown.firstIndex(of: $0) }).first ?? (last ? shown.indices.last : nil)
         else { return }
         switch entries[place] {
         case .word:
