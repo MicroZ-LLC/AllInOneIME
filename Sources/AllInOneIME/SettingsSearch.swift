@@ -211,7 +211,11 @@ enum SettingsSpot: String, CaseIterable {
     /// Whether every word of `query` is in its title, what it says or its words; a command named with the command trigger
     /// (`trigger`: "~agent") as its words name it ("@agent").
     func matches(_ query: String, trigger: String = "@") -> Bool {
-        let words = Self.words(query, trigger: trigger)
+        matches(Self.words(query, trigger: trigger), trigger: trigger)
+    }
+
+    /// `matches` with the query's words (`words`) split already: the search splits them once for every row.
+    private func matches(_ words: [Substring], trigger: String) -> Bool {
         guard !words.isEmpty else { return false }
         let text = [title, note ?? "", keywords, page.title].joined(separator: " ").lowercased()
             .replacingOccurrences(of: trigger, with: "@")
@@ -234,11 +238,10 @@ enum SettingsSpot: String, CaseIterable {
             if has(spot.title) { return (0, spot.title.count) }
             return has(spot.title + " " + spot.keywords) ? (1, 0) : (2, 0)
         }
-        let found = allCases.enumerated().filter { $0.element.isShown(config) && $0.element.matches(query, trigger: trigger) }
-        return found.sorted { a, b in
-            let (x, y) = (rank(a.element), rank(b.element))
-            return x != y ? x < y : a.offset < b.offset
-        }.map(\.element)
+        // Each row found ranked once, not again at each comparison of the sort.
+        let found = allCases.enumerated().filter { $0.element.isShown(config) && $0.element.matches(words, trigger: trigger) }
+            .map { (spot: $0.element, offset: $0.offset, rank: rank($0.element)) }
+        return found.sorted { a, b in a.rank != b.rank ? a.rank < b.rank : a.offset < b.offset }.map(\.spot)
     }
 
     /// Whether its row is there with `config`: a provider's own rows only with that provider, the jargon list with its

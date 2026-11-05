@@ -88,11 +88,4 @@ struct EnglishWordsSection: View {
         // What was refused goes from the screen too.
         if !result.words.isEmpty || refused { adding = "" }
     }
-
-    private func titled(_ title: String, _ note: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-            Text(note).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-        }
-    }
 }

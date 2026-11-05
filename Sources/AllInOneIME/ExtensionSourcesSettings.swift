@@ -75,14 +75,19 @@ struct ExtensionSourcesSection: View {
         let trusted = ExtensionSources.isTrusted(source, status)
         let enabled = ExtensionSources.isEnabled(source, in: model.config, root: sources.root)
         let busy = sources.busy.contains(source.url)
+        // Its bundle's folder, links resolved, and the bundle loaded from there: what its title and what it loads go by.
+        let folder = ExtensionSources.comparable(ExtensionSources.bundleFolder(for: source, root: sources.root).path)
+        let bundle = model.extensionIndex.bundles.first { ExtensionSources.comparable($0.folder.path) == folder }
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .top) {
                 IconTile(icon: CommandIcons.scripts)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(title(of: source))
+                    // The bundle's title when it's loaded, else the repository's name.
+                    Text(bundle?.title ?? source.repositoryName)
                     Text(source.url).font(.caption.monospaced()).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                     Text(detail(source, status, trusted: trusted, enabled: enabled)).font(.caption).foregroundStyle(.secondary)
-                    Text(loaded(source, trusted: trusted, enabled: enabled)).font(.caption).foregroundStyle(.secondary)
+                    Text(loaded(source, folder: folder, bundle: bundle?.name, trusted: trusted, enabled: enabled))
+                        .font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
                 if busy { ProgressView().controlSize(.small) }
@@ -123,20 +128,13 @@ struct ExtensionSourcesSection: View {
         }
     }
 
-    /// The bundle's title when it's loaded, else the repository's name.
-    private func title(of source: ExtensionSource) -> String {
-        let folder = ExtensionSources.comparable(ExtensionSources.bundleFolder(for: source, root: sources.root).path)
-        return model.extensionIndex.bundles.first { ExtensionSources.comparable($0.folder.path) == folder }?.title ?? source.repositoryName
-    }
-
     /// The settings' images: the sample sources' commands, shown as loaded (their clones aren't on this Mac).
     static var shownLoaded: [String: [String]]?
 
-    /// What of the source actually loads now: its commands, or why none do.
-    private func loaded(_ source: ExtensionSource, trusted: Bool, enabled: Bool) -> String {
+    /// What of the source actually loads now: its commands, or why none do. `folder`: its bundle's (`comparable`);
+    /// `bundle`: the name of the bundle loaded from there.
+    private func loaded(_ source: ExtensionSource, folder: String, bundle: String?, trusted: Bool, enabled: Bool) -> String {
         if let shown = Self.shownLoaded?[source.url] { return tr("已加载：", "Loaded: ") + shown.joined(separator: " ") }
-        let folder = ExtensionSources.comparable(ExtensionSources.bundleFolder(for: source, root: sources.root).path)
-        let bundle = model.extensionIndex.bundles.first { ExtensionSources.comparable($0.folder.path) == folder }?.name
         // Each as it is offered: under its alias where its name is taken, or said to be off or left out.
         func listed(_ name: String, offeredAs: String?, hidden: Bool, on: Bool) -> String {
             let trigger = model.config.commandTrigger

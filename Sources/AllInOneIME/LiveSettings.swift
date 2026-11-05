@@ -129,8 +129,14 @@ enum LiveConfig {
         cached = (read.url, read.date, read.config)
     }
 
-    private static func modificationDate(_ url: URL) -> Date? {
-        (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
+    /// The file's modification date as `FileManager.attributesOfItem` gives it (a symbolic link's own), from a single
+    /// `lstat`: that dictionary of every attribute, the owner's and group's names looked up, takes about 50 times as long,
+    /// and this is read several times for each key.
+    fileprivate static func modificationDate(_ url: URL) -> Date? {
+        var info = stat()
+        guard lstat(url.path, &info) == 0 else { return nil }
+        let time = info.st_mtimespec
+        return Date(timeIntervalSince1970: TimeInterval(time.tv_sec) + TimeInterval(time.tv_nsec) / 1_000_000_000)
     }
 }
 
@@ -140,7 +146,7 @@ enum LiveJargon {
 
     static func entries(for config: Config) -> [JargonEntry] {
         let url = config.jargonURL
-        let date = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
+        let date = LiveConfig.modificationDate(url)
         if let cached, cached.url == url, cached.date == date { return cached.entries }
         let entries = date == nil ? [] : JargonLibrary.load(from: url)
         cached = (url, date, entries)
