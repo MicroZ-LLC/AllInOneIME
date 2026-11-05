@@ -70,7 +70,7 @@ struct AutocompleteCadenceTests {
                 clock.now = max(clock.now, next.at)
                 host.fireTimers { $0 == next.timer }
                 seen = host.timers.count
-                host.settle(timeout: 20) { host.session.autocomplete.asked == nil }
+                host.settle(timeout: 20) { host.session.autocomplete.reading == nil && host.session.autocomplete.asked == nil }
                 note()
             }
             clock.now = max(clock.now, time)

@@ -41,6 +41,11 @@ struct SuggestionsDigitAfterRowsTests {
         }
     }
 
+    /// Until the query for `text` is asked and held (`holdQueries`), handing `field`'s session its answers meanwhile.
+    static func waitUntilHeld(_ text: String, _ field: SuggestionsField, _ runtime: FakeCompletionRuntime) {
+        field.settle(timeout: 20) { runtime.waiting.contains(text) }
+    }
+
     @Test(arguments: cases)
     func aDigitTypedWhileRowsShowExtendsTheToken(_ c: Case) async throws {
         try await inEnglish {
@@ -62,9 +67,12 @@ struct SuggestionsDigitAfterRowsTests {
             #expect(field.document == "#17", "\(c): \(field.document.debugDescription)")
             if c.heldQuery {
                 field.idle(0.2)
+                // Where #17 isn't listed, answered once it has been asked, which a busy test run can hold up past that
+                // moment: released before, it would wait for good.
+                if !c.with17 { Self.waitUntilHeld("17", field, world.runtime) }
                 world.runtime.release("17")
             }
-            #expect(field.settle { field.issuesShown == ["#17"] }, "\(c): \(field.issuesShown), queries \(world.runtime.queries)")
+            #expect(field.settle(timeout: 20) { field.issuesShown == ["#17"] }, "\(c): \(field.issuesShown), queries \(world.runtime.queries)")
             // Not listed, the row is the query's for "17".
             #expect(c.with17 || world.runtime.queries.last == "17", "\(c): \(world.runtime.queries)")
         }

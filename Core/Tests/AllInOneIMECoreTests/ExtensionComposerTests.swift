@@ -36,10 +36,13 @@ struct ExtensionComposerTests {
             .environment(for: command, base: ["PATH": "/usr/bin:/bin"], preferences: preferences, action: action)
     }
 
-    /// Runs what `effects` start, as the controller does, and gives the composer each update; the effects of that.
+    /// Runs what `effects` start, as the controller does, and gives the composer each update; the effects of that. Within
+    /// a time limit no busy test run reaches (`Timing`), not the script's own: what it does is checked here, not how long
+    /// it takes (the start of a run on a small machine can hold a program up past its 10 s).
     @discardableResult
     func finish(_ effects: [Composer.Effect], in c: Composer, preferences: [String: String] = [:]) async -> [Composer.Effect] {
-        guard let start = started(effects), let script = start.command.script else { return [] }
+        guard let start = started(effects), var script = start.command.script else { return [] }
+        script.timeout = Double(Timing.longSleep)
         var out: [Composer.Effect] = []
         do {
             for try await update in CommandRunner.run(script, arguments: start.arguments,
@@ -53,9 +56,12 @@ struct ExtensionComposerTests {
         return out
     }
 
-    /// Runs the list being typed in `c` once, as the controller does after its `queryDelay`.
+    /// Runs the list being typed in `c` once, as the controller does after its `queryDelay` (within a time limit no busy
+    /// test run reaches, as `finish`).
     func runList(_ c: Composer) async throws -> [Composer.Effect] {
-        let query = try #require(c.listQuery), script = try #require(c.draftCommand?.script)
+        let query = try #require(c.listQuery)
+        var script = try #require(c.draftCommand?.script)
+        script.timeout = Double(Timing.longSleep)
         guard case let .success(arguments) = script.arguments(from: query) else { return [] }
         var output = ScriptOutput.text("")
         for try await update in CommandRunner.run(script, arguments: arguments, environment: environment(script, query: query)) where update.isFinal {

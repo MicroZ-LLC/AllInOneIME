@@ -14,7 +14,7 @@ struct SpotlightTests {
     }
 
     @Test func stopsAtTheTimeLimitAndKeepsWhatWasPrinted() async {
-        // A limit of 2 s leaves the shell time to start and print under load; it would sleep a minute (`Timing`).
+        // A limit of 2 s leaves the shell time to start and print under load; it would sleep five minutes (`Timing`).
         let spotlight = Spotlight(until: .now() + 2, executable: shell)
         let started = Date()
         let output = await inBackground { spotlight.mdfind(["-c", "echo first; exec sleep \(Timing.longSleep)"]) }
@@ -33,7 +33,7 @@ struct SpotlightTests {
     }
 
     @Test func cancellingStopsItAndDropsWhatWasPrinted() async throws {
-        // A minute's sleep with a limit past it: only the cancel can stop it well before (`Timing`).
+        // Five minutes of sleep with a limit past it: only the cancel can stop it well before (`Timing`).
         let spotlight = Spotlight(until: .now() + Double(Timing.longSleep * 2), executable: shell)
         let started = Date()
         let running = Task { await inBackground { spotlight.mdfind(["-c", "echo early; exec sleep \(Timing.longSleep)"]) } }
