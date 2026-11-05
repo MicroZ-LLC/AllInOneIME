@@ -20,6 +20,29 @@ public struct FoundationProcessLauncher: ProcessLauncher {
     public func isRunnable(_ program: URL) -> Bool { true }
 
     public func launch(_ spec: LaunchSpec) throws -> any LaunchedProcess {
+        #if canImport(Glibc) || canImport(Musl)
+        // A program starts with the signal mask of the thread that starts it, and libdispatch's threads block nearly
+        // every signal (SIGTERM, SIGINT, SIGCHLD …): started from one (`CommandRunner` starts programs on a queue), it
+        // could never be asked to end, only killed. Started with none blocked, as a shell starts it; this thread's mask
+        // as it was after.
+        var none = sigset_t(), mask = sigset_t()
+        sigemptyset(&none)
+        pthread_sigmask(SIG_SETMASK, &none, &mask)
+        defer { pthread_sigmask(SIG_SETMASK, &mask, nil) }
+        // Linux refuses to start a program file open for writing (ETXTBSY), and one just written stays open in each
+        // program another thread starts meanwhile, until it runs: a script written and started at once can fail to
+        // start (one start in eight, with programs starting on six other threads), and starts a moment later. Tried
+        // again a few times, each in a Process of its own (a Process starts once).
+        for _ in 0..<4 {
+            if let started = try? start(spec) { return started }
+            Thread.sleep(forTimeInterval: 0.005)
+        }
+        #endif
+        return try start(spec)
+    }
+
+    /// `spec` started in a new Process.
+    private func start(_ spec: LaunchSpec) throws -> FoundationProcess {
         let process = Process()
         process.executableURL = spec.executable
         process.arguments = spec.arguments
@@ -38,16 +61,6 @@ public struct FoundationProcessLauncher: ProcessLauncher {
         if let io = Self.handle(spec.standardError) { process.standardError = io }
         let child = FoundationProcess(process)
         if let onExit = spec.onExit { process.terminationHandler = { _ in onExit(child) } }
-        #if canImport(Glibc) || canImport(Musl)
-        // A program starts with the signal mask of the thread that starts it, and libdispatch's threads block nearly
-        // every signal (SIGTERM, SIGINT, SIGCHLD …): started from one (`CommandRunner` starts programs on a queue), it
-        // could never be asked to end, only killed. Started with none blocked, as a shell starts it; this thread's mask
-        // as it was after.
-        var none = sigset_t(), mask = sigset_t()
-        sigemptyset(&none)
-        pthread_sigmask(SIG_SETMASK, &none, &mask)
-        defer { pthread_sigmask(SIG_SETMASK, &mask, nil) }
-        #endif
         try process.run()
         return child
     }
