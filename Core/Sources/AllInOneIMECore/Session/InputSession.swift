@@ -276,9 +276,12 @@ public final class InputSession {
     /// `text` as it goes into the field: into a terminal, line breaks only as a paste (a line break typed there is
     /// Return: the shell runs the line), so where the paste key can't be posted (`SessionServices.pastesInTerminal`: no
     /// Accessibility) on one line (`Composer.oneLine`). Whatever put it there: a snippet, clipboard history, an answer
-    /// (the AI's and a program's are one line already: `SessionTasks.stream`), typed out or in at once.
+    /// (the AI's and a program's are one line already: `SessionTasks.stream`), typed out or in at once. A pasted CR (a
+    /// CRLF's, classic Mac line endings) becomes "\n": the Mac pastes by "\n", and a CR typed is Return.
     func intoField(_ text: String) -> String {
-        terminal && text.contains(where: \.isNewline) && !services.pastesInTerminal() ? Composer.oneLine(text) : text
+        guard terminal, text.contains(where: \.isNewline) else { return text }
+        guard services.pastesInTerminal() else { return Composer.oneLine(text) }
+        return text.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
     }
 
     /// Whether secure input is on (nothing is sent to a model or run then): anywhere (`SessionServices`), or a password

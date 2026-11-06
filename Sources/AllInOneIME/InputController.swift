@@ -368,7 +368,7 @@ final class AllInOneIMEInputController: IMKInputController {
     @MainActor
     private func insert(_ text: String, into client: IMKTextInput?, replacing range: NSRange = AllInOneIMEInputController.notFound) {
         commitRow()  // a row marked during the key goes in first: the text would take its place
-        if text.contains("\n"), Self.isTerminal(client), canPasteInTerminal() {
+        if text.contains(where: \.isNewline), Self.isTerminal(client), canPasteInTerminal() {
             let paste = pasteInTerminal
             Task { @MainActor in await paste(text) }
         } else {
@@ -429,7 +429,7 @@ final class AllInOneIMEInputController: IMKInputController {
     @MainActor
     private func typeOut(_ text: String, into client: IMKTextInput) {
         stopTyping(insertingRest: true)
-        let field = TypingField(client, pastesLineBreaks: text.contains("\n") && Self.isTerminal(client) && canPasteInTerminal())
+        let field = TypingField(client, pastesLineBreaks: text.contains(where: \.isNewline) && Self.isTerminal(client) && canPasteInTerminal())
         typingField = field
         typingPastes = field.pastesLineBreaks
         let caret = field.caret
@@ -658,7 +658,7 @@ final class AllInOneIMEInputController: IMKInputController {
                 return true
             }
             // In a terminal the rest is pasted, after this key would arrive: the key only finishes typing.
-            let pastesRest = typingPastes && typist.rest.contains("\n")
+            let pastesRest = typingPastes && typist.rest.contains(where: \.isNewline)
             stopTyping(insertingRest: true)
             if pastesRest { return true }
         }
@@ -1558,7 +1558,7 @@ final class TypingField: TypeOut.Field {
     func read(_ range: NSRange) -> String? { client.attributedSubstring(from: range)?.string }
 
     func type(_ text: String) {
-        if pastesLineBreaks, text == "\n" { lineBreaks += 1 } else { client.insertText(text, replacementRange: AllInOneIMEInputController.notFound) }
+        if pastesLineBreaks, text.count == 1, text.first?.isNewline == true { lineBreaks += 1 } else { client.insertText(text, replacementRange: AllInOneIMEInputController.notFound) }
     }
 
     func replace(_ range: NSRange, with text: String) { client.insertText(text, replacementRange: range) }
