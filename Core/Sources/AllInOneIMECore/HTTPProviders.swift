@@ -176,7 +176,8 @@ public enum HTTPProviders {
             }
             if let reason = candidate["finishReason"] as? String {
                 if ["SAFETY", "PROHIBITED_CONTENT", "BLOCKLIST", "SPII"].contains(reason) { throw ProviderError.refused(provider) }
-                events.append(.messageStop(reason: reason == "MAX_TOKENS" ? "max_tokens" : reason.lowercased()))
+                // Only STOP is a whole answer: MAX_TOKENS, RECITATION, LANGUAGE, OTHER, … stopped it partway (cut off).
+                events.append(.messageStop(reason: reason == "STOP" ? "stop" : "max_tokens"))
             }
             return events
         case .openai:
