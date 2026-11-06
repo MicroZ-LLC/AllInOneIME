@@ -121,10 +121,12 @@ enum RimeFuzzy {
     /// The settings read again (a text field focused) or the system's languages changed: with no characters picked they
     /// follow the system's (`Config.typedChinese`), so the candidates do too once they differ from the patch's
     /// (`ChineseCharacters.Written`): written again and deployed again, as a change in the settings is. Nothing while the
-    /// config file doesn't parse (nil): its defaults aren't the user's fuzzy pinyin.
+    /// config file doesn't parse (nil): its defaults aren't the user's fuzzy pinyin. Nothing in the self-test either
+    /// (`Config.selfTestURL`): its Rime has a user folder of its own, and the patch is the user's.
     @MainActor
     static func follow(_ config: Config?) {
-        guard let config, RimeService.shared.isStarted, let characters = written.changed(config) else { return }
+        guard let config, Config.selfTestURL == nil, RimeService.shared.isStarted,
+              let characters = written.changed(config) else { return }
         log.notice("the system's languages changed the characters Chinese is typed in: \(characters.rawValue, privacy: .public)")
         apply(config.fuzzyPinyin, characters: characters)
     }
