@@ -34,6 +34,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 - A base URL typed without `https://` (`api.deepseek.com/v1`) is now reported as "Invalid base URL" straight away, in Test Connection and when a command runs. Before, with a key saved for the default base URL (or `$OPENAI_API_KEY` in your login shell), you were told the key was for another host and to save it again, and only once you had did the base URL show as invalid.
 - With Traditional characters (Characters set to Traditional, or left unpicked on a Mac in Traditional Chinese), an app that learns to start in Chinese now says "starts in Chinese (pinyin, Traditional) from now on", as the input menu names it, and so do Privacy → Learned…, the app's row and "Starts in" in the per-app settings, and Previous per-app settings. Before, they all said "Chinese (pinyin)".
 - A plugin whose script is a link to a file elsewhere (its `main.js` linked to a copy you edit) now has its suggestions turned off when you edit that file, as for a plugin update, and turning them on again in Settings → Commands → Plugins runs the edited script. Before, the edit wasn't noticed, and once you turned them on again they stayed off, with no rows, until the input method restarted.
+- Searching the settings for "english words" no longer lists "Your English words" when no input language shows them (French, Korean or Hindi, with neither English nor Chinese). Before, picking the result outlined the input languages, and there was no English words section on the page.
 
 ## 0.6.8.3 (2026-11-02)
 
