@@ -16,6 +16,10 @@ English | [中文](CHANGELOG.zh-CN.md)
 - Snippets with line breaks go into a terminal as clipboard history and the AI's answers do: as one paste with Accessibility allowed, else on one line. Before, each line break acted as Return there without Accessibility, and the shell ran the line.
 - Troubleshoot: when Accessibility isn't allowed, its row now lists what doesn't work fully without it: the keys a list takes can reach some apps, text of more than one line (AI answers, snippets, clipboard history) goes into a terminal on one line, ⏎ on a clipboard history image only puts it on the clipboard, the selection may not be read in Chrome and apps like Slack, `@agent` and `@reply` can't take the Chrome page along, a list may show away from the caret, autocomplete can run past a field's edge, English words aren't learned from what you type, and in the few password fields it can't recognize autocomplete may send what you type to your AI provider.
 
+### Fixed
+
+- AI requests no longer follow a redirect. When a base URL (a relay, a gateway, a local proxy) redirected to another address, your API key and your text were sent on there, past the host the key is saved for, even over plain http. Now the redirect shows as an HTTP error (put the address it points to in the base URL). AllInOneIME Cloud's requests and sign-in don't follow one either.
+
 ## 0.6.8.3 (2026-11-02)
 
 ### Changed
