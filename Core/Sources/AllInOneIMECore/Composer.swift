@@ -519,13 +519,20 @@ public final class Composer {
     }
     /// Files and apps found for `@open`.
     public private(set) var searchResults: [SearchResult] = []
-    /// Results for the `@open` text as it is typed (`liveQuery`), and the highlighted one.
+    /// The rows for the `@open` text as it is typed (`currentLiveResults`), the text they are for, and the highlighted one.
     public private(set) var liveResults: [SearchResult] = []
     private var liveResultsQuery: String?
     public private(set) var liveHighlight = 0
-    /// ↑↓ moved the highlight among these results (back to the first counts too): it opens (`opensLiveResult`).
-    /// Reset with the highlight when the results or the text change.
+    /// ↑↓ moved the highlight among these results (back to the first counts too): it opens (`opensLiveResult`), and stays
+    /// on its result as rows come and go (`listLive`). Reset with the highlight when the text changes.
     private var liveHighlightMoved = false
+    /// What the full search found for the `@open` texts typed last in this field's session, the latest last (at most
+    /// `recentLiveLimit`): coming back to one lists them at once (`showLive`).
+    private var recentLive: [(query: String, results: [SearchResult])] = []
+    static let recentLiveLimit = 32
+    /// What is known at once for an `@open` text, without searching (`SessionServices.instantResults`, given by the
+    /// session): its first rows, on the key that changed it.
+    public var instantResults: (String) -> [SearchResult] = { _ in [] }
     /// A send command's recipient (`@imessage`), once picked; until then the text after the command
     /// finds one (`recipientQuery`).
     public private(set) var messageRecipient: Recipient?
@@ -639,6 +646,9 @@ public final class Composer {
                 // picked in the next one, even with the same text.
                 questionPick = nil
                 replyState.draftEnded()  // its attachment (a screenshot, a copied message) goes with it
+                // The rows `@open` listed for it go too: the next draft lists its own, as of then.
+                liveResults = []
+                liveResultsQuery = nil
             }
         }
     }
@@ -1219,9 +1229,11 @@ public final class Composer {
         return query.isEmpty ? nil : query
     }
 
-    /// The results as you type that belong to the current `liveQuery`.
+    /// The rows for the current `liveQuery`: worked out the first time they are asked for once the text changed
+    /// (`showLive`), then as the search answers (`receiveLive`).
     public var currentLiveResults: [SearchResult] {
-        guard let query = liveQuery, liveResultsQuery == query else { return [] }
+        guard let query = liveQuery else { return [] }
+        if liveResultsQuery != query { showLive(for: query) }
         return liveResults
     }
 
@@ -1302,14 +1314,78 @@ public final class Composer {
         return nil
     }
 
-    /// Files and apps for `query` (`liveQuery`): ↑↓ pick, Tab completes the path, the action key opens
-    /// (`opensLiveResult`).
-    public func receiveLive(_ results: [SearchResult], for query: String) -> [Effect] {
-        guard query == liveQuery else { return [] }
-        liveResults = results
-        liveResultsQuery = query
-        resetLiveHighlight()
+    /// Files and apps the full search found for `query`: all of them, or (`isFinal` false) those it found so far (the
+    /// names, before what the files contain). For the text as it is now (`liveQuery`) they are its rows, in place of those
+    /// listed: ↑↓ pick, Tab completes the path, the action key opens (`opensLiveResult`). For a text typed before, those
+    /// that match the current one too (`stillMatches`) are added after the rows listed, which stay as they are. All of
+    /// them are kept for coming back to the text (`recentLive`).
+    public func receiveLive(_ results: [SearchResult], for query: String, isFinal: Bool = true) -> [Effect] {
+        if isFinal { rememberLive(results, for: query) }
+        guard let current = liveQuery else { return [] }
+        if query == current {
+            liveResultsQuery = query
+            listLive(results)
+            return [.showPanel]
+        }
+        let listed = currentLiveResults, keywords = FileSearchRanking.keywords(in: current)
+        let added = results.filter { result in
+            Self.stillMatches(result, keywords) && !listed.contains { $0.path == result.path }
+        }
+        guard !added.isEmpty else { return [] }
+        liveResults = listed + added
         return [.showPanel]
+    }
+
+    /// The `@open` text is now `query`: its rows at once. What its full search found last time in this field's session
+    /// (`recentLive`; it runs again, `SessionTasks.searchAsTyped`); else what is known at once (`instantResults`), then
+    /// those of the rows listed until now that still match it (`stillMatches`), each once: the list doesn't empty while
+    /// the search runs.
+    private func showLive(for query: String) {
+        let listed = liveResults
+        liveResultsQuery = query
+        if let recent = recentLive.last(where: { $0.query == query }) {
+            listLive(recent.results)
+            return
+        }
+        let keywords = FileSearchRanking.keywords(in: query)
+        var rows = instantResults(query)
+        var seen = Set(rows.map(\.path))
+        rows += listed.filter { Self.stillMatches($0, keywords) && seen.insert($0.path).inserted }
+        listLive(rows)
+    }
+
+    /// `rows` listed for the `@open` text: a highlight moved with ↑↓ stays on its result while that is listed, else it is
+    /// back on the first.
+    private func listLive(_ rows: [SearchResult]) {
+        let picked = liveHighlightMoved && liveResults.indices.contains(liveHighlight) ? liveResults[liveHighlight].path : nil
+        liveResults = rows
+        if let picked, let index = rows.firstIndex(where: { $0.path == picked }) {
+            liveHighlight = index
+        } else {
+            resetLiveHighlight()
+        }
+    }
+
+    /// Keeps what the full search found for `query`, the latest last (`recentLive`).
+    private func rememberLive(_ results: [SearchResult], for query: String) {
+        recentLive.removeAll { $0.query == query }
+        recentLive.append((query, results))
+        if recentLive.count > Self.recentLiveLimit { recentLive.removeFirst(recentLive.count - Self.recentLiveLimit) }
+    }
+
+    /// The field's session is over (or a new one starts): what the full search found for its `@open` texts is forgotten,
+    /// the rows listed too.
+    public func forgetRecentLive() {
+        recentLive = []
+        liveResults = []
+        liveResultsQuery = nil
+    }
+
+    /// Whether a row listed for one `@open` text matches `keywords`, another's: each of them in its name, its other name
+    /// (`chineseName`) or its path (with the home folder as "~" too, as a path is typed), case and accents aside.
+    static func stillMatches(_ result: SearchResult, _ keywords: [String]) -> Bool {
+        let texts = [result.name, result.path, abbreviatingHome(result.path)] + (result.chineseName.map { [$0] } ?? [])
+        return !keywords.isEmpty && keywords.allSatisfy { keyword in texts.contains { FileSearchRanking.contains($0, keyword) } }
     }
 
     /// The highlight back on the first result as you type, where it starts rather than moved to.

@@ -104,7 +104,7 @@ public enum FileSearchRanking {
 
     /// `keyword` inside a query's double quotes: a backslash before `\` and `"` (which would end it), and
     /// before the wildcards `*` and `?` (any characters, one character: "what?" would match "whats").
-    static func escaped(_ keyword: String) -> String {
+    public static func escaped(_ keyword: String) -> String {
         var escaped = ""
         for character in keyword {
             if character == "\\" || character == "\"" || character == "*" || character == "?" { escaped.append("\\") }
@@ -320,10 +320,13 @@ public enum FileSearchRanking {
     /// (`SearchResult.web`: what mentions github.com isn't what "github.com" means), `byContent` gets the
     /// full-text search (`contentPredicate`), and the files it finds follow, marked as content matches: those
     /// that `isCandidate`, not noise, not listed already, one of each file name. Both parts are ranked (`rank`).
+    /// `namesFound` is told the first part before the full-text search starts, when one does.
     public static func search(_ query: String, limit: Int, history: OpenHistory, apps: [Found] = [],
                               isCandidate: (String) -> Bool,
                               byName: ([String]) -> [Found],
-                              byContent: (String) -> [Found]) -> [(path: String, matchedContent: Bool)] {
+                              byContent: (String) -> [Found],
+                              namesFound: (([(path: String, matchedContent: Bool)]) -> Void)? = nil)
+        -> [(path: String, matchedContent: Bool)] {
         let words = keywords(in: query)
         let searched = nameSearches(words)
         guard !searched.isEmpty else { return [] }
@@ -347,6 +350,7 @@ public enum FileSearchRanking {
         var listed = rank(named, keywords: words, history: history, limit: limit).map { (path: $0.path, matchedContent: false) }
         guard named.count <= maxNamesForContent, !named.contains(where: \.ranksAsApp), listed.count < limit,
               SearchResult.web(query) == nil, let predicate = contentPredicate(words) else { return listed }
+        namesFound?(listed)
         let contents = byContent(predicate).filter { isCandidate($0.path) && !isNoise($0.path) && position[$0.path] == nil }
         listed += rank(contents, keywords: words, history: history, limit: limit - listed.count, oneOfEachName: true)
             .map { (path: $0.path, matchedContent: true) }

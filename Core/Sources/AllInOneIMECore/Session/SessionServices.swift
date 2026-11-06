@@ -87,8 +87,13 @@ public struct SessionServices {
 
     // MARK: Commands
 
-    /// `@open`: the files and apps named like the query, what it opened before first.
+    /// `@open`: the files and apps named like the query, what it opened before first. As the text is typed, what it has
+    /// found so far may be told before it is done (`FileSearchProgress`).
     public var searchFiles: @Sendable (_ query: String, _ history: OpenHistory) async -> [SearchResult]
+    /// `@open` as its text is typed, on the key that changed it: what is known at once, without searching (the Mac's app
+    /// index, what `@open` opened before, a path's folder), ranked as `searchFiles` ranks them. Nothing that waits: no
+    /// search, no more of the disk than a path's folder.
+    public var instantResults: (_ query: String, _ history: OpenHistory) -> [SearchResult]
     /// `@agent`: starts the agent's arguments (`AgentKind.terminalArguments`) with the prompt in a terminal window.
     public var runInTerminal: (_ arguments: [String], _ prompt: String) throws -> Void
     /// An `@question` conversation going on in a coding agent (`ChatHandoff`): its arguments with the conversation.
@@ -221,6 +226,7 @@ public struct SessionServices {
         isVoiceKeyHeld = { false }
         recognizeText = Platform.current.text
         searchFiles = { _, _ in [] }
+        instantResults = { _, _ in [] }
         runInTerminal = { _, _ in throw SessionServicesError.unsupported }
         continueInAgent = { _, _ in throw SessionServicesError.unsupported }
         agentInstalled = { _, _ in false }
@@ -282,6 +288,14 @@ public struct PageSource {
         self.release = release
         self.reader = reader
     }
+}
+
+/// What `@open`'s search as you type has found so far: a shell's `searchFiles` that searches in stages (the Mac's: the
+/// names Spotlight found, then what the files contain) tells it a stage's rows before the next one starts, and the session
+/// lists them meanwhile. Set while `SessionTasks.searchAsTyped` waits for the search; nil otherwise (⏎'s search lists what
+/// it found once it is done). Called from any thread.
+public enum FileSearchProgress {
+    @TaskLocal public static var found: (@Sendable ([SearchResult]) -> Void)?
 }
 
 /// What a default service says when it is asked to do something its shell gave it no way to do.

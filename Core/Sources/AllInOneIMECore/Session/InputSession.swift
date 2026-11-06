@@ -158,6 +158,10 @@ public final class InputSession {
         composer.pageContextApplies = { [weak self] in self.map { $0.agentPageContext && $0.services.page($0.app) != nil } ?? false }
         composer.finishesSuggestionPrefix = { [weak self] typed in self?.suggestionsPrefixFinished(by: typed) ?? false }
         composer.holdsCodeWord = { [weak self] in self?.codeHoldsTheWord() ?? false }
+        composer.instantResults = { [weak self] query in
+            guard let services = self?.services else { return [] }
+            return services.instantResults(query, services.loadOpenHistory())
+        }
     }
 
     // MARK: - Events
@@ -240,6 +244,7 @@ public final class InputSession {
                 suggestionsLeft()
                 learnTypedInEnglish(englishModeWords.leftField())
                 tasks.close()  // what runs for the field stops (a save, a message, an agent goes on)
+                composer.forgetRecentLive()  // `@open`'s results kept for its texts go with the field's session
                 noticeToken += 1  // its timer does nothing now
                 dropEngine()
                 fieldSession += 1  // a save still on its way tells its outcome elsewhere
@@ -350,6 +355,7 @@ public final class InputSession {
         field = info
         passwordField = nil
         tasks.reopen()  // focused again after `.close`: its work starts again (the engine is made again below)
+        composer.forgetRecentLive()  // a session of the field starts: `@open` searches its texts afresh
         clipboard = ClipboardHistoryField(reads: clipboard.reads)
         ensureLevelOne()
         settings(app: info.app)  // the app's own starting language, rewrite styles, typing out (`AppProfile`)
@@ -1347,6 +1353,8 @@ public final class InputSession {
             perform(composer.receiveList(output, for: query))
         case let .live(results, query):
             perform(composer.receiveLive(results, for: query))
+        case let .liveSoFar(results, query):
+            perform(composer.receiveLive(results, for: query, isFinal: false))
         case let .recipients(found, note, query):
             perform(composer.receiveRecipients(found, note: note, for: query))
         case let .page(context):

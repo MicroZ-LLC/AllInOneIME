@@ -37,8 +37,10 @@ public enum TaskUpdate: Sendable {
     case script(CommandRunner.ScriptUpdate, request: Int)
     /// What a `list` command printed for the text `query`.
     case list(ScriptOutput, query: String)
-    /// `@open`'s results for the text as typed.
+    /// `@open`'s results for the text as typed: all its search found (`live`), or what it found so far (`liveSoFar`: the
+    /// Mac's names, before what the files contain; `FileSearchProgress`).
     case live([SearchResult], query: String)
+    case liveSoFar([SearchResult], query: String)
     /// The recipients found for the text typed after a send command, and what the panel says about them.
     case recipients([Recipient], note: String?, query: String)
     /// The web page read for `@agent` or `@reply` (`PageSource`); nil: none.
@@ -442,8 +444,10 @@ public final class SessionTasks {
         }
     }
 
-    /// `@open` as you type: a short pause after the text changes, then a search for it. Not for a single letter
-    /// (`FileSearchRanking.searchesAsYouType`): that takes seconds; ⏎ searches it. Nil: no `@open` text.
+    /// `@open` as you type: a short pause after the text changes (`liveSearchPause`), then the full search for it, what it
+    /// found so far told as it goes (`FileSearchProgress`). What is known at once is listed meanwhile, from the key that
+    /// changed the text (`Composer.currentLiveResults`). Not for a single letter (`FileSearchRanking.searchesAsYouType`):
+    /// that takes seconds; ⏎ searches it. Nil: no `@open` text.
     public func searchAsTyped(_ query: String?, history: @escaping () -> OpenHistory,
                               with searchFiles: @escaping @Sendable (String, OpenHistory) async -> [SearchResult]) {
         guard query != liveQuery else { return }
@@ -452,12 +456,18 @@ public final class SessionTasks {
         guard let query, FileSearchRanking.searchesAsYouType(query) else { return }
         let history = history()
         start(.liveSearch) { post in
-            try? await Task.sleep(nanoseconds: 120_000_000)
+            try? await Task.sleep(nanoseconds: Self.liveSearchPause)
             guard !Task.isCancelled else { return }
-            let results = await searchFiles(query, history)
+            let results = await FileSearchProgress.$found.withValue({ post(.liveSoFar($0, query: query)) }) {
+                await searchFiles(query, history)
+            }
             post(.live(results, query: query))
         }
     }
+
+    /// How long the `@open` text stays the same before its full search starts (nanoseconds): typed fast, the keys in
+    /// between start none.
+    static let liveSearchPause: UInt64 = 50_000_000
 
     // MARK: - Recipients
 

@@ -1700,11 +1700,15 @@ struct ComposerTests {
         let e = contentMatches()
         _ = e.handleKeyDown(upKey)
         #expect(e.liveHighlight == 1 && e.opensLiveResult && e.handleKeyDown(enterKey).effects.last == .open(path: todo.path))
-        // New results, or a change to the text: the highlight starts again at the first, not picked.
+        // New results: the highlight stays on the result moved to while that is listed, else it starts again at the
+        // first, not picked. A change to the text: at the first too.
         let f = contentMatches()
         _ = f.handleKeyDown(downKey)
-        _ = f.receiveLive([notes, todo], for: "xyz")
+        _ = f.receiveLive([todo, notes], for: "xyz")
+        #expect(f.liveHighlight == 0 && f.currentLiveResults.first == todo && f.opensLiveResult)
+        _ = f.receiveLive([notes], for: "xyz")
         #expect(f.liveHighlight == 0 && !f.opensLiveResult)
+        _ = f.receiveLive([notes, todo], for: "xyz")
         _ = f.handleKeyDown(downKey)
         type("a", f)
         _ = f.handleKeyDown(backspaceKey)  // the same text again: its results show, as they were before the "a"
