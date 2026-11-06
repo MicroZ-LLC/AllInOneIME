@@ -190,8 +190,8 @@ about half the screen, then scrolls, the latest at the bottom.
 After 5 rounds (`questionRounds` in the config, 2–10) the next question's line becomes "5 rounds in: continue in Claude
 or another AI", with the choices numbered ⌘1, ⌘2 …; ⌘⏎ shows them at any round (while an answer is still coming in it
 does nothing, and never reaches the app). What you type then is the first message there; only ⌘1, ⌘2 … send it (⇧⏎
-asks nothing more, and opens nothing). A question about selected text takes that text along, quoted as a block of its
-own. The choices:
+asks nothing more, and opens nothing). A question about selected text or a screenshot takes that text along (a
+screenshot's as it was read), quoted as a block of its own. The choices:
 
 - **The coding agents installed** on this Mac, each by its name: the one `@agent` hands to first (⌘1), then the others
   (Claude Code, Gemini CLI, Kiro CLI, your own command from Settings → Commands → Agent). Each opens an interactive session in

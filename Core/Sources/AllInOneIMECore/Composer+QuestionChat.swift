@@ -50,7 +50,7 @@ extension Composer {
         return QuestionChat.rounds(first: first, turns: refinements, latest: result.versions.first?.text)
     }
 
-    /// The rounds as they were sent: the first question with the selection it was about, if any.
+    /// The rounds as they were sent: the first question with the selection and the screenshot it was about, if any.
     var sentRounds: [QuestionChat.Round] {
         guard case let .command(_, input)? = refineRequest else { return [] }
         return QuestionChat.rounds(first: input, turns: refinements, latest: result.versions.first?.text)
@@ -132,10 +132,11 @@ extension Composer {
         return .consumed(handOff(to: handoffChoices[digit - 1]))
     }
 
-    /// Goes on with the conversation in `destination`: the selected text the first question was about (if any), the rounds
-    /// so far as they were shown, "Let's continue this discussion." and the next question typed, if any (`ChatHandoff`). The
-    /// panel closes and nothing is inserted (a selection stays as it is). Only copying works during secure input or in an
-    /// app with no AI. `.atAgent` is the agent `@agent` hands to (`pickedAgent`); with none installed, nothing happens.
+    /// Goes on with the conversation in `destination`: the selected text and the screenshot's text the first question was
+    /// about (if any), the rounds so far as they were shown, "Let's continue this discussion." and the next question
+    /// typed, if any (`ChatHandoff`). The panel closes and nothing is inserted (a selection stays as it is). Only copying
+    /// works during secure input or in an app with no AI. `.atAgent` is the agent `@agent` hands to (`pickedAgent`); with
+    /// none installed, nothing happens.
     public func handOff(to destination: ChatHandoff.Destination) -> [Effect] {
         guard isQuestionChat, phase == .choosing else { return [] }
         // Pinyin still being typed goes in the follow-up first.
@@ -144,13 +145,20 @@ extension Composer {
             if secureInputActive() { return [.notice(chatMessages.secureInput), .showPanel] }
             if let refusal = aiRefusal() { return [.notice(refusal), .showPanel] }
         }
-        // A question about the selection: the selected text as a block of its own, the question as typed.
+        // A question about the selection or a screenshot: the selected text and the screenshot's text as blocks of their
+        // own, the question as the panel shows it (not the prompt it was sent in: `Prompt.withScreenshot`).
         var rounds = sentRounds
         let selected = selectionInUse.flatMap { sentText.isEmpty ? nil : $0 }
-        if selected != nil, !rounds.isEmpty { rounds[0].question = sentText }
+        // The screenshot attached, if the first question went with it (a saved one shown while it's attached didn't).
+        let screenshot = screenshotText(for: .question).flatMap { text in
+            rounds.first?.question.hasSuffix(Prompt.withScreenshot("", text)) == true ? text : nil
+        }
+        if selected != nil || screenshot != nil, let shown = chatRounds.first, !rounds.isEmpty { rounds[0].question = shown.question }
         let followUp = refineText
-        guard let action = ChatHandoff.action(destination, prompt: ChatHandoff.prompt(rounds, followUp: followUp, selection: selected),
-                                              copied: ChatHandoff.copied(rounds, followUp: followUp, selection: selected),
+        guard let action = ChatHandoff.action(destination, prompt: ChatHandoff.prompt(rounds, followUp: followUp, selection: selected,
+                                                                                     screenshot: screenshot),
+                                              copied: ChatHandoff.copied(rounds, followUp: followUp, selection: selected,
+                                                                         screenshot: screenshot),
                                               atAgent: pickedAgent) else { return [] }
         let done = finish(committing: "", selection: .kept)
         switch action {

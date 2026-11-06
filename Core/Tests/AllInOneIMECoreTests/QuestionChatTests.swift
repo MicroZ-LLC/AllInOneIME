@@ -495,6 +495,13 @@ struct QuestionChatTests {
         #expect(ChatHandoff.copied(rounds, selection: "  ") == ChatHandoff.copied(rounds))
     }
 
+    @Test func theHandoffTextQuotesTheScreenshotAsRead() {
+        let rounds = [QuestionChat.Round(question: "what is this", answer: "A cartoon.")]
+        #expect(ChatHandoff.copied(rounds, selection: "Tom", screenshot: "Tom & Jerry\n<3 -> fun") ==
+                "**Selected text:**\n\n> Tom\n\n**Screenshot text:**\n\n> Tom & Jerry\n> <3 -> fun\n\n**Q:** what is this\n\n**A:** A cartoon.")
+        #expect(ChatHandoff.copied(rounds, screenshot: "\n") == ChatHandoff.copied(rounds))
+    }
+
     // MARK: - Other commands keep refining; @translate doesn't
 
     @Test func improveRefinesWithShiftReturnAndReturnInserts() {
