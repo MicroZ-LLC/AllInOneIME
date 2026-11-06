@@ -242,12 +242,12 @@ struct ChineseCharactersTests {
     }
 
     /// No characters picked and the system's languages changed while Rime runs: the patch is to be written again for the
-    /// characters they give now, once (`ChineseCharacters.Written`); not before Rime's start first wrote it, not while
-    /// they stay, not when picked ones don't change.
+    /// characters they give now, once (`ChineseCharacters.Written`); before Rime's start first wrote it (config.json
+    /// didn't parse then) too, not while they stay, not when picked ones don't change.
     @Test func theCandidatesFollowTheSystemsLanguages() {
         let written = ChineseCharacters.Written()
         let absent = config(nil)
-        #expect(preferring(["zh-Hant-TW"]) { written.changed(absent) } == nil, "not written yet: Rime's start writes it")
+        #expect(preferring(["zh-Hant-TW"]) { written.changed(absent) } == .taiwan, "not written yet: whatever an earlier launch left")
         written.wrote(.simplified)
         #expect(preferring(["zh-Hans-CN"]) { written.changed(absent) } == nil)
         #expect(preferring(["zh-Hant-TW", "en"]) { written.changed(absent) } == .taiwan)
