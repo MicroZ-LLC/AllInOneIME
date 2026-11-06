@@ -465,7 +465,7 @@ extension ScriptCommand {
         // None declared: one free-text argument, required unless the input says otherwise.
         if arguments.isEmpty { arguments = [Argument()] }
         if declared == .optional { arguments = arguments.map { var a = $0; a.optional = true; return a } }
-        // `required`: something must be written, so the first argument is, whatever it says.
+        // `required`: something must be written, so at least one argument is required: the first, unless a later one is.
         if declared == .required, arguments.allSatisfy(\.optional) { arguments[0].optional = false }
         let input = declared ?? (arguments.allSatisfy(\.optional) ? .optional : .required)
 
