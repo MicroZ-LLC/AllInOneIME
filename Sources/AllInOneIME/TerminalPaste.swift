@@ -1,3 +1,4 @@
+import AllInOneIMEMac
 import AppKit
 import ApplicationServices
 
@@ -6,14 +7,19 @@ import ApplicationServices
 /// runs the line, Claude Code sends the message; a paste is different: shells and programs like Claude Code turn on
 /// bracketed paste and take pasted line breaks as text), and clipboard history's kept images (0.6.8.2), with the app's
 /// own paste key (⌘V; ⌃V in a terminal or a code editor). Without Accessibility an answer goes into a terminal on one
-/// line as before, and an image is left on the clipboard.
+/// line as before, and an image is left on the clipboard. Where the clipboard can't be read without macOS asking (Paste
+/// from Other Apps not Allow: `ClipboardSnapshot`), it couldn't be put back: an answer goes in on one line then too, and
+/// an image is pasted and left on the clipboard.
 enum TerminalPaste {
     /// Marks the ⌘V posted here, so the input method lets it through (`isOurs`).
     static let marker: Int64 = 0x4149_4F49  // "AIOI"
 
-    /// Whether posting ⌘V is allowed. The first time it isn't, macOS is asked to show its permission prompt.
+    /// Whether text can be pasted: the clipboard can be read without macOS asking, to be put back after (Paste from Other
+    /// Apps: Allow, told without asking), and posting ⌘V is allowed. The first time posting isn't, macOS is asked to show
+    /// its permission prompt.
     @MainActor
     static func isAllowed() -> Bool {
+        guard SystemClipboard().access == .allowed else { return false }
         if AXIsProcessTrusted() { return true }
         if !asked {
             asked = true
@@ -69,34 +75,16 @@ enum TerminalPaste {
         }
     }
 
-    /// The clipboard's items as they are, each with its types in its own order (the first is what a reader takes first:
-    /// clipboard history records an image only when it comes first).
-    @MainActor
-    private static func saved(_ pasteboard: NSPasteboard) -> [[(NSPasteboard.PasteboardType, Data)]] {
-        (pasteboard.pasteboardItems ?? []).map { item in item.types.compactMap { type in item.data(forType: type).map { (type, $0) } } }
-    }
-
-    /// `saved` put back on the clipboard, in its order.
-    @MainActor
-    private static func restore(_ saved: [[(NSPasteboard.PasteboardType, Data)]], to pasteboard: NSPasteboard) {
-        pasteboard.clearContents()
-        guard !saved.isEmpty else { return }
-        pasteboard.writeObjects(saved.map { types in
-            let item = NSPasteboardItem()
-            for (type, data) in types { item.setData(data, forType: type) }
-            return item
-        })
-    }
-
     /// A paste of ours not put back yet: the clipboard's change count after our write, and what was there before it. A
     /// paste made meanwhile keeps that `before` (the user's, never our own write) and puts it back itself.
-    @MainActor private static var pending: (ours: Int, before: [[(NSPasteboard.PasteboardType, Data)]])?
+    @MainActor private static var pending: (ours: Int, before: ClipboardSnapshot)?
 
-    /// What was on the clipboard before our paste: the user's, also while a paste of ours is still to be put back.
+    /// What was on the clipboard before our paste: the user's, also while a paste of ours is still to be put back; nil,
+    /// nothing read, where it can't be read without macOS asking (`ClipboardSnapshot.take`).
     @MainActor
-    private static func userClipboard(_ pasteboard: NSPasteboard) -> [[(NSPasteboard.PasteboardType, Data)]] {
+    private static func userClipboard(_ pasteboard: NSPasteboard) -> ClipboardSnapshot? {
         if let pending, pending.ours == pasteboard.changeCount { return pending.before }
-        return saved(pasteboard)
+        return ClipboardSnapshot.take(pasteboard, access: SystemClipboard().access)
     }
 
     /// The clipboard put back after paste `ours`, unless something else was copied since or a later paste of ours took it
@@ -106,7 +94,7 @@ enum TerminalPaste {
         guard let pending, pending.ours == ours else { return }
         self.pending = nil
         guard pasteboard.changeCount == ours else { return }  // something else was copied since
-        restore(pending.before, to: pasteboard)
+        pending.before.restore(to: pasteboard)
     }
 
     /// Hands the text being pasted to the app when it reads the clipboard (`NSPasteboardItemDataProvider`), so the
@@ -130,11 +118,12 @@ enum TerminalPaste {
     /// Pastes `text` into the frontmost app, then puts the clipboard back once the app has read it: shortly after its first
     /// read (`textPutBackAfterRead`), or after `textReadTimeout` if it never does; typing goes on once it has. Put back on
     /// a timer from the ⌘V instead (half a second), a busy terminal that took the ⌘V later pasted what was copied before
-    /// (a password, a token).
+    /// (a password, a token). Where the clipboard can't be read without macOS asking (Paste from Other Apps set to Ask or
+    /// Deny since `isAllowed`), nothing: the clipboard is left as it is.
     @MainActor
     static func paste(_ text: String) async {
         let provider = TextProvider(text: text)
-        let ours = await write(provider, for: [.string], thenPost: .maskCommand)
+        guard let ours = await write(provider, for: [.string], thenPost: .maskCommand) else { return }
         // The app reads the clipboard when the ⌘V reaches it: wait for that before typing on or putting it back (not once
         // a later paste of ours took it over: that one puts it back). The provider stays until then.
         let steps = Int(textReadTimeout / 0.02)
@@ -146,12 +135,13 @@ enum TerminalPaste {
     }
 
     /// `provider`'s item on the clipboard for `types`, what was there kept to be put back (`pending`), then V with `flags`
-    /// posted once no modifier is held: the change count of our write.
+    /// posted once no modifier is held: the change count of our write. Nil, the clipboard untouched, where what is on it
+    /// can't be kept (`userClipboard`).
     @MainActor
     private static func write(_ provider: any NSPasteboardItemDataProvider, for types: [NSPasteboard.PasteboardType],
-                              thenPost flags: CGEventFlags) async -> Int {
+                              thenPost flags: CGEventFlags) async -> Int? {
         let pasteboard = NSPasteboard.general
-        let before = userClipboard(pasteboard)
+        guard let before = userClipboard(pasteboard) else { return nil }
         pasteboard.clearContents()
         let item = NSPasteboardItem()
         item.setDataProvider(provider, forTypes: types)
@@ -190,12 +180,22 @@ enum TerminalPaste {
     /// code editor, where Claude Code takes an image on it; else ⌘V), then puts the clipboard back 1.5 seconds after the
     /// app first read it (Claude Code reads it twice, with other programs: macOS asks the provider only the first time),
     /// or after 3 seconds if it never does (0.6.8.2, clipboard history): a slow reader still gets the image, never what
-    /// was on the clipboard before.
+    /// was on the clipboard before. Where the clipboard can't be read without macOS asking (Paste from Other Apps not
+    /// Allow), it couldn't be put back: the image is put on it, as without Accessibility, and pasted.
     @MainActor
     static func pasteImage(_ png: Data, controlV: Bool) async {
+        let flags: CGEventFlags = controlV ? .maskControl : .maskCommand
         let provider = ImageProvider(png: png)
         providing = provider
-        let ours = await write(provider, for: [.png, .tiff], thenPost: controlV ? .maskControl : .maskCommand)
+        guard let ours = await write(provider, for: [.png, .tiff], thenPost: flags) else {
+            providing = nil
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setData(png, forType: .png)
+            await modifiersUp()
+            postV(flags)
+            return
+        }
         for _ in 0..<60 where !provider.read { try? await Task.sleep(nanoseconds: 50_000_000) }
         if provider.read { try? await Task.sleep(nanoseconds: 1_500_000_000) }  // its reads after the first
         if providing === provider { providing = nil }
