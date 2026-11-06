@@ -1335,13 +1335,14 @@ enum SelfTest {
         _ = escape(controller, client)
         // One letter isn't searched as it is typed (most paths have an "a" in them: seconds of Spotlight); ⏎ searches it.
         // The rows after ⏎ are drawn as when typing: a web address opens in the browser, a content match says so.
-        let searchFiles = controller.services.searchFiles
+        let (searchFiles, instantResults) = (controller.services.searchFiles, controller.services.instantResults)
         var searched: [String] = []
         let mention = SearchResult(name: "notes.txt", path: "/tmp/notes.txt", matchedContent: true)
         controller.services.searchFiles = { @MainActor query, _ in
             searched.append(query)
             return query == "a" ? [SearchResult.web("example.com")!, mention] : [mention]
         }
+        controller.services.instantResults = { _, _ in [] }  // only the stand-in's rows: no app of this Mac's for "a"
         at()
         type("o", controller, client)
         _ = press(controller, client, "\t", code: VirtualKey.tab)
@@ -1371,7 +1372,7 @@ enum SelfTest {
               "only content matches: ⏎ lists them to pick from, opens nothing (\(liveFooter))")
         _ = escape(controller, client)
         _ = escape(controller, client)
-        controller.services.searchFiles = searchFiles
+        (controller.services.searchFiles, controller.services.instantResults) = (searchFiles, instantResults)
         check(client.marked.isEmpty, "…Esc twice: nothing left")
 
         // "@" with a letter no command starts with is a mention: it goes in as typed.
