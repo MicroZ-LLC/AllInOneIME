@@ -186,6 +186,7 @@ struct ExtensionTests {
         #expect(summary == .summary("3 tests failed", detail: "see the log") && summary.headline == "3 tests failed")
         #expect(summary.copyText == "3 tests failed\nsee the log")
         #expect(ScriptOutput.parse(#"{"summary": 42}"#) == .summary("42", detail: nil))
+        #expect(ScriptOutput.parse("  " + #"{"summary": "ok"}"#) == .summary("ok", detail: nil))  // printed indented
         #expect(ScriptOutput.parse(#"{"other": 1}"#) == .text(#"{"other": 1}"#))  // JSON, but neither: text
         #expect(ScriptOutput.parse("{not json").isEmpty == false && ScriptOutput.parse("").isEmpty)
     }
