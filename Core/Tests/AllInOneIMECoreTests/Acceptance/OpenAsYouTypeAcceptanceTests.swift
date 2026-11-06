@@ -8,8 +8,9 @@ import AllInOneIMETestSupport
 /// (`SessionServices.searchFiles`) searches the new text, the rows shown are those instant rows, then the rows shown
 /// before that still match it, so the list never blinks; the full results of the last texts come back at once with
 /// Backspace; Spotlight is asked after a short pause, one text at a time, and its answer for the text replaces the list
-/// (an older text's removes nothing); the highlight follows the result picked with ↑↓. Point 6 (a faster Spotlight) is
-/// the Mac's: not here.
+/// (an older text's removes nothing); a change of the text puts the highlight on the first row, and while the text
+/// stays the same it stays on the result picked with ↑↓ as rows come and go. Point 6 (a faster Spotlight) is the Mac's:
+/// not here.
 ///
 /// Through a field's session (`FakeHost`), typed as the user types it: "@open", a space, letters, Backspace, ↓, ⏎. What
 /// is in memory and Spotlight are stand-ins: Spotlight answers only when the test says so, and says what it was asked.
@@ -36,6 +37,12 @@ struct OpenAsYouTypeAcceptanceTests {
 
     /// A file named after `text` ("abc.txt"), that only Spotlight finds.
     static func file(_ text: String) -> SearchResult { SearchResult(name: text + ".txt", path: "/Users/me/Notes/\(text).txt") }
+
+    /// Opened before with `@open`: listed from the first letter, before Spotlight answers ("sa": Samples, sales.xlsx,
+    /// safety.pdf, then Safari).
+    static let openedBefore = OpenHistory(entries: [samples, sales, safety].map {
+        .init(path: $0.path, date: Date(timeIntervalSince1970: 1_800_000_000))
+    })
 
     // MARK: - Stand-ins
 
@@ -405,58 +412,67 @@ struct OpenAsYouTypeAcceptanceTests {
     }
 
     /// Spotlight answers "saf" as "e" is typed: the session hears it after the key, for a text that is no longer typed.
+    /// The highlight it leaves is the one picked with ↓ on "safe".
     @Test func anAnswerForAnOlderTextRemovesNothingAndLeavesTheHighlight() async {
         await inEnglish {
+            let safe = Self.file("safe")
             let field = Field()
             field.type("sa")
-            #expect(field.answer("sa", with: [Self.safari, Self.sales, Self.safety]), "\(field.rows)")
+            #expect(field.answer("sa", with: [Self.safari, Self.sales, Self.safety, safe]), "\(field.rows)")
             field.type("f")
-            field.press(FakeHost.down)
-            #expect(field.rows == ["Safari", "safety.pdf"] && field.highlighted == "safety.pdf", "\(field.rows)")
+            #expect(field.rows == ["Safari", "safety.pdf", "safe.txt"], "\(field.rows)")
             #expect(field.waitForSearch("saf"))
             field.takeAnswers()
             field.spotlight.answer("saf", with: [Self.safari, Self.safeguard, Self.safety])
             field.host.waitForAnswer(timeout: 2) { if case .task = $0 { true } else { false } }
             field.type("e")
+            #expect(field.rows == ["safety.pdf", "safe.txt"] && field.highlighted == "safety.pdf", "\(field.rows)")
+            field.press(FakeHost.down)
             let shown = field.rows
-            #expect(shown == ["safety.pdf"] && field.highlighted == "safety.pdf", "\(shown)")
+            #expect(field.highlighted == "safe.txt", "\(shown)")
             field.takeAnswers()
             #expect(shown.allSatisfy(field.rows.contains), "nothing removed: \(field.rows)")
-            #expect(field.highlighted == "safety.pdf")
+            #expect(field.highlighted == "safe.txt", "\(field.rows)")
             #expect(!field.rows.contains("Safari"), "only rows that match \"safe\" are added: \(field.rows)")
         }
     }
 
     // MARK: - 5. The highlight
 
+    /// While the text stays the same, rows that come and go (Spotlight's answer) leave the highlight on the result
+    /// picked with ↑↓, by path; a letter typed is a new search: the first row, as in Raycast and Spotlight.
     @Test func theHighlightStaysOnThePickedResultAsRowsComeAndGo() async {
         await inEnglish {
-            let field = Field()
-            field.type("sa")
-            #expect(field.answer("sa", with: [Self.safari, Self.sales, Self.safety]), "\(field.rows)")
-            field.press(FakeHost.down)
-            field.press(FakeHost.down)
-            #expect(field.highlighted == "safety.pdf")
-            field.type("f")
-            #expect(field.rows == ["Safari", "safety.pdf"] && field.highlighted == "safety.pdf", "\(field.rows)")
-            #expect(field.waitForSearch("saf"))
-            field.spotlight.answer("saf", with: [Self.safeguard, Self.safari, Self.safety])
-            #expect(field.host.settle { field.rows == ["safeguard.txt", "Safari", "safety.pdf"] }, "\(field.rows)")
-            #expect(field.highlighted == "safety.pdf")
-            field.press(FakeHost.enter)
-            #expect(field.host.opened == [Self.safety.path], "\(field.host.opened)")
+            let picked = Field(history: Self.openedBefore)
+            picked.type("sa")
+            #expect(picked.rows == ["Samples", "sales.xlsx", "safety.pdf", "Safari"], "\(picked.rows)")
+            picked.press(FakeHost.down)
+            picked.press(FakeHost.down)
+            #expect(picked.highlighted == "safety.pdf")
+            #expect(picked.answer("sa", with: [Self.safeguard, Self.safari, Self.sales, Self.safety]), "\(picked.rows)")
+            #expect(picked.highlighted == "safety.pdf", "the text is still \"sa\"")
+            picked.press(FakeHost.enter)
+            #expect(picked.host.opened == [Self.safety.path], "\(picked.host.opened)")
+            let typed = Field()
+            typed.type("sa")
+            #expect(typed.answer("sa", with: [Self.safari, Self.sales, Self.safety]), "\(typed.rows)")
+            typed.press(FakeHost.down)
+            typed.press(FakeHost.down)
+            #expect(typed.highlighted == "safety.pdf")
+            typed.type("f")
+            #expect(typed.rows == ["Safari", "safety.pdf"] && typed.highlighted == "Safari",
+                    "a new search: the first row, though safety.pdf is still listed: \(typed.rows)")
         }
     }
 
+    /// The text stays "sa": Spotlight's answer doesn't list the result picked.
     @Test func theHighlightGoesBackToTheFirstRowWhenItsResultIsGone() async {
         await inEnglish {
-            let field = Field()
+            let field = Field(history: Self.openedBefore)
             field.type("sa")
-            #expect(field.answer("sa", with: [Self.safari, Self.sales, Self.safety]), "\(field.rows)")
             field.press(FakeHost.down)
-            #expect(field.highlighted == "sales.xlsx")
-            field.type("f")
-            #expect(field.rows == ["Safari", "safety.pdf"], "\(field.rows)")
+            #expect(field.highlighted == "sales.xlsx", "\(field.rows)")
+            #expect(field.answer("sa", with: [Self.safari, Self.safety]), "\(field.rows)")
             #expect(field.highlighted == "Safari", "sales.xlsx is gone: back on the first row")
         }
     }
