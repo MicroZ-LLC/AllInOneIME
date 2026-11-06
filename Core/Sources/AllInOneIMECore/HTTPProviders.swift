@@ -105,7 +105,7 @@ public enum HTTPProviders {
             ]
             // OpenAI's own API wants max_completion_tokens (its reasoning models reject max_tokens);
             // the compatible services (DeepSeek, Qwen, Ollama, …) take max_tokens.
-            json[base.contains("api.openai.com") ? "max_completion_tokens" : "max_tokens"] = maxTokens
+            json[base.lowercased().contains("api.openai.com") ? "max_completion_tokens" : "max_tokens"] = maxTokens
             if let effort { json["reasoning_effort"] = effort }
         case .hosted:
             // The request as built (the service checks it, caps it and picks the model), with the session token.

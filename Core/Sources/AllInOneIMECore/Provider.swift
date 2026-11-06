@@ -102,10 +102,20 @@ public struct ProviderSettings: Codable, Equatable, Sendable {
             return value
         }
         let base = pick(baseURL, d.baseURL)
-        // OpenAI's default model is OpenAI's: another service at its own base URL has no default.
-        let defaultModel = provider == .openai && base != d.baseURL ? nil : d.model
+        // OpenAI's default model is OpenAI's: another service at its own base URL has no default. OpenAI's written
+        // another way ("…/v1/", the host in capitals) is still OpenAI's.
+        let defaultModel = provider == .openai && Self.comparable(base) != Self.comparable(d.baseURL) ? nil : d.model
         return ProviderSettings(model: pick(model, defaultModel), baseURL: base,
                                 effort: effort ?? d.effort, temperature: temperature ?? d.temperature)
+    }
+
+    /// A base URL as compared: without the trailing "/" (as requests go, `HTTPProviders.makeRequest`), the scheme and
+    /// host in lower case. The path keeps its case: a server may tell it apart.
+    static func comparable(_ url: String?) -> String {
+        let url = (url ?? "").trimmingCharacters(in: CharacterSet(charactersIn: "/ "))
+        guard let scheme = url.range(of: "://") else { return url }
+        let path = url[scheme.upperBound...].firstIndex(of: "/") ?? url.endIndex
+        return url[..<path].lowercased() + url[path...]
     }
 
     /// `effort`, or nil when nothing is to be sent.
