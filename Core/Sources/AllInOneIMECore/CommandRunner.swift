@@ -250,7 +250,8 @@ public enum CommandRunner {
     }
 
     /// What the program printed, as inserted: control characters (colors, bells, a terminal title)
-    /// removed, line breaks and tabs kept, trailing blank lines dropped.
+    /// removed, line breaks and tabs kept, blank lines before and after it dropped (the first line's
+    /// indentation kept: a table's header stays over its columns).
     static func cleanOutput(_ data: Data) -> String {
         var text = String(decoding: data, as: UTF8.self)
         // Both sequences start with ESC: output without one (most, and a completion list of up to 4 MB) isn't searched.
@@ -265,7 +266,11 @@ public enum CommandRunner {
             if scalar.properties.generalCategory == .control { continue }
             out.append(scalar)
         }
-        return String(out).trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleaned = String(out)
+        guard let first = cleaned.firstIndex(where: { !$0.isWhitespace }),
+              let last = cleaned.lastIndex(where: { !$0.isWhitespace }) else { return "" }
+        let start = cleaned[..<first].lastIndex(of: "\n").map { cleaned.index(after: $0) } ?? cleaned.startIndex
+        return String(cleaned[start...last])
     }
 
     /// `result` as inserted into a terminal, which runs every line it is given: each text on one line

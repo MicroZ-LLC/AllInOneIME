@@ -29,6 +29,13 @@ struct CommandRunnerTests {
         #expect(try await run(multi, "printf 'a\\n\\033[31mb\\033[0m\\n\\n'").get() == "a\nb")  // colors and trailing lines dropped
     }
 
+    /// Blank lines before and after what was printed go; its first line's indentation stays (#44).
+    @Test func cleanOutputKeepsTheFirstLinesIndentation() {
+        #expect(CommandRunner.cleanOutput(Data("  a\n  b\n".utf8)) == "  a\n  b")
+        #expect(CommandRunner.cleanOutput(Data("\n \n\t  a\n\n  b  \n \n".utf8)) == "\t  a\n\n  b")
+        #expect(CommandRunner.cleanOutput(Data(" \n\t\n".utf8)) == "")
+    }
+
     /// What goes into a terminal (it runs every line): one line, nothing that would run or complete.
     @Test func oneLineForATerminal() {
         let result = ConversionResult(versions: [CandidateLine("0\n1\n2"), CandidateLine("a\tb\u{2028}c", isComplete: false),

@@ -12,7 +12,7 @@ public enum ScriptOutput: Hashable, Sendable {
     /// `summary` a result; anything else is text. A `list` command's text that isn't a list stays text (the
     /// panel says it's not one).
     public static func parse(_ text: String) -> ScriptOutput {
-        guard text.hasPrefix("{"), let data = text.data(using: .utf8),
+        guard text.drop(while: \.isWhitespace).hasPrefix("{"), let data = text.data(using: .utf8),
               let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return .text(text) }
         if let items = object["items"] as? [[String: Any]] {
             return .list(ScriptList(items: items.compactMap(ScriptItem.init(json:)).prefix(ScriptList.maxItems).map { $0 },
