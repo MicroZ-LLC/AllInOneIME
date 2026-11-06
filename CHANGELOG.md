@@ -19,6 +19,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 ### Fixed
 
 - AI requests no longer follow a redirect. When a base URL (a relay, a gateway, a local proxy) redirected to another address, your API key and your text were sent on there, past the host the key is saved for, even over plain http. Now the redirect shows as an HTTP error (put the address it points to in the base URL). AllInOneIME Cloud's requests and sign-in don't follow one either.
+- Text of more than one line going into a terminal (AI answers, snippets, clipboard history) no longer empties your clipboard when Paste from Other Apps is set to Deny for AllInOneIME, and no longer makes macOS ask once per line break when it's set to Ask (or macOS hasn't asked yet). Without Allow there, the text goes in on one line, as without Accessibility, and your clipboard isn't read or changed; to have it pasted, set AllInOneIME to Allow in System Settings → Privacy & Security → Paste from Other Apps. ⏎ on a clipboard history image still pastes it, and the image then stays on the clipboard.
 
 ## 0.6.8.3 (2026-11-02)
 

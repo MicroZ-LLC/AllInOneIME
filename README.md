@@ -359,8 +359,8 @@ link: `@sig` ⏎ puts it in at once (Tab or Space only complete the name). Its `
   snippets with no `{clipboard}`, `{selection}` or blanks work there; with `{input}`, it's one word or a quoted phrase:
   `@meet「Friday 3pm」`.
 - Plain text only (line breaks kept), at most 20,000 characters. In a terminal a snippet of several lines goes in as one
-  paste with Accessibility allowed, else on one line (a line break typed there would run the line), as clipboard
-  history's rows and the AI's answers do. Snippets stay on this Mac, so they work during secure
+  paste with Accessibility allowed and Paste from Other Apps set to Allow (your clipboard is put back after), else on
+  one line (a line break typed there would run the line), as clipboard history's rows and the AI's answers do. Snippets stay on this Mac, so they work during secure
   input and in apps set to No AI. Extension bundles can ship them too (`snippets` in `extension.json`, see
   [docs/extensions.md](docs/extensions.md)).
 
@@ -1033,7 +1033,8 @@ suggestions use, and puts in the one you choose.
   in, one per line, in the order you copied them (oldest first).
 - **What goes in:** the text as you copied it, typed in (the clipboard is unchanged), the way suggestion rows go in, so
   ⏎ in Slack, Chrome and other apps built on Chromium or Electron doesn't send the message. In a terminal, text of more
-  than one line goes in as one paste (with Accessibility allowed), never line by line; without it, on one line.
+  than one line goes in as one paste (with Accessibility allowed, and Paste from Other Apps set to Allow so that your
+  clipboard can be put back), never line by line; without them, on one line, and your clipboard is left alone.
 - **The keys stay with the panel, in every app (0.6.8.1):** with Accessibility allowed, the input method takes the keys
   the panel uses (↓ ↑ → Esc ⏎ Tab, and ⌃V that opens it) before any app sees them, so no app acts on them: not Slack's
   page, not a terminal's shell, whatever the app is built with. Without Accessibility, apps built on Chromium or
@@ -1047,7 +1048,8 @@ suggestions use, and puts in the one you choose.
   size and how large it is ("Image 1280 × 720 · 2.4 MB · 2 min ago"). ⏎ pastes it: it goes on the clipboard, the app's
   own paste key is pressed for you (⌘V in an app, ⌃V in a terminal or a code editor, where Claude Code takes an image),
   and your clipboard is put back once the app has read it. That needs Accessibility (System Settings → Privacy & Security → Accessibility); without it ⏎ puts the
-  image on the clipboard, for your own ⌘V. In a command, ⏎ on it reads it as a screenshot (`@reply`). ⇧↓ ⇧↑ put in the
+  image on the clipboard, for your own ⌘V. Without Paste from Other Apps set to Allow, your clipboard can't be read to
+  be put back: the image is pasted and stays on the clipboard. In a command, ⏎ on it reads it as a screenshot (`@reply`). ⇧↓ ⇧↑ put in the
   texts selected only. An image on the clipboard the history doesn't have (it isn't recording, or didn't keep it: over
   10 MB, marked, or copied on another device through Universal Clipboard) is the first row, "Image on the clipboard",
   pasted the same way.
@@ -1310,7 +1312,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
   lists, the tokens and the lookups are never logged, sent to the AI, learned or synced; see
   [Suggestions and Code](#suggestions-and-code-new).
 - The input method reads the clipboard text when you press ⌃V (the history's panel shows what's on it) or ⌘V in a command; content that password managers mark as concealed isn't read. Text appended to a command is shown in it first and, again, is sent only when you press the action key. Recent macOS versions ask whether AllInOneIME may read the clipboard: allow it. To stop being asked every time, set AllInOneIME to Allow in System Settings → Privacy & Security → Paste from Other Apps.
-- Clipboard history (on by default, Settings → General): after each copy, the input method reads the plain text copied (or the image, 0.6.8.2), only while macOS lets it without asking (Paste from Other Apps: Allow; it never makes macOS ask in the background), and keeps the last 20 (5–100) in `~/Library/Application Support/AllInOneIME/clipboard-history.json`, readable only by your user account and excluded from backups. Never what a password manager or clipboard tool marks as concealed, transient or auto-generated, nothing copied during secure input (checked once a second: a copy is dropped when secure input was on at the check that finds it or the one before, so secure input on for less than a second between two checks can go unseen), no files, no image over 10 MB. Images are kept as PNG files, with a small thumbnail each, in `~/Library/Application Support/AllInOneIME/clipboard-history-images/` (readable only by your user account, excluded from backups); an image that drops out of the last 20 is deleted. Pasting one puts it on the clipboard until the app has read it, then your clipboard back (without Accessibility it stays there, for your own ⌘V). It stays on this Mac: never synced, never sent to an AI or anywhere, never logged (only how many). Clear History deletes it all, images too, and so does turning it off.
+- Clipboard history (on by default, Settings → General): after each copy, the input method reads the plain text copied (or the image, 0.6.8.2), only while macOS lets it without asking (Paste from Other Apps: Allow; it never makes macOS ask in the background), and keeps the last 20 (5–100) in `~/Library/Application Support/AllInOneIME/clipboard-history.json`, readable only by your user account and excluded from backups. Never what a password manager or clipboard tool marks as concealed, transient or auto-generated, nothing copied during secure input (checked once a second: a copy is dropped when secure input was on at the check that finds it or the one before, so secure input on for less than a second between two checks can go unseen), no files, no image over 10 MB. Images are kept as PNG files, with a small thumbnail each, in `~/Library/Application Support/AllInOneIME/clipboard-history-images/` (readable only by your user account, excluded from backups); an image that drops out of the last 20 is deleted. Pasting one puts it on the clipboard until the app has read it, then your clipboard back (without Accessibility it stays there, for your own ⌘V; without Paste from Other Apps' Allow it is pasted and stays there, your clipboard never read). It stays on this Mac: never synced, never sent to an AI or anywhere, never logged (only how many). Clear History deletes it all, images too, and so does turning it off.
 - In password fields macOS switches to its own keyboard (U.S. or ABC) and back when you leave them. Whenever the app you type in holds secure input, AllInOneIME doesn't compose text: keys go in as typed. And while the system is in secure input (password fields, Terminal's Secure Keyboard Entry, etc.), nothing is sent to the AI.
 - `@note` and `@reminder` don't go to the AI: AllInOneIME hands the text only to Notes and Reminders on this Mac, and reads the reminder's time on the Mac too (whether those apps sync it to your other devices depends on their accounts, such as iCloud). So they work during secure input as well. `@note` to a folder writes a file on this Mac (it syncs if the folder does, as an iCloud Drive or Obsidian Sync folder would). `@note` to Notion sends the note to Notion (api.notion.com, with your integration's token, kept in the keychain), and only then: not during secure input.
 - `@reportissue` (and "Report an Issue…") sends nothing itself: it opens GitHub's new-issue page in your browser with the title you typed and the versions, languages, provider kind and counts listed above, shown in the candidate panel first. Nothing reaches GitHub unless you click Submit there.
