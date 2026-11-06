@@ -8,7 +8,7 @@
 
 # AllInOneIME
 
-### AI commands in every text field on your Mac.
+### Talk to AI wherever you type.
 
 Type `@improve`, `@translate` or `@question` in any app, press ⏎, and pick the result.<br>
 No copying into a chat window, no switching apps. Your own AI provider, your own keys.
