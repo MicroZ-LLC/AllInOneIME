@@ -213,7 +213,10 @@ public struct ChatClient: Sendable {
             case .anthropic, .gemini, .openai, .hosted:
                 let provider = config.provider
                 let settings = config.settings(for: provider)
-                let host = HTTPProviders.host(of: settings) ?? ""
+                // A base URL with no host (typed without https://) is what's wrong, not the key looked up for it.
+                guard let host = HTTPProviders.host(of: settings) else {
+                    throw ProviderError.invalidBaseURL(settings.baseURL ?? "")
+                }
                 guard let key = try loadKey(provider, host)?.trimmingCharacters(in: .whitespacesAndNewlines), !key.isEmpty else {
                     throw provider == .hosted ? ProviderError.signedOut : ProviderError.missingKey(provider)
                 }
