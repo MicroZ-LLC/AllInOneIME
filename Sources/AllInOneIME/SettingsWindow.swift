@@ -2970,6 +2970,10 @@ final class SettingsWindow {
     /// Whether the window is open (an update opens it again once the input method restarts).
     var isVisible: Bool { window?.isVisible == true }
 
+    /// The window's settings saved as closing it saves them, the fields typed in without ⏎ (a model ID, the region)
+    /// too: before the input method ends (it quits for an update, SIGTERM). Nothing is written when nothing changed.
+    func save() { model?.save() }
+
     /// Shows the window on `page` (already open: it turns to it), and outlines `spot` there if given (`SettingsModel.spot`).
     func show(page: SettingsPage, spot: SettingsSpot? = nil) {
         show(opening: page)

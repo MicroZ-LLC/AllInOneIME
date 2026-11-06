@@ -141,21 +141,30 @@ final class IMEAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        MainActor.assumeIsolated { SettingsWindow.shared.save() }  // what was typed in Settings without ⏎
         CommandRunner.stopAll()  // what script extensions started doesn't outlive the input method
         SessionServices.englishWordsWriter.drain(within: 0.5)  // the English words just learned, into the file
     }
 }
 
-/// SIGTERM (an update, `make install`, logging out): the programs running for script extensions, and what they
-/// started, are stopped first (`CommandRunner.stopAll`, at most half a second), the English words learned and not
-/// written yet go into the config file (`EnglishWords.Writer.drain`, at most half a second), then the input method
-/// ends, as the signal's default would end it. Handled on a queue of its own, not in a signal handler and not on the
-/// main thread: a main thread that hangs doesn't keep it alive, and a hard exit is armed in case stopping hangs too.
+/// SIGTERM (an update, `make install`, logging out): what was typed in the settings window without ⏎ (a model ID, the
+/// region) is saved first, as closing the window saves it (`SettingsWindow.save`, on the main thread, waited for at
+/// most half a second), the programs running for script extensions, and what they started, are stopped
+/// (`CommandRunner.stopAll`, at most half a second), the English words learned and not written yet go into the config
+/// file (`EnglishWords.Writer.drain`, at most half a second), then the input method ends, as the signal's default would
+/// end it. Handled on a queue of its own, not in a signal handler and not on the main thread: a main thread that hangs
+/// doesn't keep it alive, and a hard exit is armed in case stopping hangs too.
 private let terminationSignal: DispatchSourceSignal = {
     signal(SIGTERM, SIG_IGN)
     let source = DispatchSource.makeSignalSource(signal: SIGTERM, queue: DispatchQueue(label: "AllInOneIME.terminate"))
     source.setEventHandler {
-        DispatchQueue.global().asyncAfter(deadline: .now() + 1.5) { _exit(0) }
+        DispatchQueue.global().asyncAfter(deadline: .now() + 2) { _exit(0) }
+        let saved = DispatchSemaphore(value: 0)
+        DispatchQueue.main.async {
+            MainActor.assumeIsolated { SettingsWindow.shared.save() }
+            saved.signal()
+        }
+        _ = saved.wait(timeout: .now() + 0.5)
         CommandRunner.stopAll()
         SessionServices.englishWordsWriter.drain(within: 0.5)
         _exit(0)
