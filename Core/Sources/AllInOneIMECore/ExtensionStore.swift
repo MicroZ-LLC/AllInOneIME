@@ -71,6 +71,8 @@ public struct ExtensionBundle: Hashable, Sendable {
     }
 
     public static let manifestName = "extension.json"
+    /// The largest `extension.json` read: a larger one is a bad bundle (`BundleProblem.tooLarge`).
+    public static let maxManifestBytes = 4 << 20
 
     /// The values its commands get: `stored` (what was set; passwords read from the keychain) or each
     /// preference's default. Checkboxes are "true" or "false".
@@ -97,6 +99,7 @@ public struct ExtensionBundle: Hashable, Sendable {
     static func read(_ data: Data, folder: URL)
         -> Result<(bundle: ExtensionBundle, commands: [[String: String]], snippets: [[String: String]],
                    problems: [ScriptCommand.Problem]), ScriptCommand.Problem> {
+        guard data.count <= maxManifestBytes else { return .failure(.badBundle(.tooLarge)) }
         guard let json = ((try? JSONSerialization.jsonObject(with: data)) as? [String: Any]).map(withoutNulls) else {
             return .failure(.badBundle(.notJSON))
         }
@@ -636,7 +639,7 @@ public final class ExtensionCache: @unchecked Sendable {
         /// The `@allinoneime.` or `@raycast.` keys in its first 64 KB.
         public var metadata: (front: ScriptCommand.FrontEnd, keys: [String: String])?
         public var firstLine: String
-        /// An `extension.json`'s bytes.
+        /// An `extension.json`'s bytes, all of them (of one larger than `ExtensionBundle.maxManifestBytes`, a byte more).
         public var json: Data?
         public var executable: Bool
         /// A compiled program (or any file with a NUL byte): run as it is.
@@ -647,7 +650,7 @@ public final class ExtensionCache: @unchecked Sendable {
 
     private var files: [String: File] = [:]
     private let lock = NSLock()
-    /// Metadata past the first 64 KB isn't looked for; an `extension.json` is smaller.
+    /// Metadata past the first 64 KB isn't looked for (an `extension.json` is read whole).
     static let maxBytes = 64 * 1024
 
     public init() {}
@@ -670,17 +673,24 @@ public final class ExtensionCache: @unchecked Sendable {
         guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
         defer { try? handle.close() }
         let data = (try? handle.read(upToCount: Self.maxBytes)) ?? Data()
-        // The rest of a longer file is only hashed (once, while it's unchanged), a megabyte at a time.
+        // The rest of a longer file is only hashed (once, while it's unchanged), a megabyte at a time; an extension.json's
+        // is kept too, up to a byte past its limit (enough to tell it's too large).
         var hasher = SHA256()
         hasher.update(data: data)
+        var json = url.lastPathComponent == ExtensionBundle.manifestName ? data : nil
         if data.count == Self.maxBytes {
-            while let more = try? handle.read(upToCount: 1 << 20), !more.isEmpty { hasher.update(data: more) }
+            while let more = try? handle.read(upToCount: 1 << 20), !more.isEmpty {
+                hasher.update(data: more)
+                if let kept = json?.count, kept <= ExtensionBundle.maxManifestBytes {
+                    json?.append(more.prefix(ExtensionBundle.maxManifestBytes + 1 - kept))
+                }
+            }
         }
         let binary = data.contains(0)
         let text = binary ? "" : String(decoding: data, as: UTF8.self)
         let file = File(date: date, size: size, mode: mode, metadata: binary ? nil : ScriptCommand.metadata(in: text),
                         firstLine: ScriptCommand.firstLine(of: text),
-                        json: url.lastPathComponent == ExtensionBundle.manifestName ? data : nil,
+                        json: json,
                         executable: Self.isExecutable(url), binary: binary, digest: Data(hasher.finalize()))
         lock.withLock { files[url.path] = file }
         return file

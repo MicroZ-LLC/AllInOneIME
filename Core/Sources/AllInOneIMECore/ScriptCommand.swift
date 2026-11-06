@@ -176,6 +176,8 @@ public struct ScriptCommand: Hashable, Sendable {
         case noCommands
         /// A preference without a name, or of a type this app doesn't know.
         case badPreference
+        /// It's larger than `ExtensionBundle.maxManifestBytes`.
+        case tooLarge
     }
 
     /// What has a name a command wanted.

@@ -307,6 +307,7 @@ extension UIText {
             case .badName: return tr("扩展包的 name 只能用字母、数字、- 和 _", "The bundle's name must be letters, digits, - or _")
             case .noCommands: return tr("extension.json 里没有命令", "extension.json names no commands")
             case .badPreference: return tr("有一个偏好设置没有 name，或者 type 不认识", "A preference has no name, or a type this app doesn't know")
+            case .tooLarge: return tr("extension.json 太大（超过 4 MB）", "extension.json is larger than 4 MB")
             }
         case .brokenLink: return tr("这个替身（符号链接）指向的东西不在了", "A link to something that isn't there")
         case .notExecutable:
