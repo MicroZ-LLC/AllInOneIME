@@ -133,7 +133,8 @@ private struct MainThreadOnly<Value>: @unchecked Sendable {
 /// which never ask), it was copied during secure input (a password field had the keys when it changed, or at the look
 /// before), it is marked never to be kept (`neverRecorded`: password managers and clipboard tools mark theirs, as
 /// TerminalPaste marks its own writes), it is neither an image nor text (a file, a colour), it is blank, or it is longer than
-/// `ClipboardHistoryItem.maxLength`. Used on one thread (the input method's main one).
+/// `ClipboardHistoryItem.maxLength`; nor the clipboard TerminalPaste puts back after its paste (`putBack`). Used on one
+/// thread (the input method's main one).
 public final class ClipboardRecorder {
     /// Why a change wasn't recorded.
     public enum Outcome: Equatable, Sendable {
@@ -143,7 +144,7 @@ public final class ClipboardRecorder {
         case imageQueued
         /// It couldn't be written (a full disk): nothing kept.
         case notSaved
-        /// The newest kept already (a copy of it again, the clipboard put back after a paste of ours).
+        /// The newest kept already (a copy of it again).
         case same
     }
 
@@ -240,6 +241,15 @@ public final class ClipboardRecorder {
     public func forget() {
         seen = source.changeCount
         newestSeen = nil
+    }
+
+    /// The clipboard put back at change count `count` as it was at `was`, after a paste of ours (`TerminalPaste`): never
+    /// recorded as a new copy, where `was` was looked at already (recorded, or skipped: copied during secure input, before
+    /// Clear History); the store's newest still, if it was. Not looked at yet: the next look takes it as it would have.
+    public func putBack(at count: Int, asAt was: Int) {
+        guard let seen, seen >= was else { return }
+        self.seen = count
+        if newestSeen == was { newestSeen = count }
     }
 }
 

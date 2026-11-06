@@ -75,26 +75,36 @@ enum TerminalPaste {
         }
     }
 
-    /// A paste of ours not put back yet: the clipboard's change count after our write, and what was there before it. A
-    /// paste made meanwhile keeps that `before` (the user's, never our own write) and puts it back itself.
-    @MainActor private static var pending: (ours: Int, before: ClipboardSnapshot)?
+    /// Clipboard history, once it runs (`ClipboardHistoryShared.start`): it looks at the clipboard before each write of
+    /// ours (`lookBeforeWrite`), so a copy made just before is recorded or skipped as it is, and is told of each put back
+    /// (`didPutBack`: the change count now, and the one of what was put back), never to record it as a new copy.
+    @MainActor static var lookBeforeWrite: (@MainActor () -> Void)?
+    @MainActor static var didPutBack: (@MainActor (_ count: Int, _ was: Int) -> Void)?
 
-    /// What was on the clipboard before our paste: the user's, also while a paste of ours is still to be put back; nil,
-    /// nothing read, where it can't be read without macOS asking (`ClipboardSnapshot.take`).
+    /// A paste of ours not put back yet: the clipboard's change count after our write, what was there before it and its
+    /// change count then. A paste made meanwhile keeps that `before` (the user's, never our own write) and puts it back
+    /// itself.
+    @MainActor private static var pending: (ours: Int, before: ClipboardSnapshot, was: Int)?
+
+    /// What was on the clipboard before our paste, and its change count: the user's, also while a paste of ours is still
+    /// to be put back; nil, nothing read, where it can't be read without macOS asking (`ClipboardSnapshot.take`).
     @MainActor
-    private static func userClipboard(_ pasteboard: NSPasteboard) -> ClipboardSnapshot? {
-        if let pending, pending.ours == pasteboard.changeCount { return pending.before }
-        return ClipboardSnapshot.take(pasteboard, access: SystemClipboard().access)
+    private static func userClipboard(_ pasteboard: NSPasteboard) -> (snapshot: ClipboardSnapshot, was: Int)? {
+        if let pending, pending.ours == pasteboard.changeCount { return (pending.before, pending.was) }
+        let was = pasteboard.changeCount
+        return ClipboardSnapshot.take(pasteboard, access: SystemClipboard().access).map { ($0, was) }
     }
 
     /// The clipboard put back after paste `ours`, unless something else was copied since or a later paste of ours took it
-    /// over (that one puts it back).
+    /// over (that one puts it back). Clipboard history is told (`didPutBack`), never to record it as a new copy: what it
+    /// puts back was looked at before our write (recorded, or skipped: copied during secure input, before Clear History).
     @MainActor
     private static func putBack(after ours: Int, to pasteboard: NSPasteboard) {
         guard let pending, pending.ours == ours else { return }
         self.pending = nil
         guard pasteboard.changeCount == ours else { return }  // something else was copied since
         pending.before.restore(to: pasteboard)
+        didPutBack?(pasteboard.changeCount, pending.was)
     }
 
     /// Hands the text being pasted to the app when it reads the clipboard (`NSPasteboardItemDataProvider`), so the
@@ -141,6 +151,7 @@ enum TerminalPaste {
     private static func write(_ provider: any NSPasteboardItemDataProvider, for types: [NSPasteboard.PasteboardType],
                               thenPost flags: CGEventFlags) async -> Int? {
         let pasteboard = NSPasteboard.general
+        lookBeforeWrite?()
         guard let before = userClipboard(pasteboard) else { return nil }
         pasteboard.clearContents()
         let item = NSPasteboardItem()
@@ -149,7 +160,7 @@ enum TerminalPaste {
         item.setData(Data(), forType: NSPasteboard.PasteboardType("org.nspasteboard.TransientType"))
         pasteboard.writeObjects([item])
         let ours = pasteboard.changeCount
-        pending = (ours, before)
+        pending = (ours, before.snapshot, before.was)
         await modifiersUp()
         postV(flags)
         return ours

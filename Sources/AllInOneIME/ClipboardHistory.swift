@@ -23,9 +23,12 @@ enum ClipboardHistoryShared {
     /// The switch and the limit last applied.
     private static var applied: (on: Bool, limit: Int)?
 
-    /// Starts looking, once a second, at launch.
+    /// Starts looking, once a second, at launch; and at each paste of ours (`TerminalPaste`): before its write, and its
+    /// put back marked as looked at (`ClipboardRecorder.putBack`).
     static func start() {
         guard timer == nil else { return }
+        TerminalPaste.lookBeforeWrite = { tick() }
+        TerminalPaste.didPutBack = { recorder.putBack(at: $0, asAt: $1) }
         tick()
         let timer = Timer(timeInterval: 1, repeats: true) { _ in MainActor.assumeIsolated { tick() } }
         timer.tolerance = 0.5
