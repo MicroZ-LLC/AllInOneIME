@@ -2061,10 +2061,15 @@ struct SettingsView: View {
             if language == .chinese {
                 PersonalDictionariesSection(model: model, dictionaries: personalDictionaries)
             }
-            if language == .english || (language == .chinese && !model.config.inputLanguages.contains(.english)) {
+            if Self.showsEnglishWords(under: language, model.config) {
                 EnglishWordsSection(model: model)
             }
         }
+    }
+
+    /// The English words pinyin offers are under English's options, or Chinese's without English.
+    static func showsEnglishWords(under language: Language, _ config: Config) -> Bool {
+        language == .english || (language == .chinese && !config.inputLanguages.contains(.english))
     }
 
     @ViewBuilder private func languageOptions(_ language: Language) -> some View {
