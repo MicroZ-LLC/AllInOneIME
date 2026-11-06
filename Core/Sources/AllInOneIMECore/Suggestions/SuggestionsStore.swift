@@ -544,7 +544,7 @@ final class SuggestionsExecutor: TaskExecutor {
 /// file each time.
 public final class FileHashes: @unchecked Sendable {
     /// What tells a file changed, as the file system has it: its size and date (to the nanosecond where it says), which a
-    /// program can set back after changing it, and where there is `lstat` its inode (another file put in its place) and
+    /// program can set back after changing it, and where there is `stat` its inode (another file put in its place) and
     /// the time its status last changed (`st_ctimespec`: set by every write, rename and change of date, and never back).
     struct Stamp: Equatable {
         var size: Int
@@ -570,26 +570,28 @@ public final class FileHashes: @unchecked Sendable {
         return sha
     }
 
-    /// `path`'s stamp now, never a value kept (a URL keeps those it read): the item itself, a link not followed. Where
-    /// there is `lstat`, by it (a few microseconds; the file manager's attributes take ten times as long, which a
-    /// repository of 2,000 files read as a field takes the focus would feel), with the inode and status-change time;
-    /// elsewhere (Windows) its size, date and file number as the file manager has them.
+    /// `path`'s stamp now, never a value kept (a URL keeps those it read): of the file that is read, a link followed (a
+    /// link's own stamp doesn't change when its target is edited, so the hash first read would be kept). Where there is
+    /// `stat`, by it (a few microseconds; the file manager's attributes take ten times as long, which a repository of
+    /// 2,000 files read as a field takes the focus would feel), with the inode and status-change time; elsewhere
+    /// (Windows) its size, date and file number as the file manager has them, the link resolved first.
     static func stamp(_ path: String) -> Stamp? {
         #if canImport(Darwin)
         var info = stat()
-        guard lstat(path, &info) == 0 else { return nil }
+        guard stat(path, &info) == 0 else { return nil }
         return Stamp(size: Int(info.st_size), seconds: Int(info.st_mtimespec.tv_sec), nanoseconds: Int(info.st_mtimespec.tv_nsec),
                      inode: UInt64(info.st_ino), changedSeconds: Int(info.st_ctimespec.tv_sec),
                      changedNanoseconds: Int(info.st_ctimespec.tv_nsec))
         #elseif canImport(Glibc) || canImport(Musl)
         // The same on Linux, whose stat names its times st_mtim and st_ctim.
         var info = stat()
-        guard lstat(path, &info) == 0 else { return nil }
+        guard stat(path, &info) == 0 else { return nil }
         return Stamp(size: Int(info.st_size), seconds: Int(info.st_mtim.tv_sec), nanoseconds: Int(info.st_mtim.tv_nsec),
                      inode: UInt64(info.st_ino), changedSeconds: Int(info.st_ctim.tv_sec),
                      changedNanoseconds: Int(info.st_ctim.tv_nsec))
         #else
-        let attributes = try? FileManager.default.attributesOfItem(atPath: path)
+        let resolved = URL(fileURLWithPath: path).resolvingSymlinksInPath().path
+        let attributes = try? FileManager.default.attributesOfItem(atPath: resolved)
         guard let size = (attributes?[.size] as? NSNumber)?.intValue else { return nil }
         let time = (attributes?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
         return Stamp(size: size, seconds: Int(time.rounded(.down)), nanoseconds: Int((time - time.rounded(.down)) * 1_000_000_000),
