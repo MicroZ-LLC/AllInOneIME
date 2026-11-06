@@ -60,8 +60,9 @@ extension InputSession {
         // This field is in it already: the settings applied again later don't switch it back or over.
         appliedDefaultInput = input
         log.notice("an app learned its starting input (\(input == .code ? "Code" : "a language"))")
-        let coding = services.loadSettings().codingLanguage.map { CodingLanguagePack.title(of: $0) }
-        let name = SessionText.inputName(input, language: UIText.language, coding: coding)
+        let settings = services.loadSettings()
+        let coding = settings.codingLanguage.map { CodingLanguagePack.title(of: $0) }
+        let name = SessionText.inputName(input, language: UIText.language, coding: coding, chinese: settings.typedChinese)
         return LearnedMessages(language: UIText.language).startsIn(services.appName(app) ?? SettingsSchema.appName(app), name)
     }
 }

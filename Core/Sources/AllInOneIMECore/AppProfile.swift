@@ -275,7 +275,8 @@ extension Config {
         switch field {
         case .startingInput:
             guard let input = profile.startingInput else { return "" }
-            let name = SessionText.inputName(input, language: UIText.language, coding: codingLanguage.map { CodingLanguagePack.title(of: $0) })
+            let name = SessionText.inputName(input, language: UIText.language, coding: codingLanguage.map { CodingLanguagePack.title(of: $0) },
+                                             chinese: typedChinese)
             return tr("用\(name)开始", "starts in \(name)")
         case .translateAlways:
             return tr("总是边打边译", "Always Translate as You Type")
