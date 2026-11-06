@@ -123,12 +123,13 @@ public enum ChineseCharacters: String, Codable, CaseIterable, Sendable {
         }
 
         /// The characters `config` types in now, when the patch was last written for others: to write it for them (and
-        /// deploy again). They count as written from then on, so a change asks once. Nil when they are the same, and
-        /// before the patch is first written (Rime's start writes it).
+        /// deploy again). They count as written from then on, so a change asks once. Nil when they are the same. Before
+        /// the patch is first written (Rime's start writes it only when config.json parses) any characters are a change:
+        /// the patch is whatever an earlier launch left.
         public func changed(_ config: Config) -> ChineseCharacters? {
             let now = config.typedChinese
             return characters.withLock { written in
-                guard let before = written, before != now else { return nil }
+                guard written != now else { return nil }
                 written = now
                 return now
             }
