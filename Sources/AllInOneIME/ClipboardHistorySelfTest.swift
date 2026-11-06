@@ -244,7 +244,7 @@ extension SelfTest {
         let savedPaste = (can: controller.canPasteInTerminal, paste: controller.pasteInTerminal)
         var pasted: [String] = []
         controller.canPasteInTerminal = { true }
-        controller.pasteInTerminal = { pasted.append($0) }
+        controller.pasteInTerminal = { pasted.append($0); return true }
         controller.activateServer(terminal)
         controller.composer.setInputMode(.english)
         controller.clientOverride = terminal

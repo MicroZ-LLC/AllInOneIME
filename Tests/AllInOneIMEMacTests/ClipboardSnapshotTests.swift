@@ -18,11 +18,13 @@ struct ClipboardSnapshotTests {
         }
     }
 
-    /// A pasteboard of the test's own, with what the user copied on it (through `provider`).
-    static func copied(through provider: CountingProvider) -> NSPasteboard {
+    /// A pasteboard of the test's own, with what the user copied on it (through `provider`): on an iPhone where `remote`
+    /// (Universal Clipboard's marker among its types).
+    static func copied(through provider: CountingProvider, remote: Bool = false) -> NSPasteboard {
         let pasteboard = NSPasteboard(name: NSPasteboard.Name("com.aipinyin.inputmethod.tests.snapshot.\(UUID().uuidString)"))
         pasteboard.clearContents()
         let item = NSPasteboardItem()
+        if remote { item.setData(Data(), forType: NSPasteboard.PasteboardType(SystemClipboard.remoteType)) }
         item.setDataProvider(provider, forTypes: [.string])
         pasteboard.writeObjects([item])
         return pasteboard
@@ -38,6 +40,24 @@ struct ClipboardSnapshotTests {
         // The reads are counted: with Allow, what was copied is read.
         let snapshot = ClipboardSnapshot.take(pasteboard, access: .allowed)
         #expect(provider.reads > 0 && snapshot?.items.count == 1)
+    }
+
+    /// Copied on an iPhone or another Mac (Universal Clipboard: its data fetched from there when read, over the network):
+    /// nothing read, with Allow too; a copy made here is read off the main thread.
+    @Test func aUniversalClipboardCopyIsNeverRead() async {
+        let provider = CountingProvider()
+        let pasteboard = Self.copied(through: provider, remote: true)
+        defer { pasteboard.releaseGlobally() }
+        #expect(!ClipboardSnapshot.canTake(pasteboard, access: .allowed))
+        #expect(ClipboardSnapshot.take(pasteboard, access: .allowed) == nil)
+        #expect(await ClipboardSnapshot.take(pasteboard, access: .allowed, within: 1) == nil)
+        #expect(provider.reads == 0)
+
+        pasteboard.clearContents()
+        pasteboard.setString("copied here", forType: .string)
+        #expect(ClipboardSnapshot.canTake(pasteboard, access: .allowed))
+        let snapshot = await ClipboardSnapshot.take(pasteboard, access: .allowed, within: 1)
+        #expect(snapshot?.items.map { $0.map(\.type) } == [[.string]])
     }
 
     @Test func withAllowItIsKeptAndPutBack() throws {

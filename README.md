@@ -1034,7 +1034,9 @@ suggestions use, and puts in the one you choose.
 - **What goes in:** the text as you copied it, typed in (the clipboard is unchanged), the way suggestion rows go in, so
   ⏎ in Slack, Chrome and other apps built on Chromium or Electron doesn't send the message. In a terminal, text of more
   than one line goes in as one paste (with Accessibility allowed, and Paste from Other Apps set to Allow so that your
-  clipboard can be put back), never line by line; without them, on one line, and your clipboard is left alone.
+  clipboard can be put back), never line by line; without them, on one line, and your clipboard is left alone. The
+  same when your clipboard holds a copy from another device (Universal Clipboard) or one its app is slow to hand over:
+  typing never waits for it.
 - **The keys stay with the panel, in every app (0.6.8.1):** with Accessibility allowed, the input method takes the keys
   the panel uses (↓ ↑ → Esc ⏎ Tab, and ⌃V that opens it) before any app sees them, so no app acts on them: not Slack's
   page, not a terminal's shell, whatever the app is built with. Without Accessibility, apps built on Chromium or
@@ -1048,8 +1050,9 @@ suggestions use, and puts in the one you choose.
   size and how large it is ("Image 1280 × 720 · 2.4 MB · 2 min ago"). ⏎ pastes it: it goes on the clipboard, the app's
   own paste key is pressed for you (⌘V in an app, ⌃V in a terminal or a code editor, where Claude Code takes an image),
   and your clipboard is put back once the app has read it. That needs Accessibility (System Settings → Privacy & Security → Accessibility); without it ⏎ puts the
-  image on the clipboard, for your own ⌘V. Without Paste from Other Apps set to Allow, your clipboard can't be read to
-  be put back: the image is pasted and stays on the clipboard. In a command, ⏎ on it reads it as a screenshot (`@reply`). ⇧↓ ⇧↑ put in the
+  image on the clipboard, for your own ⌘V. Without Paste from Other Apps set to Allow (or with a copy from another
+  device or a slow app on it, as above), your clipboard can't be read to be put back: the image is pasted and stays on
+  the clipboard. In a command, ⏎ on it reads it as a screenshot (`@reply`). ⇧↓ ⇧↑ put in the
   texts selected only. An image on the clipboard the history doesn't have (it isn't recording, or didn't keep it: over
   10 MB, marked, or copied on another device through Universal Clipboard) is the first row, "Image on the clipboard",
   pasted the same way.

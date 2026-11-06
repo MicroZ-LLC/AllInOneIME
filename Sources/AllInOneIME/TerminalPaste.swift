@@ -7,19 +7,20 @@ import ApplicationServices
 /// runs the line, Claude Code sends the message; a paste is different: shells and programs like Claude Code turn on
 /// bracketed paste and take pasted line breaks as text), and clipboard history's kept images (0.6.8.2), with the app's
 /// own paste key (⌘V; ⌃V in a terminal or a code editor). Without Accessibility an answer goes into a terminal on one
-/// line as before, and an image is left on the clipboard. Where the clipboard can't be read without macOS asking (Paste
-/// from Other Apps not Allow: `ClipboardSnapshot`), it couldn't be put back: an answer goes in on one line then too, and
-/// an image is pasted and left on the clipboard.
+/// line as before, and an image is left on the clipboard. Where what is on the clipboard can't be kept without macOS
+/// asking or a wait (Paste from Other Apps not Allow, a copy from an iPhone or another Mac, an app's data slow to come:
+/// `ClipboardSnapshot`), it couldn't be put back: an answer goes in on one line then too, and an image is pasted and left
+/// on the clipboard.
 enum TerminalPaste {
     /// Marks the ⌘V posted here, so the input method lets it through (`isOurs`).
     static let marker: Int64 = 0x4149_4F49  // "AIOI"
 
     /// Whether text can be pasted: the clipboard can be read without macOS asking, to be put back after (Paste from Other
-    /// Apps: Allow, told without asking), and posting ⌘V is allowed. The first time posting isn't, macOS is asked to show
-    /// its permission prompt.
+    /// Apps: Allow, told without asking; not a copy from an iPhone or another Mac: `ClipboardSnapshot.canTake`), and
+    /// posting ⌘V is allowed. The first time posting isn't, macOS is asked to show its permission prompt.
     @MainActor
     static func isAllowed() -> Bool {
-        guard SystemClipboard().access == .allowed else { return false }
+        guard ClipboardSnapshot.canTake(.general, access: SystemClipboard().access) else { return false }
         if AXIsProcessTrusted() { return true }
         if !asked {
             asked = true
@@ -86,13 +87,21 @@ enum TerminalPaste {
     /// itself.
     @MainActor private static var pending: (ours: Int, before: ClipboardSnapshot, was: Int)?
 
+    /// How long a paste waits for what is on the clipboard to be kept (read off the main thread, so typing never waits on
+    /// it): an app's data handed over only when read that takes longer (a busy app) isn't waited for.
+    static let keepTimeout: TimeInterval = 0.25
+
     /// What was on the clipboard before our paste, and its change count: the user's, also while a paste of ours is still
-    /// to be put back; nil, nothing read, where it can't be read without macOS asking (`ClipboardSnapshot.take`).
+    /// to be put back; nil, where it can't be kept without macOS asking or a wait (`ClipboardSnapshot.take`: Paste from
+    /// Other Apps not Allow, a copy from an iPhone or another Mac, not all read within `keepTimeout`).
     @MainActor
-    private static func userClipboard(_ pasteboard: NSPasteboard) -> (snapshot: ClipboardSnapshot, was: Int)? {
+    private static func userClipboard(_ pasteboard: NSPasteboard) async -> (snapshot: ClipboardSnapshot, was: Int)? {
         if let pending, pending.ours == pasteboard.changeCount { return (pending.before, pending.was) }
         let was = pasteboard.changeCount
-        return ClipboardSnapshot.take(pasteboard, access: SystemClipboard().access).map { ($0, was) }
+        let snapshot = await ClipboardSnapshot.take(pasteboard, access: SystemClipboard().access, within: keepTimeout)
+        // A paste of ours written meanwhile keeps the user's.
+        if let pending, pending.ours == pasteboard.changeCount { return (pending.before, pending.was) }
+        return snapshot.map { ($0, was) }
     }
 
     /// The clipboard put back after paste `ours`, unless something else was copied since or a later paste of ours took it
@@ -128,12 +137,13 @@ enum TerminalPaste {
     /// Pastes `text` into the frontmost app, then puts the clipboard back once the app has read it: shortly after its first
     /// read (`textPutBackAfterRead`), or after `textReadTimeout` if it never does; typing goes on once it has. Put back on
     /// a timer from the ⌘V instead (half a second), a busy terminal that took the ⌘V later pasted what was copied before
-    /// (a password, a token). Where the clipboard can't be read without macOS asking (Paste from Other Apps set to Ask or
-    /// Deny since `isAllowed`), nothing: the clipboard is left as it is.
-    @MainActor
-    static func paste(_ text: String) async {
+    /// (a password, a token). Where what is on the clipboard can't be kept (`userClipboard`: Paste from Other Apps set to
+    /// Ask or Deny since `isAllowed`, a copy from an iPhone, an app's data slow to come), nothing, at once: the clipboard
+    /// is left as it is, and false, for the caller to put the text in on one line.
+    @MainActor @discardableResult
+    static func paste(_ text: String) async -> Bool {
         let provider = TextProvider(text: text)
-        guard let ours = await write(provider, for: [.string], thenPost: .maskCommand) else { return }
+        guard let ours = await write(provider, for: [.string], thenPost: .maskCommand) else { return false }
         // The app reads the clipboard when the ⌘V reaches it: wait for that before typing on or putting it back (not once
         // a later paste of ours took it over: that one puts it back). The provider stays until then.
         let steps = Int(textReadTimeout / 0.02)
@@ -142,6 +152,7 @@ enum TerminalPaste {
             if provider.read { try? await Task.sleep(nanoseconds: UInt64(textPutBackAfterRead * 1_000_000_000)) }
             putBack(after: ours, to: NSPasteboard.general)
         }
+        return true
     }
 
     /// `provider`'s item on the clipboard for `types`, what was there kept to be put back (`pending`), then V with `flags`
@@ -152,7 +163,7 @@ enum TerminalPaste {
                               thenPost flags: CGEventFlags) async -> Int? {
         let pasteboard = NSPasteboard.general
         lookBeforeWrite?()
-        guard let before = userClipboard(pasteboard) else { return nil }
+        guard let before = await userClipboard(pasteboard) else { return nil }
         pasteboard.clearContents()
         let item = NSPasteboardItem()
         item.setDataProvider(provider, forTypes: types)
@@ -191,8 +202,8 @@ enum TerminalPaste {
     /// code editor, where Claude Code takes an image on it; else ⌘V), then puts the clipboard back 1.5 seconds after the
     /// app first read it (Claude Code reads it twice, with other programs: macOS asks the provider only the first time),
     /// or after 3 seconds if it never does (0.6.8.2, clipboard history): a slow reader still gets the image, never what
-    /// was on the clipboard before. Where the clipboard can't be read without macOS asking (Paste from Other Apps not
-    /// Allow), it couldn't be put back: the image is put on it, as without Accessibility, and pasted.
+    /// was on the clipboard before. Where what is on the clipboard can't be kept (`userClipboard`), it couldn't be put
+    /// back: the image is put on it, as without Accessibility, and pasted.
     @MainActor
     static func pasteImage(_ png: Data, controlV: Bool) async {
         let flags: CGEventFlags = controlV ? .maskControl : .maskCommand

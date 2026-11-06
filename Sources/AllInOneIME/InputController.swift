@@ -323,10 +323,10 @@ final class AllInOneIMEInputController: IMKInputController {
     /// A snippet being typed out: where its caret goes once it's all in (`moveCaret`).
     private var caretAfterTyping: Int?
 
-    /// Whether line breaks can go into a terminal as a paste, and pasting there (`TerminalPaste`; the
-    /// self-test supplies its own and never posts keys or touches the clipboard).
+    /// Whether line breaks can go into a terminal as a paste, and pasting there: false where it wasn't pasted after all
+    /// (`TerminalPaste`; the self-test supplies its own and never posts keys or touches the clipboard).
     var canPasteInTerminal: @MainActor () -> Bool = { TerminalPaste.isAllowed() }
-    var pasteInTerminal: @MainActor (String) async -> Void = { await TerminalPaste.paste($0) }
+    var pasteInTerminal: @MainActor (String) async -> Bool = { await TerminalPaste.paste($0) }
     /// ⌃V to the app, marked as ours: the app's own paste in a terminal or a code editor (clipboard history's image, ⌃V
     /// again: `TerminalPaste.postControlV`; the self-test counts it instead).
     var passPasteKey: @MainActor () -> Void = { TerminalPaste.postControlV() }
@@ -364,13 +364,16 @@ final class AllInOneIMEInputController: IMKInputController {
     }
 
     /// Inserts `text` into `client`; into a terminal, text with line breaks goes in as a paste, so the
-    /// line breaks don't run (or send) anything.
+    /// line breaks don't run (or send) anything; on one line where it couldn't be pasted after all (what is on the
+    /// clipboard couldn't be kept: `TerminalPaste.paste`).
     @MainActor
     private func insert(_ text: String, into client: IMKTextInput?, replacing range: NSRange = AllInOneIMEInputController.notFound) {
         commitRow()  // a row marked during the key goes in first: the text would take its place
         if text.contains(where: \.isNewline), Self.isTerminal(client), canPasteInTerminal() {
             let paste = pasteInTerminal
-            Task { @MainActor in await paste(text) }
+            Task { @MainActor in
+                if await !paste(text) { client?.insertText(Composer.oneLine(text), replacementRange: Self.notFound) }
+            }
         } else {
             client?.insertText(text, replacementRange: range)
             hasMarkedText = false  // the inserted text took the marked text's place
@@ -455,7 +458,8 @@ final class AllInOneIMEInputController: IMKInputController {
                 if waited { await sleep(0.05) }  // the field catching up (Chromium tells its caret late)
                 while field.lineBreaks > 0 {
                     field.lineBreaks -= 1
-                    await self.pasteInTerminal("\n")
+                    // Not pasted (what is on the clipboard couldn't be kept): a space, as on one line.
+                    if await !self.pasteInTerminal("\n") { field.type(" ") }
                 }
             }
             guard let self, !Task.isCancelled else { return }

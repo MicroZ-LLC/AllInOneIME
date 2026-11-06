@@ -33,7 +33,7 @@ public struct ProcessGitRunner: GitRunning {
         }
         let (executable, environment, timeout) = (self.executable, self.environment, self.timeout)
         return try await withCheckedThrowingContinuation { continuation in
-            DispatchQueue.global(qos: .utility).async {
+            Self.onThreadOfItsOwn {
                 continuation.resume(with: Result {
                     try Self.runNow(executable, arguments, directory: directory ?? CorePaths.home,
                                     environment: environment, timeout: timeout)
@@ -82,7 +82,7 @@ public struct ProcessGitRunner: GitRunning {
         let captured = Captured()
         for (pipe, isError) in [(out, false), (err, true)] {
             reading.enter()
-            DispatchQueue.global(qos: .utility).async {
+            Self.onThreadOfItsOwn {
                 let data = pipe.fileHandleForReading.readDataToEndOfFile()
                 captured.set(data, error: isError)
                 reading.leave()
@@ -91,7 +91,7 @@ public struct ProcessGitRunner: GitRunning {
         let exited = DispatchSemaphore(value: 0)
         let exit = ExitStatus()
         let child = pid
-        DispatchQueue.global(qos: .utility).async {
+        Self.onThreadOfItsOwn {
             var status: Int32 = 0
             var result = waitpid(child, &status, 0)
             while result == -1, errno == EINTR { result = waitpid(child, &status, 0) }
@@ -116,6 +116,15 @@ public struct ProcessGitRunner: GitRunning {
         let raw = exit.get()
         let status = (raw & 0x7f) == 0 ? (raw >> 8) & 0xff : 128 + (raw & 0x7f)
         return GitResult(status: status, output: String(decoding: output, as: UTF8.self), errors: String(decoding: errors, as: UTF8.self))
+    }
+
+    /// `work`, which waits (for git, its output, its exit), on a thread of its own, not one of GCD's: a process gets 64 of
+    /// those, a git call here holds four, and with many calls at once (the tests run dozens) a call waited for a free
+    /// one, its timeout counting only from then.
+    private static func onThreadOfItsOwn(_ work: @escaping @Sendable () -> Void) {
+        let thread = Thread(block: work)
+        thread.qualityOfService = .utility
+        thread.start()
     }
 
     /// What the two pipes held, read on two threads.

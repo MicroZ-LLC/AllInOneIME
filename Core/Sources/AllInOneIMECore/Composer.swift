@@ -2192,7 +2192,7 @@ public final class Composer {
     /// Clipboard text as one line for the draft (the improve answer has one line per version): line
     /// breaks become spaces, or nothing between Chinese; control characters become spaces; the ends
     /// are trimmed.
-    static func oneLine(_ text: String) -> String {
+    public static func oneLine(_ text: String) -> String {
         var out = ""
         for line in text.components(separatedBy: .newlines) {
             let part = CandidateParser.stripControls(line).trimmingCharacters(in: .whitespaces)

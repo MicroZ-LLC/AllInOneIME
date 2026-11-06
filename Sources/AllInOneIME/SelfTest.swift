@@ -2224,10 +2224,10 @@ enum SelfTest {
                                           start: (String) -> Bool, typeText: (String) -> Void, clear: () -> Void) {
         var pasted: [String] = []
         controller.canPasteInTerminal = { true }
-        controller.pasteInTerminal = { pasted.append($0) }
+        controller.pasteInTerminal = { pasted.append($0); return true }
         defer {
             controller.canPasteInTerminal = { false }
-            controller.pasteInTerminal = { _ in }
+            controller.pasteInTerminal = { _ in true }
         }
         func ask() -> String? {
             guard start("question") else { check(false, "@question is picked from the list ('\(client.marked)')"); return nil }
@@ -2681,7 +2681,7 @@ enum SelfTest {
         // No keys posted, the clipboard left alone: line breaks into a terminal go in on one line unless a
         // check pastes them itself.
         controller.canPasteInTerminal = { false }
-        controller.pasteInTerminal = { _ in }
+        controller.pasteInTerminal = { _ in true }
         // Never a key posted to the user's frontmost app: the app's paste key and a kept image's paste are counted or
         // dropped by the checks that use them.
         controller.passPasteKey = {}
