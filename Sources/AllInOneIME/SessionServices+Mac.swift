@@ -91,7 +91,8 @@ extension SessionServices {
         // composer tracks which key from the events).
         services.isVoiceKeyHeld = { NSEvent.modifierFlags.contains(.option) && NSEvent.pressedMouseButtons == 0 }
         services.recognizeText = Platform.current.text
-        services.searchFiles = { await FileSearch.run($0, history: $1) }
+        // `@open`: Spotlight's names told before what the files contain, as its text is typed (`FileSearchProgress`).
+        services.searchFiles = { await FileSearch.run($0, history: $1, found: FileSearchProgress.found) }
         services.runInTerminal = { try TerminalLauncher.agent($0, prompt: $1) }
         services.continueInAgent = { try TerminalLauncher.agent($0, prompt: $1) }
         services.agentInstalled = { AgentAvailability.installed($0, custom: $1) }
