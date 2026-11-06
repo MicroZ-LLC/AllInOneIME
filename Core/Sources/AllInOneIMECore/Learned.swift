@@ -133,9 +133,10 @@ public final class LearnedStore: @unchecked Sendable {
     // MARK: Privacy → Learned…
 
     /// Privacy → Learned…: a row for each thing learned, its text in the interface language, apps named by `appName`
-    /// (else by their id): the starting inputs learned, the apps where autocomplete stopped, those with typos off, the
-    /// suggestion rows picked (one row, how many), the models that don't take a temperature.
-    public func items(appName: (String) -> String?) -> [LearnedItem] {
+    /// (else by their id), Chinese with the characters it's typed in (`chinese`, `Config.typedChinese`): the starting
+    /// inputs learned, the apps where autocomplete stopped, those with typos off, the suggestion rows picked (one row, how
+    /// many), the models that don't take a temperature.
+    public func items(appName: (String) -> String?, chinese: ChineseCharacters = .simplified) -> [LearnedItem] {
         let (inputs, typos, picked) = contents.withLock { ($0.startingInputs.values, $0.typosOff.values, $0.picks.count) }
         func name(_ app: String) -> String { appName(app) ?? app }
         func byName(_ a: String, _ b: String) -> Bool { name(a).localizedCaseInsensitiveCompare(name(b)) == .orderedAscending }
@@ -153,7 +154,7 @@ public final class LearnedStore: @unchecked Sendable {
         }
         return items.map { item in
             var item = item
-            item.text = item.kind.text(name)
+            item.text = item.kind.text(name, chinese: chinese)
             return item
         }
     }
@@ -360,11 +361,11 @@ public struct LearnedItem: Equatable, Sendable {
 }
 
 extension LearnedItem.Kind {
-    /// The row's text in the interface language, apps named by `name`.
-    func text(_ name: (String) -> String) -> String {
+    /// The row's text in the interface language, apps named by `name`, Chinese with the characters it's typed in (`chinese`).
+    func text(_ name: (String) -> String, chinese: ChineseCharacters) -> String {
         switch self {
         case let .startingInput(app, input):
-            let input = SessionText.inputName(input, language: UIText.language, coding: nil)
+            let input = SessionText.inputName(input, language: UIText.language, coding: nil, chinese: chinese)
             return tr("\(name(app))：用\(input)开始", "\(name(app)): starts in \(input)")
         case let .autocompleteStopped(app):
             return tr("续写在「\(name(app))」里停下了", "Autocomplete stopped in \(name(app))")

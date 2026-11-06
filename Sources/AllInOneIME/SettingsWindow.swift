@@ -38,7 +38,7 @@ final class SettingsModel: ObservableObject {
     @Published private(set) var learned: [LearnedItem] = []
 
     func refreshLearned() {
-        learned = LearnedShared.store.items(appName: { AppNames.name(for: $0) })
+        learned = LearnedShared.store.items(appName: { AppNames.name(for: $0) }, chinese: config.typedChinese)
     }
 
     /// Forget: `item` forgotten where it is kept (an app's starting input with its streak, autocomplete's learning in an

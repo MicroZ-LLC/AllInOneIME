@@ -302,6 +302,18 @@ struct ChineseCharactersTests {
         #expect(ChineseCharacters.allCases.map { $0.name(in: "en") } == ["Simplified", "Traditional (Taiwan)", "Traditional (Hong Kong)"])
     }
 
+    /// Privacy → Learned… names a starting input learned in Chinese with its characters too (#47), in either interface
+    /// language.
+    @Test func theLearnedListNamesTraditional() {
+        let learned = LearnedStore(file: nil, autocomplete: AutocompleteStore(), temperature: TemperatureSupport(file: nil))
+        learned.corrected("com.tinyspeck.slackmacgap", to: .language(.chinese))
+        learned.corrected("com.tinyspeck.slackmacgap", to: .language(.chinese))
+        func row(_ chinese: ChineseCharacters) -> String { learned.items(appName: { _ in "Slack" }, chinese: chinese).first?.text ?? "" }
+        let traditional = ["zh-Hans", "en"].map { SessionText.inputName(.chinese, language: $0, chinese: .taiwan) }
+        #expect(traditional.contains { row(.taiwan).contains($0) }, "\(row(.taiwan))")
+        #expect(!traditional.contains { row(.simplified).contains($0) }, "\(row(.simplified))")
+    }
+
     // MARK: Writing
 
     /// @improve and polishing keep the characters typed: Traditional is never written in Simplified, and the examples are
