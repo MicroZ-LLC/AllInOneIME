@@ -11,6 +11,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ### Changed
 
+- `@open` shows results on every key from the first letter: apps, the standard folders, what you opened before and a path's folder show at once, and the files Spotlight finds join the list as they come, those found by name before those found by content. The list no longer blinks while you type, Backspace brings back what a text found at once, and a row you moved to with ↑↓ stays highlighted as rows come in. Before, a single letter showed nothing, and on every key the rows went away until Spotlight answered.
 - `@reply` answers Chinese in your characters (Settings → Input → Chinese → Characters), whichever the other person writes in. Before, a reply to Traditional Chinese came in Traditional Chinese and one to Simplified in Simplified.
 - `@reminder` also reads dates and times written in Traditional characters (下個禮拜五下午三點, 兩個小時以後), whatever your characters are.
 - Snippets with line breaks go into a terminal as clipboard history and the AI's answers do: as one paste with Accessibility allowed, else on one line. Before, each line break acted as Return there without Accessibility, and the shell ran the line.
