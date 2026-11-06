@@ -19270,6 +19270,53 @@
         }
       }
     },
+    "extension.json is larger than 4 MB" : {
+      "comment" : "extension.json 太大（超过 4 MB） — Sources/AllInOneIMECore/UIText+Names.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "extension.json ist größer als 4 MB"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "extension.json ocupa más de 4 MB"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "extension.json dépasse 4 Mo"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "extension.jsonが4 MBを超えています"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "extension.json이 4MB보다 큼"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "extension.json tem mais de 4 MB"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "extension.json 大於 4 MB"
+          }
+        }
+      }
+    },
     "extension.json isn't a JSON object" : {
       "comment" : "extension.json 不是 JSON 对象 — Sources/AllInOneIMECore/UIText+Names.swift",
       "localizations" : {

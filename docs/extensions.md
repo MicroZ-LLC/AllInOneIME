@@ -262,7 +262,7 @@ reached through `ALLINONEIME_EXTENSION_DIR`) and settings. One folder to install
 ```
 
 - `schemaVersion`, `name` (letters, digits, `-`, `_`; two bundles can't share one) and `commands` or `snippets` are
-  required.
+  required. The file can be up to 4 MB; a larger one doesn't load, and Settings says why.
 - Each command names its `script` (a path inside the bundle) and takes the keys of §2 in JSON: strings, `true` /
   `false`, numbers, and the `argumentN` and `completion` objects as they are. They override the `@allinoneime.` lines in
   the script, if it has any.

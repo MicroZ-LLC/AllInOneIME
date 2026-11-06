@@ -288,6 +288,14 @@ struct ExtensionTests {
         #expect(problem(#"{"schemaVersion": 3, "name": "b", "commands": []}"#) == .newerProtocol(3))
         #expect(problem(#"{"schemaVersion": 1, "name": "b c", "commands": [{"script": "x.sh"}]}"#) == .badBundle(.badName))
         #expect(problem(#"{"schemaVersion": 1, "name": "b", "commands": []}"#) == .badBundle(.noCommands))
+        // Valid, but past its limit: said so, and only a byte more than the limit is kept.
+        let padding = String(repeating: "x", count: ExtensionBundle.maxManifestBytes)
+        let large = ScriptFolder()
+        let manifest = large.add("b/extension.json",
+                                 #"{"schemaVersion": 1, "name": "b", "description": "\#(padding)", "commands": [{"script": "x.sh"}]}"#)
+        large.add("b/x.sh", "#!/bin/bash\n")
+        #expect(large.load().skipped.map(\.problem) == [.badBundle(.tooLarge)])
+        #expect(ExtensionCache().read(manifest)?.json?.count == ExtensionBundle.maxManifestBytes + 1)
         // Two bundles with one name (their scripts differ): the first is kept.
         let folder = ScriptFolder()
         for name in ["a", "b"] {
