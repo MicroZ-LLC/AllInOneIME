@@ -228,7 +228,9 @@ enum SSEStream {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    let (bytes, response) = try await HTTPStream.bytes(for: request, session: session)
+                    // Every redirect is refused: the key (in a header) and the text reach the base URL's host and no
+                    // other. The redirect comes back as the answer, an HTTP error.
+                    let (bytes, response) = try await HTTPStream.bytes(for: request, session: session, redirect: { _ in nil })
                     guard let http = response as? HTTPURLResponse else {
                         throw ProviderError.invalidResponse(provider, "not an HTTP response")
                     }

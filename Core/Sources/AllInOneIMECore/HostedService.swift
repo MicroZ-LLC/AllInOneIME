@@ -34,6 +34,15 @@ public enum HostedService {
             + (email.map { [URLQueryItem(name: "prefilled_email", value: $0)] } ?? [])
         return components.url
     }
+
+    /// Sends `request` and reads the answer. A redirect isn't followed: it comes back as the (unsuccessful) answer, so
+    /// what the request carries (a token, a code) reaches its own host and no other.
+    static func send(_ request: URLRequest, session: URLSession) async throws -> (Data, URLResponse) {
+        let (bytes, response) = try await HTTPStream.bytes(for: request, session: session, redirect: { _ in nil })
+        var data = Data()
+        for try await byte in bytes { data.append(byte) }
+        return (data, response)
+    }
 }
 
 /// Signing in on the user pool's page in the browser: the authorization code flow with PKCE, back to
@@ -100,7 +109,7 @@ public struct HostedSignIn: Sendable {
             .init(name: "redirect_uri", value: HostedService.redirectURI),
         ]
         request.httpBody = Data((form.percentEncodedQuery ?? "").utf8)
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await HostedService.send(request, session: session)
         let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         guard (response as? HTTPURLResponse)?.statusCode == 200, let token = object?["id_token"] as? String else {
             throw ProviderError.http(provider: .hosted, status: (response as? HTTPURLResponse)?.statusCode ?? 0,
@@ -174,7 +183,7 @@ public struct HostedAccount: Codable, Equatable, Sendable {
         request.httpBody = body
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await HostedService.send(request, session: session)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard status == 200, let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw HTTPProviders.httpError(provider: .hosted, status: status, body: Array(data))
