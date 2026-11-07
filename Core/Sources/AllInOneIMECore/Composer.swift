@@ -1873,8 +1873,12 @@ public final class Composer {
     /// candidate removed for good (`EnglishWordsEngine.deleteCandidate`: on `removedCandidates`, never shown again, any
     /// word of librime's, an English word put among them too; librime's deleted as well, what it learned of it
     /// forgotten), kept (`Effect.candidateRemoved`), the page laid out anew without it; nothing committed, the letters
-    /// stay. Nothing on any other row.
-    public func deleteCandidate(index: Int) -> [Effect] { forField(deleteRow(index)) }
+    /// stay. Nothing on any other row: one @'s rows are none of the engine's (its pinyin's candidates are on a line of
+    /// their own, not rows; ⌃⌦ removes the first, the one the rows are for).
+    public func deleteCandidate(index: Int) -> [Effect] {
+        guard oneAt == nil else { return [] }
+        return forField(deleteRow(index))
+    }
 
     /// `deleteCandidate`, before `forField`.
     private func deleteRow(_ index: Int) -> [Effect] {
