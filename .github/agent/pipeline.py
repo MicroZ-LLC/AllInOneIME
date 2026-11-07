@@ -19,8 +19,8 @@
 # the pipeline out.
 #
 # The agents run on the Max plan through this Mac's Claude Code sign-in, never an API key, and without the GitHub
-# token. They don't commit or push: this script commits their work (author from AGENT_GIT_AUTHOR, dates at 18:00
-# Pacific or later as the repo's history has them) and pushes it.
+# token. They don't commit or push: this script commits their work (author from AGENT_GIT_AUTHOR, dated when it
+# commits) and pushes it.
 
 from __future__ import annotations
 
@@ -36,7 +36,6 @@ import sys
 import time
 import traceback
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 HERE = Path(__file__).resolve().parent
 REPO = os.environ["GITHUB_REPOSITORY"]
@@ -58,7 +57,6 @@ TESTS = ("Tests/", "Core/Tests/")
 ACCEPTANCE = ("Core/Tests/AllInOneIMECoreTests/Acceptance/", "Core/Tests/AllInOneIMETestSupport/Acceptance/",
               "Tests/AllInOneIMEMacTests/Acceptance/",
               "Tests/AllInOneIMECoreTests/Acceptance/", "Tests/AllInOneIMERimeTests/Acceptance/")
-PACIFIC = ZoneInfo("America/Los_Angeles")
 
 
 class Queued(Exception):
@@ -119,16 +117,12 @@ def gh(*args: str, input: str | None = None):
     return json.loads(out) if out.strip() else None
 
 
-def dated() -> dict:
-    when = repo_time()
-    return dict(os.environ, GIT_AUTHOR_DATE=when, GIT_COMMITTER_DATE=when)
-
-
-def repo_time() -> str:
-    """Now, as a time of day at 18:00 Pacific or later: the day's 24 hours squeezed into its last 6, in order."""
-    now = dt.datetime.now(PACIFIC)
-    midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    return (midnight + dt.timedelta(hours=18) + (now - midnight) / 4).isoformat(timespec="seconds")
+def commit_env() -> dict:
+    """The environment the pipeline commits and merges in: git dates them as it makes them (no date from outside)."""
+    env = dict(os.environ)
+    env.pop("GIT_AUTHOR_DATE", None)
+    env.pop("GIT_COMMITTER_DATE", None)
+    return env
 
 
 # MARK: GitHub
@@ -226,7 +220,7 @@ def commit(message: str, start: str) -> str | None:
     git("add", "-A")
     if not git("diff", "--cached", "--name-only"):
         return None
-    git("commit", "-q", "-F", "-", env=dated(), input=f"{message.strip()}\n\n{TRAILER}\n")
+    git("commit", "-q", "-F", "-", env=commit_env(), input=f"{message.strip()}\n\n{TRAILER}\n")
     return git("rev-parse", "HEAD")
 
 
@@ -504,7 +498,7 @@ def merge(number: int, title: str, base: str, branch: str, base_sha: str, baseli
     if git("rev-parse", f"origin/{base}") != base_sha:
         log(f"{base} moved: merging it in")
         if run(["git", "merge", "--no-ff", "-q", "-m", f"Merge branch '{base}' into {branch}", f"origin/{base}"],
-               cwd=WORK, env=dated()).returncode:
+               cwd=WORK, env=commit_env()).returncode:
             git("merge", "--abort", check=False)
             raise Stuck(f"`{base}` changed while this ran, and merging it in conflicts.")
         problem = regressions(baseline, checks())
@@ -524,7 +518,7 @@ def merge(number: int, title: str, base: str, branch: str, base_sha: str, baseli
     git("checkout", "-q", "--detach", f"origin/{base}")
     message = f"Merge pull request #{pr['number']} from {OWNER}/{branch}\n\n{title}" if pr else \
         f"Merge branch '{branch}' into {base}\n\n{title} (#{number})"
-    git("merge", "--no-ff", "-q", "-m", message, head, env=dated())
+    git("merge", "--no-ff", "-q", "-m", message, head, env=commit_env())
     merged = git("rev-parse", "HEAD")
     push(f"HEAD:refs/heads/{base}")
     for _ in range(12 if pr else 0):  # GitHub marks the PR merged once it sees its head in the base
