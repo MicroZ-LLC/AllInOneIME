@@ -103,9 +103,18 @@ public struct BedrockClient: Sendable {
     }
 
     init(session: URLSession, temperatureSupport: TemperatureSupport, warmOrigins: WarmOrigins = WarmOrigins(file: nil)) {
+        self.init(session: session, temperatureSupport: temperatureSupport, warmth: ConnectionWarmth(succeeded: warmOrigins))
+    }
+
+    /// A client on `session` whose connections `warmth` opens ahead (a test's), the rest as `init(session:)`'s.
+    init(session: URLSession, warmth: ConnectionWarmth) {
+        self.init(session: session, temperatureSupport: TemperatureSupport(file: nil), warmth: warmth)
+    }
+
+    private init(session: URLSession, temperatureSupport: TemperatureSupport, warmth: ConnectionWarmth) {
         self.session = session
         self.temperatureSupport = temperatureSupport
-        warmth = ConnectionWarmth(succeeded: warmOrigins)
+        self.warmth = warmth
     }
 
     /// One long-lived session so the TLS connection is reused between conversions.

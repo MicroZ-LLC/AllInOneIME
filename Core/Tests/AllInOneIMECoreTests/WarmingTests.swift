@@ -386,6 +386,42 @@ struct WarmingTests {
         }
     }
 
+    /// The last check and the HEAD's start are one step: the HEAD is made ready first (its request and its task), then
+    /// checked and started at once, nothing scheduled between. A fake that turns secure input on once the HEAD is made
+    /// ready, before it would start: no HEAD goes, and the one made ready is cancelled unsent. Nothing turned on: it goes.
+    @Test func secureInputOnBetweenTheHEADMadeReadyAndItsStart() async {
+        await withInterfaceLanguage("en") {
+            let server = "api.anthropic.com"
+            func heads() -> Int { StubURLProtocol.requests(host: server).filter { $0.httpMethod == "HEAD" }.count }
+            for turnsOn in [true, false] {
+                StubURLProtocol.register(host: server, StubURLProtocol.Response(status: 404, headers: [:], chunks: []))
+                let settings = Settings(.anthropic)
+                let (secure, made) = (Locked(initialState: false), Locked<[URLRequest]>(initialState: []))
+                let origins = WarmOrigins(file: nil)
+                origins.remember("https://api.anthropic.com:443")
+                let warmth = ConnectionWarmth(succeeded: origins, now: { ProcessInfo.processInfo.systemUptime }, prepared: { request in
+                    made.withLock { $0.append(request) }
+                    if turnsOn { secure.withLock { $0 = true } }
+                })
+                let converter = Converter(client: BedrockClient(session: StubURLProtocol.session(), warmth: warmth),
+                                          loadConfig: { settings.config })
+                let host = host(settings, session: StubURLProtocol.session(), converter: converter) {
+                    $0.secureInputActive = { secure.withLock { $0 } }
+                }
+                host.type("@hello")
+                if turnsOn {
+                    answer(host, for: 0.3)
+                    #expect(heads() == 0, "secure input came on before the start")
+                } else {
+                    #expect(host.settle(timeout: 5) { heads() == 1 }, "nothing changed")
+                }
+                let ready = made.withLock { $0 }
+                #expect(ready.count == 1 && ready.first?.httpMethod == "HEAD" && ready.first?.url?.absoluteString == "https://\(server)/",
+                        "made ready once: \(ready.map { $0.url?.absoluteString ?? "" })")
+            }
+        }
+    }
+
     /// At most one HEAD per origin in 90 s: a request counts as something sent.
     @Test func aHEADGoesOnlyAfterAnIdlePeriod() throws {
         let clock = Uptime()

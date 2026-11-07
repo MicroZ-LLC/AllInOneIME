@@ -12,9 +12,9 @@ import FoundationNetworking
 /// own default base URL (`isDefault`), to its host (`isBuiltIn`: the Claude API's, the Gemini API's, OpenAI's,
 /// `bedrock-runtime.<region>.amazonaws.com`): never for a base URL of the user's, even one on another built-in provider's
 /// host, never the hosted service; and only to one a real request has succeeded at before (`WarmOrigins`). Nothing of a
-/// key, the keychain, the environment or the AWS files is read for it. Made ready off the session's thread (`ready`), it
-/// starts only once the session has checked again that it may (`InputSession.warmDue`). One for each session
-/// (`BedrockClient`).
+/// key, the keychain, the environment or the AWS files is read for it. Made ready off the session's thread (`ready`,
+/// `prepare`: its request and its task, not started), it starts only as the session checks again that it may, in one step
+/// with nothing scheduled between (`InputSession.warmDue`, `WarmHead.start`). One for each session (`BedrockClient`).
 public final class ConnectionWarmth: Sendable {
     /// A service nothing went to for this long is idle: its connection may be gone by the time the request goes.
     public static let idle: TimeInterval = 90
@@ -26,11 +26,19 @@ public final class ConnectionWarmth: Sendable {
     private let now: @Sendable () -> TimeInterval
     /// The origins a request succeeded at.
     let succeeded: WarmOrigins
+    /// Told of each HEAD made ready (`prepare`), before it may start: nothing in the app; a test's fake turns secure input
+    /// on there.
+    private let prepared: @Sendable (URLRequest) -> Void
 
-    public init(succeeded: WarmOrigins = WarmOrigins(file: nil),
-                now: @escaping @Sendable () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
+    public convenience init(succeeded: WarmOrigins = WarmOrigins(file: nil),
+                            now: @escaping @Sendable () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
+        self.init(succeeded: succeeded, now: now, prepared: { _ in })
+    }
+
+    init(succeeded: WarmOrigins, now: @escaping @Sendable () -> TimeInterval, prepared: @escaping @Sendable (URLRequest) -> Void) {
         self.succeeded = succeeded
         self.now = now
+        self.prepared = prepared
     }
 
     /// A request goes to `url` now.
@@ -60,29 +68,25 @@ public final class ConnectionWarmth: Sendable {
     }
 
     /// Where the HEAD for `url` goes (`headURL`), if one may go now: a request succeeded there before and nothing went there
-    /// in the last `idle`. Nothing is marked sent: `warm` does it as the HEAD starts. What a request succeeded at may be
-    /// read from its file the first time (`WarmOrigins`): off the session's thread.
+    /// in the last `idle`. Nothing is marked sent: `WarmHead.start` does it as the HEAD starts. What a request succeeded at
+    /// may be read from its file the first time (`WarmOrigins`): off the session's thread.
     func ready(_ url: URL) -> URL? {
         guard let head = Self.headURL(url), let origin = Self.origin(head), succeeded.knows(origin) else { return nil }
         let time = now()
         return sent.withLock { sent in sent[origin].map { time - $0 >= Self.idle } ?? true } ? head : nil
     }
 
-    /// The HEAD to `url`'s origin on `session`, where it is due (`due`), off the caller's thread: never redirected (as no
-    /// request to a provider is), any authentication challenge refused, its answer taken to its end, so that the
-    /// connection stays open, and not looked at. True if it went.
-    @discardableResult
-    func warm(_ url: URL, session: URLSession) -> Bool {
-        guard due(url), let head = Self.headURL(url) else { return false }
+    /// The HEAD to `url`'s origin on `session` made ready (`WarmHead`), not started: never redirected (as no request to a
+    /// provider is), any authentication challenge refused. Nil where none goes (`headURL`). Nothing is sent.
+    func prepare(_ url: URL, session: URLSession) -> WarmHead? {
+        guard let head = Self.headURL(url) else { return nil }
         var request = URLRequest(url: head, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: Self.timeout)
         request.httpMethod = "HEAD"
         request.httpShouldHandleCookies = false
-        Task.detached(priority: .utility) {
-            guard let (body, _) = try? await HTTPStream.bytes(for: request, session: session, redirect: { _ in nil },
-                                                              refusesAuthentication: true) else { return }
-            do { for try await _ in body {} } catch {}
-        }
-        return true
+        let ready = WarmHead(url: head, request: HTTPStream.prepare(request, session: session, redirect: { _ in nil },
+                                                                    refusesAuthentication: true), warmth: self)
+        prepared(request)
+        return ready
     }
 
     /// Where the HEAD for a base URL goes: "https://host:port/", lowercased, nothing else of it (no user or password, no
@@ -211,8 +215,39 @@ public final class WarmOrigins: Sendable {
     }
 }
 
+/// A HEAD to open a provider's connection, made ready (`Converter.warmHead`): its request and the task that sends it, not
+/// started. The session checks again that it may go and starts it in one step, nothing scheduled between
+/// (`InputSession.warmDue`); one let go of unstarted is cancelled, having sent nothing.
+public final class WarmHead: Sendable {
+    /// Where it goes: "https://host/" (`ConnectionWarmth.headURL`).
+    let url: URL
+    private let request: HTTPStream.Prepared
+    private let warmth: ConnectionWarmth
+
+    init(url: URL, request: HTTPStream.Prepared, warmth: ConnectionWarmth) {
+        self.url = url
+        self.request = request
+        self.warmth = warmth
+    }
+
+    /// Sends it now, where it is still due (`ConnectionWarmth.due`, which marks it sent): its task resumed, which doesn't
+    /// block or wait. Its answer is then taken to its end off the caller's thread, so that the connection stays open, and
+    /// not looked at. True if it went.
+    @discardableResult
+    func start() -> Bool {
+        guard warmth.due(url) else { return false }
+        request.start()
+        let request = request
+        Task.detached(priority: .utility) {
+            guard let (body, _) = try? await request.response() else { return }
+            do { for try await _ in body {} } catch {}
+        }
+        return true
+    }
+}
+
 /// A cloud provider's connection to open ahead of a request, as the settings gave it when it was asked for
-/// (`Converter.warmTarget`): checked again right before its HEAD starts (`InputSession.warmDue`).
+/// (`Converter.warmTarget`): checked again as its HEAD starts (`InputSession.warmDue`).
 public struct WarmTarget: Equatable, Sendable {
     public let provider: Provider
     /// Its base URL (its own default one); for Bedrock the region the settings name (nil: none named).
@@ -239,23 +274,22 @@ extension Converter {
         }
     }
 
-    /// Where the HEAD for `target` goes, where one may go now (`ConnectionWarmth.ready`: a request succeeded there before,
-    /// nothing went there lately): to its base URL's origin; Bedrock's to its region's endpoint, the region named, else
-    /// the one a request succeeded at last. Nothing is sent, and nothing read but what the warm-up remembers (from its
-    /// file the first time: off the session's thread).
-    public func warmHead(for target: WarmTarget) -> URL? {
+    /// The HEAD for `target` made ready on the requests' session, where one may go now (`ConnectionWarmth.ready`: a
+    /// request succeeded there before, nothing went there lately): to its base URL's origin; Bedrock's to its region's
+    /// endpoint, the region named, else the one a request succeeded at last. Not started (`WarmHead.start`): nothing is
+    /// sent, and nothing read but what the warm-up remembers (from its file the first time: off the session's thread).
+    public func warmHead(for target: WarmTarget) -> WarmHead? {
         let warmth = client.bedrock.warmth
-        guard target.provider == .bedrock else { return target.address.flatMap(URL.init(string:)).flatMap(warmth.ready) }
-        let named = target.address.flatMap { try? BedrockClient.origin(region: $0) }
-        let last = warmth.succeeded.latest { origin in
-            URL(string: origin).flatMap { $0.host }.map { $0.hasPrefix("bedrock-runtime.") } ?? false
+        let head: URL?
+        if target.provider == .bedrock {
+            let named = target.address.flatMap { try? BedrockClient.origin(region: $0) }
+            let last = warmth.succeeded.latest { origin in
+                URL(string: origin).flatMap { $0.host }.map { $0.hasPrefix("bedrock-runtime.") } ?? false
+            }
+            head = (named ?? last.flatMap(URL.init(string:))).flatMap(warmth.ready)
+        } else {
+            head = target.address.flatMap(URL.init(string:)).flatMap(warmth.ready)
         }
-        return (named ?? last.flatMap(URL.init(string:))).flatMap(warmth.ready)
-    }
-
-    /// The HEAD to `head` (`warmHead`) started now, where it is still due, off the caller's thread: the session checked
-    /// right before that it may go (`InputSession.warmDue`). Nothing is waited for.
-    public func startWarm(_ head: URL) {
-        client.bedrock.warmth.warm(head, session: client.session)
+        return head.flatMap { warmth.prepare($0, session: client.session) }
     }
 }

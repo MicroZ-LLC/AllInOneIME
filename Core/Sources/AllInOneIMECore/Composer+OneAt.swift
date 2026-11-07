@@ -409,14 +409,15 @@ extension Composer {
         whileSelectionIsRead(event) == .settles ? selectionRead(nil) : []
     }
 
-    /// The selection the field reads after the key (`selectionPending`) arrived (nil: none, or the read gave up, or a key
-    /// settled it): the list is for it from now on, and what was parked for it is done now, exactly as where the field
-    /// tells the selection with the key.
+    /// The selection the field reads after the key (`selectionPending`) arrived (nil: none, or the read gave up, or a key,
+    /// the field's leaving or secure input settled it): the list is for it from now on, and what was parked for it is done
+    /// now, exactly as where the field tells the selection with the key (`doParked`).
     public func selectionRead(_ selected: Selection?) -> [Effect] {
         guard selectionPending else { return [] }
         selectionPending = false
-        let parked = parkedForSelection
+        let (parked, row) = (parkedForSelection, parkedOnRow)
         parkedForSelection = nil
+        parkedOnRow = nil
         guard draft.hasPrefix(commandTrigger) else { return [] }
         if let selected, !selected.text.isEmpty {
             selection = selected
@@ -426,15 +427,40 @@ extension Composer {
         let effects = forField([.updateMarkedText, .showPanel])
         switch parked {
         case let .key(event)?:
-            return effects + handleKeyDown(event).effects
+            return effects + doParked(on: row, doesRow: parkedKeyDoesRow(event)) { handleKeyDown(event).effects }
         case .actionKeyTap?:
-            return effects + forField(actionKeyPressed() ?? [])
+            let lone = draft == commandTrigger && !engineState.isComposing
+            return effects + doParked(on: row, doesRow: !lone) { forField(actionKeyPressed() ?? []) }
         case let .row(action)?:
             guard oneAt != nil else { return effects }
-            oneAtHighlight = oneAtRows.firstIndex(of: action) ?? oneAtHighlighted
-            return effects + forField(doOneAt(action, run: true))
+            return effects + doParked(on: action, doesRow: true) {
+                oneAtHighlight = oneAtRows.firstIndex(of: action) ?? oneAtHighlighted
+                return forField(doOneAt(action, run: true))
+            }
         case nil:
             return effects
         }
+    }
+
+    /// What was parked for the selection read, done (`done`) now it is settled. With a selection, as where the field tells
+    /// it with the key. With nothing selected (none, the read gave up, a key, the field's leaving, secure input), one that
+    /// does a row (`doesRow`) does the row it was taken on (`row`) if that is still listed under the rules that hold now
+    /// (secure input, No AI: no AI row); if not, the text goes in as typed. So `@3*7` ⏎ is "21" whatever settles it, and
+    /// no AI row runs once secure input is on. Those that do no row (Esc, ⇧⏎, ⏎ right after the magic key) do what they do.
+    private func doParked(on row: OneAt.Action?, doesRow: Bool, _ done: () -> [Effect]) -> [Effect] {
+        guard selection == nil, oneAt != nil, doesRow else { return done() }
+        guard let row, let listed = oneAtRows.firstIndex(of: row) else { return forField(finishOneAsTyped()) }
+        oneAtHighlight = listed
+        return done()
+    }
+
+    /// Whether `event`, parked for the selection read, does the highlighted row with nothing selected: ⏎ and the action key
+    /// once something follows the magic key (right after it, ⏎ types the key), and Tab.
+    private func parkedKeyDoesRow(_ event: KeyEvent) -> Bool {
+        let modifiers = event.modifiers.subtracting(.capsLock)
+        if event.key == .tab { return modifiers.subtracting(.shift).isEmpty }
+        let lone = draft == commandTrigger && !engineState.isComposing
+        let enter = (event.key == .enter || event.key == .keypadEnter) && modifiers.isEmpty
+        return (enter || isActionKey(event)) && !lone
     }
 }

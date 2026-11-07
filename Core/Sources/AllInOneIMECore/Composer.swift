@@ -563,6 +563,9 @@ public final class Composer {
     /// What was taken while the selection was read after the "@" key (`selectionPending`), to be done once the read is in
     /// (`selectionRead`): one at a time, as where the field tells the selection with the key.
     var parkedForSelection: ParkedForSelection?
+    /// The one @ row highlighted (or clicked) when what is parked was taken, nil if none was listed: what it does if nothing
+    /// turns out to be selected (`selectionRead`).
+    var parkedOnRow: OneAt.Action?
     /// A send command's recipient (`@imessage`), once picked; until then the text after the command
     /// finds one (`recipientQuery`).
     public private(set) var messageRecipient: Recipient?
@@ -1485,10 +1488,16 @@ public final class Composer {
         return response
     }
 
-    /// Takes `parked` until the selection read after the "@" key is in (`selectionRead`). It was a press: no tap, hold or
-    /// Shift tap goes on across it, as across any key.
+    /// Takes `parked` until the selection read after the "@" key is in (`selectionRead`), with the row it was taken on. It
+    /// was a press: no tap, hold or Shift tap goes on across it, as across any key.
     func parkForSelection(_ parked: ParkedForSelection) {
         parkedForSelection = parked
+        if case let .row(row) = parked {
+            parkedOnRow = row
+        } else {
+            let rows = oneAtRows
+            parkedOnRow = rows.indices.contains(oneAtHighlighted) ? rows[oneAtHighlighted] : nil
+        }
         shiftPressedAt = nil
         optionPressed = nil
         voiceArmed = false
