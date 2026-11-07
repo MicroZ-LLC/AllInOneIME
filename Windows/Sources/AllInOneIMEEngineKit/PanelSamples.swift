@@ -2,9 +2,10 @@ import AllInOneIMECore
 import Foundation
 
 /// The candidate window's sample panels: the core's models as the engine's sessions show them, one for each thing the
-/// window draws (a row or a column of candidates, the command list with its icons, a draft's input with its caret and
-/// header, results coming in, a conversation with where it can go on, a list under a hint, an error, every icon). What
-/// `AllInOneIMEEngine --render-panel` draws into PNG files to look at, and what the panel's tests draw.
+/// window draws (a row or a column of candidates, the command list with its icons, one @'s rows with the pinyin being
+/// composed under them, a draft's input with its caret and header, results coming in, a conversation with where it can
+/// go on, a list under a hint, an error, every icon). What `AllInOneIMEEngine --render-panel` draws into PNG files to
+/// look at, and what the panel's tests draw.
 public enum PanelSamples {
     public struct Sample {
         public var name: String
@@ -30,6 +31,7 @@ public enum PanelSamples {
         for language in ["zh-Hans", "en"] {
             add("palette-" + language, palette(language: language))
         }
+        add("one-at-pinyin", oneAtPinyin)
         add("draft", PanelModel(
             status: .hint("写点内容，或按 Ctrl+V 粘贴"), input: PanelModel.Input(prompt: "improve › ", text: "帮我改一下这句话，让它更礼貌", caret: 6),
             header: ["选中的文字：Thanks for the update, I'll take a look tomorrow.", "附件：截图 2 张"],
@@ -65,6 +67,20 @@ public enum PanelSamples {
         composer.modifierRoles = .windows
         _ = composer.handleKeyDown(KeyEvent(keyCode: 0x13, characters: "@", charactersIgnoringModifiers: "@", modifiers: .shift))
         return PanelPresenter(config: .default, language: language, terms: .windows).model(for: composer)
+    }
+
+    /// One @'s rows for 你好 while "nihao" is composed after the magic key, as the core's presenter makes them: the rows on
+    /// top, the candidates on a line under them (`PanelModel.candidates`), the footer.
+    static var oneAtPinyin: PanelModel {
+        typealias Row = PanelModel.Row
+        func row(_ text: String, _ command: Command) -> Row {
+            Row(label: "", text: text, comment: "@" + command.name, kind: .candidate, icon: IconToken.command(command))
+        }
+        var model = PanelModel(
+            rows: [row("改写", .improve), row("翻译成英文", .translate), row("问 AI", .question)], highlighted: 0,
+            candidates: "1 你好   2 拟好   3 你   4 泥   5 尼", footer: "空格 选词 · Enter 执行选中的一行 · ↑↓ 选择")
+        for index in model.rows.indices { model.rows[index].choice = index }
+        return model
     }
 
     /// An `@question` conversation of five rounds (an answer long enough to wrap), where it can go on above, the next

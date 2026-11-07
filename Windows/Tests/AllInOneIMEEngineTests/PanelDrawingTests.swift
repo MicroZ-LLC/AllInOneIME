@@ -60,9 +60,11 @@ struct PanelDrawingTests {
         model.input = PanelModel.Input(prompt: "追问 › ", text: "👋好", caret: 1)
         model.header = ["选中的文字：Hello", "附件：截图 2 张"]
         model.status = .list("会附上：", items: ["版本", "日志"])
+        model.candidates = "1 你好   2 拟好"
         model.rows[1].icon = IconToken(.question, color: .blue)
         CandidateWindow.withModel(model) { flat in
             let m = flat.pointee
+            #expect(Self.string(m.candidates) == "1 你好   2 拟好")
             #expect(m.transcript == 1 && m.rowCount == Int32(model.rows.count) && m.highlighted == Int32(model.rows.count - 1))
             #expect(Self.string(m.inputPrompt) == "追问 › " && Self.string(m.inputText) == "👋好" && m.inputCaret == 2)
             #expect(Self.strings(m.headerLines, m.headerCount) == model.header)
@@ -80,6 +82,8 @@ struct PanelDrawingTests {
         CandidateWindow.withModel(empty) { #expect(Self.string($0.pointee.inputText) == "" && $0.pointee.inputCaret == 0) }
         empty.input = nil
         CandidateWindow.withModel(empty) { #expect($0.pointee.inputText == nil && $0.pointee.inputCaret == -1) }
+        // No candidates' line: none (plain typing's candidates are the rows).
+        CandidateWindow.withModel(PanelSamples.all()[0].model) { #expect($0.pointee.candidates == nil) }
     }
 
     func render(_ model: PanelModel, dpi: Int = 96, dark: Bool = false, maxHeight: Int = 0) throws -> AioPanelState {
@@ -130,6 +134,19 @@ struct PanelDrawingTests {
         #expect(try render(rows, maxHeight: 200).height > 200)
     }
 
+    /// One @'s candidates' line takes a line of its own, under the rows (the rows' places: `PanelCandidatesLineTests`); a
+    /// panel of it alone isn't empty.
+    @Test func theCandidatesLineTakesItsRoom() throws {
+        let composing = PanelSamples.oneAtPinyin
+        var picked = composing
+        picked.candidates = nil
+        for dpi in [96, 144] {
+            let tall = try render(composing, dpi: dpi), short = try render(picked, dpi: dpi)
+            #expect(tall.height > short.height && tall.height - short.height < Int32(40 * dpi / 96), "\(tall.height) / \(short.height)")
+        }
+        #expect(try render(PanelModel(candidates: "1 你好   2 拟好")).height > 20)
+    }
+
     /// A list's items each a line under its hint; the hand-off's chips wrap.
     @Test func listsAndChipsTakeTheirRoom() throws {
         let one = try render(PanelModel(status: .list("会附上：", items: ["版本"])))
@@ -141,6 +158,76 @@ struct PanelDrawingTests {
         let few = try render(handoff(2)), many = try render(handoff(8))
         #expect(many.height > few.height)
         #expect(many.width <= Int32(616 + 12 + 1))
+    }
+}
+
+extension OnTheDesktop {
+    /// One @'s rows while pinyin is composed after the magic key: the rows on top, the candidates' line under them,
+    /// above the footer. As the line comes and goes the rows stay where they are in the window; under the caret its top
+    /// stays (the rows don't move), above the caret its bottom stays at the caret. A click picks the row under it, never
+    /// the line.
+    @Suite(.serialized)
+    struct PanelCandidatesLineTests {
+        final class Clicks: @unchecked Sendable {
+            private let lock = NSLock()
+            private var rows: [Int] = []
+            func add(_ row: Int) { lock.lock(); rows.append(row); lock.unlock() }
+            func take() -> [Int] { lock.lock(); defer { rows = []; lock.unlock() }; return rows }
+        }
+
+        @Test func theRowsAreOnTopAndTheCandidatesUnderThem() throws {
+            let window = try #require(CandidateWindow(), "no candidate window (no Direct2D here?)")
+            let clicks = Clicks()
+            let owner = PanelOwner(pid: nil, choose: { clicks.add($0) })
+            let composing = PanelSamples.oneAtPinyin
+            var picked = composing
+            picked.candidates = nil
+            let count = composing.rows.count
+            let hwnd = try #require(window.window).assumingMemoryBound(to: HWND__.self)
+            func rows() throws -> [[Int]] {
+                _ = window.state
+                return try (0..<count).map { let r = try #require(window.rowRect($0)); return [r.x, r.y, r.width, r.height] }
+            }
+            func click(x: Int, y: Int) -> [Int] {
+                // Sent per-monitor aware: from a thread that isn't, Windows takes the point for logical pixels and scales it.
+                _ = perMonitorAware { SendMessageW(hwnd, UINT(WM_LBUTTONUP), 0, LPARAM(Int32(y) << 16 | Int32(x))) }
+                return clicks.take()
+            }
+            let work = workArea
+            for above in [false, true] {
+                let caret = above ? CaretRect(x: Int(work.left) + 300, y: Int(work.bottom) - 30, width: 2, height: 22)
+                    : CaretRect(x: Int(work.left) + 200, y: Int(work.top) + 150, width: 2, height: 22)
+                window.show(composing, owner: owner, caret: caret)
+                let tall = window.state
+                let shown = try rows()
+                #expect(tall.visible == 1 && tall.rows == Int32(count) && tall.highlighted == 0)
+                #expect(above ? Int(tall.y) + Int(tall.height) <= caret.y : Int(tall.y) >= caret.y + caret.height, "not over the caret")
+                // The rows first, one under the other.
+                #expect(shown[0][1] <= Int((8 * Double(tall.dpi) / 96).rounded(.up)), "the rows at the top: \(shown[0])")
+                for index in 1..<count { #expect(shown[index][1] >= shown[index - 1][1] + shown[index - 1][3]) }
+                // Without the line: shorter by it, the rows where they were.
+                window.show(picked, owner: owner, caret: caret)
+                let short = window.state
+                #expect(try rows() == shown)
+                let line = Int(tall.height) - Int(short.height)
+                #expect(line > 0 && line < Int(40 * tall.dpi / 96), "\(tall.height) / \(short.height)")
+                if above {
+                    #expect(Int(short.y) + Int(short.height) == Int(tall.y) + Int(tall.height), "its bottom stays at the caret")
+                } else {
+                    #expect(short.y == tall.y, "its top stays: the rows don't move")
+                }
+                #expect(short.x == tall.x)
+                // With it again: a click on each row picks it; one on the line, under the last row, picks nothing.
+                window.show(composing, owner: owner, caret: caret)
+                #expect(try rows() == shown)
+                for (index, row) in shown.enumerated() {
+                    #expect(click(x: row[0] + row[2] / 2, y: row[1] + row[3] / 2) == [index])
+                }
+                let last = shown[count - 1]
+                #expect(click(x: last[0] + last[2] / 2, y: last[1] + last[3] + line / 2 + 1).isEmpty)
+            }
+            window.hide(owner: owner)
+        }
     }
 }
 

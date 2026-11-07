@@ -301,7 +301,7 @@ public struct PanelPresenter {
             }
             model.detail = composer.messages.mode(composer.inputLanguage)
         } else if composer.oneAt != nil {
-            // One @: what can be done with the text, the likeliest first; while pinyin is composed, its candidates on top.
+            // One @: what can be done with the text, the likeliest first (while pinyin is composed, its candidates below).
             oneAtPanel(composer, into: &model)
         } else if composer.engineState.isComposing {
             let state = composer.engineState
@@ -414,9 +414,9 @@ public struct PanelPresenter {
         model.header = [SessionText.selectionHeader(composer, language: language)].compactMap { $0 }
             + SessionText.attachmentHeader(composer, language: language, terms: terms)
             + [SessionText.refineHeader(composer, language: language)].compactMap { $0 }
-        // One @ with pinyin composed: its candidates are the top line, as while typing (Space picks the first).
+        // One @ with pinyin composed: its candidates on a line under the rows, above the footer (Space picks the first).
         if composer.oneAt != nil, composer.engineState.isComposing {
-            model.header.insert(composer.engineState.candidates.map { "\($0.label) \($0.text)" }.joined(separator: "   "), at: 0)
+            model.candidates = composer.engineState.candidates.map { "\($0.label) \($0.text)" }.joined(separator: "   ")
         }
         // A click on a row picks what its number would.
         for index in model.rows.indices { model.rows[index].choice = index }
