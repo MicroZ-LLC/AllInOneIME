@@ -89,7 +89,9 @@ struct PostedKeysTests {
     /// The mark stays with the event in this process (the key tap has it), and is gone once its data is sent to another
     /// (as an app hands a key over to the input method), archived or sent as an event's data: its key, ⌃ and time stay.
     /// So reading the mark alone, as 0.6.8.2 to 0.7.0 did, took every ⌃V of ours the app handed over for the user's.
-    @Test func theMarkDoesNotLeaveTheProcess() throws {
+    // On the main thread: archiving an NSEvent reads its characters through the input source API (TIS), which aborts
+    // the process when another test calls it on another thread at the same time (`KeyboardLayoutTests`).
+    @MainActor @Test func theMarkDoesNotLeaveTheProcess() throws {
         let posted = Self.v(at: 100, marked: true)
         #expect(PostedKeys.isMarked(posted) && PostedKeys.isMarked(NSEvent(cgEvent: posted)!.cgEvent!))
         let sent = try #require(CGEvent(withDataAllocator: nil, data: try #require(posted.data)))
