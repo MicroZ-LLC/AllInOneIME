@@ -128,8 +128,7 @@ struct PostedKeysTests {
     // MARK: - The user's ⌃V
 
     /// The user's ⌃V right after ours (50 ms) is the user's: at the tap it opens the history; handed over by the app (where
-    /// the tap didn't take it: marked text of the session's there) it does too, by its own time, also while ours, past the
-    /// tap, isn't handed over yet (an app busy with output) or never is.
+    /// the tap didn't take it: marked text of the session's there) after ours was, it does too.
     @Test func aRealControlVRightAfterStillOpensHistory() {
         let shell = Shell()
         let posted = shell.post(now: 100)
@@ -140,10 +139,22 @@ struct PostedKeysTests {
 
         let other = Shell()
         let ours = other.post(now: 100)
-        #expect(other.atTap(ours, now: 100.001).ours)
+        #expect(other.atTap(ours, now: 100.001).ours && other.handedOver(ours, now: 100.02).ours)
         let handed = other.handedOver(Self.v(at: 100.05, marked: false), now: 100.06)
-        #expect(!handed.ours && handed.took && other.historyReads == 1, "handed over: the user's, by its own time")
-        #expect(other.handedOver(ours, now: 100.07).ours, "ours handed over late is still ours")
+        #expect(!handed.ours && handed.took && other.historyReads == 1, "handed over after ours: the user's")
+    }
+
+    /// Ours, seen at the tap, handed over by the app with a time other than the tap saw: still ours, and its copy (the same
+    /// time again) too; the next ⌃V is the user's.
+    @Test func oursHandedOverWithAnotherTimeIsStillOurs() {
+        let shell = Shell()
+        let ours = shell.post(now: 100)
+        #expect(shell.atTap(ours, now: 100.001).ours)
+        let restamped = Self.v(at: 100.03, marked: false)
+        #expect(shell.handedOver(restamped, now: 100.04).ours, "ours, its time told anew")
+        #expect(shell.handedOver(restamped, now: 100.041).ours, "its copy")
+        let real = shell.handedOver(Self.v(at: 100.5, marked: false), now: 100.5)
+        #expect(!real.ours && real.took && shell.historyReads == 1, "the next one: the user's")
     }
 
     // MARK: - ⌃V again

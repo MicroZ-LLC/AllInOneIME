@@ -95,7 +95,7 @@ public struct PostedKeys: Sendable {
 
     /// A key down the app handed over (the Mac's IMK), `marked` (never, from another process): whether it is one posted
     /// here (it goes on to the app, never answered). The one the tap saw, by its time, its copies too (a page hands a key
-    /// over twice: `KeyEchoes`); where no time is told on either side, the first posted like it not handed over yet, and
+    /// over twice: `KeyEchoes`); else the first posted like it not handed over yet (an app may tell its own time), and
     /// never a key from before it was posted.
     public mutating func handedOver(_ key: Key, marked: Bool, now: TimeInterval) -> Bool {
         forget(now)
@@ -103,12 +103,13 @@ public struct PostedKeys: Sendable {
             posted[index].handedOver = true
             return true
         }
+        // Else the first posted like it not handed over yet, whatever time the tap saw (an app may hand a key over with a
+        // time of its own), never a key from before it was posted; its copies are then known by this time.
         if let index = posted.firstIndex(where: { posted in
-            posted.isLike(key) && !posted.handedOver && (posted.time == 0 || key.timestamp == 0)
-                && (key.timestamp == 0 || key.timestamp >= posted.at - Self.earlier)
+            posted.isLike(key) && !posted.handedOver && (key.timestamp == 0 || key.timestamp >= posted.at - Self.earlier)
         }) {
             posted[index].handedOver = true
-            if posted[index].time == 0 { posted[index].time = key.timestamp }  // its copies, by this time
+            if key.timestamp != 0 { posted[index].time = key.timestamp }
             return true
         }
         return marked
