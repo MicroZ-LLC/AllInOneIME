@@ -162,13 +162,17 @@ enum TerminalPaste {
 
     /// `provider`'s item on the clipboard for `types`, what was there kept to be put back (`pending`), then V with `flags`
     /// posted once no modifier is held: the change count of our write. Nil, the clipboard untouched, where what is on it
-    /// can't be kept (`userClipboard`); nil, no V posted and the clipboard put back, where the task was cancelled first.
+    /// can't be kept (`userClipboard`); nil, no V posted and the clipboard untouched or put back, where the task was
+    /// cancelled first.
     @MainActor
     private static func write(_ provider: any NSPasteboardItemDataProvider, for types: [NSPasteboard.PasteboardType],
                               thenPost flags: CGEventFlags) async -> Int? {
         let pasteboard = NSPasteboard.general
         lookBeforeWrite?()
         guard let before = await userClipboard(pasteboard) else { return nil }
+        // Typing stopped while it was being kept: the clipboard isn't touched. Written, it could take over a paste made
+        // meanwhile (the rest of the answer, put in at once) and be put back before that one's ⌘V was read.
+        guard !Task.isCancelled else { return nil }
         pasteboard.clearContents()
         let item = NSPasteboardItem()
         item.setDataProvider(provider, forTypes: types)
