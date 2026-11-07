@@ -38,6 +38,7 @@ struct OneAtCustomCommandsAcceptanceTests {
         "zhejiadiandecaihenhaochi": ["这家店的菜很好吃"],  // a statement in the user's language: Improve first
         "hongshaorouzenmezuo": ["红烧肉怎么做"],  // a question: Ask AI first
         "qianming": ["签名"],  // a word of sig's summary, 邮件签名
+        "nihao": ["你好"],
     ]
 
     /// Selections in the user's language and in another.
@@ -264,12 +265,103 @@ struct OneAtCustomCommandsAcceptanceTests {
             let bare = part.trimmingCharacters(in: .whitespaces)
             if names.contains(bare) { return bare }
             let characters = Array(part)
-            for (index, character) in characters.enumerated() where character == "@" {
+            for (index, character) in characters.enumerated() where character == "@" || character == "~" {
                 let name = String(characters[(index + 1)...].prefix { $0.isASCII && ($0.isLetter || $0.isNumber) })
                 if names.contains(name) { return name }
             }
         }
         return row.text
+    }
+
+    // MARK: - The magic key alone includes the user's commands
+
+    /// Picking a custom command from the unfiltered list, then giving it text, does exactly what its
+    /// name and text do for run, terminal and prompt commands.
+    @Test func loneMagicKeyPicksCustomCommandsAndTheirTextRunsAsByName() async {
+        await inEnglish {
+            for trigger in ["@", "~"] {
+                for english in [false, true] {
+                    for name in ["shout", "sh", "formal"] {
+                        let world = World()
+                        world.config.commandTrigger = trigger
+                        world.usage.withLock { usage in
+                            for _ in 0..<5 { usage.record(name, in: Suite.editor) }
+                        }
+                        let picked = world.field(english: english)
+                        picked.type(trigger)
+                        #expect(picked.kinds.first == name, "\(trigger), \(name), English \(english): \(picked.texts)")
+                        picked.press(FakeHost.enter)
+                        let chosen = picked.host.composer.draftCommand?.name == name
+                        #expect(chosen && world.runs.isEmpty && world.requests.isEmpty,
+                                "\(trigger), \(name): \(picked.host.composer.draft)")
+                        guard chosen else { continue }
+                        if english { picked.type("hello") } else { picked.write(pinyin: "nihao") }
+                        picked.press(FakeHost.enter)
+                        let input = english ? "hello" : "你好"
+                        if name == "formal" {
+                            #expect(picked.host.settle(timeout: 5) { !picked.model.requests.isEmpty })
+                        } else {
+                            #expect(picked.host.settle(timeout: 5) { world.runs.count == 1 }, "\(world.runs)")
+                        }
+                        let byName = world.field(english: english)
+                        byName.type(trigger + name + " ")
+                        if english { byName.type("hello") } else { byName.write(pinyin: "nihao") }
+                        byName.press(FakeHost.enter)
+                        if name == "formal" {
+                            #expect(byName.host.settle(timeout: 5) { !byName.model.requests.isEmpty })
+                            #expect(picked.model.requests.first == byName.model.requests.first,
+                                    "\(trigger), \(name): \(world.requests.map(\.prompt))")
+                        } else {
+                            #expect(byName.host.settle(timeout: 5) { world.runs.count == 2 }, "\(world.runs)")
+                            if world.runs.count == 2 {
+                                #expect(world.runs[0] == world.runs[1] && world.runs[0].contains(input),
+                                        "\(trigger), \(name): \(world.runs)")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// A no-input snippet runs on the first Return. Plugins and script extensions are in the same
+    /// unfiltered command list and can be picked with Down and Return.
+    @Test func loneMagicKeyListsNoInputCommandsPluginsAndScriptExtensions() async {
+        await inEnglish {
+            for trigger in ["@", "~"] {
+                for english in [false, true] {
+                    let world = World()
+                    world.config.commandTrigger = trigger
+                    world.usage.withLock { usage in
+                        for _ in 0..<6 { usage.record("sig", in: Suite.editor) }
+                        for _ in 0..<5 { usage.record("kaomoji", in: Suite.editor) }
+                        for _ in 0..<4 { usage.record("tsconv", in: Suite.editor) }
+                    }
+                    let snippet = world.field(english: english)
+                    snippet.type(trigger)
+                    #expect(snippet.kinds.prefix(3).elementsEqual(["sig", "kaomoji", "tsconv"]),
+                            "\(trigger), English \(english): \(snippet.texts)")
+                    snippet.press(FakeHost.enter)
+                    #expect(snippet.host.document == "Best,\nWei\n" && world.runs.isEmpty && world.requests.isEmpty,
+                            "\(snippet.host.document.debugDescription)")
+
+                    let plugin = world.field(english: english)
+                    plugin.type(trigger)
+                    plugin.press(FakeHost.down)
+                    plugin.press(FakeHost.enter)
+                    #expect(plugin.host.composer.draftCommand?.name == "kaomoji" && world.requests.isEmpty,
+                            "\(plugin.host.composer.draft)")
+
+                    let script = world.field(english: english)
+                    script.type(trigger)
+                    script.press(FakeHost.down)
+                    script.press(FakeHost.down)
+                    script.press(FakeHost.enter)
+                    #expect(script.host.composer.draftCommand?.name == "tsconv" && world.runs.isEmpty,
+                            "\(script.host.composer.draft)")
+                }
+            }
+        }
     }
 
     /// The request asks the AI to do `instruction` (the command's prompt) with `text`.

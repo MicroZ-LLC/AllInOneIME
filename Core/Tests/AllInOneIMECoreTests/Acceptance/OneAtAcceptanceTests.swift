@@ -320,6 +320,200 @@ struct OneAtAcceptanceTests {
 
     func inEnglish(_ body: () throws -> Void) async rethrows { try await withInterfaceLanguage("en", body) }
 
+    // MARK: - The magic key alone
+
+    /// The command list is ranked by use. Return picks its first row, and Down then Return picks its second,
+    /// whether the field is composing Chinese or typing English and whether the key is @ or ~.
+    @Test func loneMagicKeyReturnPicksTheMostUsedCommandAndDownPicksTheSecond() async {
+        await inEnglish {
+            for trigger in ["@", "~"] {
+                for english in [false, true] {
+                    let world = World(trigger: trigger)
+                    world.usage.withLock { usage in
+                        for _ in 0..<4 { usage.record("shout", in: Suite.editor) }
+                        for _ in 0..<3 { usage.record("note", in: Suite.editor) }
+                    }
+                    let first = world.field(english: english)
+                    first.type(trigger)
+                    #expect(first.kinds.prefix(2).elementsEqual(["shout", "note"]) && first.firstIsHighlighted,
+                            "\(trigger), English \(english): \(first.texts)")
+                    first.press(FakeHost.enter)
+                    let firstPicked = first.host.composer.draftCommand?.name == "shout"
+                    #expect(firstPicked && world.programs.withLock { $0 }.isEmpty,
+                            "\(trigger), English \(english): \(first.host.composer.draft)")
+                    if firstPicked {
+                        if english { first.type("hello") } else { first.write(pinyin: "nihao") }
+                        first.press(FakeHost.enter)
+                        let input = english ? "hello" : "你好"
+                        #expect(first.host.settle(timeout: 5) { world.programs.withLock { $0 } == [input] },
+                                "\(trigger), English \(english): \(world.programs.withLock { $0 })")
+                    }
+
+                    let second = world.field(english: english)
+                    second.type(trigger)
+                    #expect(second.kinds.prefix(2).elementsEqual(["shout", "note"]), "\(second.texts)")
+                    second.press(FakeHost.down)
+                    #expect(second.host.panel?.highlighted == 1, "\(second.texts)")
+                    second.press(FakeHost.enter)
+                    let secondPicked = second.host.composer.draftCommand == .note
+                    #expect(secondPicked, "\(second.host.composer.draft)")
+                    if secondPicked {
+                        if english { second.type("buy milk") } else { second.write(pinyin: "nihao") }
+                        second.press(FakeHost.enter)
+                        let note = english ? "buy milk" : "你好"
+                        #expect(second.host.settle(timeout: 5) { world.notes.withLock { $0 } == [note] },
+                                "\(trigger), English \(english): \(world.notes.withLock { $0 })")
+                    }
+                }
+            }
+        }
+    }
+
+    /// A different action key has the same effect as Return on the lone key's highlighted command.
+    @Test func loneMagicKeyActionKeyPicksItsHighlightedCommand() async {
+        await inEnglish {
+            for trigger in ["@", "~"] {
+                for english in [false, true] {
+                    let world = World(trigger: trigger)
+                    world.config.actionKey = .optionSpace
+                    world.usage.withLock { $0.record("shout", in: Suite.editor) }
+                    let field = world.field(english: english)
+                    field.type(trigger)
+                    #expect(field.kinds.first == "shout", "\(field.texts)")
+                    field.press(KeyEvent(keyCode: VirtualKey.space, characters: " ", modifiers: .option))
+                    #expect(field.host.composer.draftCommand?.name == "shout", "\(field.host.composer.draft)")
+                }
+            }
+        }
+    }
+
+    /// Tab picks a command; a digit starts text, so arithmetic after the key still inserts its value.
+    @Test func loneMagicKeyTabPicksCommandAndDigitsStartText() async {
+        await inEnglish {
+            for trigger in ["@", "~"] {
+                for english in [false, true] {
+                    let world = World(trigger: trigger)
+                    world.usage.withLock { usage in
+                        for _ in 0..<4 { usage.record("shout", in: Suite.editor) }
+                        for _ in 0..<3 { usage.record("note", in: Suite.editor) }
+                    }
+                    let tab = world.field(english: english)
+                    tab.type(trigger)
+                    tab.press(FakeHost.tab)
+                    #expect(tab.host.composer.draftCommand?.name == "shout", "\(trigger): \(tab.host.composer.draft)")
+
+                    let digit = world.field(english: english)
+                    digit.type(trigger)
+                    digit.type("2")
+                    #expect(digit.host.composer.draft == trigger + "2" && digit.host.composer.draftCommand == nil,
+                            "\(trigger), English \(english): \(digit.host.composer.draft)")
+
+                    let arithmetic = world.field(english: english)
+                    arithmetic.type(trigger)
+                    arithmetic.type("3*7")
+                    arithmetic.press(FakeHost.enter)
+                    #expect(arithmetic.host.document == "21", "\(trigger), English \(english): \(arithmetic.host.document)")
+                }
+            }
+        }
+    }
+
+    /// A selection keeps its own rows with either magic key in either input mode.
+    @Test func loneMagicKeyWithSelectionKeepsTheSelectionsRows() async {
+        await inEnglish {
+            for trigger in ["@", "~"] {
+                for english in [false, true] {
+                    let world = World(trigger: trigger)
+                    let selected = english ? "The report looks good to me" : "这个方案我觉得还可以"
+                    let command = english ? "translate" : "improve"
+                    let field = world.field(english: english, selected: selected)
+                    field.type(trigger)
+                    #expect(field.kinds.first == command && field.firstIsHighlighted, "\(trigger): \(field.texts)")
+                    let sent = field.returnSends()
+                    let named = world.sent(english: english, selected: selected) { $0.pick(command) }
+                    #expect(sent != nil && sent == named, "\(trigger), English \(english): \(String(describing: sent?.prompt))")
+                    #expect(field.host.document == selected, "selection stays until the result is chosen")
+                }
+            }
+        }
+    }
+
+    /// With no command row at all, Return still types the key. Space, a mark, Right and Esc retain their
+    /// existing ways of giving up the lone key.
+    @Test func loneMagicKeyWithoutRowsAndItsLiteralExits() async {
+        await inEnglish {
+            for trigger in ["@", "~"] {
+                for english in [false, true] {
+                    let empty = World(trigger: trigger).field(english: english)
+                    empty.host.composer.commands = []
+                    empty.type(trigger)
+                    #expect(empty.rows.isEmpty, "\(empty.texts)")
+                    empty.press(FakeHost.enter)
+                    #expect(empty.host.document == trigger, "\(empty.host.document)")
+
+                    let actionWorld = World(trigger: trigger)
+                    actionWorld.config.actionKey = .optionSpace
+                    let noActionRows = actionWorld.field(english: english)
+                    noActionRows.host.composer.commands = []
+                    noActionRows.type(trigger)
+                    #expect(noActionRows.rows.isEmpty)
+                    noActionRows.press(KeyEvent(keyCode: VirtualKey.space, characters: " ", modifiers: .option))
+                    #expect(noActionRows.host.document == trigger, "\(noActionRows.host.document)")
+
+                    for (key, expected) in [(FakeHost.space, trigger + " "),
+                                            (KeyEvent(keyCode: 0, characters: "/"), trigger + "/"),
+                                            (FakeHost.right, trigger)] {
+                        let field = World(trigger: trigger).field(english: english)
+                        field.host.appTypesKeys = true
+                        field.type(trigger)
+                        field.press(key)
+                        #expect(field.host.document == expected && field.rows.isEmpty,
+                                "\(trigger), English \(english): \(field.host.document) / \(field.texts)")
+                    }
+                    let escaped = World(trigger: trigger).field(english: english)
+                    escaped.type(trigger)
+                    escaped.press(FakeHost.escape)
+                    #expect(escaped.host.document.isEmpty && escaped.rows.isEmpty && !escaped.host.composer.isComposing,
+                            "\(trigger), English \(english): \(escaped.host.document)")
+                }
+            }
+        }
+    }
+
+    /// A slow selection read leaves Return parked. If it answers none, the command highlighted when Return
+    /// was pressed is the one picked, even if the highlight changed while the read was outstanding.
+    @Test func loneMagicKeyParkedReturnKeepsItsHighlightedRowWhenSelectionReadGivesNone() async {
+        await inEnglish {
+            for trigger in ["@", "~"] {
+                for action in [false, true] {
+                    let world = World(trigger: trigger)
+                    if action { world.config.actionKey = .optionSpace }
+                    world.usage.withLock { usage in
+                        for _ in 0..<4 { usage.record("shout", in: Suite.editor) }
+                        for _ in 0..<3 { usage.record("note", in: Suite.editor) }
+                    }
+                    let field = world.field(english: true)
+                    field.host.selectionReadsWait = true
+                    var told = field.host.context
+                    told.selection = nil
+                    told.selectionFollows = true
+                    field.host.press(trigger == "@" ? FakeHost.at : KeyEvent(keyCode: 0, characters: trigger), with: told)
+                    #expect(field.host.composer.selectionPending && field.kinds.prefix(2).elementsEqual(["shout", "note"]),
+                            "\(field.texts)")
+                    field.press(FakeHost.down)
+                    #expect(field.host.panel?.highlighted == 1, "\(field.texts)")
+                    let key = action ? KeyEvent(keyCode: VirtualKey.space, characters: " ", modifiers: .option) : FakeHost.enter
+                    #expect(field.host.press(key) && field.host.composer.selectionPending,
+                            "\(action ? "Action key" : "Return") is parked: \(field.host.composer.draft)")
+                    #expect(field.host.composer.draftCommand == nil && world.notes.withLock { $0 }.isEmpty)
+                    field.host.selectionReadsGiveUp()
+                    #expect(field.host.composer.draftCommand == .note && world.notes.withLock { $0 }.isEmpty,
+                            "\(trigger), action \(action): \(field.host.composer.draft)")
+                }
+            }
+        }
+    }
+
     // MARK: - 1. Command names first
 
     /// `@no` → note, `@tr` → translate (a power user's shortcut); ⏎ picks the command, as the list does today.
