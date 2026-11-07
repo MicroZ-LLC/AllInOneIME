@@ -152,44 +152,51 @@ struct OneAtTests {
         # @allinoneime.title People
         # @allinoneime.output list
         # @allinoneime.argument1 {"type": "text", "optional": true}
-        # @allinoneime.queryDelay 300
+        # @allinoneime.queryDelay 5000
         sleep 0.2
         printf '{"items": [{"title": "Person %s", "arg": "%s"}, {"title": "Other %s", "arg": "o%s"}]}' "$1" "$1" "$1" "$1"
         """
 
-    /// The first run once the command is picked goes at once; a key keeps the rows until its run answers; ⏎ before it
-    /// answers waits for it and acts on its first row; a text typed again lists what it printed before at once.
+    /// The first run once the command is picked goes at once (its query delay is 5 s); a key keeps the rows until its run
+    /// answers; ⏎ before it answers starts it at once and acts on its first row; a text typed again lists what it printed
+    /// before at once. In the interface language's turn, as the other sessions that wait for their work.
     @Test func aListKeepsItsRowsAndReturnWaitsForItsRun() async throws {
-        let folder = ScriptFolder()
-        folder.add("people.sh", Self.people)
-        let host = field(folder)
-        host.type("@people")
-        host.press(FakeHost.tab)
-        let picked = Date()
-        #expect(host.settle(timeout: 5) { host.composer.currentList?.items.first?.title == "Person " })
-        #expect(Date().timeIntervalSince(picked) < 0.3 + 0.2 + 1, "no query delay before the first run")
-        host.type("j")
-        #expect(host.composer.currentList?.items.first?.title == "Person ", "the rows stay until the run for \"j\" answers")
-        host.press(FakeHost.enter)
-        #expect(host.settle(timeout: 5) { host.document == "j" }, "⏎ waited for the run for \"j\": \(host.document)")
-        // Typed again in another draft of the same field: nothing kept (the draft went).
-        host.type("@people")
-        host.press(FakeHost.tab)
-        #expect(host.settle(timeout: 5) { host.composer.currentList != nil })
-        host.type("j")
-        #expect(host.settle(timeout: 5) { host.composer.currentList?.items.first?.title == "Person j" })
-        host.press(backspaceKey)
-        #expect(host.composer.currentList?.items.first?.title == "Person ", "the text before, listed at once")
+        try await withInterfaceLanguage("en") {
+            let folder = ScriptFolder()
+            folder.add("people.sh", Self.people)
+            let host = field(folder)
+            host.type("@people")
+            host.press(FakeHost.tab)
+            let picked = Date()
+            #expect(host.settle(timeout: 15) { host.composer.currentList?.items.first?.title == "Person " })
+            #expect(Date().timeIntervalSince(picked) < 4.5, "no query delay before the first run")
+            host.type("j")
+            #expect(host.composer.currentList?.items.first?.title == "Person ", "the rows stay until the run for \"j\" answers")
+            let pressed = Date()
+            host.press(FakeHost.enter)
+            #expect(host.settle(timeout: 15) { host.document == "j" }, "⏎ waited for the run for \"j\": \(host.document)")
+            #expect(Date().timeIntervalSince(pressed) < 4.5, "⏎ started the run in its pause")
+            // Another draft of the same field: what the one before printed went with it.
+            host.type("@people")
+            host.press(FakeHost.tab)
+            #expect(host.settle(timeout: 15) { host.composer.currentList != nil })
+            host.type("j")
+            #expect(host.settle(timeout: 15) { host.composer.currentList?.items.first?.title == "Person j" })
+            host.press(backspaceKey)
+            #expect(host.composer.currentList?.items.first?.title == "Person ", "the text before, listed at once")
+        }
     }
 
-    @Test func recipientsAreFoundInTheBookKeptOnTheKey() {
-        let book = [Contact(name: "Ann Lee", handles: ["+1 555 0100"]), Contact(name: "Bob Ray", handles: ["bob@example.com"])]
-        let host = field(ScriptFolder(), contacts: book)
-        host.type("@imessage")
-        host.press(FakeHost.tab)
-        host.type("an")
-        #expect(host.composer.currentRecipients.first?.name == "Ann Lee", "on the key: \(host.composer.currentRecipients)")
-        #expect(host.panel?.rows.first?.text == "Ann Lee")
+    @Test func recipientsAreFoundInTheBookKeptOnTheKey() async {
+        await withInterfaceLanguage("en") {
+            let book = [Contact(name: "Ann Lee", handles: ["+1 555 0100"]), Contact(name: "Bob Ray", handles: ["bob@example.com"])]
+            let host = field(ScriptFolder(), contacts: book)
+            host.type("@imessage")
+            host.press(FakeHost.tab)
+            host.type("an")
+            #expect(host.composer.currentRecipients.first?.name == "Ann Lee", "on the key: \(host.composer.currentRecipients)")
+            #expect(host.panel?.rows.first?.text == "Ann Lee")
+        }
     }
 
     // MARK: - The selection, read after the key

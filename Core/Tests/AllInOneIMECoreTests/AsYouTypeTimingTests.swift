@@ -14,6 +14,12 @@ struct AsYouTypeTimingTests {
     func ms(_ seconds: TimeInterval) -> String { String(format: "%.0f ms", seconds * 1000) }
 
     @Test func aListNeverGoesBlankAsItsTextIsTyped() async throws {
+        try await withInterfaceLanguage("en") { try listNeverGoesBlank() }
+    }
+
+    /// `aListNeverGoesBlankAsItsTextIsTyped`, in the interface language's turn (the sessions that wait for their work
+    /// take turns).
+    func listNeverGoesBlank() throws {
         let folder = ScriptFolder()
         folder.add("clock.sh", try String(contentsOf: Self.examples.appendingPathComponent("clock.sh"), encoding: .utf8))
         var services = SessionServices(loadSettings: { .default })
@@ -26,7 +32,7 @@ struct AsYouTypeTimingTests {
         host.type("@clock")
         let picked = Date()
         host.press(FakeHost.tab)
-        #expect(host.settle(timeout: 10) { host.composer.currentList?.items.isEmpty == false })
+        #expect(host.settle(timeout: 15) { host.composer.currentList?.items.isEmpty == false })
         print("list: first rows after the command was picked: \(ms(Date().timeIntervalSince(picked)))")
         var blank: [String] = []
         for key in ["l", "o", "n"] {
@@ -34,7 +40,7 @@ struct AsYouTypeTimingTests {
             host.type(key)
             let empty = host.panel?.rows.isEmpty ?? true
             // Answered for the text now: its first row can be picked.
-            let answered = host.settle(timeout: 10) { host.composer.listItem != nil }
+            let answered = host.settle(timeout: 15) { host.composer.listItem != nil }
             let took = Date().timeIntervalSince(typed)
             blank.append("\(key): rows of the new text after \(ms(took)), blank \(empty ? ms(took) : "0 ms")\(answered ? "" : " (no answer)")")
             #expect(!empty, "rows up on the key")
@@ -43,6 +49,11 @@ struct AsYouTypeTimingTests {
     }
 
     @Test func recipientsAreListedOnTheKey() async {
+        await withInterfaceLanguage("en") { recipientsOnTheKey() }
+    }
+
+    /// `recipientsAreListedOnTheKey`, in the interface language's turn.
+    func recipientsOnTheKey() {
         let book = (0..<3000).map { Contact(name: "Person \($0)", otherNames: ["P\($0)"], handles: ["+1 555 \(1000 + $0)", "p\($0)@example.com"]) }
         + [Contact(name: "张三", handles: ["+86 138 0000 0000"])]
         var services = SessionServices(loadSettings: { .default })
