@@ -39,7 +39,8 @@ No copying into a chat window, no switching apps. Your own AI provider, your own
 A macOS input method with AI commands in every text field. Start a sentence with `@` and press ⏎ when done:
 `@improve` polishes what you wrote and offers a few rewrites, `@translate` translates it into the languages you pick,
 `@question` asks a question, `@agent` hands it to a coding agent (Claude Code, Gemini CLI, Kiro CLI …), and `@open` finds files and apps or opens a web
-address. Without `@`, your keys go to the app as usual. It also types Chinese
+address. There's nothing else to learn: type `@` and whatever you want (`@saf`, `@3*7+2`, `@明天下午3点开会`, a sentence),
+and the list says what can be done with it, the likeliest first ([One @](#one--say-what-you-want-new)). Without `@`, your keys go to the app as usual. It also types Chinese
 (pinyin, built on Rime and rime-ice), French, Korean (Hangul) and Hindi (Devanagari from Latin letters), and runs
 your own scripts as commands.
 
@@ -58,7 +59,7 @@ A new install writes English; to type Chinese (pinyin), French, Korean or Hindi 
 | Key | What it does |
 |---|---|
 | Type pinyin, Space / digits | In Chinese mode: pick words, as in any pinyin input method |
-| `@` (at the start of a sentence) | Opens the command list: the most used lately first, 5 at a time, scrolled with ↑↓, the wheel or the trackpad; or type letters to find one (a name typed in full first, then names starting with them, then names containing them). ⏎, Tab, Space or a digit chooses |
+| `@` (at the start of a sentence) | Opens the list: with nothing typed, the commands, the most used lately (in this app first) on top, 7 at a time, scrolled with ↑↓, the wheel or the trackpad. Then type anything: a command's name (`@tr`) or what you want (`@saf`, `@3*7+2`, a sentence); the rows say what ⏎ does with it ([One @](#one--say-what-you-want-new)). ⏎ does the highlighted row (the first), Tab picks a command, ↑↓ choose, Esc or → leave what you typed as it is. Digits are text there; while pinyin is typed they pick its words |
 | ⏎ | Runs the command. Works even if the pinyin isn't picked yet: it's picked first, as with Space |
 | Space, ⏎ / digits | Once the results are up: insert the highlighted / numbered one; 0 is the original. ⏎ inserts even with a follow-up half typed (it's dropped) |
 | ⇧⏎ | With a follow-up typed after AI results: sends it (the next question of an `@question` conversation, or a refine). While a command is typed, or on AI results with nothing typed: inserts what you typed as is, `@command` included. On other results (`@open`, a reminder …) it inserts the highlighted row, as ⏎ does |
@@ -108,11 +109,40 @@ Not the other way round: the code of `@py` and `@js` always runs exactly as you 
 
 ![@open finds apps as you type; starting with /, it's a path: the folder is listed, Tab completes](docs/en/open.png)
 
-When `@` isn't followed by a command, as in `@john`, the `@` is inserted as usual, so @-mentioning
-people in chat apps still works.
+When `@` isn't followed by a command, as in `@john`, the list offers what can be done with the text; Esc or → puts it in
+as typed, so @-mentioning people in chat apps still works.
 Typed right after a letter, a digit, `.`, `_` or `-`, as in `bob@example.com` or `ssh user@host`, `@` is just text: no
-list opens, in every app, terminals included. With the list open, ← → or a key that can't go on a command's name (`.`, `:`,
-`/`) close it and leave what you typed (`@`, `@im`) as it is; in a terminal ← → then only close the list.
+list opens, in every app, terminals included. Right after `@`, a space or a mark (`.`, `:`, `/`) closes the list and
+leaves the `@` as it is; in a terminal ← → on a lone `@` only close the list.
+
+### One @: say what you want (new)
+
+Type `@` and whatever you want; the list shows what can be done with it, the likeliest first, each row saying what ⏎
+does, with its command's name dimmed on the right (so the command names are there to learn as you go, but you don't
+have to). The first row is highlighted; ⏎ does it, ↑↓ pick another, a click does that one, Esc leaves the text as typed.
+Nothing is sent, run or read before ⏎: the rows come from what is on this Mac, worked out on the key you type.
+
+| You type | First row |
+|---|---|
+| `@tr`, `@no` | The commands those letters start: `@translate`, `@note` (⏎ picks it, as before; the ones you use in this app first) |
+| `@3*7+2` | `= 23`: ⏎ puts 23 in place of what you typed. Numbers and `+ - * / × ÷ ( ) % ^ .` only (`200*15%` is 30) |
+| `@github.com/apple/swift` | Open it in the browser |
+| `@saf`, `@wx`, `@xtsz` | Open Safari, WeChat (微信, by its initials), System Settings (系统设置): an app, a standard folder or what `@open` opened before, by the start of a word of its name or the pinyin or initials of its Chinese name; the files Spotlight finds by name join below |
+| `@明天下午3点开会` | Reminder: tomorrow 15:00 开会 (⏎ adds it) |
+| `@红烧肉怎么做`, `@how do I undo a commit` | Ask AI (what `@question` asks) |
+| `@thank you for the gift` | Translate into Chinese, when Chinese is your first input language (what `@translate` does) |
+| anything else | Improve (what `@improve` does) |
+
+After those come Improve and Translate (the one you use more in this app first), and once you've used them, up to
+three of your own AI instructions and plugins that take text; Ask AI is always last, so nothing is a dead end. In Chinese
+mode the letters after `@` are pinyin and command names at once: the candidates are the panel's top line (Space or a digit
+picks one), and the rows are for the sentence as it would be with the first candidate. With text selected, `@` alone
+lists what to do with it: Reply first in a chat app, else Translate (another language) or Improve, Ask AI about it last;
+text typed then is an instruction for the selection ("more formal"). In an app with No AI there are no AI rows.
+`@name text` works exactly as before, for every command, yours and plugins' included; your own commands, plugins and
+script extensions are also found by the words of their summary, title or keywords (`@email` finds a snippet whose
+summary is "Email signature"), but `run`, `terminal` and `link` commands, snippets and script extensions are never
+offered for an arbitrary sentence.
 `@question`, `@improve`, `@translate` and `@reply` send to your own Bedrock only when you press the action key (a screenshot is read on
 this Mac and only its text is sent); `@open` searches only on this
 Mac; `@note` and `@reminder` go only to Notes and Reminders on this Mac (`@note` to a folder or to Notion instead, if you chose one); `@agent` uses the agent installed on your Mac (Claude Code's `claude` command by default) and its own account, and it asks
@@ -542,7 +572,9 @@ something, never naming them.
   them, a row per app, and Remove clears them for that app (its Insert, Off too, and No AI stay). An app set to no
   suggestions in an earlier version (`"suggestions": false`) is under "In these apps", at Off.
   Nothing in `config.json` is renamed or removed by 0.6.7, and these values sync as they did.
-- With No AI, the AI commands stay in the command list; running one shows the notice and keeps what you wrote. Your own
+- With No AI, the list after `@` offers no AI row (no Improve, Translate, Ask AI or Reply for a text or a selection, and the
+  list with nothing typed has the commands that don't use AI); an AI command typed by name is still found, and running
+  one shows the notice and keeps what you wrote. Your own
   terminal commands (`"type": "terminal"`) run programs, not the AI, so they still work there.
 
 ### Settings (new)
