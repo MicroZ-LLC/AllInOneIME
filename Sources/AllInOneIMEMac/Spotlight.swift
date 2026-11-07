@@ -67,19 +67,22 @@ public final class Spotlight: @unchecked Sendable {
     }
 
     /// The files `keyword` names as `mdfind -name` finds them (a word of the name Finder shows starting with it, case
-    /// and accents aside), inside `scopes` only, each with when it was last used and changed: the most recently used
-    /// first, then the most recently changed, at most `limit`. Asked of Spotlight in this process (an MDQuery, `Query`),
-    /// not through an mdfind of its own: no program starts, nothing is printed and read back, and Spotlight sorts and
-    /// stops at `limit` itself. What it found by the time limit; nil once the search is cancelled.
-    public func names(_ keyword: String, in scopes: [String], limit: Int) -> [FileSearchRanking.Found]? {
+    /// and accents aside), inside `scopes` only, each with when it was last used and changed; with `days`, only the apps
+    /// and what was used or changed since the start of the day that many days ago. All of them, in no particular order
+    /// (`FileSearchRanking.rank` orders them): Spotlight's own limit (`MDQuerySetMaxCount`) keeps an arbitrary few, not
+    /// the newest, and fewer than it is given where the scopes leave out much of a volume ("pl" kept 3 of 552 on a Mac
+    /// mini). Asked of Spotlight in this process (an MDQuery, `Query`), not through an mdfind of its own: no program
+    /// starts, nothing is printed and read back. What it found by the time limit; nil once the search is cancelled.
+    public func names(_ keyword: String, in scopes: [String], within days: Int? = nil) -> [FileSearchRanking.Found]? {
         guard hasTimeLeft else { return isCancelled ? nil : [] }
-        let predicate = "kMDItemDisplayName == \"\(FileSearchRanking.escaped(keyword))*\"cdw"
-        // The dates Spotlight sorts by come with the results (`MDQueryGetAttributeValueOfResultAtIndex`). The path can't
-        // (asked for with them, no value comes at all), so each result is asked for it: some 3 µs each.
-        guard let made = MDQueryCreate(kCFAllocatorDefault, predicate as CFString, nil, Query.dates as CFArray) else { return [] }
-        let newestFirst = UInt32(kMDQueryReverseSortOrderFlag.rawValue)
-        for date in Query.dates { MDQuerySetSortOptionFlagsForAttribute(made, date, newestFirst) }
-        MDQuerySetMaxCount(made, limit)
+        let named = "kMDItemDisplayName == \"\(FileSearchRanking.escaped(keyword))*\"cdw"
+        let predicate = days.map { days in
+            ["kMDItemLastUsedDate >= $time.today(-\(days))", "kMDItemContentModificationDate >= $time.today(-\(days))",
+             "kMDItemContentType == \"com.apple.application-bundle\""].joined(separator: " || ")
+        }.map { "(\(named)) && (\($0))" } ?? named
+        // The dates come with the results (`MDQueryGetAttributeValueOfResultAtIndex`). The path can't (asked for with
+        // them, no value comes at all), so each result is asked for it: some 3 µs each.
+        guard let made = MDQueryCreate(kCFAllocatorDefault, predicate as CFString, Query.dates as CFArray, nil) else { return [] }
         MDQuerySetSearchScope(made, scopes as CFArray, 0)
         let query = Query(made)
         // A `cancel` that comes before the query is in `queries` is seen right after.
@@ -94,12 +97,21 @@ public final class Spotlight: @unchecked Sendable {
         return isCancelled ? nil : found
     }
 
-    /// What `names` found for each keyword, all of them asked at once; nil once the search is cancelled.
-    public func names(each keywords: [String], in scopes: [String], limit: (String) -> Int) -> [[FileSearchRanking.Found]]? {
+    /// What `names` found for each keyword, all of them asked at once; nil once the search is cancelled. Each is asked
+    /// for what was used or changed in the last `recentFirst[0]` days first (`names`' `within`), then in the last
+    /// `recentFirst[1]` and so on, and for all its matches last, each only while `enough` says what was found so far
+    /// isn't enough: it has what all of those found.
+    public func names(each keywords: [String], in scopes: [String], recentFirst days: [Int] = [],
+                      enough: @Sendable ([FileSearchRanking.Found]) -> Bool = { _ in true }) -> [[FileSearchRanking.Found]]? {
         let outputs = Locked(initialState: [[FileSearchRanking.Found]](repeating: [], count: keywords.count))
         DispatchQueue.concurrentPerform(iterations: keywords.count) { index in
-            let found = names(keywords[index], in: scopes, limit: limit(keywords[index])) ?? []
-            outputs.withLock { $0[index] = found }
+            var found: [FileSearchRanking.Found] = []
+            for days in days.map(Optional.some) + [nil] {
+                guard let more = names(keywords[index], in: scopes, within: days) else { break }
+                found += more
+                if enough(found) { break }
+            }
+            outputs.withLock { [found] in $0[index] = found }
         }
         return isCancelled ? nil : outputs.withLock { $0 }
     }

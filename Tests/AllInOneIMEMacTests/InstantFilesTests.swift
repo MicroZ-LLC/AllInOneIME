@@ -201,13 +201,13 @@ struct InstantFilesTests {
 
     // MARK: - Spotlight's names
 
-    /// What `names` finds for `keyword` in /System/Applications (at most `limit`), on a thread of its own. It answers on
-    /// dispatch's threads, which the tests that wait for a child process may all take for seconds
-    /// (`SpotlightTests.inBackground`): it is given a minute, and not answering by then is a failure.
-    func names(_ keyword: String, limit: Int) async -> [FileSearchRanking.Found] {
+    /// What `names` finds for `keyword` in `scopes` (`within` days), on a thread of its own. It answers on dispatch's
+    /// threads, which the tests that wait for a child process may all take for seconds (`SpotlightTests.inBackground`):
+    /// it is given a minute, and not answering by then is a failure.
+    func names(_ keyword: String, in scopes: [String] = ["/System/Applications"], within days: Int? = nil) async -> [FileSearchRanking.Found] {
         let seconds = 60.0, started = Date()
         let found = await withCheckedContinuation { continuation in
-            Thread { continuation.resume(returning: Spotlight(until: .now() + seconds).names(keyword, in: ["/System/Applications"], limit: limit)) }
+            Thread { continuation.resume(returning: Spotlight(until: .now() + seconds).names(keyword, in: scopes, within: days)) }
                 .start()
         }
         if Date().timeIntervalSince(started) >= seconds { Issue.record("Spotlight didn't answer \(keyword) in \(seconds) s") }
@@ -233,25 +233,78 @@ struct InstantFilesTests {
         return Set(String(decoding: data, as: UTF8.self).split(separator: "\n").map(String.init))
     }
 
-    @Test func namesAreFoundAsMdfindFindsThemNewestFirst() async throws {
+    @Test func namesAreFoundAsMdfindFindsThemWithTheirDates() async throws {
         for keyword in ["calc", "Ca", "system"] {
-            let found = await names(keyword, limit: 1000)
+            let found = await names(keyword)
             #expect(Set(found.map(\.path)) == (try mdfind(keyword, in: "/System/Applications")), "\(keyword): \(found.map(\.path))")
-            // The most recently used first, then the most recently changed.
-            let keys = found.map { ($0.lastUsed ?? .distantPast, $0.modified ?? .distantPast) }
-            #expect(zip(keys, keys.dropFirst()).allSatisfy { $0 >= $1 }, "\(keyword): \(keys)")
+        }
+        // The dates Spotlight keeps.
+        for found in await names("calc") {
+            let item = try #require(NSMetadataItem(url: URL(fileURLWithPath: found.path)))
+            #expect(found.lastUsed == item.value(forAttribute: "kMDItemLastUsedDate") as? Date, "\(found.path)")
+            #expect(found.modified == item.value(forAttribute: "kMDItemContentModificationDate") as? Date, "\(found.path)")
         }
     }
 
-    @Test func aNameSearchStopsAtItsLimit() async {
-        let (all, some) = (await names("a", limit: 1000), await names("a", limit: 2))
-        #expect(some.count == min(2, all.count), "\(some.count) of \(all.count)")
+    @Test func recentNamesAreTheAppsAndWhatWasUsedOrChangedLately() async {
+        // Every app, however long ago it was used.
+        let apps = Set(await names("a").map(\.path).filter { $0.hasSuffix(".app") })
+        let today = Set(await names("a", within: 0).map(\.path))
+        #expect(!apps.isEmpty && today.isSuperset(of: apps))
+        // Each file of the home folder used or changed in the last 29 days, before the test started (what changes while
+        // it runs may be found by one query and not the other).
+        let home = FileManager.default.homeDirectoryForCurrentUser.path, started = Date()
+        let recent = Set(await names("sa", in: [home], within: 30).map(\.path))
+        let all = await names("sa", in: [home])
+        let lately = all.filter { file in
+            file.latest.map { $0 > started.addingTimeInterval(-29 * 86_400) && $0 < started.addingTimeInterval(-60) } ?? false
+        }
+        #expect(lately.allSatisfy { recent.contains($0.path) || !FileManager.default.fileExists(atPath: $0.path) },
+                "\(lately.map(\.path).filter { !recent.contains($0) })")
+        #expect(recent.count <= all.count + 10)
+    }
+
+    @Test func aNameSearchAsksForMoreOnlyWhileWhatItFoundIsntEnough() async {
+        // In /System/Applications nothing changes while the test runs: what each query finds is known.
+        let scopes = ["/System/Applications"]
+        let (yesterday, month, all) = (await names("a", within: 1).count, await names("a", within: 30).count, await names("a").count)
+        let b = await names("b").count
+        /// The counts of what each keyword found ("a" asked up to `steps` times, from yesterday on), and what `enough` was told.
+        func each(_ steps: Int, recent: [Int] = [1, 30]) async -> (found: [Int]?, told: [Int]) {
+            let told = Locked(initialState: [Int]())
+            let found = await inBackground {
+                Spotlight(until: .now() + 60).names(each: ["a"], in: scopes, recentFirst: recent, enough: { found in
+                    told.withLock { $0.append(found.count) }
+                    return told.withLock { $0.count } >= steps
+                })?.map(\.count)
+            }
+            return (found, told.withLock { $0 })
+        }
+        #expect(await each(1) == ([yesterday], [yesterday]), "what was used or changed since yesterday only")
+        #expect(await each(2) == ([yesterday + month], [yesterday, yesterday + month]))
+        #expect(await each(3) == ([yesterday + month + all], [yesterday, yesterday + month, yesterday + month + all]), "everything")
+        #expect(await each(5) == ([yesterday + month + all], [yesterday, yesterday + month, yesterday + month + all]), "nothing more")
+        #expect(await each(5, recent: []) == ([all], [all]), "all at once")
+        let both = await inBackground { Spotlight(until: .now() + 60).names(each: ["a", "b"], in: scopes)?.map(\.count) }
+        #expect(both == [all, b])
+    }
+
+    @Test func theRowsAreFilledWhenSoManyFilesAreListed() {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let files = (0..<8).map { FileSearchRanking.Found(path: home + "/Documents/sales \($0).pdf") }
+        #expect(FileSearch.fillsRows(files, limit: 8, keywords: ["sa"], places: []))
+        #expect(!FileSearch.fillsRows(Array(files.dropLast()), limit: 8, keywords: ["sa"], places: []))
+        // Only those `@open` would list: not in Library, not noise, named by every keyword.
+        let unlisted = [home + "/Library/sales.pdf", home + "/Documents/build/sales.o", "/usr/share/sales.txt"].map { FileSearchRanking.Found(path: $0) }
+        #expect(!FileSearch.fillsRows(Array(files.dropLast()) + unlisted, limit: 8, keywords: ["sa"], places: []))
+        #expect(!FileSearch.fillsRows(files, limit: 8, keywords: ["sa", "xlsx"], places: []))
+        #expect(FileSearch.fillsRows(files, limit: 8, keywords: ["sa", "pdf"], places: []))
     }
 
     @Test func aNameSearchEndsAtOnceWhenCancelledWhileSpotlightLooks() async throws {
         // Everything on the startup disk: some 440,000 items, 12 s on a Mac mini.
         let spotlight = Spotlight(until: .now() + 60)
-        let found = Task { await inBackground { spotlight.names("", in: ["/"], limit: 1_000_000) } }
+        let found = Task { await inBackground { spotlight.names("", in: ["/"]) } }
         #expect(await Timing.eventually { spotlight.isAsking })
         try await Task.sleep(for: .milliseconds(5))
         let cancelling = Date()
@@ -262,20 +315,20 @@ struct InstantFilesTests {
         // Not started once cancelled.
         let cancelled = Spotlight(until: .now() + 10)
         cancelled.cancel()
-        #expect(cancelled.names("a", in: ["/System/Applications"], limit: 10) == nil)
-        #expect(cancelled.names(each: ["a", "b"], in: ["/System/Applications"], limit: { _ in 10 }) == nil)
+        #expect(cancelled.names("a", in: ["/System/Applications"]) == nil)
+        #expect(cancelled.names(each: ["a", "b"], in: ["/System/Applications"]) == nil)
     }
 
     @Test func aNameSearchEndsAtTheTimeLimitWithWhatItFound() async {
         let started = Date()
-        let found = await inBackground { Spotlight(until: .now() + 0.5).names("", in: ["/"], limit: 1_000_000) }
+        let found = await inBackground { Spotlight(until: .now() + 0.5).names("", in: ["/"]) }
         #expect(found != nil)
         #expect(Date().timeIntervalSince(started) < 6, "\(Date().timeIntervalSince(started)) s")
-        #expect(await inBackground { Spotlight(until: .now()).names("calc", in: ["/System/Applications"], limit: 10) } == [], "no time left")
+        #expect(await inBackground { Spotlight(until: .now()).names("calc", in: ["/System/Applications"]) } == [], "no time left")
     }
 
-    @Test func shortKeywordsListFewerAndOnlyWhereOpenLooks() {
-        #expect(FileSearch.nameLimit("s") == 500 && FileSearch.nameLimit("sa") == 500 && FileSearch.nameLimit("saf") == 1000)
+    @Test func namesAreLookedForInWhatIsRecentFirstAndOnlyWhereOpenLooks() {
+        #expect(FileSearch.recentDays == [1, 30])
         let scopes = FileSearch.scopes()
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         #expect(Array(scopes.prefix(3)) == [home, "/Applications", "/System/Applications"])

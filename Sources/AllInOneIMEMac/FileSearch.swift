@@ -112,9 +112,10 @@ public enum FileSearch {
         let opened = openedFiles(history, keywords: keywords, places: places, apps: byPath)
         let listed = FileSearchRanking.search(
             query, limit: limit, history: history, apps: apps, isCandidate: isCandidate,
-            byName: { keywords in
-                let scopes = scopes()
-                let found = spotlight.names(each: keywords, in: scopes, limit: nameLimit) ?? []
+            byName: { searched in
+                let found = spotlight.names(each: searched, in: scopes(), recentFirst: recentDays, enough: { found in
+                    fillsRows(found, limit: limit, keywords: keywords, places: places)
+                }) ?? []
                 return found.flatMap { $0 } + opened
             },
             byContent: { predicate in
@@ -129,12 +130,25 @@ public enum FileSearch {
         return rows(listed)
     }
 
-    /// The most files a name search lists (`Spotlight.names`: the most recently used, then changed, first, which is what
-    /// `FileSearchRanking.rank` lists first): 500 for a keyword of one or two characters (on a Mac mini some 1,500 files
-    /// `@open` lists from have a word starting with "sa" in their names, 4,000 with "doc"), else 1,000. A name Spotlight
-    /// hasn't been asked for lately is answered in under 150 ms then, where all its matches took up to a second.
-    public static func nameLimit(_ keyword: String) -> Int {
-        keyword.count <= 2 ? 500 : 1000
+    /// The days a name search looks back over first (`Spotlight.names(each:)`' `recentFirst`): the apps and the files used
+    /// or changed since the start of yesterday, then in the last 30 days, then all its matches, each only when what was
+    /// found before doesn't fill the rows (`fillsRows`). What was used or changed later is listed first
+    /// (`FileSearchRanking.rank`), so the rows are those all the matches give; and a keyword many files match is answered
+    /// from the few of the last days. (Spotlight's own limit isn't that: it keeps an arbitrary few, `Spotlight.names`.)
+    public static let recentDays = [1, 30]
+
+    /// Whether the files a name search found (`found`) fill `limit` rows for a query of `keywords` by themselves: so many
+    /// of them are where `@open` lists files from, not noise, and named by the query (`FileSearchRanking.matches`, which
+    /// `FileSearchRanking.search` keeps). No file used or changed earlier than all of them can be listed then.
+    static func fillsRows(_ found: [FileSearchRanking.Found], limit: Int, keywords: [String],
+                          places: [FileSearchRanking.Found]) -> Bool {
+        var rows = 0
+        for file in found where isCandidate(file.path) && !FileSearchRanking.isNoise(file.path)
+            && FileSearchRanking.matches(file.path, keywords: keywords, places: places) {
+            rows += 1
+            if rows >= limit { return true }
+        }
+        return false
     }
 
     /// The folders Spotlight searches by name for `@open`: those `isCandidate` keeps files from (the home folder, the
