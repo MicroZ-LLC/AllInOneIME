@@ -553,10 +553,11 @@ public final class InputSession {
         if let englishWords {
             englishWords.fuzzyPinyin = config.fuzzyPinyin
             let jargon = services.jargon(config)
-            let madeOf = config.englishWords + ["\u{0}"] + jargon.map(\.term)
+            let madeOf = EnglishWordsEngine.Words.madeOf(config, jargon: jargon)
             if madeOf != englishWordsMadeOf {
                 englishWordsMadeOf = madeOf
-                englishWords.words = EnglishWords.offered(config, jargon: jargon)
+                // As the shell made them ahead for these (at launch, off the main thread), else now.
+                englishWords.made = EnglishWordsEngine.Words.ahead(for: madeOf) ?? EnglishWordsEngine.Words(EnglishWords.offered(config, jargon: jargon))
             }
         }
         composer.outputLanguages = config.outputLanguages
