@@ -297,7 +297,6 @@ struct OneAtCustomCommandsAcceptanceTests {
                         guard chosen else { continue }
                         if english { picked.type("hello") } else { picked.write(pinyin: "nihao") }
                         picked.press(FakeHost.enter)
-                        let input = english ? "hello" : "你好"
                         if name == "formal" {
                             #expect(picked.host.settle(timeout: 5) { !picked.model.requests.isEmpty })
                         } else {
@@ -314,6 +313,7 @@ struct OneAtCustomCommandsAcceptanceTests {
                         } else {
                             #expect(byName.host.settle(timeout: 5) { world.runs.count == 2 }, "\(world.runs)")
                             if world.runs.count == 2 {
+                                let input = english ? "hello" : "nihao"
                                 #expect(world.runs[0] == world.runs[1] && world.runs[0].contains(input),
                                         "\(trigger), \(name): \(world.runs)")
                             }
