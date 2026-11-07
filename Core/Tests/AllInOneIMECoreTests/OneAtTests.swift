@@ -484,4 +484,29 @@ struct OneAtTests {
             #expect(host.document == "@hello" && !host.composer.isComposing, "\(host.document)")
         }
     }
+
+    /// A text that is, as a whole, a date or a phone number is no sum ("2026-11-06" isn't 2009): the other rules take it.
+    /// In Chinese mode "……" after a number is "^", as "。" is ".".
+    @Test func aWholeDateOrPhoneNumberIsNoSum() {
+        struct Detector: DateDetector {
+            func dates(in text: String) -> [ReminderParser.Match] { [] }
+            func isWholeDateOrPhoneNumber(_ text: String) -> Bool { ["2026-11-06", "11/5", "010-12345678"].contains(text) }
+        }
+        for text in ["2026-11-06", "11/5", "010-12345678"] {
+            #expect(Arithmetic.value(of: text, dates: Detector()) == nil, "\(text)")
+            #expect(Arithmetic.value(of: text, dates: RulesOnlyDateDetector()) != nil, "\(text): a sum where nothing reads dates")
+        }
+        #expect(Arithmetic.value(of: "3*7+2", dates: Detector()) == 23)
+        #expect(Arithmetic.value(of: "2……10").map(Arithmetic.format) == "1024" && Arithmetic.value(of: "1。5*2") == 3)
+        // The system's detection, where there is one (Apple's).
+        if Available.systemDates {
+            for text in ["2026-11-06", "010-12345678", "11/5", " 9/11 "] {
+                #expect(Arithmetic.value(of: text) == nil, "\(text)")
+                #expect(OneAt.actions(input(text)).first.map { if case .value = $0 { true } else { false } } == false, "\(text)")
+            }
+            for (text, value) in [("7/2", "3.5"), ("3*7+2", "23"), ("200*15%", "30"), ("10-4*2", "2")] {
+                #expect(Arithmetic.value(of: text).map(Arithmetic.format) == value, "\(text)")
+            }
+        }
+    }
 }

@@ -315,13 +315,14 @@ public enum OneAt {
 }
 
 /// Arithmetic for one @: a small evaluator of numbers and `+ - * / × ÷ ( ) % ^ .` only (their full-width forms too, as
-/// pinyin types them), never a script engine on the text. `%` after a number is percent ("200*15%" is 30), `^` a power,
-/// right to left. All of the text must be a sum with at least one operator ("3" alone is no sum).
+/// pinyin types them: "。" a point, "……" a power), never a script engine on the text. `%` after a number is percent
+/// ("200*15%" is 30), `^` a power, right to left. All of the text must be a sum with at least one operator ("3" alone is
+/// no sum), and not, as a whole, a date or a phone number ("2026-11-06", "11/5", "010-12345678": `DateDetector`).
 public enum Arithmetic {
     /// The value of `text`, or nil when it isn't all a sum (a letter, an unknown sign, unbalanced brackets, a division by
-    /// zero, a value too large).
-    public static func value(of text: String) -> Double? {
-        let normalized = text.unicodeScalars.map { scalar -> Character in
+    /// zero, a value too large), or all of it is one date or phone number as `dates` reads them.
+    public static func value(of text: String, dates: any DateDetector = Platform.current.dates) -> Double? {
+        let normalized = text.replacingOccurrences(of: "……", with: "^").unicodeScalars.map { scalar -> Character in
             // Full-width ASCII (＋－＊／（）％＾．０–９), as pinyin may type them.
             if (0xFF01...0xFF5E).contains(scalar.value), let ascii = Unicode.Scalar(scalar.value - 0xFEE0) { return Character(ascii) }
             switch scalar {
@@ -334,7 +335,8 @@ public enum Arithmetic {
         }
         guard normalized.count <= 200, normalized.contains(where: \.isNumber) else { return nil }
         var parser = Parser(characters: normalized.filter { !$0.isWhitespace })
-        guard let value = parser.sum(), parser.atEnd, parser.operators > 0, value.isFinite else { return nil }
+        guard let value = parser.sum(), parser.atEnd, parser.operators > 0, value.isFinite,
+              !dates.isWholeDateOrPhoneNumber(text.trimmingCharacters(in: .whitespaces)) else { return nil }
         return value
     }
 
