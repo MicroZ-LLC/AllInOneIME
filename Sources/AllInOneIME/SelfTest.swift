@@ -3364,9 +3364,15 @@ enum SelfTest {
         testSettingsWindow(snapshotDirectory: snapshotDirectory)
         testUpdates(controller, snapshotDirectory: snapshotDirectory)
         testExtensionSources(snapshotDirectory: snapshotDirectory)
+        // Settings' own checks, with no text field active as with --settings-only: a field takes the settings again when a
+        // switch in them is saved (`SuggestionsShared.settingsChanged`, a press of these checks' own, or a Settings
+        // window's plugins read in the background landing late), the self-test's Chinese interface with them, under
+        // checks that read English.
+        controller.deactivateServer(client)
         testExtensionSourceTrust(snapshotDirectory: snapshotDirectory)
         testExtensionSourceLimits(snapshotDirectory: snapshotDirectory)
         testExtensionSourceReading(snapshotDirectory: snapshotDirectory)
+        controller.activateServer(client)
         testSuggestionsOnByDefault(snapshotDirectory: snapshotDirectory)
         testICloudSync(snapshotDirectory: snapshotDirectory)
         testSettingsListsAfterSync(snapshotDirectory: snapshotDirectory)
