@@ -39,8 +39,8 @@ enum ClipboardHistoryShared {
     /// The settings as they are now (turned off: the history deleted; a lower limit: the oldest dropped), then, while it's
     /// on, a copy since the last look recorded. Nothing at all while the config file doesn't parse (`currentIfValid`): its
     /// defaults would trim the history to 20, or turn on one the user turned off. `quick`: for ⌃V's panel, which waits
-    /// for it (`ClipboardRecorder.poll(limit:quick:)`: the copy in memory at once, written after; an image left to the next
-    /// look).
+    /// for it (`ClipboardRecorder.poll(limit:quick:)`: a text in memory at once, written after; an image copied just before
+    /// kept at once, a moment waited for it at most).
     static func tick(quick: Bool = false) {
         guard let config = LiveConfig.currentIfValid else { return }
         apply(config)

@@ -1,3 +1,4 @@
+import AllInOneIMECore
 import CoreGraphics
 import Foundation
 import ImageIO
@@ -11,6 +12,9 @@ import ImageIO
 public enum ImagePreviewLayout {
     /// The longest side of the image, in points.
     public static let maxSide: CGFloat = 360
+    /// The shortest its longer side is made to fit on the panel's right (`frame`): smaller, a screenshot's text can't be
+    /// read; it goes on the panel's left then.
+    public static let minSide: CGFloat = 160
     /// Between the panel and the preview.
     public static let gap: CGFloat = 8
 
@@ -38,7 +42,8 @@ public enum ImagePreviewLayout {
         }
     }
 
-    /// What shows: the row's image, at `imageSize`, in a window at `frame` (the image with `inset` around it).
+    /// What shows: the row's image, at `imageSize` (the size drawn, smaller than `size`'s where the room beside the panel
+    /// is less), in a window at `frame` (the image with `inset` around it).
     public struct Shown: Equatable, Sendable {
         public var row: Int
         public var imageSize: CGSize
@@ -54,11 +59,9 @@ public enum ImagePreviewLayout {
     public static func shown(_ panel: Panel?, inset: CGFloat = 0, image: (Int) -> ImageRow?) -> Shown? {
         guard let panel, let index = row(hovered: panel.hovered, chosen: panel.chosen, isImage: { image($0) != nil }),
               let row = image(index) else { return nil }
-        let imageSize = size(pixels: row.pixels, scale: panel.scale)
-        guard imageSize.width > 0, imageSize.height > 0 else { return nil }
-        let outer = CGSize(width: imageSize.width + 2 * inset, height: imageSize.height + 2 * inset)
-        return frame(size: outer, panel: panel.frame, rowTop: row.top, visible: panel.visible)
-            .map { Shown(row: index, imageSize: imageSize, frame: $0) }
+        return frame(image: size(pixels: row.pixels, scale: panel.scale), inset: inset, panel: panel.frame, rowTop: row.top,
+                     visible: panel.visible)
+            .map { Shown(row: index, imageSize: $0.image, frame: $0.frame) }
     }
 
     /// The row whose image shows: the one under the pointer when it is an image's, else the chosen one when it is; nil:
@@ -80,22 +83,37 @@ public enum ImagePreviewLayout {
         return CGSize(width: max((points.width * factor).rounded(), 1), height: max((points.height * factor).rounded(), 1))
     }
 
-    /// Where a preview of `size` goes beside `panel`, its top at `rowTop` (the row it shows): on the right, `gap` from the
-    /// panel, or on the left when there is no room on the right, moved up or down onto `visible`; never over the panel.
-    /// Nil: no room on either side (or it is taller than `visible`).
-    public static func frame(size: CGSize, panel: CGRect, rowTop: CGFloat, visible: CGRect) -> CGRect? {
-        guard size.width > 0, size.height > 0, size.height <= visible.height else { return nil }
-        let right = panel.maxX + gap, left = panel.minX - gap - size.width
-        let x: CGFloat
-        if right >= visible.minX, right + size.width <= visible.maxX {
-            x = right
-        } else if left >= visible.minX, left + size.width <= visible.maxX {
-            x = left
+    /// Where the preview of an image of `size` (`inset` around it in its window) goes beside `panel`, its top at `rowTop`
+    /// (the row it shows), and the image's size there. On the panel's right, `gap` from it, every time it fits there:
+    /// at `size`, or smaller, its shape kept, to fit the room up to `visible`'s right edge, as long as its longer side
+    /// stays `minSide` at least. Only where even that doesn't fit (the panel at the screen's right edge), on the panel's
+    /// left the same way. Moved up or down onto `visible`; never over the panel. Nil: no room on either side (or it is
+    /// taller than `visible`).
+    public static func frame(image size: CGSize, inset: CGFloat = 0, panel: CGRect, rowTop: CGFloat,
+                             visible: CGRect) -> (image: CGSize, frame: CGRect)? {
+        guard size.width > 0, size.height > 0, size.height + 2 * inset <= visible.height else { return nil }
+        let right = panel.maxX + gap, left = panel.minX - gap
+        let x: CGFloat, image: CGSize
+        if right >= visible.minX, let fitted = fitted(size, width: visible.maxX - right - 2 * inset) {
+            (x, image) = (right, fitted)
+        } else if left <= visible.maxX, let fitted = fitted(size, width: left - visible.minX - 2 * inset) {
+            (x, image) = (left - fitted.width - 2 * inset, fitted)
         } else {
             return nil
         }
-        let y = min(max(rowTop - size.height, visible.minY), visible.maxY - size.height)
-        return CGRect(x: x, y: y, width: size.width, height: size.height)
+        let outer = CGSize(width: image.width + 2 * inset, height: image.height + 2 * inset)
+        let y = min(max(rowTop - outer.height, visible.minY), visible.maxY - outer.height)
+        return (image, CGRect(x: x, y: y, width: outer.width, height: outer.height))
+    }
+
+    /// `size` in `width`: as it is where it fits, else narrowed to it, its shape kept (to whole points, the width rounded
+    /// down), its longer side `minSide` at least. Nil: it doesn't fit.
+    static func fitted(_ size: CGSize, width: CGFloat) -> CGSize? {
+        if size.width <= width { return size }
+        let narrowed = width.rounded(.down)
+        guard narrowed > 0 else { return nil }
+        let fitted = CGSize(width: narrowed, height: max((size.height * narrowed / size.width).rounded(), 1))
+        return max(fitted.width, fitted.height) >= minSide ? fitted : nil
     }
 }
 
@@ -180,7 +198,13 @@ public final class ImagePreviewImages {
         underway.remove(key)
         // Left for another, and wanted again since: asked again.
         if skipped, wanted?.key == key { return ask(key) }
-        guard let image else { return }
+        guard let image else {
+            if !skipped, wanted?.key == key {
+                CoreLog(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "ime")
+                    .notice("image preview: the image couldn't be decoded at \(key.pixels) px; the row's thumbnail stays")
+            }
+            return
+        }
         cache.removeAll { $0.key == key }
         cache.append((key, image))
         if cache.count > Self.kept { cache.removeFirst(cache.count - Self.kept) }
