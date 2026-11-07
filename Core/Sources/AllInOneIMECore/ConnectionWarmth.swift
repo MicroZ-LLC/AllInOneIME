@@ -8,9 +8,9 @@ import FoundationNetworking
 /// TCP and TLS, 50 to 300 ms. Where nothing went to the service in the last `idle`, a HEAD goes to its origin
 /// ("https://host:port/": no user or password, path or query of the base URL) on the same session, with no key, no
 /// credentials and no body, any authentication asked of it refused, so that the connection is open when the request
-/// goes. One an idle period: a HEAD, or a request, counts as something sent there. Only to a host on the internet
-/// (`isPublic`): never to the hosted service (a HEAD there would run it), by provider or by its host, nor to this Mac or
-/// the local network. One for each session (`BedrockClient`).
+/// goes. One an idle period: a HEAD, or a request, counts as something sent there. Only for a provider that is set up
+/// (`isSetUp`), and only to a host on the internet (`isPublic`): never to the hosted service (a HEAD there would run it),
+/// by provider or by its host, nor to this Mac or the local network. One for each session (`BedrockClient`).
 public final class ConnectionWarmth: Sendable {
     /// A service nothing went to for this long is idle: its connection may be gone by the time the request goes.
     public static let idle: TimeInterval = 90
@@ -94,6 +94,28 @@ public final class ConnectionWarmth: Sendable {
         return !privateSuffixes.contains { host == $0 || host.hasSuffix("." + $0) }
     }
 
+    /// Whether `provider` is set up, so that a request to it could go now: a key for its base URL's host (in the
+    /// keychain, or the login shell's where it goes there: `APIKeys.source`), for Bedrock the keys in the environment or
+    /// the profile in the AWS files. Only the keychain item's attributes are read (never the key) and the AWS files'
+    /// sections; off the key's thread (`Converter.warmConnection`).
+    @Sendable public static func isSetUp(_ provider: Provider, config: Config) -> Bool {
+        isSetUp(provider, config: config, environment: provider == .bedrock ? AWSCredentialContext.live.environment() : [:])
+    }
+
+    /// `isSetUp` with `environment` the AWS variables (`AWSEnvironment.variables`, `HOME`).
+    static func isSetUp(_ provider: Provider, config: Config, environment: [String: String]) -> Bool {
+        switch provider {
+        case .anthropic, .gemini, .openai:
+            return APIKeys.source(provider).sent(by: provider, to: HTTPProviders.host(of: config.settings(for: provider))) != .none
+        case .bedrock:
+            if AWSEnvironment.credentials(environment) != nil { return true }
+            let profile = config.awsProfile.trimmingCharacters(in: .whitespaces)
+            return AWSProfileFiles.read(AWSFileLocations(environment: environment)).contains(profile.isEmpty ? "default" : profile)
+        case .hosted, .apple:
+            return false
+        }
+    }
+
     /// "scheme://host:port" of `url`, lowercased: what a connection is kept for.
     static func origin(_ url: URL) -> String? {
         guard let scheme = url.scheme?.lowercased(), let host = url.host?.lowercased() else { return nil }
@@ -104,18 +126,24 @@ public final class ConnectionWarmth: Sendable {
 
 extension Converter {
     /// `provider`'s connection opened ahead of a request (`ConnectionWarmth`), with `config`'s base URL (Bedrock: its
-    /// region's endpoint, the region read from the settings or the AWS files, nothing run). Nothing for the hosted
-    /// service or the on-device model. Off the caller's thread; nothing is waited for.
-    public func warmConnection(to provider: Provider, config: Config) {
+    /// region's endpoint, the region read from the settings or the AWS files, nothing run), where it is set up
+    /// (`isSetUp`, by default `ConnectionWarmth.isSetUp`). Nothing for the hosted service or the on-device model. Off the
+    /// caller's thread; nothing is waited for.
+    public func warmConnection(to provider: Provider, config: Config,
+                               isSetUp: @escaping @Sendable (Provider, Config) -> Bool = ConnectionWarmth.isSetUp) {
         let (warmth, session) = (client.bedrock.warmth, client.session)
         switch provider {
         case .anthropic, .gemini, .openai:
             let base = (config.settings(for: provider).baseURL ?? "").trimmingCharacters(in: CharacterSet(charactersIn: "/ "))
-            guard let url = URL(string: base) else { return }
-            warmth.warm(url, session: session)
+            guard let url = URL(string: base), ConnectionWarmth.headURL(url) != nil else { return }
+            Task.detached(priority: .utility) {
+                guard isSetUp(provider, config) else { return }
+                warmth.warm(url, session: session)
+            }
         case .bedrock:
             let (region, profile) = (config.region, config.awsProfile)
             Task.detached(priority: .utility) {
+                guard isSetUp(provider, config) else { return }
                 let region = region ?? AWSSharedConfig.region(profile: profile) ?? "us-east-1"
                 guard let url = try? BedrockClient.origin(region: region) else { return }
                 warmth.warm(url, session: session)

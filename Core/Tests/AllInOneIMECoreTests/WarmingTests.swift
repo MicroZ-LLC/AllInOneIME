@@ -35,8 +35,9 @@ struct WarmingTests {
         }
     }
 
+    /// A field with `settings`; the provider set up (a key, an AWS profile) unless `setUp` says not.
     func host(_ settings: Settings, model: WarmingModel = WarmingModel(), clock: Uptime = Uptime(), session: URLSession? = nil,
-              converter: Converter? = nil, _ adjust: (inout SessionServices) -> Void = { _ in }) -> FakeHost {
+              converter: Converter? = nil, setUp: Bool = true, _ adjust: (inout SessionServices) -> Void = { _ in }) -> FakeHost {
         let converter = converter ?? Converter(client: session.map { BedrockClient(session: $0) } ?? BedrockClient(),
                                                loadConfig: { settings.config }, appleModel: model)
         var services = SessionServices(converter: converter, loadSettings: { settings.config })
@@ -44,6 +45,7 @@ struct WarmingTests {
         services.levelOne = { .engine(engine) }
         services.uptime = { clock.now }
         services.warmsConnections = session != nil
+        services.providerSetUp = { _, _ in setUp }
         adjust(&services)
         let host = FakeHost(services: services)
         host.focus()
@@ -210,6 +212,35 @@ struct WarmingTests {
     }
 
     // MARK: - When a HEAD goes
+
+    /// A provider that isn't set up (no key, no AWS profile or keys) gets no HEAD: Bedrock, the default provider, for
+    /// someone who never set it up.
+    @Test func aProviderNotSetUpGetsNoHEAD() async throws {
+        try await withInterfaceLanguage("en") {
+            let server = "bedrock-runtime.warm-east-7.amazonaws.com"
+            StubURLProtocol.register(host: server, StubURLProtocol.Response(status: 404, headers: [:], chunks: []))
+            let settings = Settings(.bedrock)
+            settings.config.region = "warm-east-7"
+            let host = host(settings, session: StubURLProtocol.session(), setUp: false)
+            host.press(FakeHost.at)
+            Thread.sleep(forTimeInterval: 0.1)
+            #expect(StubURLProtocol.requests(host: server).isEmpty)
+            // Set up: the AWS keys in the environment, or the profile in the AWS files.
+            let folder = FileManager.default.temporaryDirectory.appendingPathComponent("warm-aws-\(UUID().uuidString)")
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: folder) }
+            let config = folder.appendingPathComponent("config")
+            try "[profile work]\nregion = eu-west-1\n".write(to: config, atomically: true, encoding: .utf8)
+            var work = settings.config
+            work.awsProfile = "work"
+            let files = ["AWS_CONFIG_FILE": config.path, "AWS_SHARED_CREDENTIALS_FILE": folder.appendingPathComponent("none").path]
+            #expect(ConnectionWarmth.isSetUp(.bedrock, config: work, environment: files))
+            #expect(!ConnectionWarmth.isSetUp(.bedrock, config: settings.config, environment: files), "no profile \"default\"")
+            #expect(ConnectionWarmth.isSetUp(.bedrock, config: settings.config,
+                                             environment: ["AWS_ACCESS_KEY_ID": "AKIAEXAMPLE", "AWS_SECRET_ACCESS_KEY": "x"]))
+            #expect(!ConnectionWarmth.isSetUp(.hosted, config: settings.config) && !ConnectionWarmth.isSetUp(.apple, config: settings.config))
+        }
+    }
 
     /// Only to an https address on the internet nothing went to in the last 90 s: a request counts as something sent.
     @Test func aHEADGoesOnlyAfterAnIdlePeriod() throws {
