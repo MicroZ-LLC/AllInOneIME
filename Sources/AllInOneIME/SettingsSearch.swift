@@ -204,7 +204,7 @@ enum SettingsSpot: String, CaseIterable {
         case .useSelection: return "selection selected text 选中 文字"
         case .configFile: return "config file json 配置文件"
         case .rimeFolder: return "rime folder 目录"
-        case .updates: return "updates version check automatically 更新 版本 自动检查"
+        case .updates: return "updates version check automatically notify notification 更新 版本 自动检查 通知"
         case .troubleshoot: return "doctor check problems fix diagnose troubleshoot 检查 问题 修复 诊断"
         case .reportIssue: return "report issue bug feedback github 报告 问题 反馈"
         }

@@ -174,14 +174,17 @@ final class AgentMonitor: NSObject, UNUserNotificationCenterDelegate {
         if let data = try? JSONEncoder().encode(watch) { UserDefaults.standard.set(data, forKey: Self.key) }
     }
 
-    // Clicking the notification opens the task (or what a script extension printed in the background).
+    // Clicking the notification opens the task (or what a script extension printed in the background); an update's goes to
+    // the updater, with the button clicked (`SystemUpdateNotices`).
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
                                             withCompletionHandler completionHandler: @escaping () -> Void) {
         let info = response.notification.request.content.userInfo
         let (id, run) = (info["agent"] as? String, info["scriptRun"] as? Int)
+        let update = info[SystemUpdateNotices.userInfoKey] is String ? SystemUpdateNotices.action(response.actionIdentifier) : nil
         DispatchQueue.main.async {
             if let id { MainActor.assumeIsolated { AgentMonitor.shared.open(id) } }
             if let run { MainActor.assumeIsolated { ScriptTasks.shared.openResult(run) } }
+            if let update { MainActor.assumeIsolated { UpdateController.shared.respond(update) } }
             completionHandler()
         }
     }

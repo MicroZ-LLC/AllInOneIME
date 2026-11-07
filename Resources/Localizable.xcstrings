@@ -9448,6 +9448,53 @@
         }
       }
     },
+    "Click to see why in Settings → About." : {
+      "comment" : "点这里在 设置 →「关于」里看原因。 — Sources/AllInOneIMEMac/UpdateNotice.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Klicke, um unter Einstellungen → Über den Grund zu sehen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Haz clic para ver el motivo en Ajustes → Acerca de."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cliquez pour voir pourquoi dans Réglages → À propos."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クリックすると、設定 →「情報」で理由を確認できます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "클릭하면 설정 → 정보에서 이유를 볼 수 있습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clique para ver o motivo em Ajustes → Sobre."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按一下以在設定 → 關於中查看原因。"
+          }
+        }
+      }
+    },
     "Click, then press the new key" : {
       "comment" : "点一下，再按新的键 — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
@@ -11900,6 +11947,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "網址中不要包含使用者名稱、密碼或權杖：交給 git 的憑證輔助程式儲存（git help credential）。"
+          }
+        }
+      }
+    },
+    "Don't Show Again" : {
+      "comment" : "不再提示 — Sources/AllInOneIME/Updates.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht mehr anzeigen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No volver a mostrar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ne plus afficher"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今後表示しない"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다시 보지 않기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não mostrar novamente"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不再提示"
           }
         }
       }
@@ -33924,6 +34018,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要將 AllInOneIME%@ 更新到 %@ 嗎？"
+          }
+        }
+      }
+    },
+    "Update now to get the latest fixes." : {
+      "comment" : "现在更新，获得最新的修正。 — Sources/AllInOneIMEMac/UpdateNotice.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jetzt aktualisieren und die neuesten Korrekturen erhalten."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actualiza ahora para tener las últimas correcciones."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mettez à jour maintenant pour profiter des dernières corrections."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今すぐアップデートして、最新の修正を入手しましょう。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "지금 업데이트하고 최신 수정 사항을 받으세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Atualize agora para receber as correções mais recentes."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在更新，取得最新的修正。"
           }
         }
       }

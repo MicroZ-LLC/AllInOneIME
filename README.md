@@ -612,7 +612,8 @@ Settings has seven pages, in this order in the sidebar, and opens on General:
   plugin or script extension command with suggestions has their switch under it, and **Show in the @ list** next to it.
 - **Advanced**: typing results out (speed, typos), the candidate layout, "Use the selected text", the config file and
   the Rime folder.
-- **About**: the version, updates and "Check for updates automatically", Troubleshoot…, Report an Issue… and links.
+- **About**: the version, updates, "Check for updates automatically" and "Notify me when a new version is out",
+  Troubleshoot…, Report an Issue… and links.
 
 A few settings have no row unless they're set to something other than their default (by hand in the config file, or by
 an earlier version): the output tokens, temperature, timeout and Thinking (AI), a kind of sensitive information left out
@@ -1155,8 +1156,12 @@ Updating: Settings → About → Check for Updates. When there's a new version, 
 with what's new; "Update to <version>" downloads it, checks it against the update information signed with AllInOneIME's
 release key, installs it and restarts the input method. Your settings, language packs, learned words and extensions stay, and
 if anything goes wrong the version you had is put back. AllInOneIME looks once a day by itself, in the background (turn it off
-with "Check for updates automatically" under About); nothing is installed until you click. This works from 0.6.3 on; to update
-an older version, or if you prefer, install the new version's disk image over it, without uninstalling first.
+with "Check for updates automatically" under About); nothing is installed until you click. When it finds a new version, a macOS
+notification says so, once a version: **Update** installs it as About does, **Don't Show Again** turns these notifications off
+(back on with "Notify me when a new version is out" under About), and clicking it opens About. It's never a window, so a key you
+are typing never lands on it; macOS asks whether AllInOneIME may notify you only before the first one, and if you say no, the
+line in About and the menu bar panel is all. This works from 0.6.3 on; to update an older version, or if you prefer, install the
+new version's disk image over it, without uninstalling first.
 Before upgrading, read the [changelog](CHANGELOG.md): it has each version's changes and upgrade notes.
 
 Updating to 0.6.3 from an earlier version: 0.6.3 is the first version signed with a Developer ID, so the keychain
@@ -1317,6 +1322,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 | `learnsEnglishWords` | The same letters put in as typed twice while typing pinyin (bedrock ⏎), or a word typed twice in English mode, are learned as an English word | `true` |
 | `useSelection` | Commands work on the text selected in the field (see On the selected text) | `true` |
 | `checkForUpdates` | Look for a new version once a day, in the background; nothing is installed until you click | `true` |
+| `notifiesUpdates` | A new version found that way is told once in a macOS notification, with Update and Don't Show Again (which turns this off); only while `checkForUpdates` is on | `true` |
 | `agent` | The coding agent `@agent` hands the text to (Settings → Commands): `claude` (Claude Code), `gemini` (Gemini CLI), `kiro` (Kiro CLI) or `custom` | `claude` |
 | `agentCommand` | The custom agent's command, what you typed added as its last argument, e.g. `["muse", "--"]` | `[]` |
 | `agentPageContext` | `@agent` in Google Chrome takes the page along (the field, its form or section, the selection, the visible text; never a password) | `true` |

@@ -30152,6 +30152,53 @@
         }
       }
     },
+    "Notify me when a new version is out" : {
+      "comment" : "有新版本时通知我 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Benachrichtigen, wenn eine neue Version erscheint"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avisarme cuando haya una versión nueva"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "M’avertir quand une nouvelle version est disponible"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しいバージョンが出たら通知する"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "새 버전이 나오면 알림 받기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avisar quando houver uma versão nova"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有新版本時通知我"
+          }
+        }
+      }
+    },
     "Notion didn't answer within %@ s" : {
       "comment" : "Notion %@ 秒内没有回应 — Sources/AllInOneIMECore/NoteDestination.swift",
       "localizations" : {
@@ -31185,6 +31232,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "打完整個號碼後"
+          }
+        }
+      }
+    },
+    "One notification per new version, with Update and Don't Show Again; never a window." : {
+      "comment" : "每个新版本只发一次系统通知，带「更新」和「不再提示」；不会弹出窗口。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine Mitteilung pro neuer Version, mit „Aktualisieren“ und „Nicht mehr anzeigen“; nie ein Fenster."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una notificación por cada versión nueva, con “Actualizar” y “No volver a mostrar”; nunca una ventana."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une notification par nouvelle version, avec « Mettre à jour » et « Ne plus afficher » ; jamais de fenêtre."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しいバージョンごとに通知は1回だけで、「アップデート」と「今後表示しない」があります。ウインドウは開きません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "새 버전마다 알림은 한 번만 오며, 업데이트와 다시 보지 않기 버튼이 있습니다. 창은 열리지 않습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uma notificação por versão nova, com “Atualizar” e “Não mostrar novamente”; nunca uma janela."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每個新版本只發一次系統通知，附「更新」和「不再提示」；不會彈出視窗。"
           }
         }
       }
