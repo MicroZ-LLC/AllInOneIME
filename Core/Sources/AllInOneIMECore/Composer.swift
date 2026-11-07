@@ -566,11 +566,6 @@ public final class Composer {
     /// Whether the field reads the selection after the key (set by the session for the key being handled): see
     /// `selectionPending`.
     public var selectionFollows: () -> Bool = { false }
-    /// One @ (0.7.0): the magic key starts a text, and the list of what can be done with it (Composer+OneAt.swift). Set
-    /// by the session, which gives the composer what the list is made from (what is in memory, the app, a reminder's
-    /// reading); a composer on its own has the command list of before: the letters filter the commands' names, and what
-    /// no name starts leaves it as typed.
-    public var oneAtList = false
     /// A send command's recipient (`@imessage`), once picked; until then the text after the command
     /// finds one (`recipientQuery`).
     public private(set) var messageRecipient: Recipient?
@@ -895,7 +890,7 @@ public final class Composer {
     /// Where the text after the command starts (the cursor never goes into "@question "), or after the magic key while
     /// one @ is written (never before the "@").
     private var textStart: Int {
-        guard let command = draftCommand else { return oneAtList && draft.hasPrefix(commandTrigger) ? commandTrigger.count : 0 }
+        guard let command = draftCommand else { return draft.hasPrefix(commandTrigger) ? commandTrigger.count : 0 }
         let header = "\(commandTrigger)\(command.name) "
         return draft.hasPrefix(header) ? header.count : 0
     }
@@ -963,9 +958,10 @@ public final class Composer {
         if let shown = modeShownDraft { return shown }
         let trigger = triggerCharacter  // read once, not again for every character
         // One @'s text (or pinyin composed right after the key): a name typed that commands start without the key, as
-        // before; anything else with the key full-width, as any other "@" in a draft.
+        // before (the letters composed are the preedit, after it); anything else with the key full-width, as any other
+        // "@" in a draft.
         if let (text, letters) = oneAt, draft.count > 1 || engineState.isComposing {
-            if letters == text, !text.isEmpty, !paletteMatches.isEmpty { return text }
+            if letters == text, !text.isEmpty, !paletteMatches.isEmpty { return String(draft.dropFirst(commandTrigger.count)) }
             return hiddenTrigger + draft.dropFirst(commandTrigger.count).map {
                 $0 == trigger ? hiddenTrigger : $0.isNewline ? Self.lineBreak : String($0)
             }.joined()
@@ -1176,14 +1172,14 @@ public final class Composer {
     /// The "@letters" being typed inside a command's text (`@reply 告诉他 @st`, not inside a word), where the commands
     /// that can run inside a text are offered. Not inside a note, a reminder, a search, code or a terminal command: they
     /// take their text as typed (`takesTextAsTyped`). At the start of the draft the text is one @'s (`oneAt`).
-    private var palette: (query: String, nested: Bool, at: String.Index)? {
-        guard !isLevelTwo, voice == .off, !engineState.isComposing, tail.isEmpty, let at = triggerBeforeName else { return nil }
+    private var palette: (query: String, at: String.Index)? {
+        guard !isLevelTwo, voice == .off, !engineState.isComposing, tail.isEmpty, let at = triggerBeforeName,
+              at != draft.startIndex else { return nil }
         let query = draft[draft.index(after: at)...]
         guard query.first?.isNumber != true else { return nil }
-        if at == draft.startIndex { return oneAtList ? nil : (String(query), false, at) }
         let before = draft[draft.index(before: at)]
         guard draftCommand != nil, !takesTextAsTyped, !(before.isASCII && (before.isLetter || before.isNumber)) else { return nil }
-        return (String(query), true, at)
+        return (String(query), at)
     }
 
     /// The draft's last trigger, when only ASCII letters and digits follow it (nil otherwise): looked for from the end,
@@ -1211,13 +1207,12 @@ public final class Composer {
             || command.script != nil
     }
 
-    /// The commands the list can offer: all of them at the start, inside a text the ones that run there,
-    /// and inside `@translate` `@improve` (or the other way round): written together, one request does both.
+    /// The commands the list inside a text can offer: the ones that run there, and inside `@translate` `@improve` (or
+    /// the other way round): written together, one request does both.
     /// The draft's command and the words of the draft are read once, and the commands that run inside a text
     /// are kept while the commands stay (`innerCommands`): with many extensions, a key inside a text mustn't go
     /// through all of them again.
     private var paletteCommands: [Command] {
-        guard palette?.nested == true else { return commands }
         if innerCommands.generation != commandsGeneration {
             innerCommands = (commandsGeneration, commands.filter(CommandPlan.canBeInner))
         }
@@ -1231,12 +1226,12 @@ public final class Composer {
     private var innerCommands: (generation: Int, commands: [Command]) = (-1, [])
 
     /// Commands offered for `paletteQuery`, and the highlighted one.
-    /// All of them, the most used first, or what matches the letters (`Command.palette`); the list shows
-    /// `paletteRows` at a time from `paletteFirstVisible`.
+    /// What matches the letters (`Command.palette`), the most used first; the list inside a text shows `paletteRows` at a
+    /// time from `paletteFirstVisible`.
     public var paletteMatches: [Command] {
-        // Inside a text, the few that run there; at the start, all of them: kept for this query.
-        if let (query, nested, _) = palette, nested {
-            return Command.palette(query, in: paletteCommands, usage: commandUsage, app: appInUse(), limit: .max)
+        // Inside a text, the few that run there; at the start (one @), all of them: kept for this query.
+        if let palette {
+            return Command.palette(palette.query, in: paletteCommands, usage: commandUsage, app: appInUse(), limit: .max)
         }
         guard let query = paletteQuery else { return [] }
         return matches(for: query)
@@ -2138,7 +2133,7 @@ public final class Composer {
         if !composing {
             if !draft.isEmpty, let response = handleDraftKey(event, afterVoice: afterVoice) { return response }
             if draft.isEmpty {
-                // "@" first: the command palette ("@question …").
+                // "@" first: one @ (Composer+OneAt.swift), or a command written out ("@question …").
                 if event.printableText == commandTrigger {
                     // Right after a word it's text, as in "bob@example.com" or "ssh user@host": no list.
                     if let before = characterBeforeCaret(), Self.continuesWord(before) { return .passThrough }
@@ -2265,8 +2260,8 @@ public final class Composer {
     /// (InputSession+ClipboardHistory.swift).
     public var takesPasteAnywhere: Bool {
         guard !isLevelTwo, voice == .off, !draft.isEmpty else { return false }
-        // The magic key alone: the paste is the app's (a mention), as before.
-        if oneAt != nil { return draft != commandTrigger }
+        // The magic key alone: the paste is the app's (a mention), as before; pinyin composed after it is a text.
+        if oneAt != nil { return draft != commandTrigger || engineState.isComposing }
         if let query = paletteQuery, query.isEmpty || paletteMatches.isEmpty { return false }
         return true
     }
@@ -2376,41 +2371,35 @@ public final class Composer {
         c.isASCII && (c.isLetter || c.isNumber || c == "." || c == "_" || c == "-")
     }
 
-    /// Keys while a command name is typed after "@": letters narrow the list, Tab, Space, Return or a
-    /// digit pick a command, ↑↓ move, ⌫ edits, Esc removes it. Any other key, or a letter no command
-    /// starts with, inserts the "@…" as typed and then acts as usual, so "@name" mentions still reach
-    /// the app. Nil outside the palette.
+    /// Keys while a command name is typed after "@" inside a command's text (`palette`): letters narrow the list, Tab,
+    /// Space, Return or a digit pick a command, ↑↓ move, ⌫ edits, Esc removes the "@…". Any other key, or a letter no
+    /// command starts with, goes on with the draft as usual. Nil outside the list (at the start of the draft the text is
+    /// one @'s: `handleOneAtKey`).
     private func handlePaletteKey(_ event: KeyEvent) -> Response? {
-        guard let (query, nested, at) = palette else { return nil }
+        guard let (query, at) = palette else { return nil }
         let matches = paletteMatches
         let plain = event.modifiers.subtracting([.capsLock, .shift]).isEmpty
-        // Inside a text, leaving the list just goes on with the draft (nil: the key acts as usual).
-        func leave() -> Response? { nested ? nil : commitPalette(then: event) }
         switch event.key {
         case .tab where plain:
-            return matches.isEmpty ? leave() : .consumed(complete(matches))
+            return matches.isEmpty ? nil : .consumed(complete(matches))
         case .space where plain:
             // "@ " is just an at sign and a space.
-            return query.isEmpty || matches.isEmpty ? leave() : .consumed(complete(matches))
+            return query.isEmpty || matches.isEmpty ? nil : .consumed(complete(matches))
         case .enter, .keypadEnter:
-            // Picks, like Tab; "@" alone goes in as typed (inside a text, Return runs the command as usual).
-            // As the action key, it also runs a command that takes no input.
-            // With a selection nothing goes in, as with ⇧⏎: no "@" over it.
-            if query.isEmpty || matches.isEmpty { return nested ? nil : .consumed(finish(committing: draft, selection: .kept)) }
+            // Picks, like Tab; "@" alone runs the command as usual. As the action key, it also runs a command that takes
+            // no input.
+            if query.isEmpty || matches.isEmpty { return nil }
             return .consumed(complete(matches, run: actionKey == .enter))
         case .escape:
-            // Removes the "@…" (inside a text, only that); a selection stays as it is.
-            if !nested, selection != nil { return .consumed(finish(committing: "", selection: .kept)) }
-            draft = nested ? String(draft[..<at]) : ""
+            // Removes the "@…", only that.
+            draft = String(draft[..<at])
             setLevelOnePhase()
-            return .consumed([.updateMarkedText, draft.isEmpty ? .hidePanel : .showPanel])
+            return .consumed([.updateMarkedText, .showPanel])
         case .backspace where plain:
             draft.removeLast()
-            // The "@" taken back: the command is given up, the selection left as it is.
-            if draft.isEmpty, selection != nil { return .consumed(finish(committing: "", selection: .kept)) }
             paletteHighlight = 0
             setLevelOnePhase()
-            return .consumed([.updateMarkedText, draft.isEmpty ? .hidePanel : .showPanel])
+            return .consumed([.updateMarkedText, .showPanel])
         case .arrow(.up), .arrow(.down):
             guard !matches.isEmpty else { return .consumed() }
             movePaletteHighlight(by: event.key == .arrow(.up) ? -1 : 1)
@@ -2420,7 +2409,7 @@ public final class Composer {
         }
         if plain, let text = event.printableText, text.count == 1, let c = text.first, c.isASCII {
             let next = query + text
-            if c.isLetter, !(nested ? Command.palette(next, in: paletteCommands, usage: commandUsage) : self.matches(for: next)).isEmpty {
+            if c.isLetter, !Command.palette(next, in: paletteCommands, usage: commandUsage).isEmpty {
                 draft += text
                 paletteHighlight = 0
                 return .consumed([.updateMarkedText, .showPanel])
@@ -2431,25 +2420,26 @@ public final class Composer {
                 paletteHighlight = 0
                 return .consumed([.updateMarkedText, .showPanel])
             }
-            // …other digits pick from the rows shown (one that numbers none goes in as typed).
+            // …other digits pick from the rows shown (one that numbers none goes on with the draft).
             if let n = c.wholeNumberValue, n >= 1, n <= Self.paletteRows, case let row = paletteFirstVisible + n - 1, matches.indices.contains(row) {
                 return .consumed(complete(matches, at: row))
             }
         }
-        return leave()
+        return nil
     }
 
-    /// Picks a palette command: the draft becomes "@name " (inside a text, the "@…" typed does), and the
-    /// rest of the sentence follows.
+    /// Picks a command (one @'s row, or the list's inside a text): the draft becomes "@name " (inside a text, the "@…"
+    /// typed does), and the rest of the sentence follows.
     func complete(_ matches: [Command], at index: Int? = nil, run: Bool = false) -> [Effect] {
         let command = matches[index ?? paletteHighlighted]
         let palette = self.palette  // read once, before the draft becomes "@name "
+        let nested = palette != nil
         // Nothing to write after it: picked, it's done (only at the start of a draft).
-        if command.kind == .settings, palette?.nested != true {
+        if command.kind == .settings, !nested {
             return finish(committing: "") + [.openSettings, used(command)]
         }
         // A snippet that needs nothing typed goes in when the action key picks it; Tab and Space only complete its name.
-        if run, command.snippet?.needsTyping == false, palette?.nested != true {
+        if run, command.snippet?.needsTyping == false, !nested {
             draft = "\(commandTrigger)\(command.name) "
             paletteHighlight = 0
             setLevelOnePhase()
@@ -2458,14 +2448,13 @@ public final class Composer {
         }
         // A script extension that takes no input runs when the action key picks it (or asks first); Tab and
         // Space only complete its name.
-        if run, command.script?.input == ScriptCommand.Input.none, palette?.nested != true {
+        if run, command.script?.input == ScriptCommand.Input.none, !nested {
             draft = "\(commandTrigger)\(command.name) "
             paletteHighlight = 0
             setLevelOnePhase()
             let run = startAction().effects
             return isLevelTwo ? run : [.updateMarkedText, .showPanel] + run
         }
-        let nested = palette?.nested == true
         draft = (palette.map { String(draft[..<$0.at]) } ?? "") + "\(commandTrigger)\(command.name) "
         paletteHighlight = 0
         // File names, paths and code are typed as letters; the input mode comes back when the command is
@@ -2499,20 +2488,9 @@ public final class Composer {
         #endif
     }
 
-    /// Leaves the palette: what was typed ("@", "@na") goes in as typed, then `event` acts as usual. A
-    /// letter in Chinese mode is a name being typed (「@lisi」 for @李四): only the "@" goes in, and the letters
-    /// typed after it are pinyin.
+    /// Leaves one @'s list (`handleOneAtKey`): what was typed ("@", "@abc") goes in as typed, then `event` acts as usual.
     func commitPalette(then event: KeyEvent) -> Response {
-        let query = paletteQuery ?? ""
-        let pinyin = !query.isEmpty && event.printableText?.allSatisfy(\.isLetter) == true
-            && engine.map { !$0.snapshot().isAsciiMode } == true
-        let typed = finish(committing: pinyin ? commandTrigger : draft)
-        var effects = typed
-        if pinyin {
-            for letter in query {
-                effects += handleLevelOne(KeyEvent(keyCode: 0, characters: String(letter))).effects
-            }
-        }
+        let effects = finish(committing: draft)
         let next = handleLevelOne(event)
         // A terminal wouldn't act on the key after the "@…" went in (`appTakesKeysAfterInsert`): a key that types goes in
         // with it, and one that doesn't (an arrow) only ends the list, the "@…" going in once the key is done.
@@ -2740,8 +2718,11 @@ public final class Composer {
         // An accent waiting and a Hangul syllable being typed go in first: the transcript follows them.
         var effects = typeWaitingAccent() + finishHangul()
         if isLevelTwo { effects += backToDraft() }
-        // "@q" + hold right ⌥: the command is picked, and the dictation is what follows it.
-        if paletteQuery != nil, !paletteMatches.isEmpty { effects += complete(paletteMatches) }
+        // "@q" + hold right ⌥: the command is picked, and the dictation is what follows it (one @'s letters composed as
+        // pinyin were its name: they go, as when its row is picked).
+        if paletteQuery != nil, !paletteMatches.isEmpty {
+            effects += oneAt != nil ? doOneAt(.command(paletteMatches[paletteHighlighted]), run: false) : complete(paletteMatches)
+        }
         // Pinyin still being typed is converted first; the transcript follows it.
         if let engine, engine.snapshot().isComposing, let text = engine.commitComposition(), !text.isEmpty {
             effects += accept(text)

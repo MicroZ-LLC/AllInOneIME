@@ -177,12 +177,18 @@ struct SelectionTests {
         _ = f.handleKeyDown(enterKey)
         let during = f.commitAll()
         #expect(during.contains(.cancelConversion) && leavesTheField(during))
-        // "@" and ⏎ (not the action key): as typed, which with a selection is nothing.
-        let g = Composer(engine: FakeEngine(), actionKey: .optionSpace)
-        g.setInputMode(.english)
-        g.readSelection = { Composer.Selection(text: "keep me") }
-        _ = g.handleKeyDown(at)
-        #expect(leavesTheField(g.handleKeyDown(enterKey).effects) && g.phase == .idle)
+        // "@" and ⇧⏎ or Esc: as typed, which with a selection is nothing (one @: ⏎ does the first row for it), with
+        // something typed after the "@" too.
+        for typed in ["", "x"] {
+            for key in [shiftEnter, escKey] {
+                let g = Composer(engine: FakeEngine(), actionKey: .optionSpace)
+                g.setInputMode(.english)
+                g.readSelection = { Composer.Selection(text: "keep me") }
+                _ = g.handleKeyDown(at)
+                _ = type(typed, g)
+                #expect(leavesTheField(g.handleKeyDown(key).effects) && g.phase == .idle && g.selection == nil, "@\(typed) \(key.keyCode)")
+            }
+        }
     }
 
     @Test func theSelectionMovedGivesTheCommandUp() {

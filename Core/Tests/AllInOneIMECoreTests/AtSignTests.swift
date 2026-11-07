@@ -207,34 +207,37 @@ struct AtSignTests {
     // MARK: - Other keys after "@"
 
     @Test func whatCantBeACommandNameLeavesTheListAsTyped() {
-        // "." ":" "/" "-", Space, a digit that numbers no row shown: in a text view the "@" goes in, then the key types.
-        for key in [".", ":", "/", "-", " ", "0", "6", "9"] {
+        // "." ":" "/" "-", Space: in a text view the "@" goes in, then the key types.
+        for key in [".", ":", "/", "-", " "] {
             let (c, _) = composer()
             _ = c.handleKeyDown(at)
             let r = c.handleKeyDown(key == " " ? spaceKey : k(key))
             #expect(commits(r) == ["@"] && !r.handled && c.draft.isEmpty && !c.isComposing, "@\(key)")
         }
         // In a terminal the key's character goes in with it.
-        for key in [".", ":", "/", "-", " ", "0", "6", "9"] {
+        for key in [".", ":", "/", "-", " "] {
             let (c, _) = composer(terminal: true)
             _ = c.handleKeyDown(at)
             let r = c.handleKeyDown(key == " " ? spaceKey : k(key))
             #expect(r == .consumed([.hidePanel, .commit("@" + key)]) && c.draft.isEmpty && !c.isComposing, "@\(key)")
         }
-        // A letter no command has: the "@" and the letter, in a terminal too.
+        // A letter no command has, then more: one @'s text, the "@"s in it; Esc puts it in as typed, in a terminal too.
         let field = Field(composer(terminal: true).0)
         field.type("@x@123.1769")
-        #expect(field.text == "@x@123.1769" && !field.composer.isComposing)
+        #expect(field.text.isEmpty && field.composer.draft == "@x@123.1769")
+        field.press(escKey)
+        #expect(field.text == "@x@123.1769" && !field.composer.isComposing && field.composer.draft.isEmpty)
     }
 
-    @Test func aDigitStillPicksARowShown() {
-        // As the README says: "@" then 1–5 picks from the five rows shown (the most used first).
-        let (c, _) = composer(terminal: true)
-        _ = c.handleKeyDown(at)
-        let shown = c.paletteVisible.map(\.name)
-        #expect(shown.count == Composer.paletteRows)
-        _ = c.handleKeyDown(k("2"))
-        #expect(c.draft == "@\(shown[1]) ")
+    @Test func aDigitAfterTheAtIsText() {
+        // One @: a digit right after "@" starts the text (`@3*7`, `@3点开会`); the rows are picked with ↑↓ and ⏎, not
+        // by number.
+        for key in ["0", "2", "6", "9"] {
+            let (c, _) = composer(terminal: true)
+            _ = c.handleKeyDown(at)
+            let r = c.handleKeyDown(k(key))
+            #expect(r.handled && commits(r).isEmpty && c.draft == "@" + key && c.draftCommand == nil, "@\(key)")
+        }
     }
 
     @Test func chinesePunctuationAfterTheAtIsTheEngines() {

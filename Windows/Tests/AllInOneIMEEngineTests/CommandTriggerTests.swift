@@ -63,7 +63,7 @@ struct CommandTriggerTests {
         Self.type(client, "~impro")
         let palette = try #require(client.panel.model)
         #expect(palette.rows.first?.text == "~improve")
-        #expect(palette.rows.first?.label == "1")
+        #expect(palette.rows.first?.label == "")  // one @: no numbers, digits are text after the key
         // The footer of pinyin's candidates names it too.
         _ = client.escape()
         client.type("ni")

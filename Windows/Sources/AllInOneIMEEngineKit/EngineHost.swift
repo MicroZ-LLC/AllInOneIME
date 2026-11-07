@@ -278,6 +278,8 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         composer.outputLanguages = config.outputLanguages
         composer.chineseCharacters = config.typedChinese
         composer.provider = config.provider
+        // One @ offers no AI row in an app with No AI (`AppProfile.noAI`), as the Mac's session has it.
+        composer.aiAllowed = { config.allowsAI(in: app) }
         // Script extensions from the folders the settings name, each on or off as they say (the Settings app's
         // switches); their programs run through the core's runner (`startScript`). Those with suggestions taken out of
         // the @ list (Show in the @ list) aren't offered.

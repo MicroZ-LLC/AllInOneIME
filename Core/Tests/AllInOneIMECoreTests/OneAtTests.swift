@@ -98,7 +98,6 @@ struct OneAtTests {
     @Test func typingStaysFast() {
         let c = Composer(engine: FakeEngine(), actionKey: .enter)
         c.setInputMode(.english)
-        c.oneAtList = true
         c.commands = ExtensionPerformanceTests.commands(1000)
         let presenter = PanelPresenter(config: .default, language: "en")
         let at = KeyEvent(keyCode: 0x13, characters: "@", charactersIgnoringModifiers: "@", modifiers: .shift)
@@ -341,7 +340,6 @@ struct OneAtTests {
         // In the composer: the highlight stays on the first row as the files come.
         let c = Composer(engine: FakeEngine(), actionKey: .enter)
         c.setInputMode(.english)
-        c.oneAtList = true
         c.commands = Command.builtins
         for key in [FakeHost.at] + "quarterly report".map({ $0 == " " ? spaceKey : k(String($0)) }) { _ = c.handleKeyDown(key) }
         let first = c.oneAtRows.first
@@ -424,7 +422,6 @@ struct OneAtTests {
     /// Esc while pinyin is composed after "@": the rows go and the text stays as typed, the letters as letters.
     @Test func escWhilePinyinComposesLeavesTheLetters() {
         let c = Composer(engine: FakeEngine(), actionKey: .enter)
-        c.oneAtList = true
         c.commands = Command.builtins
         for key in [FakeHost.at] + "nihao".map({ k(String($0)) }) { _ = c.handleKeyDown(key) }
         #expect(c.engineState.isComposing)
@@ -439,12 +436,10 @@ struct OneAtTests {
         folder.add("base64.sh", "#!/bin/sh\n# @allinoneime.schemaVersion 1\n# @allinoneime.title Encode Base64\necho hi\n")
         let commands = Command.catalog([], scripts: folder.load().commands)
         let c = Composer(engine: FakeEngine(), actionKey: .enter)
-        c.oneAtList = true
         c.commands = commands
         for key in [FakeHost.at] + "base64 ".map({ $0 == " " ? spaceKey : k(String($0)) }) { _ = c.handleKeyDown(key) }
         #expect(c.draftCommand?.name == "base64" && c.draft == "@base64 ", "\(c.draft)")
         let other = Composer(engine: FakeEngine(), actionKey: .enter)
-        other.oneAtList = true
         other.commands = commands
         for key in [FakeHost.at] + "nihao2".map({ k(String($0)) }) { _ = other.handleKeyDown(key) }
         #expect(other.oneAt?.text == "拟好", "\(String(describing: other.oneAt))")
@@ -456,7 +451,6 @@ struct OneAtTests {
         let leftKey = KeyEvent(keyCode: VirtualKey.left, characters: "\u{F702}")
         let c = Composer(engine: FakeEngine(), actionKey: .enter)
         c.setInputMode(.english)
-        c.oneAtList = true
         _ = c.handleKeyDown(FakeHost.at)
         let left = c.handleKeyDown(leftKey)
         #expect(commits(left) == ["@"] && !left.handled && c.draft.isEmpty, "\(commits(left)) \(c.draft)")

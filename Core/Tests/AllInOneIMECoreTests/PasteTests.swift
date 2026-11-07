@@ -59,12 +59,20 @@ extension ComposerTests {
         #expect(e.draft == "@improve Summary the meeting went well and")
     }
 
-    @Test func aCommandBeingTypedIsPickedFirst() {
+    @Test func oneAtsTextTakesThePasteAsItIs() {
+        // A name being typed isn't picked (Tab or ⏎ picks it): the paste joins one @'s text, the pinyin converted first.
         let (c, _) = composer(key: .enter)
         _ = c.handleKeyDown(at)
         type("imp", c)
         paste("hello world", into: c)
-        #expect(c.draft == "@improve hello world" && c.draftCommand == .improve && c.paletteQuery == nil)
+        #expect(c.draft == "@imphello world" && c.draftCommand == nil && c.oneAt?.text == "imphello world")
+        // A command picked first takes it as its text.
+        let (p, _) = composer(key: .enter)
+        _ = p.handleKeyDown(at)
+        type("imp", p)
+        _ = p.handleKeyDown(tab)
+        paste("hello world", into: p)
+        #expect(p.draft == "@improve hello world" && p.draftCommand == .improve && p.paletteQuery == nil)
         // "@" alone is an at sign (a mention): it goes in as typed and the app pastes after it.
         let (m, _) = composer(key: .enter)
         _ = m.handleKeyDown(at)
@@ -153,13 +161,13 @@ extension ComposerTests {
             #expect(c.draft == "@improve 你好，这个方案还不够好")
             #expect(c.handleKeyDown(enterKey).effects.first == .startConversion(input: "你好，这个方案还不够好", id: 1))
         }
-        // "@imp" picks its command first, as with ⌘V.
+        // One @'s text takes it as it is, as with ⌘V.
         let (p, _) = composer(key: .enter)
         _ = p.handleKeyDown(at)
         type("imp", p)
         #expect(p.handleKeyDown(controlV).effects.last == .readClipboard(id: 1))
         _ = p.pasted(.text("hello world"), id: 1)
-        #expect(p.draft == "@improve hello world")
+        #expect(p.draft == "@imphello world")
         // Nothing pending, or "@" alone (a mention): ⌃V is the app's (a shell's literal next, a text
         // view's page down), and the clipboard isn't read.
         let (idle, _) = composer(key: .enter)

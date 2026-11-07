@@ -170,8 +170,7 @@ public final class InputSession {
             guard let services = self?.services else { return [] }
             return services.instantResults(query, services.loadOpenHistory())
         }
-        // One @: the list, the app counted for, whether it has AI, a time read as `@reminder` reads it.
-        composer.oneAtList = true
+        // One @: the app counted for, whether it has AI, a time read as `@reminder` reads it.
         composer.appInUse = { [weak self] in self?.app }
         composer.aiAllowed = { [weak self] in self?.aiAllowedNow() ?? true }
         composer.parseReminder = { [weak self] text in self?.services.parseReminder(text) }

@@ -44,11 +44,12 @@ struct CommandListTests {
         func press(_ key: KeyEvent) {
             responses.append(field.press(key))
             offered = offered || composer.paletteMatches.contains { $0.name == listed }
+                || composer.oneAtRows.contains { $0.command?.name == listed }
         }
         press(KeyEvent(keyCode: 0x13, characters: "@", charactersIgnoringModifiers: "@", modifiers: .shift))
         for letter in name { press(k(String(letter))) }
-        press(enterKey)
-        press(enterKey)
+        // One @: ⏎ would do the first row (Improve for a word); Esc leaves it as typed.
+        press(escKey)
         return (responses, field.text, offered)
     }
 
@@ -72,8 +73,8 @@ struct CommandListTests {
         }
     }
 
-    /// "@jira" then the action key does what it does where no command has that name (no Suggestions command at all): each
-    /// key answers the same, the same text goes in, nothing is said; in English and in Chinese.
+    /// "@jira" then Esc does what it does where no command has that name (no Suggestions command at all): each key answers
+    /// the same, the same text goes in, nothing is said; in English and in Chinese.
     @Test func atItsNameTheActionKeyDoesWhatAnUnknownNameDoes() {
         let with = Command.catalog([Self.jira()])
         let without = Command.catalog([])
@@ -81,7 +82,7 @@ struct CommandListTests {
             let typed = Self.typed("jira", with: with, english: english, listed: "jira")
             let unknown = Self.typed("jira", with: without, english: english, listed: "jira")
             #expect(typed.responses == unknown.responses && typed.text == unknown.text, "English: \(english): \(typed.text) / \(unknown.text)")
-            #expect(english ? typed.text.hasPrefix("@jira") : typed.text.hasPrefix("@"), "\(typed.text)")
+            #expect(typed.text == "@jira", "\(typed.text)")
             #expect(!typed.responses.contains { $0.effects.contains { if case .notice = $0 { return true } else { return false } } },
                     "nothing said: \(typed.responses)")
         }
