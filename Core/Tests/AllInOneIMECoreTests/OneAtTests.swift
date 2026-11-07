@@ -347,6 +347,45 @@ struct OneAtTests {
         #expect(c.oneAtRows.contains(.open(file)) && c.oneAtRows.first == first && c.oneAtHighlighted == 0, "\(names(c.oneAtRows))")
     }
 
+    /// A path after the magic key (written in front of a word: a mark right after the key gives it back): nothing of its
+    /// folder is read on the key. Its folder is listed with Spotlight's files (`SessionServices.searchFileNames`, off the
+    /// key's thread), however long the path, and its entries join below the rows shown as those do; a listing kept from a
+    /// moment ago (`instantResults`) shows at once, first (rule 4).
+    @Test func aPathsFolderIsListedOffTheKey() async {
+        await withInterfaceLanguage("en") {
+            let path = "~/Library/Application Support/AllInOneIME/LanguagePacks/"
+            let entry = SearchResult(name: "zh-pinyin", path: "/Users/me/Library/Application Support/AllInOneIME/LanguagePacks/zh-pinyin",
+                                     isFolder: true)
+            let kept = Locked(initialState: false)
+            let asked = Locked<[String]>(initialState: [])
+            var services = SessionServices(loadSettings: { .default })
+            services.levelOne = { .engine(FakeEngine()) }
+            services.instantResults = { query, _ in kept.withLock { $0 } && query.hasPrefix(path) ? [entry] : [] }
+            services.searchFileNames = { query, _ in
+                asked.withLock { $0.append(query) }
+                return query.hasPrefix(path) ? [entry] : []
+            }
+            let host = FakeHost(services: services)
+            host.focus()
+            host.composer.setInputMode(.english)
+            host.type("@L")
+            host.press(KeyEvent(keyCode: VirtualKey.left, characters: "\u{F702}"))
+            host.type("~/")
+            host.press(FakeHost.right)
+            host.type(String(path.dropFirst(3)))
+            #expect(host.composer.oneAt?.text == path, "\(host.composer.draft)")
+            let first = host.composer.oneAtRows.first
+            #expect(first != .open(entry), "\(names(host.composer.oneAtRows))")
+            #expect(host.settle { host.composer.oneAtRows.contains(.open(entry)) }, "listed off the key: \(asked.withLock { $0 })")
+            #expect(asked.withLock { $0 }.last == path, "a long path is listed too")
+            #expect(host.composer.oneAtRows.first == first && host.composer.oneAtHighlighted == 0, "below the rows shown")
+            // The next key: the listing kept from a moment ago, at once.
+            kept.withLock { $0 = true }
+            host.type("z")
+            #expect(host.composer.oneAtRows.first == .open(entry), "\(names(host.composer.oneAtRows))")
+        }
+    }
+
     /// Only a prompt plugin is a writing action once used; a script plugin (like a `run` command) is found by its name or
     /// summary only, never guessed for a sentence or a selection, also where there is no AI.
     @Test func aScriptPluginIsNeverGuessed() {

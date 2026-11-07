@@ -4,9 +4,10 @@ import Foundation
 /// What `@open` lists on the key that changed its text (`SessionServices.instantResults`), before Spotlight is asked:
 /// the apps and places of the app index and what `@open` opened before, kept in memory with their rows
 /// (`FileSearch.result`) and when they were last used and changed, ranked as the full search ranks them
-/// (`FileSearchRanking.search`, nothing searched); a path's folder, read then (`FileSearch.complete`, on a volume of this
-/// Mac only). What is kept is made off the key's thread (`prepare`): the first time, again once the app index may have
-/// changed (as often as it looks, `recheckInterval`), and when a path `@open` opened isn't known yet.
+/// (`FileSearchRanking.search`, nothing searched); a path's folder as it was listed a moment ago (`list`, by the search,
+/// off the key's thread: nothing is read from the disk on the key). What is kept is made off the key's thread
+/// (`prepare`): the first time, again once the app index may have changed (as often as it looks, `recheckInterval`), and
+/// when a path `@open` opened isn't known yet.
 public final class InstantFiles: @unchecked Sendable {
     /// An app or place of the index, or a file opened before: what ranks it, its row, and its path and names folded
     /// (`folded`), which a keyword must be in for it to match (`mayMatch`).
@@ -25,10 +26,27 @@ public final class InstantFiles: @unchecked Sendable {
         }
     }
 
+    /// A folder's entries as they were listed (`list`): those whose names start with `prefix` (lowercased), the first
+    /// `rows` of them, and when.
+    struct Listing {
+        var prefix: String
+        var rows: [SearchResult]
+        var listed: Date
+    }
+
     public static let shared = InstantFiles()
+
+    /// How long a folder's listing is shown at once after it was read (seconds).
+    static let listingKept: TimeInterval = 10
+    /// How many of a folder's entries a listing keeps (more than a list shows: the next keys narrow them).
+    static let listingRows = 40
 
     private let index: AppIndex
     private let recheckInterval: TimeInterval
+    /// Reads a path's folder (`FileSearch.complete`): only ever off the key's thread (`list`).
+    private let lister: @Sendable (_ query: String, _ limit: Int) -> [SearchResult]
+    /// The folders listed lately, by their path (expanded, as `FileSearch.complete` reads it).
+    private var listings: [String: Listing] = [:]
     private let queue = DispatchQueue(label: "com.aipinyin.inputmethod.instant-files", qos: .utility)
     private let lock = NSLock()
     /// The index's apps and places, dated; what `@open` opened that is there and isn't one of them, by path; the places'
@@ -40,26 +58,62 @@ public final class InstantFiles: @unchecked Sendable {
     private var made: Date?
     private var making = false
 
-    public init(index: AppIndex = .shared, recheckInterval: TimeInterval = 30) {
+    public init(index: AppIndex = .shared, recheckInterval: TimeInterval = 30,
+                list: @escaping @Sendable (_ query: String, _ limit: Int) -> [SearchResult] = { FileSearch.complete($0, limit: $1) }) {
         self.index = index
         self.recheckInterval = recheckInterval
+        lister = list
     }
 
     /// The rows for `query` (at most `limit`) from what is kept, at once: none before it was first made (`prepare`, which
-    /// this asks for when it is out of date). A path lists its folder ("~/Doc"); a web address comes first as in the full
-    /// search (`FileSearch.run`).
+    /// this asks for when it is out of date). A path ("~/Doc") lists its folder's entries as a listing a moment ago had
+    /// them (`listed`), nothing read now; a web address comes first as in the full search (`FileSearch.run`).
     public func results(_ query: String, history: OpenHistory, limit: Int = 8, now: Date = Date()) -> [SearchResult] {
-        if query.hasPrefix("/") || query.hasPrefix("~") {
-            let expanded = (query as NSString).expandingTildeInPath
-            let folder = query.hasSuffix("/") ? expanded : (expanded as NSString).deletingLastPathComponent
-            return Self.isLocal(folder) ? FileSearch.complete(query, limit: limit) : []
-        }
+        if Self.isPath(query) { return listed(query, limit: limit, now: now) }
         prepare(history: history, now: now)
         let (apps, opened, placeNames) = lock.withLock { (self.apps, self.opened, self.placeNames) }
         let rows = Self.ranked(query, limit: limit, history: history, apps: apps, opened: opened, placeNames: placeNames)
         guard let web = SearchResult.web(query) else { return rows }
         return query.contains("://") ? [web] : FileSearchRanking.placing(web, in: rows, query: query, limit: limit)
     }
+
+    // MARK: A path's folder
+
+    /// Whether `query` is a path ("/…", "~/…"): its folder is listed, nothing else.
+    static func isPath(_ query: String) -> Bool { query.hasPrefix("/") || query.hasPrefix("~") }
+
+    /// The folder `query` points into (expanded) and the start of a name after it (lowercased), as `FileSearch.complete`
+    /// reads them.
+    static func folder(of query: String) -> (folder: String, prefix: String) {
+        let expanded = (query as NSString).expandingTildeInPath
+        if query.hasSuffix("/") { return (expanded, "") }
+        return ((expanded as NSString).deletingLastPathComponent, (expanded as NSString).lastPathComponent.lowercased())
+    }
+
+    /// A path's folder read now (`FileSearch.complete`, its entries named), at most `limit` of its entries, and kept a
+    /// moment for the keys after (`listed`). Disk: only ever off the key's thread (the search reads it: `FileSearch.run`,
+    /// `names`).
+    public func list(_ query: String, limit: Int, now: Date = Date()) -> [SearchResult] {
+        let rows = lister(query, max(limit, Self.listingRows))
+        let (folder, prefix) = Self.folder(of: query)
+        lock.withLock {
+            listings = listings.filter { now.timeIntervalSince($0.value.listed) < Self.listingKept }
+            listings[folder] = Listing(prefix: prefix, rows: rows, listed: now)
+        }
+        return Array(rows.prefix(limit))
+    }
+
+    /// A path's rows from its folder's listing kept from a moment ago (`list`, `listingKept`), in memory: those whose
+    /// names start as the path's last part does, in the listing's order, folders first (the first of them all: a listing
+    /// for "~/D" has every name "~/Do" starts first). None where its folder wasn't listed lately, or for another start.
+    func listed(_ query: String, limit: Int, now: Date) -> [SearchResult] {
+        let (folder, prefix) = Self.folder(of: query)
+        guard let kept = lock.withLock({ listings[folder] }), now.timeIntervalSince(kept.listed) < Self.listingKept,
+              prefix.hasPrefix(kept.prefix) else { return [] }
+        return Array(kept.rows.lazy.filter { ($0.path as NSString).lastPathComponent.lowercased().hasPrefix(prefix) }.prefix(limit))
+    }
+
+    // MARK: What is kept
 
     /// What is kept made again off the caller's thread, when it is out of date (never made, made `recheckInterval` ago,
     /// or `history` has a path not looked at yet) and not being made already.
@@ -163,12 +217,5 @@ public final class InstantFiles: @unchecked Sendable {
         return text.withUTF8 { text in
             part.withUTF8 { part in part.isEmpty || memmem(text.baseAddress, text.count, part.baseAddress, part.count) != nil }
         }
-    }
-
-    /// Whether `folder` is on a volume of this Mac, not a server's, and can be read at once (`Mounts.isLocal`: its links
-    /// followed, case aside, not kept in the cloud), as the system's list of what is mounted has it: without asking a
-    /// server (one that doesn't answer would hold the key).
-    static func isLocal(_ folder: String) -> Bool {
-        Mounts().isLocal(folder)
     }
 }

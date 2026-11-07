@@ -29,9 +29,10 @@ public enum FileSearch {
     }
 
     /// One @'s files (`SessionServices.searchFileNames`): what `run` finds by name for `query`, without what the files
-    /// contain, nor a web address (one @ lists that itself). Off the main thread; cancelling the task stops it.
+    /// contain, nor a web address (one @ lists that itself); a path's folder's entries. Off the main thread; cancelling
+    /// the task stops it.
     public static func names(_ query: String, history: OpenHistory, limit: Int = 8) async -> [SearchResult] {
-        guard SearchResult.web(query) == nil, !query.hasPrefix("/"), !query.hasPrefix("~") else { return [] }
+        guard SearchResult.web(query) == nil else { return [] }
         return await files(query, history: history, limit: limit, found: nil, content: false)
     }
 
@@ -42,8 +43,8 @@ public enum FileSearch {
         return await withTaskCancellationHandler {
             await withCheckedContinuation { continuation in
                 DispatchQueue.global(qos: .userInitiated).async {
-                    let isPath = query.hasPrefix("/") || query.hasPrefix("~")
-                    let results = isPath ? complete(query, limit: limit)
+                    // A path's folder: listed here, off the key's thread, and kept a moment for the keys after.
+                    let results = InstantFiles.isPath(query) ? InstantFiles.shared.list(query, limit: limit)
                         : search(query, limit: limit, history: history, with: spotlight, found: found, content: content)
                     continuation.resume(returning: spotlight.isCancelled ? [] : results)
                 }
@@ -57,8 +58,8 @@ public enum FileSearch {
     /// at most `limit`. One read of the folder, which tells what each entry is (its own records of them: a volume mounted
     /// in it isn't asked), and only the first `limit` picked out and named as Finder names them (`displayName`, which reads
     /// an app's bundle). In a folder of this Mac (`Mounts.isLocal`) what is on a server is never asked anything: a link to
-    /// it isn't followed (it is listed as a file), and it is named as it is called here. (Such a folder is read on the
-    /// key's thread, `InstantFiles`, and again by the search, which lists it the same way.)
+    /// it isn't followed (it is listed as a file), and it is named as it is called here. Read off the key's thread only,
+    /// by the search (`InstantFiles.list`, which keeps it a moment for the keys after).
     public static func complete(_ query: String, limit: Int, mounts: Mounts = Mounts()) -> [SearchResult] {
         let expanded = (query as NSString).expandingTildeInPath
         let folder = query.hasSuffix("/") ? expanded : (expanded as NSString).deletingLastPathComponent

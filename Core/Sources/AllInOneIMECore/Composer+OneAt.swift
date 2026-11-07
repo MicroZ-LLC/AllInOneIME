@@ -308,12 +308,13 @@ extension Composer {
     // MARK: Spotlight's files
 
     /// The one @ text Spotlight's names are looked for (`SessionServices.searchFileNames`), as for `@open`: one that may
-    /// name a file (two characters or more, a few words, no sum or web address), not while pinyin is composed nor on a
-    /// selection. Nil: none.
+    /// name a file (two characters or more, a few words, no sum or web address), or a path ("~/Downloads/", however
+    /// long: its folder is listed, off the key's thread), not while pinyin is composed nor on a selection. Nil: none.
     public var oneAtFileQuery: String? {
         guard let (text, _) = oneAt, selection == nil, !engineState.isComposing else { return nil }
         let query = text.trimmingCharacters(in: .whitespaces)
-        guard FileSearchRanking.searchesAsYouType(query), query.count <= 40, query.split(separator: " ").count <= 3,
+        let path = query.hasPrefix("/") || query.hasPrefix("~")
+        guard FileSearchRanking.searchesAsYouType(query), path || query.count <= 40 && query.split(separator: " ").count <= 3,
               Arithmetic.value(of: query) == nil, SearchResult.web(query) == nil else { return nil }
         return query
     }
