@@ -889,9 +889,10 @@ public final class Composer {
         return cursorTail
     }
 
-    /// Where the text after the command starts (the cursor never goes into "@question ").
+    /// Where the text after the command starts (the cursor never goes into "@question "), or after the magic key while
+    /// one @ is written (never before the "@").
     private var textStart: Int {
-        guard let command = draftCommand else { return 0 }
+        guard let command = draftCommand else { return oneAtList && draft.hasPrefix(commandTrigger) ? commandTrigger.count : 0 }
         let header = "\(commandTrigger)\(command.name) "
         return draft.hasPrefix(header) ? header.count : 0
     }
@@ -1615,7 +1616,7 @@ public final class Composer {
         }
         // ⌘← ⌘→ in a command's text: to its start or end, as in any text field.
         if let edge = roles.lineEdge, modifiers == Modifiers.kind(edge), leftOrRight,
-           !draft.isEmpty, !isLevelTwo, !engineState.isComposing, voice == .off, palette == nil {
+           !draft.isEmpty, !isLevelTwo, !engineState.isComposing, voice == .off, palette == nil, !(oneAt != nil && draft == commandTrigger) {
             return .consumed(moveCursor(event))
         }
         // ⌘⏎ and ⌘1 … in a conversation: where it can go on (`ChatHandoff`).

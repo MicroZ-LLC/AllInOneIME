@@ -449,4 +449,18 @@ struct OneAtTests {
         for key in [FakeHost.at] + "nihao2".map({ k(String($0)) }) { _ = other.handleKeyDown(key) }
         #expect(other.oneAt?.text == "拟好", "\(String(describing: other.oneAt))")
     }
+
+    /// "@" alone, then ← (a key that isn't the list's): the "@" goes in and the key goes to the app, as in 0.6.9. With
+    /// text after "@", ← moves the caret in the text, never before the "@".
+    @Test func leftAfterTheMagicKey() {
+        let leftKey = KeyEvent(keyCode: VirtualKey.left, characters: "\u{F702}")
+        let c = Composer(engine: FakeEngine(), actionKey: .enter)
+        c.setInputMode(.english)
+        c.oneAtList = true
+        _ = c.handleKeyDown(FakeHost.at)
+        let left = c.handleKeyDown(leftKey)
+        #expect(commits(left) == ["@"] && !left.handled && c.draft.isEmpty, "\(commits(left)) \(c.draft)")
+        for key in [FakeHost.at, k("h"), k("i"), leftKey, leftKey, leftKey, leftKey, k("x")] { _ = c.handleKeyDown(key) }
+        #expect(c.draft == "@xhi" && c.oneAt?.text == "xhi", "\(c.draft)")
+    }
 }

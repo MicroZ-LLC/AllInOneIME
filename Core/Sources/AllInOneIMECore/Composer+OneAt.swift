@@ -202,7 +202,9 @@ extension Composer {
             return .consumed([.updateMarkedText, .showPanel])
         }
         guard lone else { return nil }
-        // Right after the magic key: a space or a mark leaves it as typed, as before.
+        // Right after the magic key: a key that isn't the list's (←, Home, End, Page Up…) puts the key in and goes to the
+        // app, as in 0.6.9; so does a space or a mark (`@ ` is an at sign).
+        if [Key.arrow(.left), .home, .end, .pageUp, .pageDown, .forwardDelete].contains(event.key) { return commitPalette(then: event) }
         if event.key == .space { return plain ? commitPalette(then: event) : nil }
         guard plain, let text = event.printableText, let c = text.first, text.count == 1 else { return nil }
         if c.isLetter || c.isNumber || c == "(" || !c.isASCII { return nil }
