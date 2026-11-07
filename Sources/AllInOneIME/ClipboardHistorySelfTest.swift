@@ -341,20 +341,25 @@ extension SelfTest {
               "a kept image: its row (\(imageRow?.text ?? "none"), thumbnail \(thumbnailShown)), ⏎ pastes it "
               + "(\(imagesPasted.map { $0.1 ? "terminal ⌃V" : "⌘V" }))")
         // Chosen, its larger picture: its own size in points up to 360 (the 400 × 200 image's, with the panel's inset around
-        // it), on the panel's right or left 8 pt from it, its top at the row's unless moved onto the screen, never over the
-        // panel; drawn from the image decoded at that size; gone once ⏎ hid the panel.
+        // it), on the panel's right 8 pt from it (smaller there where the room is less, 160 pt at least; on the left only
+        // where even that doesn't fit), its top at the row's unless moved onto the screen, never over the panel; drawn from
+        // the image decoded at the size it shows; gone once ⏎ hid the panel.
         let inset = CandidateView.Metrics.padding
         let previewRight = previewed.map { seen -> Bool in
-            let image = ImagePreviewLayout.size(pixels: CGSize(width: 400, height: 200), scale: seen.scale)
-            let pixels = (max(image.width, image.height) * seen.scale).rounded(.up)
-            let beside = seen.frame.minX == seen.panel.maxX + ImagePreviewLayout.gap || seen.frame.maxX == seen.panel.minX - ImagePreviewLayout.gap
+            let own = ImagePreviewLayout.size(pixels: CGSize(width: 400, height: 200), scale: seen.scale)
+            guard let placed = ImagePreviewLayout.frame(image: own, inset: inset, panel: seen.panel, rowTop: seen.rowTop, visible: seen.visible)
+            else { return false }
+            let pixels = (max(placed.image.width, placed.image.height) * seen.scale).rounded(.up)
+            let roomRight = seen.visible.maxX - seen.panel.maxX - ImagePreviewLayout.gap - 2 * inset
+            let side = roomRight >= min(ImagePreviewLayout.minSide, max(own.width, own.height))
+                ? seen.frame.minX == seen.panel.maxX + ImagePreviewLayout.gap : seen.frame.maxX == seen.panel.minX - ImagePreviewLayout.gap
             let top = abs(seen.frame.maxY - seen.rowTop) < 0.5 || seen.frame.minY == seen.visible.minY || seen.frame.maxY == seen.visible.maxY
-            return seen.frame.size == NSSize(width: image.width + 2 * inset, height: image.height + 2 * inset) && beside && top
+            return seen.frame == placed.frame && side && top
                 && !seen.frame.intersects(seen.panel) && seen.visible.contains(seen.frame) && !seen.over.contains { $0 === preview.window }
                 && seen.drawn.map { max($0.width, $0.height) == pixels } == true
         } ?? false
         check(previewRight && previewGone,
-              "a kept image chosen: its preview beside the panel, not over it ("
+              "a kept image chosen: its preview on the panel's right (smaller to fit, on its left only without room for that), not over it ("
               + (previewed.map { "\(NSStringFromRect($0.frame)) by the panel's \(NSStringFromRect($0.panel)), the row's top \($0.rowTop), "
                   + "drawn \($0.drawn.map { NSStringFromSize($0) } ?? "not yet"), over it: \($0.over.map { "\(Swift.type(of: $0))" })" } ?? "none")
               + "), \(previewGone ? "gone" : "still shown") once ⏎ hid the panel")

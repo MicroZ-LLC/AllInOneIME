@@ -5,11 +5,12 @@ import Foundation
 import Testing
 
 /// Clipboard history's larger picture of an image (`ImagePreviewLayout`, `ImagePreviewImages`; the input method's
-/// ImagePreview.swift shows it beside the panel): the row under the pointer when it's an image's, else the chosen one, else
-/// none, and none once the panel hides; up to 360 pt, never larger than the image, its shape kept; on the panel's right
-/// 8 pt from it with its top at the row's, on its left without room there, on the screen, never over the panel, none
-/// without room on either side. The image decoded off the main thread at the size drawn, a result no longer wanted never
-/// shown, a few kept, none once cleared. The kept image a row's thumbnail stands for (`ClipboardHistoryStore`).
+/// ImagePreview.swift shows it beside the panel): the row under the pointer when it's an image's, else the chosen one,
+/// else none, and none once the panel hides; up to 360 pt, never larger than the image, its shape kept; on the panel's
+/// right 8 pt from it with its top at the row's, smaller there to fit (160 pt at least), on its left only where even
+/// that doesn't fit, on the screen, never over the panel, none without room on either side. The image decoded off the
+/// main thread at the size drawn, a result no longer wanted never shown, a few kept, none once cleared. The kept image
+/// a row's thumbnail stands for (`ClipboardHistoryStore`).
 struct ImagePreviewTests {
     typealias Layout = ImagePreviewLayout
 
@@ -81,58 +82,137 @@ struct ImagePreviewTests {
 
     @Test func itGoesOnThePanelsRightItsTopAtTheRows() throws {
         let panel = CGRect(x: 200, y: 300, width: 320, height: 200)
-        let frame = try #require(Layout.frame(size: CGSize(width: 300, height: 160), panel: panel, rowTop: 480, visible: Self.screen))
-        #expect(frame == CGRect(x: panel.maxX + 8, y: 480 - 160, width: 300, height: 160))
+        let placed = try #require(Layout.frame(image: CGSize(width: 288, height: 148), inset: 6, panel: panel, rowTop: 480, visible: Self.screen))
+        #expect(placed.image == CGSize(width: 288, height: 148), "at its size where it fits")
+        #expect(placed.frame == CGRect(x: panel.maxX + 8, y: 480 - 160, width: 300, height: 160))
     }
 
-    @Test func onTheLeftWhenThereIsNoRoomOnTheRight() throws {
-        let panel = CGRect(x: 1000, y: 300, width: 320, height: 200)
-        let frame = try #require(Layout.frame(size: CGSize(width: 300, height: 160), panel: panel, rowTop: 480, visible: Self.screen))
-        #expect(frame == CGRect(x: panel.minX - 8 - 300, y: 320, width: 300, height: 160))
+    /// Less room on the right than it takes: smaller there, its shape kept, its height rounded, the width the room's.
+    @Test func smallerOnTheRightWhereItDoesntFitThere() throws {
+        let panel = CGRect(x: 900, y: 300, width: 320, height: 200)  // 212 pt from the gap to the screen's edge
+        let placed = try #require(Layout.frame(image: CGSize(width: 360, height: 203), inset: 6, panel: panel, rowTop: 480, visible: Self.screen))
+        #expect(placed.image == CGSize(width: 200, height: 113), "\(placed.image)")  // 212 - 12 wide; 203 × 200 / 360 = 112.8
+        #expect(placed.frame == CGRect(x: 1228, y: 480 - 125, width: 212, height: 125), "\(placed.frame)")
+        // Down to 160 pt on its longer side: on the right still.
+        let narrow = try #require(Layout.frame(image: CGSize(width: 360, height: 203), inset: 6,
+                                               panel: CGRect(x: 952, y: 300, width: 300, height: 200), rowTop: 480, visible: Self.screen))
+        #expect(narrow.image == CGSize(width: 168, height: 95) && narrow.frame.minX == 1260, "\(narrow)")
+        // A tall one: as wide as the room, its longer side the height.
+        let tall = try #require(Layout.frame(image: CGSize(width: 135, height: 360), inset: 6,
+                                             panel: CGRect(x: 1000, y: 300, width: 320, height: 200), rowTop: 480, visible: Self.screen))
+        #expect(tall.image == CGSize(width: 100, height: 267) && tall.frame.minX == 1328, "\(tall)")
+    }
+
+    /// On the left only where it fits on the right at no size of 160 pt or more (the panel at the screen's right edge): at
+    /// its size there, or smaller to fit the room there the same way.
+    @Test func onTheLeftOnlyWhereEven160PointsDontFitOnTheRight() throws {
+        let edge = CGRect(x: 1100, y: 300, width: 330, height: 200)  // 2 pt to the screen's edge
+        let left = try #require(Layout.frame(image: CGSize(width: 288, height: 148), inset: 6, panel: edge, rowTop: 480, visible: Self.screen))
+        #expect(left.image == CGSize(width: 288, height: 148) && left.frame == CGRect(x: 1100 - 8 - 300, y: 320, width: 300, height: 160))
+        // 160 pt for the image on the right (1440 - 1260 - 8 - 2 × 6): there; 159: too small, so on the left.
+        let square = CGSize(width: 360, height: 360)
+        let at160 = try #require(Layout.frame(image: square, inset: 6, panel: CGRect(x: 1000, y: 300, width: 260, height: 200), rowTop: 480,
+                                              visible: Self.screen))
+        #expect(at160.image == CGSize(width: 160, height: 160) && at160.frame.minX == 1268, "\(at160)")
+        let at159 = try #require(Layout.frame(image: square, inset: 6, panel: CGRect(x: 1000, y: 300, width: 261, height: 200), rowTop: 480,
+                                              visible: Self.screen))
+        #expect(at159.image == square && at159.frame.maxX == 1000 - 8, "\(at159)")
+        // Little room on the left too: smaller there.
+        let wide = CGRect(x: 250, y: 300, width: 1188, height: 200)
+        let squeezed = try #require(Layout.frame(image: CGSize(width: 360, height: 203), inset: 6, panel: wide, rowTop: 480, visible: Self.screen))
+        #expect(squeezed.image == CGSize(width: 230, height: 130), "\(squeezed.image)")
+        #expect(squeezed.frame == CGRect(x: 0, y: 480 - 142, width: 242, height: 142), "\(squeezed.frame)")
     }
 
     @Test func noneWithoutRoomOnEitherSide() {
-        let wide = CGRect(x: 100, y: 300, width: 1200, height: 200)
-        #expect(Layout.frame(size: CGSize(width: 300, height: 160), panel: wide, rowTop: 480, visible: Self.screen) == nil)
+        let wide = CGRect(x: 100, y: 300, width: 1200, height: 200)  // 132 pt on the right, 92 on the left
+        #expect(Layout.frame(image: CGSize(width: 288, height: 148), inset: 6, panel: wide, rowTop: 480, visible: Self.screen) == nil)
+        // Small: never made larger, so it fits as it is or not at all (150 pt where 140 are free).
+        #expect(Layout.frame(image: CGSize(width: 150, height: 100), panel: CGRect(x: 148, y: 0, width: 1144, height: 100), rowTop: 90,
+                             visible: Self.screen) == nil)
         let small = CGRect(x: 0, y: 0, width: 600, height: 300)
-        #expect(Layout.frame(size: CGSize(width: 200, height: 320), panel: CGRect(x: 100, y: 0, width: 100, height: 100), rowTop: 90,
+        #expect(Layout.frame(image: CGSize(width: 188, height: 308), inset: 6, panel: CGRect(x: 100, y: 0, width: 100, height: 100), rowTop: 90,
                              visible: small) == nil, "taller than the screen")
     }
 
     @Test func movedOntoTheScreenUpOrDown() throws {
         let visible = CGRect(x: 0, y: 40, width: 1440, height: 835)
         // A row near the bottom: up onto the screen.
-        let low = try #require(Layout.frame(size: CGSize(width: 300, height: 200), panel: CGRect(x: 100, y: 40, width: 320, height: 120),
-                                            rowTop: 150, visible: visible))
+        let low = try #require(Layout.frame(image: CGSize(width: 300, height: 200), panel: CGRect(x: 100, y: 40, width: 320, height: 120),
+                                            rowTop: 150, visible: visible)).frame
         #expect(low.minY == visible.minY && low.minX == 428)
         // A row reported above the screen's top (a panel partly off it): down onto it.
-        let high = try #require(Layout.frame(size: CGSize(width: 300, height: 200), panel: CGRect(x: 100, y: 700, width: 320, height: 200),
-                                             rowTop: 900, visible: visible))
+        let high = try #require(Layout.frame(image: CGSize(width: 300, height: 200), panel: CGRect(x: 100, y: 700, width: 320, height: 200),
+                                             rowTop: 900, visible: visible)).frame
         #expect(high.maxY == visible.maxY)
+    }
+
+    /// The owner's screen (1280 × 832 points, its menu bar 33) and a full-screen screenshot of it (2560 × 1664 pixels: 360 ×
+    /// 234 points at most): wherever the panel is, the preview is on its right, smaller where the room there is less, its
+    /// shape kept, its longer side 160 pt at least; on its left only where even that doesn't fit (the panel at the screen's
+    /// right edge). The image is decoded at the size drawn (`imageSize`).
+    @Test func onTheOwnersScreenItStaysOnTheRightSmallerWhereItMust() throws {
+        let visible = CGRect(x: 0, y: 0, width: 1280, height: 799)
+        var (right, smaller, left) = (0, 0, 0)
+        for x in stride(from: 0.0, through: 1280 - 360, by: 10) {
+            let panel = CGRect(x: x, y: 300, width: 360, height: 240)
+            let state = Layout.Panel(frame: panel, hovered: nil, chosen: 0, visible: visible, scale: 2)
+            let screenshot = Layout.ImageRow(pixels: CGSize(width: 2560, height: 1664), top: panel.maxY - 6)
+            let shown = try #require(Layout.shown(state, inset: 6) { $0 == 0 ? screenshot : nil }, "none beside the panel at \(x)")
+            let image = shown.imageSize
+            #expect(shown.frame.size == CGSize(width: image.width + 12, height: image.height + 12))
+            #expect(abs(image.height - image.width * 1664 / 2560) <= 0.5, "its shape kept: \(image)")
+            #expect(!shown.frame.intersects(panel) && visible.contains(shown.frame), "\(shown.frame) by \(panel)")
+            let room = visible.maxX - panel.maxX - Layout.gap - 12
+            if room >= Layout.minSide {
+                #expect(shown.frame.minX == panel.maxX + Layout.gap, "on the right while it fits there at 160 pt: \(shown.frame) by \(panel)")
+                #expect(image.width == min(360, room.rounded(.down)), "as large as the room there allows, 360 pt at most: \(image)")
+                if image.width < 360 { smaller += 1 } else { right += 1 }
+            } else {
+                #expect(shown.frame.maxX == panel.minX - Layout.gap && image.width == 360, "on the left at its size: \(shown.frame)")
+                left += 1
+            }
+            #expect(shown.frame.maxY == panel.maxY - 6, "its top at the row's")
+        }
+        #expect(right > 0 && smaller > 0 && left > 0, "\(right) on the right, \(smaller) smaller there, \(left) on the left")
     }
 
     @Test func neverOverThePanelAndAlwaysOnTheScreen() {
         let visible = CGRect(x: -1280, y: 25, width: 1280, height: 775)  // a screen left of the main one, under a menu bar
-        let size = CGSize(width: 372, height: 212)
-        var placed = 0
+        let (size, inset) = (CGSize(width: 360, height: 200), CGFloat(6))
+        // The least the window takes beside the panel: the image at 160 pt on its longer side, its inset, the gap.
+        let least = Layout.minSide + 2 * inset + Layout.gap
+        var (placed, right, smaller) = (0, 0, 0)
         for x in stride(from: visible.minX, through: visible.maxX - 280, by: 37) {
             for y in stride(from: visible.minY, through: visible.maxY - 140, by: 53) {
                 for width in [280.0, 520, 900] where x + width <= visible.maxX {
                     let panel = CGRect(x: x, y: y, width: width, height: 140)
-                    guard let frame = Layout.frame(size: size, panel: panel, rowTop: panel.maxY - 6, visible: visible) else {
+                    let (roomRight, roomLeft) = (visible.maxX - panel.maxX, panel.minX - visible.minX)
+                    guard let (image, frame) = Layout.frame(image: size, inset: inset, panel: panel, rowTop: panel.maxY - 6, visible: visible) else {
                         // None only where it fits on neither side.
-                        #expect(panel.minX - visible.minX < size.width + 8 && visible.maxX - panel.maxX < size.width + 8, "\(panel)")
+                        #expect(roomRight < least && roomLeft < least, "\(panel)")
                         continue
                     }
                     placed += 1
                     #expect(!frame.intersects(panel), "over the panel: \(frame) \(panel)")
                     #expect(visible.contains(frame), "off the screen: \(frame)")
-                    #expect(frame.minX == panel.maxX + 8 || frame.maxX == panel.minX - 8)
+                    #expect(frame.size == CGSize(width: image.width + 2 * inset, height: image.height + 2 * inset))
+                    // On the right wherever it fits there at 160 pt; on the left only where it doesn't.
+                    if roomRight >= least {
+                        #expect(frame.minX == panel.maxX + 8, "\(frame) by \(panel)")
+                        right += 1
+                    } else {
+                        #expect(frame.maxX == panel.minX - 8, "\(frame) by \(panel)")
+                    }
+                    // Its size, or smaller to fit, its shape kept, 160 pt at least.
+                    #expect(image == size || (max(image.width, image.height) >= Layout.minSide && abs(image.height - image.width * 200 / 360) <= 0.5),
+                            "\(image)")
+                    if image != size { smaller += 1 }
                     #expect(frame.maxY == panel.maxY - 6 || frame.minY == visible.minY)
                 }
             }
         }
-        #expect(placed > 100)
+        #expect(placed > 100 && right > 50 && smaller > 10, "\(placed) placed, \(right) on the right, \(smaller) smaller")
     }
 
     // MARK: - Decoding
