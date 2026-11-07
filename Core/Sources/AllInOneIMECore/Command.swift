@@ -594,6 +594,26 @@ extension CustomCommand {
         return nil
     }
 
+    /// What an editor that shows only some of a command's fields starts its Save from, the command saved as a `type`
+    /// one: what config.json has that the form doesn't show kept (its `icon` and `color`, a `stdin` of its own like
+    /// "{input}\nquit\n", a source's `minChars`), the fields `type` doesn't use cleared. Turned into another type, only
+    /// its name, description, icon and color are kept. The editor then puts in what the form shows.
+    public func kept(as type: CommandType) -> CustomCommand {
+        var c = CustomCommand(name: name, type: type, summary: summary, icon: icon, color: color)
+        guard type == self.type else { return c }
+        switch type {
+        case .prompt: (c.prompt, c.ascii) = (prompt, ascii)
+        case .run: (c.argv, c.stdin, c.ascii, c.timeoutSeconds) = (argv, stdin, ascii, timeoutSeconds)
+        case .terminal: (c.argv, c.ascii) = (argv, ascii)
+        case .link: (c.url, c.ascii) = (url, ascii)
+        case .snippet: (c.text, c.ascii) = (text, ascii)
+        case .suggestions:
+            (c.argv, c.timeoutSeconds, c.prefix, c.minChars, c.compare) = (argv, timeoutSeconds, prefix, minChars, compare)
+            (c.refresh, c.query, c.queryMinChars, c.insert) = (refresh, query, queryMinChars, insert)
+        }
+        return c
+    }
+
     // MARK: Editing the list by name
 
     // Settings edits and deletes a command by the name it had when the editor or the Delete dialog opened, never by its
