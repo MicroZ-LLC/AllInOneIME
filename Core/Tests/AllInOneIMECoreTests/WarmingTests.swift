@@ -177,6 +177,20 @@ struct WarmingTests {
         }
     }
 
+    /// Translate as You Type turned on with a cloud provider: no HEAD (only an AI command and autocomplete open one).
+    @Test func translateAsYouTypeOpensNoConnection() async {
+        await withInterfaceLanguage("en") {
+            let server = "warm-translate.test"
+            StubURLProtocol.register(host: server, StubURLProtocol.Response(status: 404, headers: [:], chunks: []))
+            let settings = Settings(.anthropic)
+            settings.config.anthropic.baseURL = "https://\(server)"
+            let host = host(settings, session: StubURLProtocol.session())
+            _ = host.session.apply(host.composer.setTranslateMode(TranslateMode.Session(target: .chinese)))
+            Thread.sleep(forTimeInterval: 0.1)
+            #expect(StubURLProtocol.requests(host: server).isEmpty)
+        }
+    }
+
     /// Cloud autocomplete: the field's first key that types opens the connection, before the pause is over.
     @Test func autocompletesFirstKeyOpensTheConnection() async {
         await withInterfaceLanguage("en") {

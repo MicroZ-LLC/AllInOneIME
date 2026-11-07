@@ -14,27 +14,31 @@ extension InputSession {
             let (matches, row) = (composer.paletteMatches, composer.paletteHighlighted)
             if matches.indices.contains(row), Self.asksTheModel(matches[row]) { return matches[row].name }
         }
-        return composer.translateMode != nil ? "\u{0}translate as you type" : nil
+        return composer.translateMode != nil ? Self.translateAsYouType : nil
     }
+
+    /// `modelAhead` for Translate as You Type.
+    static let translateAsYouType = "\u{0}translate as you type"
 
     /// Whether `command` sends its text to the model the settings pick: `@improve`, `@translate`, `@question`, `@reply`
     /// and the custom commands that write with it (not `@agent`: the agent has its own).
     static func asksTheModel(_ command: Command) -> Bool { command.kind == .convert || command.kind == .generate }
 
     /// After the composer answered: what the model would be asked for next changed (`modelAhead`) to something, so it is
-    /// made ready now (`warmModel`), once while it stays the same.
+    /// made ready now (`warmModel`), once while it stays the same. Translate as You Type loads the on-device model only:
+    /// a cloud provider's connection is opened for an AI command and autocomplete, as the owner approved, not for it.
     func warmModelAhead() {
         let ahead = modelAhead
         guard ahead != modelWarmedFor else { return }
         modelWarmedFor = ahead
-        if ahead != nil { warmModel() }
+        if let ahead { warmModel(connection: ahead != Self.translateAsYouType) }
     }
 
     /// The model the AI commands go to made ready for a request: the on-device one loaded, once a minute at most
-    /// (`AutocompleteStore.prewarmDue`), else the provider's connection opened where nothing went to it lately
-    /// (`Converter.warmConnection`; where the shell does: `SessionServices.warmsConnections`). Nothing during secure input,
-    /// nor in an app with no AI, nor for the hosted service.
-    func warmModel() {
+    /// (`AutocompleteStore.prewarmDue`), else (`connection`) the provider's connection opened where nothing went to it
+    /// lately (`Converter.warmConnection`; where the shell does: `SessionServices.warmsConnections`). Nothing during secure
+    /// input, nor in an app with no AI, nor for the hosted service.
+    func warmModel(connection: Bool = true) {
         let config = services.loadSettings()
         guard !secureInputActive(), config.allowsAI(in: app) else { return }
         switch config.provider {
@@ -44,7 +48,7 @@ extension InputSession {
         case .hosted:
             return
         case .bedrock, .anthropic, .gemini, .openai:
-            if services.warmsConnections { services.converter.warmConnection(to: config.provider, config: config) }
+            if connection, services.warmsConnections { services.converter.warmConnection(to: config.provider, config: config) }
         }
     }
 }
