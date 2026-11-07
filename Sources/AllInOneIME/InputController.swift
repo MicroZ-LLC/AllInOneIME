@@ -620,7 +620,9 @@ final class AllInOneIMEInputController: IMKInputController {
 
     @MainActor
     func handleKeyDown(_ event: NSEvent, client: IMKTextInput?) -> Bool {
-        if TerminalPaste.isOurs(event) { return false }  // a line break being pasted into a terminal
+        // A V posted here (a paste into a terminal, a kept image's paste key, ⌃V again), handed over by the app: the app's.
+        // (At the tap it never comes here: `KeyGuard` lets it go on.)
+        if !atTap, TerminalPaste.isOurs(event) { return false }
         if !atTap, !KeyGuard.shared.isAttached(self) { attachKeyGuard() }
         commitRow()  // a row the key before put in, if this key came first
         // The same key down handed over a second time (the owner's "#17" had the session's token one "1" longer than

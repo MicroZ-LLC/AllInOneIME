@@ -29,6 +29,10 @@ English | [中文](CHANGELOG.zh-CN.md)
 - `@open` finds files by name in tens of milliseconds, also with a keyword thousands of files have in their names ("co", "doc"): it asks Spotlight for those used or changed since yesterday first, then in the last 30 days, then for all of them, only as far as it takes to fill the list, so the list is the one all the matches give. Before, every name search listed every match on the whole Mac, which took up to 2 s for two letters.
 - A path's folder (`@open ~/Downloads/`) is listed quickly however many files it holds (only the rows shown are named), folders first, then by file name. It's never read on the key you type: it's read right after, and the next keys narrow what was read at once. In a folder of this Mac a link to a server's folder is listed as a file, so typing never waits for a server that doesn't answer. Before, the folder was listed sorted by the names Finder shows.
 
+### Fixed
+
+- In a terminal or a code editor, ⏎ on an image in clipboard history and ⌃V pressed twice now paste: the ⌃V AllInOneIME presses for you reaches the app. Before (since 0.6.8.2), AllInOneIME took it for yours and showed clipboard history again.
+
 ## 0.6.9 (2026-11-02)
 
 ### Added
