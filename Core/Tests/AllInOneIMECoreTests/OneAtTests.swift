@@ -365,4 +365,39 @@ struct OneAtTests {
         #expect(!selection.contains { $0.command?.name == "shouty" }, "\(names(selection))")
         #expect(OneAt.actions(input("hello", noAI: true, usage: usage, commands: commands)).isEmpty)
     }
+
+    /// No AI here: the rows one @ guesses (the writing actions, Ask AI, the AI commands in the list for "@" alone or a
+    /// selection) aren't offered; an AI command found by its name is listed as before, and when run gets the notice that
+    /// AI is off in this app.
+    @Test func withoutAIAnAICommandFoundByNameIsListedAndRefused() async {
+        await withInterfaceLanguage("en") {
+            var config = Config.default
+            config.uiLanguage = "en"
+            config.appProfiles["com.example.editor"] = AppProfile(noAI: true)
+            var services = SessionServices(loadSettings: { config })
+            services.levelOne = { .engine(FakeEngine()) }
+            let host = FakeHost(services: services)
+            host.focus()
+            host.composer.setInputMode(.english)
+            host.type("@")
+            #expect(!host.composer.oneAtRows.contains { $0.command?.usesAI == true }, "\(names(host.composer.oneAtRows))")
+            host.type("hello")
+            #expect(!host.composer.oneAtRows.contains { $0.command?.usesAI == true }, "\(names(host.composer.oneAtRows))")
+            host.press(FakeHost.escape)
+            host.document = "the selected words"
+            host.selection = 0..<18
+            host.type("@")
+            #expect(!host.composer.oneAtRows.contains { $0.command?.usesAI == true }, "\(names(host.composer.oneAtRows))")
+            host.press(FakeHost.escape)
+            host.selection = nil
+            host.document = ""
+            host.type("@tr")
+            #expect(host.composer.oneAtRows.first == .command(.translate), "\(names(host.composer.oneAtRows))")
+            host.press(FakeHost.tab)
+            host.type("hello")
+            host.press(FakeHost.enter)
+            #expect(!host.composer.isLevelTwo && (host.noticeAlone ?? host.panel?.detail) == InputSession.aiRefusal,
+                    "\(host.noticeAlone ?? host.panel?.detail ?? "none")")
+        }
+    }
 }
