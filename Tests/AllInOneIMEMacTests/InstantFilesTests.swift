@@ -301,22 +301,60 @@ struct InstantFilesTests {
         #expect(FileSearch.fillsRows(files, limit: 8, keywords: ["sa", "pdf"], places: []))
     }
 
+    /// `names` on a thread of its own, and when it returned there: what a test times, not when the task awaiting it is
+    /// run again (in a loaded test run that waits for the concurrency pool, which tests waiting for a session hold).
+    func timedNames(_ spotlight: Spotlight, _ keyword: String, in scopes: [String]) -> Task<(found: [FileSearchRanking.Found]?, at: Date), Never> {
+        Task { await inBackground { (spotlight.names(keyword, in: scopes), Date()) } }
+    }
+
     @Test func aNameSearchEndsAtOnceWhenCancelledWhileSpotlightLooks() async throws {
         // Everything on the startup disk: some 440,000 items, 12 s on a Mac mini.
         let spotlight = Spotlight(until: .now() + 60)
-        let found = Task { await inBackground { spotlight.names("", in: ["/"]) } }
+        let found = timedNames(spotlight, "", in: ["/"])
         #expect(await Timing.eventually { spotlight.isAsking })
         try await Task.sleep(for: .milliseconds(5))
         let cancelling = Date()
         spotlight.cancel()
-        #expect(await found.value == nil)
-        #expect(Date().timeIntervalSince(cancelling) < 1, "\(Date().timeIntervalSince(cancelling)) s")
+        let (names, returned) = await found.value
+        #expect(names == nil)
+        #expect(returned.timeIntervalSince(cancelling) < 1, "\(returned.timeIntervalSince(cancelling)) s")
         #expect(!spotlight.isAsking)
         // Not started once cancelled.
         let cancelled = Spotlight(until: .now() + 10)
         cancelled.cancel()
         #expect(cancelled.names("a", in: ["/System/Applications"]) == nil)
         #expect(cancelled.names(each: ["a", "b"], in: ["/System/Applications"]) == nil)
+    }
+
+    /// Under load Spotlight's own deliveries back the query's queue up (a loaded test run took 12.8 s to return after a
+    /// cancel): a cancel and the time limit don't wait behind them, the query is stopped once they are through, and
+    /// nothing is read of a cancelled one. The queue held up here for 3 s once the query runs, as that backlog does (a
+    /// small query: what is held up is the queue, whatever Spotlight finds).
+    @Test func aCancelOrTheTimeLimitDoesntWaitForTheQueryToComeToIt() async throws {
+        let held = 3.0, scopes = ["/System/Applications"]
+        let asked = Locked<[Spotlight.Query]>(initialState: [])
+        let hold: @Sendable (Spotlight.Query) -> Void = { query in
+            asked.withLock { $0.append(query) }
+            query.queue.async { Thread.sleep(forTimeInterval: held) }
+        }
+        let spotlight = Spotlight(until: .now() + 60)
+        spotlight.queryRuns = hold
+        let found = timedNames(spotlight, "", in: scopes)
+        #expect(await Timing.eventually { !asked.withLock { $0 }.isEmpty })
+        try await Task.sleep(for: .milliseconds(100))
+        let cancelling = Date()
+        spotlight.cancel()
+        let (names, returned) = await found.value
+        #expect(names == nil)
+        #expect(returned.timeIntervalSince(cancelling) < 2, "\(returned.timeIntervalSince(cancelling)) s")
+        let limited = Spotlight(until: .now() + 0.3)
+        limited.queryRuns = hold
+        let started = Date()
+        let (some, ended) = await timedNames(limited, "", in: scopes).value
+        #expect(some != nil && ended.timeIntervalSince(started) < 2, "\(ended.timeIntervalSince(started)) s")
+        // Once the queue comes to them: nothing was read of the cancelled one.
+        let cancelled = try #require(asked.withLock { $0 }.first)
+        #expect(await inBackground { cancelled.queue.sync { cancelled.read } } == 0)
     }
 
     @Test func aNameSearchEndsAtTheTimeLimitWithWhatItFound() async {

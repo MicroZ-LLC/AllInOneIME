@@ -26,6 +26,9 @@ public final class Spotlight: @unchecked Sendable {
 
     /// Whether a query of `names` is running (the tests wait for one).
     var isAsking: Bool { lock.withLock { !queries.isEmpty } }
+    /// Told each query of `names` once it runs, on the thread waiting for it (the tests hold its queue up, as Spotlight's
+    /// own deliveries do under load).
+    var queryRuns: (@Sendable (Query) -> Void)?
 
     /// What `mdfind arguments` printed by the time limit (its notes on stderr are dropped); nil once
     /// the search is cancelled, even if it printed something before.
@@ -92,7 +95,7 @@ public final class Spotlight: @unchecked Sendable {
             return true
         }
         guard wanted else { return nil }
-        let found = query.run(until: deadline)
+        let found = query.run(until: deadline, runs: queryRuns)
         lock.withLock { queries.removeAll { $0 === query } }
         return isCancelled ? nil : found
     }
@@ -129,61 +132,89 @@ public final class Spotlight: @unchecked Sendable {
     }
 
     /// A query `names` runs, on a queue of its own: Spotlight delivers its results there (`MDQuerySetDispatchQueue`), and
-    /// everything else done with it is done there too (it is run, stopped and read), since nothing says an MDQuery may be
-    /// used from several threads at once. Whoever waits for it (`run`) waits on a semaphore, not in a run loop.
-    private final class Query: @unchecked Sendable {
+    /// everything done with the MDQuery is done there too (it is run, read and stopped), since nothing says an MDQuery
+    /// may be used from several threads at once. Its results are read there as Spotlight says it found more (its
+    /// progress), into a list of their own; whoever waits for it (`run`) waits on a semaphore, never on the queue, and
+    /// takes that list: under load Spotlight's own deliveries back the queue up, and a time limit or a cancel would wait
+    /// behind all of them (12 s for everything on the disk). The query is stopped and let go of on its queue after that,
+    /// kept until then; nothing more is read once its waiter is gone, and nothing is returned of a cancelled one.
+    final class Query: @unchecked Sendable {
         /// What each result comes with.
         static var dates: [CFString] { [kMDItemLastUsedDate!, kMDItemContentModificationDate!] }
 
         private let query: MDQuery
-        private let queue = DispatchQueue(label: "com.aipinyin.inputmethod.spotlight-names", qos: .userInitiated)
+        let queue = DispatchQueue(label: "com.aipinyin.inputmethod.spotlight-names", qos: .userInitiated)
         /// Signalled when Spotlight is done, and by `stop`.
         private let ended = DispatchSemaphore(value: 0)
-        /// Whether `stop` came (on `queue`): a query it comes before is never run.
-        private var stopped = false
+        /// What was read of the results so far (on `queue`); whether the query is over for its waiter (`run` returned, or
+        /// `stop` came: nothing more is read) and whether it was cancelled (`stop`: nothing is returned).
+        private let state = Locked(initialState: (found: [FileSearchRanking.Found](), over: false, cancelled: false))
+        /// How many of the query's results were read (on `queue`): Spotlight adds those it gathers after them.
+        private(set) var read = 0
 
         init(_ query: MDQuery) {
             self.query = query
             MDQuerySetDispatchQueue(query, queue)
+            // Progress told often (Spotlight's own batches are larger and less often, and what came in since the last is
+            // only handed over then): what it found by a time limit is read by then.
+            var batches = MDQueryGetBatchingParameters(query)
+            (batches.first_max_num, batches.first_max_ms) = (100, 20)
+            (batches.progress_max_num, batches.progress_max_ms) = (2000, 50)
+            MDQuerySetBatchingParameters(query, batches)
         }
 
-        /// What Spotlight found until it was done, `deadline` passed or `stop` came, whichever was first; it is stopped
-        /// then, and let go of on return.
-        func run(until deadline: DispatchTime) -> [FileSearchRanking.Found] {
+        /// What Spotlight found until it was done, `deadline` passed or `stop` came, whichever was first (nil: stopped);
+        /// it is stopped then, on its queue, after what Spotlight delivered there meanwhile, and let go of. `runs` is told
+        /// once it is started there.
+        func run(until deadline: DispatchTime, runs: (@Sendable (Query) -> Void)? = nil) -> [FileSearchRanking.Found]? {
             let center = CFNotificationCenterGetLocalCenter()
-            let observer = Unmanaged.passRetained(ended).toOpaque()
+            let observer = Unmanaged.passRetained(self).toOpaque()
             let object = UnsafeRawPointer(Unmanaged.passUnretained(query).toOpaque())
-            let started = queue.sync { () -> Bool in
-                guard !stopped else { return false }
+            // Started on the queue, not waited for: under load Spotlight can take seconds to start a query, and a cancel
+            // meanwhile returns at once all the same (the query is stopped after, on the queue).
+            queue.async { [self] in
+                guard !state.withLock({ $0.over }) else { return }
                 // Posted on `queue`, where the query runs.
-                CFNotificationCenterAddObserver(center, observer, { _, observer, _, _, _ in
-                    guard let observer else { return }
-                    Unmanaged<DispatchSemaphore>.fromOpaque(observer).takeUnretainedValue().signal()
-                }, kMDQueryDidFinishNotification, object, .deliverImmediately)
-                return MDQueryExecute(query, 0)
+                for name in [kMDQueryProgressNotification, kMDQueryDidFinishNotification] {
+                    CFNotificationCenterAddObserver(center, observer, { _, observer, name, _, _ in
+                        guard let observer else { return }
+                        let done = (name?.rawValue as String?) == (kMDQueryDidFinishNotification as String)
+                        Unmanaged<Query>.fromOpaque(observer).takeUnretainedValue().gather(done: done)
+                    }, name, object, .deliverImmediately)
+                }
+                if !MDQueryExecute(query, 0) { ended.signal() }
             }
-            if started { _ = ended.wait(timeout: deadline) }
-            return queue.sync {
-                stopped = true
+            runs?(self)
+            _ = ended.wait(timeout: deadline)
+            let found = state.withLock { state -> [FileSearchRanking.Found]? in
+                state.over = true
+                return state.cancelled ? nil : state.found
+            }
+            let query = self.query
+            queue.async {
                 MDQueryStop(query)
-                CFNotificationCenterRemoveObserver(center, observer, CFNotificationName(kMDQueryDidFinishNotification), object)
-                Unmanaged<DispatchSemaphore>.fromOpaque(observer).release()
-                return results()
+                CFNotificationCenterRemoveEveryObserver(center, observer)
+                Unmanaged<Query>.fromOpaque(observer).release()
             }
+            return found
         }
 
-        /// Ends the query where it is, from any thread; one that hasn't run yet never runs.
+        /// Ends the query where it is, from any thread: its waiter returns at once, with nothing; one that hasn't run yet
+        /// never runs.
         func stop() {
-            queue.async { [self] in
-                stopped = true
-                MDQueryStop(query)
+            state.withLock {
+                $0.over = true
+                $0.cancelled = true
             }
             ended.signal()
         }
 
-        /// What the query found (on `queue`, once it is stopped).
-        private func results() -> [FileSearchRanking.Found] {
+        /// The results Spotlight added since the last read (on `queue`, as it tells it found more), unless the query is
+        /// over for its waiter; `done`: that was all, and the waiter is told.
+        private func gather(done: Bool) {
+            guard !state.withLock({ $0.over }) else { return }
             MDQueryDisableUpdates(query)
+            let count = MDQueryGetResultCount(query)
             func date(_ name: CFString, _ index: CFIndex) -> Date? {
                 guard let value = MDQueryGetAttributeValueOfResultAtIndex(query, name, index) else { return nil }
                 let object = Unmanaged<CFTypeRef>.fromOpaque(value).takeUnretainedValue()
@@ -191,13 +222,18 @@ public final class Spotlight: @unchecked Sendable {
             }
             let (lastUsed, modified) = (Self.dates[0], Self.dates[1])
             var found: [FileSearchRanking.Found] = []
-            for index in 0..<MDQueryGetResultCount(query) {
+            for index in read..<max(read, count) {
                 guard let item = MDQueryGetResultAtIndex(query, index),
                       let path = MDItemCopyAttribute(Unmanaged<MDItem>.fromOpaque(item).takeUnretainedValue(), kMDItemPath) as? String
                 else { continue }
                 found.append(FileSearchRanking.Found(path: path, lastUsed: date(lastUsed, index), modified: date(modified, index)))
             }
-            return found
+            read = max(read, count)
+            MDQueryEnableUpdates(query)
+            state.withLock { state in
+                if !state.over { state.found += found }
+            }
+            if done { ended.signal() }
         }
     }
 
