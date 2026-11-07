@@ -14,10 +14,13 @@ public final class InstantFiles: @unchecked Sendable {
         var found: FileSearchRanking.Found
         var result: SearchResult
         var folded: String
+        /// Its Chinese names in pinyin and by their initials (`AppIndex.App.spelled`).
+        var spelled: [String]
 
-        init(found: FileSearchRanking.Found, result: SearchResult) {
+        init(found: FileSearchRanking.Found, result: SearchResult, spelled: [String] = []) {
             self.found = found
             self.result = result
+            self.spelled = spelled
             folded = InstantFiles.folded(([found.path] + found.names).joined(separator: "\n"))
         }
     }
@@ -80,7 +83,7 @@ public final class InstantFiles: @unchecked Sendable {
         let known = lock.withLock { opened }
         let apps = index.map { app in
             Kept(found: FileSearch.dated(FileSearchRanking.Found(path: app.path, names: app.names, isPlace: app.isPlace)),
-                 result: FileSearch.result(for: app.path, app: app))
+                 result: FileSearch.result(for: app.path, app: app), spelled: app.spelled)
         }
         let indexed = Set(index.map(\.path))
         var opened: [String: Kept] = [:]
@@ -96,9 +99,37 @@ public final class InstantFiles: @unchecked Sendable {
 
     /// `FileSearchRanking.search` over what is kept: the apps and places that match `query`, and what was opened before
     /// that it names (as Spotlight would find it by name, `FileSearch.openedFiles`), without the full-text search. Only
-    /// what may match (`mayMatch`) is looked at closely, and the places (for what is inside them: 「下载 pdf」).
+    /// what may match (`mayMatch`) is looked at closely, and the places (for what is inside them: 「下载 pdf」). Those a
+    /// keyword starts a word of the name of come first ("set" finds System Settings before Reset), then the others as
+    /// ranked; then, for letters typed as one word, the apps and places whose Chinese name they start the pinyin or the
+    /// initials of ("wx" 微信, "xtsz" 系统设置).
     static func ranked(_ query: String, limit: Int, history: OpenHistory, apps: [Kept], opened: [String: Kept],
                        placeNames: Set<String>) -> [SearchResult] {
+        let keywords = FileSearchRanking.keywords(in: query)
+        var rows = byName(query, limit: limit, history: history, apps: apps, opened: opened, placeNames: placeNames)
+        let words = Set(rows.filter { startsAWord($0, keywords) }.map(\.path))
+        rows = rows.filter { words.contains($0.path) } + rows.filter { !words.contains($0.path) }
+        guard rows.count < limit, keywords.count == 1, let letters = keywords.first?.lowercased(),
+              letters.allSatisfy({ $0.isASCII && $0.isLetter }) else { return rows }
+        let listed = Set(rows.map(\.path))
+        let spelled = apps.filter { kept in !listed.contains(kept.found.path) && kept.spelled.contains { $0.hasPrefix(letters) } }
+        let ranked = FileSearchRanking.rank(spelled.map(\.found), keywords: [], history: history, limit: limit - rows.count)
+        let byPath = Dictionary(spelled.map { ($0.found.path, $0.result) }, uniquingKeysWith: { first, _ in first })
+        return rows + ranked.compactMap { byPath[$0.path] }
+    }
+
+    /// Whether every keyword starts a word of `result`'s name, its other name or its file name (case and accents aside).
+    static func startsAWord(_ result: SearchResult, _ keywords: [String]) -> Bool {
+        let names = [result.name, (result.path as NSString).lastPathComponent] + (result.chineseName.map { [$0] } ?? [])
+        let words = names.flatMap { name in folded(name).split { !($0.isLetter || $0.isNumber) }.map(String.init) }
+        return !keywords.isEmpty && keywords.map(folded).allSatisfy { keyword in
+            keyword.containsHan ? names.contains { folded($0).contains(keyword) } : words.contains { $0.hasPrefix(keyword) }
+        }
+    }
+
+    /// The rows `FileSearchRanking.search` lists for `query` from what is kept (`ranked`), by name.
+    private static func byName(_ query: String, limit: Int, history: OpenHistory, apps: [Kept], opened: [String: Kept],
+                               placeNames: Set<String>) -> [SearchResult] {
         let keywords = FileSearchRanking.keywords(in: query)
         let folded = keywords.map(Self.folded)
         let candidates = apps.filter { $0.found.isPlace || mayMatch($0, folded, placeNames: placeNames) }
