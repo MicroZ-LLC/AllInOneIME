@@ -305,10 +305,9 @@ extension AllInOneIMEInputController {
             return
         }
         GhostOverlay.shared.hide()
+        // The wheel over the line is this field's: no pointer use in it, so Tab and Esc stay the line's (GitHub #66).
         let panel = CandidatePanel.shared
-        panel.owner = self
-        panel.onSelect = nil
-        panel.onDelete = nil
+        panel.take(by: self, .session({ [weak self] in self?.received($0) }))
         panel.show(.autocomplete(text, language: UIText.language), anchor: anchor(client))
         ghostInPanel = true
     }
