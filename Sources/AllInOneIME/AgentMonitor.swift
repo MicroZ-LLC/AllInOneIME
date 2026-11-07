@@ -255,6 +255,9 @@ extension Notification.Name {
     /// Something asks the settings window to show a page (`SettingsWindow.show(page:)`). userInfo: "page"
     /// (a `SettingsPage` raw value). Main thread.
     static let allInOneIMEShowSettingsPage = Notification.Name("AllInOneIMEShowSettingsPage")
+    /// The settings window opened again, kept since it was closed (`SettingsWindow.show`): its view starts over as a new
+    /// one would. userInfo: "page" (a `SettingsPage` raw value), none for General. Main thread.
+    static let allInOneIMESettingsReopened = Notification.Name("AllInOneIMESettingsReopened")
     /// AgentMonitor looked at the background tasks (every few seconds while it watches some). userInfo:
     /// "sessions" ([AgentSession], as `claude agents --json --all` listed them). Posted on the main thread.
     static let allInOneIMEAgentsPolled = Notification.Name("AllInOneIMEAgentsPolled")

@@ -100,6 +100,27 @@ enum LiveExtensions {
         }
     }
 
+    /// `load`, the folders read off the main thread: `done` gets the index on the main thread once it is built (the
+    /// settings window shown, which shows the one it had meanwhile).
+    static func loadInBackground(_ config: Config, done: @escaping @MainActor (ExtensionIndex) -> Void) {
+        let folders = ExtensionSourceGate.folders(config, found: found, recheck: true)
+        let (cache, before) = (self.cache, index)
+        DispatchQueue.global(qos: .userInitiated).async {
+            var built = ExtensionStore.load(folders, cache: cache)
+            built.generation = built == before ? before.generation : before.generation &+ 1
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    // Another read meanwhile (`load`, a rebuild) is as new: its index stays.
+                    if index.generation == before.generation {
+                        index = built
+                        indexed = folders
+                    }
+                    done(built)
+                }
+            }
+        }
+    }
+
     /// The values `bundle`'s commands get: what the settings saved, passwords from the keychain, else the defaults.
     static func preferences(of bundle: ExtensionBundle, config: Config) -> [String: String] {
         var stored = config.extensionPreferences[bundle.name] ?? [:]
