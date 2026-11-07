@@ -1407,7 +1407,7 @@ public final class Composer {
     }
 
     /// Keys while a recipient is picked: ↑↓ move, Tab picks, so do digits after a name (a number
-    /// being typed takes them). Nil: the key acts as usual.
+    /// being typed takes them, from its "+" or "(" on). Nil: the key acts as usual.
     private func handleRecipientKey(_ event: KeyEvent) -> Response? {
         guard let query = recipientQuery, event.modifiers.subtracting(.capsLock).isEmpty else { return nil }
         let found = currentRecipients
@@ -1422,7 +1422,7 @@ public final class Composer {
             break
         }
         if let text = event.printableText, text.count == 1, let n = text.first?.wholeNumberValue, n >= 1, found.indices.contains(n - 1),
-           !query.isEmpty, !query.contains(where: { $0.isNumber }) {
+           !query.isEmpty, !query.contains(where: { $0.isNumber }), !RecipientSearch.looksLikePhone(query + text) {
             return .consumed(pickRecipient(at: n - 1))
         }
         return nil

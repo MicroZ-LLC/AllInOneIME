@@ -1877,10 +1877,12 @@ enum SelfTest {
         // The recent one comes first with nothing typed.
         start()
         check(found() == [Recipient(name: "张三", handle: "+1 555 0100")], "the recent recipient is offered at once")
-        // A number typed in full, without Contacts access.
+        // A number typed in full, without Contacts access. The rows of the text before (the recent one) stay listed until
+        // the search for the number answers (0.7.0: the rows no longer go blank on each key), with what it says.
         contacts = nil
         type("+15550199", controller, client)
-        let typed = found()
+        _ = pump(timeout: 3) { controller.composer.recipientNote != nil }
+        let typed = controller.composer.currentRecipients
         check(typed == [Recipient(name: "", handle: "+15550199")]
               && controller.panelModel().status == .hint(tr("没有通讯录权限：系统设置 → 隐私与安全性 → 通讯录 → 打开 AllInOneIME；也可以直接输入手机号或邮箱",
                                                          "No access to Contacts: System Settings → Privacy & Security → Contacts → turn on AllInOneIME; or type a phone number or email")),
@@ -3364,9 +3366,15 @@ enum SelfTest {
         testSettingsWindow(snapshotDirectory: snapshotDirectory)
         testUpdates(controller, snapshotDirectory: snapshotDirectory)
         testExtensionSources(snapshotDirectory: snapshotDirectory)
+        // Settings' own checks, with no text field active as with --settings-only: a field takes the settings again when a
+        // switch in them is saved (`SuggestionsShared.settingsChanged`, a press of these checks' own, or a Settings
+        // window's plugins read in the background landing late), the self-test's Chinese interface with them, under
+        // checks that read English.
+        controller.deactivateServer(client)
         testExtensionSourceTrust(snapshotDirectory: snapshotDirectory)
         testExtensionSourceLimits(snapshotDirectory: snapshotDirectory)
         testExtensionSourceReading(snapshotDirectory: snapshotDirectory)
+        controller.activateServer(client)
         testSuggestionsOnByDefault(snapshotDirectory: snapshotDirectory)
         testICloudSync(snapshotDirectory: snapshotDirectory)
         testSettingsListsAfterSync(snapshotDirectory: snapshotDirectory)

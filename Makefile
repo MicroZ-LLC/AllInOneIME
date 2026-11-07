@@ -463,7 +463,8 @@ status:
 # ELECTRON_HARNESS: the Electron harness's folder (`make electron-harness`), run by the self-test too; without it, those
 # checks are skipped (what the harness recorded is played anyway). The self-test's exit status: 0 when every check ran
 # and passed, 1 when one failed, 2 when none failed but some were skipped or couldn't run (a locked screen, secure input,
-# no Bedrock credentials, no Electron harness, no on-device model): 2 isn't a pass, and fails this target (and
+# no Bedrock credentials, no Electron harness, no on-device model, the app run on a Mac without this checkout and no
+# ALLINONEIME_SOURCE_ROOT naming one): 2 isn't a pass, and fails this target (and
 # `screenshots`) as 1 does, saying which. Its last line, SELFTEST-RESULT {...}, has the counts and the outcome as JSON.
 OUT ?= /tmp/allinoneime-selftest
 ELECTRON_HARNESS ?=

@@ -1129,6 +1129,9 @@ struct SettingsView: View {
     /// The page Settings opens on when none is asked for.
     static let firstPage = SettingsPage.general
 
+    /// Translate to's Add… as the accessibility tree has it (the rewrite styles' Add… is on the same page).
+    static let addOutputLanguageID = "outputLanguages.add"
+
     /// The window shown (opened, or opened again): the checks behind the banners (quick, local: never a permission asked,
     /// a key read or the AI called), and the pages' facts read again off the main thread (`SettingsModel.windowShown`).
     private func shown() {
@@ -1466,6 +1469,7 @@ struct SettingsView: View {
                         }
                     }
                     .fixedSize()
+                    .accessibilityIdentifier(Self.addOutputLanguageID)
                 }
             } label: {
                 if model.config.hasLanguageToTranslateInto {

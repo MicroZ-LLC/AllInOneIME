@@ -164,6 +164,28 @@ extension ComposerTests {
         #expect(n.messageRecipient == nil && n.recipientQuery == "5551")
     }
 
+    @Test func imessageNumberTypedOverTheRecentOnesKeepsItsDigits() {
+        // The recent recipients, listed with nothing typed, stay listed while "+1…" is typed, until the search for it
+        // answers (a list never goes blank): "+" starts a number, so the digit after it is part of it, not a pick.
+        let (c, _) = composer(key: .enter)
+        _ = c.handleKeyDown(at)
+        type("ime", c)
+        _ = c.handleKeyDown(tab)
+        _ = c.receiveRecipients([zhang], for: "")
+        type("+1", c)
+        #expect(c.messageRecipient == nil && c.recipientQuery == "+1", "\(c.messageRecipient?.name ?? "-") \(c.recipientQuery ?? "-")")
+        type("5550199", c)
+        #expect(c.messageRecipient == nil && c.recipientQuery == "+15550199")
+        // "(" starts one too.
+        let (p, _) = composer(key: .enter)
+        _ = p.handleKeyDown(at)
+        type("ime", p)
+        _ = p.handleKeyDown(tab)
+        _ = p.receiveRecipients([zhang], for: "")
+        type("(1", p)
+        #expect(p.messageRecipient == nil && p.recipientQuery == "(1")
+    }
+
     @Test func imessageNeedsARecipient() {
         let (c, _) = composer(key: .enter)
         _ = c.handleKeyDown(at)

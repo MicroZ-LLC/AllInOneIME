@@ -102,15 +102,25 @@ extension SelfTest {
         defer { front.close() }
         func settingsWindow() -> NSWindow? { NSApp.windows.first { $0.title == SettingsWindow.title && $0.isVisible } }
         func popups(_ view: NSView) -> [NSPopUpButton] { ((view as? NSPopUpButton).map { [$0] } ?? []) + view.subviews.flatMap(popups) }
-        /// General's second Add… from the top: Translate to's (the input languages' is above it).
-        func firstAdd() -> NSPopUpButton? {
-            let all = settingsWindow()?.contentView.map(popups) ?? []
-            let adds = all.filter { $0.title == tr("添加…", "Add…") }.sorted { $0.convert($0.bounds, to: nil).maxY > $1.convert($1.bounds, to: nil).maxY }
-            return adds.count > 1 ? adds[1] : nil
+        // The accessibility tree VoiceOver gets (`AXEnhancedUserInterface`, as Settings' own checks set it), where SwiftUI
+        // puts the identifier of Translate to's Add… (on its popup's cell).
+        func enhanced(_ on: Bool) {
+            _ = NSApp.perform(NSSelectorFromString("accessibilitySetValue:forAttribute:"), with: on as NSNumber, with: "AXEnhancedUserInterface")
         }
-        /// What the page's first Add… lists, opened as a click opens it (read while it shows); `pick` chosen from it.
+        func ax(_ node: NSObject, _ key: String) -> Any? { node.responds(to: NSSelectorFromString(key)) ? node.value(forKey: key) : nil }
+        func nodes(_ node: NSObject) -> [NSObject] { [node] + ((ax(node, "accessibilityChildren") as? [NSObject]) ?? []).flatMap(nodes) }
+        enhanced(true)
+        defer { enhanced(false) }
+        /// Translate to's Add…, by its identifier (`SettingsView.addOutputLanguageID`), wherever it is on the page (the
+        /// rewrite styles' Add… is under it).
+        func translateToAdd() -> NSPopUpButton? {
+            guard let window = settingsWindow(), let content = window.contentView else { return nil }
+            let named = nodes(window).filter { (ax($0, "accessibilityIdentifier") as? String) == SettingsView.addOutputLanguageID }
+            return popups(content).first { popup in named.contains { $0 === popup.cell } }
+        }
+        /// What Translate to's Add… lists, opened as a click opens it (read while it shows); `pick` chosen from it.
         func addMenu(picking pick: String? = nil) -> [String] {
-            guard let add = firstAdd() else { return [] }
+            guard let add = translateToAdd() else { return [] }
             var listed: [String] = []
             let tracking = NotificationCenter.default.addObserver(forName: NSMenu.didBeginTrackingNotification, object: nil, queue: nil) { note in
                 MainActor.assumeIsolated {
@@ -157,7 +167,7 @@ extension SelfTest {
             _ = pump(timeout: 0.5) { false }
             let early = settingsWindow() != nil && !shownBefore
             _ = enter(controller, client)
-            _ = pump(timeout: 1.5) { firstAdd() != nil && settingsWindow().map(inFront) == true }
+            _ = pump(timeout: 1.5) { translateToAdd() != nil && settingsWindow().map(inFront) == true }
             let window = settingsWindow()
             check(window.map(inFront) == true && window.flatMap { NSApp.orderedWindows.firstIndex(of: $0) } == 0 && !early
                   && opened == ["general/outputLanguages"],
