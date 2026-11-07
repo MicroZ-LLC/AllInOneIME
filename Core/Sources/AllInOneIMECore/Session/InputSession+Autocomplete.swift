@@ -40,6 +40,8 @@ struct AutocompleteField {
     var taken: (at: TimeInterval, characters: Int)?
     /// The provider couldn't answer, and that was said: once while the field has the focus.
     var failureSaid = false
+    /// Its first key that typed was seen: a cloud provider's connection was opened then (`InputSession.warmModel`).
+    var warmed = false
 }
 
 /// What autocomplete says, in the interface language.
@@ -224,6 +226,11 @@ extension InputSession {
             autocompleteEnded(.dismissed)
         }
         guard !inserted.isEmpty, autocompleteMayRun() else { return }
+        // The field's first key that typed: a cloud provider's connection opened by the time the pause is over.
+        if !autocomplete.warmed {
+            autocomplete.warmed = true
+            if case .cloud = Autocomplete.route(services.loadSettings()) { warmModel() }
+        }
         autocompleteSchedulePause()
     }
 

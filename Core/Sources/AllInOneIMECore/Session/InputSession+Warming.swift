@@ -1,7 +1,9 @@
 import Foundation
 
 /// The model made ready before a request goes to it, so that ⏎ doesn't wait for it: the on-device model loaded (it takes
-/// about half a second after a short idle, up to 1.5 s). Nothing is sent.
+/// about half a second after a short idle, up to 1.5 s), a cloud provider's connection opened (after two or three minutes
+/// idle a new one takes 50 to 300 ms). Nothing of the user's is sent: the on-device model's loading sends nothing, and a
+/// cloud provider gets a HEAD to its base URL with no key and no body (`ConnectionWarmth`), never the hosted service.
 extension InputSession {
     /// What the model would be asked for next, as the draft is now: the AI command it is (its name typed out or picked,
     /// "@improve …"), else the AI command highlighted in the command list ("@imp"), else Translate as You Type, on in this
@@ -29,11 +31,20 @@ extension InputSession {
     }
 
     /// The model the AI commands go to made ready for a request: the on-device one loaded, once a minute at most
-    /// (`AutocompleteStore.prewarmDue`). Nothing during secure input, nor in an app with no AI.
+    /// (`AutocompleteStore.prewarmDue`), else the provider's connection opened where nothing went to it lately
+    /// (`Converter.warmConnection`; where the shell does: `SessionServices.warmsConnections`). Nothing during secure input,
+    /// nor in an app with no AI, nor for the hosted service.
     func warmModel() {
         let config = services.loadSettings()
-        guard !secureInputActive(), config.allowsAI(in: app), config.provider == .apple,
-              services.autocomplete.prewarmDue(at: services.uptime()) else { return }
-        services.converter.prewarmOnDevice()
+        guard !secureInputActive(), config.allowsAI(in: app) else { return }
+        switch config.provider {
+        case .apple:
+            guard services.autocomplete.prewarmDue(at: services.uptime()) else { return }
+            services.converter.prewarmOnDevice()
+        case .hosted:
+            return
+        case .bedrock, .anthropic, .gemini, .openai:
+            if services.warmsConnections { services.converter.warmConnection(to: config.provider, config: config) }
+        }
     }
 }

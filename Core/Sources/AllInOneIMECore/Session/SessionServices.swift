@@ -10,6 +10,10 @@ import Foundation
 public struct SessionServices {
     /// Level two: the AI requests (one `Converter`, one cache, shared by every field).
     public var converter: Converter
+    /// Whether a cloud provider's connection is opened ahead of a request, the draft an AI command or the first key in a
+    /// field with cloud autocomplete (`Converter.warmConnection`: a HEAD, nothing of the user's). Off by default: a test's
+    /// sessions send nothing they aren't asked to.
+    public var warmsConnections = false
     /// The settings as they are now (re-read when the file changed).
     public var loadSettings: () -> Config
 
