@@ -194,8 +194,19 @@ public enum Doctor {
             finding.detail = finding.detail.map { scrub($0) }
             return finding
         }
+        return ordered(out)
+    }
+
+    /// `findings(facts, language:)`, with those of `before` (the last check's) for the areas not checked yet
+    /// (`Facts.unchecked`): checks run again show what the last ones found until their own part is in.
+    public static func findings(_ facts: Facts, language: String, keeping before: [Finding]) -> [Finding] {
+        ordered(findings(facts, language: language) + before.filter { facts.unchecked.contains($0.area) })
+    }
+
+    /// Problems first, then warnings, then what is fine, in the areas' order within each, as they came within an area.
+    static func ordered(_ findings: [Finding]) -> [Finding] {
         let order = Area.allCases
-        return out.enumerated().sorted { a, b in
+        return findings.enumerated().sorted { a, b in
             (a.element.status, order.firstIndex(of: a.element.area) ?? 0, a.offset)
                 < (b.element.status, order.firstIndex(of: b.element.area) ?? 0, b.offset)
         }.map(\.element)

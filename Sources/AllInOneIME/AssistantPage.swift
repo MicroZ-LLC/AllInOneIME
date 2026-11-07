@@ -387,11 +387,11 @@ final class AssistantModel: ObservableObject {
         let run = probes
         checkTask = Task { @MainActor [weak self] in
             let language = UIText.language
-            // Each check's findings as it ends, the local ones first (what isn't checked yet is left out); the connection
-            // test last.
+            // Each check's findings as it ends, the local ones first (what isn't checked yet shows as the last check found
+            // it, or not at all the first time); the connection test last.
             var facts = await DoctorSession.probe { [weak self] partial in
                 guard let self, !Task.isCancelled, self.probes == run else { return }
-                self.findings = Doctor.findings(self.withTested(partial), language: language)
+                self.findings = Doctor.findings(self.withTested(partial), language: language, keeping: self.findings)
             }
             guard let self, !Task.isCancelled else { return }
             facts = self.withTested(facts)
