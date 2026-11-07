@@ -6,13 +6,10 @@ import SwiftUI
 /// words learned, and what else this Mac learned (Learned…).
 struct PrivacySection: View {
     @ObservedObject var model: SettingsModel
-    /// The words field as typed; saved on Return and when the page goes (`RedactionSettings.words`), only if it was edited
-    /// here, and then on top of the list as it is by then: a word added meanwhile elsewhere (the search's Change, a hand
-    /// edit) stays. Not being edited, it follows the list.
-    @State private var words = ""
-    @State private var edited = false
-    /// The list the field last showed: what an edit took out of it, or put in, is measured against it.
-    @State private var shown: [String] = []
+    /// The words field, as typed (`SettingsModel.wordsField`): saved on Return, when it or the window loses the focus,
+    /// when the page goes and with any other save (`RedactionSettings.words`), only if it was edited, and then on top of
+    /// the list as it is by then: a word added meanwhile elsewhere (the search's Change, a hand edit) stays.
+    @FocusState private var wordsFocused: Bool
 
     var body: some View {
         Section {
@@ -32,9 +29,11 @@ struct PrivacySection: View {
                 }
             }
             LabeledContent {
-                TextField("", text: Binding(get: { words }, set: { if $0 != words { words = $0; edited = true } }),
+                TextField("", text: Binding(get: { model.wordsField }, set: { model.editWords($0) }),
                           prompt: Text(tr("项目代号、名字…，用逗号分开", "A codename, a name…, separated by commas")))
-                    .onSubmit(saveWords)
+                    .focused($wordsFocused)
+                    .onSubmit(model.commitWords)
+                    .onChange(of: wordsFocused) { if !wordsFocused { model.commitWords() } }
                     .frame(minWidth: 240)
             } label: {
                 titled(.wordsToHide)
@@ -50,10 +49,17 @@ struct PrivacySection: View {
                 .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)  // under the card, from its left
         }
         .disabled(!model.canSave)
-        .onAppear { show(model.config.redaction.customWords) }
-        .onDisappear(perform: saveWords)
+        .onAppear { if !model.wordsEdited { model.showWords(model.config.redaction.customWords) } }
+        .onDisappear(perform: model.commitWords)
+        // Another app in front, Settings left open: the field keeps the window's focus, but what that app sends next
+        // hides the words typed.
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification)) { _ in
+            model.commitWords()
+        }
         // The list read again (written by the search's Change, by hand): shown, unless the field is being edited.
-        .onChange(of: model.config.redaction.customWords) { if !edited { show(model.config.redaction.customWords) } }
+        .onChange(of: model.config.redaction.customWords) {
+            if !model.wordsEdited { model.showWords(model.config.redaction.customWords) }
+        }
         .onChange(of: model.config.redaction) { model.save() }
         Section {
             AppsWithoutAISection(model: model)
@@ -103,20 +109,6 @@ struct PrivacySection: View {
         [(tr("邮箱地址", "Email addresses"), \.emails), (tr("电话号码", "Phone numbers"), \.phones),
          (tr("银行卡号", "Payment card numbers"), \.cards), (tr("API 密钥和令牌", "API keys and tokens"), \.keys),
          (tr("IP 地址", "IP addresses"), \.ips)]
-    }
-
-    private func show(_ list: [String]) {
-        words = list.joined(separator: ", ")
-        shown = list
-        edited = false
-    }
-
-    /// The field's edit, if there was one, applied to the list as the file has it now (`SettingsModel.saveWords`, which
-    /// saves it here: leaving the page, this section's onChange is gone with it): the words taken out of the field go,
-    /// the words put in are added; the others, a word added elsewhere since included, stay.
-    private func saveWords() {
-        guard edited else { return }
-        show(model.saveWords(field: words, shown: shown))
     }
 }
 
