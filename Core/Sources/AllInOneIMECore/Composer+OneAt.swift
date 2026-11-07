@@ -163,6 +163,8 @@ extension Composer {
             if modifiers == [.shift] { return .consumed(finishOneAsTyped()) }
             guard modifiers.isEmpty else { return nil }
             if lone, selection == nil, !selectionPending { return .consumed(finish(committing: draft, selection: .kept)) }
+            // No row at all (a text in an app with No AI): the text goes in as typed, never a dead end.
+            if oneAtRows.isEmpty, selection == nil { return .consumed(finishOneAsTyped()) }
             return .consumed(doHighlightedOneAt(run: true))
         case .tab where plain:
             guard !oneAtRows.isEmpty else { return lone ? commitPalette(then: event) : .consumed() }
@@ -220,6 +222,7 @@ extension Composer {
             return [.showPanel]
         }
         if draft == commandTrigger, !engineState.isComposing, selection == nil { return nil }
+        if oneAtRows.isEmpty, selection == nil { return finishOneAsTyped() }
         return doHighlightedOneAt(run: true)
     }
 

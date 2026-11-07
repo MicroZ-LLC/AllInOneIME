@@ -463,4 +463,25 @@ struct OneAtTests {
         for key in [FakeHost.at, k("h"), k("i"), leftKey, leftKey, leftKey, leftKey, k("x")] { _ = c.handleKeyDown(key) }
         #expect(c.draft == "@xhi" && c.oneAt?.text == "xhi", "\(c.draft)")
     }
+
+    /// No row at all ("@hello" in an app with No AI): ⏎ types the text as typed, the "@" with it, and the footer says
+    /// so, never "⏎ do it".
+    @Test func noRowsAndReturnTypesTheTextAsTyped() async {
+        await withInterfaceLanguage("en") {
+            var config = Config.default
+            config.uiLanguage = "en"
+            config.appProfiles["com.example.editor"] = AppProfile(noAI: true)
+            var services = SessionServices(loadSettings: { config })
+            services.levelOne = { .engine(FakeEngine()) }
+            let host = FakeHost(services: services)
+            host.focus()
+            host.composer.setInputMode(.english)
+            host.type("@hello")
+            #expect(host.composer.oneAtRows.isEmpty, "\(names(host.composer.oneAtRows))")
+            let footer = host.panel?.footer ?? ""
+            #expect(footer.contains("types it as typed") && !footer.contains("do it"), "\(footer)")
+            host.press(FakeHost.enter)
+            #expect(host.document == "@hello" && !host.composer.isComposing, "\(host.document)")
+        }
+    }
 }

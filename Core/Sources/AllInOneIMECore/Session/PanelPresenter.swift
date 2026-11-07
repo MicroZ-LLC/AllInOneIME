@@ -435,7 +435,10 @@ public struct PanelPresenter {
         model.highlighted = all.isEmpty ? nil : composer.oneAtHighlighted - first
         if all.count > Composer.oneAtRowsShown { model.detail = "\(first + 1)–\(first + model.rows.count) / \(all.count)" }
         let enter = terms.enter
-        if composer.engineState.isComposing {
+        if all.isEmpty, composer.selection == nil, composer.draft != composer.commandTrigger {
+            // Nothing to do with the text here (no AI in this app): ⏎ types it as it is.
+            model.footer = t.tr("\(enter) 原样输入 · Esc 原样输入", "\(enter) types it as typed · Esc as typed")
+        } else if composer.engineState.isComposing {
             model.footer = t.tr("空格 选词 · \(enter) 执行选中的一行 · ↑↓ 选择", "Space picks a word · \(enter) do the highlighted row · ↑↓ choose")
         } else if composer.selection != nil {
             model.footer = t.tr("\(enter) 执行 · ↑↓ 选择 · Esc 取消，选中的文字不变", "\(enter) do it · ↑↓ choose · Esc cancel, the selection stays")

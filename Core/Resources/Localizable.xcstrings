@@ -5882,6 +5882,53 @@
         }
       }
     },
+    "%@ types it as typed · Esc as typed" : {
+      "comment" : "%@ 原样输入 · Esc 原样输入 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ fügt es wie getippt ein · Esc wie getippt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ lo escribe tal como está · Esc tal como está"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ l'insère tel quel · Esc tel quel"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 入力のまま入れる · Esc 入力のまま"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 입력한 그대로 넣기 · Esc 입력한 그대로"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ insere como digitado · Esc como digitado"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 原樣輸入 · Esc 原樣輸入"
+          }
+        }
+      }
+    },
     "%@ waiting for you" : {
       "comment" : "%@ 个等你 — Sources/AllInOneIMECore/Dashboard.swift",
       "localizations" : {
