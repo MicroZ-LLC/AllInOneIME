@@ -428,42 +428,75 @@ struct OneAtTests {
         #expect(c.oneAtRows.contains(.open(file)) && c.oneAtRows.first == first && c.oneAtHighlighted == 0, "\(names(c.oneAtRows))")
     }
 
-    /// A path after the magic key (written in front of a word: a mark right after the key gives it back): nothing of its
-    /// folder is read on the key. Its folder is listed with Spotlight's files (`SessionServices.searchFileNames`, off the
-    /// key's thread), however long the path, and its entries join below the rows shown as those do; a listing kept from a
-    /// moment ago (`instantResults`) shows at once, first (rule 4).
+    /// A path's rows are made where a path is opened, `@open ~/…`, and nothing of its folder is read on the key: the
+    /// folder is listed by `@open`'s search (`SessionServices.searchFiles`, off the key's thread), however long the path,
+    /// and its entries come as that answers; on the key only a listing kept from a moment ago (`instantResults`, which
+    /// reads no disk) shows, at once.
     @Test func aPathsFolderIsListedOffTheKey() async {
         await withInterfaceLanguage("en") {
             let path = "~/Library/Application Support/AllInOneIME/LanguagePacks/"
             let entry = SearchResult(name: "zh-pinyin", path: "/Users/me/Library/Application Support/AllInOneIME/LanguagePacks/zh-pinyin",
                                      isFolder: true)
             let kept = Locked(initialState: false)
-            let asked = Locked<[String]>(initialState: [])
+            let searched = Locked<[String]>(initialState: [])
             var services = SessionServices(loadSettings: { .default })
             services.levelOne = { .engine(FakeEngine()) }
             services.instantResults = { query, _ in kept.withLock { $0 } && query.hasPrefix(path) ? [entry] : [] }
-            services.searchFileNames = { query, _ in
-                asked.withLock { $0.append(query) }
+            services.searchFiles = { query, _ in
+                searched.withLock { $0.append(query) }
                 return query.hasPrefix(path) ? [entry] : []
             }
             let host = FakeHost(services: services)
             host.focus()
             host.composer.setInputMode(.english)
-            host.type("@L")
-            host.press(KeyEvent(keyCode: VirtualKey.left, characters: "\u{F702}"))
-            host.type("~/")
-            host.press(FakeHost.right)
-            host.type(String(path.dropFirst(3)))
-            #expect(host.composer.oneAt?.text == path, "\(host.composer.draft)")
-            let first = host.composer.oneAtRows.first
-            #expect(first != .open(entry), "\(names(host.composer.oneAtRows))")
-            #expect(host.settle { host.composer.oneAtRows.contains(.open(entry)) }, "listed off the key: \(asked.withLock { $0 })")
-            #expect(asked.withLock { $0 }.last == path, "a long path is listed too")
-            #expect(host.composer.oneAtRows.first == first && host.composer.oneAtHighlighted == 0, "below the rows shown")
+            host.press(FakeHost.at)
+            host.type("ope")
+            host.press(FakeHost.tab)
+            host.type(path)
+            #expect(host.composer.draftCommand == .open && host.composer.draft == "@open " + path, "\(host.composer.draft)")
+            #expect(host.composer.currentLiveResults.isEmpty, "nothing of the folder on the key")
+            #expect(host.settle { host.composer.currentLiveResults == [entry] }, "listed off the key: \(searched.withLock { $0 })")
+            #expect(searched.withLock { $0 }.last == path, "a long path is listed too")
             // The next key: the listing kept from a moment ago, at once.
             kept.withLock { $0 = true }
             host.type("z")
-            #expect(host.composer.oneAtRows.first == .open(entry), "\(names(host.composer.oneAtRows))")
+            #expect(host.composer.currentLiveResults.first == entry, "\(host.composer.currentLiveResults)")
+        }
+    }
+
+    /// A mark right after the magic key gives it back as typed, a path's "~" and "/" too: with "~" the magic key, "~/" is
+    /// "~/" (a terminal's home folder); "@~/Downloads/" is the at sign and the path, as text. No rows, and nothing of a
+    /// folder is asked for. (A path is opened with `@open ~/Downloads/`.)
+    @Test func aMarkRightAfterTheMagicKeyGivesItBack() async {
+        await withInterfaceLanguage("en") {
+            for trigger in ["~", "@"] {
+                for (text, terminal) in [("~/", false), ("~/", true), ("@~/Downloads/", false), ("@~/Downloads/", true)] {
+                    var config = Config.default
+                    config.commandTrigger = trigger
+                    let fixed = config
+                    let asked = Locked<[String]>(initialState: [])
+                    var services = SessionServices(loadSettings: { fixed })
+                    services.levelOne = { .engine(FakeEngine()) }
+                    services.instantResults = { query, _ in
+                        if query.contains("/") { asked.withLock { $0.append(query) } }
+                        return []
+                    }
+                    services.searchFileNames = { query, _ in
+                        asked.withLock { $0.append(query) }
+                        return []
+                    }
+                    let host = FakeHost(services: services)
+                    host.terminal = terminal
+                    host.appTypesKeys = true
+                    host.focus()
+                    host.composer.setInputMode(.english)
+                    host.type(text)
+                    let place = "\(trigger) \(text)\(terminal ? " in a terminal" : "")"
+                    #expect(host.document == text && host.marked.isEmpty && !host.composer.isComposing, "\(place): \(host.document)|\(host.marked)")
+                    #expect(host.composer.oneAt == nil && host.panel?.rows.isEmpty != false, "\(place)")
+                    #expect(!host.settle(timeout: 0.1) { !asked.withLock { $0 }.isEmpty }, "\(place): \(asked.withLock { $0 })")
+                }
+            }
         }
     }
 
