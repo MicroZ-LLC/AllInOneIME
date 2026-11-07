@@ -43,14 +43,19 @@ public final class ConnectionWarmth: Sendable {
         }
     }
 
-    /// The HEAD to `url` on `session`, where it is due (`due`): its answer is never read. True if it went.
+    /// The HEAD to `url` on `session`, where it is due (`due`), off the caller's thread: never redirected (as no request
+    /// to a provider is), its answer taken to its end, so that the connection stays open, and not looked at. True if it
+    /// went.
     @discardableResult
     func warm(_ url: URL, session: URLSession) -> Bool {
         guard due(url) else { return false }
         var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: Self.timeout)
         request.httpMethod = "HEAD"
         request.httpShouldHandleCookies = false
-        session.dataTask(with: request) { _, _, _ in }.resume()
+        Task.detached(priority: .utility) {
+            guard let (body, _) = try? await HTTPStream.bytes(for: request, session: session, redirect: { _ in nil }) else { return }
+            do { for try await _ in body {} } catch {}
+        }
         return true
     }
 
