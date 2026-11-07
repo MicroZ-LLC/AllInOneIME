@@ -54,8 +54,8 @@ public enum ChineseCharacters: String, Codable, CaseIterable, Sendable {
     ///
     /// It reads characters, not the writer: Simplified text that keeps a Traditional form by right (乾 in 乾隆) leans
     /// Traditional, and text with no telling characters goes by the setting (`OutputLanguage.of`). For a user typing in
-    /// `chinese`, the forms those write as Simplified does (`simplifiedAlike`: Hong Kong's 温, 户) don't count as
-    /// Simplified: Hong Kong's 今日温度好高 can't tell, and is theirs.
+    /// `chinese`, the forms those write as Simplified does (`simplifiedAlike`: Hong Kong's 温, 户, 着, both Traditional
+    /// ones' 沉, 喂) don't count as Simplified: Hong Kong's 今日温度好高 can't tell, and is theirs.
     public static func writtenTraditional(_ text: String, chinese: ChineseCharacters = .simplified, limit: Int = 400) -> Bool? {
         let text = String(text.prefix(limit))
         guard text.containsHan, !text.unicodeScalars.contains(where: isKana) else { return nil }
@@ -71,14 +71,24 @@ public enum ChineseCharacters: String, Codable, CaseIterable, Sendable {
     private static let lastTold = Locked<(text: String, chinese: ChineseCharacters, traditional: Bool?)?>(initialState: nil)
 
     /// The forms these characters write as Simplified does, which ICU's Hans-Hant transform makes Traditional all the
-    /// same: Hong Kong's variants (OpenCC's HKVariants, the last step of s2hk) write 温, 户, 税 where Taiwan writes 溫, 戶,
-    /// 稅. Taiwan's (TWVariants) have only 么, for 幺, which Simplified writes in every 什么: not counted.
+    /// same: the characters their OpenCC config (`openCCConfig`) leaves as they are. Both Traditional ones keep 沉, 喂,
+    /// 舍, which OpenCC's STCharacters doesn't change (ICU: 沈, 餵, 捨). Hong Kong's keeps 着, 泄, 睾 too, which only
+    /// Taiwan's variants (TWVariants) change, and its own variants (HKVariants, the last step of s2hk) write 温, 户, 税
+    /// where Taiwan writes 溫, 戶, 稅.
     var simplifiedAlike: Set<Unicode.Scalar> {
-        self == .hongkong ? Self.hongKongAlike : []
+        switch self {
+        case .simplified: return []
+        case .taiwan: return Self.traditionalAlike
+        case .hongkong: return Self.hongKongAlike
+        }
     }
 
-    /// HKVariants' forms (the first of each, which s2hk writes) that Hans-Hant changes.
-    private static let hongKongAlike = Set("温户税脱悦卧葱兑囱叁愠揾氲蜕媪煴捝棁榅腽".unicodeScalars)
+    /// What STCharacters leaves as it is (s2twp and s2hk write it so) and Hans-Hant changes.
+    private static let traditionalAlike = Set("沉喂舍挽杆彷漓礴坂吣埯岙漤鼗鿭".unicodeScalars)
+
+    /// Those, what TWVariants alone changes, and HKVariants' forms (the first of each, which s2hk writes) that Hans-Hant
+    /// changes.
+    private static let hongKongAlike = traditionalAlike.union("着泄睾温户税脱悦卧葱兑囱叁愠揾氲蜕媪煴捝棁榅腽".unicodeScalars)
 
     /// Hiragana or katakana, the halfwidth ones too.
     private static func isKana(_ scalar: Unicode.Scalar) -> Bool {
