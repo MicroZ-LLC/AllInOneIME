@@ -563,4 +563,99 @@ struct OneAtTests {
             #expect(row.text.contains(clock), "\(row.text) \(clock)")
         }
     }
+
+    // MARK: - Secure input
+
+    /// Whether `row` is one the AI does (a writing action, an instruction for the selection, an AI command).
+    func asksAI(_ row: OneAt.Action) -> Bool {
+        switch row {
+        case .write, .edit: return true
+        case let .command(command): return command.usesAI
+        case .value, .open, .reminder: return false
+        }
+    }
+
+    /// A field whose session has secure input on elsewhere (`SessionServices.secureInputActive`: another app's Secure
+    /// Keyboard Entry, a password field, the lock screen) or off, Chinese first and English to translate into, the input on
+    /// English.
+    func field(secureInput: Bool, noAI: Bool = false) -> FakeHost {
+        var config = Config.default
+        config.setOrder([Language.chinese, .english])
+        config.setOrder([OutputLanguage.english, .chinese])
+        if noAI { config.appProfiles = ["com.example.editor": AppProfile(noAI: true)] }
+        var services = SessionServices(loadSettings: { config })
+        services.levelOne = { .engine(FakeEngine()) }
+        services.programInstalled = { _ in true }
+        services.secureInputActive = { secureInput }
+        let host = FakeHost(services: services)
+        host.focus()
+        host.composer.setInputMode(.english)
+        return host
+    }
+
+    /// Secure input on: as in an app with No AI, one @ guesses no AI row (Translate, Improve, Ask AI), and ⏎ on a text no
+    /// row is left for types it as typed: it doesn't run Translate (nothing goes to the AI, no notice). Off, the same text
+    /// has them.
+    @Test func secureInputGuessesNoAIRows() async {
+        await withInterfaceLanguage("en") {
+            let open = field(secureInput: false)
+            open.type("@hello")
+            #expect(open.composer.oneAtRows.first == .write(.translate) && open.composer.oneAtRows.contains(.write(.question)),
+                    "\(names(open.composer.oneAtRows))")
+            let secure = field(secureInput: true)
+            secure.type("@hello")
+            #expect(!secure.composer.oneAtRows.contains(where: asksAI), "\(names(secure.composer.oneAtRows))")
+            let noAI = field(secureInput: false, noAI: true)
+            noAI.type("@hello")
+            #expect(secure.composer.oneAtRows == noAI.composer.oneAtRows, "as with No AI: \(names(noAI.composer.oneAtRows))")
+            secure.press(FakeHost.enter)
+            #expect(secure.document == "@hello" && !secure.composer.isComposing && secure.composer.phase == .idle,
+                    "\(secure.document) \(secure.composer.phase)")
+            // The footer says what ⏎ does then.
+            let again = field(secureInput: true)
+            again.type("@hello")
+            #expect(again.panel?.footer.contains("as typed") == true, "\(again.panel?.footer ?? "")")
+        }
+    }
+
+    /// Secure input on: "@" alone lists the commands that don't use the AI, as in an app with No AI; the local rows stay
+    /// (a sum's value).
+    @Test func secureInputLeavesTheAICommandsOutOfTheList() async {
+        await withInterfaceLanguage("en") {
+            let secure = field(secureInput: true)
+            secure.type("@")
+            let rows = secure.composer.oneAtRows
+            #expect(!rows.isEmpty && !rows.contains(where: asksAI), "\(names(rows))")
+            #expect(rows.contains(.command(.note)) && !rows.contains(.command(.improve)) && !rows.contains(.command(.translate)))
+            let noAI = field(secureInput: false, noAI: true)
+            noAI.type("@")
+            #expect(rows == noAI.composer.oneAtRows, "as with No AI: \(names(noAI.composer.oneAtRows))")
+            let open = field(secureInput: false)
+            open.type("@")
+            #expect(open.composer.oneAtRows.contains(.command(.improve)), "\(names(open.composer.oneAtRows))")
+            let sum = field(secureInput: true)
+            sum.type("@3*7")
+            #expect(sum.composer.oneAtRows.first == .value("21"), "\(names(sum.composer.oneAtRows))")
+            sum.press(FakeHost.enter)
+            #expect(sum.document == "21")
+        }
+    }
+
+    /// Secure input on: an AI command typed by its name is still listed, first, and run it gets the notice it gets under
+    /// secure input; nothing is sent.
+    @Test func secureInputListsAnAICommandByNameAndRefusesIt() async {
+        await withInterfaceLanguage("en") {
+            let host = field(secureInput: true)
+            host.type("@tr")
+            #expect(host.composer.oneAtRows.first == .command(.translate), "\(names(host.composer.oneAtRows))")
+            #expect(!host.composer.oneAtRows.dropFirst().contains(where: asksAI), "\(names(host.composer.oneAtRows))")
+            host.press(FakeHost.tab)
+            host.type("hello")
+            #expect(host.composer.draft == "@translate hello")
+            host.press(FakeHost.enter)
+            #expect(host.composer.phase == .failed("Secure input is on (a password field or the lock screen): nothing was sent to the AI"),
+                    "\(host.composer.phase)")
+            #expect(host.document.isEmpty)
+        }
+    }
 }

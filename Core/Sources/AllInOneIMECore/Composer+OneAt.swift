@@ -29,10 +29,11 @@ extension Composer {
     }
 
     /// The rows of the one @ list (`OneAt.actions`), worked out once for what they come from (the text, the selection,
-    /// the commands, their use, the app, Spotlight's files so far).
+    /// the commands, their use, the app, Spotlight's files so far). While secure input is on (`secureInputActive`) it is
+    /// as in an app with No AI: no AI row is guessed (an AI command typed by its name is listed, and refused when run).
     public var oneAtRows: [OneAt.Action] {
         guard let (text, letters) = oneAt else { return [] }
-        let app = appInUse(), noAI = !aiAllowed()
+        let app = appInUse(), noAI = !aiAllowed() || secureInputActive()
         // Spotlight's files for the text: those found for it, else those for the text before that still match it.
         let fileQuery = oneAtFileQuery
         if fileQuery != nil, oneAtFiles.query != fileQuery { showOneAtFiles() }

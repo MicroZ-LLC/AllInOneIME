@@ -555,7 +555,7 @@ public final class Composer {
     /// list puts first.
     public var appInUse: () -> String? = { nil }
     /// Whether AI may run in the app being typed in (`AppProfile.noAI`; the session sets it): no AI row in the one @ list
-    /// otherwise.
+    /// otherwise, nor while secure input is on (`secureInputActive`).
     public var aiAllowed: () -> Bool = { true }
     /// A reminder for a time in a text, read as `@reminder` reads it (`SessionServices.parseReminder`; the session sets
     /// it); nil: none.
