@@ -88,6 +88,9 @@ public final class Composer {
         case continueInClaudeCode(prompt: String)
         /// The same in another agent (Gemini CLI, Kiro CLI, the custom one), started as `@agent` starts it.
         case continueInAgent(AgentKind, prompt: String)
+        /// Go on in the input method's own Claude session in Terminal (`claude --resume`, `ChatHandoff.Destination
+        /// .claudeSession`): our process ends first; `followUp` (the next question typed, maybe empty) is its first message.
+        case continueClaudeSession(followUp: String)
         /// Run `argv` in a new terminal window (a custom `terminal` command).
         case launchInTerminal(argv: [String])
         /// Start `prompt` as a Claude Code background session (`@agent` with `claudeInBackground`).
@@ -414,6 +417,9 @@ public final class Composer {
 
     /// Rounds in the panel before it offers to go on elsewhere (`Config.questionRounds`, set by the controller).
     public var questionRounds = QuestionChat.defaultRounds
+    /// The questions go to the input method's Claude session (`ClaudeSessionManager`, set by the controller): no round
+    /// limit, and the hand-off offers going on in that session first (`ChatHandoff.withSession`).
+    public var questionSession = false
     /// Where a conversation can go on, in order (`ChatHandoff.choices`, set by the controller): ⌘1, ⌘2 … pick them.
     public var handoffChoices = ChatHandoff.defaultChoices(picked: .claude, installed: { _ in false })
     /// The agent "@agent's agent" (`ChatHandoff.Destination.atAgent`) stands for: the one `@agent` hands to, when it's

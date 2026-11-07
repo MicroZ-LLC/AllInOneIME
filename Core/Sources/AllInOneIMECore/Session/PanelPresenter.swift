@@ -34,6 +34,8 @@ public struct PanelPresenter {
     /// shortened to fit the model.
     public var hidden: Int
     public var shortened: Bool
+    /// Why the Claude session didn't answer and the provider did (`ConversionUpdate.note`).
+    public var note: String?
     /// The agent `@agent` hands to, and the custom one's command: where an `@question` conversation can go on.
     public var agent: AgentKind
     public var agentCommand: [String]
@@ -46,7 +48,7 @@ public struct PanelPresenter {
 
     public init(config: Config, language: String, terms: PlatformTerms = Platform.current.terms, app: String? = nil,
                 notice: String? = nil, elapsed: TimeInterval? = nil, fromCache: Bool = false, hidden: Int = 0,
-                shortened: Bool = false, agent: AgentKind = .claude, agentCommand: [String] = [],
+                shortened: Bool = false, note: String? = nil, agent: AgentKind = .claude, agentCommand: [String] = [],
                 jargon: @escaping () -> [JargonEntry] = { [] }, scriptStatus: @escaping (ScriptCommand) -> String? = { _ in nil },
                 chip: @escaping () -> TranslateMode.Chip? = { nil }) {
         self.config = config
@@ -58,6 +60,7 @@ public struct PanelPresenter {
         self.fromCache = fromCache
         self.hidden = hidden
         self.shortened = shortened
+        self.note = note
         self.agent = agent
         self.agentCommand = agentCommand
         self.jargon = jargon
@@ -603,6 +606,10 @@ public struct PanelPresenter {
                                           name: SessionText.shortName($0.element, picked: agent, custom: agentCommand, language: language))
             })
             model.input = composer.refineLine.map { PanelModel.Input(prompt: t.tr("接着说 › ", "then › "), text: $0, caret: $0.count) }
+        } else if composer.typesRefine, composer.questionSession {
+            // The Claude session: no last round.
+            let next = composer.chatRound + 1
+            model.input = PanelModel.Input(prompt: t.tr("追问 \(next) › ", "question \(next) › "), text: typed, caret: typed.count)
         } else if composer.typesRefine {
             let next = min(composer.chatRound + 1, QuestionChat.rounds(composer.questionRounds))
             model.input = PanelModel.Input(prompt: t.tr("追问 \(next)/\(QuestionChat.rounds(composer.questionRounds)) › ",
@@ -615,7 +622,7 @@ public struct PanelPresenter {
         let count = composer.handoffChoices.count
         let copy = terms.copy, again = terms.again, enter = terms.enter, shiftEnter = terms.shiftEnter
         // The digits that pick an answer: up to the round limit, 9 at most (no digit after it).
-        let pick = "1–\(min(QuestionChat.rounds(composer.questionRounds), 9))"
+        let pick = "1–\(composer.questionSession ? 9 : min(QuestionChat.rounds(composer.questionRounds), 9))"
         if answering {
             model.footer = composer.refinements.isEmpty ? t.tr("回答中… · Esc 返回", "Answering… · Esc back")
                 : t.tr("回答中… · 可以接着打下一个问题 · Esc 回到上一轮", "Answering… · type the next question meanwhile · Esc previous round")
@@ -638,6 +645,7 @@ public struct PanelPresenter {
         var details: [String] = []
         if hidden > 0, !composer.showsSavedAnswer { details.append(PanelRedaction.hiddenLine(hidden, language: language)) }
         if shortened, !composer.showsSavedAnswer { details.append(t.tr("前面几轮已缩短", "earlier rounds shortened")) }
+        if let note, !composer.showsSavedAnswer { details.append(note) }
         if !answering {
             if let date = composer.savedAnswerDate {
                 details.append(t.tr("保存于\(t.ago(date))", "saved \(t.ago(date))"))

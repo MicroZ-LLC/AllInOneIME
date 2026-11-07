@@ -193,6 +193,7 @@ public enum SessionText {
         switch destination {
         case .atAgent, .claudeCode, .geminiCLI, .kiroCLI, .customAgent:
             return shortName(destination, picked: picked, custom: custom, language: language)
+        case .claudeSession: return t.tr("在 Claude Code 里接着聊（同一个会话）", "Continue in Claude Code (the same session)")
         case .claudeWeb: return t.tr("Claude 网页版", "Claude (web)")
         case .chatgpt: return t.tr("ChatGPT 网页版", "ChatGPT (web)")
         case .gemini: return t.tr("Gemini 网页版", "Gemini (web)")
@@ -210,6 +211,7 @@ public enum SessionText {
             let name = picked.displayName(custom: custom)
             return UIText.triggered(t.tr("@agent 的 agent（\(UIText.verbatim(name))）", "@agent's agent (\(UIText.verbatim(name)))"))
         case .claudeCode, .geminiCLI, .kiroCLI, .customAgent: return destination.agent?.displayName(custom: custom) ?? ""
+        case .claudeSession: return t.tr("Claude Code（接着这个会话）", "Claude Code (this session)")
         case .claudeWeb: return "Claude"
         case .chatgpt: return "ChatGPT"
         case .gemini: return "Gemini"

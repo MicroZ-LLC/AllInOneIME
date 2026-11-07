@@ -496,6 +496,18 @@ struct SettingsSchema {
         test.actions = [SettingsAction.test]
         test.status = outcome("provider.test")
         add(test, to: &fields)
+        // Where @question goes (`Config.questionBackend`): the input method's own Claude Code session (the Mac's), or the
+        // provider above. Everything else always goes to the provider.
+        add(choice("questionBackend", UIText.triggered(tr("提问（@question）", "Questions (@question)")),
+                   UIText.triggered(tr("Claude 会话：输入法自己的一个 Claude Code 会话，用你的 Claude 订阅，记得以前问过的问题。改写、翻译、补全总是用上面的 AI 服务。",
+                                       "Claude session: the input method's own Claude Code session, on your Claude subscription, which remembers earlier questions. Rewriting, translating and autocomplete always use the provider above.")),
+                   value: .string(config.questionBackend?.rawValue ?? ""),
+                   choices: [(Choice("", tr("自动：装了 claude 并已登录就用 Claude 会话", "Automatic: the Claude session when claude is installed and signed in")), nil),
+                             (Choice(QuestionBackend.claudeSession.rawValue, tr("Claude 会话（你的 Claude 订阅）", "Claude session (your Claude subscription)")), nil),
+                             (Choice(QuestionBackend.provider.rawValue, tr("AI 服务", "The AI provider")), nil)],
+                   platforms: [.mac]), to: &fields) { value in
+            store.config.questionBackend = value.string.flatMap(QuestionBackend.init(rawValue:))
+        }
         return fields
     }
 

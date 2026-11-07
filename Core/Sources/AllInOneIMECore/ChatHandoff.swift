@@ -22,6 +22,9 @@ public enum ChatHandoff {
         case gemini
         /// The conversation on the clipboard, in Markdown.
         case copy
+        /// The input method's own Claude Code session (`ClaudeSession`), where the questions went, in Terminal with all of
+        /// it (`claude --resume`): offered first when questions go to it (`withSession`), never part of the list set.
+        case claudeSession
 
         /// The one that starts `agent` in Terminal.
         public init(agent: AgentKind) {
@@ -40,7 +43,7 @@ public enum ChatHandoff {
             case .geminiCLI: return .gemini
             case .kiroCLI: return .kiro
             case .customAgent: return .custom
-            case .atAgent, .claudeWeb, .chatgpt, .gemini, .copy: return nil
+            case .atAgent, .claudeWeb, .chatgpt, .gemini, .copy, .claudeSession: return nil
             }
         }
     }
@@ -75,6 +78,7 @@ public enum ChatHandoff {
             if entry == .atAgent {
                 return installed(picked) && seen.insert(Destination(agent: picked)).inserted
             }
+            if entry == .claudeSession { return false }  // offered on its own (`withSession`), not from the list
             if let kind = entry.agent, (follows && kind == picked) || !installed(kind) { return false }
             return seen.insert(entry).inserted
         }
@@ -95,6 +99,12 @@ public enum ChatHandoff {
             result.append(shown.contains(index) ? order.popFirst() ?? entry : entry)
         }
         return result + order + edited.filter { !before.contains($0) }
+    }
+
+    /// `choices` when the questions go to the input method's Claude session: going on in that session first, and Claude
+    /// Code no longer as a new session of its own (the session has the conversation already).
+    public static func withSession(_ choices: [Destination]) -> [Destination] {
+        [.claudeSession] + choices.filter { $0 != .claudeCode && $0 != .claudeSession }
     }
 
     /// Whether `kind` can be offered: its program (`AgentKind.program`, a custom one's from `config.agentCommand`) is on
@@ -173,6 +183,8 @@ public enum ChatHandoff {
         // No way to fill its message box from the address that works reliably.
         case .gemini: return .open(URL(string: "https://gemini.google.com/app")!, clipboard: prompt)
         case .copy: return .copy(copied)
+        // The session has the conversation: nothing to take along but the next question (`Composer.handOff`).
+        case .claudeSession: return nil
         }
     }
 

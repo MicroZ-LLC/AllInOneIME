@@ -15,8 +15,8 @@ enum TerminalLauncher {
     /// Opens a new Terminal window in the home folder that runs `arguments` (`AgentKind.terminalArguments`) with
     /// `prompt`, however long, as the last argument. Claude Code by the path it was found at. The text goes in a file
     /// only the user can read; the script reads it into one argument and deletes it, so it is never part of a shell
-    /// command (the script deletes itself too).
-    static func agent(_ arguments: [String], prompt: String) throws {
+    /// command (the script deletes itself too). `directory`: where it runs (nil: the home folder).
+    static func agent(_ arguments: [String], prompt: String, directory: String? = nil) throws {
         guard !arguments.isEmpty else { return }
         var argv = arguments
         if argv[0] == "claude", let claudePath { argv[0] = claudePath }
@@ -36,7 +36,7 @@ enum TerminalLauncher {
             throw CocoaError(.fileWriteUnknown, userInfo: [NSFilePathErrorKey: file.path])
         }
         do {
-            try launch(argv, name: "agent", promptFile: file)
+            try launch(argv, name: "agent", directory: directory, promptFile: file)
         } catch {
             try? files.removeItem(at: file)  // nothing will read it
             throw error
