@@ -245,7 +245,8 @@ enum SettingsSpot: String, CaseIterable {
     }
 
     /// Whether its row is there with `config`: a provider's own rows only with that provider, the jargon list with its
-    /// style or file, the previous per-app settings only while an app has one.
+    /// style or file, the English words under an input that shows them, the previous per-app settings only while an app
+    /// has one.
     func isShown(_ config: Config) -> Bool {
         switch self {
         case .apiKey, .baseURL: return config.provider.needsKey && config.provider != .bedrock
@@ -254,6 +255,7 @@ enum SettingsSpot: String, CaseIterable {
         case .jargonList: return SettingsView.showsJargon(config)
         case .previousAppSettings: return config.appProfiles.values.contains { !$0.previousFields.isEmpty }
         case .chineseCharacters, .fuzzyPinyin, .personalDictionaries: return config.inputLanguages.contains(.chinese)
+        case .englishWords: return config.inputLanguages.contains { SettingsView.showsEnglishWords(under: $0, config) }
         case .webSearch: return Command.webSearchOffered
         default: return true
         }

@@ -88,7 +88,7 @@ A file may use `@allinoneime.<key> <value>` (the protocol's own keys) or `@rayca
 | `group` | shown after the title in the command list | none (a bundle's title for its commands) |
 | `keywords` | comma-separated words the command list also finds it by | none |
 | `icon` | an emoji, an SF Symbol name, or an image file (a path from the script's folder) | one for its output |
-| `input` | `none`, `optional` or `required` (then its first argument is required, whatever it says) | `required` if one of its arguments is, else `optional` |
+| `input` | `none`, `optional` or `required` (then at least one argument is required: the first, unless a later one already is) | `required` if one of its arguments is, else `optional` |
 | `argument1`…`argument3` | Raycast's JSON (below) | one free-text argument |
 | `output` | `insert`, `show`, `list` or `silent` (§4) | `insert` |
 | `background` | `true`: it starts, and the text field is free at once (§5) | `false` |

@@ -38,7 +38,7 @@ final class SettingsModel: ObservableObject {
     @Published private(set) var learned: [LearnedItem] = []
 
     func refreshLearned() {
-        learned = LearnedShared.store.items(appName: { AppNames.name(for: $0) })
+        learned = LearnedShared.store.items(appName: { AppNames.name(for: $0) }, chinese: config.typedChinese)
     }
 
     /// Forget: `item` forgotten where it is kept (an app's starting input with its streak, autocomplete's learning in an
@@ -2178,10 +2178,15 @@ struct SettingsView: View {
             if language == .chinese {
                 PersonalDictionariesSection(model: model, dictionaries: personalDictionaries)
             }
-            if language == .english || (language == .chinese && !model.config.inputLanguages.contains(.english)) {
+            if Self.showsEnglishWords(under: language, model.config) {
                 EnglishWordsSection(model: model)
             }
         }
+    }
+
+    /// The English words pinyin offers are under English's options, or Chinese's without English.
+    static func showsEnglishWords(under language: Language, _ config: Config) -> Bool {
+        language == .english || (language == .chinese && !config.inputLanguages.contains(.english))
     }
 
     @ViewBuilder private func languageOptions(_ language: Language) -> some View {

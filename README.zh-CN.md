@@ -8,7 +8,7 @@
 
 # AllInOneIME
 
-### 在 Mac 上任何输入框里，都能用 AI 命令。
+### 在哪打字，就在哪和 AI 对话。
 
 在任何 App 里打 `@improve`、`@translate` 或 `@question`，按 ⏎，选结果。<br>
 不用复制到聊天窗口，不用切换 App。用你自己的 AI 服务和 key。
