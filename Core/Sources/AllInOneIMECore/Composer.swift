@@ -537,6 +537,10 @@ public final class Composer {
     var oneAtHighlightMoved = false
     var oneAtHighlightedID: String?
     var oneAtCache: (key: OneAtKey, rows: [OneAt.Action])?
+    /// The words the user's commands are found by, for the commands as they are (`commandsGeneration`).
+    var oneAtWords: (generation: Int, words: [String: [String]]) = (-1, [:])
+    /// Whether the row ⏎ (rather than Tab) waited on for the selection is to run (`selectionRead`).
+    var oneAtRunsWhenRead = true
     /// The files Spotlight's names found for the one @ text (`SessionServices.searchFileNames`), as they come.
     var oneAtFiles = LiveRows<SearchResult>(limit: Composer.recentLiveLimit, id: \.path)
     /// The app being typed in (its bundle id; the session sets it): what a command's use is counted for, and what the one @

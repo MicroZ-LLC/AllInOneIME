@@ -73,8 +73,8 @@ public enum OneAt {
         public var files: [SearchResult]
         /// The reminder for a time in the text (`SessionServices.parseReminder`); nil: none there.
         public var reminder: (String) -> ReminderDraft?
-        /// The words of the user's commands (summary, title, keywords), in the interface language: what a text finds
-        /// them by besides their names.
+        /// The words of the user's commands (summary, title, keywords), split and folded as `OneAt.words` does: what a
+        /// text finds them by besides their names.
         public var words: (Command) -> [String]
 
         public init(text: String, letters: String? = nil, selection: String? = nil, commands: [Command], named: [Command] = [],
@@ -111,11 +111,13 @@ public enum OneAt {
     /// it. AI rows aren't offered in an app with No AI, nor Reply outside chat apps, nor a command that is off.
     public static func actions(_ input: Input) -> [Action] {
         let text = input.text.trimmingCharacters(in: .whitespaces)
-        let byName = Dictionary(input.commands.map { ($0.name, $0) }, uniquingKeysWith: { first, _ in first })
         let ai = !input.noAI
-        func offered(_ command: Command) -> Command? { byName[command.name] }
+        // The built-in writing actions, where they are offered (not off): the catalog has them first.
+        let builtins = input.commands.prefix { $0.custom == nil && $0.plugin == nil && $0.script == nil }
+        func offered(_ command: Command) -> Command? { builtins.first { $0.name == command.name } }
         var rows: [Action] = []
-        func add(_ action: Action) { if !rows.contains(where: { $0.id == action.id }) { rows.append(action) } }
+        var listed = Set<String>()
+        func add(_ action: Action) { if listed.insert(action.id).inserted { rows.append(action) } }
 
         if let selection = input.selection {
             // Letters that start a command's name put it first here too.
@@ -138,8 +140,8 @@ public enum OneAt {
         // Nothing typed: the command list, the most used (here first) on top; without AI here, the commands that don't
         // use it.
         guard !text.isEmpty || input.letters?.isEmpty == false else {
-            return Command.palette("", in: input.commands, usage: input.usage, app: input.app, limit: .max)
-                .filter { ai || !$0.usesAI }.map(Action.command)
+            let all = input.named.isEmpty ? Command.palette("", in: input.commands, usage: input.usage, app: input.app, limit: .max) : input.named
+            return all.filter { ai || !$0.usesAI }.map(Action.command)
         }
 
         // 1. The commands the letters start, then the user's own found by their words.
@@ -199,10 +201,10 @@ public enum OneAt {
     /// this app, then overall; ties in the order the text gives (Translate first for another language, else Improve), the
     /// user's after them in the catalog's. Without AI here, only the plugins that run a program.
     static func writingActions(_ input: Input, other: Bool) -> [Command] {
-        let byName = Set(input.commands.map(\.name))
+        let builtins = Set(input.commands.prefix { $0.custom == nil && $0.plugin == nil && $0.script == nil }.map(\.name))
         var actions: [Command] = []
         if !input.noAI {
-            actions += (other ? [Command.translate, .improve] : [.improve, .translate]).filter { byName.contains($0.name) }
+            actions += (other ? [Command.translate, .improve] : [.improve, .translate]).filter { builtins.contains($0.name) }
         }
         let own = input.commands.filter { command in
             takesText(command) && (!input.noAI || !command.usesAI) && input.usage.score(command.name) > 0
@@ -235,7 +237,7 @@ public enum OneAt {
         let named = Set(input.named.map(\.name))
         return input.commands.filter { command in
             guard command.custom != nil || command.plugin != nil || command.script != nil, !named.contains(command.name) else { return false }
-            let words = input.words(command).flatMap(Self.words)
+            let words = input.words(command)
             return !words.isEmpty && keywords.allSatisfy { keyword in
                 keyword.containsHan ? words.contains { $0.contains(keyword) } : words.contains { $0.hasPrefix(keyword) }
             }

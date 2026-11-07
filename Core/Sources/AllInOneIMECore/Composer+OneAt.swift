@@ -33,17 +33,21 @@ extension Composer {
     public var oneAtRows: [OneAt.Action] {
         guard let (text, letters) = oneAt else { return [] }
         let app = appInUse(), noAI = !aiAllowed()
-        let files = oneAtFiles.query == text ? oneAtFiles.rows : []
+        // Spotlight's files for the text: those found for it, else those for the text before that still match it.
+        let fileQuery = oneAtFileQuery
+        if fileQuery != nil, oneAtFiles.query != fileQuery { showOneAtFiles() }
+        let files = fileQuery != nil && oneAtFiles.query == fileQuery ? oneAtFiles.rows : []
         let key = OneAtKey(text: text, letters: letters, selection: selection?.text, generation: commandsGeneration, usage: commandUsage,
                            app: app, noAI: noAI, files: files.map(\.path), main: inputLanguages.first ?? .chinese,
                            language: messages.language)
         if let cached = oneAtCache, cached.key == key { return cached.rows }
-        let named = letters.map { matches(for: $0) } ?? []
+        // The commands the letters start (nothing typed: all of them, as the command list keeps them).
+        let named = letters.map { matches(for: $0) } ?? (text.isEmpty && selection == nil ? matches(for: "") : [])
         let input = OneAt.Input(text: text, letters: letters, selection: selection.flatMap { selectionFits ? $0.text : nil },
                                 commands: commands, named: named, usage: commandUsage, app: app,
                                 chat: AppClass(app: app) == .chat, noAI: noAI, mainLanguage: key.main,
                                 instant: instantResults, files: files, reminder: { [parseReminder] in parseReminder($0) },
-                                words: Self.words(of:))
+                                words: commandWords())
         var rows = OneAt.actions(input)
         // A selection in an app with No AI and nothing typed: no action is left for it but the commands that don't use AI.
         if rows.isEmpty, selection != nil, text.isEmpty {
@@ -76,6 +80,20 @@ extension Composer {
         var files: [String]
         var main: Language
         var language: String
+    }
+
+    /// The words each of the user's commands is found by (`words(of:)`, split as `OneAt.words` splits them), worked out
+    /// once for the commands: with many extensions a key mustn't fold all their titles again.
+    private func commandWords() -> (Command) -> [String] {
+        if oneAtWords.generation != commandsGeneration {
+            var words: [String: [String]] = [:]
+            for command in commands where command.custom != nil || command.plugin != nil || command.script != nil {
+                words[command.name] = Self.words(of: command).flatMap(OneAt.words)
+            }
+            oneAtWords = (commandsGeneration, words)
+        }
+        let words = oneAtWords.words
+        return { words[$0.name] ?? [] }
     }
 
     /// The words a command is found by besides its name (`OneAt.found(byWords:)`): a custom command's or a snippet's
@@ -207,6 +225,7 @@ extension Composer {
     func doHighlightedOneAt(run: Bool) -> [Effect] {
         if selectionPending {
             actsWhenSelectionRead = true
+            oneAtRunsWhenRead = run
             return [.showPanel]
         }
         let rows = oneAtRows
@@ -312,7 +331,7 @@ extension Composer {
         oneAtCache = nil
         guard actsWhenSelectionRead else { return forField([.updateMarkedText, .showPanel]) }
         actsWhenSelectionRead = false
-        if oneAt != nil { return forField(doHighlightedOneAt(run: true)) }
+        if oneAt != nil { return forField(doHighlightedOneAt(run: oneAtRunsWhenRead)) }
         return forField(actionKeyPressed() ?? [.updateMarkedText, .showPanel])
     }
 }

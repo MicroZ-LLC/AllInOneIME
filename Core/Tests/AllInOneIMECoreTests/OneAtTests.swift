@@ -71,7 +71,7 @@ struct OneAtTests {
         #expect(!rows.contains { $0.command?.name == "shout" }, "a run command is never guessed: \(names(rows))")
         #expect(rows.first == .write(.improve) && rows.last == .write(.question))
         // Found by its summary's words, in any language.
-        let found = OneAt.actions(OneAt.Input(text: "upper", commands: commands, words: Composer.words(of:)))
+        let found = OneAt.actions(OneAt.Input(text: "upper", commands: commands, words: { Composer.words(of: $0).flatMap(OneAt.words) }))
         #expect(found.first == .command(commands.first { $0.name == "shout" }!), "\(names(found))")
     }
 
@@ -90,6 +90,37 @@ struct OneAtTests {
         #expect(all.count == Command.builtins.count && all.allSatisfy { if case .command = $0 { true } else { false } })
         let noAI = OneAt.actions(input("", noAI: true))
         #expect(!noAI.contains { $0.command?.usesAI == true } && noAI.contains(.command(.open)))
+    }
+
+    /// What one @ costs a key with many script extensions: the composer's work and the panel, over names, sentences and
+    /// ⌫, in the CPU time of the thread typing (`Timing`). 3 ms at 1000 extensions in a debug build on a Mac mini, where
+    /// the rows were checked against each other one by one before (109 ms); the bound leaves room for a slower machine.
+    @Test func typingStaysFast() {
+        let c = Composer(engine: FakeEngine(), actionKey: .enter)
+        c.setInputMode(.english)
+        c.oneAtList = true
+        c.commands = ExtensionPerformanceTests.commands(1000)
+        let presenter = PanelPresenter(config: .default, language: "en")
+        let at = KeyEvent(keyCode: 0x13, characters: "@", charactersIgnoringModifiers: "@", modifiers: .shift)
+        var spent: Duration = .zero
+        var pressed = 0
+        for word in ["beta", "cmdx", "does", "list", "zqvw", "alph", "thin", "comm", "abcd", "mnop", "thank you", "3*7+2"] {
+            for key in [at] + word.map({ $0 == " " ? spaceKey : k(String($0)) }) + Array(repeating: backspaceKey, count: word.count + 1) {
+                spent += Timing.cpuTime {
+                    _ = c.handleKeyDown(key)
+                    _ = presenter.model(for: c)
+                    _ = c.markedText
+                }
+                pressed += 1
+            }
+        }
+        let perKey = (Double(spent.components.seconds) * 1000 + Double(spent.components.attoseconds) / 1e15) / Double(pressed)
+        print(String(format: "one @ per key at 1000 extensions: %.3f ms", perKey))
+        #if os(Linux)
+        #expect(perKey < 30, "\(perKey) ms")
+        #else
+        #expect(perKey < 15, "\(perKey) ms")
+        #endif
     }
 
     // MARK: - Use, per app
