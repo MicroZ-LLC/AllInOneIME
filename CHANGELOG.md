@@ -79,6 +79,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 - Typing no longer stalls on a key that learns an English word (config.json is written in the background), or when a field takes the focus (plugins are rescanned in the background).
 - An Amazon Bedrock Region or Model ID pasted into Settings with a space or line break around it is now saved without it, as the other providers' fields are (they now drop a pasted line break too). Before, it was saved as pasted, and every Bedrock request failed ("Invalid region: us-west-2 ").
 - Scrolling over the candidate panel while it shows autocomplete's suggestion as a line ("Tab accept · Esc dismiss") no longer lets the next Tab or Esc go to the app. Before, once candidates had shown in another text field, a scroll over the line, or over a notice, counted as the mouse used in this field: the suggestion went, and Tab (a tab typed, or the focus moved) or Esc went on to the app.
+- `@` no longer reads text selected in a password field that secure input doesn't cover (some web and Electron ones) but says it's a password field. Before, the selected password showed in the candidate panel, and ⏎ could send it to the AI.
 
 ## 0.6.8.2 (2026-10-28)
 
