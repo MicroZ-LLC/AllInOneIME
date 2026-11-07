@@ -127,10 +127,10 @@ struct PanelLookTests {
         type("nihao", c)
         try #require(c.engineState.isComposing)
         let composing = zh.model(for: c)
-        // Composing, → is the engine's: Esc gives the keys back; Space picks the word, said at the candidates' end.
+        // Composing, → is the engine's: Esc gives the keys back; Space picks a word, said at the candidates' end.
         #expect(composing.hints == hints([("Esc", "交还给 App")]))
-        #expect(composing.candidatesHint == PanelModel.Hint("空格", "上屏字"))
-        #expect(en.model(for: c).candidatesHint == PanelModel.Hint("Space", "picks the word"))
+        #expect(composing.candidatesHint == PanelModel.Hint("空格", "选词"))
+        #expect(en.model(for: c).candidatesHint == PanelModel.Hint("Space", "picks a word"))
         #expect(composing.rows.allSatisfy { $0.action != nil }, "\(composing.rows.map(\.text))")
         _ = c.handleKeyDown(spaceKey)
         try #require(!c.engineState.isComposing)

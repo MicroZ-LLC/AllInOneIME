@@ -448,7 +448,7 @@ public struct PanelPresenter {
         // first).
         if composer.oneAt != nil, composer.engineState.isComposing {
             model.candidates = composer.engineState.candidates.map { "\($0.label) \($0.text)" }.joined(separator: "   ")
-            model.candidatesHint = PanelModel.Hint(t.tr("空格", "Space"), t.tr("上屏字", "picks the word"))
+            model.candidatesHint = PanelModel.Hint(t.tr("空格", "Space"), t.tr("选词", "picks a word"))
         }
         // A click on a row picks what its number would.
         for index in model.rows.indices { model.rows[index].choice = index }

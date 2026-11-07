@@ -33122,31 +33122,31 @@
         }
       }
     },
-    "picks the word" : {
-      "comment" : "上屏字 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+    "picks a word" : {
+      "comment" : "选词 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wort übernehmen"
+            "value" : "wählt ein Wort"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "elige la palabra"
+            "value" : "elige una palabra"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "choisit le mot"
+            "value" : "choisit un mot"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "語を確定"
+            "value" : "単語を選択"
           }
         },
         "ko" : {
@@ -33158,7 +33158,7 @@
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "escolhe a palavra"
+            "value" : "escolhe uma palavra"
           }
         },
         "zh-Hant" : {

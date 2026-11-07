@@ -194,7 +194,7 @@ public struct PanelModel: Equatable, Sendable {
     /// Empty and nil: `footerHints`, from `footer`. `footer` still says it all.
     public var hints: [Hint]
     public var note: String?
-    /// What Space does with the pinyin candidates' line ("空格" "上屏字"), said at its end. Nil: not said.
+    /// What Space does with the pinyin candidates' line ("空格" "选词"), said at its end. Nil: not said.
     public var candidatesHint: Hint?
     /// How many more rows are on their way (an AI's versions not in yet): a shell may hold their places. 0: none.
     public var pending: Int
