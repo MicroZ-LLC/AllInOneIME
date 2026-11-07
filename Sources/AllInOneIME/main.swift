@@ -24,6 +24,9 @@ let usage = """
                         Electron harness where ALLINONEIME_ELECTRON_HARNESS names it; no AI requests);
                         --clipboard-only just clipboard history's (a history of its own, never the
                         clipboard's; the Electron harness as for suggestions).
+                        The GitHub plugin and a coding pack come from the repository's Core/: the
+                        checkout this build was made from, or ALLINONEIME_SOURCE_ROOT's (skipped where
+                        neither is on this Mac).
                         Exits 0 when every check ran and passed, 1 when one failed, 2 when none failed
                         but some were skipped or couldn't run (a locked screen ends it at once); the
                         last line is SELFTEST-RESULT {"passed":N,"failed":N,"skipped":N,"status":…}

@@ -31,6 +31,7 @@ extension SelfTest {
     static let screenLocked = "the screen is locked"
     static let noOnDeviceModel = "the on-device model isn't available here"
     static let noElectronHarness = "no Electron harness (ALLINONEIME_ELECTRON_HARNESS)"
+    static let noSourceTree = "the source tree isn't on this Mac (ALLINONEIME_SOURCE_ROOT)"
     /// How long a section waits for secure input held elsewhere to go before its checks are skipped.
     static let secureInputWait: TimeInterval = 30
 
