@@ -148,6 +148,11 @@ public final class InputSession {
     /// What the shell is to do, gathered while an event is handled.
     private var outputs: [SessionOutput] = []
     private var depth = 0
+    /// Counts what the session is handed (each `collect` from the outside: a key, an answer, a change of the settings):
+    /// what is read once for each (`aiAllowedNow`).
+    private var turn = 0
+    /// Whether AI may run in the app, as read in a turn (`aiAllowedNow`).
+    private var aiAllowedRead: (turn: Int, app: String?, allowed: Bool)?
 
     public init(composer: Composer = Composer(), services: SessionServices, deliver: @escaping @Sendable (SessionEvent) -> Void) {
         self.composer = composer
@@ -168,7 +173,7 @@ public final class InputSession {
         // One @: the list, the app counted for, whether it has AI, a time read as `@reminder` reads it.
         composer.oneAtList = true
         composer.appInUse = { [weak self] in self?.app }
-        composer.aiAllowed = { [weak self] in self.map { $0.services.loadSettings().allowsAI(in: $0.app) } ?? true }
+        composer.aiAllowed = { [weak self] in self?.aiAllowedNow() ?? true }
         composer.parseReminder = { [weak self] text in self?.services.parseReminder(text) }
         composer.selectionFollows = { [weak self] in
             guard let self, let context = keyContext, context.read.contains(.selection), context.selectionFollows else { return false }
@@ -290,6 +295,7 @@ public final class InputSession {
 
     /// Runs `body`, gathering what it has the shell do: returned by the outermost call.
     func collect(_ body: () -> Void) -> [SessionOutput] {
+        if depth == 0 { turn &+= 1 }
         depth += 1
         body()
         depth -= 1
@@ -966,6 +972,15 @@ public final class InputSession {
         perform(composer.handleFlagsChanged(key: change.key, modifiers: change.modifiers.subtracting(.function), timestamp: change.timestamp))
         keyContext = nil
         learningSwitched(from: before)
+    }
+
+    /// Whether AI may run in the app typed in (`Config.allowsAI`), read once a turn (`turn`): one @ asks on each read of
+    /// its rows, several times a key, and each read of the settings looks at the config file's date.
+    private func aiAllowedNow() -> Bool {
+        if let read = aiAllowedRead, read.turn == turn, read.app == app { return read.allowed }
+        let allowed = services.loadSettings().allowsAI(in: app)
+        aiAllowedRead = (turn, app, allowed)
+        return allowed
     }
 
     // MARK: - What the composer asks of the field

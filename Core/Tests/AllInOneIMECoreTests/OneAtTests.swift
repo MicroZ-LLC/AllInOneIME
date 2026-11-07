@@ -521,4 +521,29 @@ struct OneAtTests {
             #expect(host.document.isEmpty && !host.composer.isComposing)
         }
     }
+
+    /// Whether the app has AI is read once a turn of the session (a key, an answer), not on each read of one @'s rows (each
+    /// read of the settings looks at the config file); a change of the settings shows from the next key on.
+    @Test func whetherTheAppHasAIIsReadOnceAKey() async {
+        await withInterfaceLanguage("en") {
+            let config = Locked(initialState: Config.default)
+            let reads = Locked(initialState: 0)
+            var services = SessionServices(loadSettings: {
+                reads.withLock { $0 += 1 }
+                return config.withLock { $0 }
+            })
+            services.levelOne = { .engine(FakeEngine()) }
+            let host = FakeHost(services: services)
+            host.focus()
+            host.composer.setInputMode(.english)
+            host.type("@hello")
+            #expect(host.composer.oneAtRows.contains(.write(.question)))
+            reads.withLock { $0 = 0 }
+            for _ in 0..<5 { _ = host.composer.oneAtRows }
+            #expect(reads.withLock { $0 } == 0, "\(reads.withLock { $0 }) reads of the settings")
+            config.withLock { $0.appProfiles["com.example.editor"] = AppProfile(noAI: true) }
+            host.type("!")
+            #expect(!host.composer.oneAtRows.contains(.write(.question)), "\(names(host.composer.oneAtRows))")
+        }
+    }
 }
