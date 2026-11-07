@@ -29,7 +29,7 @@ public final class InstantFiles: @unchecked Sendable {
 
     private let index: AppIndex
     private let recheckInterval: TimeInterval
-    private let queue = DispatchQueue(label: "com.aipinyin.inputmethod.AIPinyin.instant-files", qos: .utility)
+    private let queue = DispatchQueue(label: "com.aipinyin.inputmethod.instant-files", qos: .utility)
     private let lock = NSLock()
     /// The index's apps and places, dated; what `@open` opened that is there and isn't one of them, by path; the places'
     /// names, folded; every path of the history looked at; when they were made, and whether they are being made.
@@ -87,7 +87,8 @@ public final class InstantFiles: @unchecked Sendable {
         }
         let indexed = Set(index.map(\.path))
         var opened: [String: Kept] = [:]
-        for path in history.entries.map(\.path) where !indexed.contains(path) && FileManager.default.fileExists(atPath: path) {
+        let mounts = Mounts()
+        for path in history.entries.map(\.path) where !indexed.contains(path) && FileSearch.isThere(path, mounts: mounts) {
             opened[path] = known[path] ?? Kept(found: FileSearchRanking.Found(path: path), result: FileSearch.result(for: path))
         }
         let placeNames = Set(FileSearchRanking.scopingPlaces(apps.map(\.found)).flatMap(\.names).map(Self.folded))
@@ -164,20 +165,10 @@ public final class InstantFiles: @unchecked Sendable {
         }
     }
 
-    /// Whether `folder` is on a volume of this Mac, not a server's: as the system's list of what is mounted has it,
-    /// without asking the volume (a server that doesn't answer would hold the key).
+    /// Whether `folder` is on a volume of this Mac, not a server's, and can be read at once (`Mounts.isLocal`: its links
+    /// followed, case aside, not kept in the cloud), as the system's list of what is mounted has it: without asking a
+    /// server (one that doesn't answer would hold the key).
     static func isLocal(_ folder: String) -> Bool {
-        var mounts: UnsafeMutablePointer<statfs>?
-        let count = getmntinfo_r_np(&mounts, MNT_NOWAIT)
-        defer { free(mounts) }
-        guard count > 0, let mounts else { return true }
-        var best = (length: -1, local: true)
-        for mount in UnsafeBufferPointer(start: mounts, count: Int(count)) {
-            let point = withUnsafeBytes(of: mount.f_mntonname) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
-            let inside = point == "/" || folder == point || folder.hasPrefix(point + "/")
-            guard inside, point.count > best.length else { continue }
-            best = (point.count, mount.f_flags & UInt32(MNT_LOCAL) != 0)
-        }
-        return best.local
+        Mounts().isLocal(folder)
     }
 }

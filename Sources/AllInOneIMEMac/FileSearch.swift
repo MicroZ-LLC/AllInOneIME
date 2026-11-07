@@ -53,27 +53,50 @@ public enum FileSearch {
         }
     }
 
-    /// Entries of the folder `query` points into whose names start with its last part: folders first. One read of the
-    /// folder, which tells what each entry is.
-    public static func complete(_ query: String, limit: Int) -> [SearchResult] {
+    /// Entries of the folder `query` points into whose names start with its last part: folders first, then by file name;
+    /// at most `limit`. One read of the folder, which tells what each entry is (its own records of them: a volume mounted
+    /// in it isn't asked), and only the first `limit` picked out and named as Finder names them (`displayName`, which reads
+    /// an app's bundle). In a folder of this Mac (`Mounts.isLocal`) what is on a server is never asked anything: a link to
+    /// it isn't followed (it is listed as a file), and it is named as it is called here. (Such a folder is read on the
+    /// key's thread, `InstantFiles`, and again by the search, which lists it the same way.)
+    public static func complete(_ query: String, limit: Int, mounts: Mounts = Mounts()) -> [SearchResult] {
         let expanded = (query as NSString).expandingTildeInPath
         let folder = query.hasSuffix("/") ? expanded : (expanded as NSString).deletingLastPathComponent
         let prefix = query.hasSuffix("/") ? "" : (expanded as NSString).lastPathComponent.lowercased()
-        let keys: Set<URLResourceKey> = [.isDirectoryKey, .isSymbolicLinkKey]
-        guard let entries = try? FileManager.default.contentsOfDirectory(at: URL(fileURLWithPath: folder, isDirectory: true),
-                                                                         includingPropertiesForKeys: Array(keys)) else { return [] }
-        let results = entries
-            .filter { !$0.lastPathComponent.hasPrefix(".") && $0.lastPathComponent.lowercased().hasPrefix(prefix) }
-            .map { entry -> SearchResult in
-                let path = (folder as NSString).appendingPathComponent(entry.lastPathComponent)
-                let values = try? entry.resourceValues(forKeys: keys)
-                // A link is listed as what it leads to (a folder Tab goes into).
-                let isDirectory = values?.isSymbolicLink == true ? isFolder(path) : values?.isDirectory ?? false
-                return SearchResult(name: FileManager.default.displayName(atPath: path), path: path,
-                                    isFolder: isDirectory && !path.hasSuffix(".app"))
+        let onThisMac = mounts.isLocal(folder)
+        func asked(_ path: String) -> Bool { !onThisMac || mounts.isLocal(path) }
+        func path(_ name: String) -> String { (folder as NSString).appendingPathComponent(name) }
+        guard limit > 0, let directory = opendir(folder) else { return [] }
+        defer { closedir(directory) }
+        typealias Entry = (isFolder: Bool, key: String, name: String)
+        func precedes(_ a: Entry, _ b: Entry) -> Bool { (a.isFolder ? 0 : 1, a.key, a.name) < (b.isFolder ? 0 : 1, b.key, b.name) }
+        // The first `limit` so far, in order: most entries of a large folder are dropped after one comparison.
+        var first: [Entry] = []
+        while let entry = readdir(directory) {
+            let length = Int(entry.pointee.d_namlen)
+            let name = withUnsafePointer(to: &entry.pointee.d_name) {
+                String(decoding: UnsafeRawBufferPointer(start: $0, count: length), as: UTF8.self)
             }
-            .sorted { ($0.isFolder ? 0 : 1, $0.name.lowercased()) < ($1.isFolder ? 0 : 1, $1.name.lowercased()) }
-        return Array(results.prefix(limit))
+            let key = name.lowercased()
+            guard !name.hasPrefix("."), key.hasPrefix(prefix) else { continue }
+            var type = Int32(entry.pointee.d_type)
+            if type == DT_UNKNOWN {
+                var info = stat()
+                let format = lstat(path(name), &info) == 0 ? info.st_mode & S_IFMT : 0
+                type = format == S_IFDIR ? DT_DIR : format == S_IFLNK ? DT_LNK : DT_REG
+            }
+            // A link is listed as what it leads to (a folder Tab goes into).
+            let isDirectory = type == DT_DIR || type == DT_LNK && asked(path(name)) && isFolder(path(name))
+            let listed = (isDirectory && !name.hasSuffix(".app"), key, name)
+            if first.count == limit, !precedes(listed, first[limit - 1]) { continue }
+            first.insert(listed, at: first.firstIndex { precedes(listed, $0) } ?? first.count)
+            if first.count > limit { first.removeLast() }
+        }
+        return first.map { entry in
+            let path = path(entry.name)
+            return SearchResult(name: asked(path) ? FileManager.default.displayName(atPath: path) : entry.name, path: path,
+                                isFolder: entry.isFolder)
+        }
     }
 
     /// The app index, what `@open` opened before and Spotlight by name (one search per keyword, all at once), then
@@ -96,9 +119,10 @@ public enum FileSearch {
         let opened = openedFiles(history, keywords: keywords, places: places, apps: byPath)
         let listed = FileSearchRanking.search(
             query, limit: limit, history: history, apps: apps, isCandidate: isCandidate,
-            byName: { keywords in
-                let scopes = scopes()
-                let found = spotlight.names(each: keywords, in: scopes, limit: nameLimit) ?? []
+            byName: { searched in
+                let found = spotlight.names(each: searched, in: scopes(), recentFirst: recentDays, enough: { found in
+                    fillsRows(found, limit: limit, keywords: keywords, places: places)
+                }) ?? []
                 return found.flatMap { $0 } + opened
             },
             byContent: { predicate in
@@ -113,34 +137,53 @@ public enum FileSearch {
         return rows(listed)
     }
 
-    /// The most files a name search lists (`Spotlight.names`: the most recently used, then changed, first, which is what
-    /// `FileSearchRanking.rank` lists first): 500 for a keyword of one or two characters (on a Mac mini some 1,500 files
-    /// `@open` lists from have a word starting with "sa" in their names, 4,000 with "doc"), else 1,000. A name Spotlight
-    /// hasn't been asked for lately is answered in under 150 ms then, where all its matches took up to a second.
-    public static func nameLimit(_ keyword: String) -> Int {
-        keyword.count <= 2 ? 500 : 1000
+    /// The days a name search looks back over first (`Spotlight.names(each:)`' `recentFirst`): the apps and the files used
+    /// or changed since the start of yesterday, then in the last 30 days, then all its matches, each only when what was
+    /// found before doesn't fill the rows (`fillsRows`). What was used or changed later is listed first
+    /// (`FileSearchRanking.rank`), so the rows are those all the matches give; and a keyword many files match is answered
+    /// from the few of the last days. (Spotlight's own limit isn't that: it keeps an arbitrary few, `Spotlight.names`.)
+    public static let recentDays = [1, 30]
+
+    /// Whether the files a name search found (`found`) fill `limit` rows for a query of `keywords` by themselves: so many
+    /// of them are where `@open` lists files from, not noise, and named by the query (`FileSearchRanking.matches`, which
+    /// `FileSearchRanking.search` keeps). No file used or changed earlier than all of them can be listed then.
+    static func fillsRows(_ found: [FileSearchRanking.Found], limit: Int, keywords: [String],
+                          places: [FileSearchRanking.Found]) -> Bool {
+        var rows = 0
+        for file in found where isCandidate(file.path) && !FileSearchRanking.isNoise(file.path)
+            && FileSearchRanking.matches(file.path, keywords: keywords, places: places) {
+            rows += 1
+            if rows >= limit { return true }
+        }
+        return false
     }
 
     /// The folders Spotlight searches by name for `@open`: those `isCandidate` keeps files from (the home folder, the
-    /// folders apps are installed in, the volumes mounted besides the startup disk). What it would find anywhere else
-    /// is skipped, and looking there is most of its time: two letters took up to 2 s on a Mac mini, some 50 ms in these.
-    public static func scopes() -> [String] {
+    /// folders apps are installed in, this Mac's volumes mounted besides the startup disk, not a server's: `mdfind -name`
+    /// didn't look there either, and a server would make every search wait for it). What it would find anywhere else is
+    /// skipped, and looking there is most of its time: two letters took up to 2 s on a Mac mini, some 50 ms in these.
+    public static func scopes(mounts: Mounts = Mounts()) -> [String] {
         let volumes = ((try? FileManager.default.contentsOfDirectory(atPath: "/Volumes")) ?? [])
             .filter { !$0.hasPrefix(".") }
             .map { "/Volumes/" + $0 }
-            .filter { (try? FileManager.default.destinationOfSymbolicLink(atPath: $0)) == nil }  // the startup disk's link to "/"
+            .filter { mounts.isLocal($0) && (try? FileManager.default.destinationOfSymbolicLink(atPath: $0)) == nil }  // the startup disk's link to "/"
         return [home, "/Applications", "/System/Applications"] + volumes
     }
 
-    /// What `@open` opened before (`history`) that `keywords` name (`FileSearchRanking.matches`) and is still there, but
-    /// not an app or place of the index (`apps`: found by its names): it is found by name even where Spotlight doesn't
-    /// look (a folder kept out of its index), as it is listed while the text is typed (`InstantFiles`).
+    /// What `@open` opened before (`history`) that `keywords` name (`FileSearchRanking.matches`) and is still there
+    /// (`isThere`), but not an app or place of the index (`apps`: found by its names): it is found by name even where
+    /// Spotlight doesn't look (a folder kept out of its index), as it is listed while the text is typed (`InstantFiles`).
     static func openedFiles(_ history: OpenHistory, keywords: [String], places: [FileSearchRanking.Found],
-                            apps: [String: AppIndex.App]) -> [FileSearchRanking.Found] {
+                            apps: [String: AppIndex.App], mounts: Mounts = Mounts()) -> [FileSearchRanking.Found] {
         history.entries.map(\.path).filter { path in
-            apps[path] == nil && FileSearchRanking.matches(path, keywords: keywords, places: places)
-                && FileManager.default.fileExists(atPath: path)
+            apps[path] == nil && FileSearchRanking.matches(path, keywords: keywords, places: places) && isThere(path, mounts: mounts)
         }.map { FileSearchRanking.Found(path: $0) }
+    }
+
+    /// Whether `path` is still there, asked of this Mac's volumes only (`Mounts.isLocal`): what is on a server isn't
+    /// looked for, and counts as gone (one that doesn't answer would hold the search until the system gives up on it).
+    static func isThere(_ path: String, mounts: Mounts) -> Bool {
+        mounts.isLocal(path) && FileManager.default.fileExists(atPath: path)
     }
 
     /// `app` (or a place) with when it was last used and changed, as Spotlight keeps them. Its name search

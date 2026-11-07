@@ -24,6 +24,9 @@ public final class Spotlight: @unchecked Sendable {
     /// Whether a search started now still has time, and is still wanted.
     public var hasTimeLeft: Bool { DispatchTime.now() < deadline && !isCancelled }
 
+    /// Whether a query of `names` is running (the tests wait for one).
+    var isAsking: Bool { lock.withLock { !queries.isEmpty } }
+
     /// What `mdfind arguments` printed by the time limit (its notes on stderr are dropped); nil once
     /// the search is cancelled, even if it printed something before.
     public func mdfind(_ arguments: [String]) -> Data? {
@@ -64,20 +67,24 @@ public final class Spotlight: @unchecked Sendable {
     }
 
     /// The files `keyword` names as `mdfind -name` finds them (a word of the name Finder shows starting with it, case
-    /// and accents aside), inside `scopes` only, each with when it was last used and changed: the most recently used
-    /// first, then the most recently changed, at most `limit`. Asked of Spotlight in this process (an MDQuery), not
-    /// through an mdfind of its own: no program starts, nothing is printed and read back, and Spotlight sorts and stops at
-    /// `limit` itself. What it found by the time limit; nil once the search is cancelled.
-    public func names(_ keyword: String, in scopes: [String], limit: Int) -> [FileSearchRanking.Found]? {
-        guard !isCancelled else { return nil }
-        let predicate = "kMDItemDisplayName == \"\(FileSearchRanking.escaped(keyword))*\"cdw"
-        let dates = [kMDItemLastUsedDate!, kMDItemContentModificationDate!]
-        guard let made = MDQueryCreate(kCFAllocatorDefault, predicate as CFString, nil, dates as CFArray) else { return [] }
-        let query = Query(made)
-        let newestFirst = UInt32(kMDQueryReverseSortOrderFlag.rawValue)
-        for date in dates { MDQuerySetSortOptionFlagsForAttribute(made, date, newestFirst) }
-        MDQuerySetMaxCount(made, limit)
+    /// and accents aside), inside `scopes` only, each with when it was last used and changed; with `days`, only the apps
+    /// and what was used or changed since the start of the day that many days ago. All of them, in no particular order
+    /// (`FileSearchRanking.rank` orders them): Spotlight's own limit (`MDQuerySetMaxCount`) keeps an arbitrary few, not
+    /// the newest, and fewer than it is given where the scopes leave out much of a volume ("pl" kept 3 of 552 on a Mac
+    /// mini). Asked of Spotlight in this process (an MDQuery, `Query`), not through an mdfind of its own: no program
+    /// starts, nothing is printed and read back. What it found by the time limit; nil once the search is cancelled.
+    public func names(_ keyword: String, in scopes: [String], within days: Int? = nil) -> [FileSearchRanking.Found]? {
+        guard hasTimeLeft else { return isCancelled ? nil : [] }
+        let named = "kMDItemDisplayName == \"\(FileSearchRanking.escaped(keyword))*\"cdw"
+        let predicate = days.map { days in
+            ["kMDItemLastUsedDate >= $time.today(-\(days))", "kMDItemContentModificationDate >= $time.today(-\(days))",
+             "kMDItemContentType == \"com.apple.application-bundle\""].joined(separator: " || ")
+        }.map { "(\(named)) && (\($0))" } ?? named
+        // The dates come with the results (`MDQueryGetAttributeValueOfResultAtIndex`). The path can't (asked for with
+        // them, no value comes at all), so each result is asked for it: some 3 µs each.
+        guard let made = MDQueryCreate(kCFAllocatorDefault, predicate as CFString, Query.dates as CFArray, nil) else { return [] }
         MDQuerySetSearchScope(made, scopes as CFArray, 0)
+        let query = Query(made)
         // A `cancel` that comes before the query is in `queries` is seen right after.
         let wanted = lock.withLock { () -> Bool in
             guard !cancelled else { return false }
@@ -85,33 +92,26 @@ public final class Spotlight: @unchecked Sendable {
             return true
         }
         guard wanted else { return nil }
-        let timer = DispatchWorkItem { query.stop() }
-        DispatchQueue.global().asyncAfter(deadline: deadline, execute: timer)
-        MDQueryExecute(made, CFOptionFlags(kMDQuerySynchronous.rawValue))  // until Spotlight is done, or stopped
-        timer.cancel()
+        let found = query.run(until: deadline)
         lock.withLock { queries.removeAll { $0 === query } }
-        guard !isCancelled else { return nil }
-        MDQueryDisableUpdates(made)
-        var found: [FileSearchRanking.Found] = []
-        for index in 0..<MDQueryGetResultCount(made) {
-            guard let item = MDQueryGetResultAtIndex(made, index),
-                  let path = MDItemCopyAttribute(Unmanaged<MDItem>.fromOpaque(item).takeUnretainedValue(), kMDItemPath) as? String
-            else { continue }
-            // The dates Spotlight sorted by came with the results: no more is asked of it.
-            func date(_ name: CFString) -> Date? {
-                MDQueryGetAttributeValueOfResultAtIndex(made, name, index).map { Unmanaged<CFDate>.fromOpaque($0).takeUnretainedValue() as Date }
-            }
-            found.append(FileSearchRanking.Found(path: path, lastUsed: date(dates[0]), modified: date(dates[1])))
-        }
-        return found
+        return isCancelled ? nil : found
     }
 
-    /// What `names` found for each keyword, all of them asked at once; nil once the search is cancelled.
-    public func names(each keywords: [String], in scopes: [String], limit: (String) -> Int) -> [[FileSearchRanking.Found]]? {
+    /// What `names` found for each keyword, all of them asked at once; nil once the search is cancelled. Each is asked
+    /// for what was used or changed in the last `recentFirst[0]` days first (`names`' `within`), then in the last
+    /// `recentFirst[1]` and so on, and for all its matches last, each only while `enough` says what was found so far
+    /// isn't enough: it has what all of those found.
+    public func names(each keywords: [String], in scopes: [String], recentFirst days: [Int] = [],
+                      enough: @Sendable ([FileSearchRanking.Found]) -> Bool = { _ in true }) -> [[FileSearchRanking.Found]]? {
         let outputs = Locked(initialState: [[FileSearchRanking.Found]](repeating: [], count: keywords.count))
         DispatchQueue.concurrentPerform(iterations: keywords.count) { index in
-            let found = names(keywords[index], in: scopes, limit: limit(keywords[index])) ?? []
-            outputs.withLock { $0[index] = found }
+            var found: [FileSearchRanking.Found] = []
+            for days in days.map(Optional.some) + [nil] {
+                guard let more = names(keywords[index], in: scopes, within: days) else { break }
+                found += more
+                if enough(found) { break }
+            }
+            outputs.withLock { [found] in $0[index] = found }
         }
         return isCancelled ? nil : outputs.withLock { $0 }
     }
@@ -128,12 +128,77 @@ public final class Spotlight: @unchecked Sendable {
         for query in queries { query.stop() }
     }
 
-    /// A query `names` runs. (MDQueryStop may be called from any thread, as the time limit and `cancel` do; this says
-    /// so to the compiler.)
+    /// A query `names` runs, on a queue of its own: Spotlight delivers its results there (`MDQuerySetDispatchQueue`), and
+    /// everything else done with it is done there too (it is run, stopped and read), since nothing says an MDQuery may be
+    /// used from several threads at once. Whoever waits for it (`run`) waits on a semaphore, not in a run loop.
     private final class Query: @unchecked Sendable {
-        let query: MDQuery
-        init(_ query: MDQuery) { self.query = query }
-        func stop() { MDQueryStop(query) }
+        /// What each result comes with.
+        static var dates: [CFString] { [kMDItemLastUsedDate!, kMDItemContentModificationDate!] }
+
+        private let query: MDQuery
+        private let queue = DispatchQueue(label: "com.aipinyin.inputmethod.spotlight-names", qos: .userInitiated)
+        /// Signalled when Spotlight is done, and by `stop`.
+        private let ended = DispatchSemaphore(value: 0)
+        /// Whether `stop` came (on `queue`): a query it comes before is never run.
+        private var stopped = false
+
+        init(_ query: MDQuery) {
+            self.query = query
+            MDQuerySetDispatchQueue(query, queue)
+        }
+
+        /// What Spotlight found until it was done, `deadline` passed or `stop` came, whichever was first; it is stopped
+        /// then, and let go of on return.
+        func run(until deadline: DispatchTime) -> [FileSearchRanking.Found] {
+            let center = CFNotificationCenterGetLocalCenter()
+            let observer = Unmanaged.passRetained(ended).toOpaque()
+            let object = UnsafeRawPointer(Unmanaged.passUnretained(query).toOpaque())
+            let started = queue.sync { () -> Bool in
+                guard !stopped else { return false }
+                // Posted on `queue`, where the query runs.
+                CFNotificationCenterAddObserver(center, observer, { _, observer, _, _, _ in
+                    guard let observer else { return }
+                    Unmanaged<DispatchSemaphore>.fromOpaque(observer).takeUnretainedValue().signal()
+                }, kMDQueryDidFinishNotification, object, .deliverImmediately)
+                return MDQueryExecute(query, 0)
+            }
+            if started { _ = ended.wait(timeout: deadline) }
+            return queue.sync {
+                stopped = true
+                MDQueryStop(query)
+                CFNotificationCenterRemoveObserver(center, observer, CFNotificationName(kMDQueryDidFinishNotification), object)
+                Unmanaged<DispatchSemaphore>.fromOpaque(observer).release()
+                return results()
+            }
+        }
+
+        /// Ends the query where it is, from any thread; one that hasn't run yet never runs.
+        func stop() {
+            queue.async { [self] in
+                stopped = true
+                MDQueryStop(query)
+            }
+            ended.signal()
+        }
+
+        /// What the query found (on `queue`, once it is stopped).
+        private func results() -> [FileSearchRanking.Found] {
+            MDQueryDisableUpdates(query)
+            func date(_ name: CFString, _ index: CFIndex) -> Date? {
+                guard let value = MDQueryGetAttributeValueOfResultAtIndex(query, name, index) else { return nil }
+                let object = Unmanaged<CFTypeRef>.fromOpaque(value).takeUnretainedValue()
+                return CFGetTypeID(object) == CFDateGetTypeID() ? unsafeDowncast(object, to: CFDate.self) as Date : nil
+            }
+            let (lastUsed, modified) = (Self.dates[0], Self.dates[1])
+            var found: [FileSearchRanking.Found] = []
+            for index in 0..<MDQueryGetResultCount(query) {
+                guard let item = MDQueryGetResultAtIndex(query, index),
+                      let path = MDItemCopyAttribute(Unmanaged<MDItem>.fromOpaque(item).takeUnretainedValue(), kMDItemPath) as? String
+                else { continue }
+                found.append(FileSearchRanking.Found(path: path, lastUsed: date(lastUsed, index), modified: date(modified, index)))
+            }
+            return found
+        }
     }
 
     /// Stops one process. (A Process may be stopped from any thread; this says so to the compiler.)

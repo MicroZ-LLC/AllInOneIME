@@ -55,21 +55,23 @@ public enum RelativeTime {
     /// `ago` in words where there is no RelativeDateTimeFormatter with a units style (swift-corelibs-foundation: Linux,
     /// Windows, Android): swift-foundation's format style, the same ICU words, made to count as Apple's formatter does,
     /// in the largest calendar unit between the two and whole ones (90 seconds is "1 minute ago", not 2; 4 weeks is
-    /// "4 weeks ago", not "1 month ago"). The style counts from the present, so it is given the date as many of those
-    /// units before the present, counted in the calendar (5 days before it are 5 days, a clock change between them or
-    /// not). On Apple platforms too (macOS 15), where the tests hold it to the formatter.
+    /// "4 weeks ago", not "1 month ago"). The style counts from the present, so it is given the date as far before it as
+    /// those units are before `now`, that span counted in UTC: a clock change in it doesn't change the count (the week
+    /// after one, 5 days had been "4 days ago"). On Apple platforms too (macOS 15), where the tests hold it to the
+    /// formatter.
     @available(macOS 15, iOS 18, tvOS 18, watchOS 11, visionOS 2, *)
     static func countedWords(_ date: Date, now: Date, language: String) -> String {
-        let calendar = Calendar.current
-        let parts = calendar.dateComponents(Set(units.map(\.0)), from: date, to: now)
+        let parts = Calendar.current.dateComponents(Set(units.map(\.0)), from: date, to: now)
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(identifier: "UTC") ?? utc.timeZone
         let present = Date()
-        var (shown, field) = (present, Date.RelativeFormatStyle.Field.second)
+        var (back, field) = (present, Date.RelativeFormatStyle.Field.second)
         if let (unit, unitField) = units.first(where: { (parts.value(for: $0.0) ?? 0) != 0 }), let count = parts.value(for: unit) {
-            shown = calendar.date(byAdding: unit, value: -count, to: present) ?? present
+            back = utc.date(byAdding: unit, value: -count, to: present) ?? present
             field = unitField
         }
         let style = Date.RelativeFormatStyle(allowedFields: [field], presentation: .numeric, unitsStyle: .wide,
-                                             locale: Locale(identifier: language), calendar: calendar)
-        return shown.formatted(style)
+                                             locale: Locale(identifier: language), calendar: utc)
+        return back.formatted(style)
     }
 }
