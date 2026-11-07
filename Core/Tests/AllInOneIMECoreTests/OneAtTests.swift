@@ -245,135 +245,271 @@ struct OneAtTests {
             #expect(host.marked.isEmpty && host.panel != nil, "nothing marked over the selection: \(host.marked)")
             #expect(host.composer.selection?.text == "The report looks good", "read after the key")
             #expect(host.panel?.rows.first?.comment == "@improve", "the selection's: \(host.panel?.rows.map(\.text) ?? [])")
-            #expect(host.selectionWaits.isEmpty, "no key waited: it was in before the next")
+            #expect(host.composer.parkedForSelection == nil && host.platformActions.isEmpty)
         }
     }
 
     /// A field (English) with "hello there", all of it selected or nothing, that tells no selection with "@" and reads it
-    /// after the key (the Mac's Accessibility: `selectionFollows`): "@" typed, then `text`, the read still in flight. A
-    /// key that acts on the draft waits for it, and it lands `takes` seconds into the wait (nil: never).
-    func reading(selected: Bool, takes: TimeInterval? = 0.05, typing text: String = "") -> FakeHost {
+    /// after the key (the Mac's Accessibility: `selectionFollows`): "@" typed, then `text`, the read still in flight, landed
+    /// only when the test says (`answerFieldReads`, `selectionReadsGiveUp`). Letters only edit the draft: nothing is
+    /// parked for them, and the read is still awaited.
+    func reading(selected: Bool, typing text: String = "") -> FakeHost {
         let host = field(ScriptFolder())
         host.document = "hello there"
         host.selection = selected ? 0..<11 : nil
         host.selectionReadsWait = true
-        host.selectionReadTakes = takes
         var told = host.context
         told.selection = nil
         told.selectionFollows = true
         host.press(FakeHost.at, with: told)
         #expect(host.composer.selectionPending)
         host.type(text)
-        #expect(host.selectionWaits.isEmpty && host.document == "hello there", "letters only edit the draft: they don't wait")
+        #expect(host.composer.selectionPending && host.composer.parkedForSelection == nil && host.document == "hello there",
+                "letters only edit the draft: \(host.composer.draft)")
         return host
     }
 
-    /// ⏎ while the selection read after "@" is in flight waits for it on the key's thread, at most
-    /// `InputSession.selectionWait`, then does what it does where the field tells the selection with the key: landed with
-    /// the selection, before or right at the end of the wait, the selection's first row runs; landed with none, the "@"
-    /// is typed. Not landed by then: the selection counts as none ("@" typed, as over any selection), and what the read
-    /// answers later is dropped, also once another "@" waits for a read of its own. No key is posted, ever.
-    @Test func returnWaitsForTheSelectionReadAtMostAMoment() async {
+    /// ⏎ while the selection read after "@" is in flight is taken at once and parked: nothing happens on the key, nothing
+    /// waits. When the read lands it is done as where the field tells the selection with the key: with the selection, the
+    /// selection's first row runs; with none, the "@" is typed. A read that gives up counts as none ("@" typed, as over any
+    /// selection). No key is posted, ever.
+    @Test func returnIsParkedUntilTheSelectionIsRead() async {
         await withInterfaceLanguage("en") {
-            for takes in [0.05, InputSession.selectionWait] {
-                let host = reading(selected: true, takes: takes)
-                #expect(host.press(FakeHost.enter))
-                #expect(host.composer.isLevelTwo && host.composer.activeCommand == .improve,
-                        "\(takes) s: \(String(describing: host.composer.activeCommand)) \(host.composer.draft)")
-                #expect(host.document == "hello there" && host.selectionWaits.map(\.waited) == [takes], "\(host.selectionWaits)")
-                #expect(host.selectionWaits.map(\.timeout) == [InputSession.selectionWait] && host.platformActions.isEmpty)
-            }
+            let host = reading(selected: true)
+            #expect(host.press(FakeHost.enter), "taken at once")
+            #expect(host.composer.parkedForSelection == .key(FakeHost.enter) && host.composer.selectionPending)
+            #expect(host.document == "hello there" && !host.composer.isLevelTwo, "nothing done on the key")
+            host.answerFieldReads()
+            #expect(host.composer.isLevelTwo && host.composer.activeCommand == .improve,
+                    "\(String(describing: host.composer.activeCommand)) \(host.composer.draft)")
+            #expect(host.document == "hello there" && host.composer.parkedForSelection == nil && host.platformActions.isEmpty)
+
             let none = reading(selected: false)
             #expect(none.press(FakeHost.enter))
+            #expect(none.document == "hello there" && none.composer.isComposing, "parked: \(none.document)")
+            none.answerFieldReads()
             #expect(none.document == "hello there@" && !none.composer.isComposing, "\(none.document) \(none.composer.draft)")
             #expect(none.platformActions.isEmpty)
 
-            let late = reading(selected: true, takes: InputSession.selectionWait + 0.2)
-            #expect(late.press(FakeHost.enter))
-            #expect(late.selectionWaits.map(\.waited) == [InputSession.selectionWait], "given up at the deadline")
-            #expect(late.document == "@" && !late.composer.isComposing && !late.composer.isLevelTwo, "\(late.document)")
-            let panel = late.panel
-            late.answerFieldReads()
-            #expect(late.document == "@" && !late.composer.isComposing && late.composer.selection == nil, "the late answer is dropped")
-            #expect(late.panel == panel && late.platformActions.isEmpty)
-
-            let again = reading(selected: false, takes: nil)
-            let first = again.outputs.compactMap { if case let .readSelection(id) = $0 { id } else { nil } }.first
-            again.press(FakeHost.escape)
-            #expect(again.selectionWaits.count == 1 && !again.composer.isComposing)
-            var told = again.context
-            told.selectionFollows = true
-            again.press(FakeHost.at, with: told)
-            #expect(again.composer.selectionPending)
-            again.send(.selection(Composer.Selection(text: "hello there"), id: first ?? -1))
-            #expect(again.composer.selectionPending && again.composer.selection == nil, "not the read this draft waits for")
+            let givesUp = reading(selected: true)
+            #expect(givesUp.press(FakeHost.enter))
+            givesUp.selectionReadsGiveUp()
+            #expect(givesUp.document == "@" && !givesUp.composer.isComposing && !givesUp.composer.isLevelTwo, "\(givesUp.document)")
+            #expect(givesUp.composer.selection == nil && givesUp.platformActions.isEmpty)
         }
     }
 
-    /// The keys that act wait for the read, then do what they do where the field tells the selection with the key: Esc
-    /// leaves a selection alone, and a text as typed where none is; → gives the keys back, the text going in only where
-    /// nothing is selected, and the → isn't taken (the app has it, as the key it is, after the keys before it and before
-    /// those after it). Letters, ⌫ and ↑↓ only edit the draft and don't wait.
-    @Test func keysWaitForTheSelectionReadAfterTheKey() async {
+    /// Esc, ⇧⏎ and Tab are parked the same way, then do what they do where the field tells the selection with the key: Esc
+    /// leaves a selection alone, a text as typed where none is, and takes a lone "@" back; ⇧⏎ leaves a selection alone and
+    /// types the text where none is; Tab picks the highlighted command, for the selection once it's in.
+    @Test func theListsKeysAreParkedUntilTheSelectionIsRead() async {
         await withInterfaceLanguage("en") {
             let escape = reading(selected: true, typing: "hello")
             #expect(escape.press(FakeHost.escape))
+            #expect(escape.composer.parkedForSelection == .key(FakeHost.escape) && escape.document == "hello there")
+            escape.answerFieldReads()
             #expect(escape.document == "hello there" && escape.selection == 0..<11 && !escape.composer.isComposing, "\(escape.document)")
             let escapeNone = reading(selected: false, typing: "hello")
             escapeNone.press(FakeHost.escape)
+            escapeNone.answerFieldReads()
             #expect(escapeNone.document == "hello there@hello" && !escapeNone.composer.isComposing, "\(escapeNone.document)")
             let escapeAlone = reading(selected: false)
             #expect(escapeAlone.press(FakeHost.escape))
+            escapeAlone.answerFieldReads()
             #expect(escapeAlone.document == "hello there" && !escapeAlone.composer.isComposing, "\(escapeAlone.document)")
-            for host in [escape, escapeNone, escapeAlone] {
-                #expect(host.selectionWaits.count == 1 && host.platformActions.isEmpty)
-            }
 
-            let rightOnSelection = reading(selected: true, typing: "hello")
-            #expect(!rightOnSelection.press(FakeHost.right), "→ is the app's")
-            #expect(rightOnSelection.document == "hello there" && !rightOnSelection.composer.isComposing)
-            let rightAlone = reading(selected: true)
-            #expect(!rightAlone.press(FakeHost.right))
-            #expect(rightAlone.document == "hello there" && rightAlone.selection == 0..<11 && !rightAlone.composer.isComposing)
-            let right = reading(selected: false, typing: "hello")
-            right.appTypesKeys = true
-            #expect(!right.press(FakeHost.right))
-            right.type("x")
-            #expect(right.document == "hello there@hellox", "the text, then the app's → and x in order: \(right.document)")
-            for host in [rightOnSelection, rightAlone, right] {
-                #expect(host.selectionWaits.count == 1 && host.platformActions.isEmpty, "\(host.platformActions)")
-            }
+            let asTyped = reading(selected: true, typing: "hello")
+            #expect(asTyped.press(shiftEnterKey))
+            asTyped.answerFieldReads()
+            #expect(asTyped.document == "hello there" && asTyped.selection == 0..<11 && !asTyped.composer.isComposing)
+            let asTypedNone = reading(selected: false, typing: "hello")
+            asTypedNone.press(shiftEnterKey)
+            asTypedNone.answerFieldReads()
+            #expect(asTypedNone.document == "hello there@hello", "\(asTypedNone.document)")
 
-            let edits = reading(selected: true, typing: "help")
-            for key in [backspaceKey, FakeHost.down, FakeHost.up] { edits.press(key) }
-            edits.type("p")
-            #expect(edits.selectionWaits.isEmpty && edits.composer.selectionPending && edits.composer.draft == "@help")
-            edits.press(FakeHost.tab)
-            edits.press(FakeHost.enter)
-            #expect(edits.selectionWaits.count == 1, "once the read is in, nothing waits: \(edits.selectionWaits)")
+            let tab = reading(selected: true, typing: "improve")
+            #expect(tab.press(FakeHost.tab))
+            #expect(tab.composer.parkedForSelection == .key(FakeHost.tab) && tab.composer.draft == "@improve")
+            tab.answerFieldReads()
+            #expect(tab.composer.draftCommand == .improve && tab.composer.selection?.text == "hello there", "\(tab.composer.draft)")
+            #expect(tab.marked.isEmpty && tab.document == "hello there")
+            for host in [escape, escapeNone, escapeAlone, asTyped, asTypedNone, tab] {
+                #expect(host.platformActions.isEmpty && host.composer.parkedForSelection == nil)
+            }
         }
     }
 
-    /// A row clicked while the read is in flight waits for it the same way, and the row shown is done with what it found:
-    /// "@improve"'s Improve picked for the selection (the draft stays in the panel, the selection as it is), which ⏎ then
-    /// runs it on. Where nothing is read after the key, nothing ever waits.
-    @Test func aRowClickedWaitsForTheSelectionRead() async {
+    /// Any key but a draft edit or one the list takes whatever the selection is (→, Space, a shortcut…) doesn't wait: the
+    /// read is settled as none, and the key handled at once as with nothing selected. "@" then →: the "@" (and the text)
+    /// goes in and → is the app's, after it and before what comes next; on a selection too (⌘Z undoes it). The read's late
+    /// answer is dropped.
+    @Test func otherKeysSettleTheReadAsNone() async {
+        await withInterfaceLanguage("en") {
+            let right = reading(selected: false, typing: "hello")
+            right.appTypesKeys = true
+            #expect(!right.press(FakeHost.right), "→ is the app's")
+            #expect(right.document == "hello there@hello" && !right.composer.selectionPending, "\(right.document)")
+            right.type("x")
+            #expect(right.document == "hello there@hellox", "the text, then the app's → and x in order: \(right.document)")
+            right.answerFieldReads()
+            #expect(right.document == "hello there@hellox" && right.composer.selection == nil, "the late answer is dropped")
+
+            let rightAlone = reading(selected: false)
+            #expect(!rightAlone.press(FakeHost.right))
+            #expect(rightAlone.document == "hello there@" && !rightAlone.composer.isComposing, "\(rightAlone.document)")
+
+            let rightOnSelection = reading(selected: true, typing: "hello")
+            #expect(!rightOnSelection.press(FakeHost.right))
+            #expect(rightOnSelection.document == "@hello", "as with nothing selected: \(rightOnSelection.document)")
+            rightOnSelection.answerFieldReads()
+            #expect(rightOnSelection.document == "@hello" && !rightOnSelection.composer.isComposing)
+
+            let space = reading(selected: true, typing: "hello")
+            #expect(space.press(FakeHost.space))
+            #expect(!space.composer.selectionPending && space.composer.draft == "@hello " && space.marked.hasSuffix("hello "),
+                    "marked in the field now: \(space.marked)")
+            let panel = space.panel
+            space.answerFieldReads()
+            #expect(space.composer.selection == nil && space.panel == panel && space.composer.draft == "@hello ", "dropped")
+            for host in [right, rightAlone, rightOnSelection, space] {
+                #expect(host.platformActions.isEmpty && host.composer.parkedForSelection == nil)
+            }
+        }
+    }
+
+    /// A key while one is parked: the parked one is done first, as if nothing were selected, then this one, at once, in
+    /// the order typed. "@" ⏎ x: the "@" goes in, then the app's x; the read's late answer is dropped. A modifier pressed
+    /// (a shortcut, a tap, a hold starting) and the field left do the parked key first the same way.
+    @Test func aKeyBehindAParkedOneComesAfterIt() async {
+        await withInterfaceLanguage("en") {
+            let host = reading(selected: true)
+            host.appTypesKeys = true
+            #expect(host.press(FakeHost.enter))
+            #expect(!host.press(k("x")), "x is the app's")
+            #expect(host.document == "@x" && !host.composer.isComposing && !host.composer.isLevelTwo, "\(host.document)")
+            host.answerFieldReads()
+            #expect(host.document == "@x" && !host.composer.isLevelTwo && host.composer.selection == nil, "dropped: \(host.document)")
+
+            let letter = reading(selected: false, typing: "hello")
+            letter.press(FakeHost.escape)
+            #expect(letter.composer.parkedForSelection != nil)
+            letter.appTypesKeys = true
+            letter.type("ab")
+            #expect(letter.document == "hello there@helloab", "Esc as typed, then a and b: \(letter.document)")
+
+            let modifier = reading(selected: false)
+            modifier.press(FakeHost.enter)
+            modifier.modifiers(ModifierChange(key: .modifier(.shift, .left), modifiers: [.shift, .leftShift], timestamp: 100))
+            #expect(modifier.document == "hello there@" && !modifier.composer.selectionPending, "\(modifier.document)")
+
+            let left = reading(selected: true, typing: "hi")
+            left.press(FakeHost.escape)
+            left.send(.blur)
+            #expect(left.document == "@hi" && !left.composer.isComposing, "the parked Esc done before the field goes: \(left.document)")
+            #expect(left.composer.parkedForSelection == nil && !left.composer.selectionPending)
+            for host in [host, letter, modifier, left] { #expect(host.platformActions.isEmpty) }
+        }
+    }
+
+    /// A row clicked while the read is in flight is parked too, the row shown done with what it found: "@improve"'s
+    /// Improve picked for the selection (the draft stays in the panel, the selection as it is), which ⏎ then runs it on.
+    /// The action key's tap is parked the same way. Where nothing is read after the key, nothing is ever parked.
+    @Test func aRowClickedOrTheActionKeysTapIsParked() async {
         await withInterfaceLanguage("en") {
             let host = reading(selected: true, typing: "improve")
             #expect(host.composer.oneAtRows.first == .command(.improve), "\(names(host.composer.oneAtRows))")
             host.send(.pick(0))
-            #expect(host.selectionWaits.count == 1)
+            #expect(host.composer.parkedForSelection == .row(.command(.improve)) && host.composer.draftCommand == nil)
+            host.answerFieldReads()
             #expect(host.composer.draftCommand == .improve && host.composer.selection?.text == "hello there", "\(host.composer.draft)")
             #expect(host.marked.isEmpty && host.document == "hello there" && host.selection == 0..<11, "\(host.marked)")
             host.press(FakeHost.enter)
-            #expect(host.composer.isLevelTwo && host.composer.activeCommand == .improve && host.selectionWaits.count == 1)
+            #expect(host.composer.isLevelTwo && host.composer.activeCommand == .improve)
             #expect(host.platformActions.isEmpty)
+
+            let tap = reading(selected: true, typing: "hello")
+            tap.composer.actionKey = .optionTap
+            tap.modifiers(ModifierChange(key: .modifier(.option, .left), modifiers: [.option, .leftOption], timestamp: 100))
+            #expect(tap.composer.selectionPending, "a modifier pressed with nothing parked doesn't settle the read")
+            tap.modifiers(ModifierChange(key: .modifier(.option, .left), modifiers: [], timestamp: 100.1))
+            #expect(tap.composer.parkedForSelection == .actionKeyTap && !tap.composer.isLevelTwo)
+            tap.answerFieldReads()
+            #expect(tap.composer.isLevelTwo && tap.composer.selection?.text == "hello there", "\(tap.composer.draft)")
 
             let told = field(ScriptFolder())
             told.document = "hello there"
             told.press(FakeHost.at)
+            #expect(!told.composer.selectionPending)
             told.press(FakeHost.enter)
-            #expect(told.selectionWaits.isEmpty && told.document == "hello there@", "\(told.document)")
+            #expect(told.composer.parkedForSelection == nil && told.document == "hello there@", "\(told.document)")
+        }
+    }
+
+    /// Each read has its id: an answer for a draft that's gone, or for an "@" before this one, is never taken.
+    @Test func aNewAtSignNeverTakesAnOldAnswer() async {
+        await withInterfaceLanguage("en") {
+            let host = reading(selected: false)
+            let first = host.selectionReads.first
+            host.press(backspaceKey)
+            #expect(!host.composer.isComposing && !host.composer.selectionPending, "⌫ took the \"@\" back")
+            var told = host.context
+            told.selectionFollows = true
+            host.press(FakeHost.at, with: told)
+            #expect(host.composer.selectionPending && host.selectionReads.count == 2)
+            host.send(.selection(Composer.Selection(text: "hello there"), id: first ?? -1))
+            #expect(host.composer.selectionPending && host.composer.selection == nil, "not the read this draft waits for")
+
+            let parked = reading(selected: false)
+            let old = parked.selectionReads.first
+            parked.press(FakeHost.enter)
+            var again = parked.context
+            again.selectionFollows = true
+            parked.press(FakeHost.at, with: again)
+            #expect(parked.document == "hello there@" && parked.composer.selectionPending, "\(parked.document)")
+            parked.send(.selection(Composer.Selection(text: "hello there"), id: old ?? -1))
+            #expect(parked.composer.selection == nil && parked.composer.selectionPending)
+            parked.send(.selection(Composer.Selection(text: "hello there"), id: parked.selectionReads.last ?? -1))
+            #expect(parked.composer.selection?.text == "hello there" && !parked.composer.selectionPending)
+        }
+    }
+
+    /// Which keys go which way while the selection is read, in each state of the draft: right after the magic key, with a
+    /// text typed, while pinyin is composed. Draft edits: letters, digits, ⌫, ↑↓. Parked: ⏎, ⇧⏎, Esc, the action key, Tab
+    /// where the list takes it either way. Every other key settles the read; so does every key while one is parked.
+    @Test func whichKeysGoWhichWayWhileTheSelectionIsRead() async {
+        await withInterfaceLanguage("en") {
+            let left = KeyEvent(keyCode: VirtualKey.left, characters: "\u{F702}")
+            let edits = [k("h"), k("H", mods: .shift), k("3"), backspaceKey, upKey, downKey]
+            let parks = [FakeHost.enter, shiftEnterKey, FakeHost.escape, FakeHost.tab]
+            let settles = [FakeHost.right, left, FakeHost.space, k(","), k("("), k("v", mods: .command), k("a", mods: .control),
+                           KeyEvent(keyCode: VirtualKey.returnKey, characters: "\r", modifiers: .option), FakeHost.shiftUp, FakeHost.at]
+            for typing in ["", "hello"] {
+                let host = reading(selected: false, typing: typing)
+                let composer = host.composer
+                for key in edits { #expect(composer.whileSelectionIsRead(key) == .edits, "\(typing): \(key)") }
+                for key in parks { #expect(composer.whileSelectionIsRead(key) == .parks, "\(typing): \(key)") }
+                for key in settles { #expect(composer.whileSelectionIsRead(key) == .settles, "\(typing): \(key)") }
+                // The action key: ⌥Space does the highlighted row once a text is typed; right after the magic key with
+                // nothing selected it isn't the list's (it goes on to the app), so it settles the read there.
+                composer.actionKey = .optionSpace
+                #expect(composer.whileSelectionIsRead(optionSpace) == (typing.isEmpty ? .settles : .parks), "\(typing)")
+                composer.actionKey = .enter
+                host.press(FakeHost.enter)
+                for key in edits + parks { #expect(composer.whileSelectionIsRead(key) == .settles, "parked: \(key)") }
+            }
+            // Pinyin composed right after the magic key: the same, the action key parked.
+            let host = field(ScriptFolder())
+            host.composer.setInputMode(.chinese)
+            host.selectionReadsWait = true
+            var told = host.context
+            told.selectionFollows = true
+            host.press(FakeHost.at, with: told)
+            host.type("nihao")
+            #expect(host.composer.engineState.isComposing && host.composer.selectionPending)
+            host.composer.actionKey = .optionSpace
+            for key in edits { #expect(host.composer.whileSelectionIsRead(key) == .edits, "composing: \(key)") }
+            for key in parks + [optionSpace] { #expect(host.composer.whileSelectionIsRead(key) == .parks, "composing: \(key)") }
+            #expect(host.composer.whileSelectionIsRead(FakeHost.space) == .settles)
         }
     }
 

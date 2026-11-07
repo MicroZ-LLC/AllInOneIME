@@ -182,7 +182,6 @@ public final class InputSession {
             guard let self, let context = keyContext, context.read.contains(.selection), context.selectionFollows else { return false }
             return services.loadSettings().useSelection && !secureInputActive() && !terminal
         }
-        composer.awaitSelectionRead = { [weak self] in self?.awaitSelectionRead() }
         // The recipients in the address book as last read, on the key.
         composer.instantRecipients = { [weak self] query in
             guard let self, let contacts = services.cachedContacts() else { return nil }
@@ -250,8 +249,8 @@ public final class InputSession {
                 guard focus == fieldSession else { return }
                 takePasswordField(told.map { $0 ? .yes : .no } ?? .unknown)
             case let .selection(selected, id):
-                // Read after the "@" key (`SessionOutput.readSelection`), the read the draft waits for: it takes it. One a
-                // key no longer waited for (`awaitSelectionRead`), or of a draft that's gone, is dropped.
+                // Read after the "@" key (`SessionOutput.readSelection`), the read the draft waits for: it takes it, and a key
+                // parked for it is done now, outside any key. One a key settled as none, or of a draft that's gone, is dropped.
                 guard id == selectionReading, composer.selectionPending else { return }
                 selectionReading = nil
                 perform(composer.selectionRead(usable(selected)))
@@ -887,6 +886,9 @@ public final class InputSession {
             lastTyped.forget()
             return true
         }
+        // One @ while the selection after the "@" key is read: a key that neither edits the draft nor is parked for the read
+        // settles it as none first (`Composer.whileSelectionIsRead`), whatever takes it then.
+        perform(composer.settleSelectionRead(before: event))
         // Autocomplete's suggestion: Tab puts it in, Esc takes it down; any key ends its pause and stops its request.
         if let taken = autocompleteBeforeKey(event) { return taken }
         // ⌃V shows clipboard history, in place of suggestions' rows; while it shows, its keys (the same in every app).
@@ -1004,19 +1006,6 @@ public final class InputSession {
         }
         selectionReported = .some(context.read.contains(.selectedRange) ? context.selectedRange : selection.range)
         return selection
-    }
-
-    /// How long a key that acts on the draft waits for the selection read after the "@" key (`awaitSelectionRead`), at
-    /// most: the one wait on the key's thread, for a read already running off it.
-    public static let selectionWait: TimeInterval = 0.3
-
-    /// The selection read after the "@" key, waited for by a key that acts on the draft (`Composer.awaitSelectionRead`):
-    /// on this thread, until it lands or `selectionWait` has gone by (`SessionServices.awaitSelection`, the shell's).
-    /// Not in time: none, and what it answers later is dropped.
-    private func awaitSelectionRead() -> Composer.Selection? {
-        guard let id = selectionReading else { return nil }
-        selectionReading = nil
-        return usable(services.awaitSelection(id, Self.selectionWait))
     }
 
     /// `selected`, read after the "@" key, where the draft may take it: with the setting on (`useSelection`), never during

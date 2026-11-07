@@ -225,25 +225,35 @@ extension Composer {
     }
 
     /// A row clicked (`index` among those shown): done as ⏎ does it. Clicked while the selection is read after the key
-    /// (`selectionPending`), the row shown is done once the read is in, waited for as a key that acts waits for it.
+    /// (`selectionPending`), the row shown is parked for the read and done once it is in; clicked while a key is parked,
+    /// that key is done first, as if nothing were selected, and the row then only if it is still listed.
     func chooseOneAt(_ index: Int) -> [Effect] {
         let row = oneAtFirstVisible + index, rows = oneAtRows
         guard rows.indices.contains(row) else { return [] }
-        let waited = selectionPending
-        let landed = selectionWaited()
-        oneAtHighlight = waited ? oneAtRows.firstIndex(of: rows[row]) ?? oneAtHighlighted : row
-        return landed + doOneAt(rows[row], run: true)
+        guard selectionPending else {
+            oneAtHighlight = row
+            return doOneAt(rows[row], run: true)
+        }
+        if parkedForSelection == nil {
+            parkForSelection(.row(rows[row]))
+            return []
+        }
+        let settled = selectionRead(nil)
+        guard oneAt != nil, let listed = oneAtRows.firstIndex(of: rows[row]) else { return settled }
+        oneAtHighlight = listed
+        return settled + doOneAt(rows[row], run: true)
     }
 
-    /// The scroll wheel over the list: the highlight moves, stopping at the first and the last.
+    /// The scroll wheel over the list: the highlight moves, stopping at the first and the last. Not while a key is parked
+    /// for the selection read (`parkedForSelection`): it is done on the row it was pressed on, and the list then goes.
     func scrollOneAt(by steps: Int) -> [Effect] {
-        guard !oneAtRows.isEmpty, steps != 0 else { return [] }
+        guard !oneAtRows.isEmpty, steps != 0, parkedForSelection == nil else { return [] }
         moveOneAtHighlight(by: steps, wraps: false)
         return [.showPanel]
     }
 
     /// The highlighted row done (`run`: ⏎ or the action key, which also runs a command that takes no text; Tab only
-    /// picks it). Never while the selection is still being read (`selectionPending`): the key waited for it.
+    /// picks it). Never while the selection is still being read (`selectionPending`): the key is parked for it.
     func doHighlightedOneAt(run: Bool) -> [Effect] {
         let rows = oneAtRows
         guard rows.indices.contains(oneAtHighlighted) else { return [] }
@@ -337,41 +347,94 @@ extension Composer {
 
     // MARK: The selection, read after the key
 
-    /// Whether `event` waits for the selection read after the "@" key (`selectionPending`) before it is handled: every key
-    /// but those that only edit the draft in the panel (a letter or a digit typed into it, ⌫, ↑↓ on the rows), which act
-    /// the same with a selection or without one.
-    func keyWaitsForSelection(_ event: KeyEvent) -> Bool {
-        guard selectionPending, draft.hasPrefix(commandTrigger) else { return false }
+    /// What was taken while the selection was read after the "@" key, done once it is in (`selectionRead`).
+    enum ParkedForSelection: Equatable {
+        /// A key the list takes whatever the selection turns out to be (`SelectionReadKey.parks`), handled then.
+        case key(KeyEvent)
+        /// The action key as a tap (`ActionKey.optionTap`).
+        case actionKeyTap
+        /// A row clicked, done as it was shown.
+        case row(OneAt.Action)
+    }
+
+    /// What a key does while the selection after the "@" key is being read (`selectionPending`).
+    enum SelectionReadKey {
+        /// It only edits the draft in the panel, the same with a selection or without one: handled as usual, the read
+        /// still awaited.
+        case edits
+        /// The list takes it whatever the selection turns out to be: parked (`parkedForSelection`), and done once the
+        /// read is in. The key returns at once, so the app can answer the read.
+        case parks
+        /// Any other key, and every key while one is parked: what is parked is done and the read settled, as if nothing
+        /// were selected (its late answer is dropped), and the key is then handled at once.
+        case settles
+    }
+
+    /// How `event` goes while the selection after the "@" key is being read (nil: none is). Draft edits are the letters
+    /// and digits typed into it, ⌫ and ↑↓. Parked: ⏎, ⇧⏎, Esc, the action key, and Tab, each where the list takes it
+    /// with a selection and without one; right after the magic key the action key or Tab may not be the list's without a
+    /// selection (the key went on to the app), and then it settles the read instead.
+    func whileSelectionIsRead(_ event: KeyEvent) -> SelectionReadKey? {
+        guard selectionPending, draft.hasPrefix(commandTrigger) else { return nil }
+        guard oneAt != nil, parkedForSelection == nil else { return .settles }
         let modifiers = event.modifiers.subtracting(.capsLock)
+        let lone = draft == commandTrigger && !engineState.isComposing
+        // The list's own keys, taken with nothing selected too.
+        let listsKey: Bool
+        switch event.key {
+        case .enter, .keypadEnter: listsKey = modifiers.isEmpty || modifiers == [.shift]
+        case .escape: listsKey = modifiers.isEmpty
+        case .tab: listsKey = modifiers.subtracting(.shift).isEmpty && (!lone || !oneAtRows.isEmpty)
+        case .arrow(.up), .arrow(.down): listsKey = modifiers.isEmpty
+        default: listsKey = false
+        }
+        // The action key does the highlighted row, with a selection or text typed; right after the magic key with nothing
+        // selected it is the list's only if it is one of its keys (⏎).
+        if isActionKey(event) { return !lone || listsKey ? .parks : .settles }
         switch event.key {
         case .backspace, .arrow(.up), .arrow(.down):
-            return !modifiers.isEmpty
+            return modifiers.isEmpty ? .edits : .settles
+        case .enter, .keypadEnter, .escape, .tab:
+            return listsKey ? .parks : .settles
         default:
-            guard modifiers.subtracting(.shift).isEmpty, let text = event.printableText else { return true }
-            return !text.allSatisfy { $0.isLetter || $0.isNumber }
+            guard modifiers.subtracting(.shift).isEmpty, let text = event.printableText, !text.isEmpty,
+                  text.allSatisfy({ $0.isLetter || $0.isNumber }) else { return .settles }
+            return .edits
         }
     }
 
-    /// A key that acts on the draft (`keyWaitsForSelection`), the action key's tap or a row clicked while the selection is
-    /// read after the "@" key: the read waited for on this thread, at most a moment (`awaitSelectionRead`), and the list
-    /// made for what it found (none, if it didn't land in time), so that what comes next is done as where the field tells
-    /// the selection with the key. Nothing waits once the read is in.
-    func selectionWaited() -> [Effect] {
-        guard selectionPending else { return [] }
-        return selectionRead(awaitSelectionRead())
+    /// Before the session's own panels may take `event` (`InputSession`): a key that settles the read
+    /// (`whileSelectionIsRead`) settles it now, so that whatever takes the key comes after what was parked.
+    public func settleSelectionRead(before event: KeyEvent) -> [Effect] {
+        whileSelectionIsRead(event) == .settles ? selectionRead(nil) : []
     }
 
-    /// The selection the field reads after the key (`selectionPending`) arrived (nil: none, or not in time): the list is
-    /// for it from now on.
+    /// The selection the field reads after the key (`selectionPending`) arrived (nil: none, or the read gave up, or a key
+    /// settled it): the list is for it from now on, and what was parked for it is done now, exactly as where the field
+    /// tells the selection with the key.
     public func selectionRead(_ selected: Selection?) -> [Effect] {
         guard selectionPending else { return [] }
         selectionPending = false
+        let parked = parkedForSelection
+        parkedForSelection = nil
         guard draft.hasPrefix(commandTrigger) else { return [] }
         if let selected, !selected.text.isEmpty {
             selection = selected
             selectionFits = selected.text.count <= Self.maxSelectionLength
         }
         oneAtCache = nil
-        return forField([.updateMarkedText, .showPanel])
+        let effects = forField([.updateMarkedText, .showPanel])
+        switch parked {
+        case let .key(event)?:
+            return effects + handleKeyDown(event).effects
+        case .actionKeyTap?:
+            return effects + forField(actionKeyPressed() ?? [])
+        case let .row(action)?:
+            guard oneAt != nil else { return effects }
+            oneAtHighlight = oneAtRows.firstIndex(of: action) ?? oneAtHighlighted
+            return effects + forField(doOneAt(action, run: true))
+        case nil:
+            return effects
+        }
     }
 }
