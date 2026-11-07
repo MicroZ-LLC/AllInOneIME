@@ -139,15 +139,20 @@ enum TerminalPaste {
     /// a timer from the ⌘V instead (half a second), a busy terminal that took the ⌘V later pasted what was copied before
     /// (a password, a token). Where what is on the clipboard can't be kept (`userClipboard`: Paste from Other Apps set to
     /// Ask or Deny since `isAllowed`, a copy from an iPhone, an app's data slow to come), nothing, at once: the clipboard
-    /// is left as it is, and false, for the caller to put the text in on one line.
+    /// is left as it is, and false, for the caller to put the text in on one line. Typing stopped before the ⌘V (its
+    /// task cancelled: `write`): no ⌘V, the clipboard put back, and false.
     @MainActor @discardableResult
     static func paste(_ text: String) async -> Bool {
         let provider = TextProvider(text: text)
         guard let ours = await write(provider, for: [.string], thenPost: .maskCommand) else { return false }
         // The app reads the clipboard when the ⌘V reaches it: wait for that before typing on or putting it back (not once
-        // a later paste of ours took it over: that one puts it back). The provider stays until then.
+        // a later paste of ours took it over: that one puts it back). The provider stays until then. Waited for in a task
+        // of its own, which typing stopped meanwhile doesn't cancel: cut short, the clipboard was put back before the app
+        // read it, and it pasted what was copied before.
         let steps = Int(textReadTimeout / 0.02)
-        for _ in 0..<steps where !provider.read && pending?.ours == ours { try? await Task.sleep(nanoseconds: 20_000_000) }
+        await Task { @MainActor in
+            for _ in 0..<steps where !provider.read && pending?.ours == ours { try? await Task.sleep(nanoseconds: 20_000_000) }
+        }.value
         Task { @MainActor in
             if provider.read { try? await Task.sleep(nanoseconds: UInt64(textPutBackAfterRead * 1_000_000_000)) }
             putBack(after: ours, to: NSPasteboard.general)
@@ -157,13 +162,17 @@ enum TerminalPaste {
 
     /// `provider`'s item on the clipboard for `types`, what was there kept to be put back (`pending`), then V with `flags`
     /// posted once no modifier is held: the change count of our write. Nil, the clipboard untouched, where what is on it
-    /// can't be kept (`userClipboard`).
+    /// can't be kept (`userClipboard`); nil, no V posted and the clipboard untouched or put back, where the task was
+    /// cancelled first.
     @MainActor
     private static func write(_ provider: any NSPasteboardItemDataProvider, for types: [NSPasteboard.PasteboardType],
                               thenPost flags: CGEventFlags) async -> Int? {
         let pasteboard = NSPasteboard.general
         lookBeforeWrite?()
         guard let before = await userClipboard(pasteboard) else { return nil }
+        // Typing stopped while it was being kept: the clipboard isn't touched. Written, it could take over a paste made
+        // meanwhile (the rest of the answer, put in at once) and be put back before that one's ⌘V was read.
+        guard !Task.isCancelled else { return nil }
         pasteboard.clearContents()
         let item = NSPasteboardItem()
         item.setDataProvider(provider, forTypes: types)
@@ -173,6 +182,13 @@ enum TerminalPaste {
         let ours = pasteboard.changeCount
         pending = (ours, before.snapshot, before.was)
         await modifiersUp()
+        // Typing stopped meanwhile (Esc, the field left, another result: its task cancelled, which cuts every wait here
+        // short): no V, into this app or the one that has the focus now. Posted, the app read the clipboard once it was
+        // put back, and pasted what was copied before.
+        guard !Task.isCancelled else {
+            putBack(after: ours, to: pasteboard)
+            return nil
+        }
         postV(flags)
         return ours
     }
@@ -211,6 +227,7 @@ enum TerminalPaste {
         providing = provider
         guard let ours = await write(provider, for: [.png, .tiff], thenPost: flags) else {
             providing = nil
+            guard !Task.isCancelled else { return }  // nothing pasted (`write`)
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
             pasteboard.setData(png, forType: .png)

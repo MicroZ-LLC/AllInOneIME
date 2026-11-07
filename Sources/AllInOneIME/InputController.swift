@@ -458,8 +458,11 @@ final class AllInOneIMEInputController: IMKInputController {
                 if waited { await sleep(0.05) }  // the field catching up (Chromium tells its caret late)
                 while field.lineBreaks > 0 {
                     field.lineBreaks -= 1
-                    // Not pasted (what is on the clipboard couldn't be kept): a space, as on one line.
-                    if await !self.pasteInTerminal("\n") { field.type(" ") }
+                    // Not pasted (what is on the clipboard couldn't be kept): a space, as on one line. Typing stopped
+                    // meanwhile: nothing more, no space either (a ⌘V not posted by then never is: `TerminalPaste.paste`).
+                    let pasted = await self.pasteInTerminal("\n")
+                    guard !Task.isCancelled else { return }
+                    if !pasted { field.type(" ") }
                 }
             }
             guard let self, !Task.isCancelled else { return }
