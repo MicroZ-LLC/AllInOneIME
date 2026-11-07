@@ -1877,10 +1877,12 @@ enum SelfTest {
         // The recent one comes first with nothing typed.
         start()
         check(found() == [Recipient(name: "张三", handle: "+1 555 0100")], "the recent recipient is offered at once")
-        // A number typed in full, without Contacts access.
+        // A number typed in full, without Contacts access. The rows of the text before (the recent one) stay listed until
+        // the search for the number answers (0.7.0: the rows no longer go blank on each key), with what it says.
         contacts = nil
         type("+15550199", controller, client)
-        let typed = found()
+        _ = pump(timeout: 3) { controller.composer.recipientNote != nil }
+        let typed = controller.composer.currentRecipients
         check(typed == [Recipient(name: "", handle: "+15550199")]
               && controller.panelModel().status == .hint(tr("没有通讯录权限：系统设置 → 隐私与安全性 → 通讯录 → 打开 AllInOneIME；也可以直接输入手机号或邮箱",
                                                          "No access to Contacts: System Settings → Privacy & Security → Contacts → turn on AllInOneIME; or type a phone number or email")),
