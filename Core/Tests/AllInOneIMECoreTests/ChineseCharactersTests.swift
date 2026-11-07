@@ -374,6 +374,12 @@ struct ChineseCharactersTests {
         #expect(ChineseCharacters.writtenTraditional("hello") == nil && ChineseCharacters.writtenTraditional("") == nil)
         // A quote in the other: the side more of it is on.
         #expect(ChineseCharacters.writtenTraditional("他說「这个」這個版本還是太難用了") == true)
+        // Hong Kong's forms that Simplified writes too (温, 脱) don't tell for a Hong Kong user, the others still do.
+        #expect(ChineseCharacters.writtenTraditional("今日温度好高") == false)
+        #expect(ChineseCharacters.writtenTraditional("今日温度好高", chinese: .hongkong) == nil)
+        #expect(ChineseCharacters.writtenTraditional("今日温度好高", chinese: .taiwan) == false)
+        #expect(ChineseCharacters.writtenTraditional("今日温度好高，記得脱咗件外套先", chinese: .hongkong) == true)
+        #expect(ChineseCharacters.writtenTraditional("今天温度很高，记得多喝水", chinese: .hongkong) == false)
         let hant = OutputLanguage("zh-Hant")
         let taiwan = config(.taiwan, outputs: [.english, hant])
         #expect(taiwan.writtenLanguage(of: "这个功能太难用了") == .chinese)
