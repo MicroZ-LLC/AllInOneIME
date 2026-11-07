@@ -43,11 +43,13 @@ struct AutocompleteField {
     /// Its first key that typed was seen: a cloud provider's connection was opened then (`InputSession.warmModel`).
     var warmed = false
     /// The text around the caret as the field told it at the last pause's read, with what went in since
-    /// (`InputSession.autocompleteFollow`), and when it was read: what a key looks a kept suggestion up for at once
-    /// (`InputSession.autocompleteKeptAtOnce`). Nil once anything else may have changed it: a key the app had that typed
-    /// nothing (⌫ of a character that is one code point aside), a key the session didn't follow to its end, a click, a
-    /// result over the selection, a paste, the field left.
-    var known: (text: FieldText, readAt: TimeInterval)?
+    /// (`InputSession.autocompleteFollow`), when it was read and when it was last followed: what a key looks a kept
+    /// suggestion up for at once (`InputSession.autocompleteKeptAtOnce`). Nil once anything else may have changed it: a
+    /// key the app had that typed nothing (⌫ of a character that is one code point aside), a key the session didn't
+    /// follow to its end, a click, a result over the selection, a paste, the field left; and unknown after `knownFor`
+    /// with no key (what goes in with none, dictation or a symbol picked from the keyboard, isn't seen).
+    var known: (text: FieldText, readAt: TimeInterval, followedAt: TimeInterval)?
+    static let knownFor: TimeInterval = 3
     /// A key was begun (`autocompleteBeforeKey`) and not yet followed to its end (`autocompleteAfterKey`): one that never
     /// is (another of the session's panels took it, or gave it to the app) leaves `known` unknown.
     var keyOpen = false
@@ -280,7 +282,17 @@ extension InputSession {
     /// the caret or changed the text.
     private func autocompleteFollow(_ key: KeyEvent, handled: Bool) {
         autocomplete.keyOpen = false
-        guard !handled, var known = autocomplete.known else { return }
+        guard var known = autocomplete.known else { return }
+        let now = services.uptime()
+        guard now - known.followedAt <= AutocompleteField.knownFor else {
+            autocomplete.known = nil
+            return
+        }
+        known.followedAt = now
+        guard !handled else {
+            autocomplete.known = known
+            return
+        }
         let plain = key.modifiers.subtracting(.capsLock).subtracting(.sides).isDisjoint(with: [.command, .control, .option])
         if let text = key.printableText {
             known.text.before = String((known.text.before + text).suffix(Autocomplete.beforeLimit))
@@ -354,7 +366,8 @@ extension InputSession {
         let text = context.read.contains(.text) ? context.text : nil
         let selection = context.read.contains(.selectedRange) ? context.selectedRange : nil
         // The text as the field tells it, nothing selected: what the next keys follow (`autocompleteFollow`).
-        autocomplete.known = text.flatMap { selection?.isEmpty == false ? nil : ($0, services.uptime()) }
+        let now = services.uptime()
+        autocomplete.known = text.flatMap { selection?.isEmpty == false ? nil : ($0, now, now) }
         // What was typed stands in only where the field tells nothing, and not past a click.
         let typed = caretMayHaveMoved(within: services.uptime() - autocomplete.typedAt) ? "" : autocomplete.typed.text
         guard let request = Autocomplete.context(text, selection: selection, typed: typed) else { return }

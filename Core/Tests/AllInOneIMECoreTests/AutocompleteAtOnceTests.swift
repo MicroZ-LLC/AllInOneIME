@@ -118,6 +118,21 @@ struct AutocompleteAtOnceTests {
         }
     }
 
+    /// No key for a while: what went in meanwhile without one (dictation, a symbol picked from the keyboard) isn't seen,
+    /// so the pause reads the field again.
+    @Test func notAfterAWhileWithNoKey() async {
+        await withInterfaceLanguage("en") {
+            let (host, _, clock) = field()
+            host.type("See you")
+            pauseEnds(host, clock)
+            host.type("x")
+            backspace(host)
+            clock.advance(AutocompleteField.knownFor + 1)
+            host.type(" ")
+            #expect(host.ghost == nil && host.fieldReads == 1)
+        }
+    }
+
     /// Text that went in some other way than at the caret (a result over the selection, a paste): not known.
     @Test func notAfterTextPutInElsewhere() async {
         await withInterfaceLanguage("en") {
