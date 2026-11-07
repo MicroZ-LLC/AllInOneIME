@@ -1969,6 +1969,7 @@ enum SelfTest {
         check(fitted.string.hasSuffix("…") && width <= CandidateView.Metrics.maxCellTextWidth
               && width > CandidateView.Metrics.maxCellTextWidth - CandidateView.Fonts.candidate.pointSize * 2,
               "a long candidate is cut to fit, no gap after the … (\(Int(width)) of \(Int(CandidateView.Metrics.maxCellTextWidth)) pt)")
+        panel.hide()  // a scene of its own: as wide as its candidates, not as the pages before
         panel.show(PanelModel(rows: ["你好", long, "拟好"].enumerated().map {
             PanelModel.Row(label: "\($0.offset + 1)", text: $0.element, kind: .candidate)
         }, highlighted: 1, footer: "空格 选词 · 开头打 @ 用命令", horizontal: true), anchor: client.caretRect)
@@ -2094,9 +2095,16 @@ enum SelfTest {
 
     /// A panel the README shows: snapshotted as it is (Chinese interface, docs/), then the same state
     /// with the English interface as `<name>-en` (docs/en), so both show the same results and no
-    /// request is made twice.
+    /// request is made twice. Each as the panel comes up with it, as wide as its own rows: while it shows it only widens
+    /// (`CandidateView.minimumWidth`), and neither language's image (nor a dark one after) is as wide as the other's.
     static func readmeSnapshot(_ name: String, _ controller: AllInOneIMEInputController, _ client: FakeTextClient,
                                in directory: URL, appearance: NSAppearance.Name = .aqua) {
+        let panel = CandidatePanel.shared
+        func showAfresh(_ model: PanelModel) {
+            panel.hide()
+            panel.show(model, anchor: client.caretRect)
+        }
+        if panel.isShowing { showAfresh(panel.view.model) }
         snapshot(name, in: directory, appearance: appearance)
         let language = settings.uiLanguage
         settings.uiLanguage = "en"
@@ -2106,13 +2114,13 @@ enum SelfTest {
         if let detail = model.detail, let english = englishNotices[detail] { model.detail = english }
         let interface = [model.footer, model.detail ?? ""] + model.rows.map(\.comment)
         check(!interface.joined().containsHan, "\(name)-en: English interface (\(model.footer) | \(model.detail ?? "-"))")
-        CandidatePanel.shared.show(model, anchor: client.caretRect)
+        showAfresh(model)
         snapshot(name + "-en", in: directory, appearance: appearance)
         // The text line above the panel, for the README image (a transcript isn't known beforehand).
         try? Data(client.marked.utf8).write(to: directory.appendingPathComponent("\(name).marked.txt"))
         settings.uiLanguage = language
         controller.applySettings()
-        CandidatePanel.shared.show(controller.panelModel(), anchor: client.caretRect)
+        showAfresh(controller.panelModel())
     }
 
     /// @py, @js and @search through the controller, with ⏎ as the action key: results come back as

@@ -103,6 +103,8 @@ final class CandidatePanel: NSPanel {
         pendingHide = nil
         // A conversation grows up to about half the screen it's on, then scrolls (`PanelModel.transcript`).
         view.maxHeight = (Self.screen(for: anchor)?.visibleFrame.height).map { floor($0 / 2) }
+        // Up already: no narrower than it shows (`CandidateView.minimumWidth`); coming up, as wide as its rows need.
+        view.minimumWidth = appearing ? 0 : frame.width
         view.model = model
         let (nextFrame, side) = placement(at: anchor)
         // The pinyin candidates' line on the side nearest the caret, laid out for that side before anything is drawn: the
@@ -185,6 +187,7 @@ final class CandidatePanel: NSPanel {
     func hide() {
         guard isShowing else { return }
         placed = nil
+        view.minimumWidth = 0
         contentView?.layer?.removeAnimation(forKey: "appear")
         // No stale candidates or invisible hit target. Reuse the ordered window during a burst of typing:
         // ordering it out on every commit can stall the IME on a WindowServer fence in the client app.
@@ -409,6 +412,15 @@ final class CandidateView: NSView {
     var maxHeight: CGFloat? {
         didSet { if maxHeight != oldValue, model.transcript { relayout() } }
     }
+
+    /// The narrowest it is laid out: while the panel shows, as wide as it has been since it came up (`CandidatePanel.show`),
+    /// so rows ranked again with each key don't move its right edge in and out; the rows' highlight, the footer and the
+    /// pinyin candidates' line go across all of it. 0: as wide as what it shows needs.
+    var minimumWidth: CGFloat = 0 {
+        didSet { if minimumWidth != oldValue, ceil(max(naturalWidth, minimumWidth)) != contentSize.width { relayout() } }
+    }
+    /// As wide as what it shows needs (`relayout`), `minimumWidth` aside.
+    private var naturalWidth: CGFloat = 0
     /// A conversation's rows taller than fit: how far they are moved up (`rowsShift`), where they're shown
     /// (`rowsClip`), and how far the wheel moved them from where they'd be (nil: not moved).
     private(set) var rowsShift: CGFloat = 0
@@ -614,6 +626,9 @@ final class CandidateView: NSView {
             footerY = y + Metrics.footerGap
             y = footerY + 1 + Metrics.footerGap + Metrics.smallKeycapHeight
         }
+        // No narrower than it has shown since it came up (`minimumWidth`): the rows and the bars across all of it.
+        naturalWidth = width
+        width = max(width, minimumWidth)
         for i in rowLayouts.indices where !horizontal {
             rowLayouts[i].frame.size.width = width - 2 * p
         }

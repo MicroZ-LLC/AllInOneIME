@@ -7,7 +7,9 @@ import Testing
 /// that line under them, just above the footer. A selection's header stays just above the rows either way. The pointer
 /// and a click find the row under them, never the candidates' line; the wheel still moves the list; as that line comes
 /// and goes the rows move by it only, all together; while typing on a line the panel stays on its side (no flip back and
-/// forth with each key); it never covers the caret. The panel is in the app's executable, which this target can't
+/// forth with each key); it never covers the caret. While it shows, its width only grows (a shorter row leaves it as wide,
+/// the rows across all of it), its height following the rows; once it has hidden, it is as wide as its rows need again,
+/// in a column and in a row alike. The panel is in the app's executable, which this target can't
 /// import: its source is compiled here with the core into a small program that shows it (real AppKit windows, nothing
 /// else of the app).
 @Suite(.serialized)
@@ -26,6 +28,14 @@ struct CandidatePanelLayoutTests {
 
     @Test func whileTypingOnALineThePanelStaysOnItsSideOfTheCaret() throws {
         try LayoutChild.run("steady")
+    }
+
+    @Test func whileItShowsThePanelOnlyWidensAndAfterHidingItIsAsWideAsItsRows() throws {
+        try LayoutChild.run("width")
+    }
+
+    @Test func thePinyinCandidatesInARowKeepTheirPanelsWidthTheSameWay() throws {
+        try LayoutChild.run("row")
     }
 }
 
@@ -354,6 +364,163 @@ private enum LayoutChild {
             expect(CandidatePanel.placement(for: huge, anchor: low).side == .above, "too tall: above a caret near the bottom")
             expect(CandidatePanel.placement(for: huge, anchor: high).side == .below, "too tall: below a caret near the top")
         }
+
+        /// Rows one under another, each on its number's keycap, the first highlighted, a footer; `pending` more on their way.
+        static func column(_ texts: [String], pending: Int = 0) -> PanelModel {
+            PanelModel(rows: texts.enumerated().map { Row(label: "\($0.offset + 1)", text: $0.element, kind: .candidate) },
+                       highlighted: 0, footer: "⏎ do it · ↑↓ choose", pending: pending)
+        }
+
+        /// The same candidates side by side (`PanelModel.horizontal`), as pinyin shows them in a row, without the footer:
+        /// as wide as they are.
+        static func inARow(_ texts: [String]) -> PanelModel {
+            var model = column(texts)
+            model.horizontal = true
+            model.footer = ""
+            return model
+        }
+
+        /// How big `model` is laid out on its own: in a panel that has never shown.
+        static func natural(_ model: PanelModel) -> NSSize {
+            let view = CandidateView()
+            view.model = model
+            return view.contentSize
+        }
+
+        /// The panel shows `model` at `size`, laid out at that size itself (not only its window).
+        static func shown(_ panel: CandidatePanel, _ size: NSSize, _ what: String) {
+            expect(panel.frame.size == size && panel.view.contentSize == size && panel.view.bounds.size == size,
+                   "\(what): \(size) (window \(panel.frame.size), laid out \(panel.view.contentSize), view \(panel.view.bounds.size))")
+        }
+
+        /// Every row reaches the panel's right side, as at a natural width: the pointer just inside it is on the row, just
+        /// past it (in the padding) on none.
+        static func across(_ panel: CandidatePanel, _ what: String) {
+            let right = panel.view.bounds.width - CandidateView.Metrics.padding
+            let rows = spans(panel)
+            expect(rows.count == panel.view.model.rows.count, "\(what): every row under the pointer: \(rows.keys.sorted())")
+            for (index, span) in rows {
+                let y = (span.lowerBound + span.upperBound) / 2
+                expect(hovered(panel, at: NSPoint(x: right - 0.5, y: y)) == index && hovered(panel, at: NSPoint(x: right + 0.5, y: y)) == nil,
+                       "\(what): row \(index) as wide as the panel, less its padding (\(right))")
+            }
+        }
+
+        /// The owner's example: `@` needs a little, `@t` more, `@tr` and `@tra` less: the panel stays as wide as at `@t`,
+        /// its height following the rows, its rows across all of it, until it hides; the next `@` starts at its own width.
+        static func width() {
+            let panel = CandidatePanel()
+            let view = panel.view
+            let anchor = high
+            let short = column(["你好"])
+            let long = column(["你好", "A row much longer than the narrowest panel would be"])
+            let middle = column(["你好", "A row longer than the narrowest", "拟好"])
+            let (shortSize, longSize, middleSize) = (natural(short), natural(long), natural(middle))
+            expect(shortSize.width < middleSize.width && middleSize.width < longSize.width && middleSize.height > longSize.height,
+                   "the rows need \(shortSize), \(middleSize), \(longSize)")
+
+            panel.show(short, anchor: anchor)
+            shown(panel, shortSize, "first shown")
+            let first = panel.frame
+            panel.show(long, anchor: anchor)
+            shown(panel, longSize, "a longer row: wider")
+            across(panel, "wider")
+            panel.show(middle, anchor: anchor)
+            shown(panel, NSSize(width: longSize.width, height: middleSize.height), "a shorter row: as wide, its height the rows'")
+            across(panel, "kept, three rows")
+            expect(panel.shows(middle, anchor: anchor), "shown as it would be shown again")
+            let kept = panel.frame
+            panel.show(middle, anchor: anchor)
+            expect(panel.frame == kept, "shown again: as it is (\(panel.frame) / \(kept))")
+            panel.show(short, anchor: anchor)
+            shown(panel, NSSize(width: longSize.width, height: shortSize.height), "the shortest row: as wide, its height the row's")
+            across(panel, "kept, one row")
+            expect(panel.frame.minX == first.minX && panel.frame.maxY == first.maxY, "no sideways jump, its top under the caret: \(panel.frame)")
+
+            // Hidden (Esc, a pick), then up again: as wide as its rows need.
+            panel.hide()
+            panel.show(short, anchor: anchor)
+            shown(panel, shortSize, "up again after hiding")
+            expect(panel.frame == first, "as at first: \(panel.frame) / \(first)")
+            across(panel, "up again")
+
+            // The rows on their way: their bars as long for the kept width as for a natural one.
+            let waiting = column(["你好"], pending: 2)
+            func bars() -> CGFloat? { view.subviews.first?.frame.width }
+            panel.hide()
+            panel.show(waiting, anchor: anchor)
+            let naturalBars = bars(), naturalWidth = panel.frame.width
+            panel.hide()
+            panel.show(long, anchor: anchor)
+            panel.show(waiting, anchor: anchor)
+            shown(panel, NSSize(width: longSize.width, height: natural(waiting).height), "rows on their way: as wide")
+            if CandidateView.reducesMotion {
+                print("(Reduce Motion: no light over the bars to measure them by)")
+            } else if let naturalBars, let keptBars = bars() {
+                let grown = (longSize.width - naturalWidth) * CandidateView.Metrics.skeletonBars[0]
+                expect(abs(keptBars - naturalBars - grown) <= 1, "the bars grow with the panel: \(naturalBars) → \(keptBars) (+\(grown))")
+            } else {
+                expect(false, "the bars of the rows on their way are drawn")
+            }
+
+            // One @'s rows with pinyin being composed: the candidates' line shorter, the panel as wide.
+            panel.hide()
+            panel.show(composing, anchor: anchor)
+            let wide = natural(composing)
+            shown(panel, wide, "one @ while composing")
+            var fewer = composing
+            fewer.rows = [composing.rows[0]]
+            fewer.candidates = "1 你"
+            fewer.footer = "Space picks a word"
+            fewer.detail = nil
+            expect(natural(fewer).width < wide.width, "fewer rows need less: \(natural(fewer)) / \(wide)")
+            panel.show(fewer, anchor: anchor)
+            shown(panel, NSSize(width: wide.width, height: natural(fewer).height), "one @, fewer rows and candidates: as wide")
+            expect(view.candidatesFrame != nil, "the candidates' line still there")
+            across(panel, "one @, kept")
+            panel.hide()
+
+            // Near the screen's right edge: placed as any panel that wide (moved left onto the screen), not past it.
+            let edge = NSRect(x: screen.maxX - 60, y: high.minY, width: 1, height: 20)
+            panel.show(short, anchor: edge)
+            panel.show(long, anchor: edge)
+            panel.show(short, anchor: edge)
+            let placed = CandidatePanel.placement(for: panel.frame.size, anchor: edge, textInset: view.textInset, keeping: view.side)
+            expect(panel.frame.width == longSize.width && panel.frame.origin == placed.origin && panel.frame.maxX <= screen.maxX,
+                   "at the right edge, kept as wide and placed as that wide a panel: \(panel.frame) / \(placed.origin)")
+            panel.hide()
+        }
+
+        /// The pinyin candidates in a row: a longer line widens the panel, a shorter one leaves it as wide (its height the
+        /// line's), the candidates where they were; once hidden, as wide as its candidates need.
+        static func row() {
+            let panel = CandidatePanel()
+            let view = panel.view
+            let anchor = high
+            let few = inARow(["你", "好"])
+            let many = inARow(["你好", "拟好", "A candidate long enough to be cut short with an ellipsis", "泥", "尼", "你号", "逆好"])
+            let two = inARow(["你好", "拟好"])
+            let (fewSize, manySize, twoSize) = (natural(few), natural(many), natural(two))
+            expect(fewSize.width < twoSize.width && twoSize.width < manySize.width && twoSize.height < manySize.height,
+                   "the candidates need \(fewSize), \(twoSize), \(manySize)")
+
+            panel.show(few, anchor: anchor)
+            shown(panel, fewSize, "in a row, first shown")
+            let first = panel.frame, inset = view.textInset
+            panel.show(many, anchor: anchor)
+            shown(panel, manySize, "in a row, more: wider")
+            panel.show(two, anchor: anchor)
+            shown(panel, NSSize(width: manySize.width, height: twoSize.height), "in a row, fewer: as wide, its height the line's")
+            expect(view.textInset == inset && panel.frame.minX == first.minX, "the first candidate where it was: \(view.textInset) / \(inset)")
+            expect(panel.shows(two, anchor: anchor), "in a row: shown as it would be shown again")
+            let line = Set(stride(from: CGFloat(0.5), to: view.bounds.width, by: 1).compactMap { hovered(panel, at: NSPoint(x: $0, y: view.bounds.midY)) })
+            expect(line == [0, 1], "both candidates under the pointer, nothing in the room after them: \(line.sorted())")
+
+            panel.hide()
+            panel.show(two, anchor: anchor)
+            shown(panel, twoSize, "in a row, up again after hiding")
+            panel.hide()
+        }
     }
 
     extension PanelModel {
@@ -374,6 +541,8 @@ private enum LayoutChild {
             case "above": Layout.run(above: true)
             case "selection": Layout.selection()
             case "steady": Layout.steady()
+            case "width": Layout.width()
+            case "row": Layout.row()
             default:
                 print("unknown scenario \(scenario)")
                 exit(2)
