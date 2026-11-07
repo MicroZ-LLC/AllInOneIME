@@ -46,27 +46,50 @@ public enum FileSearch {
         }
     }
 
-    /// Entries of the folder `query` points into whose names start with its last part: folders first. One read of the
-    /// folder, which tells what each entry is.
-    public static func complete(_ query: String, limit: Int) -> [SearchResult] {
+    /// Entries of the folder `query` points into whose names start with its last part: folders first, then by file name;
+    /// at most `limit`. One read of the folder, which tells what each entry is (its own records of them: a volume mounted
+    /// in it isn't asked), and only the first `limit` picked out and named as Finder names them (`displayName`, which reads
+    /// an app's bundle). In a folder of this Mac (`Mounts.isLocal`) what is on a server is never asked anything: a link to
+    /// it isn't followed (it is listed as a file), and it is named as it is called here. (Such a folder is read on the
+    /// key's thread, `InstantFiles`, and again by the search, which lists it the same way.)
+    public static func complete(_ query: String, limit: Int, mounts: Mounts = Mounts()) -> [SearchResult] {
         let expanded = (query as NSString).expandingTildeInPath
         let folder = query.hasSuffix("/") ? expanded : (expanded as NSString).deletingLastPathComponent
         let prefix = query.hasSuffix("/") ? "" : (expanded as NSString).lastPathComponent.lowercased()
-        let keys: Set<URLResourceKey> = [.isDirectoryKey, .isSymbolicLinkKey]
-        guard let entries = try? FileManager.default.contentsOfDirectory(at: URL(fileURLWithPath: folder, isDirectory: true),
-                                                                         includingPropertiesForKeys: Array(keys)) else { return [] }
-        let results = entries
-            .filter { !$0.lastPathComponent.hasPrefix(".") && $0.lastPathComponent.lowercased().hasPrefix(prefix) }
-            .map { entry -> SearchResult in
-                let path = (folder as NSString).appendingPathComponent(entry.lastPathComponent)
-                let values = try? entry.resourceValues(forKeys: keys)
-                // A link is listed as what it leads to (a folder Tab goes into).
-                let isDirectory = values?.isSymbolicLink == true ? isFolder(path) : values?.isDirectory ?? false
-                return SearchResult(name: FileManager.default.displayName(atPath: path), path: path,
-                                    isFolder: isDirectory && !path.hasSuffix(".app"))
+        let onThisMac = mounts.isLocal(folder)
+        func asked(_ path: String) -> Bool { !onThisMac || mounts.isLocal(path) }
+        func path(_ name: String) -> String { (folder as NSString).appendingPathComponent(name) }
+        guard limit > 0, let directory = opendir(folder) else { return [] }
+        defer { closedir(directory) }
+        typealias Entry = (isFolder: Bool, key: String, name: String)
+        func precedes(_ a: Entry, _ b: Entry) -> Bool { (a.isFolder ? 0 : 1, a.key, a.name) < (b.isFolder ? 0 : 1, b.key, b.name) }
+        // The first `limit` so far, in order: most entries of a large folder are dropped after one comparison.
+        var first: [Entry] = []
+        while let entry = readdir(directory) {
+            let length = Int(entry.pointee.d_namlen)
+            let name = withUnsafePointer(to: &entry.pointee.d_name) {
+                String(decoding: UnsafeRawBufferPointer(start: $0, count: length), as: UTF8.self)
             }
-            .sorted { ($0.isFolder ? 0 : 1, $0.name.lowercased()) < ($1.isFolder ? 0 : 1, $1.name.lowercased()) }
-        return Array(results.prefix(limit))
+            let key = name.lowercased()
+            guard !name.hasPrefix("."), key.hasPrefix(prefix) else { continue }
+            var type = Int32(entry.pointee.d_type)
+            if type == DT_UNKNOWN {
+                var info = stat()
+                let format = lstat(path(name), &info) == 0 ? info.st_mode & S_IFMT : 0
+                type = format == S_IFDIR ? DT_DIR : format == S_IFLNK ? DT_LNK : DT_REG
+            }
+            // A link is listed as what it leads to (a folder Tab goes into).
+            let isDirectory = type == DT_DIR || type == DT_LNK && asked(path(name)) && isFolder(path(name))
+            let listed = (isDirectory && !name.hasSuffix(".app"), key, name)
+            if first.count == limit, !precedes(listed, first[limit - 1]) { continue }
+            first.insert(listed, at: first.firstIndex { precedes(listed, $0) } ?? first.count)
+            if first.count > limit { first.removeLast() }
+        }
+        return first.map { entry in
+            let path = path(entry.name)
+            return SearchResult(name: asked(path) ? FileManager.default.displayName(atPath: path) : entry.name, path: path,
+                                isFolder: entry.isFolder)
+        }
     }
 
     /// The app index, what `@open` opened before and Spotlight by name (one search per keyword, all at once), then

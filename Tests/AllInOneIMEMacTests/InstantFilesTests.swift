@@ -98,8 +98,85 @@ struct InstantFilesTests {
         #expect(await Timing.eventually { files.results("calc", history: history).first?.path == "/System/Applications/Calculator.app" })
     }
 
-    @Test func onlyAFolderOfThisMacIsReadAtOnce() {
+    /// `root` as the system's list of what is mounted would have it: without links (the temporary folder is in /var, a
+    /// link to /private/var).
+    var real: String {
+        guard let real = realpath(root.path, nil) else { return root.path }
+        defer { free(real) }
+        return String(cString: real)
+    }
+
+    /// A server's volume (a stand-in: `root`/share, mounted from a server as `mounts` has it), and links to it and to
+    /// a folder here, in `root`.
+    func server() throws -> (share: String, mounts: Mounts) {
+        let share = real + "/share"
+        try FileManager.default.createDirectory(atPath: share + "/sub", withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: root.path + "/here", withIntermediateDirectories: true)
+        for (link, target) in [("NAS", share), ("relative", "share/sub"), ("chain", root.path + "/NAS"), ("near", "here"), ("loop", "loop")] {
+            try FileManager.default.createSymbolicLink(atPath: root.path + "/" + link, withDestinationPath: target)
+        }
+        return (share, Mounts(points: [("/", true), ("/System/Volumes/Data", true), (share, false)]))
+    }
+
+    @Test func onlyAFolderOfThisMacIsReadAtOnce() throws {
+        defer { try? FileManager.default.removeItem(at: root) }
         #expect(InstantFiles.isLocal("/") && InstantFiles.isLocal(root.path) && InstantFiles.isLocal("/System/Applications"))
+        let (share, mounts) = try server()
+        // On the server's volume however it is written, or through a link (`~/NAS` → `/Volumes/share`).
+        for path in [share, share + "/sub", root.path + "/SHARE/sub", root.path + "/./share", root.path + "//share/sub",
+                     root.path + "/here/../share", root.path + "/NAS", root.path + "/NAS/sub", root.path + "/relative",
+                     root.path + "/chain/sub", root.path + "/loop"] {
+            #expect(!mounts.isLocal(path), "\(path)")
+        }
+        for path in ["/", root.path, root.path + "/here", root.path + "/near", root.path + "/near/../here", root.path + "/no/such/folder"] {
+            #expect(mounts.isLocal(path), "\(path)")
+        }
+        #expect(!mounts.isLocalVolume(share.uppercased()) && mounts.isLocalVolume(root.path + "/NAS"), "the path as written")
+        // The system's own list: what it says of the server's volume as a stand-in is true of this Mac's.
+        #expect(Mounts().isLocal(root.path + "/NAS/sub"))
+    }
+
+    @Test func aFolderIsListedByFileNameAndOnlyWhatIsShownIsNamed() throws {
+        defer { try? FileManager.default.removeItem(at: root) }
+        let (share, server) = try server()
+        let list = root.path + "/list"
+        // A folder; a server's volume mounted here (Finder would name it "Backup"); links to the server and to a folder
+        // here; an app; files.
+        let backup = real + "/list/Backup.localized"
+        for folder in ["b-folder", "Backup.localized", "Tool.app"] {
+            try FileManager.default.createDirectory(atPath: list + "/" + folder, withIntermediateDirectories: true)
+        }
+        try FileManager.default.createSymbolicLink(atPath: list + "/NAS", withDestinationPath: share)
+        try FileManager.default.createSymbolicLink(atPath: list + "/Near", withDestinationPath: "../here")
+        for file in ["c.txt", "A.txt", ".hidden"] { try Data().write(to: URL(fileURLWithPath: list + "/" + file)) }
+        let mounts = Mounts(points: server.points + [(backup, false)])
+        let listed = FileSearch.complete(list + "/", limit: 8, mounts: mounts)
+        #expect(listed.map(\.name) == ["b-folder", "Backup.localized", "Near", "A.txt", "c.txt", "NAS", "Tool"], "\(listed.map(\.name))")
+        #expect(listed.map(\.isFolder) == [true, true, true, false, false, false, false], "a link to the server isn't followed")
+        #expect(FileSearch.complete(list + "/", limit: 2, mounts: mounts).map(\.name) == ["b-folder", "Backup.localized"])
+        #expect(FileSearch.complete(list + "/n", limit: 8, mounts: mounts).map(\.name) == ["Near", "NAS"])
+        // On this Mac all of them: the volume is named as Finder names it, and the link is followed.
+        let here = FileSearch.complete(list + "/", limit: 8)
+        #expect(here.map(\.name) == ["b-folder", "Backup", "NAS", "Near", "A.txt", "c.txt", "Tool"], "\(here.map(\.name))")
+        // A folder on the server is read only by the search, off the key's thread: as before, links followed.
+        #expect(FileSearch.complete(root.path + "/", limit: 10, mounts: server).first { $0.name == "near" }?.isFolder == true)
+        #expect(FileSearch.complete(share + "/", limit: 8, mounts: server).map(\.name) == ["sub"])
+    }
+
+    @Test func aLargeFolderIsListedAtOnce() throws {
+        defer { try? FileManager.default.removeItem(at: root) }
+        // A Downloads folder of 3,000 files and 100 folders: `complete` names only the 8 it lists.
+        let big = root.path + "/big"
+        for index in 0..<100 { try FileManager.default.createDirectory(atPath: big + "/folder \(index)", withIntermediateDirectories: true) }
+        for index in 0..<3000 { FileManager.default.createFile(atPath: big + "/file \(index).pdf", contents: nil) }
+        _ = FileManager.default.displayName(atPath: big)
+        var listed: [SearchResult] = []
+        let time = Timing.cpuSeconds { listed = FileSearch.complete(big + "/", limit: 8) }.seconds
+        #expect(listed.map(\.name) == ["folder 0", "folder 1", "folder 10", "folder 11", "folder 12", "folder 13", "folder 14", "folder 15"],
+                "\(listed.map(\.name))")
+        // Naming them all took 0.3 s of CPU on a Mac mini.
+        #expect(time < 0.05, "\(time) s")
+        #expect(FileSearch.complete(big + "/file 29", limit: 8).map(\.name) == ["file 29.pdf", "file 290.pdf"] + (2900...2905).map { "file \($0).pdf" })
     }
 
     @Test func theFullSearchFindsWhatWasOpenedByItsName() {

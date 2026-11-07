@@ -133,20 +133,10 @@ public final class InstantFiles: @unchecked Sendable {
         }
     }
 
-    /// Whether `folder` is on a volume of this Mac, not a server's: as the system's list of what is mounted has it,
-    /// without asking the volume (a server that doesn't answer would hold the key).
+    /// Whether `folder` is on a volume of this Mac, not a server's, and can be read at once (`Mounts.isLocal`: its links
+    /// followed, case aside, not kept in the cloud), as the system's list of what is mounted has it: without asking a
+    /// server (one that doesn't answer would hold the key).
     static func isLocal(_ folder: String) -> Bool {
-        var mounts: UnsafeMutablePointer<statfs>?
-        let count = getmntinfo_r_np(&mounts, MNT_NOWAIT)
-        defer { free(mounts) }
-        guard count > 0, let mounts else { return true }
-        var best = (length: -1, local: true)
-        for mount in UnsafeBufferPointer(start: mounts, count: Int(count)) {
-            let point = withUnsafeBytes(of: mount.f_mntonname) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
-            let inside = point == "/" || folder == point || folder.hasPrefix(point + "/")
-            guard inside, point.count > best.length else { continue }
-            best = (point.count, mount.f_flags & UInt32(MNT_LOCAL) != 0)
-        }
-        return best.local
+        Mounts().isLocal(folder)
     }
 }
