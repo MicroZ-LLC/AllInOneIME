@@ -99,6 +99,8 @@ public final class InputSession {
                                                  stickyKeys: { [weak self] in self?.services.suggestions.stickyKeys() ?? false })
     /// Shown once each time composing is paused for secure input.
     private var secureNoticeShown = false
+    /// The key being handled says secure input is on in the field's app (`FieldContext.secure`): on for everything it does.
+    private var secureKey = false
     /// The key being handled, and what the field said with it; the field's text as last read (`@reply` after dictation).
     private var keyContext: FieldContext?
     private var fieldText: FieldText?
@@ -326,8 +328,8 @@ public final class InputSession {
     }
 
     /// Whether secure input is on (nothing is sent to a model or run then): anywhere (`SessionServices`), or a password
-    /// field here.
-    public func secureInputActive() -> Bool { field.secure || services.secureInputActive() }
+    /// field here, or in the field's app as the key being handled tells it.
+    public func secureInputActive() -> Bool { field.secure || secureKey || services.secureInputActive() }
 
     /// What the shell told of the field that has the focus being a password field where secure input isn't on
     /// (`passwordField`).
@@ -852,6 +854,12 @@ public final class InputSession {
         // Password fields and prompts turn on secure event input. Never compose (so nothing can be sent to the model) in
         // the app that turned it on; anything already typed goes in as typed.
         if context.secure || field.secure {
+            // On as this key tells it, whatever the shell reads of it elsewhere (`secureInputActive`).
+            secureKey = true
+            defer { secureKey = false }
+            // A key parked for the selection read after the "@" key is done first, as if nothing were selected, under
+            // secure input's rules: its row if it is still listed (no AI row is), else the text as typed.
+            perform(composer.selectionRead(nil))
             autocompleteLeft(.unseen)
             if composer.isComposing {
                 let ended = composer.commitAsTyped()

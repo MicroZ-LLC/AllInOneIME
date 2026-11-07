@@ -513,6 +513,113 @@ struct OneAtTests {
         }
     }
 
+    /// A field (English its main language: `@hello`'s first row is Improve) that reads the selection after the "@" key,
+    /// nothing selected, the read in flight until the test lands it, secure input on once `secure` says
+    /// (`SessionServices.secureInputActive`): "@", then `text`. A sum is put in the draft as it would be typed: its mark,
+    /// typed, would settle the read.
+    func readingAfterTheKey(_ text: String, secure: Locked<Bool>) -> FakeHost {
+        var config = Config.default
+        config.setOrder([Language.english])
+        let fixed = config
+        var services = SessionServices(loadSettings: { fixed })
+        services.levelOne = { .engine(FakeEngine()) }
+        services.programInstalled = { _ in true }
+        services.secureInputActive = { secure.withLock { $0 } }
+        let host = FakeHost(services: services)
+        host.focus()
+        host.composer.setInputMode(.english)
+        host.selectionReadsWait = true
+        var told = host.context
+        told.selectionFollows = true
+        host.press(FakeHost.at, with: told)
+        if Arithmetic.value(of: text) != nil { host.composer.draft += text } else { host.type(text) }
+        #expect(host.composer.selectionPending && host.composer.parkedForSelection == nil)
+        return host
+    }
+
+    /// `readingAfterTheKey`, then ⏎: taken and parked on the row highlighted (Improve for "hello", the value for a sum).
+    func parkedReturn(after text: String, secure: Locked<Bool>) -> FakeHost {
+        let host = readingAfterTheKey(text, secure: secure)
+        #expect(host.composer.oneAtRows.first == (text == "hello" ? .write(.improve) : .value("21")), "\(names(host.composer.oneAtRows))")
+        #expect(host.press(FakeHost.enter))
+        #expect(host.composer.parkedForSelection == .key(FakeHost.enter) && host.document.isEmpty)
+        return host
+    }
+
+    /// A key parked for the selection read and settled as nothing selected once secure input is on, whichever way settles
+    /// it: the next key (secure input in the field's app, as the key tells it, or in another app), the read giving up, the
+    /// field leaving. Each does the row highlighted when ⏎ was pressed if it is still listed with secure input on, else
+    /// the text goes in as typed: `@3*7` ⏎ is "21", before the x; `@hello` ⏎ on Improve is "@hello" as typed, nothing
+    /// sent (no AI row is listed then). A row clicked goes the same way. The read's late answer is dropped.
+    @Test func aParkedKeyOnceSecureInputIsOnDoesItsRowIfStillListed() async {
+        await withInterfaceLanguage("en") {
+            let ways: [(String, (FakeHost, Locked<Bool>) -> Void)] = [
+                ("x with secure input on in the field's app", { host, _ in
+                    host.secure = true
+                    #expect(!host.press(k("x")), "x is the app's")
+                }),
+                ("x with secure input on in another app", { host, secure in
+                    secure.withLock { $0 = true }
+                    #expect(!host.press(k("x")), "x is the app's")
+                }),
+                ("the read giving up", { host, secure in
+                    secure.withLock { $0 = true }
+                    host.selectionReadsGiveUp()
+                }),
+                ("the field leaving", { host, secure in
+                    secure.withLock { $0 = true }
+                    host.send(.blur)
+                }),
+            ]
+            for (way, settle) in ways {
+                for (text, done) in [("3*7", "21"), ("hello", "@hello")] {
+                    let secure = Locked(initialState: false)
+                    let host = parkedReturn(after: text, secure: secure)
+                    host.appTypesKeys = true
+                    settle(host, secure)
+                    let expected = done + (way.hasPrefix("x") ? "x" : "")
+                    #expect(host.document == expected, "@\(text), \(way): \(host.document)")
+                    #expect(!host.composer.isComposing && !host.composer.selectionPending && host.composer.parkedForSelection == nil,
+                            "@\(text), \(way)")
+                    #expect(!host.composer.isLevelTwo && host.composer.activeCommand == nil && host.composer.phase == .idle,
+                            "@\(text), \(way): nothing sent: \(host.composer.phase)")
+                    host.answerFieldReads()
+                    #expect(host.document == expected && host.composer.selection == nil, "@\(text), \(way): dropped")
+                    #expect(host.platformActions.isEmpty)
+                }
+            }
+
+            // Improve clicked while the read is in flight, secure input on before it gives up: not listed then, so the
+            // text as typed, as for ⏎.
+            let secure = Locked(initialState: false)
+            let click = readingAfterTheKey("hello", secure: secure)
+            click.send(.pick(0))
+            #expect(click.composer.parkedForSelection == .row(.write(.improve)))
+            secure.withLock { $0 = true }
+            click.selectionReadsGiveUp()
+            #expect(click.document == "@hello" && click.composer.phase == .idle && !click.composer.isLevelTwo,
+                    "\(click.document) \(click.composer.phase)")
+            #expect(click.composer.activeCommand == nil && click.composer.draftCommand == nil, "\(click.composer.draft)")
+        }
+    }
+
+    /// A key parked on a row the highlight was moved to (↓ before it) does that row once the read settles as nothing
+    /// selected, not the first: "@" alone, ↓, Tab picks the second command, as with nothing read after the key.
+    @Test func aParkedKeyDoesTheRowItWasPressedOn() async {
+        await withInterfaceLanguage("en") {
+            let secure = Locked(initialState: false)
+            let host = readingAfterTheKey("", secure: secure)
+            host.press(downKey)
+            let rows = host.composer.oneAtRows
+            #expect(rows.count > 2 && host.composer.oneAtHighlighted == 1, "\(names(rows))")
+            guard case let .command(second) = rows[1] else { Issue.record("\(names(rows))"); return }
+            #expect(host.press(FakeHost.tab))
+            #expect(host.composer.parkedForSelection == .key(FakeHost.tab))
+            host.selectionReadsGiveUp()
+            #expect(host.composer.draft.hasPrefix("@\(second.name)"), "\(second.name): \(host.composer.draft)")
+        }
+    }
+
     // MARK: - Commands that come while the list is open
 
     @Test func commandsThatArriveShowInTheOpenList() async {
