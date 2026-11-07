@@ -159,17 +159,17 @@ public enum OneAt {
             add(.open(web))
             ruled = true
         }
-        // 4. An app, a folder, a file opened before: by the letters (an app's pinyin or initials), then by the text; the
-        // files Spotlight found join below.
+        // 4. An app, a folder, a file opened before (what is known at once): by the letters (an app's pinyin or
+        // initials), then by the text. Spotlight's files join below all the rows (`withFiles`).
+        var instant: ArraySlice<SearchResult> = []
         if web == nil, Arithmetic.value(of: text) == nil {
             var known: [SearchResult] = []
             for query in [input.letters, text].compactMap({ $0 }) where !query.isEmpty {
                 for result in input.instant(query) where !known.contains(where: { $0.path == result.path }) { known.append(result) }
             }
-            let instant = known.prefix(openLimit)
-            let files = input.files.filter { file in !instant.contains { $0.path == file.path } }.prefix(openLimit)
-            (instant + files).forEach { add(.open($0)) }
-            if !instant.isEmpty || !files.isEmpty { ruled = true }
+            instant = known.prefix(openLimit)
+            instant.forEach { add(.open($0)) }
+            if !instant.isEmpty { ruled = true }
         }
         // 5. A time: the reminder, the rest of the text its title.
         if let reminder = input.reminder(text), reminder.due != nil, !reminder.title.isEmpty {
@@ -194,7 +194,18 @@ public enum OneAt {
         let named = Set(input.named.map(\.name))
         writingActions(input, other: other).filter { !named.contains($0.name) }.forEach { add(.write($0)) }
         if ai, let ask = offered(.question), !named.contains(ask.name) { add(.write(ask)) }
-        return rows
+        let files = input.files.filter { file in !instant.contains { $0.path == file.path } }.prefix(openLimit)
+        return withFiles(rows, files.map(Action.open))
+    }
+
+    /// `rows` with Spotlight's files: they come after the rows are shown, so they never take the first row nor move the
+    /// highlight (⏎ does the same whether Spotlight answered yet or not): below the rows, above Ask AI when it is the
+    /// last; none where there is no row of the rules (nothing to keep first).
+    static func withFiles(_ rows: [Action], _ files: [Action]) -> [Action] {
+        let files = files.filter { !rows.contains($0) }
+        guard !rows.isEmpty, !files.isEmpty else { return rows }
+        let ask = rows.count > 1 && rows.last == .write(.question) ? 1 : 0
+        return Array(rows.dropLast(ask)) + files + rows.suffix(ask)
     }
 
     /// Improve and Translate, and the user's own writing actions once used (at most `ownLimit`: the most used), by use in

@@ -324,4 +324,28 @@ struct OneAtTests {
             #expect(host.composer.oneAtRows.first == .command(host.composer.commands.first { $0.name == "hello" }!))
         }
     }
+
+    /// Spotlight's files never take the first row nor move the highlight (rule 4 is what is known at once): they join
+    /// below the rows already shown, Ask AI still last, and are never listed alone.
+    @Test func spotlightsFilesJoinBelowTheRowsShown() {
+        let file = SearchResult(name: "Quarterly Report.pdf", path: "/Users/me/Documents/Quarterly Report.pdf")
+        func rows(_ noAI: Bool = false, files: [SearchResult]) -> [OneAt.Action] {
+            OneAt.actions(OneAt.Input(text: "quarterly report", commands: Command.builtins, noAI: noAI, mainLanguage: .chinese,
+                                      files: files))
+        }
+        let before = rows(files: [])
+        let after = rows(files: [file])
+        #expect(after.first == before.first && after.first != .open(file), "\(names(after))")
+        #expect(after.last == .write(.question) && after.dropLast().last == .open(file), "\(names(after))")
+        #expect(rows(true, files: [file]).isEmpty, "no row but a file: none")
+        // In the composer: the highlight stays on the first row as the files come.
+        let c = Composer(engine: FakeEngine(), actionKey: .enter)
+        c.setInputMode(.english)
+        c.oneAtList = true
+        c.commands = Command.builtins
+        for key in [FakeHost.at] + "quarterly report".map({ $0 == " " ? spaceKey : k(String($0)) }) { _ = c.handleKeyDown(key) }
+        let first = c.oneAtRows.first
+        _ = c.receiveOneAtFiles([file], for: "quarterly report")
+        #expect(c.oneAtRows.contains(.open(file)) && c.oneAtRows.first == first && c.oneAtHighlighted == 0, "\(names(c.oneAtRows))")
+    }
 }
