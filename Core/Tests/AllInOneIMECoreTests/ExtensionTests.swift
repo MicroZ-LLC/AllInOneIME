@@ -724,6 +724,40 @@ struct FoundScriptsTests {
         #expect(!runs.isEmpty && runs.allSatisfy { $0 == ["translatelog"] }, "\(runs)")
     }
 
+    /// One @ shows `Composer.oneAtRowsShown` rows: the status lines of as many scripts as it shows run, the ones scrolled
+    /// to as well, never more.
+    @Test func asManyStatusLinesRunAsTheListShows() async {
+        let status = ScriptCommand.Status(launch: ["/bin/echo", "hi"], refresh: 60, isSelf: false)
+        let scripts = (1...9).map { index in
+            ScriptCommand(id: "~/scripts/stat\(index).sh", source: .raycast, file: URL(fileURLWithPath: "/tmp/scripts/stat\(index).sh"),
+                          name: "stat\(index)", input: .none, output: .silent, status: status)
+        }
+        let index = ExtensionIndex(commands: scripts)
+        let asked = Locked(initialState: [[String]]())
+        await withInterfaceLanguage("en") {
+            var config = Config.default
+            config.uiLanguage = "en"
+            let fixed = config
+            var services = SessionServices(loadSettings: { fixed })
+            services.levelOne = { .engine(FakeEngine()) }
+            services.programInstalled = { _ in true }
+            services.loadExtensions = { _, _ in index }
+            services.refreshStatuses = { shown, _, _ in asked.withLock { $0.append(shown.map(\.name)) } }
+            let host = FakeHost(services: services)
+            host.focus()
+            host.composer.setInputMode(.english)
+            host.press(FakeHost.at)
+            host.type("stat")
+            let visible = host.composer.oneAtVisible.compactMap { if case let .command(command) = $0 { command.script?.name } else { nil } }
+            #expect(visible.count == Composer.oneAtRowsShown, "\(visible)")
+            #expect(asked.withLock { $0 }.last == visible, "\(asked.withLock { $0 })")
+            for _ in 0..<Composer.oneAtRowsShown { host.press(FakeHost.down) }
+            let scrolled = host.composer.oneAtVisible.compactMap { if case let .command(command) = $0 { command.script?.name } else { nil } }
+            #expect(scrolled != visible && asked.withLock { $0 }.last == scrolled, "\(asked.withLock { $0 })")
+        }
+        #expect(asked.withLock { $0 }.allSatisfy { $0.count <= Composer.oneAtRowsShown })
+    }
+
     /// A build of the index in the background (a rebuild, the settings window's), back on the main thread: taken unless
     /// another landed meanwhile, and one that changed the index tells an open "@" list; the same for every build.
     @Test func aBuildInTheBackgroundLandsTheSameWayEverywhere() {
