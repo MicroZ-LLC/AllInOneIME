@@ -20,8 +20,7 @@ import os
 ///
 /// The tap needs the Accessibility permission (as terminal paste does). Without it there is none, and what keeps the
 /// keys is the marked text of 0.6.7.3 and 0.6.8.1 (Chromium and Electron apps: `ChromiumApps`; terminals:
-/// `keepFromTerminal`). Keys we post ourselves (`TerminalPaste.isOurs`) pass untouched; one replayed behind a key given to
-/// the app is the controller's to answer (`keyAtTap`).
+/// `keepFromTerminal`). Keys we post ourselves (`TerminalPaste.marker`) pass untouched.
 @MainActor
 final class KeyGuard {
     static let shared = KeyGuard()
@@ -104,7 +103,7 @@ final class KeyGuard {
     /// Whether the tap takes `event` (true: it goes no further).
     fileprivate func takes(_ type: CGEventType, _ event: CGEvent) -> Bool {
         guard let handler else { return false }
-        if TerminalPaste.isOurs(event) { return false }
+        if event.getIntegerValueField(.eventSourceUserData) == TerminalPaste.marker { return false }
         let code = event.getIntegerValueField(.keyboardEventKeycode)
         if type == .keyUp { return takenKeys.remove(code) != nil }
         guard type == .keyDown, let took = handler(event) else { return false }

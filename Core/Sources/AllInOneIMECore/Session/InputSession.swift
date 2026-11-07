@@ -105,8 +105,12 @@ public final class InputSession {
     /// What the field reported selected when a command started on its selection: a key finding it moved (a click, the
     /// app's own keys) gives the command up (`Composer.selectionMoved`).
     private var selectionReported: Range<Int>??
+    /// The selection read after the "@" key that the draft waits for (`SessionOutput.readSelection`, its id), and the
+    /// reads asked for so far: what a read no longer waited for answers is dropped.
+    private var selectionReading: Int?
+    private var selectionReads = 0
     /// Counts the focus coming and going: a save that comes back to another count is no longer in the field it came from.
-    private var fieldSession = 0
+    private(set) var fieldSession = 0
     /// The latest notice's timer, and the voice key's (older ones do nothing).
     private var noticeToken = 0
     private var voiceArmToken = 0
@@ -178,6 +182,7 @@ public final class InputSession {
             guard let self, let context = keyContext, context.read.contains(.selection), context.selectionFollows else { return false }
             return services.loadSettings().useSelection && !secureInputActive() && !terminal
         }
+        composer.awaitSelectionRead = { [weak self] in self?.awaitSelectionRead() }
         // The recipients in the address book as last read, on the key.
         composer.instantRecipients = { [weak self] query in
             guard let self, let contacts = services.cachedContacts() else { return nil }
@@ -244,14 +249,12 @@ public final class InputSession {
                 // Asked in a field that has lost the focus since: not this one's.
                 guard focus == fieldSession else { return }
                 takePasswordField(told.map { $0 ? .yes : .no } ?? .unknown)
-            case let .selection(selected, focus):
-                // Read after the "@" key (`SessionOutput.readSelection`), in this field: the draft takes it.
-                guard focus == fieldSession, composer.selectionPending else { return }
-                if let selected, !selected.text.isEmpty, services.loadSettings().useSelection, !secureInputActive(), !terminal {
-                    perform(composer.selectionRead(selected))
-                } else {
-                    perform(composer.selectionRead(nil))
-                }
+            case let .selection(selected, id):
+                // Read after the "@" key (`SessionOutput.readSelection`), the read the draft waits for: it takes it. One a
+                // key no longer waited for (`awaitSelectionRead`), or of a draft that's gone, is dropped.
+                guard id == selectionReading, composer.selectionPending else { return }
+                selectionReading = nil
+                perform(composer.selectionRead(usable(selected)))
             case let .task(id, update):
                 guard tasks.isCurrent(id) else { return }
                 received(update, from: id)
@@ -933,7 +936,11 @@ public final class InputSession {
         let response = composer.handleKeyDown(key)
         keyContext = nil
         // The "@" key started a draft whose selection the field reads after it: asked for now, off this thread.
-        if composer.selectionPending, !pending { emit(.readSelection(focus: fieldSession)) }
+        if composer.selectionPending, !pending {
+            selectionReads += 1
+            selectionReading = selectionReads
+            emit(.readSelection(id: selectionReads))
+        }
         if composer.pendingAccent == nil { deadKeys.reset() }
         perform(response.effects)
         followEnglishTyping(key, english: english, passedOn: !response.handled)
@@ -997,6 +1004,27 @@ public final class InputSession {
         }
         selectionReported = .some(context.read.contains(.selectedRange) ? context.selectedRange : selection.range)
         return selection
+    }
+
+    /// How long a key that acts on the draft waits for the selection read after the "@" key (`awaitSelectionRead`), at
+    /// most: the one wait on the key's thread, for a read already running off it.
+    public static let selectionWait: TimeInterval = 0.3
+
+    /// The selection read after the "@" key, waited for by a key that acts on the draft (`Composer.awaitSelectionRead`):
+    /// on this thread, until it lands or `selectionWait` has gone by (`SessionServices.awaitSelection`, the shell's).
+    /// Not in time: none, and what it answers later is dropped.
+    private func awaitSelectionRead() -> Composer.Selection? {
+        guard let id = selectionReading else { return nil }
+        selectionReading = nil
+        return usable(services.awaitSelection(id, Self.selectionWait))
+    }
+
+    /// `selected`, read after the "@" key, where the draft may take it: with the setting on (`useSelection`), never during
+    /// secure input, nor in a terminal (as `readSelection`).
+    private func usable(_ selected: Composer.Selection?) -> Composer.Selection? {
+        guard let selected, !selected.text.isEmpty, services.loadSettings().useSelection, !secureInputActive(), !terminal
+        else { return nil }
+        return selected
     }
 
     /// The character right before the caret where "@" is typed (`Composer.characterBeforeCaret`): the last one the user
@@ -1105,10 +1133,6 @@ public final class InputSession {
                 followEnglishInserted(text)
             case let .moveCaret(back):
                 emit(.moveCaret(back: back, after: lastInserted))
-            case let .passKey(key):
-                emit(.platform(.passKey(key)))
-            case let .replayKey(key):
-                emit(.platform(.replayKey(key)))
             case let .startConversion(input, id):
                 if refusedForSecureInput(id: id) { break }
                 // @improve / @translate: the mode (and a second one written inside) comes from the command.
@@ -1467,6 +1491,9 @@ public final class InputSession {
             autocompleteAnswered(result, request: request)
         case .completionsAnswered:
             suggestionsAnswered()
+        case let .warmDue(head, target, focus):
+            // Asked for in this field: it is still the one being typed in.
+            if focus == fieldSession { warmDue(head, target: target) }
         case .pluginsScanned:
             pluginsScanned()
         }

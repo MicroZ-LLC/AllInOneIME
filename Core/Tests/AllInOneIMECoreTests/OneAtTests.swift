@@ -232,7 +232,7 @@ struct OneAtTests {
     // MARK: - The selection, read after the key
 
     /// The field told no selection with "@" and reads it after (the Mac's Accessibility): the list shows on the key, the
-    /// draft stays out of the field, the selection's rows once it's in; ⏎ pressed before then waits for it.
+    /// draft stays out of the field, the selection's rows once it's in.
     @Test func theSelectionReadAfterTheKeyJoinsTheList() async {
         await withInterfaceLanguage("en") {
             let host = field(ScriptFolder())
@@ -245,54 +245,135 @@ struct OneAtTests {
             #expect(host.marked.isEmpty && host.panel != nil, "nothing marked over the selection: \(host.marked)")
             #expect(host.composer.selection?.text == "The report looks good", "read after the key")
             #expect(host.panel?.rows.first?.comment == "@improve", "the selection's: \(host.panel?.rows.map(\.text) ?? [])")
-            // ⏎ before the selection is in: it waits for it.
-            let other = field(ScriptFolder())
-            other.document = "hello there"
-            other.selection = 0..<11
-            var asked = other.context
-            asked.selection = nil
-            asked.selectionFollows = true
-            let read = other.session.handle(.key(FakeHost.at, asked)).outputs.compactMap { output -> Int? in
-                if case let .readSelection(focus) = output { return focus } else { return nil }
-            }.first
-            #expect(other.composer.selectionPending && read != nil)
-            _ = other.session.handle(.key(FakeHost.enter, asked))
-            #expect(!other.composer.isLevelTwo, "nothing runs without the selection")
-            _ = other.session.handle(.selection(Composer.Selection(text: "hello there"), focus: read ?? -1))
-            #expect(other.composer.isLevelTwo && other.composer.activeCommand == .improve, "\(String(describing: other.composer.activeCommand))")
+            #expect(host.selectionWaits.isEmpty, "no key waited: it was in before the next")
         }
     }
 
-    /// Keys pressed before the selection read after the "@" key is in wait for it, then do what they do where the field
-    /// tells the selection with the key: "@" alone and ⏎ with nothing selected puts the "@" in (not the most used
-    /// command); Esc on a text leaves a selection alone; → gives the keys back, the text going in only where nothing is
-    /// selected, and the → itself goes on to the app.
+    /// A field (English) with "hello there", all of it selected or nothing, that tells no selection with "@" and reads it
+    /// after the key (the Mac's Accessibility: `selectionFollows`): "@" typed, then `text`, the read still in flight. A
+    /// key that acts on the draft waits for it, and it lands `takes` seconds into the wait (nil: never).
+    func reading(selected: Bool, takes: TimeInterval? = 0.05, typing text: String = "") -> FakeHost {
+        let host = field(ScriptFolder())
+        host.document = "hello there"
+        host.selection = selected ? 0..<11 : nil
+        host.selectionReadsWait = true
+        host.selectionReadTakes = takes
+        var told = host.context
+        told.selection = nil
+        told.selectionFollows = true
+        host.press(FakeHost.at, with: told)
+        #expect(host.composer.selectionPending)
+        host.type(text)
+        #expect(host.selectionWaits.isEmpty && host.document == "hello there", "letters only edit the draft: they don't wait")
+        return host
+    }
+
+    /// ⏎ while the selection read after "@" is in flight waits for it on the key's thread, at most
+    /// `InputSession.selectionWait`, then does what it does where the field tells the selection with the key: landed with
+    /// the selection, before or right at the end of the wait, the selection's first row runs; landed with none, the "@"
+    /// is typed. Not landed by then: the selection counts as none ("@" typed, as over any selection), and what the read
+    /// answers later is dropped, also once another "@" waits for a read of its own. No key is posted, ever.
+    @Test func returnWaitsForTheSelectionReadAtMostAMoment() async {
+        await withInterfaceLanguage("en") {
+            for takes in [0.05, InputSession.selectionWait] {
+                let host = reading(selected: true, takes: takes)
+                #expect(host.press(FakeHost.enter))
+                #expect(host.composer.isLevelTwo && host.composer.activeCommand == .improve,
+                        "\(takes) s: \(String(describing: host.composer.activeCommand)) \(host.composer.draft)")
+                #expect(host.document == "hello there" && host.selectionWaits.map(\.waited) == [takes], "\(host.selectionWaits)")
+                #expect(host.selectionWaits.map(\.timeout) == [InputSession.selectionWait] && host.platformActions.isEmpty)
+            }
+            let none = reading(selected: false)
+            #expect(none.press(FakeHost.enter))
+            #expect(none.document == "hello there@" && !none.composer.isComposing, "\(none.document) \(none.composer.draft)")
+            #expect(none.platformActions.isEmpty)
+
+            let late = reading(selected: true, takes: InputSession.selectionWait + 0.2)
+            #expect(late.press(FakeHost.enter))
+            #expect(late.selectionWaits.map(\.waited) == [InputSession.selectionWait], "given up at the deadline")
+            #expect(late.document == "@" && !late.composer.isComposing && !late.composer.isLevelTwo, "\(late.document)")
+            let panel = late.panel
+            late.answerFieldReads()
+            #expect(late.document == "@" && !late.composer.isComposing && late.composer.selection == nil, "the late answer is dropped")
+            #expect(late.panel == panel && late.platformActions.isEmpty)
+
+            let again = reading(selected: false, takes: nil)
+            let first = again.outputs.compactMap { if case let .readSelection(id) = $0 { id } else { nil } }.first
+            again.press(FakeHost.escape)
+            #expect(again.selectionWaits.count == 1 && !again.composer.isComposing)
+            var told = again.context
+            told.selectionFollows = true
+            again.press(FakeHost.at, with: told)
+            #expect(again.composer.selectionPending)
+            again.send(.selection(Composer.Selection(text: "hello there"), id: first ?? -1))
+            #expect(again.composer.selectionPending && again.composer.selection == nil, "not the read this draft waits for")
+        }
+    }
+
+    /// The keys that act wait for the read, then do what they do where the field tells the selection with the key: Esc
+    /// leaves a selection alone, and a text as typed where none is; → gives the keys back, the text going in only where
+    /// nothing is selected, and the → isn't taken (the app has it, as the key it is, after the keys before it and before
+    /// those after it). Letters, ⌫ and ↑↓ only edit the draft and don't wait.
     @Test func keysWaitForTheSelectionReadAfterTheKey() async {
         await withInterfaceLanguage("en") {
-            func host(selected: Bool, typing text: String, then key: KeyEvent) -> FakeHost {
-                let host = field(ScriptFolder())
-                host.document = "hello there"
-                host.selection = selected ? 0..<11 : nil
-                host.selectionReadsWait = true
-                var told = host.context
-                told.selection = nil
-                told.selectionFollows = true
-                host.press(FakeHost.at, with: told)
-                host.type(text)
-                host.press(key)
-                #expect(host.document == "hello there" && !host.composer.isLevelTwo, "nothing done before it is in")
-                host.answerFieldReads()
-                return host
-            }
-            let enter = host(selected: false, typing: "", then: FakeHost.enter)
-            #expect(enter.document == "hello there@" && !enter.composer.isComposing, "\(enter.document) \(enter.composer.draft)")
-            let escape = host(selected: true, typing: "hello", then: FakeHost.escape)
+            let escape = reading(selected: true, typing: "hello")
+            #expect(escape.press(FakeHost.escape))
             #expect(escape.document == "hello there" && escape.selection == 0..<11 && !escape.composer.isComposing, "\(escape.document)")
-            let rightOnSelection = host(selected: true, typing: "hello", then: FakeHost.right)
+            let escapeNone = reading(selected: false, typing: "hello")
+            escapeNone.press(FakeHost.escape)
+            #expect(escapeNone.document == "hello there@hello" && !escapeNone.composer.isComposing, "\(escapeNone.document)")
+            let escapeAlone = reading(selected: false)
+            #expect(escapeAlone.press(FakeHost.escape))
+            #expect(escapeAlone.document == "hello there" && !escapeAlone.composer.isComposing, "\(escapeAlone.document)")
+            for host in [escape, escapeNone, escapeAlone] {
+                #expect(host.selectionWaits.count == 1 && host.platformActions.isEmpty)
+            }
+
+            let rightOnSelection = reading(selected: true, typing: "hello")
+            #expect(!rightOnSelection.press(FakeHost.right), "→ is the app's")
             #expect(rightOnSelection.document == "hello there" && !rightOnSelection.composer.isComposing)
-            #expect(rightOnSelection.platformActions == [.passKey(FakeHost.right)], "\(rightOnSelection.platformActions)")
-            let right = host(selected: false, typing: "hello", then: FakeHost.right)
-            #expect(right.document == "hello there@hello" && right.platformActions == [.passKey(FakeHost.right)], "\(right.document)")
+            let rightAlone = reading(selected: true)
+            #expect(!rightAlone.press(FakeHost.right))
+            #expect(rightAlone.document == "hello there" && rightAlone.selection == 0..<11 && !rightAlone.composer.isComposing)
+            let right = reading(selected: false, typing: "hello")
+            right.appTypesKeys = true
+            #expect(!right.press(FakeHost.right))
+            right.type("x")
+            #expect(right.document == "hello there@hellox", "the text, then the app's → and x in order: \(right.document)")
+            for host in [rightOnSelection, rightAlone, right] {
+                #expect(host.selectionWaits.count == 1 && host.platformActions.isEmpty, "\(host.platformActions)")
+            }
+
+            let edits = reading(selected: true, typing: "help")
+            for key in [backspaceKey, FakeHost.down, FakeHost.up] { edits.press(key) }
+            edits.type("p")
+            #expect(edits.selectionWaits.isEmpty && edits.composer.selectionPending && edits.composer.draft == "@help")
+            edits.press(FakeHost.tab)
+            edits.press(FakeHost.enter)
+            #expect(edits.selectionWaits.count == 1, "once the read is in, nothing waits: \(edits.selectionWaits)")
+        }
+    }
+
+    /// A row clicked while the read is in flight waits for it the same way, and the row shown is done with what it found:
+    /// "@improve"'s Improve picked for the selection (the draft stays in the panel, the selection as it is), which ⏎ then
+    /// runs it on. Where nothing is read after the key, nothing ever waits.
+    @Test func aRowClickedWaitsForTheSelectionRead() async {
+        await withInterfaceLanguage("en") {
+            let host = reading(selected: true, typing: "improve")
+            #expect(host.composer.oneAtRows.first == .command(.improve), "\(names(host.composer.oneAtRows))")
+            host.send(.pick(0))
+            #expect(host.selectionWaits.count == 1)
+            #expect(host.composer.draftCommand == .improve && host.composer.selection?.text == "hello there", "\(host.composer.draft)")
+            #expect(host.marked.isEmpty && host.document == "hello there" && host.selection == 0..<11, "\(host.marked)")
+            host.press(FakeHost.enter)
+            #expect(host.composer.isLevelTwo && host.composer.activeCommand == .improve && host.selectionWaits.count == 1)
+            #expect(host.platformActions.isEmpty)
+
+            let told = field(ScriptFolder())
+            told.document = "hello there"
+            told.press(FakeHost.at)
+            told.press(FakeHost.enter)
+            #expect(told.selectionWaits.isEmpty && told.document == "hello there@", "\(told.document)")
         }
     }
 
@@ -347,42 +428,75 @@ struct OneAtTests {
         #expect(c.oneAtRows.contains(.open(file)) && c.oneAtRows.first == first && c.oneAtHighlighted == 0, "\(names(c.oneAtRows))")
     }
 
-    /// A path after the magic key (written in front of a word: a mark right after the key gives it back): nothing of its
-    /// folder is read on the key. Its folder is listed with Spotlight's files (`SessionServices.searchFileNames`, off the
-    /// key's thread), however long the path, and its entries join below the rows shown as those do; a listing kept from a
-    /// moment ago (`instantResults`) shows at once, first (rule 4).
+    /// A path's rows are made where a path is opened, `@open ~/…`, and nothing of its folder is read on the key: the
+    /// folder is listed by `@open`'s search (`SessionServices.searchFiles`, off the key's thread), however long the path,
+    /// and its entries come as that answers; on the key only a listing kept from a moment ago (`instantResults`, which
+    /// reads no disk) shows, at once.
     @Test func aPathsFolderIsListedOffTheKey() async {
         await withInterfaceLanguage("en") {
             let path = "~/Library/Application Support/AllInOneIME/LanguagePacks/"
             let entry = SearchResult(name: "zh-pinyin", path: "/Users/me/Library/Application Support/AllInOneIME/LanguagePacks/zh-pinyin",
                                      isFolder: true)
             let kept = Locked(initialState: false)
-            let asked = Locked<[String]>(initialState: [])
+            let searched = Locked<[String]>(initialState: [])
             var services = SessionServices(loadSettings: { .default })
             services.levelOne = { .engine(FakeEngine()) }
             services.instantResults = { query, _ in kept.withLock { $0 } && query.hasPrefix(path) ? [entry] : [] }
-            services.searchFileNames = { query, _ in
-                asked.withLock { $0.append(query) }
+            services.searchFiles = { query, _ in
+                searched.withLock { $0.append(query) }
                 return query.hasPrefix(path) ? [entry] : []
             }
             let host = FakeHost(services: services)
             host.focus()
             host.composer.setInputMode(.english)
-            host.type("@L")
-            host.press(KeyEvent(keyCode: VirtualKey.left, characters: "\u{F702}"))
-            host.type("~/")
-            host.press(FakeHost.right)
-            host.type(String(path.dropFirst(3)))
-            #expect(host.composer.oneAt?.text == path, "\(host.composer.draft)")
-            let first = host.composer.oneAtRows.first
-            #expect(first != .open(entry), "\(names(host.composer.oneAtRows))")
-            #expect(host.settle { host.composer.oneAtRows.contains(.open(entry)) }, "listed off the key: \(asked.withLock { $0 })")
-            #expect(asked.withLock { $0 }.last == path, "a long path is listed too")
-            #expect(host.composer.oneAtRows.first == first && host.composer.oneAtHighlighted == 0, "below the rows shown")
+            host.press(FakeHost.at)
+            host.type("ope")
+            host.press(FakeHost.tab)
+            host.type(path)
+            #expect(host.composer.draftCommand == .open && host.composer.draft == "@open " + path, "\(host.composer.draft)")
+            #expect(host.composer.currentLiveResults.isEmpty, "nothing of the folder on the key")
+            #expect(host.settle { host.composer.currentLiveResults == [entry] }, "listed off the key: \(searched.withLock { $0 })")
+            #expect(searched.withLock { $0 }.last == path, "a long path is listed too")
             // The next key: the listing kept from a moment ago, at once.
             kept.withLock { $0 = true }
             host.type("z")
-            #expect(host.composer.oneAtRows.first == .open(entry), "\(names(host.composer.oneAtRows))")
+            #expect(host.composer.currentLiveResults.first == entry, "\(host.composer.currentLiveResults)")
+        }
+    }
+
+    /// A mark right after the magic key gives it back as typed, a path's "~" and "/" too: with "~" the magic key, "~/" is
+    /// "~/" (a terminal's home folder); "@~/Downloads/" is the at sign and the path, as text. No rows, and nothing of a
+    /// folder is asked for. (A path is opened with `@open ~/Downloads/`.)
+    @Test func aMarkRightAfterTheMagicKeyGivesItBack() async {
+        await withInterfaceLanguage("en") {
+            for trigger in ["~", "@"] {
+                for (text, terminal) in [("~/", false), ("~/", true), ("@~/Downloads/", false), ("@~/Downloads/", true)] {
+                    var config = Config.default
+                    config.commandTrigger = trigger
+                    let fixed = config
+                    let asked = Locked<[String]>(initialState: [])
+                    var services = SessionServices(loadSettings: { fixed })
+                    services.levelOne = { .engine(FakeEngine()) }
+                    services.instantResults = { query, _ in
+                        if query.contains("/") { asked.withLock { $0.append(query) } }
+                        return []
+                    }
+                    services.searchFileNames = { query, _ in
+                        asked.withLock { $0.append(query) }
+                        return []
+                    }
+                    let host = FakeHost(services: services)
+                    host.terminal = terminal
+                    host.appTypesKeys = true
+                    host.focus()
+                    host.composer.setInputMode(.english)
+                    host.type(text)
+                    let place = "\(trigger) \(text)\(terminal ? " in a terminal" : "")"
+                    #expect(host.document == text && host.marked.isEmpty && !host.composer.isComposing, "\(place): \(host.document)|\(host.marked)")
+                    #expect(host.composer.oneAt == nil && host.panel?.rows.isEmpty != false, "\(place)")
+                    #expect(!host.settle(timeout: 0.1) { !asked.withLock { $0 }.isEmpty }, "\(place): \(asked.withLock { $0 })")
+                }
+            }
         }
     }
 

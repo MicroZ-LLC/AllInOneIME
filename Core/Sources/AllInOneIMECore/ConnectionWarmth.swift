@@ -8,11 +8,13 @@ import FoundationNetworking
 /// TCP and TLS, 50 to 300 ms. Where nothing went to the service in the last `idle`, a HEAD goes to its origin
 /// ("https://host:port/": no user or password, path or query of the base URL) on the same session, with no key, no
 /// credentials and no body, any authentication asked of it refused, never redirected, so that the connection is open when
-/// the request goes. One an idle period: a HEAD, or a request, counts as something sent there. Only to a built-in
-/// provider's own host at its default address (`isBuiltIn`: the Claude API's, the Gemini API's, OpenAI's,
-/// `bedrock-runtime.<region>.amazonaws.com`), never a base URL of the user's, never the hosted service; and only to one a
-/// real request has succeeded at before (`WarmOrigins`). Nothing of a key, the keychain, the environment or the AWS files
-/// is read for it. One for each session (`BedrockClient`).
+/// the request goes. One an idle period: a HEAD, or a request, counts as something sent there. Only for a provider at its
+/// own default base URL (`isDefault`), to its host (`isBuiltIn`: the Claude API's, the Gemini API's, OpenAI's,
+/// `bedrock-runtime.<region>.amazonaws.com`): never for a base URL of the user's, even one on another built-in provider's
+/// host, never the hosted service; and only to one a real request has succeeded at before (`WarmOrigins`). Nothing of a
+/// key, the keychain, the environment or the AWS files is read for it. Made ready off the session's thread (`ready`), it
+/// starts only once the session has checked again that it may (`InputSession.warmDue`). One for each session
+/// (`BedrockClient`).
 public final class ConnectionWarmth: Sendable {
     /// A service nothing went to for this long is idle: its connection may be gone by the time the request goes.
     public static let idle: TimeInterval = 90
@@ -55,6 +57,15 @@ public final class ConnectionWarmth: Sendable {
             sent[origin] = time
             return true
         }
+    }
+
+    /// Where the HEAD for `url` goes (`headURL`), if one may go now: a request succeeded there before and nothing went there
+    /// in the last `idle`. Nothing is marked sent: `warm` does it as the HEAD starts. What a request succeeded at may be
+    /// read from its file the first time (`WarmOrigins`): off the session's thread.
+    func ready(_ url: URL) -> URL? {
+        guard let head = Self.headURL(url), let origin = Self.origin(head), succeeded.knows(origin) else { return nil }
+        let time = now()
+        return sent.withLock { sent in sent[origin].map { time - $0 >= Self.idle } ?? true } ? head : nil
     }
 
     /// The HEAD to `url`'s origin on `session`, where it is due (`due`), off the caller's thread: never redirected (as no
@@ -101,6 +112,21 @@ public final class ConnectionWarmth: Sendable {
         guard host.hasPrefix(prefix), host.hasSuffix(suffix), host.count > prefix.count + suffix.count else { return false }
         let region = host.dropFirst(prefix.count).dropLast(suffix.count)
         return (try? BedrockClient.origin(region: String(region)))?.host == host
+    }
+
+    /// Whether `base`, `provider`'s base URL in the settings, is the provider's own default one
+    /// (`ProviderSettings.defaults`), with or without a "/" after it, its scheme and host in any case: a base URL of the
+    /// user's is never warmed, not even one on another built-in provider's host (Anthropic's set to OpenAI's address).
+    static func isDefault(_ base: String, for provider: Provider) -> Bool {
+        func address(_ text: String) -> String? {
+            let trimmed = text.trimmingCharacters(in: CharacterSet(charactersIn: "/ "))
+            guard let url = URL(string: trimmed), let scheme = url.scheme?.lowercased(), let host = url.host?.lowercased(),
+                  url.user == nil, url.password == nil, url.query == nil, url.fragment == nil, url.port == nil || url.port == 443
+            else { return nil }
+            return "\(scheme)://\(host)\(url.path)"
+        }
+        guard let own = ProviderSettings.defaults(for: provider).baseURL.flatMap(address) else { return false }
+        return address(base) == own
     }
 
     /// "scheme://host:port" of `url`, lowercased: what a connection is kept for.
@@ -185,31 +211,51 @@ public final class WarmOrigins: Sendable {
     }
 }
 
+/// A cloud provider's connection to open ahead of a request, as the settings gave it when it was asked for
+/// (`Converter.warmTarget`): checked again right before its HEAD starts (`InputSession.warmDue`).
+public struct WarmTarget: Equatable, Sendable {
+    public let provider: Provider
+    /// Its base URL (its own default one); for Bedrock the region the settings name (nil: none named).
+    let address: String?
+}
+
 extension Converter {
-    /// `provider`'s connection opened ahead of a request (`ConnectionWarmth`): to its base URL where that is the
-    /// provider's own at its default address (Bedrock: its region's endpoint, the region the settings name, else the one
-    /// a request succeeded at last), and a request succeeded there before. Nothing for a base URL of the user's, the
-    /// hosted service or the on-device model. Off the caller's thread; nothing is waited for, and nothing read but what
-    /// the warm-up remembers (`WarmOrigins`).
-    public func warmConnection(to provider: Provider, config: Config) {
-        let (warmth, session) = (client.bedrock.warmth, client.session)
+    /// What `provider`'s connection would be opened for, as `config` sets it (`ConnectionWarmth`): its base URL where that
+    /// is the provider's own default one (`ConnectionWarmth.isDefault`); Bedrock's region, as the settings name it. Nil
+    /// for a base URL of the user's (also on another built-in provider's host), the hosted service or the on-device model.
+    /// Nothing is read but `config`.
+    public static func warmTarget(_ provider: Provider, config: Config) -> WarmTarget? {
         switch provider {
         case .anthropic, .gemini, .openai:
             let base = (config.settings(for: provider).baseURL ?? "").trimmingCharacters(in: CharacterSet(charactersIn: "/ "))
-            guard let url = URL(string: base), ConnectionWarmth.headURL(url) != nil else { return }
-            Task.detached(priority: .utility) { warmth.warm(url, session: session) }
+            guard ConnectionWarmth.isDefault(base, for: provider), let url = URL(string: base), ConnectionWarmth.headURL(url) != nil
+            else { return nil }
+            return WarmTarget(provider: provider, address: base)
         case .bedrock:
             let region = config.region?.trimmingCharacters(in: .whitespaces)
-            Task.detached(priority: .utility) {
-                let named = region.flatMap { $0.isEmpty ? nil : try? BedrockClient.origin(region: $0) }
-                let last = warmth.succeeded.latest { origin in
-                    URL(string: origin).flatMap { $0.host }.map { $0.hasPrefix("bedrock-runtime.") } ?? false
-                }
-                guard let url = named ?? last.flatMap(URL.init(string:)) else { return }
-                warmth.warm(url, session: session)
-            }
+            return WarmTarget(provider: .bedrock, address: region?.isEmpty == false ? region : nil)
         case .hosted, .apple:
-            return
+            return nil
         }
+    }
+
+    /// Where the HEAD for `target` goes, where one may go now (`ConnectionWarmth.ready`: a request succeeded there before,
+    /// nothing went there lately): to its base URL's origin; Bedrock's to its region's endpoint, the region named, else
+    /// the one a request succeeded at last. Nothing is sent, and nothing read but what the warm-up remembers (from its
+    /// file the first time: off the session's thread).
+    public func warmHead(for target: WarmTarget) -> URL? {
+        let warmth = client.bedrock.warmth
+        guard target.provider == .bedrock else { return target.address.flatMap(URL.init(string:)).flatMap(warmth.ready) }
+        let named = target.address.flatMap { try? BedrockClient.origin(region: $0) }
+        let last = warmth.succeeded.latest { origin in
+            URL(string: origin).flatMap { $0.host }.map { $0.hasPrefix("bedrock-runtime.") } ?? false
+        }
+        return (named ?? last.flatMap(URL.init(string:))).flatMap(warmth.ready)
+    }
+
+    /// The HEAD to `head` (`warmHead`) started now, where it is still due, off the caller's thread: the session checked
+    /// right before that it may go (`InputSession.warmDue`). Nothing is waited for.
+    public func startWarm(_ head: URL) {
+        client.bedrock.warmth.warm(head, session: client.session)
     }
 }

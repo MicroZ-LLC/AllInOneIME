@@ -32,29 +32,10 @@ enum TerminalPaste {
 
     @MainActor private static var asked = false
 
-    /// Whether `event` is a ⌘V posted by `paste`, a ⌃V by `postControlV`, or a key given to the app by `post`
-    /// (`KeysOnTheWay.Mark.passed`): it goes through untouched. Not a key replayed (`mark`): that one is answered as typed.
+    /// Whether `event` is a ⌘V posted by `paste`, or a ⌃V by `postControlV`.
     static func isOurs(_ event: NSEvent) -> Bool {
-        event.cgEvent.map(isOurs) ?? false
+        event.cgEvent?.getIntegerValueField(.eventSourceUserData) == marker
     }
-
-    static func isOurs(_ event: CGEvent) -> Bool {
-        let data = event.getIntegerValueField(.eventSourceUserData)
-        if case .passed? = KeysOnTheWay.Mark(userData: data) { return true }
-        return data == marker
-    }
-
-    /// The mark of a key posted by `post` (nil: one typed, or another of ours).
-    static func mark(of event: NSEvent) -> KeysOnTheWay.Mark? {
-        event.cgEvent.flatMap(mark)
-    }
-
-    static func mark(of event: CGEvent) -> KeysOnTheWay.Mark? {
-        KeysOnTheWay.Mark(userData: event.getIntegerValueField(.eventSourceUserData))
-    }
-
-    /// Whether keys can be posted (Accessibility allowed): never asked for here.
-    static var canPost: Bool { AXIsProcessTrusted() }
     /// ⌃V to the app, marked as ours (`isOurs`), once no modifier is held: the app's own paste in a terminal or a code
     /// editor (clipboard history's image, ⌃V again).
     @MainActor
@@ -80,45 +61,6 @@ enum TerminalPaste {
         let held: CGEventFlags = [.maskCommand, .maskAlternate, .maskControl, .maskShift]
         for _ in 0..<50 where !CGEventSource.flagsState(.hidSystemState).intersection(held).isEmpty {
             try? await Task.sleep(nanoseconds: 20_000_000)
-        }
-    }
-
-    /// `key` (its key code and modifiers) down and up, carrying `mark`: one given to the app goes through the input
-    /// method (`isOurs`), one replayed comes back to it as typed (`PlatformAction.passKey`, `.replayKey`).
-    @MainActor
-    static func post(_ key: KeyEvent, mark: KeysOnTheWay.Mark) {
-        var flags: CGEventFlags = []
-        if key.modifiers.contains(.shift) { flags.insert(.maskShift) }
-        if key.modifiers.contains(.control) { flags.insert(.maskControl) }
-        if key.modifiers.contains(.option) { flags.insert(.maskAlternate) }
-        if key.modifiers.contains(.command) { flags.insert(.maskCommand) }
-        post(key.keyCode, flags: flags, characters: nil, isRepeat: key.isRepeat, mark: mark)
-    }
-
-    /// A key typed while one posted is on its way (`KeysOnTheWay.Answer.behind`) posted behind it as it was typed (its
-    /// key code, modifiers and characters), down and up, replayed (`mark`); a new event, with its own time, so that it is
-    /// never taken for the same key handed over twice (`KeyEchoes`).
-    @MainActor
-    static func post(behind event: CGEvent, mark: KeysOnTheWay.Mark) {
-        var length = 0
-        var characters = [UniChar](repeating: 0, count: 16)
-        event.keyboardGetUnicodeString(maxStringLength: characters.count, actualStringLength: &length, unicodeString: &characters)
-        post(CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode)), flags: event.flags,
-             characters: Array(characters.prefix(length)), isRepeat: event.getIntegerValueField(.keyboardEventAutorepeat) != 0, mark: mark)
-    }
-
-    @MainActor
-    private static func post(_ keyCode: CGKeyCode, flags: CGEventFlags, characters: [UniChar]?, isRepeat: Bool, mark: KeysOnTheWay.Mark) {
-        let source = CGEventSource(stateID: .privateState)
-        for down in [true, false] {
-            let event = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: down)
-            event?.flags = flags
-            if var characters, !characters.isEmpty {
-                event?.keyboardSetUnicodeString(stringLength: characters.count, unicodeString: &characters)
-            }
-            if isRepeat { event?.setIntegerValueField(.keyboardEventAutorepeat, value: 1) }
-            event?.setIntegerValueField(.eventSourceUserData, value: mark.userData)
-            event?.post(tap: .cghidEventTap)
         }
     }
 

@@ -30,9 +30,9 @@ public enum SessionEvent: Sendable {
     /// password field where secure input isn't on; nil: the shell couldn't tell (the Mac: no Accessibility, nothing
     /// focused, no answer in time), unknown, never none. One for a field that has lost the focus since is dropped.
     case passwordField(Bool?, focus: Int)
-    /// The selection read after the "@" key (`SessionOutput.readSelection`) in the field that had the focus then
-    /// (`focus`); nil: none. One for a field that has lost the focus since is dropped.
-    case selection(Composer.Selection?, focus: Int)
+    /// The selection read after the "@" key (`SessionOutput.readSelection`, its `id`); nil: none. One the draft no longer
+    /// waits for (the field lost the focus, the draft ended, a key went on without it) is dropped.
+    case selection(Composer.Selection?, id: Int)
     /// What the session's work answers (`SessionTasks`).
     case task(TaskID, TaskUpdate)
     /// A timer the session started (`SessionOutput.startTimer`) went off.
@@ -123,8 +123,9 @@ public enum SessionOutput: Equatable, Sendable {
     /// as `SessionEvent.passwordField` with `focus`. A shell that can't tell answers nil.
     case readPasswordField(focus: Int)
     /// Read the selection off the session's thread, as the key couldn't (`FieldContext.selectionFollows`: the Mac's
-    /// Accessibility, a quarter of a second a call), and hand it back as `SessionEvent.selection` with `focus`.
-    case readSelection(focus: Int)
+    /// Accessibility, a quarter of a second a call), and hand it back as `SessionEvent.selection` with `id`; and to a key
+    /// that waits for it on the session's thread (`SessionServices.awaitSelection`), without that thread's help.
+    case readSelection(id: Int)
     /// Autocomplete's suggestion (`Autocomplete`): `text` in gray right after the caret (where the caret can't be placed,
     /// a line of the candidate panel), until the next one; nil: none. Shown again as the caret moves (typed along).
     case ghost(String?)
@@ -175,14 +176,6 @@ public enum PlatformAction: Equatable, Sendable {
     /// A kept image (`ClipboardHistoryImage.id`) pasted: put on the clipboard and the app's paste key posted, the clipboard
     /// put back after; where the key can't be posted, left on the clipboard for the user's own paste (0.6.8.2).
     case pasteImage(id: String)
-    /// `key` to the app, posted marked as the input method's own so it goes through: a key that waited for the selection
-    /// read after the "@" key and that the input method didn't take then (`Composer.Effect.passKey`). A shell that can't
-    /// post one drops it. Until the app has it, every key typed goes behind it (`KeysOnTheWay`), never ahead.
-    case passKey(KeyEvent)
-    /// `key` to the input method again, behind the keys posted before it (`passKey`): one that waited for the selection
-    /// read after one given to the app (`Composer.Effect.replayKey`), posted marked as replayed so that it comes back as
-    /// typed, at its place (`KeysOnTheWay`). A shell that can't post one hands it to the session at once.
-    case replayKey(KeyEvent)
 }
 
 /// Dictation `id`, as the platform hears it.
