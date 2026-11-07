@@ -53,31 +53,55 @@ public enum ChineseCharacters: String, Codable, CaseIterable, Sendable {
     /// Japanese (any kana) is nil too: its kanji are neither (日本の学校 reads Simplified, 日本語の勉強 Traditional).
     ///
     /// It reads characters, not the writer: Simplified text that keeps a Traditional form by right (乾 in 乾隆) leans
-    /// Traditional, and text with no telling characters goes by the setting (`OutputLanguage.of`).
-    public static func writtenTraditional(_ text: String, limit: Int = 400) -> Bool? {
+    /// Traditional, and text with no telling characters goes by the setting (`OutputLanguage.of`). For a user typing in
+    /// `chinese`, the forms those write as Simplified does (`simplifiedAlike`: Hong Kong's 温, 户, 着, both Traditional
+    /// ones' 沉, 喂) don't count as Simplified: Hong Kong's 今日温度好高 can't tell, and is theirs.
+    public static func writtenTraditional(_ text: String, chinese: ChineseCharacters = .simplified, limit: Int = 400) -> Bool? {
         let text = String(text.prefix(limit))
         guard text.containsHan, !text.unicodeScalars.contains(where: isKana) else { return nil }
-        if let told = lastTold.withLock({ $0 }), told.text == text { return told.traditional }
-        let simplified = changed(text, by: "Hans-Hant"), traditional = changed(text, by: "Hant-Hans")
+        if let told = lastTold.withLock({ $0 }), told.text == text, told.chinese == chinese { return told.traditional }
+        let simplified = changed(text, by: "Hans-Hant", except: chinese.simplifiedAlike)
+        let traditional = changed(text, by: "Hant-Hans")
         let answer = simplified == traditional ? nil : traditional > simplified
-        lastTold.withLock { $0 = (text, answer) }
+        lastTold.withLock { $0 = (text, chinese, answer) }
         return answer
     }
 
-    /// The text `writtenTraditional` told last, and what it said.
-    private static let lastTold = Locked<(text: String, traditional: Bool?)?>(initialState: nil)
+    /// The text `writtenTraditional` told last, for whom, and what it said.
+    private static let lastTold = Locked<(text: String, chinese: ChineseCharacters, traditional: Bool?)?>(initialState: nil)
+
+    /// The forms these characters write as Simplified does, which ICU's Hans-Hant transform makes Traditional all the
+    /// same: the characters their OpenCC config (`openCCConfig`) leaves as they are. Both Traditional ones keep 沉, 喂,
+    /// 舍, which OpenCC's STCharacters doesn't change (ICU: 沈, 餵, 捨). Hong Kong's keeps 着, 泄, 睾 too, which only
+    /// Taiwan's variants (TWVariants) change, and its own variants (HKVariants, the last step of s2hk) write 温, 户, 税
+    /// where Taiwan writes 溫, 戶, 稅.
+    var simplifiedAlike: Set<Unicode.Scalar> {
+        switch self {
+        case .simplified: return []
+        case .taiwan: return Self.traditionalAlike
+        case .hongkong: return Self.hongKongAlike
+        }
+    }
+
+    /// What STCharacters leaves as it is (s2twp and s2hk write it so) and Hans-Hant changes.
+    private static let traditionalAlike = Set("沉喂舍挽杆彷漓礴坂吣埯岙漤鼗鿭".unicodeScalars)
+
+    /// Those, what TWVariants alone changes, and HKVariants' forms (the first of each, which s2hk writes) that Hans-Hant
+    /// changes.
+    private static let hongKongAlike = traditionalAlike.union("着泄睾温户税脱悦卧葱兑囱叁愠揾氲蜕媪煴捝棁榅腽".unicodeScalars)
 
     /// Hiragana or katakana, the halfwidth ones too.
     private static func isKana(_ scalar: Unicode.Scalar) -> Bool {
         (0x3040...0x30FF).contains(scalar.value) || (0xFF66...0xFF9F).contains(scalar.value)
     }
 
-    /// How many characters of `text` ICU's transform `id` changes (as many as it has when their number changes).
-    private static func changed(_ text: String, by id: String) -> Int {
+    /// How many characters of `text` ICU's transform `id` changes (as many as it has when their number changes), but
+    /// those in `kept`.
+    private static func changed(_ text: String, by id: String, except kept: Set<Unicode.Scalar> = []) -> Int {
         guard let other = text.applyingTransform(StringTransform(rawValue: id), reverse: false) else { return 0 }
         let (before, after) = (Array(text.unicodeScalars), Array(other.unicodeScalars))
         guard before.count == after.count else { return other == text ? 0 : before.count }
-        return zip(before, after).filter { $0 != $1 }.count
+        return zip(before, after).filter { $0 != $1 && !kept.contains($0) }.count
     }
 
     // MARK: Rime
@@ -219,13 +243,14 @@ extension OutputLanguage {
     }
 
     /// The language `text` is written in (`language`, as `Language.of` tells it), Chinese by its own characters when they
-    /// tell (`ChineseCharacters.writtenTraditional`): in Simplified ones "zh", in Traditional ones the characters typed
-    /// (`chinese`) when those are Traditional too ("zh-Hant-TW"), else "zh-Hant"; when they don't (香港很美), in the
-    /// characters typed. For text the user didn't just type, which may be in either (a selection, the clipboard, a page
-    /// from the mainland): a Taiwan user's Simplified text is translated into Traditional Chinese, a Simplified user's
-    /// Traditional text into Simplified Chinese.
+    /// tell (`ChineseCharacters.writtenTraditional`, the forms the characters typed write as Simplified does not telling):
+    /// in Simplified ones "zh", in Traditional ones the characters typed (`chinese`) when those are Traditional too
+    /// ("zh-Hant-TW"), else "zh-Hant"; when they don't (香港很美, a Hong Kong user's 今日温度好高), in the characters typed.
+    /// For text the user didn't just type, which may be in either (a selection, the clipboard, a page from the mainland):
+    /// a Taiwan user's Simplified text is translated into Traditional Chinese, a Simplified user's Traditional text into
+    /// Simplified Chinese.
     public static func of(_ text: String, language: Language, chinese: ChineseCharacters) -> OutputLanguage {
-        guard language == .chinese, let traditional = ChineseCharacters.writtenTraditional(text) else {
+        guard language == .chinese, let traditional = ChineseCharacters.writtenTraditional(text, chinese: chinese) else {
             return OutputLanguage(language, chinese: chinese)
         }
         if !traditional { return .chinese }
