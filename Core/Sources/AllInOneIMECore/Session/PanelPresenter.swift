@@ -76,6 +76,14 @@ public struct PanelPresenter {
     /// The action key, as `terms` call it.
     private func name(_ key: ActionKey) -> String { t.name(key, terms: terms) }
 
+    /// The model that writes the AI's results, by the name the settings give it ("Claude Haiku 4.5"); "AI" for one they
+    /// don't name.
+    private var modelName: String {
+        let config = config.applying(app: app)
+        if config.provider == .apple { return "Apple Intelligence" }
+        return SuggestedModel.suggested(for: config.provider).first { $0.id == config.modelId }?.title ?? "AI"
+    }
+
     /// The time the last result took ("1.2s"), or that it was cached.
     private var time: String? { fromCache ? t.tr("缓存", "cached") : elapsed.map { String(format: "%.1fs", $0) } }
 
@@ -94,6 +102,8 @@ public struct PanelPresenter {
         var model = PanelModel()
         let config = config
         let copy = terms.copy, paste = terms.paste, enter = terms.enter, shiftEnter = terms.shiftEnter, backspace = terms.backspace
+        // The footer's keys as most results have them (`PanelModel.hints`): ⏎ inserts, ⌘C copies.
+        let insert = PanelModel.Hint(enter, t.tr("上屏", "insert")), copyHint = PanelModel.Hint(copy, t.tr("复制", "copy"))
         // An @question conversation: its questions and answers, the next question's line.
         if composer.isQuestionChat, !composer.refineIsComposing { return chatModel(for: composer) }
         if composer.refineIsComposing {
@@ -116,14 +126,15 @@ public struct PanelPresenter {
                 switch choice.kind {
                 case .original:
                     return Row(label: choice.label, text: SessionText.preview(choice.text), comment: t.tr("原文", "original"),
-                               kind: .original)
+                               kind: .original, action: t.tr("保留原文", "Keep original"))
                 case .version:
                     return Row(label: choice.label, text: SessionText.preview(choice.text), kind: .translation,
                                isComplete: choice.isComplete)
                 case let .translation(code):
+                    let language = t.name(OutputLanguage(code))
                     return Row(label: choice.label, text: SessionText.preview(choice.text),
-                               comment: t.name(OutputLanguage(code)), kind: .translation,
-                               isComplete: choice.isComplete)
+                               comment: language, kind: .translation,
+                               isComplete: choice.isComplete, tag: Row.Tag(text: language))
                 case let .rewrite(style):
                     // A jargon (黑话) line notes what the terms from the user's jargon list in it mean.
                     let note = style == RewriteStyle.jargonName
@@ -131,7 +142,8 @@ public struct PanelPresenter {
                     let name = RewriteStyle.named(style).map(t.name) ?? style
                     return Row(label: choice.label, text: SessionText.preview(choice.text),
                                comment: note.map { "\(name) · \($0)" } ?? name,
-                               kind: .translation, isComplete: choice.isComplete)
+                               kind: .translation, isComplete: choice.isComplete,
+                               tag: Row.Tag(text: name, tint: RewriteStyle.named(style)?.tag ?? ""))
                 case .answer:
                     // A program's output may have several lines; they are inserted as printed. A script's summary
                     // has its detail beside it.
@@ -203,6 +215,14 @@ public struct PanelPresenter {
                     t.tr("按「\(SessionText.preview($0, limit: 40))」修改中…", "Refining: \(SessionText.preview($0, limit: 40))…")
                 }
                 model.status = choices.count <= 1 ? .loading(composer.isRefining ? refining ?? loading : loading) : .none
+                // An AI writing versions (or an answer): their places held until they are in, three at most (one answer),
+                // and who writes them; Esc cancels (back to the draft).
+                let writing = command == nil || command?.kind == .convert, answering = command?.kind == .generate && command?.script == nil
+                if writing || answering, !composer.isRefining, choices.first?.kind == .original {
+                    model.pending = max(0, (writing ? 3 : 1) - (choices.count - 1))
+                    model.note = t.tr("\(modelName) 在写…", "\(modelName) is writing…")
+                    model.hints = [PanelModel.Hint("Esc", t.tr("取消", "cancel"))]
+                }
                 model.footer = command == .open ? t.tr("搜索中… · Esc 返回", "Searching… · Esc back")
                     : command?.kind == .link ? t.tr("完成后在浏览器打开 · Esc 返回", "Opens in the browser when done · Esc back")
                     : command?.script?.output == .show
@@ -226,6 +246,7 @@ public struct PanelPresenter {
                 // @reply's three: ⌘R three more; a letter starts an instruction for them, as for any AI's results.
                 model.footer = t.tr("\(terms.again) 再写三条 · 打字后 \(shiftEnter) 修改 · 空格 / \(enter) 上屏 · 数字选择 · Esc 返回",
                                     "\(terms.again) three more · Type, \(shiftEnter) refine · Space / \(enter) insert · digits pick · Esc back")
+                model.hints = [insert, PanelModel.Hint(terms.again, t.tr("再写三条", "three more"))]
                 model.detail = time
             case .choosing where command == .tasks:
                 model.footer = terms.terminal == .terminalApp
@@ -233,12 +254,16 @@ public struct PanelPresenter {
                            "\(enter) open in Terminal · digits pick · \(copy) copy the reply · Esc back")
                     : t.tr("\(enter) 在终端打开 · 数字选择 · \(copy) 复制回复 · Esc 返回",
                            "\(enter) open in a terminal · digits pick · \(copy) copy the reply · Esc back")
+                model.hints = [PanelModel.Hint(enter, t.tr("打开", "open")), PanelModel.Hint(copy, t.tr("复制回复", "copy the reply"))]
             case .choosing where command?.script != nil:
                 let picks = composer.choices.contains { if case .item = $0.kind { return true } else { return false } }
                 model.footer = command?.script?.output == .show && !picks
                     ? t.tr("\(enter) 关闭 · \(copy) 复制全部 · Esc 返回", "\(enter) close · \(copy) copy all · Esc back")
                     : picks ? t.tr("\(enter) 选中这一项 · 数字选择 · \(copy) 复制 · Esc 返回", "\(enter) pick · digits pick · \(copy) copy · Esc back")
                     : t.tr("空格 / \(enter) 上屏 · 数字选择 · \(copy) 复制 · Esc 返回", "Space / \(enter) insert · digits pick · \(copy) copy · Esc back")
+                model.hints = command?.script?.output == .show && !picks
+                    ? [PanelModel.Hint(enter, t.tr("关闭", "close")), PanelModel.Hint(copy, t.tr("复制全部", "copy all"))]
+                    : [picks ? PanelModel.Hint(enter, t.tr("选中这一项", "pick")) : insert, copyHint]
                 model.detail = elapsed.map { String(format: "%.1fs", $0) }
             case .choosing:
                 model.footer = command == .open
@@ -258,6 +283,11 @@ public struct PanelPresenter {
                              "Type, \(shiftEnter) refine · Space / \(enter) insert · digits pick · 0 original · Esc previous"))
                     : t.tr("空格 / \(enter) 上屏 · 数字选择 · 0 原文 · \(copy) 复制 · Esc 返回",
                            "Space / \(enter) insert · digits pick · 0 original · \(copy) copy · Esc back")
+                model.hints = command == .open ? [PanelModel.Hint(enter, t.tr("打开", "open")), PanelModel.Hint(copy, t.tr("复制路径", "copy path"))]
+                    : command == .reminder ? [PanelModel.Hint(enter, t.tr("加到提醒事项", "add to Reminders")), copyHint]
+                    : composer.refineLine != nil ? [PanelModel.Hint(shiftEnter, t.tr("修改", "refine")), insert]
+                    : composer.canRefine && !composer.refineHistory.isEmpty ? [insert, PanelModel.Hint("Esc", t.tr("上一版", "previous"))]
+                    : [insert, copyHint]
                 // A refine that failed: the results before it stay, its instruction back in the line.
                 if let error = composer.refineError { model.status = .error(error) }
                 if command != .open && command != .reminder {
@@ -418,6 +448,7 @@ public struct PanelPresenter {
         // first).
         if composer.oneAt != nil, composer.engineState.isComposing {
             model.candidates = composer.engineState.candidates.map { "\($0.label) \($0.text)" }.joined(separator: "   ")
+            model.candidatesHint = PanelModel.Hint(t.tr("空格", "Space"), t.tr("选词", "picks a word"))
         }
         // A click on a row picks what its number would.
         for index in model.rows.indices { model.rows[index].choice = index }
@@ -444,6 +475,8 @@ public struct PanelPresenter {
                 : t.tr("\(enter) 原样输入 · Esc 原样输入", "\(enter) types it as typed · Esc as typed")
         } else if composer.engineState.isComposing {
             model.footer = t.tr("空格 选词 · \(enter) 执行选中的一行 · ↑↓ 选择", "Space picks a word · \(enter) do the highlighted row · ↑↓ choose")
+            // While pinyin is composed → is the engine's: Esc gives the keys back.
+            model.hints = [PanelModel.Hint("Esc", t.tr("交还给 App", "back to the app"))]
         } else if composer.selection != nil {
             model.footer = t.tr("\(enter) 执行 · ↑↓ 选择 · Esc 取消，选中的文字不变", "\(enter) do it · ↑↓ choose · Esc cancel, the selection stays")
         } else if lone {
@@ -452,6 +485,10 @@ public struct PanelPresenter {
                                 "Type a command's name, or what you want · \(enter) / Tab picks · ↑↓ · Esc cancel")
         } else {
             model.footer = t.tr("\(enter) 执行 · ↑↓ 选择 · Esc 原样输入", "\(enter) do it · ↑↓ choose · Esc as typed")
+        }
+        // → gives the keys back (the text as typed, → on in the app); ⏎ is said on the highlighted row (`Row.action`).
+        if !all.isEmpty || composer.selection != nil, !composer.engineState.isComposing {
+            model.hints = [PanelModel.Hint("→", t.tr("交还给 App", "back to the app"))]
         }
     }
 
@@ -462,28 +499,35 @@ public struct PanelPresenter {
         func named(_ command: Command) -> String { trigger + command.name }
         switch action {
         case let .command(command):
-            // The name alone, as the command list shows it; its summary's examples written with the trigger in use.
+            // The name alone, as the command list shows it; its summary's examples written with the trigger in use. ⏎ picks
+            // it, or runs one that takes no text. A built-in's name says enough: its summary may be left out.
+            let runs = command.script?.input == ScriptCommand.Input.none
             return Row(label: "", text: command.name,
                        comment: Self.withTrigger(t.summary(command, status: command.script.flatMap(scriptStatus), terms: terms), trigger),
-                       kind: .candidate, icon: IconToken.command(command))
+                       kind: .candidate, icon: IconToken.command(command), action: runs ? t.tr("运行", "run") : t.tr("选择", "choose"),
+                       commentDescribes: Command.builtins.contains(command))
         case let .value(value):
-            return Row(label: "", text: "= " + value, comment: t.tr("上屏", "insert"), kind: .candidate)
+            // The sum it answers, before it.
+            let sum = (composer.oneAt?.text ?? "").trimmingCharacters(in: .whitespaces)
+            return Row(label: "", text: "= " + value, comment: t.tr("上屏", "insert"), kind: .candidate, action: t.tr("上屏", "insert"),
+                       lead: sum.isEmpty ? nil : sum)
         case let .open(result):
             let row = SessionText.openRow(result, language: language, terms: terms)
             // An app, a folder or a file with its own icon; a web address with `@open`'s.
             return Row(label: "", text: t.tr("打开 \(row.text)", "Open \(row.text)"), comment: row.comment + " · " + named(.open),
-                       kind: .candidate, icon: IconToken.item(result) ?? IconToken.command(.open))
+                       kind: .candidate, icon: IconToken.item(result) ?? IconToken.command(.open), action: t.tr("打开", "open"))
         case let .reminder(reminder):
             // When as read, as the system shows times (「明天 15:00」 or 「明天 下午3:00」), as `@reminder`'s row says it.
             let when = t.when(reminder)
             return Row(label: "", text: t.tr("提醒：\(when) \(reminder.title)", "Reminder: \(when) \(reminder.title)"),
-                       comment: named(.reminder), kind: .candidate, icon: IconToken.command(.reminder))
+                       comment: named(.reminder), kind: .candidate, icon: IconToken.command(.reminder),
+                       action: t.tr("加到提醒事项", "add to Reminders"))
         case let .write(command):
             return Row(label: "", text: oneAtWriting(command, composer), comment: named(command), kind: .candidate,
-                       icon: IconToken.command(command))
+                       icon: IconToken.command(command), action: t.tr("执行", "do it"))
         case .edit:
             return Row(label: "", text: t.tr("按这句话改选中的文字", "Rewrite the selection as it says"), comment: named(.improve),
-                       kind: .candidate, icon: IconToken.command(.improve))
+                       kind: .candidate, icon: IconToken.command(.improve), action: t.tr("执行", "do it"))
         }
     }
 

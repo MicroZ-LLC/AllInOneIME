@@ -1029,7 +1029,8 @@ struct FloatingPanelView: View {
     @ObservedObject var extensionSources: ExtensionSourceController = .shared
     @Environment(\.colorScheme) private var scheme
 
-    private static let cornerRadius: CGFloat = 14
+    /// As the candidate panel's (`CandidateView.Metrics.cornerRadius`): one look.
+    private static let cornerRadius: CGFloat = CandidateView.Metrics.cornerRadius
     /// Frosted glass (what's behind the window, blurred). Off for the self-test's images: an offscreen
     /// rendering has nothing behind it, so they show the solid color instead.
     static var glass = true
