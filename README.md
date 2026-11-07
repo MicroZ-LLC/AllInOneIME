@@ -358,9 +358,10 @@ link: `@sig` ⏎ puts it in at once (Tab or Space only complete the name). Its `
 - Write `@sig` inside another command's text to include it: `@question summarize this @zoom` sends the link itself. Only
   snippets with no `{clipboard}`, `{selection}` or blanks work there; with `{input}`, it's one word or a quoted phrase:
   `@meet「Friday 3pm」`.
-- Plain text only (line breaks kept), at most 20,000 characters. In a terminal a snippet of several lines goes in as one
-  paste with Accessibility allowed and Paste from Other Apps set to Allow (your clipboard is put back after), else on
-  one line (a line break typed there would run the line), as clipboard history's rows and the AI's answers do. Snippets stay on this Mac, so they work during secure
+- Plain text only (line breaks kept), at most 20,000 characters. In a terminal a snippet of several lines or with a tab
+  goes in as one paste with Accessibility allowed and Paste from Other Apps set to Allow (your clipboard is put back
+  after), else on one line with tabs as spaces (a line break typed there would run the line, a tab would complete it),
+  as clipboard history's rows and the AI's answers do. Snippets stay on this Mac, so they work during secure
   input and in apps set to No AI. Extension bundles can ship them too (`snippets` in `extension.json`, see
   [docs/extensions.md](docs/extensions.md)).
 
@@ -1033,8 +1034,10 @@ suggestions use, and puts in the one you choose.
   in, one per line, in the order you copied them (oldest first).
 - **What goes in:** the text as you copied it, typed in (the clipboard is unchanged), the way suggestion rows go in, so
   ⏎ in Slack, Chrome and other apps built on Chromium or Electron doesn't send the message. In a terminal, text of more
-  than one line goes in as one paste (with Accessibility allowed, and Paste from Other Apps set to Allow so that your
-  clipboard can be put back), never line by line; without them, on one line, and your clipboard is left alone. The
+  than one line or with a tab (a Makefile line, cells copied from a spreadsheet) goes in as one paste (with
+  Accessibility allowed, and Paste from Other Apps set to Allow so that your clipboard can be put back), never typed in,
+  so the shell neither runs a line nor completes on a tab; without them, on one line with tabs as spaces, and your
+  clipboard is left alone. The
   same when your clipboard holds a copy from another device (Universal Clipboard) or one its app is slow to hand over:
   typing never waits for it.
 - **The keys stay with the panel, in every app (0.6.8.1):** with Accessibility allowed, the input method takes the keys

@@ -60,8 +60,8 @@ import Foundation
 //   puts that row in, alone.
 // - What goes in: the rows selected that are text, in the order they were copied (oldest first: the reverse of the
 //   rows'), each without the line breaks at its end, joined with "\n"; one row: its text as it was copied. Outside a
-//   command a `commit` (the shell's rows' insertion path: in a terminal with line breaks a paste where it can paste,
-//   `SessionServices.pastesInTerminal`, else the lines made one, `Composer.oneLine`); the clipboard itself unchanged. In a
+//   command a `commit` (the shell's rows' insertion path: in a terminal with line breaks or tabs a paste where it can
+//   paste, `SessionServices.pastesInTerminal`, else on one line, `Composer.oneLine`); the clipboard itself unchanged. In a
 //   command the composer takes it as ⌃V takes the clipboard (`Composer.pasteAnywhere(_:)`: lines made one, 2,000
 //   characters; `@note` keeps its lines, 20,000; `@reply` takes it as the message). The image row: outside a command,
 //   with `canPassPasteKey`, `PlatformAction.passPasteKey` (the shell posts the app's paste key marked as its own: ⌘V in

@@ -2203,6 +2203,13 @@ public final class Composer {
         return out
     }
 
+    /// Whether `text` typed into a terminal would do something there besides go in: a line break is Return (the shell
+    /// runs the line), a tab completion, another control character a key of its own (ESC, ^C, ^D: an empty shell
+    /// closes). What `oneLine` takes out.
+    public static func actsInTerminal(_ text: String) -> Bool {
+        text.unicodeScalars.contains { [.control, .lineSeparator, .paragraphSeparator].contains($0.properties.generalCategory) }
+    }
+
     /// Chinese, Japanese and Korean characters and full-width punctuation: no space between lines of them.
     static func isCJK(_ c: Character) -> Bool {
         guard let v = c.unicodeScalars.first?.value else { return false }
