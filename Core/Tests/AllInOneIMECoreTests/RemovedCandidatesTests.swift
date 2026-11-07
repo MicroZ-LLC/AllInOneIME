@@ -1341,6 +1341,18 @@ struct RemovedCandidatesStorageTests {
         #expect(RemovedCandidates.keys(["Bedrock", "鸡虎", "😂", "GitHub Pages", "2026-11-03"]) == ["bedrock", "githubpages"])
     }
 
+    /// Where librime's filter can't tell (`RimeSession.deleteCandidate` without it), a candidate with no letter or digit
+    /// isn't a word to ask librime to delete: an emoji (one of several code points too), a symbol, a radical that is one.
+    /// Any with a letter or digit of any script may be, and one this Mac doesn't know yet.
+    @Test func whatMayBeAWordByItsTextAlone() {
+        for emoji in ["👏", "🔑", "🗝", "👨‍👩‍👧", "✈️", "🇫🇯", "⺁", "·", "→", ""] {
+            #expect(!RemovedCandidates.mayBeAWord(emoji), "\(emoji)")
+        }
+        for word in ["鼓掌", "紐幣", "讠", "January", "Mon.", "1️⃣", "3", "Ⅻ", "ㄅ", "가", "क", "鼓👏", "\u{3347F}", "\u{E000}"] {
+            #expect(RemovedCandidates.mayBeAWord(word), "\(word)")
+        }
+    }
+
     /// What a field's session gives level one (`RemovedCandidates.Given`): the settings' list when it changed, with those
     /// removed in the field it doesn't have yet; one the list has is the list's from then on, which a restore brings back.
     @Test func whatAFieldGivesLevelOne() {

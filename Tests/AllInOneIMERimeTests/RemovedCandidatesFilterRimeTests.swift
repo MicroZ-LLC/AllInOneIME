@@ -417,7 +417,7 @@ private final class Recorder: PinyinEngine {
 }
 
 /// Typing and turning the pages of a composer.
-private enum Paging {
+enum Paging {
     static let pageDown = KeyEvent(keyCode: VirtualKey.pageDown, characters: "\u{F72D}")
     static let pageUp = KeyEvent(keyCode: VirtualKey.pageUp, characters: "\u{F72C}")
     static let arrowDown = KeyEvent(keyCode: VirtualKey.down, characters: "\u{F701}")
