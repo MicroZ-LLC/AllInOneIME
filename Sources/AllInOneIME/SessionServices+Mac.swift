@@ -95,11 +95,32 @@ extension SessionServices {
         services.recognizeText = Platform.current.text
         // `@open`: Spotlight's names told before what the files contain, as its text is typed (`FileSearchProgress`); what
         // is known at once listed from the key that changed the text, from memory made ready now, off the main thread.
-        services.searchFiles = { await FileSearch.run($0, history: $1, found: FileSearchProgress.found) }
+        // A row that opens an app, a folder or a file shows its own icon (`ItemIcons`): loaded off the main thread with the
+        // results, as they are found (what is known at once as it is kept; a search's before it is told), kept by path.
+        // A row drawn before its icon was in has the symbol until it is, then its icon.
+        @Sendable func paths(_ rows: [SearchResult]) -> [String] { rows.filter { $0.webURL == nil }.map(\.path) }
+        CandidateView.itemIcon = { ItemIcons.shared.icon(requesting: $0) }
+        ItemIcons.shared.onLoaded = { paths in MainActor.assumeIsolated { CandidateView.itemIconsCameIn(paths) } }
+        services.searchFiles = { query, history in
+            let found = FileSearchProgress.found.map { told in
+                { @Sendable (rows: [SearchResult]) in
+                    ItemIcons.shared.preload(paths(rows))
+                    told(rows)
+                }
+            }
+            let rows = await FileSearch.run(query, history: history, found: found)
+            await ItemIcons.shared.load(paths(rows))
+            return rows
+        }
+        InstantFiles.shared.onKept = { ItemIcons.shared.prefetch($0) }
         InstantFiles.shared.prepare(history: OpenHistoryStore.history)
         services.instantResults = { InstantFiles.shared.results($0, history: $1) }
         // One @: Spotlight's names for its text, below what is known at once.
-        services.searchFileNames = { await FileSearch.names($0, history: $1) }
+        services.searchFileNames = { query, history in
+            let rows = await FileSearch.names(query, history: history)
+            await ItemIcons.shared.load(paths(rows))
+            return rows
+        }
         services.runInTerminal = { try TerminalLauncher.agent($0, prompt: $1) }
         services.continueInAgent = { try TerminalLauncher.agent($0, prompt: $1) }
         services.agentInstalled = { AgentAvailability.installed($0, custom: $1) }

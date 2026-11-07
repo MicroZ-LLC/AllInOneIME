@@ -164,10 +164,10 @@ public struct PanelPresenter {
                                kind: .translation, isComplete: choice.isComplete,
                                icon: composer.activeCommand.map(IconToken.command))
                 case let .file(path):
-                    // A file, folder, app or web address: drawn as when typing.
+                    // A file, folder, app or web address: drawn as when typing, with its own icon.
                     let result = composer.searchResults.first { $0.path == path } ?? SearchResult(name: choice.text, path: path)
                     let row = SessionText.openRow(result, language: language, terms: terms)
-                    return Row(label: choice.label, text: row.text, comment: row.comment, kind: .candidate)
+                    return Row(label: choice.label, text: row.text, comment: row.comment, kind: .candidate, icon: IconToken.item(result))
                 case let .reminder(reminder):
                     // To confirm: what to be reminded of, and when as read from the text (「明天 15:00」).
                     return Row(label: choice.label, text: SessionText.preview(choice.text),
@@ -359,10 +359,11 @@ public struct PanelPresenter {
             model.footer = t.tr("\(key) 选中这一项 · ↑↓ 选择 · Tab 补全 · \(copy) 复制 · Esc 取消",
                                 "\(key) pick · ↑↓ choose · Tab complete · \(copy) copy · Esc cancel")
         } else if !composer.currentLiveResults.isEmpty {
-            // "@open …" as you type: what matches now.
+            // "@open …" as you type: what matches now, an app, a folder or a file with its own icon.
             model.rows = composer.currentLiveResults.map { result in
                 let row = SessionText.openRow(result, language: language, terms: terms)
-                return Row(label: result.isFolder ? "›" : "", text: row.text, comment: row.comment, kind: .candidate)
+                return Row(label: result.isFolder ? "›" : "", text: row.text, comment: row.comment, kind: .candidate,
+                           icon: IconToken.item(result))
             }
             model.highlighted = composer.liveHighlight
             // Only content matches: ⏎ lists them to pick from rather than open the first (`opensLiveResult`).
@@ -468,8 +469,9 @@ public struct PanelPresenter {
             return Row(label: "", text: "= " + value, comment: t.tr("上屏", "insert"), kind: .candidate)
         case let .open(result):
             let row = SessionText.openRow(result, language: language, terms: terms)
+            // An app, a folder or a file with its own icon; a web address with `@open`'s.
             return Row(label: "", text: t.tr("打开 \(row.text)", "Open \(row.text)"), comment: row.comment + " · " + named(.open),
-                       kind: .candidate, icon: IconToken.command(.open))
+                       kind: .candidate, icon: IconToken.item(result) ?? IconToken.command(.open))
         case let .reminder(reminder):
             // When as read, as the system shows times (「明天 15:00」 or 「明天 下午3:00」), as `@reminder`'s row says it.
             let when = t.when(reminder)
