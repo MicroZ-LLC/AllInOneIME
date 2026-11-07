@@ -2,9 +2,10 @@ import Foundation
 
 /// The candidate panel as data, the same on every platform: what `PanelPresenter` makes of the composer, and what each
 /// shell draws (the Mac: `CandidateView`). From top to bottom: Translate as You Type's chip, where a conversation can go
-/// on (`handoff`), the input line, the header's lines, the rows, the status, the pinyin candidates shown with the rows
-/// (`candidates`), and the footer with the detail on its right. Its text is in the language and with the key names it
-/// was made with; what is structure (a caret, a list of choices, lines) is data, for each shell to draw its own way.
+/// on (`handoff`), the input line, the header's lines, the rows, the status, and the footer with the detail on its right;
+/// the pinyin candidates shown with the rows (`candidates`) on the side nearest the caret. Its text is in the language
+/// and with the key names it was made with; what is structure (a caret, a list of choices, lines) is data, for each
+/// shell to draw its own way.
 public struct PanelModel: Equatable, Sendable {
     public struct Row: Equatable, Sendable {
         /// How a row is drawn.
@@ -139,9 +140,10 @@ public struct PanelModel: Equatable, Sendable {
     /// has attached (a screenshot's two), the refinements so far.
     public var header: [String]
     /// The pinyin candidates on one line ("1 你好   2 拟好 …"), while they are composed with rows that aren't them (one @'s
-    /// after the magic key): under the rows and the status, just above the footer, whichever side of the caret the panel
-    /// is on, so the rows stay where they are as pinyin starts and ends. Nil: none (plain typing's candidates are the
-    /// rows).
+    /// after the magic key), on the side of the panel nearest the caret, the rows on the far side: the word is picked
+    /// first, then what to do with it. Below the caret, at the top, under the input line; above it, under the rows and the
+    /// status, just above the footer. The header (a selection's line) stays just above the rows either way. Nil: none
+    /// (plain typing's candidates are the rows).
     public var candidates: String?
     public var footer: String
     /// On the footer's right: the page, the time a result took, a notice.

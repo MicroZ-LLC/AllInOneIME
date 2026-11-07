@@ -3,22 +3,26 @@ import Foundation
 
 /// The candidate window's sample panels: the core's models as the engine's sessions show them, one for each thing the
 /// window draws (a row or a column of candidates, the command list with its icons, one @'s rows with the pinyin being
-/// composed under them, a draft's input with its caret and header, results coming in, a conversation with where it can
-/// go on, a list under a hint, an error, every icon). What `AllInOneIMEEngine --render-panel` draws into PNG files to
-/// look at, and what the panel's tests draw.
+/// composed on the side nearest the caret, below it and above it, a draft's input with its caret and header, results
+/// coming in, a conversation with where it can go on, a list under a hint, an error, every icon). What
+/// `AllInOneIMEEngine --render-panel` draws into PNG files to look at, and what the panel's tests draw.
 public enum PanelSamples {
     public struct Sample {
         public var name: String
         public var model: PanelModel
         /// A conversation's height limit at 96 DPI (the window's is half the monitor's), scaled with the DPI.
         public var maxHeight: Int
+        /// Drawn as above the caret (the pinyin candidates' line just above the footer); else below it.
+        public var above = false
     }
 
     /// The samples; `image`: a picture for the icons' image row (drawn as its fallback where it can't be read).
     public static func all(image: String? = nil) -> [Sample] {
         typealias Row = PanelModel.Row
         var samples: [Sample] = []
-        func add(_ name: String, _ model: PanelModel, maxHeight: Int = 0) { samples.append(Sample(name: name, model: model, maxHeight: maxHeight)) }
+        func add(_ name: String, _ model: PanelModel, maxHeight: Int = 0, above: Bool = false) {
+            samples.append(Sample(name: name, model: model, maxHeight: maxHeight, above: above))
+        }
 
         add("pinyin-row", PanelModel(
             rows: ["你好", "拟好", "你号", "泥好", "妮好", "👋"].enumerated().map { Row(label: "\($0.offset + 1)", text: $0.element, kind: .candidate) },
@@ -32,6 +36,7 @@ public enum PanelSamples {
             add("palette-" + language, palette(language: language))
         }
         add("one-at-pinyin", oneAtPinyin)
+        add("one-at-pinyin-above", oneAtPinyin, above: true)
         add("draft", PanelModel(
             status: .hint("写点内容，或按 Ctrl+V 粘贴"), input: PanelModel.Input(prompt: "improve › ", text: "帮我改一下这句话，让它更礼貌", caret: 6),
             header: ["选中的文字：Thanks for the update, I'll take a look tomorrow.", "附件：截图 2 张"],
@@ -69,8 +74,8 @@ public enum PanelSamples {
         return PanelPresenter(config: .default, language: language, terms: .windows).model(for: composer)
     }
 
-    /// One @'s rows for 你好 while "nihao" is composed after the magic key, as the core's presenter makes them: the rows on
-    /// top, the candidates on a line under them (`PanelModel.candidates`), the footer.
+    /// One @'s rows for 你好 while "nihao" is composed after the magic key, as the core's presenter makes them: the rows, the
+    /// candidates on a line of their own (`PanelModel.candidates`, drawn on the side nearest the caret), the footer.
     static var oneAtPinyin: PanelModel {
         typealias Row = PanelModel.Row
         func row(_ text: String, _ command: Command) -> Row {

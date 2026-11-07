@@ -72,10 +72,10 @@ struct PanelPresenterTests {
 
     // MARK: - One @ while pinyin composes
 
-    /// Pinyin composed after the magic key: one @'s rows first, at the top, for the text with the first candidate, and
-    /// the candidates on their own line under them (`candidates`, just above the footer), never a header line above
-    /// them. The rows are what they'd be with the candidate picked, so as pinyin ends only that line goes.
-    @Test func oneAtsRowsComeFirstAndThePinyinCandidatesUnderThem() throws {
+    /// Pinyin composed after the magic key: one @'s rows, for the text with the first candidate, and the candidates on
+    /// their own line (`candidates`, which the shells draw on the side of the panel nearest the caret), never a header
+    /// line or a row. The rows are what they'd be with the candidate picked, so as pinyin ends only that line goes.
+    @Test func oneAtsRowsAreForTheTextAndThePinyinCandidatesALineOfTheirOwn() throws {
         let c = composer(key: .enter)
         _ = c.handleKeyDown(at)
         type("nihao", c)
@@ -93,21 +93,21 @@ struct PanelPresenterTests {
         }
         #expect(en.model(for: c).footer == "Space picks a word · ⏎ do the highlighted row · ↑↓ choose")
         let composing = en.model(for: c)
-        // Space picks 你好: the candidates' line goes; the rows above it stay as they were.
+        // Space picks 你好: the candidates' line goes; the rows stay as they were.
         _ = c.handleKeyDown(spaceKey)
         try #require(!c.engineState.isComposing && c.draft == "@你好", "\(c.draft)")
         let picked = en.model(for: c)
         #expect(picked.candidates == nil && picked.header.isEmpty)
         #expect(picked.rows == composing.rows && picked.highlighted == composing.highlighted)
-        // Typing pinyin again in the text: the line is back, under the same kind of rows.
+        // Typing pinyin again in the text: the line is back, with the same kind of rows.
         type("nihao", c)
         try #require(c.engineState.isComposing)
         #expect(en.model(for: c).candidates == "1 你好   2 拟好" && en.model(for: c).header.isEmpty)
     }
 
-    /// With text selected, the line of what the panel works on stays above the rows (the header), the candidates of the
-    /// instruction being typed under them.
-    @Test func withASelectionTheHeaderIsAboveTheRowsAndTheCandidatesUnder() throws {
+    /// With text selected, the line of what the panel works on stays the header (above the rows), the candidates of the
+    /// instruction being typed a line of their own.
+    @Test func withASelectionTheHeaderStaysAndTheCandidatesAreALineOfTheirOwn() throws {
         let c = composer(key: .enter)
         c.readSelection = { Composer.Selection(text: "hello there", range: 0..<11) }
         _ = c.handleKeyDown(at)
