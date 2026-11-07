@@ -876,7 +876,8 @@ until you turn it off (`autocomplete` in the config).
   still running. Up to about 12 words or 25 Chinese characters, to the end of the sentence. The last 20 suggestions are
   kept, each for its text (before and after the caret) in its app, so retyping or deleting back shows one again with
   nothing sent: on the key that gets back to its text, with no pause, where the input method knows the text for sure
-  (the field read at the last pause, what was typed since, no click or other key since), else after the pause.
+  (the field read at the last pause, what was typed since, no click, other key or stop of 3 seconds since), else after
+  the pause.
 - **Never:** in password fields (those Accessibility tells too, where secure input isn't on) and while secure input is on,
   in a text that looks like a code or a card number, in terminals, password managers, remote desktops and virtual
   machines, in apps with No AI, and while Translate as You Type is on.
