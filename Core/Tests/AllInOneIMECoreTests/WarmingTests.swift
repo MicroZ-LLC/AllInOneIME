@@ -60,20 +60,22 @@ struct WarmingTests {
 
     // MARK: - The on-device model
 
-    /// "@" with `@improve` highlighted, its name picked, typed on: loaded once; a minute later, in another field, the next
-    /// AI command loads it again. The commands that ask no model (`@note`, `@agent`: the agent has its own) don't.
+    /// "@" alone loads nothing (a mention, a sum, an app); "@hello" with Improve highlighted loads it once, and typing on,
+    /// the command picked, doesn't again; a minute later, in another field, the next AI command loads it again. The
+    /// commands that ask no model (`@note`, `@agent`: the agent has its own) don't.
     @Test func anAICommandLoadsTheOnDeviceModel() async {
         await withInterfaceLanguage("en") {
             let (model, clock, store) = (WarmingModel(), Uptime(), AutocompleteStore())
             let settings = Settings(.apple)
             let first = host(settings, model: model, clock: clock) { $0.autocomplete = store }
             first.press(FakeHost.at)
-            #expect(first.composer.paletteMatches.first == .improve)
-            #expect(settled { model.prewarms == 1 }, "the highlighted row asks the model")
-            first.type("i")
-            first.press(FakeHost.tab)
+            Thread.sleep(forTimeInterval: 0.05)
+            #expect(model.prewarms == 0, "\"@\" alone asks nothing")
             first.type("hello")
-            #expect(first.composer.draftCommand == .improve)
+            #expect(first.composer.oneAtRows.first == .write(.improve), "\(first.composer.oneAtRows.map(\.id))")
+            #expect(settled { model.prewarms == 1 }, "the highlighted row asks the model")
+            first.press(FakeHost.enter)
+            #expect(first.composer.isLevelTwo || first.composer.draftCommand == .improve)
             Thread.sleep(forTimeInterval: 0.05)
             #expect(model.prewarms == 1, "once a minute at most")
             clock.advance(61)
@@ -116,8 +118,9 @@ struct WarmingTests {
 
     // MARK: - A cloud provider's connection
 
-    /// The draft an AI command: one HEAD to the provider's origin, with no key, no credentials, no body, on the requests'
-    /// own session; none again while the draft stays one, nor within `ConnectionWarmth.idle` of it.
+    /// One @'s highlighted row an AI command ("@hello": Improve): one HEAD to the provider's origin, with no key, no
+    /// credentials, no body, on the requests' own session; none again while the draft stays one, nor within
+    /// `ConnectionWarmth.idle` of it.
     @Test func anAICommandOpensTheProvidersConnection() async throws {
         try await withInterfaceLanguage("en") {
             let server = "warm-anthropic.example.com"
@@ -126,7 +129,7 @@ struct WarmingTests {
             settings.config.anthropic.baseURL = "https://\(server)"
             let converter = Converter(client: BedrockClient(session: StubURLProtocol.session()), loadConfig: { settings.config })
             let host = host(settings, session: StubURLProtocol.session(), converter: converter)
-            host.press(FakeHost.at)
+            host.type("@hello")
             #expect(settled { StubURLProtocol.requests(host: server).count == 1 })
             let head = try #require(StubURLProtocol.requests(host: server).first)
             #expect(head.httpMethod == "HEAD" && head.url?.absoluteString == "https://\(server)/", "\(head.url?.absoluteString ?? "")")
@@ -137,7 +140,7 @@ struct WarmingTests {
             host.type("hello")
             // Another field, its draft an AI command too, on the same session: nothing went there for 90 s yet.
             let next = self.host(settings, session: StubURLProtocol.session(), converter: converter)
-            next.press(FakeHost.at)
+            next.type("@hello")
             Thread.sleep(forTimeInterval: 0.1)
             #expect(StubURLProtocol.requests(host: server).count == 1, "one an idle period")
         }
@@ -151,7 +154,7 @@ struct WarmingTests {
             let settings = Settings(.bedrock)
             settings.config.region = "warm-west-9"
             let host = host(settings, session: StubURLProtocol.session())
-            host.press(FakeHost.at)
+            host.type("@hello")
             #expect(settled { StubURLProtocol.requests(host: server).first?.httpMethod == "HEAD" })
         }
     }
@@ -213,6 +216,28 @@ struct WarmingTests {
 
     // MARK: - When a HEAD goes
 
+    /// One @: "@" alone opens nothing, also with ↓ onto an AI command (it is often a mention, a sum, an app); text typed
+    /// with an AI row highlighted does, and so does "@" alone on a selection, whose first row is the AI's.
+    @Test func oneAtOpensTheConnectionOnlyForTextOrASelection() async {
+        await withInterfaceLanguage("en") {
+            let server = "warm-oneat.example.com"
+            StubURLProtocol.register(host: server, StubURLProtocol.Response(status: 404, headers: [:], chunks: []))
+            let settings = Settings(.anthropic)
+            settings.config.anthropic.baseURL = "https://\(server)"
+            let alone = host(settings, session: StubURLProtocol.session())
+            alone.press(FakeHost.at)
+            alone.press(FakeHost.down)
+            #expect(alone.composer.oneAtRows.contains { InputSession.asksTheModel($0) != nil })
+            Thread.sleep(forTimeInterval: 0.1)
+            #expect(StubURLProtocol.requests(host: server).isEmpty, "\"@\" alone")
+            let selected = host(settings, session: StubURLProtocol.session())
+            selected.document = "The report looks good"
+            selected.selection = 0..<21
+            selected.press(FakeHost.at)
+            #expect(settled { StubURLProtocol.requests(host: server).count == 1 }, "a selection's AI row")
+        }
+    }
+
     /// A provider that isn't set up (no key, no AWS profile or keys) gets no HEAD: Bedrock, the default provider, for
     /// someone who never set it up.
     @Test func aProviderNotSetUpGetsNoHEAD() async throws {
@@ -222,7 +247,7 @@ struct WarmingTests {
             let settings = Settings(.bedrock)
             settings.config.region = "warm-east-7"
             let host = host(settings, session: StubURLProtocol.session(), setUp: false)
-            host.press(FakeHost.at)
+            host.type("@hello")
             Thread.sleep(forTimeInterval: 0.1)
             #expect(StubURLProtocol.requests(host: server).isEmpty)
             // Set up: the AWS keys in the environment, or the profile in the AWS files.
