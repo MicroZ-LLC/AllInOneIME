@@ -86,6 +86,21 @@ struct TasksAtOnceTests {
         }
     }
 
+    /// Esc on the list shown ahead, then another command's results: the run's late answer leaves them alone.
+    @Test func aLateAnswerLeavesAnotherCommandAlone() async {
+        await withInterfaceLanguage("en") {
+            let run = Run()
+            let host = host(run: run)
+            tasks(host)
+            #expect(host.composer.activeCommand == .tasks && host.composer.phase == .choosing)
+            host.press(FakeHost.escape)
+            #expect(host.composer.phase != .choosing)
+            run.answer(.success([]))
+            _ = host.settle(timeout: 0.3) { false }
+            #expect(host.composer.phase != .failed(host.composer.messages.nothingFound), "no \"nothing found\" for a list gone")
+        }
+    }
+
     /// None seen yet: the panel waits for the run, as before.
     @Test func noneSeenYetWaits() async {
         await withInterfaceLanguage("en") {

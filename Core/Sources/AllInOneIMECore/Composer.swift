@@ -1846,7 +1846,7 @@ public final class Composer {
     /// answer replaces them, the row picked with the arrows staying picked where it is still listed (by its path), else the
     /// first.
     public func receiveSearch(_ results: [SearchResult], id: Int, ahead: Bool = false) -> [Effect] {
-        let replacing = listedAhead == id && phase == .choosing
+        let replacing = listsAhead(id)
         guard phase == .translating(id: id) || replacing else { return [] }
         if replacing, let picked = highlightOverride {
             let path = searchResults.indices.contains(picked) ? searchResults[picked].path : nil
@@ -1858,14 +1858,20 @@ public final class Composer {
         return [.showPanel]
     }
 
-    /// The request whose rows were listed ahead of its answer (`receiveSearch(_:id:ahead:)`), while they show.
+    /// The request whose rows were listed ahead of its answer (`receiveSearch(_:id:ahead:)`).
     private var listedAhead: Int?
+
+    /// Whether request `id`'s rows, listed ahead of its answer, still show: the same request, its command's list up (not
+    /// another command's, after Esc).
+    private func listsAhead(_ id: Int) -> Bool {
+        listedAhead == id && phase == .choosing && activeCommand?.kind == .agents
+    }
 
     /// `place`: where in the settings it is put right (no language to translate into): ⏎ opens them there
     /// (`failureFixedIn`) instead of trying again, which would only fail the same way.
     public func fail(_ message: String, id: Int, fixedIn place: SettingsPlace? = nil) -> [Effect] {
         // The rows listed ahead of it stay, and why they weren't brought up to date is said.
-        if listedAhead == id, phase == .choosing {
+        if listsAhead(id) {
             listedAhead = nil
             return [.notice(message)]
         }
