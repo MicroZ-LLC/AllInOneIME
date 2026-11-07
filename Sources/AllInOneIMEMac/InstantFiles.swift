@@ -26,7 +26,7 @@ public final class InstantFiles: @unchecked Sendable {
 
     private let index: AppIndex
     private let recheckInterval: TimeInterval
-    private let queue = DispatchQueue(label: "com.aipinyin.inputmethod.AIPinyin.instant-files", qos: .utility)
+    private let queue = DispatchQueue(label: "com.aipinyin.inputmethod.instant-files", qos: .utility)
     private let lock = NSLock()
     /// The index's apps and places, dated; what `@open` opened that is there and isn't one of them, by path; the places'
     /// names, folded; every path of the history looked at; when they were made, and whether they are being made.
