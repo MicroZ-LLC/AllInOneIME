@@ -264,6 +264,39 @@ struct OneAtTests {
         }
     }
 
+    /// Keys pressed before the selection read after the "@" key is in wait for it, then do what they do where the field
+    /// tells the selection with the key: "@" alone and ⏎ with nothing selected puts the "@" in (not the most used
+    /// command); Esc on a text leaves a selection alone; → gives the keys back, the text going in only where nothing is
+    /// selected, and the → itself goes on to the app.
+    @Test func keysWaitForTheSelectionReadAfterTheKey() async {
+        await withInterfaceLanguage("en") {
+            func host(selected: Bool, typing text: String, then key: KeyEvent) -> FakeHost {
+                let host = field(ScriptFolder())
+                host.document = "hello there"
+                host.selection = selected ? 0..<11 : nil
+                host.selectionReadsWait = true
+                var told = host.context
+                told.selection = nil
+                told.selectionFollows = true
+                host.press(FakeHost.at, with: told)
+                host.type(text)
+                host.press(key)
+                #expect(host.document == "hello there" && !host.composer.isLevelTwo, "nothing done before it is in")
+                host.answerFieldReads()
+                return host
+            }
+            let enter = host(selected: false, typing: "", then: FakeHost.enter)
+            #expect(enter.document == "hello there@" && !enter.composer.isComposing, "\(enter.document) \(enter.composer.draft)")
+            let escape = host(selected: true, typing: "hello", then: FakeHost.escape)
+            #expect(escape.document == "hello there" && escape.selection == 0..<11 && !escape.composer.isComposing, "\(escape.document)")
+            let rightOnSelection = host(selected: true, typing: "hello", then: FakeHost.right)
+            #expect(rightOnSelection.document == "hello there" && !rightOnSelection.composer.isComposing)
+            #expect(rightOnSelection.platformActions == [.passKey(FakeHost.right)], "\(rightOnSelection.platformActions)")
+            let right = host(selected: false, typing: "hello", then: FakeHost.right)
+            #expect(right.document == "hello there@hello" && right.platformActions == [.passKey(FakeHost.right)], "\(right.document)")
+        }
+    }
+
     // MARK: - Commands that come while the list is open
 
     @Test func commandsThatArriveShowInTheOpenList() async {

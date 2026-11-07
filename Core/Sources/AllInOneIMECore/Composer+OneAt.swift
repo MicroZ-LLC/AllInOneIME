@@ -200,14 +200,22 @@ extension Composer {
     /// selection: nil, the key as before).
     func oneAtActionKey() -> [Effect]? {
         guard oneAt != nil else { return nil }
-        if draft == commandTrigger, !engineState.isComposing, selection == nil, !selectionPending { return nil }
+        if selectionPending {
+            waitingForSelection.append(.actionKey)
+            return [.showPanel]
+        }
+        if draft == commandTrigger, !engineState.isComposing, selection == nil { return nil }
         return doHighlightedOneAt(run: true)
     }
 
-    /// A row clicked (`index` among those shown): done as ⏎ does it.
+    /// A row clicked (`index` among those shown): done as ⏎ does it (once the selection is in, if it is being read).
     func chooseOneAt(_ index: Int) -> [Effect] {
         let row = oneAtFirstVisible + index, rows = oneAtRows
         guard rows.indices.contains(row) else { return [] }
+        if selectionPending {
+            waitingForSelection.append(.row(rows[row]))
+            return [.showPanel]
+        }
         oneAtHighlight = row
         return doOneAt(rows[row], run: true)
     }
@@ -220,14 +228,8 @@ extension Composer {
     }
 
     /// The highlighted row done (`run`: ⏎ or the action key, which also runs a command that takes no text; Tab only
-    /// picks it). While the selection is still being read (`selectionPending`) it waits for it: a command that takes the
-    /// selection never runs without it.
+    /// picks it). Never while the selection is still being read (`selectionPending`): the key waits for it.
     func doHighlightedOneAt(run: Bool) -> [Effect] {
-        if selectionPending {
-            actsWhenSelectionRead = true
-            oneAtRunsWhenRead = run
-            return [.showPanel]
-        }
         let rows = oneAtRows
         guard rows.indices.contains(oneAtHighlighted) else { return [] }
         return doOneAt(rows[oneAtHighlighted], run: run)
@@ -318,20 +320,55 @@ extension Composer {
 
     // MARK: The selection, read after the key
 
+    /// What waits for the selection read after the "@" key (`waitingForSelection`).
+    enum OneAtWaiting: Equatable {
+        /// A key: handled again once the selection is in; one the composer doesn't take then goes on to the app
+        /// (`Effect.passKey`).
+        case key(KeyEvent)
+        /// A row clicked, done as it was shown.
+        case row(OneAt.Action)
+        /// The action key as a tap (`ActionKey.optionTap`): no key to hand on.
+        case actionKey
+    }
+
+    /// While the draft after the "@" key waits for the selection (`selectionPending`), a key that acts on it (⏎ ⇧⏎, Esc,
+    /// →, Tab, the action key) waits too, and so does every key after it, in order: with the selection or without it,
+    /// each does what it does when the field tells the selection with the key (⏎ on "@" alone puts the "@" in; Esc leaves
+    /// a selection alone), never what it would do in the meantime. Nil: the key acts now (letters, ⌫, ↑↓ on the rows).
+    func waitForSelection(_ event: KeyEvent) -> Response? {
+        guard selectionPending, draft.hasPrefix(commandTrigger) else { return nil }
+        let acts = [Key.enter, .keypadEnter, .escape, .tab, .arrow(.right)].contains(event.key) || isActionKey(event)
+        guard acts || !waitingForSelection.isEmpty else { return nil }
+        waitingForSelection.append(.key(event))
+        return .consumed([.showPanel])
+    }
+
     /// The selection the field reads after the key (`selectionPending`) arrived (nil: none): the list is for it from now
-    /// on, and a row ⏎ was pressed on meanwhile is done now.
+    /// on, and what waited for it (`waitingForSelection`) is done now, in order.
     public func selectionRead(_ selected: Selection?) -> [Effect] {
         guard selectionPending else { return [] }
         selectionPending = false
+        let waiting = waitingForSelection
+        waitingForSelection = []
         guard draft.hasPrefix(commandTrigger) else { return [] }
         if let selected, !selected.text.isEmpty {
             selection = selected
             selectionFits = selected.text.count <= Self.maxSelectionLength
         }
         oneAtCache = nil
-        guard actsWhenSelectionRead else { return forField([.updateMarkedText, .showPanel]) }
-        actsWhenSelectionRead = false
-        if oneAt != nil { return forField(doHighlightedOneAt(run: oneAtRunsWhenRead)) }
-        return forField(actionKeyPressed() ?? [.updateMarkedText, .showPanel])
+        var effects = forField([.updateMarkedText, .showPanel])
+        for item in waiting {
+            switch item {
+            case let .key(event):
+                let response = handleKeyDown(event)
+                effects += response.effects
+                if !response.handled { effects.append(.passKey(event)) }
+            case let .row(action):
+                if oneAt != nil { effects += forField(doOneAt(action, run: true)) }
+            case .actionKey:
+                effects += forField(actionKeyPressed() ?? [])
+            }
+        }
+        return effects
     }
 }

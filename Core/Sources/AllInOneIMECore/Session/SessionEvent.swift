@@ -175,6 +175,10 @@ public enum PlatformAction: Equatable, Sendable {
     /// A kept image (`ClipboardHistoryImage.id`) pasted: put on the clipboard and the app's paste key posted, the clipboard
     /// put back after; where the key can't be posted, left on the clipboard for the user's own paste (0.6.8.2).
     case pasteImage(id: String)
+    /// `key` to the app, posted marked as the input method's own so it goes through: a key that waited for the selection
+    /// read after the "@" key and that the input method didn't take then (`Composer.Effect.passKey`). A shell that can't
+    /// post one drops it.
+    case passKey(KeyEvent)
 }
 
 /// Dictation `id`, as the platform hears it.

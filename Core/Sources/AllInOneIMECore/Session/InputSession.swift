@@ -1091,6 +1091,8 @@ public final class InputSession {
                 followEnglishInserted(text)
             case let .moveCaret(back):
                 emit(.moveCaret(back: back, after: lastInserted))
+            case let .passKey(key):
+                emit(.platform(.passKey(key)))
             case let .startConversion(input, id):
                 if refusedForSecureInput(id: id) { break }
                 // @improve / @translate: the mode (and a second one written inside) comes from the command.

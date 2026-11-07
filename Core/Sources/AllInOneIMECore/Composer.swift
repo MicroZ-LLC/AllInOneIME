@@ -161,6 +161,9 @@ public final class Composer {
         /// UTF-16 units from the end of that text, to the snippet's `{cursor}`. Only where the field says where its caret
         /// is and has that text before it; not in a terminal.
         case moveCaret(back: Int)
+        /// The key goes on to the app after all, posted by the shell as its own: it waited for the selection read after
+        /// the "@" key (`selectionPending`), and the composer didn't take it then (→ giving the keys back).
+        case passKey(KeyEvent)
     }
 
     public struct Response: Equatable, Sendable {
@@ -539,8 +542,10 @@ public final class Composer {
     var oneAtCache: (key: OneAtKey, rows: [OneAt.Action])?
     /// The words the user's commands are found by, for the commands as they are (`commandsGeneration`).
     var oneAtWords: (generation: Int, words: [String: [String]]) = (-1, [:])
-    /// Whether the row ⏎ (rather than Tab) waited on for the selection is to run (`selectionRead`).
-    var oneAtRunsWhenRead = true
+    /// The keys (⏎, Esc, ⇧⏎, →, Tab, the action key, a row clicked) one @ was given while the selection was still being
+    /// read (`selectionPending`), and those after them: done in order once it is in (`selectionRead`), as they would have
+    /// been had the field told it with the key.
+    var waitingForSelection: [OneAtWaiting] = []
     /// The files Spotlight's names found for the one @ text (`SessionServices.searchFileNames`), as they come.
     var oneAtFiles = LiveRows<SearchResult>(limit: Composer.recentLiveLimit, id: \.path)
     /// The app being typed in (its bundle id; the session sets it): what a command's use is counted for, and what the one @
@@ -555,7 +560,6 @@ public final class Composer {
     /// The selection is read after the "@" key (the field didn't tell it with the key): the draft stays out of the field
     /// meanwhile (`draftInPanel`), and the action key, or a row picked, waits for it (`selectionRead`).
     public internal(set) var selectionPending = false
-    var actsWhenSelectionRead = false
     /// Whether the field reads the selection after the key (set by the session for the key being handled): see
     /// `selectionPending`.
     public var selectionFollows: () -> Bool = { false }
@@ -1455,6 +1459,8 @@ public final class Composer {
     }
 
     private func keyDown(_ event: KeyEvent) -> Response {
+        // One @ while the selection is read after the "@" key: a key that acts waits for it (Composer+OneAt.swift).
+        if let response = waitForSelection(event) { return response }
         if let response = handleHangulKey(event) { return response }
         // Any other key finishes the syllable being typed first, then does what it does.
         let finished = finishHangul()
@@ -2125,7 +2131,7 @@ public final class Composer {
                     selection = readSelection().flatMap { $0.text.isEmpty ? nil : $0 }
                     selectionFits = (selection?.text.count ?? 0) <= Self.maxSelectionLength
                     selectionPending = selection == nil && selectionFollows()
-                    actsWhenSelectionRead = false
+                    waitingForSelection = []
                     draft = commandTrigger
                     paletteHighlight = 0
                     oneAtReset()
@@ -2624,7 +2630,7 @@ public final class Composer {
         if phase == .idle {
             selection = nil
             selectionPending = false
-            actsWhenSelectionRead = false
+            waitingForSelection = []
         }
         if messageRecipient != nil, draftCommand?.kind != .message { messageRecipient = nil }
         if recipients.query != nil, !pickingRecipient { clearRecipientResults() }
@@ -3521,7 +3527,7 @@ public final class Composer {
         if voice != .off { return actAfterVoice() }
         // The selection is still being read: the command runs once it is in (it may take it).
         if selectionPending {
-            actsWhenSelectionRead = true
+            waitingForSelection.append(.actionKey)
             return [.showPanel]
         }
         // A recent question picked with ↑↓: its saved answer.
@@ -3666,7 +3672,7 @@ public final class Composer {
         let selected = selection
         selection = nil
         selectionPending = false
-        actsWhenSelectionRead = false
+        waitingForSelection = []
         var effects: [Effect] = []
         if case let .translating(id) = phase {
             effects.append(leaving && activeCommand?.script?.output == .show ? .detachScript(id: id) : .cancelConversion)
