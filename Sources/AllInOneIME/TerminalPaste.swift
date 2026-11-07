@@ -72,13 +72,33 @@ enum TerminalPaste {
         }
     }
 
-    /// Until ⌘ ⌥ ⌃ ⇧ are all up on the keyboard (a second at most).
-    @MainActor
-    static func modifiersUp() async {
+    /// Until ⌘ ⌥ ⌃ ⇧ are all up on the keyboard (a second at most): whether any was held.
+    @MainActor @discardableResult
+    static func modifiersUp() async -> Bool {
         let held: CGEventFlags = [.maskCommand, .maskAlternate, .maskControl, .maskShift]
+        var waited = false
         for _ in 0..<50 where !CGEventSource.flagsState(.hidSystemState).intersection(held).isEmpty {
+            waited = true
             try? await Task.sleep(nanoseconds: 20_000_000)
         }
+        return waited
+    }
+
+    /// The app frontmost now (its process id): the one a key posted now goes to.
+    @MainActor
+    private static var frontmost: pid_t? { NSWorkspace.shared.frontmostApplication?.processIdentifier }
+
+    /// How long a paste waits once a modifier held is let go before it looks which app is frontmost (`stillFront`): ⌘-Tab
+    /// switches apps as ⌘ is let go, and the switch reaches this process a little after.
+    static let switchSettle: TimeInterval = 0.2
+
+    /// Until no modifier is held (`modifiersUp`), then whether `app` (`frontmost` when the paste began) is frontmost
+    /// still: a V posted into the app switched to meanwhile (⌘-Tab) pasted there (a chat box, another terminal, which may
+    /// run its line).
+    @MainActor
+    private static func stillFront(_ app: pid_t?) async -> Bool {
+        if await modifiersUp() { try? await Task.sleep(nanoseconds: UInt64(switchSettle * 1_000_000_000)) }
+        return frontmost == app
     }
 
     /// V with `flags` down and up, marked as ours and remembered (`posted`), so that neither the key tap nor the input
@@ -158,15 +178,26 @@ enum TerminalPaste {
     /// a timer from the ⌘V instead (half a second), a busy terminal that took the ⌘V later pasted what was copied before
     /// (a password, a token). Where what is on the clipboard can't be kept (`userClipboard`: Paste from Other Apps set to
     /// Ask or Deny since `isAllowed`, a copy from an iPhone, an app's data slow to come), nothing, at once: the clipboard
-    /// is left as it is, and false, for the caller to put the text in on one line.
+    /// is left as it is, and false, for the caller to put the text in on one line. Stopped before the ⌘V (typing stopped,
+    /// its task cancelled; another app frontmost now: `write`): no ⌘V, the clipboard untouched or put back, and nil, for
+    /// nothing to go in.
     @MainActor @discardableResult
-    static func paste(_ text: String) async -> Bool {
+    static func paste(_ text: String) async -> Bool? {
         let provider = TextProvider(text: text)
-        guard let ours = await write(provider, for: [.string], thenPost: .maskCommand) else { return false }
+        let ours: Int
+        switch await write(provider, for: [.string], thenPost: .maskCommand, into: frontmost) {
+        case .posted(let count): ours = count
+        case .notKept: return false
+        case .stopped: return nil
+        }
         // The app reads the clipboard when the ⌘V reaches it: wait for that before typing on or putting it back (not once
-        // a later paste of ours took it over: that one puts it back). The provider stays until then.
+        // a later paste of ours took it over: that one puts it back). The provider stays until then. Waited for in a task
+        // of its own, which typing stopped meanwhile doesn't cancel: cut short, the clipboard was put back before the app
+        // read it, and it pasted what was copied before.
         let steps = Int(textReadTimeout / 0.02)
-        for _ in 0..<steps where !provider.read && pending?.ours == ours { try? await Task.sleep(nanoseconds: 20_000_000) }
+        await Task { @MainActor in
+            for _ in 0..<steps where !provider.read && pending?.ours == ours { try? await Task.sleep(nanoseconds: 20_000_000) }
+        }.value
         Task { @MainActor in
             if provider.read { try? await Task.sleep(nanoseconds: UInt64(textPutBackAfterRead * 1_000_000_000)) }
             putBack(after: ours, to: NSPasteboard.general)
@@ -174,15 +205,26 @@ enum TerminalPaste {
         return true
     }
 
+    /// What `write` did: V posted (the change count of our write); nothing, the clipboard untouched, where what is on it
+    /// can't be kept (`userClipboard`); nothing, the clipboard untouched or put back, where the paste was stopped first.
+    private enum Written {
+        case posted(Int), notKept, stopped
+    }
+
     /// `provider`'s item on the clipboard for `types`, what was there kept to be put back (`pending`), then V with `flags`
-    /// posted once no modifier is held: the change count of our write. Nil, the clipboard untouched, where what is on it
-    /// can't be kept (`userClipboard`).
+    /// posted once no modifier is held, into `app` (`frontmost` when the paste began): `.posted`. `.notKept` where what is
+    /// on the clipboard can't be kept; `.stopped` where the task was cancelled first, or another app is frontmost now.
     @MainActor
     private static func write(_ provider: any NSPasteboardItemDataProvider, for types: [NSPasteboard.PasteboardType],
-                              thenPost flags: CGEventFlags) async -> Int? {
+                              thenPost flags: CGEventFlags, into app: pid_t?) async -> Written {
         let pasteboard = NSPasteboard.general
         lookBeforeWrite?()
-        guard let before = await userClipboard(pasteboard) else { return nil }
+        let kept = await userClipboard(pasteboard)
+        // Typing stopped while it was being kept, or another app frontmost now (⌘-Tab): the clipboard isn't touched.
+        // Written, it could take over a paste made meanwhile (the rest of the answer, put in at once) and be put back
+        // before that one's ⌘V was read.
+        guard !Task.isCancelled, frontmost == app else { return .stopped }
+        guard let before = kept else { return .notKept }
         pasteboard.clearContents()
         let item = NSPasteboardItem()
         item.setDataProvider(provider, forTypes: types)
@@ -191,9 +233,15 @@ enum TerminalPaste {
         pasteboard.writeObjects([item])
         let ours = pasteboard.changeCount
         pending = (ours, before.snapshot, before.was)
-        await modifiersUp()
+        // Typing stopped meanwhile (Esc, the field left, another result: its task cancelled, which cuts every wait here
+        // short), or another app frontmost now (⌘-Tab, made as ⌘ is let go): no V, into this app or the one that has the
+        // focus now. Posted, the app read the clipboard once it was put back, and pasted what was copied before.
+        guard await stillFront(app), !Task.isCancelled else {
+            putBack(after: ours, to: pasteboard)
+            return .stopped
+        }
         postV(flags)
-        return ours
+        return .posted(ours)
     }
 
     /// Hands a kept image to the app when it reads the clipboard (`NSPasteboardItemDataProvider`), so the clipboard is put
@@ -222,19 +270,21 @@ enum TerminalPaste {
     /// app first read it (Claude Code reads it twice, with other programs: macOS asks the provider only the first time),
     /// or after 3 seconds if it never does (0.6.8.2, clipboard history): a slow reader still gets the image, never what
     /// was on the clipboard before. Where what is on the clipboard can't be kept (`userClipboard`), it couldn't be put
-    /// back: the image is put on it, as without Accessibility, and pasted.
+    /// back: the image is put on it, as without Accessibility, and pasted (not once another app is frontmost: left there).
     @MainActor
     static func pasteImage(_ png: Data, controlV: Bool) async {
         let flags: CGEventFlags = controlV ? .maskControl : .maskCommand
         let provider = ImageProvider(png: png)
         providing = provider
-        guard let ours = await write(provider, for: [.png, .tiff], thenPost: flags) else {
+        let app = frontmost
+        let written = await write(provider, for: [.png, .tiff], thenPost: flags, into: app)
+        guard case .posted(let ours) = written else {
             providing = nil
+            guard case .notKept = written else { return }  // nothing pasted (`write`)
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
             pasteboard.setData(png, forType: .png)
-            await modifiersUp()
-            postV(flags)
+            if await stillFront(app) { postV(flags) }
             return
         }
         for _ in 0..<60 where !provider.read { try? await Task.sleep(nanoseconds: 50_000_000) }

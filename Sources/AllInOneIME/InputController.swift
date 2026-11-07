@@ -340,15 +340,16 @@ final class AllInOneIMEInputController: IMKInputController {
     /// The plan being typed, and the field it goes into (`TypeOut.Typist`: it keeps the field right while a typo is in it).
     private var typist = TypeOut.Typist([], start: 0)
     private var typingField: TypingField?
-    /// Line breaks go in as a paste (a terminal; `TerminalPaste`).
+    /// Line breaks, tabs and other control characters go in as a paste (a terminal; `TerminalPaste`).
     private var typingPastes = false
     /// A snippet being typed out: where its caret goes once it's all in (`moveCaret`).
     private var caretAfterTyping: Int?
 
-    /// Whether line breaks can go into a terminal as a paste, and pasting there: false where it wasn't pasted after all
-    /// (`TerminalPaste`; the self-test supplies its own and never posts keys or touches the clipboard).
+    /// Whether line breaks can go into a terminal as a paste, and pasting there: false where it wasn't pasted after all,
+    /// nil where it was stopped and nothing goes in (another app frontmost now: `TerminalPaste.paste`; the self-test
+    /// supplies its own and never posts keys or touches the clipboard).
     var canPasteInTerminal: @MainActor () -> Bool = { TerminalPaste.isAllowed() }
-    var pasteInTerminal: @MainActor (String) async -> Bool = { await TerminalPaste.paste($0) }
+    var pasteInTerminal: @MainActor (String) async -> Bool? = { await TerminalPaste.paste($0) }
     /// ⌃V to the app, marked as ours: the app's own paste in a terminal or a code editor (clipboard history's image, ⌃V
     /// again: `TerminalPaste.postControlV`; the self-test counts it instead).
     var passPasteKey: @MainActor () -> Void = { TerminalPaste.postControlV() }
@@ -385,16 +386,18 @@ final class AllInOneIMEInputController: IMKInputController {
         Task { @MainActor in await paste(png, controlV) }
     }
 
-    /// Inserts `text` into `client`; into a terminal, text with line breaks goes in as a paste, so the
-    /// line breaks don't run (or send) anything; on one line where it couldn't be pasted after all (what is on the
-    /// clipboard couldn't be kept: `TerminalPaste.paste`).
+    /// Inserts `text` into `client`; into a terminal, text with line breaks, tabs or other control characters goes in as
+    /// a paste (`Composer.actsInTerminal`), so they don't run (or send, or complete) anything; on one line where it
+    /// couldn't be pasted after all (what is on the clipboard couldn't be kept: `TerminalPaste.paste`), while the field
+    /// is still the one typed in. Nothing where the paste was stopped (another app frontmost now).
     @MainActor
     private func insert(_ text: String, into client: IMKTextInput?, replacing range: NSRange = AllInOneIMEInputController.notFound) {
         commitRow()  // a row marked during the key goes in first: the text would take its place
-        if text.contains(where: \.isNewline), Self.isTerminal(client), canPasteInTerminal() {
-            let paste = pasteInTerminal
-            Task { @MainActor in
-                if await !paste(text) { client?.insertText(Composer.oneLine(text), replacementRange: Self.notFound) }
+        if Composer.actsInTerminal(text), Self.isTerminal(client), canPasteInTerminal() {
+            let paste = pasteInTerminal, session = fieldSession
+            Task { @MainActor [weak self] in
+                guard await paste(text) == false, self?.fieldSession == session else { return }
+                client?.insertText(Composer.oneLine(text), replacementRange: Self.notFound)
             }
         } else {
             client?.insertText(text, replacementRange: range)
@@ -454,9 +457,9 @@ final class AllInOneIMEInputController: IMKInputController {
     @MainActor
     private func typeOut(_ text: String, into client: IMKTextInput) {
         stopTyping(insertingRest: true)
-        let field = TypingField(client, pastesLineBreaks: text.contains(where: \.isNewline) && Self.isTerminal(client) && canPasteInTerminal())
+        let field = TypingField(client, pastesControls: Composer.actsInTerminal(text) && Self.isTerminal(client) && canPasteInTerminal())
         typingField = field
-        typingPastes = field.pastesLineBreaks
+        typingPastes = field.pastesControls
         let caret = field.caret
         let app = client.bundleIdentifier() ?? ""
         let mistakes = session.typeOutMistakes && !Self.isTerminal(client) && !LearnedShared.store.typosOff(in: app) && caret != nil
@@ -478,10 +481,18 @@ final class AllInOneIMEInputController: IMKInputController {
                 if progress == .done { break }
                 waited = progress == .waiting
                 if waited { await sleep(0.05) }  // the field catching up (Chromium tells its caret late)
-                while field.lineBreaks > 0 {
-                    field.lineBreaks -= 1
-                    // Not pasted (what is on the clipboard couldn't be kept): a space, as on one line.
-                    if await !self.pasteInTerminal("\n") { field.type(" ") }
+                while !field.toPaste.isEmpty {
+                    let control = field.toPaste.removeFirst()
+                    // Not pasted (what is on the clipboard couldn't be kept): a space, as on one line. Typing stopped
+                    // meanwhile: nothing more, no space either (a ⌘V not posted by then never is: `TerminalPaste.paste`).
+                    // Another app frontmost now (⌘-Tab): the rest isn't typed, as once the field is left.
+                    let pasted = await self.pasteInTerminal(control)
+                    guard !Task.isCancelled else { return }
+                    guard let pasted else {
+                        self.stopTyping(insertingRest: false)
+                        return
+                    }
+                    if !pasted { field.type(" ") }
                 }
             }
             guard let self, !Task.isCancelled else { return }
@@ -686,7 +697,7 @@ final class AllInOneIMEInputController: IMKInputController {
                 return true
             }
             // In a terminal the rest is pasted, after this key would arrive: the key only finishes typing.
-            let pastesRest = typingPastes && typist.rest.contains(where: \.isNewline)
+            let pastesRest = typingPastes && Composer.actsInTerminal(typist.rest)
             stopTyping(insertingRest: true)
             if pastesRest { return true }
         }
@@ -1569,16 +1580,17 @@ final class AllInOneIMEInputController: IMKInputController {
     }
 }
 
-/// The text field a result is typed into, for `TypeOut.Typist`. Into a terminal, line breaks are counted for
-/// pasting (`TerminalPaste`), not typed.
+/// The text field a result is typed into, for `TypeOut.Typist`. Into a terminal, line breaks, tabs and other control
+/// characters (`Composer.actsInTerminal`) are kept for pasting (`TerminalPaste`), in order, not typed.
 final class TypingField: TypeOut.Field {
     let client: IMKTextInput
-    let pastesLineBreaks: Bool
-    var lineBreaks = 0
+    let pastesControls: Bool
+    /// What is to be pasted before typing goes on: a line break as "\n" (the Mac pastes by "\n"), the others as they are.
+    var toPaste: [String] = []
 
-    init(_ client: IMKTextInput, pastesLineBreaks: Bool) {
+    init(_ client: IMKTextInput, pastesControls: Bool) {
         self.client = client
-        self.pastesLineBreaks = pastesLineBreaks
+        self.pastesControls = pastesControls
     }
 
     var caret: Int? {
@@ -1594,7 +1606,11 @@ final class TypingField: TypeOut.Field {
     func read(_ range: NSRange) -> String? { client.attributedSubstring(from: range)?.string }
 
     func type(_ text: String) {
-        if pastesLineBreaks, text.count == 1, text.first?.isNewline == true { lineBreaks += 1 } else { client.insertText(text, replacementRange: AllInOneIMEInputController.notFound) }
+        if pastesControls, let character = text.first, text.count == 1, Composer.actsInTerminal(text) {
+            toPaste.append(character.isNewline ? "\n" : text)
+        } else {
+            client.insertText(text, replacementRange: AllInOneIMEInputController.notFound)
+        }
     }
 
     func replace(_ range: NSRange, with text: String) { client.insertText(text, replacementRange: range) }

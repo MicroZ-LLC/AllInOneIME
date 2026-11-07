@@ -63,7 +63,7 @@ a second press come at later times, never copies. Modifier changes, which Chromi
 
 | Output | The Mac |
 |---|---|
-| `commit`, `commitAfterKey`, `replace` | `insertText` (a terminal gets text with line breaks as a paste); after the key; by range |
+| `commit`, `commitAfterKey`, `replace` | `insertText` (a terminal gets text with line breaks, tabs or other control characters as a paste); after the key; by range |
 | `marked` | `setMarkedText`, and its watch for apps that take it on their own |
 | `typeOut`, `moveCaret` | typed out like a person (`TypeOut.Typist`), the caret back into a snippet |
 | `panel`, `notice`, `noticeElsewhere` | the candidate panel at the caret (`PanelModel`, below); a notice on its own; in the field typed in now, else at the pointer |

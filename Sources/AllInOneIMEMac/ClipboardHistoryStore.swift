@@ -27,7 +27,8 @@ public protocol ClipboardSource: AnyObject {
     var changeCount: Int { get }
     var access: ClipboardAccess { get }
     var types: [String] { get }
-    /// Its plain text (rich text's too); nil: no text (an image, a colour).
+    /// Its plain text (rich text's too); nil: no text (an image, a colour), or none read (`SystemClipboard`: a copy made
+    /// on an iPhone or another Mac).
     func text() -> String?
     /// The image on it, as PNG, where an image is what was copied (its first type an image's: a screenshot, Copy Image);
     /// nil otherwise (0.6.8.2).
@@ -102,14 +103,15 @@ public final class SystemClipboard: ClipboardSource {
 
     public func text() -> String? {
         let pasteboard = NSPasteboard.general
+        guard !(pasteboard.types ?? []).contains(where: { $0.rawValue == Self.remoteType }) else { return nil }
         if let text = pasteboard.string(forType: .string) { return text }
         // Rich text without its plain text alongside: its plain text.
         if let rtf = pasteboard.data(forType: .rtf) { return NSAttributedString(rtf: rtf, documentAttributes: nil)?.string }
         return nil
     }
 
-    /// Universal Clipboard's marker: an image copied on an iPhone or another Mac, its data fetched from there when read
-    /// (the main thread would wait on the network): never read for the history.
+    /// Universal Clipboard's marker: a copy made on an iPhone or another Mac, its data fetched from there when read (the
+    /// main thread would wait on the network): never read for the history, its text nor its image.
     public static let remoteType = "com.apple.is-remote-clipboard"
 
     public func image() -> ClipboardImage? {
@@ -141,7 +143,8 @@ private struct MainThreadOnly<Value>: @unchecked Sendable {
 /// reading it would ask the user (`access` not `.allowed`: nothing is read then, only the change count and the access,
 /// which never ask), it was copied during secure input (a password field had the keys when it changed, or at the look
 /// before), it is marked never to be kept (`neverRecorded`: password managers and clipboard tools mark theirs, as
-/// TerminalPaste marks its own writes), it is neither an image nor text (a file, a colour), it is blank, or it is longer than
+/// TerminalPaste marks its own writes), it is neither an image nor text (a file, a colour) or was copied on an iPhone or
+/// another Mac (Universal Clipboard: never read, `SystemClipboard.remoteType`), it is blank, or it is longer than
 /// `ClipboardHistoryItem.maxLength`; nor the clipboard TerminalPaste puts back after its paste (`putBack`). Used on one
 /// thread (the input method's main one).
 public final class ClipboardRecorder {

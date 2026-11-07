@@ -87,9 +87,11 @@ struct CommandEditor: View {
         _insert = State(initialValue: SuggestionSourceForm.text(c.insert))
     }
 
-    /// The definition as the form has it now (nil: the command line has an open quote).
+    /// The definition as the form has it now (nil: the command line has an open quote), over what the form doesn't show
+    /// (config.json's own: its icon and color, a stdin of its own, a source's `minChars` and `compare`) as it was.
     private var draft: CustomCommand? {
-        var c = CustomCommand(name: name.trimmingCharacters(in: .whitespaces).lowercased(), type: type)
+        var c = original.command.kept(as: type)
+        c.name = name.trimmingCharacters(in: .whitespaces).lowercased()
         let description = summary.trimmingCharacters(in: .whitespaces)
         c.summary = description.isEmpty ? nil : description
         switch type {
@@ -99,8 +101,9 @@ struct CommandEditor: View {
             guard let argv = CustomCommand.arguments(fromCommandLine: commandLine) else { return nil }
             c.argv = argv
             if type == .run {
-                if useStdin { c.stdin = CustomCommand.placeholder + "\n" }
-                if timeout != CustomCommand.defaultTimeout { c.timeoutSeconds = timeout }
+                // A stdin the switch can't show ("{input}\nquit\n") stays while the switch is on.
+                c.stdin = useStdin ? c.stdin ?? CustomCommand.placeholder + "\n" : nil
+                c.timeoutSeconds = timeout != CustomCommand.defaultTimeout ? timeout : nil
             }
         case .link:
             c.url = url.trimmingCharacters(in: .whitespaces)
@@ -111,16 +114,16 @@ struct CommandEditor: View {
                   case let .some(parsed) = SuggestionSourceForm.parse(insert) else { return nil }
             c.argv = argv
             c.prefix = prefix.trimmingCharacters(in: .whitespaces)
-            // What the form doesn't show (config.json's own) as it was.
-            (c.minChars, c.compare) = (original.command.minChars, original.command.compare)
-            if query { (c.query, c.queryMinChars) = (true, queryMinChars) }
-            if refresh != "1h" { c.refresh = refresh }
-            if timeout != CustomCommand.defaultTimeout { c.timeoutSeconds = timeout }
+            (c.query, c.queryMinChars) = query ? (true, queryMinChars) : (nil, nil)
+            c.refresh = refresh != "1h" ? refresh : nil
+            c.timeoutSeconds = timeout != CustomCommand.defaultTimeout ? timeout : nil
             // A preset as config.json writes it (the default: none); else the templates as written.
             c.insert = CustomCommand.InsertPreset(parsed).map(\.insert) ?? parsed
         }
         // Stored only when it differs from the type's default (Latin for programs, as typed for the AI and pages).
-        if latin != CustomCommand.typesLatinByDefault(type), type != .snippet, type != .suggestions { c.ascii = latin }
+        if type != .snippet, type != .suggestions {
+            c.ascii = latin != CustomCommand.typesLatinByDefault(type) ? latin : nil
+        }
         return c
     }
 

@@ -397,9 +397,10 @@ link: `@sig` ⏎ puts it in at once (Tab or Space only complete the name). Its `
 - Write `@sig` inside another command's text to include it: `@question summarize this @zoom` sends the link itself. Only
   snippets with no `{clipboard}`, `{selection}` or blanks work there; with `{input}`, it's one word or a quoted phrase:
   `@meet「Friday 3pm」`.
-- Plain text only (line breaks kept), at most 20,000 characters. In a terminal a snippet of several lines goes in as one
-  paste with Accessibility allowed and Paste from Other Apps set to Allow (your clipboard is put back after), else on
-  one line (a line break typed there would run the line), as clipboard history's rows and the AI's answers do. Snippets stay on this Mac, so they work during secure
+- Plain text only (line breaks kept), at most 20,000 characters. In a terminal a snippet of several lines or with a tab
+  goes in as one paste with Accessibility allowed and Paste from Other Apps set to Allow (your clipboard is put back
+  after), else on one line with tabs as spaces (a line break typed there would run the line, a tab would complete it),
+  as clipboard history's rows and the AI's answers do. Snippets stay on this Mac, so they work during secure
   input and in apps set to No AI. Extension bundles can ship them too (`snippets` in `extension.json`, see
   [docs/extensions.md](docs/extensions.md)).
 
@@ -500,7 +501,7 @@ Folder"): local plugins, never overwritten by the library.
 today`, which opens X's composer with the text filled in; posting is up to you on the page. The library has four
 (`@x`, `@threads`, `@bsky`, `@weibo`). `@xe` converts currencies: `@xe 100 USD CNY`, `@xe 1000 JPY EUR`, one line
 with the date of the rate (rates by ExchangeRate-API). `@calculator` is a calculator that works offline,
-`@calculator 23*17` → `391` (the built-in `@calculate` before 0.6.5), and `@calendar` does dates: `@calendar +10` →
+`@calculator 23*17` → `391` (the built-in `@calculate` before 0.6.5), and `@days` does dates: `@days +10` →
 "Tue, Oct 27 · in 10 days". Writing one: [docs/plugins.md](docs/plugins.md).
 
 Plugins can also complete what you type (new): `@github`'s issues come up as rows as soon as you type `#12`, and Tab
@@ -1078,8 +1079,10 @@ suggestions use, and puts in the one you choose.
   in, one per line, in the order you copied them (oldest first).
 - **What goes in:** the text as you copied it, typed in (the clipboard is unchanged), the way suggestion rows go in, so
   ⏎ in Slack, Chrome and other apps built on Chromium or Electron doesn't send the message. In a terminal, text of more
-  than one line goes in as one paste (with Accessibility allowed, and Paste from Other Apps set to Allow so that your
-  clipboard can be put back), never line by line; without them, on one line, and your clipboard is left alone. The
+  than one line or with a tab (a Makefile line, cells copied from a spreadsheet) goes in as one paste (with
+  Accessibility allowed, and Paste from Other Apps set to Allow so that your clipboard can be put back), never typed in,
+  so the shell neither runs a line nor completes on a tab; without them, on one line with tabs as spaces, and your
+  clipboard is left alone. The
   same when your clipboard holds a copy from another device (Universal Clipboard) or one its app is slow to hand over:
   typing never waits for it.
 - **The keys stay with the panel, in every app (0.6.8.1):** with Accessibility allowed, the input method takes the keys
@@ -1106,8 +1109,8 @@ suggestions use, and puts in the one you choose.
   nothing), ⌃V in a terminal or a code editor (VS Code, Cursor, JetBrains, Xcode…), so ⌃V ⌃V is still vim's block
   selection and the shell's "type the next key as is"; without Accessibility, ⌃V as it is. In a command, ⌃V ⌃V appends the clipboard at once.
 - **Text and images:** the plain text of what you copy (rich text's too), or the image when an image is what you copied;
-  never files or colours, never an image over 10 MB (as PNG) or 40 million pixels, never an image copied on another
-  device (Universal Clipboard), never what a password
+  never files or colours, never an image over 10 MB (as PNG) or 40 million pixels, never text or an image copied on
+  another device (Universal Clipboard: ⌃V shows its text as the first row, "on the clipboard"), never what a password
   manager or clipboard tool marks as concealed, transient or auto-generated, nothing copied during secure input (a
   password field; checked once a second: a copy is dropped when secure input was on at the check that finds it or the
   one before, so secure input turned on and off again between two checks can go unseen), nothing blank, nothing over

@@ -251,8 +251,11 @@ public enum CommandRunner {
 
     /// What the program printed, as inserted: control characters (colors, bells, a terminal title)
     /// removed, line breaks and tabs kept, blank lines before and after it dropped (the first line's
-    /// indentation kept: a table's header stays over its columns).
-    static func cleanOutput(_ data: Data) -> String {
+    /// indentation kept: a table's header stays over its columns). One number on its own (a count `wc`
+    /// right-aligns, `printf %5d`, a size `du` prints) has nothing to line up with: it goes in without its
+    /// padding, once the program exited (`isFinal`; before, its next line may still come). One line of text
+    /// keeps its indentation.
+    static func cleanOutput(_ data: Data, isFinal: Bool = true) -> String {
         var text = String(decoding: data, as: UTF8.self)
         // Both sequences start with ESC: output without one (most, and a completion list of up to 4 MB) isn't searched.
         if text.utf8.contains(0x1B) {
@@ -269,6 +272,11 @@ public enum CommandRunner {
         let cleaned = String(out)
         guard let first = cleaned.firstIndex(where: { !$0.isWhitespace }),
               let last = cleaned.lastIndex(where: { !$0.isWhitespace }) else { return "" }
+        let printed = cleaned[first...last]
+        if isFinal, !printed.contains("\n"), let digit = printed.drop(while: { $0 == "-" || $0 == "+" }).first,
+           digit.isASCII, digit.isNumber {
+            return String(printed)
+        }
         let start = cleaned[..<first].lastIndex(of: "\n").map { cleaned.index(after: $0) } ?? cleaned.startIndex
         return String(cleaned[start...last])
     }
@@ -402,7 +410,7 @@ public enum CommandRunner {
                     lock.unlock()
                     if tooMuch { stop(.tooMuchOutput) }
                     if let sofar {
-                        let text = CommandRunner.cleanOutput(sofar)
+                        let text = CommandRunner.cleanOutput(sofar, isFinal: false)
                         continuation.yield(ConversionUpdate(result: .empty, rawText: text, isFinal: false, elapsed: 0,
                                                             firstTokenLatency: nil, fromCache: false))
                     }

@@ -316,13 +316,14 @@ public final class InputSession {
     var app: String? { keyContext?.field?.app ?? field.app }
     var terminal: Bool { keyContext?.field?.terminal ?? field.terminal }
 
-    /// `text` as it goes into the field: into a terminal, line breaks only as a paste (a line break typed there is
-    /// Return: the shell runs the line), so where the paste key can't be posted (`SessionServices.pastesInTerminal`: no
-    /// Accessibility) on one line (`Composer.oneLine`). Whatever put it there: a snippet, clipboard history, an answer
+    /// `text` as it goes into the field: into a terminal, line breaks, tabs and other control characters only as a paste
+    /// (`Composer.actsInTerminal`: a line break typed there is Return, the shell runs the line; a tab is completion, ^D
+    /// the end of input), so where the paste key can't be posted (`SessionServices.pastesInTerminal`: no Accessibility)
+    /// on one line, tabs as spaces (`Composer.oneLine`). Whatever put it there: a snippet, clipboard history, an answer
     /// (the AI's and a program's are one line already: `SessionTasks.stream`), typed out or in at once. A pasted CR (a
     /// CRLF's, classic Mac line endings) becomes "\n": the Mac pastes by "\n", and a CR typed is Return.
     func intoField(_ text: String) -> String {
-        guard terminal, text.contains(where: \.isNewline) else { return text }
+        guard terminal, Composer.actsInTerminal(text) else { return text }
         guard services.pastesInTerminal() else { return Composer.oneLine(text) }
         return text.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
     }

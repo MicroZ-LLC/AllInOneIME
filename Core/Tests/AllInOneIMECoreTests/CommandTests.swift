@@ -209,6 +209,26 @@ struct CommandTests {
         #expect(CustomCommand(name: "x", type: .terminal, argv: []).problem(among: []) == .emptyCommand)
     }
 
+    @Test("an editor's Save keeps what config.json has that its form doesn't show, and clears what the type doesn't use")
+    func editorKeepsWhatTheFormDoesNotShow() {
+        let calc = CustomCommand(name: "calc", type: .run, summary: "Calculator", argv: ["bc", "-q"], stdin: "{input}\nquit\n",
+                                 ascii: false, timeoutSeconds: 5, icon: "function", color: "green", url: "https://stray.example")
+        // The same type: all it uses as it was (a field only another type uses, `url`, cleared).
+        var same = calc
+        same.url = nil
+        #expect(calc.kept(as: .run) == same)
+        // Another type: its name, description, icon and color only.
+        #expect(calc.kept(as: .terminal) == CustomCommand(name: "calc", type: .terminal, summary: "Calculator", icon: "function", color: "green"))
+        let source = CustomCommand(name: "jira", type: .suggestions, argv: ["~/bin/jira-list"], ascii: true, icon: "ticket",
+                                   prefix: "JIRA-", minChars: 2, compare: "exact", refresh: "5m", query: true, queryMinChars: 4)
+        var sourceKept = source
+        sourceKept.ascii = nil
+        #expect(source.kept(as: .suggestions) == sourceKept)
+        let sig = CustomCommand(name: "sig", type: .snippet, ascii: true, color: "#FF8800", text: "Best,\n{cursor}")
+        #expect(sig.kept(as: .snippet) == sig)
+        #expect(sig.kept(as: .prompt) == CustomCommand(name: "sig", type: .prompt, color: "#FF8800"))
+    }
+
     @Test func usageCountsOftenAndLately() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         var usage = CommandUsage()
