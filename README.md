@@ -138,8 +138,9 @@ A row that opens an app, a folder or a file shows its own icon, as Finder shows 
 
 After those come Improve and Translate (the one you use more in this app first), and once you've used them, up to
 three of your own AI instructions and plugins that take text; Ask AI is always last, so nothing is a dead end. In Chinese
-mode the letters after `@` are pinyin and command names at once: the rows, on top, are for the sentence as it would be
-with the first candidate, and the candidates a line under them (Space or a digit picks one). With text selected, `@` alone
+mode the letters after `@` are pinyin and command names at once: the candidates are a line on the side nearest the caret
+(on top when the panel is below it, just above the footer when it is above), so you pick the word first (Space or a
+digit); the rows on the far side are for the sentence with the first candidate. With text selected, `@` alone
 lists what to do with it: Reply first in a chat app, else Translate (another language) or Improve, Ask AI about it last;
 text typed then is an instruction for the selection ("more formal"). In an app with No AI there are no AI rows: an AI
 command typed by its name (`@tr`) is still listed, and says AI is off there when run; with no row at all, ⏎ types what
