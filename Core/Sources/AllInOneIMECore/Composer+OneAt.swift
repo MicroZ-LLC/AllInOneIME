@@ -321,11 +321,11 @@ extension Composer {
         let current = oneAtFileQuery
         if let current, oneAtFiles.query != current {
             let keywords = FileSearchRanking.keywords(in: current)
-            oneAtFiles.show(current, fits: { Self.stillMatches($0, keywords) })
+            oneAtFiles.show(current, fits: { Self.stillMatches($0, keywords, for: current) })
         }
         let keywords = FileSearchRanking.keywords(in: current ?? "")
         let changed = oneAtFiles.receive(results.filter { !$0.matchedContent }, for: query, current: current, isFinal: isFinal,
-                                         fits: { Self.stillMatches($0, keywords) })
+                                         fits: { Self.stillMatches($0, keywords, for: current ?? "") })
         return changed ? [.showPanel] : []
     }
 
@@ -333,7 +333,7 @@ extension Composer {
     func showOneAtFiles() {
         guard let query = oneAtFileQuery else { return }
         let keywords = FileSearchRanking.keywords(in: query)
-        oneAtFiles.show(query, fits: { Self.stillMatches($0, keywords) })
+        oneAtFiles.show(query, fits: { Self.stillMatches($0, keywords, for: query) })
     }
 
     // MARK: The selection, read after the key

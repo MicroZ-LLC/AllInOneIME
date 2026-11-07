@@ -1308,7 +1308,7 @@ public final class Composer {
         guard let query = liveQuery else { return [] }
         if live.query != query {
             let keywords = FileSearchRanking.keywords(in: query)
-            live.show(query, instant: live.knows(query) ? [] : instantResults(query), fits: { Self.stillMatches($0, keywords) })
+            live.show(query, instant: live.knows(query) ? [] : instantResults(query), fits: { Self.stillMatches($0, keywords, for: query) })
         }
         return live.rows
     }
@@ -1404,7 +1404,8 @@ public final class Composer {
         let current = liveQuery
         if let current, query != current { _ = currentLiveResults }  // the rows for the text now, before any are added
         let keywords = FileSearchRanking.keywords(in: current ?? "")
-        let changed = live.receive(results, for: query, current: current, isFinal: isFinal, fits: { Self.stillMatches($0, keywords) })
+        let changed = live.receive(results, for: query, current: current, isFinal: isFinal,
+                                   fits: { Self.stillMatches($0, keywords, for: current ?? "") })
         return changed ? [.showPanel] : []
     }
 
@@ -1416,11 +1417,14 @@ public final class Composer {
         lists.clear(everything: true)
     }
 
-    /// Whether a row listed for one `@open` text matches `keywords`, another's: each of them in its name, its other name
-    /// (`chineseName`) or its path (with the home folder as "~" too, as a path is typed), case and accents aside.
-    static func stillMatches(_ result: SearchResult, _ keywords: [String]) -> Bool {
-        let texts = [result.name, result.path, abbreviatingHome(result.path)] + (result.chineseName.map { [$0] } ?? [])
-        return !keywords.isEmpty && keywords.allSatisfy { keyword in texts.contains { FileSearchRanking.contains($0, keyword) } }
+    /// Whether a row listed for one `@open` text matches `keywords`, another's, as the full search would list it
+    /// (`FileSearchRanking.matches`): one of them at least in its name or its other name (`chineseName`), the others there
+    /// or in its folders, case and accents aside. A keyword only in its path ("wei" of /Users/weijianz/) is no match.
+    /// Never for a path being typed (`text` "~/Doc", "/Applications/"): its folder's listing alone, no row of another
+    /// folder.
+    static func stillMatches(_ result: SearchResult, _ keywords: [String], for text: String = "") -> Bool {
+        guard !keywords.isEmpty, !text.hasPrefix("/"), !text.hasPrefix("~") else { return false }
+        return FileSearchRanking.matches(result.path, names: [result.name] + (result.chineseName.map { [$0] } ?? []), keywords: keywords)
     }
 
     /// What ⌘C copies: the highlighted result (a file's path), if one is shown.

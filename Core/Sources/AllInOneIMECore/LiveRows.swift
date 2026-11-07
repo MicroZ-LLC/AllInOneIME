@@ -41,12 +41,14 @@ public struct LiveRows<Row> {
         list(instant + listed.filter { fits($0) && seen.insert(id($0)).inserted })
     }
 
-    /// The source answered `answer` for `query` (`isFinal` false: what it found so far, not kept). For the text listed
-    /// (`current`) it takes the rows' place; for one typed before, the rows that fit the text now (`fits`) are added after
-    /// those listed. Whether the rows changed.
+    /// The source answered `answer` for `query` (`isFinal` false: what it found so far, not kept; nothing found so far
+    /// changes nothing, the rows don't blink while it looks on). For the text listed (`current`) it takes the rows' place;
+    /// for one typed before, the rows that fit the text now (`fits`) are added after those listed. Whether the rows
+    /// changed.
     @discardableResult
     public mutating func receive(_ answer: [Row], for query: String, current: String?, isFinal: Bool = true,
                                  fits: (Row) -> Bool) -> Bool {
+        guard isFinal || !answer.isEmpty else { return false }
         if isFinal { remember(answer, for: query) }
         guard let current else { return false }
         if query == current {
