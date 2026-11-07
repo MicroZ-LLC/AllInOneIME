@@ -64,12 +64,6 @@ public struct SessionServices {
 
     /// Whether secure input is on anywhere (a password field, the lock screen): nothing is sent to a model or run then.
     public var secureInputActive: () -> Bool
-    /// What the selection read after the "@" key (`SessionOutput.readSelection`, its id) found, waited for on the session's
-    /// thread by a key that acts on the draft, at most `timeout` seconds (`InputSession.selectionWait`): the read runs off
-    /// this thread and hands its answer over without it, so that the wait ends when it lands. Nil: nothing selected, or
-    /// no answer in time (what it answers later is dropped). Only a shell that reads after the key is asked (the Mac's
-    /// Accessibility); by default none lands.
-    public var awaitSelection: (_ id: Int, _ timeout: TimeInterval) -> Composer.Selection?
     /// Whether a mouse button, a drag or the scroll wheel was used in the last `seconds`, anywhere: a Shift-click is no
     /// tap of Shift. On the session's own panels too (what may have moved the caret leaves their wheel out:
     /// `InputSession.caretMayHaveMoved`).
@@ -243,7 +237,6 @@ public struct SessionServices {
         loadRecentHandles = { [] }
         saveRecentHandles = { _ in }
         secureInputActive = { false }
-        awaitSelection = { _, _ in nil }
         pointerUsedWithin = { _ in false }
         buttonUsedWithin = { _ in false }
         isVoiceKeyHeld = { false }

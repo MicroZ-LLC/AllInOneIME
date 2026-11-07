@@ -59,14 +59,9 @@ public final class FakeHost: @unchecked Sendable {
     public var readsWhatIsWanted = false
     /// The field is read once the test says (`answerFieldReads`), not at once: keys may come before what it says.
     public var fieldReadsWait = false
-    /// The same for the selection read after the "@" key (`SessionOutput.readSelection`): a slow Accessibility read. A key
-    /// that acts on the draft meanwhile waits for it (`SessionServices.awaitSelection`), and it lands
-    /// `selectionReadTakes` into the wait.
+    /// The same for the selection read after the "@" key (`SessionOutput.readSelection`): a slow Accessibility read, landed
+    /// when the test says (`answerFieldReads`, or `selectionReadsGiveUp`). No key ever waits for it.
     public var selectionReadsWait = false
-    /// How long into a key's wait the selection read held back (`selectionReadsWait`) lands, in seconds: in time up to the
-    /// end of the wait (`InputSession.selectionWait`, at it too); after that the key goes on without it, and the read's
-    /// answer is handed over only when the test says (`answerFieldReads`). Nil: it never answers.
-    public var selectionReadTakes: TimeInterval? = 0
 
     // MARK: What the session did
 
@@ -92,9 +87,6 @@ public final class FakeHost: @unchecked Sendable {
     public private(set) var passwordFieldReads = 0
     /// The replacements read back before they were made (`SessionOutput.checkNextReplace`).
     public private(set) var replacementsChecked = 0
-    /// The keys' waits for the selection read after the "@" key (`SessionServices.awaitSelection`): how long each could
-    /// take at most, and how long it took (as the read was to take: `selectionReadTakes`).
-    public private(set) var selectionWaits: [(timeout: TimeInterval, waited: TimeInterval)] = []
     /// What the reads asked for while `fieldReadsWait` say, not handed to the session yet.
     private var waitingReads: [SessionEvent] = []
 
@@ -109,20 +101,6 @@ public final class FakeHost: @unchecked Sendable {
             inbox.withLock { $0.append(event) }
             arrived.signal()
         })
-        session.services.awaitSelection = { [unowned self] id, timeout in awaitSelection(id, timeout: timeout) }
-    }
-
-    /// A key waits for the selection read `id` (`SessionServices.awaitSelection`): the read held back lands now if it
-    /// takes no longer than `timeout` (`selectionReadTakes`); else nothing is told, and the read stays held.
-    private func awaitSelection(_ id: Int, timeout: TimeInterval) -> Composer.Selection? {
-        let held = waitingReads.firstIndex { if case let .selection(_, read) = $0 { read == id } else { false } }
-        guard let held, let takes = selectionReadTakes, takes <= timeout, case let .selection(selected, _) = waitingReads[held] else {
-            selectionWaits.append((timeout, timeout))
-            return nil
-        }
-        waitingReads.remove(at: held)
-        selectionWaits.append((timeout, takes))
-        return selected
     }
 
     public var composer: Composer { session.composer }
@@ -278,6 +256,19 @@ public final class FakeHost: @unchecked Sendable {
         let reads = waitingReads
         waitingReads = []
         for read in reads { send(read) }
+    }
+
+    /// The selection reads waiting (`selectionReadsWait`) give up, whatever is selected (Accessibility answered nothing in
+    /// time): each answers none, in order. The other reads still wait.
+    public func selectionReadsGiveUp() {
+        let reads = waitingReads.compactMap { if case let .selection(_, id) = $0 { id } else { nil } }
+        waitingReads.removeAll { if case .selection = $0 { true } else { false } }
+        for id in reads { send(.selection(nil, id: id)) }
+    }
+
+    /// The ids of the selection reads asked for so far (`SessionOutput.readSelection`), in order.
+    public var selectionReads: [Int] {
+        outputs.compactMap { if case let .readSelection(id) = $0 { id } else { nil } }
     }
 
     /// Fires the timers started so far, in order.

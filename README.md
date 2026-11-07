@@ -165,7 +165,9 @@ instruction for `@improve` and `@translate` (`@translate ja`, `@improve more for
 (`@question what does this mean`), about the selection. `@open`, `@agent`, `@tasks`, `@settings`, `@reminder`,
 `@imessage`, `@reportissue`, terminal commands and script extensions don't use it: they take what you type, and the
 selection stays as it is. Up to 5000 characters; never read during secure input or in a
-terminal. Turn it off under Settings → Advanced → "Use the selected text" if it misbehaves in an app.
+terminal. In apps such as Chrome and Slack the selection is read just after the `@`: a key you press while it's still
+being read is done as soon as it's read, in the order you typed. Turn it off under Settings → Advanced → "Use the
+selected text" if it misbehaves in an app.
 
 ### Replying with @reply (new)
 

@@ -554,16 +554,15 @@ public final class Composer {
     /// it); nil: none.
     public var parseReminder: (String) -> ReminderDraft? = { _ in nil }
     /// The selection is read after the "@" key (the field didn't tell it with the key): the draft stays out of the field
-    /// meanwhile (`draftInPanel`), and a key that acts on it, or a row picked, waits for the read (`selectionWaited`).
+    /// meanwhile (`draftInPanel`), and a key the list takes whatever it turns out to be is parked for the read
+    /// (`parkedForSelection`).
     public internal(set) var selectionPending = false
     /// Whether the field reads the selection after the key (set by the session for the key being handled): see
     /// `selectionPending`.
     public var selectionFollows: () -> Bool = { false }
-    /// The selection read after the "@" key (`selectionPending`), waited for on the key's thread by a key that acts on the
-    /// draft (`selectionWaited`): what it found once it landed, at most a moment later (`InputSession.selectionWait`);
-    /// nil: nothing selected, or it didn't land in time (it counts as none then). Set by the session; a composer on its
-    /// own reads none after the key.
-    public var awaitSelectionRead: () -> Selection? = { nil }
+    /// What was taken while the selection was read after the "@" key (`selectionPending`), to be done once the read is in
+    /// (`selectionRead`): one at a time, as where the field tells the selection with the key.
+    var parkedForSelection: ParkedForSelection?
     /// A send command's recipient (`@imessage`), once picked; until then the text after the command
     /// finds one (`recipientQuery`).
     public private(set) var messageRecipient: Recipient?
@@ -1468,15 +1467,34 @@ public final class Composer {
     }
 
     private func keyDown(_ event: KeyEvent) -> Response {
-        // One @ while the selection is read after the "@" key: a key that acts waits for the read first, then does what
-        // it does where the field tells the selection with the key (Composer+OneAt.swift).
-        let landed = keyWaitsForSelection(event) ? selectionWaited() : []
+        // One @ while the selection is read after the "@" key (Composer+OneAt.swift): a key the list takes whatever it turns
+        // out to be is parked for the read, and returns at once; any other but those that only edit the draft settles the
+        // read as none first, and is then handled as with nothing selected.
+        var settled: [Effect] = []
+        switch whileSelectionIsRead(event) {
+        case .parks?:
+            parkForSelection(.key(event))
+            return .consumed()
+        case .settles?:
+            settled = selectionRead(nil)
+        case .edits?, nil:
+            break
+        }
         var response = typedKeyDown(event)
-        response.effects = landed + response.effects
+        response.effects = settled + response.effects
         return response
     }
 
-    /// `keyDown`, the selection read after the "@" key in (or not waited for: the key only edits the draft).
+    /// Takes `parked` until the selection read after the "@" key is in (`selectionRead`). It was a press: no tap, hold or
+    /// Shift tap goes on across it, as across any key.
+    func parkForSelection(_ parked: ParkedForSelection) {
+        parkedForSelection = parked
+        shiftPressedAt = nil
+        optionPressed = nil
+        voiceArmed = false
+    }
+
+    /// `keyDown`, the selection read after the "@" key in (or not: the key only edits the draft).
     private func typedKeyDown(_ event: KeyEvent) -> Response {
         if let response = handleHangulKey(event) { return response }
         // Any other key finishes the syllable being typed first, then does what it does.
@@ -1675,18 +1693,27 @@ public final class Composer {
 
     /// `handleFlagsChanged`, before `forField`.
     private func flagsChanged(key: Key, modifiers: KeyModifiers, timestamp: TimeInterval) -> [Effect] {
-        var landed: [Effect] = []
+        // One @ while a key is parked for the selection read after the "@" key: a modifier pressed starts another key (a
+        // shortcut, a tap, a hold), so what is parked is done first, as if nothing were selected.
+        var settled: [Effect] = []
+        if parkedForSelection != nil, let kind = key.modifierKind, modifiers.contains(Modifiers.kind(kind)) {
+            settled = selectionRead(nil)
+        }
         if let held = optionTapHeld(key: key, modifiers: modifiers, timestamp: timestamp), !pointerUsedWithin(held),
            actionKey == .optionTap {
-            // One @ while the selection is read after the "@" key: the tap waits for the read first, as a key that acts.
-            landed = selectionWaited()
+            // One @ while the selection is still read: the tap is parked for it, as a key the list takes.
+            if oneAt != nil, selectionPending, parkedForSelection == nil {
+                parkForSelection(.actionKeyTap)
+                return settled
+            }
+            settled += selectionRead(nil)
             if let effects = actionKeyPressed() {
                 voiceArmed = false  // a tap of right ⌥, not a hold
                 shiftPressedAt = nil
-                return landed + effects
+                return settled + effects
             }
         }
-        return landed + modifierChanged(key: key, modifiers: modifiers, timestamp: timestamp)
+        return settled + modifierChanged(key: key, modifiers: modifiers, timestamp: timestamp)
     }
 
     /// `flagsChanged` but for the action key's tap.
@@ -2044,12 +2071,13 @@ public final class Composer {
     /// everything pending is committed as converted text, including speech recognized so far (but not a
     /// note with line breaks: `finishAsTyped`).
     public func commitAll() -> [Effect] {
+        // A key parked for the selection read after the "@" key is done first: the read gives up with the field.
+        var effects = parkedForSelection != nil ? selectionRead(nil) : []
         typePendingAccent()
-        var effects: [Effect] = []
         var spoken = ""
         if let id = voice.id {
             spoken = voice.text
-            effects = cancelVoice(id, refresh: false)
+            effects += cancelVoice(id, refresh: false)
         }
         var text = draft
         if !isLevelTwo, let engine, engine.snapshot().isComposing {
@@ -2158,6 +2186,7 @@ public final class Composer {
                     selection = readSelection().flatMap { $0.text.isEmpty ? nil : $0 }
                     selectionFits = (selection?.text.count ?? 0) <= Self.maxSelectionLength
                     selectionPending = selection == nil && selectionFollows()
+                    parkedForSelection = nil
                     draft = commandTrigger
                     paletteHighlight = 0
                     oneAtReset()
@@ -2639,6 +2668,7 @@ public final class Composer {
         if phase == .idle {
             selection = nil
             selectionPending = false
+            parkedForSelection = nil
         }
         if messageRecipient != nil, draftCommand?.kind != .message { messageRecipient = nil }
         if recipients.query != nil, !pickingRecipient { clearRecipientResults() }
@@ -3678,6 +3708,7 @@ public final class Composer {
         let selected = selection
         selection = nil
         selectionPending = false
+        parkedForSelection = nil
         var effects: [Effect] = []
         if case let .translating(id) = phase {
             effects.append(leaving && activeCommand?.script?.output == .show ? .detachScript(id: id) : .cancelConversion)

@@ -30,8 +30,9 @@ public enum SessionEvent: Sendable {
     /// password field where secure input isn't on; nil: the shell couldn't tell (the Mac: no Accessibility, nothing
     /// focused, no answer in time), unknown, never none. One for a field that has lost the focus since is dropped.
     case passwordField(Bool?, focus: Int)
-    /// The selection read after the "@" key (`SessionOutput.readSelection`, its `id`); nil: none. One the draft no longer
-    /// waits for (the field lost the focus, the draft ended, a key went on without it) is dropped.
+    /// The selection read after the "@" key (`SessionOutput.readSelection`, its `id`); nil: none, or the read gave up. A key
+    /// parked for it is done then (`Composer.parkedForSelection`). One the draft no longer waits for (the field lost the
+    /// focus, the draft ended, a key settled it as none) is dropped.
     case selection(Composer.Selection?, id: Int)
     /// What the session's work answers (`SessionTasks`).
     case task(TaskID, TaskUpdate)
@@ -123,8 +124,8 @@ public enum SessionOutput: Equatable, Sendable {
     /// as `SessionEvent.passwordField` with `focus`. A shell that can't tell answers nil.
     case readPasswordField(focus: Int)
     /// Read the selection off the session's thread, as the key couldn't (`FieldContext.selectionFollows`: the Mac's
-    /// Accessibility, a quarter of a second a call), and hand it back as `SessionEvent.selection` with `id`; and to a key
-    /// that waits for it on the session's thread (`SessionServices.awaitSelection`), without that thread's help.
+    /// Accessibility, a quarter of a second a call), and hand it back as `SessionEvent.selection` with `id`. No key waits
+    /// for it: one the list takes meanwhile is parked until it lands (`Composer.parkedForSelection`).
     case readSelection(id: Int)
     /// Autocomplete's suggestion (`Autocomplete`): `text` in gray right after the caret (where the caret can't be placed,
     /// a line of the candidate panel), until the next one; nil: none. Shown again as the caret moves (typed along).

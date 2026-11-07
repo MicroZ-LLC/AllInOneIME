@@ -40,9 +40,6 @@ final class AllInOneIMEInputController: IMKInputController {
     /// (`SessionOutput`) to the field and on the screen; what the session's work answers later comes back here on the main
     /// thread (`received`).
     lazy var session: InputSession = makeSession()
-    /// The selection read after the "@" key as it lands (`readSelectionAfterKey`): a key that acts on the draft meanwhile
-    /// waits for it on the main thread, at most `InputSession.selectionWait` (`SessionServices.awaitSelection`).
-    private let selectionAfterKey = SelectionAfterKey()
     /// The input state machine (the session's).
     var composer: Composer { session.composer }
     /// What the session asks of this Mac, or has it do (`SessionServices.mac`; the self-test supplies stand-ins that
@@ -184,14 +181,6 @@ final class AllInOneIMEInputController: IMKInputController {
         let box = WeakBox(self)
         var services = MainActor.assumeIsolated { MainThreadBox(SessionServices.mac) }.value
         services.pastesInTerminal = { MainActor.assumeIsolated { box.value?.canPasteInTerminal() ?? false } }
-        // A key that acts while the selection is read after the "@" key waits for the read here, never posted again: the
-        // keys typed meanwhile wait in the system's queue, in their order.
-        let selectionAfterKey = selectionAfterKey
-        services.awaitSelection = { id, timeout in
-            let selection = selectionAfterKey.wait(for: id, timeout: timeout)
-            if selection == nil { log.notice("a key waited for the selection read after the key: none, or not in time") }
-            return selection
-        }
         services.keyTranslator = {
             MainActor.assumeIsolated { box.value?.appliedLayout.flatMap(KeyboardLayout.init(id:)) ?? KeyboardLayout.current() }
         }
@@ -243,18 +232,16 @@ final class AllInOneIMEInputController: IMKInputController {
     }
 
     /// The selection only Accessibility tells (`SessionOutput.readSelection`), read off the main thread once the "@" key is
-    /// answered: handed to a key waiting for it on the main thread without that thread (`selectionAfterKey`), and back to
-    /// the session as read `id` (`SessionEvent.selection`), which drops it if a key went on without it. Only how long it
-    /// is is logged.
+    /// answered (the app answers it on its own main thread, free once the key is), and handed back to the session as read
+    /// `id` (`SessionEvent.selection`): a key parked for it is done then, and one that settled it as none dropped it. Only
+    /// how long it is is logged.
     @MainActor
     func readSelectionAfterKey(id: Int) {
-        let (box, selectionAfterKey) = (WeakBox(self), selectionAfterKey)
-        selectionAfterKey.started(id)
+        let box = WeakBox(self)
         DispatchQueue.global(qos: .userInitiated).async {
             let text = SelectedText.readWithAccessibility()
             if let text { log.notice("selection read (AX, after the key, \(text.count) characters)") }
             let selection = text.map { Composer.Selection(text: $0) }
-            selectionAfterKey.landed(id, selection)
             DispatchQueue.main.async { MainActor.assumeIsolated { box.value?.received(.selection(selection, id: id)) } }
         }
     }
