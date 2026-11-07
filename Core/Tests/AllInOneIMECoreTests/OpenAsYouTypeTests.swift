@@ -314,4 +314,25 @@ struct OpenAsYouTypeTests {
             #expect(rows(host).count == Composer.liveRowLimit && host.composer.currentLiveResults.count == 8, "\(rows(host))")
         }
     }
+
+    /// Once something is opened, what the full search found for the texts typed in this field is forgotten: what was
+    /// opened ranks first from now on, so a text typed again lists what is known at once, not the order from before.
+    @Test func whatWasFoundIsForgottenOnceSomethingIsOpened() async {
+        await withInterfaceLanguage("en") {
+            let stand = Stand(instant: ["no": [Self.notesApp]], full: ["no": [Self.notesFile, Self.notesApp]])
+            let host = open(stand)
+            host.type("no")
+            #expect(host.settle { rows(host) == ["notes.md", "Notes"] })
+            #expect(host.composer.live.knows("no"))
+            host.press(FakeHost.down)
+            host.press(FakeHost.enter)
+            #expect(host.opened == [Self.notesApp.path], "\(host.opened)")
+            #expect(!host.composer.live.knows("no"), "forgotten once opened")
+            host.press(FakeHost.at)
+            host.type("ope")
+            host.press(FakeHost.tab)
+            host.type("no")
+            #expect(rows(host) == ["Notes"], "what is known at once: \(rows(host))")
+        }
+    }
 }

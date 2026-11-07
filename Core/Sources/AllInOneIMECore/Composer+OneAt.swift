@@ -271,7 +271,7 @@ extension Composer {
         case let .value(value):
             return finish(committing: value)
         case let .open(result):
-            return finish(committing: "") + [.open(path: result.path), used(.open)]
+            return finish(committing: "") + [opening(result.path), used(.open)]
         case let .reminder(reminder):
             let text = oneAt?.text.trimmingCharacters(in: .whitespaces) ?? ""
             return finish(committing: "") + [.addReminder(reminder, input: text), used(.reminder)]

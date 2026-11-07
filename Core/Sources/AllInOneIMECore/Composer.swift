@@ -1430,6 +1430,14 @@ public final class Composer {
         return FileSearchRanking.matches(result.path, names: [result.name] + (result.chineseName.map { [$0] } ?? []), keywords: keywords)
     }
 
+    /// Opens `path` (`Effect.open`): what `@open` opened before ranks first from now on, so what was found for its texts
+    /// in this field's session (`live`, one @'s files) is forgotten, not listed again in the order from before.
+    func opening(_ path: String) -> Effect {
+        live.clear(everything: true)
+        oneAtFiles.clear(everything: true)
+        return .open(path: path)
+    }
+
     /// What ⌘C copies: the highlighted result (a file's path), if one is shown.
     public var copyableText: String? {
         // A `show` script's output: all of it; a list row: its `text.copy`.
@@ -1810,7 +1818,7 @@ public final class Composer {
         if !live.isEmpty {
             guard live.indices.contains(index) else { return [] }
             let path = live[index].path  // before `finish` clears them
-            return finish(committing: "") + [.open(path: path)]
+            return finish(committing: "") + [opening(path)]
         }
         if recipientQuery != nil { return pickRecipient(at: index) }
         if !questionMatches.isEmpty { return showSavedAnswer(at: index) }
@@ -3544,7 +3552,7 @@ public final class Composer {
         // to choose from, below).
         if opensLiveResult {
             let path = currentLiveResults[liveHighlight].path  // before `finish` clears them
-            return finish(committing: "") + [.open(path: path)]
+            return finish(committing: "") + [opening(path)]
         }
         let composing = engine.snapshot().isComposing
         let effects = composing ? convertComposition(engine) : []
@@ -3639,7 +3647,7 @@ public final class Composer {
         guard !all[index].text.isEmpty else { return [] }
         // Row 0 on the selection: it stays as it is (and selected), nothing inserted over it.
         if all[index].kind == .original, selection != nil { return finish(committing: "", selection: .kept) }
-        if case let .file(path) = all[index].kind { return finish(committing: "") + [.open(path: path)] }
+        if case let .file(path) = all[index].kind { return finish(committing: "") + [opening(path)] }
         // What a `show` script printed isn't inserted: picking it closes the panel.
         if all[index].kind == .shown { return finish(committing: "") }
         if case let .item(item) = all[index].kind, let command = activeCommand { return perform(item, of: command) }
