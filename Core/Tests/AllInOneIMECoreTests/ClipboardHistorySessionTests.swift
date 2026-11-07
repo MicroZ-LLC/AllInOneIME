@@ -481,6 +481,27 @@ struct ClipboardHistorySessionTests {
         }
     }
 
+    /// A tab or another control character on one line too (a tab typed there is completion, ^D the end of input): as it
+    /// was copied where it can paste (the shell pastes it), else on one line with spaces. Outside a terminal as copied.
+    @Test func controlsIntoATerminal() async {
+        await inEnglish {
+            #expect(Composer.actsInTerminal("\tmake test") && Composer.actsInTerminal("exit\u{04}")
+                    && Composer.actsInTerminal("a\u{2028}b") && !Composer.actsInTerminal("make test"))
+            let pastes = host(["\tmake test"], terminal: true) { $0.pastesInTerminal = { true } }
+            pastes.press(FakeHost.controlV)
+            pastes.press(FakeHost.enter)
+            #expect(pastes.document == "\tmake test", "\(pastes.document.debugDescription)")
+            let cannot = host(["name\tvalue\u{04}"], terminal: true) { $0.pastesInTerminal = { false } }
+            cannot.press(FakeHost.controlV)
+            cannot.press(FakeHost.enter)
+            #expect(cannot.document == "name value", "\(cannot.document.debugDescription)")
+            let field = host(["name\tvalue"]) { $0.pastesInTerminal = { false } }
+            field.press(FakeHost.controlV)
+            field.press(FakeHost.enter)
+            #expect(field.document == "name\tvalue", "\(field.document.debugDescription)")
+        }
+    }
+
     /// The field left: the panel goes.
     @Test func leavingTheFieldHidesIt() async {
         await inEnglish {
