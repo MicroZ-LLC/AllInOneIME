@@ -118,7 +118,7 @@ struct WarmingTests {
     /// own session; none again while the draft stays one, nor within `ConnectionWarmth.idle` of it.
     @Test func anAICommandOpensTheProvidersConnection() async throws {
         try await withInterfaceLanguage("en") {
-            let server = "warm-anthropic.test"
+            let server = "warm-anthropic.example.com"
             StubURLProtocol.register(host: server, StubURLProtocol.Response(status: 404, headers: [:], chunks: []))
             let settings = Settings(.anthropic)
             settings.config.anthropic.baseURL = "https://\(server)"
@@ -158,7 +158,7 @@ struct WarmingTests {
     /// secure input.
     @Test func noHEADForTheHostedServiceNoAIOrSecureInput() async {
         await withInterfaceLanguage("en") {
-            let server = "warm-quiet.test"
+            let server = "warm-quiet.example.com"
             StubURLProtocol.register(host: server, StubURLProtocol.Response(status: 404, headers: [:], chunks: []))
             let hosted = Settings(.hosted)
             let noAI = Settings(.openai)
@@ -180,7 +180,7 @@ struct WarmingTests {
     /// Translate as You Type turned on with a cloud provider: no HEAD (only an AI command and autocomplete open one).
     @Test func translateAsYouTypeOpensNoConnection() async {
         await withInterfaceLanguage("en") {
-            let server = "warm-translate.test"
+            let server = "warm-translate.example.com"
             StubURLProtocol.register(host: server, StubURLProtocol.Response(status: 404, headers: [:], chunks: []))
             let settings = Settings(.anthropic)
             settings.config.anthropic.baseURL = "https://\(server)"
@@ -194,7 +194,7 @@ struct WarmingTests {
     /// Cloud autocomplete: the field's first key that types opens the connection, before the pause is over.
     @Test func autocompletesFirstKeyOpensTheConnection() async {
         await withInterfaceLanguage("en") {
-            let server = "warm-gemini.test"
+            let server = "warm-gemini.example.com"
             StubURLProtocol.register(host: server, StubURLProtocol.Response(status: 404, headers: [:], chunks: []))
             let settings = Settings(.gemini)
             settings.config.gemini.baseURL = "https://\(server)"
@@ -229,4 +229,24 @@ struct WarmingTests {
             #expect(!warmth.due(try #require(URL(string: local))), "\(local)")
         }
     }
+
+    /// Never this Mac, the local network or a VPN's names, in any spelling: an IP address, a name of one label, a
+    /// private-use name; nor the hosted service by its host.
+    @Test func aHEADGoesOnlyToAHostOnTheInternet() throws {
+        let local = ["https://nas.lan:8443/v1", "https://mac-mini.tail1234.ts.net/v1", "https://100.64.0.7/v1", "https://100.101.102.103",
+                     "https://myserver/v1", "https://router.home.arpa/v1", "https://0.0.0.0/v1", "https://[::ffff:127.0.0.1]/v1",
+                     "https://127.1/v1", "https://localhost./v1", "https://LOCALHOST:8080", "https://foo.localhost/v1",
+                     "https://user:pass@proxy/v1", "https://box.local/v1", "https://llm.internal/v1", "https://2130706433/v1",
+                     "https://0x7f000001/v1", "https://[::1]:11434/v1", "https://[fd00::1]/v1", "https://api.test/v1",
+                     HostedService.baseURL + "/v1"]
+        for address in local {
+            let url = try #require(URL(string: address), "\(address)")
+            #expect(!ConnectionWarmth(now: { 0 }).due(url), "\(address)")
+        }
+        for address in ["https://api.openai.com/v1", "https://api.deepseek.com", "https://dashscope.aliyuncs.com/compatible-mode/v1",
+                        "https://bedrock-runtime.us-east-1.amazonaws.com"] {
+            #expect(ConnectionWarmth(now: { 0 }).due(try #require(URL(string: address))), "\(address)")
+        }
+    }
+
 }

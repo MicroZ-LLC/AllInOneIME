@@ -7,8 +7,9 @@ import FoundationNetworking
 /// to a service closes after two or three minutes idle, and the request after the pause would wait for a new one: DNS,
 /// TCP and TLS, 50 to 300 ms. Where nothing went to the service in the last `idle`, a HEAD goes to its base URL on the
 /// same session, with no key, no credentials and no body, so that the connection is open when the request goes. One an
-/// idle period: a HEAD, or a request, counts as something sent there. Never to the hosted service (a HEAD there would run
-/// it), nor to this Mac or the local network (no handshake there worth saving). One for each session (`BedrockClient`).
+/// idle period: a HEAD, or a request, counts as something sent there. Only to a host on the internet (`isPublic`): never
+/// to the hosted service (a HEAD there would run it), by provider or by its host, nor to this Mac or the local network.
+/// One for each session (`BedrockClient`).
 public final class ConnectionWarmth: Sendable {
     /// A service nothing went to for this long is idle: its connection may be gone by the time the request goes.
     public static let idle: TimeInterval = 90
@@ -30,11 +31,11 @@ public final class ConnectionWarmth: Sendable {
         sent.withLock { $0[origin] = time }
     }
 
-    /// Whether a HEAD goes to `url` now: an https address on the internet nothing went to in the last `idle`. True marks
-    /// it sent.
+    /// Whether a HEAD goes to `url` now: an https address on the internet (`isPublic`) nothing went to in the last
+    /// `idle`, not the hosted service's. True marks it sent.
     func due(_ url: URL) -> Bool {
-        guard url.scheme?.lowercased() == "https", let host = url.host, !HTTPProviders.isLocal(host),
-              let origin = Self.origin(url) else { return false }
+        guard url.scheme?.lowercased() == "https", let host = url.host?.lowercased(), Self.isPublic(host),
+              host != HostedService.host, let origin = Self.origin(url) else { return false }
         let time = now()
         return sent.withLock { sent in
             if let last = sent[origin], time - last < Self.idle { return false }
@@ -57,6 +58,26 @@ public final class ConnectionWarmth: Sendable {
             do { for try await _ in body {} } catch {}
         }
         return true
+    }
+
+    /// The names no host on the internet ends with: this computer, the local network, a VPN's own names (Tailscale's),
+    /// and those set aside for tests and examples.
+    static let privateSuffixes = ["local", "lan", "home", "home.arpa", "internal", "intranet", "corp", "private", "localhost",
+                                  "localdomain", "test", "example", "invalid", "onion", "arpa", "ts.net", "alt"]
+
+    /// Whether `host` (lowercased) is a name on the internet, the only place a HEAD goes: never an IP address in any of
+    /// its spellings ("192.168.1.2", "127.1", "0x7f000001", "[::ffff:127.0.0.1]", "100.64.0.1"), a name of one label
+    /// ("myserver", "localhost"), or one under a private-use name (`privateSuffixes`: "nas.lan", "box.home.arpa",
+    /// "mac.tail1234.ts.net", "localhost." with its dot).
+    static func isPublic(_ host: String) -> Bool {
+        var host = host.lowercased()
+        if host.hasSuffix(".") { host.removeLast() }
+        guard !host.isEmpty, !host.contains(":"), !host.contains("["), !host.contains("%") else { return false }
+        let labels = host.split(separator: ".", omittingEmptySubsequences: false)
+        guard labels.count >= 2, labels.allSatisfy({ !$0.isEmpty }), let last = labels.last else { return false }
+        // A last label of digits (or "0x…") is an address: no top-level name is one.
+        if last.allSatisfy(\.isNumber) || last.hasPrefix("0x") { return false }
+        return !privateSuffixes.contains { host == $0 || host.hasSuffix("." + $0) }
     }
 
     /// "scheme://host:port" of `url`, lowercased: what a connection is kept for.

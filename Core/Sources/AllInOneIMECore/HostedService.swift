@@ -10,6 +10,8 @@ import FoundationNetworking
 public enum HostedService {
     /// The function URL (output `Url`).
     public static let baseURL = "https://nijsd6m4tyals3k4odja2fj7be0vmvhm.lambda-url.us-west-2.on.aws"
+    /// `baseURL`'s host, lowercased (nil: none): what nothing but the service's own requests go to (no HEAD ahead).
+    public static let host: String? = URL(string: baseURL)?.host?.lowercased()
     /// The sign-in page's host (output `AuthDomain`), e.g. "allinoneime-you.auth.us-east-1.amazoncognito.com".
     public static let authDomain = "allinoneime-c5d745.auth.us-west-2.amazoncognito.com"
     /// The app client of the user pool (output `ClientId`).
