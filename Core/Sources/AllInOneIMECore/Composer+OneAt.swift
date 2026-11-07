@@ -170,9 +170,9 @@ extension Composer {
             guard plain else { return nil }
             moveOneAtHighlight(by: event.key == .arrow(.up) ? -1 : 1)
             return .consumed([.showPanel])
-        case .escape where !composing:
+        case .escape:
             if selection != nil { return .consumed(finish(committing: "", selection: .kept)) }
-            // The magic key alone is given up, as before; a text stays as typed.
+            // The magic key alone is given up, as before; a text stays as typed, pinyin composed as its letters.
             guard lone else { return .consumed(finishOneAsTyped()) }
             draft = ""
             setLevelOnePhase()

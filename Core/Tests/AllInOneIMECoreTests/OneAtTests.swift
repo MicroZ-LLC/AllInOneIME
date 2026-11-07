@@ -420,4 +420,15 @@ struct OneAtTests {
         #expect(own("com.tinyspeck.slackmacgap") == ["pd", "pa", "pb"], "\(own("com.tinyspeck.slackmacgap"))")
         #expect(own("com.apple.mail") == ["pa", "pb", "pc"])
     }
+
+    /// Esc while pinyin is composed after "@": the rows go and the text stays as typed, the letters as letters.
+    @Test func escWhilePinyinComposesLeavesTheLetters() {
+        let c = Composer(engine: FakeEngine(), actionKey: .enter)
+        c.oneAtList = true
+        c.commands = Command.builtins
+        for key in [FakeHost.at] + "nihao".map({ k(String($0)) }) { _ = c.handleKeyDown(key) }
+        #expect(c.engineState.isComposing)
+        let response = c.handleKeyDown(escKey)
+        #expect(commits(response) == ["@nihao"] && !c.isComposing && c.draft.isEmpty, "\(commits(response)) \(c.draft)")
+    }
 }
