@@ -426,18 +426,21 @@ struct OneAtAcceptanceTests {
 
     // MARK: - 5. A time
 
-    /// "明天下午3点开会": "Reminder: tomorrow 15:00 开会"; ⏎ adds it, the rest of the text its title.
+    /// "明天下午3点开会": "Reminder: tomorrow 3:00 PM 开会" ("tomorrow 15:00" with the 24-hour clock: the time as the system
+    /// shows times, as `@reminder` shows it); ⏎ adds it, the rest of the text its title.
     @Test func aTimeInTheTextMakesAReminderFirst() async {
         await inEnglish {
             let world = World()
             let field = world.field()
             field.type("@")
             field.write(pinyin: "mingtianxiawusandiankaihui")
+            let expected = Suite.reminder(in: "明天下午3点开会")
+            // When, as `@reminder`'s confirmation says it (`UIText.when`): the system's clock, in the locale the test runs in.
+            let when = UIText.when(expected)
             let row = field.rows.first.map { $0.text + " " + $0.comment } ?? ""
-            #expect(field.kinds.first == "reminder" && row.contains("15:00") && row.contains("开会"), "\(field.texts)")
+            #expect(field.kinds.first == "reminder" && row.contains(when) && row.contains("开会"), "\(when): \(field.texts)")
             #expect(field.firstIsHighlighted)
             field.press(FakeHost.enter)
-            let expected = Suite.reminder(in: "明天下午3点开会")
             #expect(expected.title == "开会" && expected.hasTime)
             #expect(field.host.settle(timeout: 5) { !world.reminders.withLock { $0 }.isEmpty })
             #expect(world.reminders.withLock { $0 } == [expected], "\(world.reminders.withLock { $0 })")
