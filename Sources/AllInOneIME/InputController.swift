@@ -40,6 +40,9 @@ final class AllInOneIMEInputController: IMKInputController {
     /// (`SessionOutput`) to the field and on the screen; what the session's work answers later comes back here on the main
     /// thread (`received`).
     lazy var session: InputSession = makeSession()
+    /// The selection read after the "@" key as it lands (`readSelectionAfterKey`): a key that acts on the draft meanwhile
+    /// waits for it on the main thread, at most `InputSession.selectionWait` (`SessionServices.awaitSelection`).
+    private let selectionAfterKey = SelectionAfterKey()
     /// The input state machine (the session's).
     var composer: Composer { session.composer }
     /// What the session asks of this Mac, or has it do (`SessionServices.mac`; the self-test supplies stand-ins that
@@ -181,6 +184,14 @@ final class AllInOneIMEInputController: IMKInputController {
         let box = WeakBox(self)
         var services = MainActor.assumeIsolated { MainThreadBox(SessionServices.mac) }.value
         services.pastesInTerminal = { MainActor.assumeIsolated { box.value?.canPasteInTerminal() ?? false } }
+        // A key that acts while the selection is read after the "@" key waits for the read here, never posted again: the
+        // keys typed meanwhile wait in the system's queue, in their order.
+        let selectionAfterKey = selectionAfterKey
+        services.awaitSelection = { id, timeout in
+            let selection = selectionAfterKey.wait(for: id, timeout: timeout)
+            if selection == nil { log.notice("a key waited for the selection read after the key: none, or not in time") }
+            return selection
+        }
         services.keyTranslator = {
             MainActor.assumeIsolated { box.value?.appliedLayout.flatMap(KeyboardLayout.init(id:)) ?? KeyboardLayout.current() }
         }
@@ -232,15 +243,19 @@ final class AllInOneIMEInputController: IMKInputController {
     }
 
     /// The selection only Accessibility tells (`SessionOutput.readSelection`), read off the main thread once the "@" key is
-    /// answered, and handed back for the focus it was asked in (`SessionEvent.selection`). Only how long it is is logged.
+    /// answered: handed to a key waiting for it on the main thread without that thread (`selectionAfterKey`), and back to
+    /// the session as read `id` (`SessionEvent.selection`), which drops it if a key went on without it. Only how long it
+    /// is is logged.
     @MainActor
-    func readSelectionAfterKey(focus: Int) {
-        let box = WeakBox(self)
+    func readSelectionAfterKey(id: Int) {
+        let (box, selectionAfterKey) = (WeakBox(self), selectionAfterKey)
+        selectionAfterKey.started(id)
         DispatchQueue.global(qos: .userInitiated).async {
             let text = SelectedText.readWithAccessibility()
             if let text { log.notice("selection read (AX, after the key, \(text.count) characters)") }
             let selection = text.map { Composer.Selection(text: $0) }
-            DispatchQueue.main.async { MainActor.assumeIsolated { box.value?.received(.selection(selection, focus: focus)) } }
+            selectionAfterKey.landed(id, selection)
+            DispatchQueue.main.async { MainActor.assumeIsolated { box.value?.received(.selection(selection, id: id)) } }
         }
     }
 
@@ -616,16 +631,8 @@ final class AllInOneIMEInputController: IMKInputController {
     /// The key downs answered lately, whatever the text field (a copy may reach another one).
     @MainActor private static var keyEchoes = KeyEchoes()
 
-    /// The keys posted to the app (`PlatformAction.passKey`, `.replayKey`) not back yet, whatever the text field: until one
-    /// is, a key typed goes behind it.
-    @MainActor private static var keysOnTheWay = KeysOnTheWay()
-
     @MainActor
     func handleKeyDown(_ event: NSEvent, client: IMKTextInput?) -> Bool {
-        let now = ProcessInfo.processInfo.systemUptime
-        // A key posted, back: one given to the app is the app's now; one replayed is answered below, at its place.
-        let mark = TerminalPaste.mark(of: event)
-        if let mark, Self.keysOnTheWay.arrived(mark, now: now) == .toApp { return false }
         if TerminalPaste.isOurs(event) { return false }  // a line break being pasted into a terminal
         if !atTap, !KeyGuard.shared.isAttached(self) { attachKeyGuard() }
         commitRow()  // a row the key before put in, if this key came first
@@ -634,6 +641,7 @@ final class AllInOneIMEInputController: IMKInputController {
         // Type's long press).
         let key = KeyEchoes.Key(keyCode: event.keyCode, characters: event.characters ?? "", modifiers: event.modifierFlags.rawValue,
                                 isRepeat: event.isARepeat, timestamp: event.timestamp)
+        let now = ProcessInfo.processInfo.systemUptime
         if let handled = Self.keyEchoes.copy(of: key, now: now) {
             // `log stream --level debug --predicate 'subsystem == "com.aipinyin.inputmethod.AIPinyin" AND eventMessage
             // BEGINSWITH "a keyDown came twice"'`: how long after the event's time the copy came, never the key.
@@ -641,50 +649,9 @@ final class AllInOneIMEInputController: IMKInputController {
             log.debug("a keyDown came twice; the copy was dropped (\(late, format: .fixed(precision: 1), privacy: .public) ms after its time)")
             return handled
         }
-        let handled = (mark == nil && heldBehind(event, client: client, now: now)) || handleNewKeyDown(event, client: client)
+        let handled = handleNewKeyDown(event, client: client)
         Self.keyEchoes.answered(key, now: now, handled: handled)
         return handled
-    }
-
-    /// A key typed while one posted to the app is on its way (`KeysOnTheWay`), here as the app hands it over (it got past
-    /// the key tap first): taken, kept from the app as a key the rows take is (`SessionOutput.rowsTookKey`), and posted
-    /// behind that one, to come back as typed. False: none is on its way.
-    @MainActor
-    private func heldBehind(_ event: NSEvent, client: IMKTextInput?, now: TimeInterval) -> Bool {
-        guard let typed = event.cgEvent, Self.keysOnTheWay.arrived(nil, now: now) == .behind else { return false }
-        TerminalPaste.post(behind: typed, mark: Self.keysOnTheWay.post(passed: false, now: now))
-        apply([.rowsTookKey], client: client)
-        return true
-    }
-
-    /// A key the session posts to the app (`PlatformAction.passKey`: `passed`) or to the input method again behind the
-    /// keys posted before it (`.replayKey`), at once, so that a key typed after it goes behind it (`keysOnTheWay`). Without
-    /// Accessibility none can be posted: a key for the app is dropped, a replayed one is answered now, in its order.
-    @MainActor
-    private func postKey(_ key: KeyEvent, passed: Bool) {
-        if TerminalPaste.canPost {
-            TerminalPaste.post(key, mark: Self.keysOnTheWay.post(passed: passed, now: ProcessInfo.processInfo.systemUptime))
-        } else if passed {
-            log.notice("a key for the app after the selection read not posted: Accessibility isn't allowed")
-        } else {
-            DispatchQueue.main.async { [weak self] in
-                guard let self, let event = Self.event(for: key) else { return }
-                _ = self.handleKeyDown(event, client: nil)
-            }
-        }
-    }
-
-    /// `key` as an event of its own, to answer as typed (never posted).
-    private static func event(for key: KeyEvent) -> NSEvent? {
-        guard let made = CGEvent(keyboardEventSource: CGEventSource(stateID: .privateState), virtualKey: key.keyCode, keyDown: true)
-        else { return nil }
-        var flags: CGEventFlags = []
-        if key.modifiers.contains(.shift) { flags.insert(.maskShift) }
-        if key.modifiers.contains(.control) { flags.insert(.maskControl) }
-        if key.modifiers.contains(.option) { flags.insert(.maskAlternate) }
-        if key.modifiers.contains(.command) { flags.insert(.maskCommand) }
-        made.flags = flags
-        return NSEvent(cgEvent: made)
     }
 
     /// A key down at the key tap (`KeyGuard`), before any app has it: nil when it's no key for us there (the app hands it
@@ -696,14 +663,6 @@ final class AllInOneIMEInputController: IMKInputController {
     /// history's). The tap's event is made an NSEvent only then: the tap has every key of every app.
     @MainActor
     func keyAtTap(_ event: CGEvent) -> Bool? {
-        // A key replayed behind one given to the app: answered as the app hands it over, behind that one (`handleKeyDown`).
-        if TerminalPaste.mark(of: event) != nil { return nil }
-        // Typed while a key posted to the app is on its way: taken before any app has it, and posted behind that one.
-        let now = ProcessInfo.processInfo.systemUptime
-        if Self.keysOnTheWay.arrived(nil, now: now) == .behind {
-            TerminalPaste.post(behind: event, mark: Self.keysOnTheWay.post(passed: false, now: now))
-            return true
-        }
         guard !hasMarkedText, let client = client() else { return nil }
         // ⌃ alone of the four (a key posted by another program carries other bits besides).
         let controlV = event.getIntegerValueField(.keyboardEventKeycode) == 0x09
@@ -1037,8 +996,8 @@ final class AllInOneIMEInputController: IMKInputController {
                 readFieldAfterPause(id: id, in: target)
             case let .readPasswordField(focus):
                 readPasswordField(focus: focus)
-            case let .readSelection(focus):
-                readSelectionAfterKey(focus: focus)
+            case let .readSelection(id):
+                readSelectionAfterKey(id: id)
             case let .ghost(text):
                 showGhost(text, in: target)
             case let .startTimer(.notice(token), seconds):
@@ -1064,12 +1023,6 @@ final class AllInOneIMEInputController: IMKInputController {
                 DispatchQueue.main.async { pass() }
             case let .platform(.pasteImage(id)):
                 pasteKeptImage(id, into: target)
-            case let .platform(.passKey(key)):
-                // A key that waited for the selection read after "@", not taken then: the app's after all, posted now.
-                postKey(key, passed: true)
-            case let .platform(.replayKey(key)):
-                // A key that waited behind it: posted behind it, to come back as typed.
-                postKey(key, passed: false)
             }
         }
         // A row the key put in that adds nothing, a key the rows took that puts nothing in (↓ ↑ → Esc): the key is still the
