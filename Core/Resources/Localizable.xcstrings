@@ -48049,6 +48049,53 @@
         }
       }
     },
+    "The screenshot couldn't be read, so it isn't attached" : {
+      "comment" : "截图识别失败，没有附上 — Sources/AllInOneIMECore/Composer+Reply.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Text im Bildschirmfoto konnte nicht erkannt werden; es ist nicht angehängt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo leer la captura de pantalla, así que no se adjuntó"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de lire la capture d’écran : elle n’est pas jointe"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スクリーンショットを読み取れなかったため、添付していません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "스크린샷을 인식하지 못해 첨부하지 않았습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível ler a captura de tela, então ela não foi anexada"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "截圖辨識失敗，沒有附上"
+          }
+        }
+      }
+    },
     "The script changed since its suggestions were turned on: not run" : {
       "comment" : "脚本在打开补全以后改过，没有运行 — Sources/AllInOneIMECore/Suggestions/ExtensionCompletions.swift",
       "extractionState" : "stale",

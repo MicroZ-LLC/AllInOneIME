@@ -32,6 +32,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 ### Fixed
 
 - In a terminal or a code editor, ⏎ on an image in clipboard history and ⌃V pressed twice now paste: the ⌃V AllInOneIME presses for you reaches the app. Before (since 0.6.8.2), AllInOneIME took it for yours and showed clipboard history again.
+- A screenshot or image pasted into `@reply` or another command (⌃V, or from clipboard history) is read even when Vision fails on its default device: it's read on the GPU, else the CPU, and that one is used from then on. If none can read it, a notice says so and that it isn't attached. Before, once a read failed it kept failing, and the notice showed Vision's raw error.
 
 ## 0.6.9 (2026-11-02)
 
