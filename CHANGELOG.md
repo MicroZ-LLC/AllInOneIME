@@ -7,6 +7,8 @@ English | [中文](CHANGELOG.zh-CN.md)
 ### Changed
 
 - `@open` shows results on every key from the first letter: apps, the standard folders, what you opened before and a path's folder show at once, and the files Spotlight finds join the list as they come, those found by name before those found by content. The list no longer blinks while you type, Backspace brings back what a text found at once, and a row you moved to with ↑↓ stays highlighted as rows come in. Before, a single letter showed nothing, and on every key the rows went away until Spotlight answered.
+- `@open` finds files by name in tens of milliseconds, also with a keyword thousands of files have in their names ("co", "doc"): it asks Spotlight for those used or changed since yesterday first, then in the last 30 days, then for all of them, only as far as it takes to fill the list, so the list is the one all the matches give. Before, every name search listed every match on the whole Mac, which took up to 2 s for two letters.
+- A path's folder (`@open ~/Downloads/`) is listed at once however many files it holds, folders first, then by file name. A folder on a server's volume, or reached through a link to one, is listed after a short pause instead, and in a folder of this Mac a link to a server's folder is listed as a file, so typing never waits for a server that doesn't answer. Before, the folder was listed after the pause, sorted by the names Finder shows.
 
 ## 0.6.9 (2026-11-02)
 
