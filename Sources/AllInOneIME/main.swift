@@ -145,17 +145,17 @@ final class IMEAppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         MainActor.assumeIsolated { SettingsWindow.shared.save() }  // what was typed in Settings without ⏎
         CommandRunner.stopAll()  // what script extensions started doesn't outlive the input method
-        SessionServices.englishWordsWriter.drain(within: 0.5)  // the English words just learned, into the file
+        SessionServices.englishWordsWriter.drain(within: 0.5)  // the English words just learned, candidates removed, into the file
     }
 }
 
 /// SIGTERM (an update, `make install`, logging out): what was typed in the settings window without ⏎ (a model ID, the
 /// region) is saved first, as closing the window saves it (`SettingsWindow.save`, on the main thread, waited for at
 /// most half a second), the programs running for script extensions, and what they started, are stopped
-/// (`CommandRunner.stopAll`, at most half a second), the English words learned and not written yet go into the config
-/// file (`EnglishWords.Writer.drain`, at most half a second), then the input method ends, as the signal's default would
-/// end it. Handled on a queue of its own, not in a signal handler and not on the main thread: a main thread that hangs
-/// doesn't keep it alive, and a hard exit is armed in case stopping hangs too.
+/// (`CommandRunner.stopAll`, at most half a second), the English words learned and the candidates removed not written
+/// yet go into the config file (`EnglishWords.Writer.drain`, at most half a second), then the input method ends, as the
+/// signal's default would end it. Handled on a queue of its own, not in a signal handler and not on the main thread: a
+/// main thread that hangs doesn't keep it alive, and a hard exit is armed in case stopping hangs too.
 private let terminationSignal: DispatchSourceSignal = {
     signal(SIGTERM, SIG_IGN)
     let source = DispatchSource.makeSignalSource(signal: SIGTERM, queue: DispatchQueue(label: "AllInOneIME.terminate"))
@@ -228,7 +228,8 @@ func runServer(showSettings: Bool = false) -> Never {
     // The script extensions' status lines kept from the last launch, read off the main thread now, not on the key that
     // first shows one.
     MainActor.assumeIsolated { ScriptStatus.shared.prepare() }
-    // English words learned while the config file didn't parse (or couldn't be written): written once it parses again.
+    // English words learned (candidates removed) while the config file didn't parse (or couldn't be written): written
+    // once it parses again.
     LiveConfig.parsedAnew = { SessionServices.englishWordsWriter.retry() }
     // Translate as You Type goes off when another app becomes active, a text field in it or not.
     MainActor.assumeIsolated { TranslateModeShared.watchApps() }

@@ -275,6 +275,7 @@ final class LockedRimeEngine: PinyinEngine {
     func takeCommit() -> String? { locked { $0.takeCommit() } }
     func snapshot() -> EngineSnapshot { locked { $0.snapshot() } }
     func selectCandidate(onPage index: Int) -> Bool { locked { $0.selectCandidate(onPage: index) } }
+    func deleteCandidate(onPage index: Int) -> Bool { locked { $0.deleteCandidate(onPage: index) } }
     func commitComposition() -> String? { locked { $0.commitComposition() } }
     var rawInput: String { locked { $0.rawInput } }
     func clearComposition() { locked { $0.clearComposition() } }

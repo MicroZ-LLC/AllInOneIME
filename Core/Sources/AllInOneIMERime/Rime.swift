@@ -656,6 +656,13 @@ public final class RimeSession: PinyinEngine {
         return selected
     }
 
+    /// librime's `delete_candidate` (rime-ice's ⌃⌦): a word it learned (one made of characters picked one by one too)
+    /// is forgotten, one of its dictionary's goes back to where the dictionary puts it. The page is laid out anew.
+    public func deleteCandidate(onPage index: Int) -> Bool {
+        guard isCurrentGeneration, index >= 0 else { return false }
+        return api.pointee.delete_candidate_on_current_page(id, index) != 0
+    }
+
     public func commitComposition() -> String? {
         guard isCurrentGeneration else { return nil }
         if !learns {

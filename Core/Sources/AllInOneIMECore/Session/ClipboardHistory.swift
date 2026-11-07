@@ -55,7 +55,8 @@ import Foundation
 //   command); ⌃V again hides it and pastes as the app does: outside a command, with `canPassPasteKey`, the app's own paste
 //   key (`PlatformAction.passPasteKey`, handled; 0.6.8.2), without it the key isn't handled (the app's ⌃V); in a command
 //   the composer has it (today's ⌃V). Each key the panel takes that puts nothing in says `rowsTookKey` first; one that puts
-//   text in, `rowByKey`. Any other key hides the panel and goes on as it would (digits are typed, never pick). The wheel
+//   text in, `rowByKey`. ⌃⌦ while pinyin is composed (in a command) only hides it: it would delete a candidate the panel
+//   hid (`Composer.deleteCandidate`). Any other key hides the panel and goes on as it would (digits are typed, never pick). The wheel
 //   (`SessionEvent.scroll`) moves the choice, stopping at the ends; a click (`SessionEvent.pick(index among those shown)`)
 //   puts that row in, alone.
 // - What goes in: the rows selected that are text, in the order they were copied (oldest first: the reverse of the

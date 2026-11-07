@@ -7,7 +7,7 @@ import SwiftUI
 /// input languages' row and opens that chip.
 enum SettingsSpot: String, CaseIterable {
     // General
-    case inputLanguages, chineseCharacters, fuzzyPinyin, personalDictionaries, englishWords, codingLanguage
+    case inputLanguages, chineseCharacters, fuzzyPinyin, personalDictionaries, removedCandidates, englishWords, codingLanguage
     case outputLanguages, rewriteStyles, improveTranslates, jargonList
     case autocomplete, suggestions, suggestionsInsert, appInserts, clipboardHistory
     case magicKey, actionKey, menuBarIcon, interfaceLanguage, iCloudSync, previousAppSettings
@@ -25,7 +25,7 @@ enum SettingsSpot: String, CaseIterable {
     /// The page it's on.
     var page: SettingsPage {
         switch self {
-        case .inputLanguages, .chineseCharacters, .fuzzyPinyin, .personalDictionaries, .englishWords, .codingLanguage: return .input
+        case .inputLanguages, .chineseCharacters, .fuzzyPinyin, .personalDictionaries, .removedCandidates, .englishWords, .codingLanguage: return .input
         case .outputLanguages, .rewriteStyles,
              .improveTranslates, .jargonList, .autocomplete, .suggestions, .suggestionsInsert, .appInserts, .clipboardHistory, .magicKey, .actionKey,
              .menuBarIcon, .interfaceLanguage, .iCloudSync, .previousAppSettings:
@@ -48,7 +48,7 @@ enum SettingsSpot: String, CaseIterable {
     /// The input whose chip holds it.
     var chip: Input? {
         switch self {
-        case .chineseCharacters, .fuzzyPinyin, .personalDictionaries: return .language(.chinese)
+        case .chineseCharacters, .fuzzyPinyin, .personalDictionaries, .removedCandidates: return .language(.chinese)
         case .englishWords: return .language(.english)
         case .codingLanguage: return .code
         default: return nil
@@ -62,6 +62,7 @@ enum SettingsSpot: String, CaseIterable {
         case .chineseCharacters: return UIText.chineseCharactersLabel
         case .fuzzyPinyin: return tr("模糊音", "Fuzzy pinyin")
         case .personalDictionaries: return tr("个人词库", "Personal Dictionaries")
+        case .removedCandidates: return tr("删掉的候选词", "Removed candidates")
         case .englishWords: return tr("你的英文词", "Your English words")
         case .codingLanguage: return tr("代码", "Code")
         case .outputLanguages: return tr("翻译成", "Translate to")
@@ -157,6 +158,7 @@ enum SettingsSpot: String, CaseIterable {
         case .chineseCharacters: return "simplified traditional taiwan hong kong characters chinese pinyin 简体 繁体 繁體 台湾 台灣 香港 字形 中文 拼音"
         case .fuzzyPinyin: return "zh ch sh z c s 拼音 pinyin"
         case .personalDictionaries: return "dictionary import dict yaml vocabulary 词库 导入 个人"
+        case .removedCandidates: return "removed candidates delete remove right-click ⌃⌦ control delete restore 删掉 删除 候选词 右键 恢复 不再出现"
         // Not "learn": learning them is Privacy's switch (`learnEnglishWords`), which the search would otherwise rank
         // after this chip in a Chinese interface.
         case .englishWords: return "english words dictionary bedrock 英文词 词典"
@@ -254,7 +256,7 @@ enum SettingsSpot: String, CaseIterable {
         case .model: return config.provider != .hosted && config.provider != .apple
         case .jargonList: return SettingsView.showsJargon(config)
         case .previousAppSettings: return config.appProfiles.values.contains { !$0.previousFields.isEmpty }
-        case .chineseCharacters, .fuzzyPinyin, .personalDictionaries: return config.inputLanguages.contains(.chinese)
+        case .chineseCharacters, .fuzzyPinyin, .personalDictionaries, .removedCandidates: return config.inputLanguages.contains(.chinese)
         case .englishWords: return config.inputLanguages.contains { SettingsView.showsEnglishWords(under: $0, config) }
         case .webSearch: return Command.webSearchOffered
         default: return true

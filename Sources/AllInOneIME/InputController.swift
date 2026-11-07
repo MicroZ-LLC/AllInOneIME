@@ -958,6 +958,7 @@ final class AllInOneIMEInputController: IMKInputController {
                     let panel = CandidatePanel.shared
                     panel.owner = self
                     panel.onSelect = nil
+                    panel.onDelete = nil
                     panel.show(.notice(text), anchor: anchor(target))
                 }
             case let .noticeElsewhere(text, long, progress):
@@ -1505,6 +1506,7 @@ final class AllInOneIMEInputController: IMKInputController {
         let panel = CandidatePanel.shared
         panel.owner = self
         panel.onSelect = { [weak self] index in self?.received(.pick(index)) }
+        panel.onDelete = { [weak self] index in self?.received(.delete(index)) }
         panel.onScroll = { [weak self] steps in self?.received(.scroll(steps)) }
         panel.onChip = { [weak self] part in self?.translateChipClicked(part) }
         panel.show(model, anchor: anchor(client))
@@ -1573,6 +1575,7 @@ final class AllInOneIMEInputController: IMKInputController {
         let panel = CandidatePanel.shared
         panel.owner = looseNoticeOwner
         panel.onSelect = nil
+        panel.onDelete = nil
         panel.show(.notice(text), anchor: .zero)  // an empty anchor: at the mouse pointer
         DispatchQueue.main.asyncAfter(deadline: .now() + SessionText.noticeDuration(text, long: long)) {
             if panel.owner === looseNoticeOwner { panel.hide() }

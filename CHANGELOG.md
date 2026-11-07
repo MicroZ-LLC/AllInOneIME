@@ -75,7 +75,21 @@ English | [中文](CHANGELOG.zh-CN.md)
 - With Characters set to Traditional (Hong Kong), what you type with Hong Kong's forms that Simplified writes too (温, 户, 税, 脱, 悦, 卧, 葱, 着) is now taken as Traditional (Hong Kong): `@improve` and the rewrite styles keep it in Hong Kong's characters, `@translate` doesn't translate it into Traditional Chinese, and Translate as You Type into Simplified Chinese translates it. Before, 今日温度好高 or 瞓着咗 counted as Simplified, so `@improve` asked the AI for Simplified Chinese, and Translate as You Type could put such a sentence in untranslated. The same goes for 沉, 喂 and 舍, which Taiwan's characters write as Simplified does too, with either Traditional chosen. Simplified text is still Simplified.
 - One-line text with a tab or another control character (a Makefile line like `\tmake test`, a pair of cells copied from a spreadsheet, a stray ESC, ^C or ^D) no longer acts in a terminal when it goes in from clipboard history (⌃V ⏎) or a snippet. It now goes in as one paste, as text of more than one line does, so the shell gets it as copied; without Accessibility (or Allow in Paste from Other Apps) it goes in on one line, its tabs and other control characters made spaces. Before, it was typed in as it was: a tab set off the shell's completion and garbled the command line, and ^D could close an empty shell. Outside terminals the text still goes in as copied, tabs included.
 
+## 0.6.8.4 (2026-11-04)
+
+### Added
+
+- Settings → Input → Chinese (pinyin) → Removed candidates lists the candidates you removed, the newest first; ✕ brings one back. They sync through iCloud with the learned words.
+
+### Changed
+
+- A right-click on a pinyin candidate (or a Control-click, or ⌃⌦ on the highlighted one) now removes it for good: it no longer comes up as a candidate, whatever you type, until you bring it back in Settings. Any candidate can be removed, a word of the dictionary too (before, one the input method hadn't learned stayed where it was), and so can the English words among the candidates (by their letters, whatever the capitals): one removed isn't learned again, and one on your list of English words, added or learned, stays there, so ✕ brings it back as it was; adding it again in Settings → Input → English Words brings it back too. What pinyin learned of a candidate from your choices is still forgotten. A longer phrase or a sentence with the word in it still comes up.
+
 ## 0.6.8.3 (2026-11-02)
+
+### Added
+
+- A right-click on a pinyin candidate (or a Control-click, or ⌃⌦ on the highlighted one: ⌃Fn⌫ on a laptop keyboard) deletes it, as rime-ice's Control+Delete does: a word the input method learned is forgotten, a phrase you made by picking characters one by one too, and a word of the dictionary goes back to where the dictionary puts it. Nothing is put in, and you go on typing. Your English words among the candidates are still removed in Settings.
 
 ### Changed
 

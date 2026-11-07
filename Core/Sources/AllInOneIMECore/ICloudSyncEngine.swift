@@ -205,6 +205,9 @@ public struct ICloudSyncEngine: @unchecked Sendable {  // used from one queue at
                 let addedKey = ICloudSync.addedEnglishWordsKey
                 let added = (local[addedKey]?.strings ?? []) + (theirs?[addedKey]?.value?.strings ?? [])
                 merged[key] = ICloudSync.mergedEnglishWords(icloud, mine, added: added)
+            } else if key == ICloudSync.removedCandidatesKey {
+                // Each as it was shown, removed on either Mac (within the limit as the config reads it, the newest kept).
+                merged[key] = ICloudSync.mergedWords(icloud, mine, key: { $0 })
             } else {
                 merged[key] = key == ICloudSync.addedEnglishWordsKey
                     ? ICloudSync.mergedWords(icloud, mine, key: EnglishWords.key) : ICloudSync.mergedWords(icloud, mine)

@@ -26326,6 +26326,53 @@
         }
       }
     },
+    "Removed candidates" : {
+      "comment" : "删掉的候选词 — Sources/AllInOneIME/RemovedCandidatesSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entfernte Kandidaten"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Candidatos eliminados"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Candidats supprimés"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除した候補"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "삭제한 후보"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Candidatos removidos"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刪掉的候選詞"
+          }
+        }
+      }
+    },
     "Replace…" : {
       "comment" : "替换… — Sources/AllInOneIME/KeyRow.swift",
       "localizations" : {
@@ -26464,6 +26511,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重設後會重新傳給它們；仍不接受的會再次去掉重送，並再記住。"
+          }
+        }
+      }
+    },
+    "Restore %@" : {
+      "comment" : "恢复%@ — Sources/AllInOneIME/RemovedCandidatesSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ wiederherstellen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restaurar %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rétablir %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@を復元"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 복원"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restaurar %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "恢復%@"
           }
         }
       }
@@ -26747,6 +26841,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "改寫風格（@improve）"
+          }
+        }
+      }
+    },
+    "Right-click a candidate (or press ⌃⌦ for the highlighted one) and it no longer comes up; what was learned of it is forgotten too. ✕ brings it back." : {
+      "comment" : "在候选词上点右键（或按 ⌃⌦ 删除高亮的那个），它就不会再出现，学到的也一并忘掉。点 ✕ 恢复。 — Sources/AllInOneIME/RemovedCandidatesSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Klicke mit der rechten Maustaste auf einen Kandidaten (oder drücke ⌃⌦ für den markierten), und er erscheint nicht mehr; was davon gelernt wurde, wird ebenfalls vergessen. ✕ holt ihn zurück."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Haz clic derecho en un candidato (o pulsa ⌃⌦ para el resaltado) y ya no aparecerá; lo aprendido de él también se olvida. ✕ lo recupera."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cliquez avec le bouton droit sur un candidat (ou appuyez sur ⌃⌦ pour celui en surbrillance) et il n’apparaît plus ; ce qui en avait été appris est oublié aussi. ✕ le rétablit."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "候補を右クリックする（またはハイライト中の候補で ⌃⌦ を押す）と、その候補はもう出なくなり、学習した内容も忘れます。✕ で元に戻せます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "후보를 마우스 오른쪽 버튼으로 클릭하면(또는 강조된 후보에서 ⌃⌦를 누르면) 더 이상 나타나지 않으며, 그에 대해 학습한 내용도 잊습니다. ✕를 누르면 되돌립니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clique com o botão direito em um candidato (ou pressione ⌃⌦ no destacado) e ele não aparece mais; o que foi aprendido dele também é esquecido. ✕ o traz de volta."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在候選詞上按右鍵（或按 ⌃⌦ 刪除反白的那個），它就不會再出現，學到的也一併忘掉。按一下 ✕ 恢復。"
           }
         }
       }

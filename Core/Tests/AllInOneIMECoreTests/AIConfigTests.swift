@@ -851,8 +851,9 @@ struct AIConfigTests {
         defer { try? FileManager.default.removeItem(at: folder) }
         let url = folder.appendingPathComponent("config.json")
         let fresh = Config.default
-        var saved = fresh
-        saved.typeOut = true
+        var changed = fresh
+        changed.typeOut = true
+        let saved = changed  // a constant: the save below runs on another thread
         // The learner holds the lock (its write does): Settings' save starts meanwhile, on another thread, and has looked
         // for the file by the time the learner makes it, if it looks without the lock.
         AIConfig.fileLock.lock()
