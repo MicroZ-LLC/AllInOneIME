@@ -1474,8 +1474,7 @@ public final class InputSession {
         case let .recognized(text, request):
             perform(composer.recognized(text, id: request))
         case let .recognitionFailed(error, request):
-            let message = (error as? ScreenText.Problem).map(composer.messages.reply.describe) ?? UIText.describe(error)
-            perform(composer.recognitionFailed(message, id: request))
+            perform(composer.recognitionFailed(composer.messages.reply.describe(failure: error), id: request))
         case let .programs(missing, check):
             programsChecked(missing: missing, check: check)
         case let .noteFolderNamed(name, settings):
