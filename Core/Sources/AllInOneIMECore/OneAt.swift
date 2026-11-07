@@ -210,7 +210,7 @@ public enum OneAt {
 
     /// Improve and Translate, and the user's own writing actions once used (at most `ownLimit`: the most used), by use in
     /// this app, then overall; ties in the order the text gives (Translate first for another language, else Improve), the
-    /// user's after them in the catalog's. Without AI here, only the plugins that run a program.
+    /// user's after them in the catalog's. Without AI here, none (each is the AI's).
     static func writingActions(_ input: Input, other: Bool) -> [Command] {
         let builtins = Set(input.commands.prefix { $0.custom == nil && $0.plugin == nil && $0.script == nil }.map(\.name))
         var actions: [Command] = []
@@ -231,11 +231,12 @@ public enum OneAt {
         }
     }
 
-    /// Whether `command` is one of the user's own writing actions: a prompt command (an AI instruction), a plugin that
-    /// takes text (a prompt or a script). Never a `run`, `terminal` or `link` command, a snippet or a script extension:
-    /// those are offered only by what the text says of them (`found(byWords:)`).
+    /// Whether `command` is one of the user's own writing actions: a prompt command (an AI instruction), a prompt plugin
+    /// (one that sends the text to the AI with its instruction). Never a `run`, `terminal` or `link` command, a script or
+    /// link plugin, a snippet or a script extension: those are offered only by what the text says of them
+    /// (`found(byWords:)`).
     static func takesText(_ command: Command) -> Bool {
-        if let plugin = command.plugin { return plugin.manifest.type == .prompt || plugin.manifest.type == .script }
+        if let plugin = command.plugin { return plugin.manifest.type == .prompt }
         return command.custom?.type == .prompt && command.script == nil
     }
 

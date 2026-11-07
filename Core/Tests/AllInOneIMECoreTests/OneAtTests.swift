@@ -348,4 +348,21 @@ struct OneAtTests {
         _ = c.receiveOneAtFiles([file], for: "quarterly report")
         #expect(c.oneAtRows.contains(.open(file)) && c.oneAtRows.first == first && c.oneAtHighlighted == 0, "\(names(c.oneAtRows))")
     }
+
+    /// Only a prompt plugin is a writing action once used; a script plugin (like a `run` command) is found by its name or
+    /// summary only, never guessed for a sentence or a selection, also where there is no AI.
+    @Test func aScriptPluginIsNeverGuessed() {
+        let script = InstalledPlugin(manifest: PluginManifest(name: "shouty", version: "1.0.0", type: .script, script: "main.js"),
+                                     directory: URL(fileURLWithPath: "/tmp/shouty"), isLocal: true)
+        let prompt = InstalledPlugin(manifest: PluginManifest(name: "kindly", version: "1.0.0", type: .prompt, prompt: "Be kind."),
+                                     directory: URL(fileURLWithPath: "/tmp/kindly"), isLocal: true)
+        let commands = Command.catalog([], plugins: [script, prompt])
+        var usage = CommandUsage()
+        for _ in 0..<2 { usage.record("shouty"); usage.record("kindly") }
+        let sentence = OneAt.actions(input("这家店的菜很好吃", usage: usage, commands: commands))
+        #expect(!sentence.contains { $0.command?.name == "shouty" } && sentence.contains { $0.command?.name == "kindly" }, "\(names(sentence))")
+        let selection = OneAt.actions(input("", selection: "这家店的菜很好吃", usage: usage, commands: commands))
+        #expect(!selection.contains { $0.command?.name == "shouty" }, "\(names(selection))")
+        #expect(OneAt.actions(input("hello", noAI: true, usage: usage, commands: commands)).isEmpty)
+    }
 }
