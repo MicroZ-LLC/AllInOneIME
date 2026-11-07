@@ -110,7 +110,7 @@ public final class InputSession {
     private var selectionReading: Int?
     private var selectionReads = 0
     /// Counts the focus coming and going: a save that comes back to another count is no longer in the field it came from.
-    private var fieldSession = 0
+    private(set) var fieldSession = 0
     /// The latest notice's timer, and the voice key's (older ones do nothing).
     private var noticeToken = 0
     private var voiceArmToken = 0
@@ -1491,6 +1491,9 @@ public final class InputSession {
             autocompleteAnswered(result, request: request)
         case .completionsAnswered:
             suggestionsAnswered()
+        case let .warmDue(head, target, focus):
+            // Asked for in this field: it is still the one being typed in.
+            if focus == fieldSession { warmDue(head, target: target) }
         case .pluginsScanned:
             pluginsScanned()
         }

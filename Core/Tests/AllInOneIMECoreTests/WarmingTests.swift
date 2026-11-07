@@ -60,6 +60,13 @@ struct WarmingTests {
         return converter
     }
 
+    /// `host`'s work's answers handed to its session for `seconds`, whatever they are (a HEAD made ready starts only once
+    /// the session has checked again: `InputSession.warmDue`).
+    func answer(_ host: FakeHost, for seconds: TimeInterval = 0.1) {
+        let deadline = Date().addingTimeInterval(seconds)
+        host.settle(timeout: seconds) { Date() >= deadline }
+    }
+
     func settled(_ condition: () -> Bool) -> Bool {
         let deadline = Date().addingTimeInterval(5)
         while !condition(), Date() < deadline { Thread.sleep(forTimeInterval: 0.01) }
@@ -137,7 +144,7 @@ struct WarmingTests {
             let converter = converter(settings, succeededAt: ["https://api.anthropic.com:443"])
             let host = host(settings, session: StubURLProtocol.session(), converter: converter)
             host.type("@hello")
-            #expect(settled { StubURLProtocol.requests(host: server).count == 1 })
+            #expect(host.settle(timeout: 5) { StubURLProtocol.requests(host: server).count == 1 })
             let head = try #require(StubURLProtocol.requests(host: server).first)
             #expect(head.httpMethod == "HEAD" && head.url?.absoluteString == "https://\(server)/", "\(head.url?.absoluteString ?? "")")
             #expect(head.value(forHTTPHeaderField: "x-api-key") == nil && head.value(forHTTPHeaderField: "Authorization") == nil)
@@ -148,7 +155,7 @@ struct WarmingTests {
             // Another field, its draft an AI command too, on the same session: nothing went there for 90 s yet.
             let next = self.host(settings, session: StubURLProtocol.session(), converter: converter)
             next.type("@hello")
-            Thread.sleep(forTimeInterval: 0.1)
+            answer(next)
             #expect(StubURLProtocol.requests(host: server).count == 1, "one an idle period")
         }
     }
@@ -165,11 +172,11 @@ struct WarmingTests {
             let converter = converter(settings, succeededAt: origins)
             let host = host(settings, session: StubURLProtocol.session(), converter: converter)
             host.type("@hello")
-            #expect(settled { StubURLProtocol.requests(host: named).first?.httpMethod == "HEAD" })
+            #expect(host.settle(timeout: 5) { StubURLProtocol.requests(host: named).first?.httpMethod == "HEAD" })
             settings.config.region = nil
             let unnamed = self.host(settings, session: StubURLProtocol.session(), converter: converter)
             unnamed.type("@hello")
-            #expect(settled { StubURLProtocol.requests(host: last).first?.httpMethod == "HEAD" })
+            #expect(unnamed.settle(timeout: 5) { StubURLProtocol.requests(host: last).first?.httpMethod == "HEAD" })
         }
     }
 
@@ -191,8 +198,8 @@ struct WarmingTests {
                 host.press(FakeHost.at)
                 host.type("i")
                 host.press(FakeHost.tab)
+                answer(host)
             }
-            Thread.sleep(forTimeInterval: 0.1)
             #expect(StubURLProtocol.requests(host: server).isEmpty)
             #expect(ConnectionWarmth.headURL(URL(string: HostedService.baseURL)!) == nil)
         }
@@ -207,7 +214,7 @@ struct WarmingTests {
             let host = host(settings, session: StubURLProtocol.session(),
                             converter: converter(settings, succeededAt: ["https://api.anthropic.com:443"]))
             _ = host.session.apply(host.composer.setTranslateMode(TranslateMode.Session(target: .chinese)))
-            Thread.sleep(forTimeInterval: 0.1)
+            answer(host)
             #expect(StubURLProtocol.requests(host: server).isEmpty)
         }
     }
@@ -223,9 +230,9 @@ struct WarmingTests {
                             converter: converter(settings, succeededAt: ["https://\(server):443"]))
             host.appTypesKeys = true
             host.type("H")
-            #expect(settled { StubURLProtocol.requests(host: server).count == 1 })
+            #expect(host.settle(timeout: 5) { StubURLProtocol.requests(host: server).count == 1 })
             host.type("ello")
-            Thread.sleep(forTimeInterval: 0.1)
+            answer(host)
             #expect(StubURLProtocol.requests(host: server).count == 1)
         }
     }
@@ -244,14 +251,14 @@ struct WarmingTests {
             alone.press(FakeHost.at)
             alone.press(FakeHost.down)
             #expect(alone.composer.oneAtRows.contains { InputSession.asksTheModel($0) != nil })
-            Thread.sleep(forTimeInterval: 0.1)
+            answer(alone)
             #expect(StubURLProtocol.requests(host: server).isEmpty, "\"@\" alone")
             let selected = host(settings, session: StubURLProtocol.session(),
                                 converter: converter(settings, succeededAt: ["https://api.anthropic.com:443"]))
             selected.document = "The report looks good"
             selected.selection = 0..<21
             selected.press(FakeHost.at)
-            #expect(settled { StubURLProtocol.requests(host: server).count == 1 }, "a selection's AI row")
+            #expect(selected.settle(timeout: 5) { StubURLProtocol.requests(host: server).count == 1 }, "a selection's AI row")
         }
     }
 
@@ -263,8 +270,9 @@ struct WarmingTests {
         /// An AI command typed in a field of `settings` whose requests `converter` makes (nil: one of its own).
         func typeAnAICommand(_ settings: Settings, converter: Converter? = nil) async {
             await withInterfaceLanguage("en") {
-                host(settings, session: StubURLProtocol.session(), converter: converter).type("@hello")
-                Thread.sleep(forTimeInterval: 0.1)
+                let field = host(settings, session: StubURLProtocol.session(), converter: converter)
+                field.type("@hello")
+                answer(field)
             }
         }
         let never = Settings(.bedrock)
@@ -317,8 +325,9 @@ struct WarmingTests {
             let settings = Settings(.anthropic)
             settings.config.anthropic.baseURL = "https://api.openai.com/v1"
             let converter = converter(settings, succeededAt: ["https://api.openai.com:443", "https://api.anthropic.com:443"])
-            host(settings, session: StubURLProtocol.session(), converter: converter).type("@hello")
-            Thread.sleep(forTimeInterval: 0.1)
+            let custom = host(settings, session: StubURLProtocol.session(), converter: converter)
+            custom.type("@hello")
+            answer(custom)
             #expect(heads(openai) == 0 && heads(anthropic) == 0, "\(heads(openai)) \(heads(anthropic))")
             for (base, provider) in [("https://api.openai.com/v1", Provider.anthropic), ("https://api.openai.com", .openai),
                                      ("https://api.anthropic.com/v1", .anthropic), ("https://generativelanguage.googleapis.com", .openai),
@@ -332,8 +341,48 @@ struct WarmingTests {
             }
             // At its own address again, the same success known: warmed.
             settings.config.anthropic.baseURL = nil
-            host(settings, session: StubURLProtocol.session(), converter: converter).type("@hello")
-            #expect(settled { heads(anthropic) == 1 } && heads(openai) == 0)
+            let own = host(settings, session: StubURLProtocol.session(), converter: converter)
+            own.type("@hello")
+            #expect(own.settle(timeout: 5) { heads(anthropic) == 1 } && heads(openai) == 0)
+        }
+    }
+
+    /// Checked again right before the HEAD starts, not only when it is asked for: made ready off the session's thread, it
+    /// comes back and goes only if secure input is still off, the app still has AI, and the provider and its base URL are
+    /// still the ones it was asked for (in the field it was asked for in). One changed between: no HEAD. Nothing changed:
+    /// it goes.
+    @Test func checkedAgainRightBeforeTheHEADStarts() async {
+        await withInterfaceLanguage("en") {
+            let server = "api.anthropic.com"
+            func heads() -> Int { StubURLProtocol.requests(host: server).filter { $0.httpMethod == "HEAD" }.count }
+            let changes: [(String, (Settings, Locked<Bool>, FakeHost) -> Void)] = [
+                ("secure input turned on", { _, secure, _ in secure.withLock { $0 = true } }),
+                ("No AI set for the app", { settings, _, _ in settings.config.appProfiles["com.example.editor"] = AppProfile(noAI: true) }),
+                ("another provider", { settings, _, _ in settings.config.provider = .openai }),
+                ("a base URL of the user's", { settings, _, _ in settings.config.anthropic.baseURL = "https://relay.example.com" }),
+                ("another field", { _, _, host in host.send(.blur) }),
+                ("nothing", { _, _, _ in }),
+            ]
+            for (change, make) in changes {
+                StubURLProtocol.register(host: server, StubURLProtocol.Response(status: 404, headers: [:], chunks: []))
+                let settings = Settings(.anthropic)
+                let secure = Locked(initialState: false)
+                let host = host(settings, session: StubURLProtocol.session(),
+                                converter: converter(settings, succeededAt: ["https://api.anthropic.com:443"])) {
+                    $0.secureInputActive = { secure.withLock { $0 } }
+                }
+                host.type("@hello")
+                // Asked for and made ready, not started: the session hasn't heard back yet.
+                #expect(host.waitForAnswer(timeout: 5) { if case .task(_, .warmDue) = $0 { true } else { false } }, "\(change)")
+                #expect(heads() == 0, "\(change): not before the session checked again")
+                make(settings, secure, host)
+                if change == "nothing" {
+                    #expect(host.settle(timeout: 5) { heads() == 1 }, "\(change)")
+                } else {
+                    answer(host, for: 0.2)
+                    #expect(heads() == 0, "\(change)")
+                }
+            }
         }
     }
 
