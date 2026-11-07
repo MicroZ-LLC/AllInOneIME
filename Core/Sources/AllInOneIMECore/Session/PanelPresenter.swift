@@ -469,8 +469,8 @@ public struct PanelPresenter {
             return Row(label: "", text: t.tr("打开 \(row.text)", "Open \(row.text)"), comment: row.comment + " · " + named(.open),
                        kind: .candidate, icon: IconToken.command(.open))
         case let .reminder(reminder):
-            // When as read, as the spec's rows say it (「明天 15:00」), unless the clock is pinned.
-            let when = reminder.when(now: Platform.current.clock.now, language: language, clock24: UIText.clock24 ?? true)
+            // When as read, as the system shows times (「明天 15:00」 or 「明天 下午3:00」), as `@reminder`'s row says it.
+            let when = t.when(reminder)
             return Row(label: "", text: t.tr("提醒：\(when) \(reminder.title)", "Reminder: \(when) \(reminder.title)"),
                        comment: named(.reminder), kind: .candidate, icon: IconToken.command(.reminder))
         case let .write(command):

@@ -546,4 +546,27 @@ struct OneAtTests {
             #expect(!host.composer.oneAtRows.contains(.write(.question)), "\(names(host.composer.oneAtRows))")
         }
     }
+
+    /// The reminder row's time as the system shows times (12- or 24-hour: "3:00 PM" or "15:00"), with the same words
+    /// `@reminder`'s row has for it.
+    @Test func theReminderRowsTimeIsAsTheSystemShowsIt() async throws {
+        try await withInterfaceLanguage("en") {
+            let calendar = ReminderParser.localCalendar
+            let day = try #require(calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: Date())))
+            var due = calendar.dateComponents([.year, .month, .day], from: day)
+            (due.hour, due.minute) = (15, 0)
+            let draft = ReminderDraft(title: "meeting", due: due, hasTime: true, date: calendar.date(from: due))
+            var services = SessionServices(loadSettings: { .default })
+            services.levelOne = { .engine(FakeEngine()) }
+            services.parseReminder = { $0.hasPrefix("meeting") ? draft : ReminderDraft(title: $0) }
+            let host = FakeHost(services: services)
+            host.focus()
+            host.composer.setInputMode(.english)
+            host.type("@meeting tomorrow 3pm")
+            let row = try #require(host.panel?.rows.first { $0.text.hasPrefix("Reminder: ") }, "\(host.panel?.rows.map(\.text) ?? [])")
+            #expect(row.text == "Reminder: " + InterfaceWords(language: "en").when(draft) + " meeting", "\(row.text)")
+            let clock = ReminderDraft.clock(hour: 15, minute: 0, language: "en", clock24: UIText.clock24 ?? ReminderDraft.systemUses24HourClock)
+            #expect(row.text.contains(clock), "\(row.text) \(clock)")
+        }
+    }
 }
