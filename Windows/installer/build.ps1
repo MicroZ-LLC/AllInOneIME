@@ -73,7 +73,7 @@ foreach ($ext in 'WixToolset.UI.wixext', 'WixToolset.Util.wixext') {
 }
 
 # librime and rime-ice's data, as the Rime tests and the engine's use them, with OpenCC's (rime-data\opencc, made by
-# build-rime-data.sh since 0.6.9: a rime-data from before gets it there).
+# build-rime-data.sh since 0.7.0: a rime-data from before gets it there).
 $thirdParty = if ($env:ALLINONEIME_THIRDPARTY) { $env:ALLINONEIME_THIRDPARTY } else { Join-Path $windows 'ThirdParty' }
 $rimeDll = Join-Path $thirdParty 'librime\dist\lib\rime.dll'
 $rimeData = Join-Path $thirdParty 'rime-data'
