@@ -1125,6 +1125,10 @@ public final class InputSession {
                 // ⏎ on a failure put right there (nothing to translate into): the sentence went in as typed before.
                 emit(.openSettings(place))
             case let .listAgents(id):
+                // The list as last seen, at once; the one asked for now replaces it as it comes.
+                if let last = services.lastAgents(), !last.isEmpty {
+                    perform(composer.receiveSearch(SessionTasks.agentRows(last), id: id, ahead: true))
+                }
                 tasks.listAgents(id: id, with: services.listAgents)
             case let .runInTerminal(prompt):
                 // A custom agent without a command isn't offered; one emptied meanwhile starts nothing.

@@ -23,6 +23,12 @@ final class AgentMonitor: NSObject, UNUserNotificationCenterDelegate {
         guard !watch.isEmpty, watch.allWaiting else { return Self.interval }
         return waitingLooks < 5 ? 60 : 300
     }
+    /// The newest sessions as last seen (by @tasks, or a look every few seconds), and their last replies as read so far:
+    /// the end of each transcript only, read again only once it changed (`AgentReplyCache`).
+    private var seen: [AgentSession]?
+    private var replies = AgentReplyCache()
+    /// How many sessions @tasks lists.
+    static let listed = 9
 
     private override init() {
         watch = UserDefaults.standard.data(forKey: Self.key)
@@ -53,14 +59,31 @@ final class AgentMonitor: NSObject, UNUserNotificationCenterDelegate {
         return id
     }
 
-    /// The background sessions, newest first, with their last replies.
+    /// The background sessions, newest first, with their last replies (the transcripts' ends, off the main thread).
     func list() async throws -> [(session: AgentSession, reply: String?)] {
         lookOftenAgain()
         let output = try await Self.run(claude, ClaudeAgents.listArguments)
-        let sessions = ClaudeAgents.sessions(from: Data(output.utf8)).sorted { ($0.startedAt ?? 0) > ($1.startedAt ?? 0) }
-        return await Task.detached {
-            sessions.prefix(9).map { ($0, ClaudeAgents.lastReply(sessionId: $0.sessionId, cwd: $0.cwd)) }
-        }.value
+        let sessions = Self.newest(ClaudeAgents.sessions(from: Data(output.utf8)))
+        let known = replies.known
+        let read = await Task.detached(priority: .userInitiated) { AgentReplyCache.readChanged(sessions, known: known) }.value
+        replies.store(read)
+        replies.keep(only: sessions)
+        seen = sessions
+        return listed(sessions)
+    }
+
+    /// The list as last seen, with the replies read so far, at once (nothing run or read): what @tasks shows while it
+    /// asks Claude Code again. Nil before the first look.
+    var lastListed: [(session: AgentSession, reply: String?)]? { seen.map(listed) }
+
+    private func listed(_ sessions: [AgentSession]) -> [(session: AgentSession, reply: String?)] {
+        let known = replies.replies
+        return sessions.map { ($0, known[$0.sessionId]) }
+    }
+
+    /// The newest `listed` of `sessions`, newest first.
+    static func newest(_ sessions: [AgentSession]) -> [AgentSession] {
+        Array(sessions.sorted { ($0.startedAt ?? 0) > ($1.startedAt ?? 0) }.prefix(listed))
     }
 
     /// Whether it looks at the tasks every few seconds now (one started with @agent isn't done yet);
@@ -118,6 +141,7 @@ final class AgentMonitor: NSObject, UNUserNotificationCenterDelegate {
             }
             guard let output = try? await Self.run(claude, ClaudeAgents.listArguments) else { return }
             let sessions = ClaudeAgents.sessions(from: Data(output.utf8))
+            self.seen = Self.newest(sessions)  // what @tasks shows at once next
             // What it saw, for the menu bar panel: it doesn't ask Claude Code itself meanwhile.
             NotificationCenter.default.post(name: .allInOneIMEAgentsPolled, object: self, userInfo: ["sessions": sessions])
             for event in self.watch.update(with: sessions) {

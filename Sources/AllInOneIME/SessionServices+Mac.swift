@@ -110,6 +110,7 @@ extension SessionServices {
         }
         services.startAgent = { try await AgentMonitor.shared.start($0) }
         services.listAgents = { try await AgentMonitor.shared.list() }
+        services.lastAgents = { MainActor.assumeIsolated { AgentMonitor.shared.lastListed } }
         services.runProgram = { CommandRunner.run($0, input: $1) }
         // The plugin's preferences (`ctx.preferences`, as its completions get them), read once it runs: passwords from the
         // keychain.
