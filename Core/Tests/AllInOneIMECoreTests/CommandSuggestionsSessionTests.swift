@@ -286,8 +286,8 @@ struct CommandSuggestionsSessionTests {
         }
     }
 
-    /// Its prefix starting with the magic key: the key opens the command list, the source is inactive (Settings says
-    /// why), its program never runs.
+    /// Its prefix starting with the magic key: the key opens one @'s list, the source is inactive (Settings says why), its
+    /// program never runs.
     @Test func theMagicKeyWins() async throws {
         try await inEnglish {
             let program = try Program(Self.tickets)
@@ -299,7 +299,7 @@ struct CommandSuggestionsSessionTests {
             let field = world.field()
             field.type("x #J1")
             field.idle(0.5)
-            #expect(field.rows.isEmpty && program.calls.isEmpty, "\(program.calls)")
+            #expect(!field.rows.contains { $0.text.hasPrefix("JIRA") } && program.calls.isEmpty, "\(program.calls)")
         }
     }
 
@@ -409,8 +409,8 @@ struct CommandSuggestionsSessionTests {
     // MARK: - The command itself
 
     /// `@jira` is no @ command (0.6.8): not in the field's command list, and "@jira" ⏎ ⏎ does what it does in a field
-    /// with no such command (a name no command has): the same text in the field, nothing said, nothing typed goes to its
-    /// program. Its rows show with its prefix all the same.
+    /// with no such command (a name no command has: one @'s first row for the text since 0.7.0), nothing said of it,
+    /// nothing typed goes to its program. Its rows show with its prefix all the same.
     @Test func theCommandItselfIsNoAtCommand() async throws {
         try await inEnglish {
             let program = try Program(Self.tickets)
@@ -430,7 +430,7 @@ struct CommandSuggestionsSessionTests {
             let with = typed([command]), without = typed([])
             #expect(!with.offered && with.document == without.document && with.said == without.said,
                     "\(with.document.debugDescription) / \(without.document.debugDescription), said \(with.said.debugDescription)")
-            #expect(with.document.hasPrefix("@jira") && !with.said.contains("suggestion source"), "\(with)")
+            #expect(!with.said.contains("suggestion source"), "\(with)")
             // Its list may load (a field took the focus), as a plugin's; nothing typed goes to it.
             #expect(program.calls.allSatisfy { $0.isEmpty }, "\(program.calls)")
             // Its prefix: its rows.

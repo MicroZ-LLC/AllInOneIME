@@ -344,6 +344,10 @@ public final class FakeHost: @unchecked Sendable {
                 } else {
                     afterKey.append { [weak self] in self?.send(told) }
                 }
+            case let .readSelection(focus):
+                // Once the key is answered, as the Mac reads it with Accessibility: the field's selection.
+                let told = SessionEvent.selection(context.selection, focus: focus)
+                afterKey.append { [weak self] in self?.send(told) }
             case let .ghost(text):
                 ghost = text
             case let .platform(action):

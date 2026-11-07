@@ -10,6 +10,8 @@ public struct TaskID: Hashable, Sendable {
         case list
         /// `@open` searched as its text is typed.
         case liveSearch
+        /// Spotlight's names for a one @ text, as it is typed.
+        case oneAtFiles
         /// A send command's recipient looked up as it is typed.
         case recipients
         /// The script extension of the request in level two, run by the shell (`SessionServices.startScript`).
@@ -41,6 +43,8 @@ public enum TaskUpdate: Sendable {
     /// Mac's names, before what the files contain; `FileSearchProgress`).
     case live([SearchResult], query: String)
     case liveSoFar([SearchResult], query: String)
+    /// The files Spotlight's names found for a one @ text (`SessionServices.searchFileNames`).
+    case oneAtFiles([SearchResult], query: String)
     /// The recipients found for the text typed after a send command, and what the panel says about them.
     case recipients([Recipient], note: String?, query: String)
     /// The web page read for `@agent` or `@reply` (`PageSource`); nil: none.
@@ -125,10 +129,10 @@ public final class SessionTasks {
     public let deliver: @Sendable (SessionEvent) -> Void
     private var serial = 0
     private var running: [TaskID.Slot: (id: TaskID, task: Task<Void, Never>?)] = [:]
-    /// What the `list`, `@open` and recipient slots run (or wait to run) for: a text that stays the same isn't run again.
-    private var listKey: String?
-    private var liveQuery: String?
-    private var recipientQuery: String?
+    /// What each list as you type (`asTyped`: the `list`, `@open`, one @'s files, the recipients) runs or waits to run
+    /// for: a text that stays the same isn't run again. And whether the one in a slot is past its pause, running.
+    private var typedKeys: [TaskID.Slot: String] = [:]
+    private var pastPause: [TaskID.Slot: Locked<Bool>] = [:]
     /// The field's session is over: nothing more starts in a slot (until it takes the focus again, `reopen`).
     private var closed = false
 
@@ -155,7 +159,7 @@ public final class SessionTasks {
     public func reopen() {
         guard closed else { return }
         closed = false
-        (listKey, liveQuery, recipientQuery) = (nil, nil, nil)
+        typedKeys = [:]
     }
 
     /// Whether `id`'s updates still count: work in a slot until it's stopped or another takes its place.
@@ -205,6 +209,34 @@ public final class SessionTasks {
         }
         if let slot { running[slot] = (id, task) }
         return id
+    }
+
+    // MARK: - Lists as you type
+
+    /// The work of a list that fills as you type (`LiveRows`: `@open`'s, a `list` command's, one @'s files, the
+    /// recipients), the same for each, in `slot`: for `key` (what it runs for: the text, and the command), once the key
+    /// has stayed the same for `pause` seconds (none with `now`, nor with `firstWithoutPause` for the first key after none:
+    /// the list just opened, its command just picked); stopped when the key changes, and not run again for a key that
+    /// stays the same. Nil: none runs. `now` for the key a run is under way for leaves it going (⏎ waits for that run); one
+    /// still in its pause starts at once. `make` gives the work, asked only when it starts.
+    func asTyped(_ slot: TaskID.Slot, key: String?, pause: Double, firstWithoutPause: Bool = false, now: Bool = false,
+                 _ make: () -> (@Sendable (_ post: @escaping @Sendable (TaskUpdate) -> Void) async -> Void)) {
+        let before = typedKeys[slot]
+        let pausing = pastPause[slot]?.withLock { !$0 } ?? false
+        guard key != before || now && pausing else { return }
+        typedKeys[slot] = key
+        cancel(slot)
+        pastPause[slot] = nil
+        guard key != nil, !closed else { return }
+        let delay = now || firstWithoutPause && before == nil ? 0 : pause
+        let (past, work) = (Locked(initialState: false), make())
+        pastPause[slot] = past
+        start(slot) { post in
+            if delay > 0 { try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000)) }
+            guard !Task.isCancelled else { return }
+            past.withLock { $0 = true }
+            await work(post)
+        }
     }
 
     // MARK: - Level two
@@ -450,52 +482,63 @@ public final class SessionTasks {
     /// that takes seconds; ⏎ searches it. Nil: no `@open` text.
     public func searchAsTyped(_ query: String?, history: @escaping () -> OpenHistory,
                               with searchFiles: @escaping @Sendable (String, OpenHistory) async -> [SearchResult]) {
-        guard query != liveQuery else { return }
-        liveQuery = query
-        cancel(.liveSearch)
-        guard let query, FileSearchRanking.searchesAsYouType(query) else { return }
-        let history = history()
-        start(.liveSearch) { post in
-            try? await Task.sleep(nanoseconds: Self.liveSearchPause)
-            guard !Task.isCancelled else { return }
-            let results = await FileSearchProgress.$found.withValue({ post(.liveSoFar($0, query: query)) }) {
-                await searchFiles(query, history)
+        let searched = query.flatMap { FileSearchRanking.searchesAsYouType($0) ? $0 : nil }
+        asTyped(.liveSearch, key: searched, pause: Self.liveSearchPause) {
+            let (query, history) = (searched ?? "", history())
+            return { post in
+                let results = await FileSearchProgress.$found.withValue({ post(.liveSoFar($0, query: query)) }) {
+                    await searchFiles(query, history)
+                }
+                post(.live(results, query: query))
             }
-            post(.live(results, query: query))
         }
     }
 
-    /// How long the `@open` text stays the same before its full search starts (nanoseconds): typed fast, the keys in
+    /// One @'s text as it is typed (`Composer.oneAtFileQuery`): after the same pause as `@open`'s, Spotlight's names for it
+    /// (`SessionServices.searchFileNames`), below what is known at once. Nil: none.
+    public func searchNamesAsTyped(_ query: String?, history: @escaping () -> OpenHistory,
+                                   with searchNames: @escaping @Sendable (String, OpenHistory) async -> [SearchResult]) {
+        asTyped(.oneAtFiles, key: query, pause: Self.liveSearchPause) {
+            let (query, history) = (query ?? "", history())
+            return { post in post(.oneAtFiles(await searchNames(query, history), query: query)) }
+        }
+    }
+
+    /// How long the `@open` text stays the same before its full search starts (seconds): typed fast, the keys in
     /// between start none.
-    static let liveSearchPause: UInt64 = 50_000_000
+    static let liveSearchPause = 0.05
 
     // MARK: - Recipients
 
-    /// A send command's recipient as it is typed: a short pause, then the contacts that match (access to the address book
-    /// is asked for there, the first time). Nil: no recipient being typed.
+    /// A send command's recipient as it is typed, where the address book isn't in memory yet (`SessionServices
+    /// .cachedContacts`; once it is, the composer finds them on the key: `Composer.instantRecipients`): a short pause, then
+    /// the contacts that match (access to the address book is asked for there, the first time). Nil: no recipient being
+    /// typed, or the book in memory.
     public func findRecipients(_ query: String?, recent: @escaping () -> [String],
                                contacts loadContacts: @escaping @Sendable () async -> [Contact]?) {
-        guard query != recipientQuery else { return }
-        recipientQuery = query
-        cancel(.recipients)
-        guard let query else { return }
-        let recent = recent()
-        // In the interface language as it is now: the search answers on another thread, maybe after it changed.
-        let t = InterfaceWords(language: UIText.language)
-        start(.recipients) { post in
-            try? await Task.sleep(nanoseconds: 80_000_000)
-            guard !Task.isCancelled else { return }
-            let contacts = await loadContacts()
-            guard !Task.isCancelled else { return }
-            let found = await Task.detached { RecipientSearch.results(query, contacts: contacts ?? [], recent: recent) }.value
-            let note = contacts == nil
-                ? t.tr("没有通讯录权限：系统设置 → 隐私与安全性 → 通讯录 → 打开 AllInOneIME；也可以直接输入手机号或邮箱",
-                       "No access to Contacts: System Settings → Privacy & Security → Contacts → turn on AllInOneIME; or type a phone number or email")
-                : found.isEmpty ? (query.isEmpty ? t.tr("输入名字、拼音、手机号或邮箱", "Type a name, phone number or email")
-                                                 : t.tr("没有找到联系人；也可以输入完整的手机号或邮箱", "No contact found; or type a full phone number or email"))
-                : nil
-            post(.recipients(found, note: note, query: query))
+        asTyped(.recipients, key: query, pause: 0.08) {
+            let (query, recent) = (query ?? "", recent())
+            // In the interface language as it is now: the search answers on another thread, maybe after it changed.
+            let language = UIText.language
+            return { post in
+                let contacts = await loadContacts()
+                guard !Task.isCancelled else { return }
+                let found = await Task.detached { RecipientSearch.results(query, contacts: contacts ?? [], recent: recent) }.value
+                post(.recipients(found, note: Self.recipientNote(found, query: query, contacts: contacts, language: language), query: query))
+            }
         }
+    }
+
+    /// What the panel says about the recipients `found` for `query` in `contacts` (nil: no access to the address book),
+    /// in the interface language `language`; nil: nothing.
+    public static func recipientNote(_ found: [Recipient], query: String, contacts: [Contact]?, language: String) -> String? {
+        let t = InterfaceWords(language: language)
+        return contacts == nil
+            ? t.tr("没有通讯录权限：系统设置 → 隐私与安全性 → 通讯录 → 打开 AllInOneIME；也可以直接输入手机号或邮箱",
+                   "No access to Contacts: System Settings → Privacy & Security → Contacts → turn on AllInOneIME; or type a phone number or email")
+            : found.isEmpty ? (query.isEmpty ? t.tr("输入名字、拼音、手机号或邮箱", "Type a name, phone number or email")
+                                             : t.tr("没有找到联系人；也可以输入完整的手机号或邮箱", "No contact found; or type a full phone number or email"))
+            : nil
     }
 
     // MARK: - Script extensions
@@ -537,46 +580,46 @@ public final class SessionTasks {
     }
 
     /// A `list` command as it's typed (`Composer.listQuery`): run after its `queryDelay` once the text stops changing (the
-    /// run before stopped), and again after the list's `rerun` while the same text is shown. `now`: without the delay
-    /// (`Composer.Effect.refreshList`). Not while secure input is on.
+    /// run before stopped; the first run once the command is picked at once), and again after the list's `rerun` while
+    /// the same text is shown. `now` (`Composer.Effect.refreshList`, the action key before an answer): a run still in its
+    /// pause starts at once, one under way is waited for. Not while secure input is on.
     public func runList(_ query: String?, command: Command?, now: Bool = false, secureInput: Bool,
                         environment: (ScriptCommand, String) -> @Sendable () async -> Result<[String: String], DescribedError>) {
-        if now { listKey = nil }
-        let key = query.flatMap { query in command.map { $0.name + "\u{0}" + query } }
-        guard key != listKey else { return }
-        listKey = key
-        cancel(.list)
-        guard let query, let command, let script = command.script else { return }
-        guard !secureInput, case let .success(arguments) = script.arguments(from: query) else { return }
-        let makeEnvironment = environment(script, query)
-        start(.list) { post in
-            var delay = now ? 0 : script.queryDelay
-            var environment: [String: String]?
-            while true {
-                if delay > 0 { try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000)) }
-                guard !Task.isCancelled else { return }
-                if environment == nil {
-                    switch await makeEnvironment() {
-                    case let .success(env): environment = env
-                    case let .failure(error):
-                        // A required preference isn't set: the list says so.
-                        post(.list(.text(error.message), query: query))
-                        return
-                    }
+        var key: String?
+        var arguments: [String] = []
+        if let query, let command, let script = command.script, !secureInput, case let .success(values) = script.arguments(from: query) {
+            key = command.name + "\u{0}" + query
+            arguments = values
+        }
+        let delay = command?.script?.queryDelay ?? 0
+        asTyped(.list, key: key, pause: delay, firstWithoutPause: true, now: now) {
+            let (query, script, arguments) = (query ?? "", command?.script, arguments)
+            let makeEnvironment = script.map { environment($0, query) }
+            return { post in
+                guard let script, let makeEnvironment else { return }
+                let environment: [String: String]
+                switch await makeEnvironment() {
+                case let .success(env): environment = env
+                case let .failure(error):
+                    // A required preference isn't set: the list says so.
+                    post(.list(.text(error.message), query: query))
+                    return
                 }
-                guard !Task.isCancelled, let env = environment else { return }
-                var output: ScriptOutput?
-                do {
-                    for try await update in CommandRunner.run(script, arguments: arguments, environment: env) where update.isFinal {
-                        output = update.output
+                while true {
+                    guard !Task.isCancelled else { return }
+                    var output: ScriptOutput?
+                    do {
+                        for try await update in CommandRunner.run(script, arguments: arguments, environment: environment) where update.isFinal {
+                            output = update.output
+                        }
+                    } catch {
+                        output = .text(UIText.describe(error))
                     }
-                } catch {
-                    output = .text(UIText.describe(error))
+                    guard !Task.isCancelled, let output else { return }
+                    post(.list(output, query: query))
+                    guard case let .list(list) = output, let rerun = list.rerun else { return }
+                    try? await Task.sleep(nanoseconds: UInt64(rerun * 1_000_000_000))
                 }
-                guard !Task.isCancelled, let output else { return }
-                post(.list(output, query: query))
-                guard case let .list(list) = output, let rerun = list.rerun else { return }
-                delay = rerun
             }
         }
     }

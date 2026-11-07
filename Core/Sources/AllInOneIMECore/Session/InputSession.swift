@@ -162,6 +162,21 @@ public final class InputSession {
             guard let services = self?.services else { return [] }
             return services.instantResults(query, services.loadOpenHistory())
         }
+        // One @: the list, the app counted for, whether it has AI, a time read as `@reminder` reads it.
+        composer.oneAtList = true
+        composer.appInUse = { [weak self] in self?.app }
+        composer.aiAllowed = { [weak self] in self.map { $0.services.loadSettings().allowsAI(in: $0.app) } ?? true }
+        composer.parseReminder = { [weak self] text in self?.services.parseReminder(text) }
+        composer.selectionFollows = { [weak self] in
+            guard let self, let context = keyContext, context.read.contains(.selection), context.selectionFollows else { return false }
+            return services.loadSettings().useSelection && !secureInputActive() && !terminal
+        }
+        // The recipients in the address book as last read, on the key.
+        composer.instantRecipients = { [weak self] query in
+            guard let self, let contacts = services.cachedContacts() else { return nil }
+            let found = RecipientSearch.results(query, contacts: contacts, recent: services.loadRecentHandles())
+            return (found, SessionTasks.recipientNote(found, query: query, contacts: contacts, language: UIText.language))
+        }
     }
 
     // MARK: - Events
@@ -222,6 +237,14 @@ public final class InputSession {
                 // Asked in a field that has lost the focus since: not this one's.
                 guard focus == fieldSession else { return }
                 takePasswordField(told.map { $0 ? .yes : .no } ?? .unknown)
+            case let .selection(selected, focus):
+                // Read after the "@" key (`SessionOutput.readSelection`), in this field: the draft takes it.
+                guard focus == fieldSession, composer.selectionPending else { return }
+                if let selected, !selected.text.isEmpty, services.loadSettings().useSelection, !secureInputActive(), !terminal {
+                    perform(composer.selectionRead(selected))
+                } else {
+                    perform(composer.selectionRead(nil))
+                }
             case let .task(id, update):
                 guard tasks.isCurrent(id) else { return }
                 received(update, from: id)
@@ -698,15 +721,30 @@ public final class InputSession {
         let plugins = services.plugins(false)
         guard plugins != pluginsTaken else { return }
         pluginsTaken = plugins
-        if !composer.isComposing {
-            let config = services.loadSettings()
-            let (commands, changed) = catalog.catalog(config.customCommands, plugins: plugins,
-                                                      index: services.loadExtensions(config, false),
-                                                      disabled: config.disabledExtensions, hidden: config.hiddenFromCommandList)
-            if changed { setCommandList(commands, recheck: false) }
-        }
+        takeChangedCommands()
         log.notice("plugins looked for again: \(plugins.count)")
         suggestionsSettingsChanged()
+    }
+
+    /// The commands changed under the field (the shell's extensions rebuilt in the background, its plugins scanned): the
+    /// command list made again (`takeChangedCommands`), what the shell is to do then.
+    public func commandsChanged() -> [SessionOutput] {
+        collect { takeChangedCommands() }
+    }
+
+    /// The command list made again when what it is made of changed: with nothing composed, or while an "@" list is open
+    /// with no command written yet (it shows them at once, its highlight on the row it was on); while a command is
+    /// written, the next key after it makes it.
+    private func takeChangedCommands() {
+        let listOpen = composer.oneAt != nil || composer.paletteQuery != nil
+        guard !composer.isComposing || listOpen else { return }
+        let config = services.loadSettings()
+        let (commands, changed) = catalog.catalog(config.customCommands, plugins: services.plugins(false),
+                                                  index: services.loadExtensions(config, false),
+                                                  disabled: config.disabledExtensions, hidden: config.hiddenFromCommandList)
+        guard changed else { return }
+        setCommandList(commands, recheck: false)
+        if listOpen { showPanel() }
     }
 
     /// Whether the agent changed since its program was last checked (`setCommands`).
@@ -878,8 +916,11 @@ public final class InputSession {
         keyContext = context
         let english = typesEnglishStraightIn
         let held = composer.codeWord ?? ""
+        let pending = composer.selectionPending
         let response = composer.handleKeyDown(key)
         keyContext = nil
+        // The "@" key started a draft whose selection the field reads after it: asked for now, off this thread.
+        if composer.selectionPending, !pending { emit(.readSelection(focus: fieldSession)) }
         if composer.pendingAccent == nil { deadKeys.reset() }
         perform(response.effects)
         followEnglishTyping(key, english: english, passedOn: !response.handled)
@@ -926,7 +967,12 @@ public final class InputSession {
     /// back would be typed at the prompt).
     private func readSelection() -> Composer.Selection? {
         guard let context = keyContext, context.read.contains(.selection), services.loadSettings().useSelection,
-              !secureInputActive(), !terminal, let selection = context.selection else { return nil }
+              !secureInputActive(), !terminal else { return nil }
+        guard let selection = context.selection else {
+            // Read after the key (`selectionFollows`): where the field's selection is now, as it reports it.
+            if context.selectionFollows { selectionReported = .some(context.read.contains(.selectedRange) ? context.selectedRange : nil) }
+            return nil
+        }
         selectionReported = .some(context.read.contains(.selectedRange) ? context.selectedRange : selection.range)
         return selection
     }
@@ -1204,6 +1250,7 @@ public final class InputSession {
             }
         }
         scheduleLiveSearch()
+        scheduleOneAtFiles()
         scheduleRecipientSearch()
         scheduleListRun()
         refreshStatuses()
@@ -1355,6 +1402,8 @@ public final class InputSession {
             perform(composer.receiveLive(results, for: query))
         case let .liveSoFar(results, query):
             perform(composer.receiveLive(results, for: query, isFinal: false))
+        case let .oneAtFiles(results, query):
+            perform(composer.receiveOneAtFiles(results, for: query))
         case let .recipients(found, note, query):
             perform(composer.receiveRecipients(found, note: note, for: query))
         case let .page(context):
@@ -1502,9 +1551,16 @@ public final class InputSession {
         }, { post(.statusEnded) })
     }
 
-    /// A send command's recipient as it is typed (`SessionTasks.findRecipients`).
+    /// A send command's recipient as it is typed (`SessionTasks.findRecipients`): searched only while the address book
+    /// isn't in memory yet (once it is, the composer finds them on the key: `Composer.instantRecipients`).
     private func scheduleRecipientSearch() {
-        tasks.findRecipients(composer.recipientQuery, recent: services.loadRecentHandles, contacts: services.loadContacts)
+        let query = composer.recipientQuery.flatMap { services.cachedContacts() == nil ? $0 : nil }
+        tasks.findRecipients(query, recent: services.loadRecentHandles, contacts: services.loadContacts)
+    }
+
+    /// One @'s text as it is typed: Spotlight's names for it (`SessionTasks.searchNamesAsTyped`).
+    private func scheduleOneAtFiles() {
+        tasks.searchNamesAsTyped(composer.oneAtFileQuery, history: services.loadOpenHistory, with: services.searchFileNames)
     }
 
     /// `@open` as you type (`SessionTasks.searchAsTyped`).
