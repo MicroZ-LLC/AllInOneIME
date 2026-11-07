@@ -299,4 +299,19 @@ struct OpenAsYouTypeTests {
             #expect(rows(host) == ["a.zip"], "\(rows(host))")
         }
     }
+
+    /// The rows listed are at most `Composer.liveRowLimit` (8), also while what is known at once for a new text and the
+    /// rows of the text before are listed together.
+    @Test func theRowsMergedAreEightAtMost() async {
+        await withInterfaceLanguage("en") {
+            let instant = (0..<8).map { SearchResult(name: "sun \($0).txt", path: "/Users/me/sun \($0).txt") }
+            let older = (0..<8).map { SearchResult(name: "sa \($0).txt", path: "/Users/me/sa \($0).txt") }
+            let stand = Stand(instant: ["s": instant], full: ["sa": older])
+            let host = open(stand)
+            host.type("sa")
+            #expect(host.settle { rows(host).count == 8 })
+            host.press(backspaceKey)
+            #expect(rows(host).count == Composer.liveRowLimit && host.composer.currentLiveResults.count == 8, "\(rows(host))")
+        }
+    }
 }

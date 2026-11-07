@@ -526,10 +526,13 @@ public final class Composer {
     /// highlighted one, and what the full search found for the texts typed last in this field's session (at most
     /// `recentLiveLimit`: coming back to one lists them at once). ↑↓ moved the highlight among them (back to the first
     /// counts too): it opens (`opensLiveResult`), and stays on its result as rows come and go.
-    var live = LiveRows<SearchResult>(limit: Composer.recentLiveLimit, id: \.path)
+    var live = LiveRows<SearchResult>(limit: Composer.recentLiveLimit, shown: Composer.liveRowLimit, id: \.path)
     public var liveResults: [SearchResult] { live.rows }
     public var liveHighlight: Int { live.highlight }
     static let recentLiveLimit = 32
+    /// The most rows `@open` lists as its text is typed: what its full search finds (`FileSearch.run`), and what is known at
+    /// once with the rows of the text before.
+    public static let liveRowLimit = 8
     /// What is known at once for an `@open` text, without searching (`SessionServices.instantResults`, given by the
     /// session): its first rows, on the key that changed it.
     public var instantResults: (String) -> [SearchResult] = { _ in [] }
