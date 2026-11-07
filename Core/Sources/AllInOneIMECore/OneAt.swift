@@ -208,18 +208,25 @@ public enum OneAt {
         return Array(rows.dropLast(ask)) + files + rows.suffix(ask)
     }
 
-    /// Improve and Translate, and the user's own writing actions once used (at most `ownLimit`: the most used), by use in
-    /// this app, then overall; ties in the order the text gives (Translate first for another language, else Improve), the
-    /// user's after them in the catalog's. Without AI here, none (each is the AI's).
+    /// Improve and Translate, and the user's own writing actions once used (at most `ownLimit`: the most used in this app,
+    /// then overall), by use in this app, then overall; ties in the order the text gives (Translate first for another
+    /// language, else Improve), the user's after them in the catalog's. Without AI here, none (each is the AI's).
     static func writingActions(_ input: Input, other: Bool) -> [Command] {
         let builtins = Set(input.commands.prefix { $0.custom == nil && $0.plugin == nil && $0.script == nil }.map(\.name))
         var actions: [Command] = []
         if !input.noAI {
             actions += (other ? [Command.translate, .improve] : [.improve, .translate]).filter { builtins.contains($0.name) }
         }
-        let own = input.commands.filter { command in
+        // The user's own used anywhere, the most used in this app first, then overall, then in the catalog's order.
+        let own = input.commands.enumerated().filter { _, command in
             takesText(command) && (!input.noAI || !command.usesAI) && input.usage.score(command.name) > 0
-        }.sorted { input.usage.score($0.name) > input.usage.score($1.name) }.prefix(ownLimit)
+        }.map { offset, command in
+            (command, here: input.usage.score(command.name, in: input.app), all: input.usage.score(command.name), offset)
+        }.sorted { a, b in
+            if a.here != b.here { return a.here > b.here }
+            if a.all != b.all { return a.all > b.all }
+            return a.3 < b.3
+        }.prefix(ownLimit).map(\.0)
         actions += own
         let order = Dictionary(actions.enumerated().map { ($0.element.name, $0.offset) }, uniquingKeysWith: { first, _ in first })
         return actions.sorted { a, b in

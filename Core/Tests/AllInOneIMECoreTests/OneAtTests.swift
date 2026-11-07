@@ -400,4 +400,24 @@ struct OneAtTests {
                     "\(host.noticeAlone ?? host.panel?.detail ?? "none")")
         }
     }
+
+    /// "At most 3 of the user's own": the three most used in this app, then overall for ties: one used only here counts
+    /// here even where others are used more elsewhere.
+    @Test func theUsersOwnAreTheMostUsedInThisApp() {
+        let prompts = ["pa", "pb", "pc", "pd"].map { CustomCommand(name: $0, type: .prompt, summary: "Mine \($0)", prompt: "Do \($0).") }
+        let commands = Command.catalog(prompts)
+        var usage = CommandUsage()
+        for (name, times) in [("pa", 10), ("pb", 9), ("pc", 8)] {
+            for _ in 0..<times { usage.record(name, in: "com.apple.mail") }
+        }
+        for _ in 0..<3 { usage.record("pd", in: "com.tinyspeck.slackmacgap") }
+        let own = { (app: String) -> [String] in
+            OneAt.actions(self.input("这家店的菜很好吃", app: app, usage: usage, commands: commands)).compactMap { action in
+                if case let .write(command) = action, command.custom != nil { return command.name }
+                return nil
+            }
+        }
+        #expect(own("com.tinyspeck.slackmacgap") == ["pd", "pa", "pb"], "\(own("com.tinyspeck.slackmacgap"))")
+        #expect(own("com.apple.mail") == ["pa", "pb", "pc"])
+    }
 }
