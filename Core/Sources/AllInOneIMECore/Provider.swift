@@ -223,11 +223,12 @@ public struct ChatClient: Sendable {
                 let maxTokens = body.inferenceConfig.maxTokens ?? config.maxTokens
                 let request = try HTTPProviders.makeRequest(body, provider: provider, settings: settings, key: key,
                                                             maxTokens: maxTokens, timeout: config.timeoutSeconds)
-                bedrock.warmth.sending(to: request.url)
+                let warmth = bedrock.warmth
+                warmth.sending(to: request.url)
                 // The Claude API and OpenAI-compatible services: without the temperature for a model that refuses one
                 // (`TemperatureSupport`). Gemini and the hosted service send theirs as they are.
                 guard provider == .anthropic || provider == .openai, settings.temperature != nil else {
-                    return SSEStream.events(request, provider: provider, session: session)
+                    return SSEStream.events(request, provider: provider, session: session, warmth: warmth)
                 }
                 var without = settings
                 without.temperature = nil
@@ -235,7 +236,7 @@ public struct ChatClient: Sendable {
                                                           maxTokens: maxTokens, timeout: config.timeoutSeconds)
                 let session = session
                 return bedrock.temperatureSupport.adapting(provider, model: settings.model ?? "") { withoutTemperature in
-                    SSEStream.events(withoutTemperature ? retry : request, provider: provider, session: session)
+                    SSEStream.events(withoutTemperature ? retry : request, provider: provider, session: session, warmth: warmth)
                 }
             case .apple:
                 return AppleModel.stream(body, backend: apple, maxTokens: body.inferenceConfig.maxTokens ?? config.maxTokens,

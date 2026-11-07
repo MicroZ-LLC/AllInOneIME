@@ -11,12 +11,10 @@ public struct SessionServices {
     /// Level two: the AI requests (one `Converter`, one cache, shared by every field).
     public var converter: Converter
     /// Whether a cloud provider's connection is opened ahead of a request, the draft an AI command or the first key in a
-    /// field with cloud autocomplete (`Converter.warmConnection`: a HEAD, nothing of the user's). Off by default: a test's
-    /// sessions send nothing they aren't asked to.
+    /// field with cloud autocomplete (`Converter.warmConnection`: a HEAD, nothing of the user's, only to a built-in
+    /// provider's own host a request succeeded at before). Off by default: a test's sessions send nothing they aren't
+    /// asked to.
     public var warmsConnections = false
-    /// Whether a provider is set up, so that its connection is worth opening (`ConnectionWarmth.isSetUp`: a key, an AWS
-    /// profile or keys). `@Sendable`: asked off the session's thread.
-    public var providerSetUp: @Sendable (Provider, Config) -> Bool = ConnectionWarmth.isSetUp
     /// The settings as they are now (re-read when the file changed).
     public var loadSettings: () -> Config
 
@@ -98,12 +96,13 @@ public struct SessionServices {
     /// found so far may be told before it is done (`FileSearchProgress`).
     public var searchFiles: @Sendable (_ query: String, _ history: OpenHistory) async -> [SearchResult]
     /// `@open` as its text is typed, on the key that changed it: what is known at once, without searching (the Mac's app
-    /// index, what `@open` opened before, a path's folder), ranked as `searchFiles` ranks them. Nothing that waits: no
-    /// search, no more of the disk than a path's folder.
+    /// index, what `@open` opened before, a path's folder as it was listed a moment ago), ranked as `searchFiles` ranks
+    /// them. Nothing that waits: no search, nothing read from the disk (a path's folder is listed by `searchFiles` and
+    /// `searchFileNames`, off the key's thread).
     public var instantResults: (_ query: String, _ history: OpenHistory) -> [SearchResult]
     /// One @ as its text is typed: the files and folders whose names Spotlight has for it (the Mac's: what `searchFiles`
-    /// finds by name, without what the files contain), listed below what is known at once as they come. None by default:
-    /// the rows simply don't appear.
+    /// finds by name, without what the files contain; for a path, its folder's entries), listed below what is known at
+    /// once as they come. None by default: the rows simply don't appear.
     public var searchFileNames: @Sendable (_ query: String, _ history: OpenHistory) async -> [SearchResult]
     /// `@agent`: starts the agent's arguments (`AgentKind.terminalArguments`) with the prompt in a terminal window.
     public var runInTerminal: (_ arguments: [String], _ prompt: String) throws -> Void

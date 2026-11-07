@@ -1107,6 +1107,8 @@ public final class InputSession {
                 emit(.moveCaret(back: back, after: lastInserted))
             case let .passKey(key):
                 emit(.platform(.passKey(key)))
+            case let .replayKey(key):
+                emit(.platform(.replayKey(key)))
             case let .startConversion(input, id):
                 if refusedForSecureInput(id: id) { break }
                 // @improve / @translate: the mode (and a second one written inside) comes from the command.
@@ -1562,12 +1564,20 @@ public final class InputSession {
         }
     }
 
-    /// The status lines of the commands the list shows, when they're due (`SessionServices.refreshStatuses`); each one
-    /// that ends redraws the list. Never a found script's (`ScriptCommand.runsStatus`): only what the user added, or a
-    /// source they reviewed, runs without being chosen.
+    /// The status lines of the commands the list shows, when they're due (`SessionServices.refreshStatuses`): as many as
+    /// it shows (one @'s rows, `Composer.oneAtVisible`; the list inside a text, `paletteVisible`). Each one that ends
+    /// redraws the list. Never a found script's (`ScriptCommand.runsStatus`): only what the user added, or a source they
+    /// reviewed, runs without being chosen.
     private func refreshStatuses() {
-        guard composer.paletteQuery != nil else { return }
-        let shown = composer.paletteVisible.compactMap(\.script).filter(\.runsStatus)
+        let listed: [Command]
+        if composer.oneAt != nil {
+            listed = composer.oneAtVisible.compactMap { if case let .command(command) = $0 { command } else { nil } }
+        } else if composer.paletteQuery != nil {
+            listed = Array(composer.paletteVisible)
+        } else {
+            return
+        }
+        let shown = listed.compactMap(\.script).filter(\.runsStatus)
         guard !shown.isEmpty, !secureInputActive() else { return }
         let config = services.loadSettings()
         let (index, context, preferences) = (services.loadExtensions(config, false), scriptContext(query: ""), services.extensionPreferences)

@@ -347,6 +347,45 @@ struct OneAtTests {
         #expect(c.oneAtRows.contains(.open(file)) && c.oneAtRows.first == first && c.oneAtHighlighted == 0, "\(names(c.oneAtRows))")
     }
 
+    /// A path after the magic key (written in front of a word: a mark right after the key gives it back): nothing of its
+    /// folder is read on the key. Its folder is listed with Spotlight's files (`SessionServices.searchFileNames`, off the
+    /// key's thread), however long the path, and its entries join below the rows shown as those do; a listing kept from a
+    /// moment ago (`instantResults`) shows at once, first (rule 4).
+    @Test func aPathsFolderIsListedOffTheKey() async {
+        await withInterfaceLanguage("en") {
+            let path = "~/Library/Application Support/AllInOneIME/LanguagePacks/"
+            let entry = SearchResult(name: "zh-pinyin", path: "/Users/me/Library/Application Support/AllInOneIME/LanguagePacks/zh-pinyin",
+                                     isFolder: true)
+            let kept = Locked(initialState: false)
+            let asked = Locked<[String]>(initialState: [])
+            var services = SessionServices(loadSettings: { .default })
+            services.levelOne = { .engine(FakeEngine()) }
+            services.instantResults = { query, _ in kept.withLock { $0 } && query.hasPrefix(path) ? [entry] : [] }
+            services.searchFileNames = { query, _ in
+                asked.withLock { $0.append(query) }
+                return query.hasPrefix(path) ? [entry] : []
+            }
+            let host = FakeHost(services: services)
+            host.focus()
+            host.composer.setInputMode(.english)
+            host.type("@L")
+            host.press(KeyEvent(keyCode: VirtualKey.left, characters: "\u{F702}"))
+            host.type("~/")
+            host.press(FakeHost.right)
+            host.type(String(path.dropFirst(3)))
+            #expect(host.composer.oneAt?.text == path, "\(host.composer.draft)")
+            let first = host.composer.oneAtRows.first
+            #expect(first != .open(entry), "\(names(host.composer.oneAtRows))")
+            #expect(host.settle { host.composer.oneAtRows.contains(.open(entry)) }, "listed off the key: \(asked.withLock { $0 })")
+            #expect(asked.withLock { $0 }.last == path, "a long path is listed too")
+            #expect(host.composer.oneAtRows.first == first && host.composer.oneAtHighlighted == 0, "below the rows shown")
+            // The next key: the listing kept from a moment ago, at once.
+            kept.withLock { $0 = true }
+            host.type("z")
+            #expect(host.composer.oneAtRows.first == .open(entry), "\(names(host.composer.oneAtRows))")
+        }
+    }
+
     /// Only a prompt plugin is a writing action once used; a script plugin (like a `run` command) is found by its name or
     /// summary only, never guessed for a sentence or a selection, also where there is no AI.
     @Test func aScriptPluginIsNeverGuessed() {
@@ -480,28 +519,27 @@ struct OneAtTests {
     }
 
     /// A text that is, as a whole, a date or a phone number is no sum ("2026-11-06" isn't 2009): the other rules take it.
-    /// In Chinese mode "……" after a number is "^", as "。" is ".".
+    /// One rule, the same on every platform (no system detector: this runs on Linux and Windows alike). In Chinese mode
+    /// "……" after a number is "^", as "。" is ".".
     @Test func aWholeDateOrPhoneNumberIsNoSum() {
-        struct Detector: DateDetector {
-            func dates(in text: String) -> [ReminderParser.Match] { [] }
-            func isWholeDateOrPhoneNumber(_ text: String) -> Bool { ["2026-11-06", "11/5", "010-12345678"].contains(text) }
+        let notSums = ["2026-11-06", "2026/11/06", "11/06/2026", "2026.11.06", "010-12345678", "555-1234", "138-0013-8000",
+                       "+86 138 0013 8000", " 2026-11-06 ", "２０２６－１１－０６", "0755-8888 6666", "6/11/2026"]
+        for text in notSums {
+            #expect(Arithmetic.value(of: text) == nil, "\(text)")
+            #expect(OneAt.actions(input(text)).first.map { if case .value = $0 { true } else { false } } == false, "\(text)")
         }
-        for text in ["2026-11-06", "11/5", "010-12345678"] {
-            #expect(Arithmetic.value(of: text, dates: Detector()) == nil, "\(text)")
-            #expect(Arithmetic.value(of: text, dates: RulesOnlyDateDetector()) != nil, "\(text): a sum where nothing reads dates")
+        for text in ["2026-11-06", "2026/11/06", "11/06/2026", "2026.11.06", "010-12345678", "555-1234", "138-0013-8000",
+                     "+86 138 0013 8000"] {
+            #expect(Arithmetic.isDateOrPhoneNumber(text), "\(text)")
         }
-        #expect(Arithmetic.value(of: "3*7+2", dates: Detector()) == 23)
+        let sums = [("7/2", "3.5"), ("3/4", "0.75"), ("11/5", "2.2"), ("100-20", "80"), ("12-3", "9"), ("2^10", "1024"),
+                    ("3*7+2", "23"), ("200*15%", "30"), ("10-4*2", "2"), ("1-2-3", "-4"), ("2000-1000", "1000"), ("1000-200", "800"),
+                    ("12/31", "0.387096774194")]
+        for (text, value) in sums {
+            #expect(!Arithmetic.isDateOrPhoneNumber(text), "\(text)")
+            #expect(Arithmetic.value(of: text).map(Arithmetic.format) == value, "\(text)")
+        }
         #expect(Arithmetic.value(of: "2……10").map(Arithmetic.format) == "1024" && Arithmetic.value(of: "1。5*2") == 3)
-        // The system's detection, where there is one (Apple's).
-        if Available.systemDates {
-            for text in ["2026-11-06", "010-12345678", "11/5", " 9/11 "] {
-                #expect(Arithmetic.value(of: text) == nil, "\(text)")
-                #expect(OneAt.actions(input(text)).first.map { if case .value = $0 { true } else { false } } == false, "\(text)")
-            }
-            for (text, value) in [("7/2", "3.5"), ("3*7+2", "23"), ("200*15%", "30"), ("10-4*2", "2")] {
-                #expect(Arithmetic.value(of: text).map(Arithmetic.format) == value, "\(text)")
-            }
-        }
     }
 
     /// "@" alone: Esc gives the magic key up (nothing goes in), and the footer says so ("Esc cancel"), not "as typed".

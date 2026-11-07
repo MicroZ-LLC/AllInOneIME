@@ -73,12 +73,71 @@ struct InstantFilesTests {
         let files = try kept()
         try FileManager.default.createDirectory(at: root.appendingPathComponent("Calls"), withIntermediateDirectories: true)
         try Data().write(to: root.appendingPathComponent("calendar.ics"))
+        #expect(files.results(root.path + "/Cal", history: OpenHistory()).isEmpty, "nothing read on the key")
+        let read = files.list(root.path + "/Cal", limit: 8)
         let listed = files.results(root.path + "/Cal", history: OpenHistory())
         #expect(listed.map(\.name) == ["Calls", "Calculator", "Calendar", "calendar.ics"] && listed.first?.isFolder == true,
                 "folders first, an app isn't one (\(listed.map(\.name)))")
-        #expect(listed == FileSearch.complete(root.path + "/Cal", limit: 8))
+        #expect(listed == read && listed == FileSearch.complete(root.path + "/Cal", limit: 8))
         #expect(files.results("https://example.com/cal", history: OpenHistory()).map(\.path) == ["https://example.com/cal"])
         #expect(files.results("example.com", history: OpenHistory()).first?.path == SearchResult.web("example.com")?.path)
+    }
+
+    /// A path on the key (`instantResults`): nothing read from the disk then. Its folder is read off the key's thread, by
+    /// the search (`list`, as `FileSearch.names` and `run` read it), and kept a moment: the keys after narrow it at once
+    /// ("~/Doc" from "~/D"'s), without reading it again; another folder, or one listed too long ago, shows nothing.
+    @Test func aPathTouchesNoDiskOnTheKeysThread() {
+        defer { try? FileManager.default.removeItem(at: root) }
+        let folder = root.path + "/home"
+        let entries = ["Desktop", "Documents", "Downloads", "Library"].map { SearchResult(name: $0, path: folder + "/" + $0, isFolder: true) }
+        let reads = Locked<[(query: String, onKeysThread: Bool)]>(initialState: [])
+        let keysThread = pthread_mach_thread_np(pthread_self())
+        let files = InstantFiles(index: AppIndex(folders: [], apps: [], home: nil)) { query, limit in
+            reads.withLock { $0.append((query, pthread_mach_thread_np(pthread_self()) == keysThread)) }
+            let prefix = query.hasSuffix("/") ? "" : (query as NSString).lastPathComponent.lowercased()
+            return Array(entries.filter { $0.name.lowercased().hasPrefix(prefix) }.prefix(limit))
+        }
+        let now = Date()
+        #expect(files.results(folder + "/", history: OpenHistory(), now: now).isEmpty)
+        #expect(files.results(folder + "/D", history: OpenHistory(), now: now).isEmpty)
+        #expect(reads.withLock { $0 }.isEmpty, "the key reads nothing")
+        // The search reads it, off the key's thread.
+        let listed = Locked<[SearchResult]>(initialState: [])
+        let done = DispatchSemaphore(value: 0)
+        Thread {
+            listed.withLock { $0 = files.list(folder + "/", limit: 8, now: now) }
+            done.signal()
+        }.start()
+        done.wait()
+        #expect(listed.withLock { $0 } == entries)
+        #expect(reads.withLock { $0.map(\.onKeysThread) } == [false])
+        #expect(files.results(folder + "/", history: OpenHistory(), now: now.addingTimeInterval(1)) == entries)
+        #expect(files.results(folder + "/do", history: OpenHistory(), now: now.addingTimeInterval(2)).map(\.name) == ["Documents", "Downloads"])
+        #expect(files.results(folder + "/Doc", history: OpenHistory(), limit: 1, now: now.addingTimeInterval(2)).map(\.name) == ["Documents"])
+        #expect(files.results(root.path + "/other/", history: OpenHistory(), now: now.addingTimeInterval(2)).isEmpty, "another folder")
+        #expect(files.results(folder + "/D", history: OpenHistory(), now: now.addingTimeInterval(InstantFiles.listingKept + 1)).isEmpty,
+                "listed too long ago")
+        #expect(reads.withLock { $0.count } == 1, "read once, by the search")
+        // "~/D" listed: "~/" isn't known from it (the other names weren't read).
+        _ = files.list(folder + "/D", limit: 8, now: now)
+        #expect(files.results(folder + "/", history: OpenHistory(), now: now).isEmpty)
+        #expect(files.results(folder + "/Dow", history: OpenHistory(), now: now).map(\.name) == ["Downloads"])
+    }
+
+    /// One @'s search for a path (`FileSearch.names`, `SessionServices.searchFileNames`) lists its folder, off the key's
+    /// thread, and the app's `instantResults` shows it at once on the next key.
+    @Test func oneAtsSearchListsAPathsFolder() async throws {
+        defer { try? FileManager.default.removeItem(at: root) }
+        let folder = root.path + "/listed"
+        for name in ["alpha", "beta"] { try FileManager.default.createDirectory(atPath: folder + "/" + name, withIntermediateDirectories: true) }
+        try Data().write(to: URL(fileURLWithPath: folder + "/notes.txt"))
+        #expect(InstantFiles.shared.results(folder + "/", history: OpenHistory()).isEmpty)
+        // The next key as of when the search started: the folder is listed after that. (Under the load of the whole run
+        // this test may go on seconds after the search was done, past the moment its listing is kept.)
+        let started = Date()
+        let found = await FileSearch.names(folder + "/", history: OpenHistory())
+        #expect(found.map(\.name) == ["alpha", "beta", "notes.txt"], "\(found.map(\.name))")
+        #expect(InstantFiles.shared.results(folder + "/b", history: OpenHistory(), now: started).map(\.name) == ["beta"])
     }
 
     @Test func whatIsKeptIsMadeAgainOnceOutOfDateOrForAPathOpenedSince() async throws {
@@ -120,7 +179,7 @@ struct InstantFilesTests {
 
     @Test func onlyAFolderOfThisMacIsReadAtOnce() throws {
         defer { try? FileManager.default.removeItem(at: root) }
-        #expect(InstantFiles.isLocal("/") && InstantFiles.isLocal(root.path) && InstantFiles.isLocal("/System/Applications"))
+        #expect(Mounts().isLocal("/") && Mounts().isLocal(root.path) && Mounts().isLocal("/System/Applications"))
         let (share, mounts) = try server()
         // On the server's volume however it is written, or through a link (`~/NAS` → `/Volumes/share`).
         for path in [share, share + "/sub", root.path + "/SHARE/sub", root.path + "/./share", root.path + "//share/sub",
@@ -305,6 +364,24 @@ struct InstantFilesTests {
     /// run again (in a loaded test run that waits for the concurrency pool, which tests waiting for a session hold).
     func timedNames(_ spotlight: Spotlight, _ keyword: String, in scopes: [String]) -> Task<(found: [FileSearchRanking.Found]?, at: Date), Never> {
         Task { await inBackground { (spotlight.names(keyword, in: scopes), Date()) } }
+    }
+
+    /// A query over for its waiter (cancelled, stopped, past its time) while a batch of its results is read reads
+    /// nothing more of it, on its own queue: each result is read only while the query isn't over, and none of the batch
+    /// is kept.
+    @Test func aCancelledQueryReadsNothingMoreOfABatch() {
+        let over = Locked(initialState: false)
+        let asked = Locked<[CFIndex]>(initialState: [])
+        let found = Spotlight.Query.results(0..<2000, isOver: { over.withLock { $0 } }) { index in
+            asked.withLock { $0.append(index) }
+            if index == 2 { over.withLock { $0 = true } }  // the cancel comes as the third is read
+            return FileSearchRanking.Found(path: "/tmp/\(index)")
+        }
+        #expect(found == nil, "nothing of the batch kept")
+        #expect(asked.withLock { $0 } == [0, 1, 2], "nothing read after the cancel")
+        let all = Spotlight.Query.results(0..<3, isOver: { false }) { FileSearchRanking.Found(path: "/tmp/\($0)") }
+        #expect(all?.map(\.path) == ["/tmp/0", "/tmp/1", "/tmp/2"])
+        #expect(Spotlight.Query.results(0..<3, isOver: { true }) { _ in Issue.record("read"); return nil } == nil)
     }
 
     @Test func aNameSearchEndsAtOnceWhenCancelledWhileSpotlightLooks() async throws {

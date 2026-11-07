@@ -86,25 +86,26 @@ public struct BedrockClient: Sendable {
     public let session: URLSession
     /// The models that refused a temperature, here and for the other providers of `ChatClient`.
     let temperatureSupport: TemperatureSupport
-    /// When something last went to each service on `session`, and the HEADs that open its connection ahead of a request
-    /// (`Converter.warmConnection`), here and for the other providers of `ChatClient`.
-    let warmth = ConnectionWarmth()
+    /// When something last went to each service on `session`, the origins a request succeeded at, and the HEADs that open
+    /// a connection ahead of a request (`Converter.warmConnection`), here and for the other providers of `ChatClient`.
+    let warmth: ConnectionWarmth
 
-    /// The app's own client: a session of its own (`makeSession`), the models that refuse a temperature kept in the caches
-    /// (`TemperatureSupport.shared`).
+    /// The app's own client: a session of its own (`makeSession`), the models that refuse a temperature and the origins a
+    /// request succeeded at kept in the caches (`TemperatureSupport.shared`, `WarmOrigins.shared`).
     public init() {
-        self.init(session: Self.makeSession(), temperatureSupport: .shared)
+        self.init(session: Self.makeSession(), temperatureSupport: .shared, warmOrigins: .shared)
     }
 
     /// A client on `session`, one of the caller's own (a stub's: the tests', the self-test's): the models that refuse a
-    /// temperature it keeps for itself, in memory, never in the user's caches.
+    /// temperature and the origins a request succeeded at it keeps for itself, in memory, never in the user's caches.
     public init(session: URLSession) {
         self.init(session: session, temperatureSupport: TemperatureSupport(file: nil))
     }
 
-    init(session: URLSession, temperatureSupport: TemperatureSupport) {
+    init(session: URLSession, temperatureSupport: TemperatureSupport, warmOrigins: WarmOrigins = WarmOrigins(file: nil)) {
         self.session = session
         self.temperatureSupport = temperatureSupport
+        warmth = ConnectionWarmth(succeeded: warmOrigins)
     }
 
     /// One long-lived session so the TLS connection is reused between conversions.
@@ -165,24 +166,25 @@ public struct BedrockClient: Sendable {
         _ body: ConverseRequest, modelId: String, region: String,
         credentials: AWSCredentials, timeout: TimeInterval
     ) -> AsyncThrowingStream<BedrockStreamEvent, Error> {
-        let session = session
+        let (session, warmth) = (session, warmth)
         warmth.sending(to: try? Self.origin(region: region))
         guard body.inferenceConfig.temperature != nil else {
             return Self.converseStream(body, modelId: modelId, region: region, credentials: credentials, timeout: timeout,
-                                       session: session)
+                                       session: session, warmth: warmth)
         }
         return temperatureSupport.adapting(.bedrock, model: modelId) { withoutTemperature in
             var body = body
             if withoutTemperature { body.inferenceConfig.temperature = nil }
             return Self.converseStream(body, modelId: modelId, region: region, credentials: credentials, timeout: timeout,
-                                       session: session)
+                                       session: session, warmth: warmth)
         }
     }
 
     /// One request, `body` as it is.
+    /// `warmth` told of an answer (`ConnectionWarmth.answered`).
     static func converseStream(
         _ body: ConverseRequest, modelId: String, region: String,
-        credentials: AWSCredentials, timeout: TimeInterval, session: URLSession
+        credentials: AWSCredentials, timeout: TimeInterval, session: URLSession, warmth: ConnectionWarmth? = nil
     ) -> AsyncThrowingStream<BedrockStreamEvent, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
@@ -204,6 +206,7 @@ public struct BedrockClient: Sendable {
                             typeHeader: http.value(forHTTPHeaderField: "x-amzn-ErrorType"),
                             body: errorBody)
                     }
+                    warmth?.answered(request.url)
                     var decoder = EventStreamDecoder()
                     for try await byte in bytes {
                         decoder.append(byte)

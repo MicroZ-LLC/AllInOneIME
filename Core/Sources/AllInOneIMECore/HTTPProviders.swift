@@ -225,7 +225,9 @@ public enum HTTPProviders {
 
 /// Reads a server-sent event stream: the `data:` lines, each turned into events by `HTTPProviders`.
 enum SSEStream {
-    static func events(_ request: URLRequest, provider: Provider, session: URLSession) -> AsyncThrowingStream<BedrockStreamEvent, Error> {
+    /// `warmth` told of an answer (`ConnectionWarmth.answered`).
+    static func events(_ request: URLRequest, provider: Provider, session: URLSession,
+                       warmth: ConnectionWarmth? = nil) -> AsyncThrowingStream<BedrockStreamEvent, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
@@ -243,6 +245,7 @@ enum SSEStream {
                         }
                         throw HTTPProviders.httpError(provider: provider, status: http.statusCode, body: body)
                     }
+                    warmth?.answered(request.url)
                     for try await line in bytes.lines {
                         guard line.hasPrefix("data:") else { continue }  // event names, comments, keep-alives
                         let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
