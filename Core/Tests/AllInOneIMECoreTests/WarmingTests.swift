@@ -306,6 +306,37 @@ struct WarmingTests {
         #expect(heads(relay) == 0, "no HEAD to a base URL of the user's")
     }
 
+    /// Only for a provider at its own default base URL: one of the user's is never warmed, even on another built-in
+    /// provider's host where a request succeeded (Anthropic set to OpenAI's address, after an OpenAI success: no HEAD
+    /// there, nor to Anthropic's). Its own written with a "/" after it, or its host in capitals, is its own.
+    @Test func aCustomBaseURLIsNeverWarmedEvenOnABuiltInHost() async {
+        await withInterfaceLanguage("en") {
+            func heads(_ host: String) -> Int { StubURLProtocol.requests(host: host).filter { $0.httpMethod == "HEAD" }.count }
+            let (openai, anthropic) = ("api.openai.com", "api.anthropic.com")
+            for server in [openai, anthropic] { StubURLProtocol.register(host: server, StubURLProtocol.Response(status: 404, headers: [:], chunks: [])) }
+            let settings = Settings(.anthropic)
+            settings.config.anthropic.baseURL = "https://api.openai.com/v1"
+            let converter = converter(settings, succeededAt: ["https://api.openai.com:443", "https://api.anthropic.com:443"])
+            host(settings, session: StubURLProtocol.session(), converter: converter).type("@hello")
+            Thread.sleep(forTimeInterval: 0.1)
+            #expect(heads(openai) == 0 && heads(anthropic) == 0, "\(heads(openai)) \(heads(anthropic))")
+            for (base, provider) in [("https://api.openai.com/v1", Provider.anthropic), ("https://api.openai.com", .openai),
+                                     ("https://api.anthropic.com/v1", .anthropic), ("https://generativelanguage.googleapis.com", .openai),
+                                     ("https://user@api.anthropic.com", .anthropic), ("https://api.anthropic.com:8443", .anthropic)] {
+                #expect(!ConnectionWarmth.isDefault(base, for: provider), "\(base) for \(provider)")
+            }
+            for (base, provider) in [("https://api.anthropic.com", Provider.anthropic), ("https://api.anthropic.com/", .anthropic),
+                                     ("HTTPS://API.Anthropic.com", .anthropic), ("https://api.openai.com/v1/", .openai),
+                                     ("https://generativelanguage.googleapis.com", .gemini)] {
+                #expect(ConnectionWarmth.isDefault(base, for: provider), "\(base) for \(provider)")
+            }
+            // At its own address again, the same success known: warmed.
+            settings.config.anthropic.baseURL = nil
+            host(settings, session: StubURLProtocol.session(), converter: converter).type("@hello")
+            #expect(settled { heads(anthropic) == 1 } && heads(openai) == 0)
+        }
+    }
+
     /// At most one HEAD per origin in 90 s: a request counts as something sent.
     @Test func aHEADGoesOnlyAfterAnIdlePeriod() throws {
         let clock = Uptime()
